@@ -16,43 +16,26 @@ import warp as wp
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.noise import NoiseModelCfg
 
+# CUBE_HALF_SIZE, cube_keypoints_from_quat_kernel, and compute_cube_keypoints are
+# re-exported for API stability: the cube-keypoint math moved to the family math
+# root in :mod:`isaaclab_tasks.core.reorient.reorient_kernels`
+from isaaclab_tasks.core.reorient.reorient_kernels import (  # noqa: F401
+    CUBE_HALF_SIZE,
+    compute_cube_keypoints,
+    cube_keypoints_from_quat_kernel,
+    fingertip_pos_kernel,
+    fingertip_quat_kernel,
+    fingertip_vel_kernel,
+)
+
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors import JointWrenchSensor
+    from isaaclab.sensors import Camera, JointWrenchSensor
+
+    from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 
     from .commands import ReorientCommand
-
-
-wp.init()
-
-
-@wp.kernel
-def _fingertip_pos_kernel(
-    body_pos_w: wp.array2d(dtype=wp.vec3f),
-    env_origins: wp.array(dtype=wp.vec3f),
-    body_ids: wp.array(dtype=wp.int32),
-    out: wp.array2d(dtype=wp.float32),
-):
-    i, j = wp.tid()
-    p = body_pos_w[i, body_ids[j]] - env_origins[i]
-    out[i, 3 * j + 0] = p[0]
-    out[i, 3 * j + 1] = p[1]
-    out[i, 3 * j + 2] = p[2]
-
-
-@wp.kernel
-def _fingertip_quat_kernel(
-    body_quat_w: wp.array2d(dtype=wp.quatf),
-    body_ids: wp.array(dtype=wp.int32),
-    out: wp.array2d(dtype=wp.float32),
-):
-    i, j = wp.tid()
-    q = body_quat_w[i, body_ids[j]]
-    out[i, 4 * j + 0] = q[0]
-    out[i, 4 * j + 1] = q[1]
-    out[i, 4 * j + 2] = q[2]
-    out[i, 4 * j + 3] = q[3]
 
 
 @wp.kernel
@@ -74,18 +57,6 @@ def _fingertip_wrench_kernel(
 
 
 @wp.kernel
-def _fingertip_vel_kernel(
-    body_vel_w: wp.array2d(dtype=wp.spatial_vectorf),
-    body_ids: wp.array(dtype=wp.int32),
-    out: wp.array2d(dtype=wp.float32),
-):
-    i, j = wp.tid()
-    v = body_vel_w[i, body_ids[j]]
-    for k in range(6):
-        out[i, 6 * j + k] = v[k]
-
-
-@wp.kernel
 def _goal_quat_error_kernel(
     asset_quat: wp.array(dtype=wp.quatf),
     goal_quat: wp.array(dtype=wp.quatf),
@@ -94,19 +65,14 @@ def _goal_quat_error_kernel(
 ):
     """Per-environment quaternion error ``asset * conjugate(goal)`` in (x, y, z, w) order."""
     i = wp.tid()
-    q1 = asset_quat[i]
-    q2 = goal_quat[i]
-    # Hamilton product against the conjugate, matching isaaclab.utils.math.quat_mul/quat_conjugate;
-    # quaternions are stored (x, y, z, w)
-    w = q1[3] * q2[3] + q1[0] * q2[0] + q1[1] * q2[1] + q1[2] * q2[2]
-    x = q1[0] * q2[3] - q1[3] * q2[0] - q1[1] * q2[2] + q1[2] * q2[1]
-    y = q1[1] * q2[3] - q1[3] * q2[1] - q1[2] * q2[0] + q1[0] * q2[2]
-    z = q1[2] * q2[3] - q1[3] * q2[2] - q1[0] * q2[1] + q1[1] * q2[0]
+    # quat_inverse == conjugate for these unit quaternions, matching
+    # isaaclab.utils.math.quat_mul/quat_conjugate semantics
+    qe = asset_quat[i] * wp.quat_inverse(goal_quat[i])
     sign = 1.0
     # make_unique keeps the real part non-negative (isaaclab.utils.math.quat_unique)
-    if make_unique != 0 and w < 0.0:
+    if make_unique != 0 and qe[3] < 0.0:
         sign = -1.0
-    out[i] = wp.quatf(sign * x, sign * y, sign * z, sign * w)
+    out[i] = wp.quatf(sign * qe[0], sign * qe[1], sign * qe[2], sign * qe[3])
 
 
 class goal_quat_diff(ManagerTermBase):
@@ -134,7 +100,7 @@ class goal_quat_diff(ManagerTermBase):
         wp.launch(
             _goal_quat_error_kernel,
             dim=self.num_envs,
-            inputs=[asset.data.root_quat_w.warp, self._goal_quat_wp, int(make_quat_unique)],
+            inputs=[asset.data.root_quat_w.warp, self._goal_quat_wp, make_quat_unique],
             outputs=[self._out_wp],
             device=self._out_wp.device,
         )
@@ -156,7 +122,7 @@ class fingertip_pos(ManagerTermBase):
         """Return the flattened per-fingertip block, shape ``(num_envs, num_fingertips * 3)``."""
         asset = env.scene[asset_cfg.name]
         wp.launch(
-            _fingertip_pos_kernel,
+            fingertip_pos_kernel,
             dim=(self.num_envs, self._body_ids_wp.shape[0]),
             inputs=[asset.data.body_pos_w.warp, self._env_origins_wp, self._body_ids_wp],
             outputs=[self._out_wp],
@@ -179,7 +145,7 @@ class fingertip_quat(ManagerTermBase):
         """Return the flattened per-fingertip block, shape ``(num_envs, num_fingertips * 4)``."""
         asset = env.scene[asset_cfg.name]
         wp.launch(
-            _fingertip_quat_kernel,
+            fingertip_quat_kernel,
             dim=(self.num_envs, self._body_ids_wp.shape[0]),
             inputs=[asset.data.body_quat_w.warp, self._body_ids_wp],
             outputs=[self._out_wp],
@@ -202,7 +168,7 @@ class fingertip_vel(ManagerTermBase):
         """Return the flattened per-fingertip block, shape ``(num_envs, num_fingertips * 6)``."""
         asset = env.scene[asset_cfg.name]
         wp.launch(
-            _fingertip_vel_kernel,
+            fingertip_vel_kernel,
             dim=(self.num_envs, self._body_ids_wp.shape[0]),
             inputs=[asset.data.body_vel_w.warp, self._body_ids_wp],
             outputs=[self._out_wp],
@@ -316,7 +282,7 @@ class OpenAIPolicyObservation(ManagerTermBase):
         )
         robot = env.scene[robot_cfg.name]
         wp.launch(
-            _fingertip_pos_kernel,
+            fingertip_pos_kernel,
             dim=(self.num_envs, self._robot_body_ids_wp.shape[0]),
             inputs=[robot.data.body_pos_w.warp, self._env_origins_wp, self._robot_body_ids_wp],
             outputs=[self._fingertip_buf_wp],
@@ -330,3 +296,29 @@ class OpenAIPolicyObservation(ManagerTermBase):
         if self._shape_probe_pending:
             return observation
         return self._noise_model(observation)
+
+
+# ---------------------------------------------------------------------------
+# Shadow Hand camera observation terms.
+#
+# These terms wrap the CNN feature pipeline defined in the shadow-hand config
+# package. The config layer imports the mdp layer, so the FeatureExtractor
+# machinery is imported lazily at term construction time.
+# ---------------------------------------------------------------------------
+
+
+def shadow_hand_camera_cached_features(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Return camera features computed by the preceding policy observation group.
+
+    Args:
+        env: Environment whose policy group cached the current camera embedding.
+
+    Returns:
+        Detached camera embeddings, shape ``(num_envs, 27)``.
+    """
+    embeddings = getattr(env, "_shadow_hand_camera_embeddings", None)
+    if embeddings is None:
+        raise RuntimeError("Shadow Hand camera policy features must be computed before critic observations.")
+    return embeddings
+
+
