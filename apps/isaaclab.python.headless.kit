@@ -191,6 +191,8 @@ enabled=true # Enable this for DLSS
 ########################
 [dependencies]
 "isaacsim.core.version" = {}
+# USD schema plugins must load before the schema registry is first accessed.
+"omni.usd.schema.mujoco" = {}
 
 ########################
 # Isaac Lab Extensions #

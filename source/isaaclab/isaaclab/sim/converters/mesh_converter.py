@@ -8,8 +8,8 @@ import logging
 import os
 
 import omni
+import omni.kit.app
 import omni.kit.commands
-from isaacsim.core.experimental.utils.app import enable_extension
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
@@ -247,12 +247,16 @@ class MeshConverter(AssetConverterBase):
         Returns:
             True if the conversion succeeds.
         """
-        enable_extension("omni.kit.asset_converter")
+        # Enable through Kit directly because the experimental Isaac Sim helper depends on omni.warp.core,
+        # which is excluded by apps that provide Warp as a Python dependency.
+        extension_manager = omni.kit.app.get_app().get_extension_manager()
+        if not extension_manager.is_extension_enabled("omni.kit.asset_converter"):
+            extension_manager.set_extension_enabled_immediate("omni.kit.asset_converter", True)
 
-        import omni.kit.asset_converter
+        import omni.kit.asset_converter as kit_asset_converter
 
         # Create converter context
-        converter_context = omni.kit.asset_converter.AssetConverterContext()
+        converter_context = kit_asset_converter.AssetConverterContext()
         # Set up converter settings
         # Don't import/export materials
         converter_context.ignore_materials = not load_materials
@@ -269,7 +273,7 @@ class MeshConverter(AssetConverterBase):
         converter_context.use_double_precision_to_usd_transform_op = True
 
         # Create converter task
-        instance = omni.kit.asset_converter.get_instance()
+        instance = kit_asset_converter.get_instance()
         task = instance.create_converter_task(in_file, out_file, None, converter_context)
         # Start conversion task and wait for it to finish
         success = await task.wait_until_finished()
