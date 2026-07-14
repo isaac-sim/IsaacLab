@@ -5,6 +5,7 @@
 
 """Keyboard device for SE(2) and SE(3) control."""
 
+from .dvrk_openxr_device import DVRKOpenXRDevice, DVRKOpenXRDeviceCfg
 from .manus_vive import ManusVive, ManusViveCfg
 from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
 from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs

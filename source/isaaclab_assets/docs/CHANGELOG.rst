@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.2.5 (2026-07-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a configuration for the dVRK Patient Side Manipulator from the Isaac for Healthcare asset catalogue.
+
 0.2.4 (2025-11-26)
 ~~~~~~~~~~~~~~~~~~
 

@@ -721,6 +721,72 @@ Isaac Lab provides three main retargeters for hand tracking:
 
 Retargeters can be combined to control different robot functions simultaneously.
 
+dVRK bimanual PSM retargeting
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The :class:`isaaclab.devices.DVRKOpenXRDevice` and
+:class:`isaaclab.devices.openxr.retargeters.DVRKPSMRetargeter` provide a reusable
+motion-controller interface for two da Vinci Research Kit (dVRK) Patient Side
+Manipulators (PSMs). Isaac Lab remains the owner of the OpenXR session and raw
+controller source. The retargeter wraps the simulator-independent Cartesian-clutch
+and jaw-intent state machines supplied by the ``isaacteleop`` package; it does not
+construct a second Isaac Teleop retargeting graph.
+
+The ``isaacteleop`` installation must expose these public classes from
+``isaacteleop.retargeters.DVRK.control``:
+
+* ``DVRKPSMCartesianClutchConfig`` and ``DVRKPSMCartesianClutchStateMachine``
+* ``DVRKPSMJawIntentConfig`` and ``DVRKPSMJawIntentStateMachine``
+
+Isaac Lab imports them only when the dVRK retargeter is constructed, so task
+discovery still works when the optional runtime is unavailable. Construction
+raises a targeted installation error if the required classes are missing.
+
+The controller mapping is fixed:
+
+* the left controller commands the left PSM and the right controller commands the right PSM;
+* the grip pose commands the corresponding tool-tip pose;
+* squeeze is the clutch and deadman control;
+* the index trigger commands paired-jaw intent; and
+* thumbsticks and face buttons are not consumed.
+
+Each controller must provide a valid grip position and orientation. Missing,
+malformed, non-finite, or partially valid data holds that side's complete command
+while the other side continues independently; inspect ``controller_faults`` on
+the OpenXR device before continuing a bimanual procedure. Unexpected XR runtime
+errors propagate instead of being silently treated as tracking loss. Isaac Lab converts the OpenXR
+scalar-first ``wxyz`` quaternion to Isaac Teleop's scalar-last ``xyzw`` convention.
+The returned contiguous ``float32`` action has 18 values in this stable order:
+
+.. code-block:: text
+
+   [left position xyz, left quaternion xyzw, left jaw_1, left jaw_2,
+    right position xyz, right quaternion xyzw, right jaw_1, right jaw_2]
+
+Configure each :class:`isaaclab.devices.openxr.retargeters.DVRKPSMSideRetargeterCfg`
+with an explicit world-frame home pose, workspace bounds, orientation calibration,
+and measured open and closed jaw endpoints. The controller stream, home, and bounds
+share the world/XR command frame. A bimanual task must convert each world-frame
+tool target through that PSM's current root transform immediately before its IK
+solve; the two independently placed PSMs must not share one cached root transform.
+
+``initial_closedness`` is a per-side reset target. The dVRK needle-pass task deliberately
+uses asymmetric values: the donor restores its load-qualified closed grasp around the
+needle, while the receiver restores fully open. ``RESET`` returns the controller command
+to the same donor-held and receiver-open state as the task articulation.
+
+Session lifecycle is explicit. ``START`` activates both state machines and the first
+valid squeezed sample captures fresh controller origins without moving either tool.
+``STOP`` deactivates and disengages the state machines while preserving the last
+pose and jaw targets. ``RESET`` restores the configured home targets and fresh-origin
+requirement without changing whether the session is active. Set
+``teleoperation_active_default=False`` when an application requires the operator to
+choose **Start Teleop** before inputs can change the target.
+
+Command hold is limited to this adapter's output. It does not disable actuator
+drives, latch measured joint state, create a grasp constraint, or attach a manipulated
+object.
+
 Using Retargeters with Hand Tracking
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

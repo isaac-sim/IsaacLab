@@ -17,7 +17,12 @@
     Se3SpaceMouse
     HaplyDevice
     OpenXRDevice
+    DVRKOpenXRDevice
+    DVRKOpenXRDeviceCfg
     ManusVive
+    isaaclab.devices.openxr.retargeters.DVRKPSMRetargeter
+    isaaclab.devices.openxr.retargeters.DVRKPSMRetargeterCfg
+    isaaclab.devices.openxr.retargeters.DVRKPSMSideRetargeterCfg
     isaaclab.devices.openxr.retargeters.GripperRetargeter
     isaaclab.devices.openxr.retargeters.Se3AbsRetargeter
     isaaclab.devices.openxr.retargeters.Se3RelRetargeter
@@ -104,6 +109,20 @@ OpenXR
     :show-inheritance:
     :noindex:
 
+dVRK OpenXR
+-----------
+
+.. autoclass:: DVRKOpenXRDevice
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :noindex:
+
+.. autoclass:: DVRKOpenXRDeviceCfg
+    :members:
+    :show-inheritance:
+    :noindex:
+
 Manus + Vive
 ------------
 
@@ -115,6 +134,22 @@ Manus + Vive
 
 Retargeters
 -----------
+
+.. autoclass:: isaaclab.devices.openxr.retargeters.DVRKPSMRetargeter
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :noindex:
+
+.. autoclass:: isaaclab.devices.openxr.retargeters.DVRKPSMRetargeterCfg
+    :members:
+    :show-inheritance:
+    :noindex:
+
+.. autoclass:: isaaclab.devices.openxr.retargeters.DVRKPSMSideRetargeterCfg
+    :members:
+    :show-inheritance:
+    :noindex:
 
 .. autoclass:: isaaclab.devices.openxr.retargeters.GripperRetargeter
     :members:

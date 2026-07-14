@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.54.5 (2026-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.devices.DVRKOpenXRDevice` and
+  :class:`~isaaclab.devices.openxr.retargeters.DVRKPSMRetargeter` for reusable,
+  lifecycle-aware bimanual dVRK PSM control from OpenXR motion controllers.
+
 0.54.4 (2026-06-01)
 ~~~~~~~~~~~~~~~~~~~
 

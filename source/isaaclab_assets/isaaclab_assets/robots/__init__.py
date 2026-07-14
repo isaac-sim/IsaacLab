@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# This module intentionally re-exports every robot configuration.
+# ruff: noqa: F403
+
 ##
 # Configuration for different assets.
 ##
@@ -15,6 +18,7 @@ from .anymal import *
 from .cart_double_pendulum import *
 from .cartpole import *
 from .cassie import *
+from .dvrk import *
 from .fourier import *
 from .franka import *
 from .galbot import *

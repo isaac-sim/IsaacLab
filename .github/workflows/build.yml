@@ -117,6 +117,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "not isaaclab_tasks"
+        install-isaacteleop-pr769: true
 
     - name: Copy Test Results from General Tests Container
       run: |

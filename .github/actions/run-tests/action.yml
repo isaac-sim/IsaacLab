@@ -31,6 +31,10 @@ inputs:
     description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
     default: ''
     required: false
+  install-isaacteleop-pr769:
+    description: 'Build and install the test-only IsaacTeleop PR 769 merge revision before pytest'
+    default: 'false'
+    required: false
 
 runs:
   using: composite
@@ -47,6 +51,7 @@ runs:
           local reports_dir="$5"
           local pytest_options="$6"
           local filter_pattern="$7"
+          local install_isaacteleop_pr769="$8"
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
@@ -106,6 +111,9 @@ runs:
               set -e
               cd /workspace/isaaclab
               mkdir -p tests
+              if [ \"$install_isaacteleop_pr769\" = \"true\" ]; then
+                bash scripts/tools/install_isaacteleop_pr769_for_tests.sh
+              fi
               echo 'Starting pytest with path: $test_path'
               # tools/conftest.py dispatches each Isaac Sim test in its own process,
               # applies TEST_FILTER_PATTERN, and combines the per-test reports.  It
@@ -160,4 +168,4 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.install-isaacteleop-pr769 }}"

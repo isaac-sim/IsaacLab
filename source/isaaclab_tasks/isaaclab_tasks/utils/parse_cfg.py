@@ -147,6 +147,16 @@ def parse_env_cfg(
 
     # simulation device
     cfg.sim.device = device
+    # Teleoperation configurations are commonly constructed from the default
+    # simulation device inside an environment configuration's ``__post_init__``.
+    # Keep their output tensors on the command-line-selected device after this
+    # late override, including every nested retargeter used by OpenXR devices.
+    teleop_devices = getattr(cfg, "teleop_devices", None)
+    if teleop_devices is not None:
+        for device_cfg in teleop_devices.devices.values():
+            device_cfg.sim_device = device
+            for retargeter_cfg in getattr(device_cfg, "retargeters", None) or ():
+                retargeter_cfg.sim_device = device
     # disable fabric to read/write through USD
     if use_fabric is not None:
         cfg.sim.use_fabric = use_fabric
