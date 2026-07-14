@@ -772,16 +772,14 @@ class PhysxManager(PhysicsManager):
         physx = omni.physx.get_physx_interface()
         physx_sim = omni.physx.get_physx_simulation_interface()
 
-        # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
-        # For CPU, the old SimulationManager never called attach_stage() explicitly.
-        # Calling attach_stage() + force_load_physics_from_usd() together causes a
-        # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
-        # causing objects to fall through surfaces non-deterministically.
-        if is_gpu:
-            physx_sim.attach_stage(stage_id)
+        # Attach the stage before starting physics. Calling attach_stage() and
+        # force_load_physics_from_usd() together corrupts the CPU broadphase (MBP), so
+        # only force-load the GPU pipeline after attaching the stage.
+        physx_sim.attach_stage(stage_id)
 
         # warmup physx
-        physx.force_load_physics_from_usd()
+        if is_gpu:
+            physx.force_load_physics_from_usd()
         physx.start_simulation()
         physx.update_simulation(cls.get_physics_dt(), 0.0)
         physx_sim.fetch_results()
