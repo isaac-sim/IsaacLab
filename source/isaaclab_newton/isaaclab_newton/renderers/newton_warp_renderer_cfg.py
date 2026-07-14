@@ -31,7 +31,25 @@ class NewtonWarpRendererCfg(RendererCfg):
     """Cull back-facing triangles."""
 
     max_distance: float = 1000.0
-    """Maximum ray distance [m]."""
+    """Maximum ray distance [m].
+
+    Used as the far clip when a camera does not provide a spawn configuration. When the camera's
+    :attr:`~isaaclab.sim.spawners.sensors.PinholeCameraCfg.clipping_range` is available, its far
+    value takes precedence per camera (see
+    :meth:`~isaaclab_newton.renderers.NewtonWarpRenderer.create_render_data`).
+    """
+
+    depth_clipping_behavior: Literal["max", "zero", "none"] = "none"
+    """Clipping behavior for depth values beyond the far plane. Defaults to ``"none"``.
+
+    Newton writes ``0.0`` for rays that miss all geometry or fall beyond the far plane, so the
+    background sentinel is ``0.0`` rather than ``+inf`` (unlike the RTX renderer). Consequently:
+
+    - ``"none"``: leave background depth at ``0.0``.
+    - ``"zero"``: leave background depth at ``0.0`` (identical to ``"none"`` for this backend).
+    - ``"max"``: replace background depth with the far clip [m], mirroring
+      :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`.
+    """
 
     create_default_light: bool = True
     """Create a default directional light source in the scene."""

@@ -98,7 +98,11 @@ def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, clone_plan: Clone
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
-    renderer._renderer = SimpleNamespace(clone_usd=lambda *args, **kwargs: None)
+    renderer._renderer = SimpleNamespace(
+        clone_usd=lambda *args, **kwargs: None,
+        read_attribute=lambda *args, **kwargs: None,
+        write_attribute=lambda *args, **kwargs: None,
+    )
     renderer._clone_plan = None
     renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
@@ -309,6 +313,44 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
 
     with pytest.raises(RuntimeError, match="Failed to clone row 0"):
         renderer._clone_sources_in_ovrtx()
+
+
+def test_clone_sources_in_ovrtx_restores_env_root_transforms():
+    """Pre-clone omni:xform snapshots are written back after cloning."""
+    import numpy as np
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    num_envs = 4
+    renderer._clone_plan = _create_homogeneous_clone_plan(num_envs)
+    captured_transforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
+    captured_transforms[:, 3, :3] = np.array([[i * 2.0, 0.0, 0.0] for i in range(num_envs)])
+
+    call_order: list[str] = []
+
+    def _read_attribute(attribute_name: str, prim_paths: list[str], **kwargs):
+        call_order.append("read")
+        assert attribute_name == "omni:xform"
+        kwargs["dest"][:] = captured_transforms[: len(prim_paths)]
+
+    def _clone_usd(source: str, target_paths: list[str]) -> None:
+        call_order.append("clone")
+
+    write_calls: list[dict] = []
+
+    def _write_attribute(**kwargs):
+        call_order.append("write")
+        write_calls.append(kwargs)
+
+    renderer._renderer.read_attribute = _read_attribute
+    renderer._renderer.clone_usd = _clone_usd
+    renderer._renderer.write_attribute = _write_attribute
+
+    renderer._clone_sources_in_ovrtx()
+
+    assert call_order == ["read", "clone", "write"]
+    assert len(write_calls) == 1
+    assert write_calls[0]["attribute_name"] == "omni:xform"
+    np.testing.assert_array_equal(write_calls[0]["tensor"], captured_transforms)
 
 
 def test_write_file_creates_parent_directory_and_writes_utf8(tmp_path: Path):
