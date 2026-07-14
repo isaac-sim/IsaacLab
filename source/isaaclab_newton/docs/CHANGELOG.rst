@@ -1,6 +1,83 @@
 Changelog
 ---------
 
+1.9.0 (2026-07-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`, a single-namespace
+  ``newton`` rigid-body physics-material fragment (torsional and rolling friction) backing
+  ``NewtonMaterialAPI``. Composes with other rigid-body material fragments (e.g.
+  :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg`) in a fragment list.
+* Added :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_stiffness`,
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_damping`,
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_friction_gain`, and
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_adhesion` (writing
+  ``newton:contactStiffness``, ``newton:contactDamping``, ``newton:contactFrictionGain``, and
+  ``newton:contactAdhesion``), matching the per-material contact attributes Newton's USD schema
+  resolver reads in place of the deprecated per-shape ``ke``/``kd``/``kf``/``ka`` parameters.
+* Added the contact attributes
+  (:attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_stiffness`,
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_damping`,
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_friction_gain`, and
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_adhesion`) to
+  :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`, matching
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`.
+* Added :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.depth_clipping_behavior` to
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`, mirroring the RTX renderer. ``"max"``
+  replaces the ``0.0`` background (missed rays / beyond the far plane) with the far clip distance;
+  ``"none"`` and ``"zero"`` leave it at ``0.0``.
+* Added ``distance_to_camera`` and ``distance_to_image_plane`` camera data-type support to
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`. ``distance_to_camera`` is Newton's native
+  ray-hit (euclidean) distance, while ``distance_to_image_plane`` is the planar (forward-axis) depth
+  derived from it.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_newton.physics.NewtonKaminoManager` to require exactly
+  one articulation per environment. :meth:`~isaaclab_newton.physics.NewtonKaminoManager._build_solver`
+  raises a ``RuntimeError`` at solver initialization when an environment contains multiple
+  articulations. Multiple articulations per environment are not yet supported in IsaacLab's Kamino integration.
+
+* Changed :class:`~isaaclab_newton.physics.NewtonManager` to route forward kinematics through a
+  solver-specialized hook bound during solver initialization. Kamino overrides this hook to call
+  :meth:`SolverKamino.reset` with :class:`SolverKamino.ResetConfig.from_joints` when
+  :attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_fk_solver` is enabled. Environment resets
+  now share a single per-articulation mask for both :meth:`~isaaclab_newton.physics.NewtonManager.forward`
+  and pre-step reconcile, replacing the separate per-world Kamino reset mask.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab_newton.assets.ArticulationData.body_com_vel_w` (and every derived
+  body-velocity property, e.g. :attr:`body_lin_vel_w`) reading zeros for fixed-base
+  articulations. The fixed-base fallback in the data buffers zeroed the body velocity
+  binding together with the genuinely unavailable root velocity, silently disabling all
+  body-velocity observations for fixed-base robots.
+* Fixed environment resets writing updated state into the wrong double-buffered simulation
+  state when ``use_cuda_graph`` was disabled. With an odd number of substeps the canonical input
+  state buffer flipped each step while asset write paths kept targeting the original binding, so
+  reset environments stayed inconsistent for solvers with separate input/output states (e.g.
+  :class:`~isaaclab_newton.physics.NewtonKaminoManager`).
+
+* Fixed Kamino forward kinematics on environment resets leaving incorrect body poses for
+  closed-loop systems. Reset environments are now always updated through Kamino's loop-closure FK
+  solver instead of Newton's articulated ``eval_fk``.
+* Fixed Newton raw-state, rendering, and physics-step boundaries observing
+  stale derived body state after authored joint or root updates.
+* Fixed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` ignoring the camera's far clipping
+  plane. The renderer now uses ``spawn.clipping_range[1]`` as the Newton sensor ``max_distance`` per
+  camera instead of the fixed :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.max_distance`
+  default, so rays are clipped at the configured far plane.
+* Fixed the ``depth`` output of :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to be planar
+  depth (``distance_to_image_plane``), matching the Isaac Lab camera contract and the RTX renderers.
+  It previously returned the ray-hit (euclidean) distance, which is now available separately as
+  ``distance_to_camera``.
+
+
 1.8.0 (2026-07-12)
 ~~~~~~~~~~~~~~~~~~
 

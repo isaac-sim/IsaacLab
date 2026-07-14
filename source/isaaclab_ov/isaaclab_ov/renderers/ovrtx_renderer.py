@@ -22,9 +22,10 @@ from __future__ import annotations
 import logging
 import math
 import os
+import re
 from itertools import compress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,15 @@ os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
 
 try:
-    from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
+    from ovrtx import (
+        BindingFlag,
+        DataAccess,
+        Device,
+        PrimMode,
+        Renderer,
+        RendererConfig,
+        Semantic,
+    )
 except ModuleNotFoundError as exc:
     if exc.name != "ovrtx":
         raise
@@ -287,9 +296,12 @@ class OVRTXRenderer(BaseRenderer):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
         self._render_product_paths = []
-        self._camera_binding = None
-        self._object_binding = None
+        self._camera_xform_binding = None
+        self._object_xform_binding = None
         self._object_newton_indices: wp.array | None = None
+        self._deformable_points_binding = None
+        self._deformable_particle_offsets: list[int] = []
+        self._deformable_particle_counts: list[int] = []
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
@@ -352,6 +364,8 @@ class OVRTXRenderer(BaseRenderer):
 
         # Resolve the clone plan for local use.
         self._clone_plan = _resolve_clone_plan(num_envs)
+        if self._clone_plan is None:
+            raise RuntimeError("Clone plan is required when preparing OVRTX stage")
 
         self._exported_usd_string = export_stage_to_string(
             stage,
@@ -411,7 +425,7 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = True
 
         camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
-        self._camera_binding = self._renderer.bind_attribute(
+        self._camera_xform_binding = self._renderer.bind_attribute(
             prim_paths=camera_paths,
             attribute_name="omni:xform",
             semantic=Semantic.XFORM_MAT4x4,
@@ -425,12 +439,13 @@ class OVRTXRenderer(BaseRenderer):
             tensor=np.full(num_envs, True, dtype=np.bool_),
         )
 
-        if self._camera_binding is not None:
+        if self._camera_xform_binding is not None:
             logger.info("Camera binding created successfully")
         else:
             raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
-        self._setup_newton_object_bindings()
+        self._setup_xform_bindings()
+        self._setup_deformable_bindings(num_envs)
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -438,9 +453,33 @@ class OVRTXRenderer(BaseRenderer):
         if clone_plan is None:
             raise RuntimeError("Clone plan is required when using OVRTX cloning")
 
-        logger.info("Cloning sources in OVRTX...")
-
         num_envs = clone_plan.clone_mask.shape[1]
+        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+        xform_attr_name = "omni:xform"
+
+        # Snapshot per-env root transforms before clone_usd overwrites them with the source env root.
+        #
+        # We only create xform bindings for prims in the body_label list, so their transforms are
+        # driven each frame from simulation data. Prims not in that list (e.g. static rigid objects
+        # such as tables) get no binding, and we never reset their xform stack. Their world placement
+        # therefore relies on every ancestor holding a correct xform in the ovrtx data. In
+        # particular, if an env root has no valid xform, these prims collapse toward env_0 frame
+        # (e.g. tables ending up at env_0 and missing from the other tiles).
+        #
+        # Snapshotting the env-root xforms here and restoring them after clone (see below) keeps those
+        # hierarchy-positioned prims correctly placed per env. This is a cheap one-off operation,
+        # preferable to forcing every static object into the body_label list just to bind its xform.
+        #
+        env_root_xforms = np.empty((num_envs, 4, 4), dtype=np.float64)
+        self._renderer.read_attribute(
+            xform_attr_name,
+            env_prim_paths,
+            prim_mode=PrimMode.MUST_EXIST,
+            dest=env_root_xforms,
+        )
+        logger.info("Captured per-env root transforms before cloning")
+
+        logger.info("Cloning sources in OVRTX...")
         env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
 
         num_cloned_sources = 0
@@ -466,6 +505,16 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
+        # Restore the pre-clone xforms.
+        self._renderer.write_attribute(
+            prim_paths=env_prim_paths,
+            attribute_name=xform_attr_name,
+            tensor=env_root_xforms,
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+        logger.info("Restored per-env root transforms after cloning")
+
     def _update_scene_partitions_after_clone(self, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
         logger.info("Writing scene partitions for %d environments...", num_envs)
@@ -489,12 +538,12 @@ class OVRTXRenderer(BaseRenderer):
         )
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
-    def _setup_newton_object_bindings(self):
+    def _setup_xform_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
             from isaaclab_newton.physics import NewtonManager
         except ImportError:
-            logger.debug("isaaclab_newton physics not available, skipping object bindings")
+            logger.debug("NewtonManager not available, skipping object bindings")
             return
 
         if SimulationContext.instance() is None:
@@ -522,7 +571,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.info("No dynamic objects found for binding")
             return
 
-        self._object_binding = self._renderer.bind_attribute(
+        self._object_xform_binding = self._renderer.bind_attribute(
             prim_paths=object_paths,
             attribute_name="omni:xform",
             semantic=Semantic.XFORM_MAT4x4,
@@ -535,10 +584,97 @@ class OVRTXRenderer(BaseRenderer):
             tensor=np.full(len(object_paths), True, dtype=np.bool_),
         )
 
-        if self._object_binding is None:
+        if self._object_xform_binding is None:
             raise RuntimeError("Failed to create OVRTX object bindings")
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
+
+    def _setup_deformable_bindings(self, num_envs: int):
+        """Setup OVRTX bindings for Newton deformable bodies.
+
+        Args:
+            num_envs: Number of environments.
+        """
+        try:
+            from isaaclab_newton.physics import NewtonManager
+        except ImportError:
+            logger.debug("NewtonManager not available, skipping deformable body bindings")
+            return
+
+        # Early return if the deformable registry is empty.
+        deformable_registry = NewtonManager._deformable_registry
+        if not deformable_registry:
+            logger.debug("Deformable registry is empty, skipping deformable body bindings")
+            return
+
+        # Validate the number of particle offsets for each deformable entry upfront.
+        bad_entries = [entry for entry in deformable_registry if len(entry.particle_offsets) != num_envs]
+        if bad_entries:
+            details = "\n".join(
+                f"- '{entry.prim_path}' has {len(entry.particle_offsets)} particle offsets" for entry in bad_entries
+            )
+            raise RuntimeError(
+                f"OVRTX expects one particle offset per environment ({num_envs}), but the following "
+                f"deformable entries have a mismatched offset count:\n{details}"
+            )
+
+        self._deformable_particle_offsets = []
+        self._deformable_particle_counts = []
+
+        vis_mesh_prim_paths: list[str] = []
+
+        # Each registry entry is one deformable asset registered at spawn time. Its
+        # ``vis_mesh_prim_path`` uses a regex env wildcard (e.g. ``env_.*``) to denote one
+        # homogeneous visual mesh replicated into every environment, not a subset of envs.
+        # During replication, Newton appends one particle block per env in contiguous env order
+        # and records the start index in ``entry.particle_offsets``; ``particles_per_body`` is
+        # the block size. The inner loop therefore emits one OVRTX mesh binding per env,
+        # resolving the env wildcard with ``env_idx`` and pairing it with that env's slice in
+        # the flat ``particle_q`` array.
+        #
+        # This mapping is valid only while deformable registry entries remain homogeneous across
+        # all envs with dense, contiguous env ids. If deformables later support env subsets or
+        # non-contiguous env ids, OVRTX must consume explicit per-instance env metadata instead
+        # of deriving env ids from ``enumerate(entry.particle_offsets)``.
+        for entry in deformable_registry:
+            for idx, particle_offset in enumerate(entry.particle_offsets):
+                self._deformable_particle_offsets.append(particle_offset)
+                self._deformable_particle_counts.append(entry.particles_per_body)
+
+                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
+
+        prim_count = len(vis_mesh_prim_paths)
+        if prim_count == 0:
+            logger.warning("No deformable visual prim paths collected, skipping deformable body bindings")
+            return
+
+        # World-space particle_q is written directly into mesh points. Reset the xform stack
+        # and pin identity omni:xform so inherited env/asset transforms are not applied twice.
+        self._renderer.write_attribute(
+            prim_paths=vis_mesh_prim_paths,
+            attribute_name="omni:resetXformStack",
+            tensor=np.full(prim_count, True, dtype=np.bool_),
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+        self._renderer.write_attribute(
+            prim_paths=vis_mesh_prim_paths,
+            attribute_name="omni:xform",
+            tensor=np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1)),
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+
+        self._deformable_points_binding = self._renderer.bind_array_attribute(
+            prim_paths=vis_mesh_prim_paths,
+            attribute_name="points",
+            dtype=np.float32,
+            shape=(3,),
+            prim_mode=PrimMode.MUST_EXIST,
+            flags=BindingFlag.OPTIMIZE,
+        )
+
+        if self._deformable_points_binding is None:
+            raise RuntimeError("Failed to create OVRTX deformable body bindings")
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
@@ -583,8 +719,8 @@ class OVRTXRenderer(BaseRenderer):
                 )
 
     def update_transforms(self) -> None:
-        """Sync physics objects to OVRTX."""
-        if self._object_binding is None or self._object_newton_indices is None:
+        """Sync transforms to OVRTX."""
+        if self._object_xform_binding is None or self._object_newton_indices is None:
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -599,7 +735,7 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        with self._object_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
+        with self._object_xform_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
             ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
             wp.launch(
                 kernel=sync_newton_transforms_kernel,
@@ -607,6 +743,52 @@ class OVRTXRenderer(BaseRenderer):
                 inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
                 device=self._device,
             )
+
+    def update_geometries(self) -> None:
+        """Sync geometries to OVRTX."""
+        if self._deformable_points_binding is None:
+            return
+
+        # If self._deformable_points_binding is not None, then Newton's the current physics backend
+        from isaaclab_newton.physics import NewtonManager
+
+        newton_state = NewtonManager.get_state()
+        if newton_state is None:
+            raise RuntimeError("Newton state should not be None")
+
+        # particle_q is the world-space particle positions for all deformable bodies. A non-None
+        # deformable points binding means deformable entries were registered, so Newton must
+        # expose particle state; a missing particle_q here is an inconsistent state.
+        particle_q = getattr(newton_state, "particle_q", None)
+        if particle_q is None:
+            raise RuntimeError("Newton state has no particle_q but deformable bindings exist")
+
+        # OVRTX ``write()`` needs one DLPack tensor per mesh prim, not one flat
+        # ``particle_q`` plus offsets. Warp slices are zero-copy views with
+        # distinct base pointers, so this list satisfies that contract without
+        # staging buffers or ``wp.copy`` calls.
+        particle_slices = [
+            particle_q[particle_offset : particle_offset + particle_count]
+            for particle_offset, particle_count in zip(
+                self._deformable_particle_offsets,
+                self._deformable_particle_counts,
+                strict=True,
+            )
+        ]
+
+        # Array attributes cannot use ``binding.map()`` like rigid-body xforms, and
+        # ``DataAccess.ASYNC`` lets OVRTX read the slices in place (no copy on ingest).
+        # Because the slices alias ``particle_q``, OVRTX must not read them until the
+        # Warp kernels that wrote ``particle_q`` have finished. Passing ``cuda_stream``
+        # hands OVRTX the Warp stream those kernels were enqueued on so it can insert a
+        # GPU-side wait (a cross-stream dependency) before its read, instead of us
+        # forcing a host-side ``wp.synchronize_device()`` that would stall the CPU.
+        cuda_stream = wp.get_stream(self._device).cuda_stream
+        self._deformable_points_binding.write(
+            cast(Any, particle_slices),
+            data_access=DataAccess.ASYNC,
+            cuda_stream=cuda_stream,
+        )
 
     def update_camera(
         self,
@@ -632,8 +814,8 @@ class OVRTXRenderer(BaseRenderer):
             inputs=[positions, converted_wp, camera_transforms],
             device=self._device,
         )
-        if self._camera_binding is not None:
-            with self._camera_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
+        if self._camera_xform_binding is not None:
+            with self._camera_xform_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
                 wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.copy(wp_transforms_view, camera_transforms)
 
@@ -987,10 +1169,15 @@ class OVRTXRenderer(BaseRenderer):
                 if "destroyed" not in str(e).lower():
                     logger.warning("Error unbinding %s: %s", name, e)
 
-        _safe_unbind(self._camera_binding, "camera transforms")
-        self._camera_binding = None
-        _safe_unbind(self._object_binding, "object transforms")
-        self._object_binding = None
+        _safe_unbind(self._camera_xform_binding, "camera transforms")
+        self._camera_xform_binding = None
+        _safe_unbind(self._object_xform_binding, "object transforms")
+        self._object_xform_binding = None
+        _safe_unbind(self._deformable_points_binding, "deformable points")
+        self._deformable_points_binding = None
+
+        self._deformable_particle_offsets = []
+        self._deformable_particle_counts = []
 
         if self._renderer:
             try:
