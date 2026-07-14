@@ -18,9 +18,13 @@ keywords = ["robotics", "rl", "il", "learning"]
 requires-python = ">=3.12"
 # Only interpackage dependencies should go here.
 dependencies = [
-    "isaaclab @ file:../isaaclab",
-    "isaaclab_assets @ file:../isaaclab_assets",
+    "isaaclab",
+    "isaaclab_assets",
 ]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
+isaaclab_assets = { path = "../isaaclab_assets", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
