@@ -16,9 +16,11 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["extension", "template", "isaaclab"]
 requires-python = ">=3.12"
-# Third-party requirements are centralized in the root pyproject.toml
-# (installed via the ``mimic`` extra).
-dependencies = []
+dependencies = [
+    "isaaclab",
+    "isaaclab_assets",
+    "isaaclab_tasks",
+]
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
