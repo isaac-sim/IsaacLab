@@ -321,7 +321,7 @@ def maybe_save_stage(
             logger.info("[ISAAC_LAB_SAVE_STAGES] wrote %s", out_path)
 
         if compare_golden:
-            golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, test_name)
+            golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, safe_test_name)
             os.makedirs(golden_dir, exist_ok=True)
             golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
 

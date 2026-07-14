@@ -126,8 +126,9 @@ def test_compare_golden_stage_reports_structure_and_transform_diffs(tmp_path: Pa
     assert any("transform" in problem and "/World/Robot" in problem for problem in problems)
 
 
-def test_maybe_save_stage_noop_without_dump_or_compare():
+def test_maybe_save_stage_noop_without_dump_or_compare(monkeypatch: pytest.MonkeyPatch):
     """maybe_save_stage remains a no-op unless compare_golden or ISAAC_LAB_SAVE_STAGES is set."""
+    monkeypatch.delenv("ISAAC_LAB_SAVE_STAGES", raising=False)
     with mock.patch("isaaclab.sim.save_stage") as save_stage_mock:
         maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb")
         save_stage_mock.assert_not_called()
