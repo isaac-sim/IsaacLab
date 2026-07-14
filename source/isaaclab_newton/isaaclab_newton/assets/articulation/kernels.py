@@ -32,6 +32,34 @@ def compute_soft_joint_pos_limits_func(
     )
 
 
+@wp.func
+def resolve_backend_index(
+    user_id: wp.int32,
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+):
+    """Map a public (user-order) item index to its backend-order index.
+
+    Newton's ordered write kernels iterate the public joint or body axis and
+    scatter into backend-order buffers. This centralizes the user-to-backend
+    direction with the identity fallback used when no nonidentity ordering is
+    active, so the routing logic is defined once instead of re-implemented
+    inline in each kernel.
+
+    Args:
+        user_id: Item index on the public (user-order) axis.
+        user_to_backend: Public-to-backend permutation for the axis. Ignored
+            when ``has_ordering`` is ``False`` (an identity map may be passed).
+        has_ordering: Whether a nonidentity ordering is active.
+
+    Returns:
+        The backend-order index for ``user_id``.
+    """
+    if has_ordering:
+        return user_to_backend[user_id]
+    return user_id
+
+
 """
 Articulation-specific warp kernels.
 """
@@ -50,9 +78,7 @@ def update_wrench_array_with_force_and_torque_ordered(
     """Write public-order force and torque into a backend-order wrench array."""
     env_id, user_body_id = wp.tid()
     if env_mask[env_id] and body_mask[user_body_id]:
-        backend_body_id = user_body_id
-        if has_ordering:
-            backend_body_id = user_to_backend[user_body_id]
+        backend_body_id = resolve_backend_index(user_body_id, user_to_backend, has_ordering)
         wrench[env_id, backend_body_id] = wp.spatial_vector(
             forces[env_id, user_body_id], torques[env_id, user_body_id], wp.float32
         )
@@ -108,9 +134,7 @@ def get_body_com_acc_from_body_com_vel_ordered(
             [m/s^2, rad/s^2], shape (num_envs, num_bodies).
     """
     env_id, user_body_id = wp.tid()
-    backend_body_id = user_body_id
-    if has_ordering:
-        backend_body_id = user_to_backend[user_body_id]
+    backend_body_id = resolve_backend_index(user_body_id, user_to_backend, has_ordering)
     body_com_vel = body_com_vel_backend[env_id, backend_body_id]
     body_com_acc_user[env_id, user_body_id] = (body_com_vel - prev_body_com_vel_backend[env_id, backend_body_id]) / dt
     prev_body_com_vel_backend[env_id, backend_body_id] = body_com_vel
@@ -243,7 +267,7 @@ def write_joint_limit_data_to_user_and_backend_index(
     i, j = wp.tid()
     env_id = env_ids[i]
     user_id = user_ids[j]
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
+    backend_id = resolve_backend_index(user_id, user_to_backend, has_ordering)
     limits = in_data[i, j]
     lower = limits[0]
     upper = limits[1]
@@ -283,7 +307,7 @@ def write_joint_limit_data_to_user_and_backend_mask(
     if not env_mask[env_id] or not user_mask[user_id]:
         return
 
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
+    backend_id = resolve_backend_index(user_id, user_to_backend, has_ordering)
     limits = in_data[env_id, user_id]
     lower = limits[0]
     upper = limits[1]
