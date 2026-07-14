@@ -14,6 +14,8 @@ import warp as wp
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
+from isaaclab.actuators import ImplicitActuator
+
 from isaaclab_tasks.core.locomotion.locomotion_direct_env import (
     LocomotionDirectEnv,
     compute_intermediate_values,
@@ -370,3 +372,136 @@ def test_physx_fused_post_step_refreshes_pull_on_demand_inputs() -> None:
     env._get_dones()
 
     assert accesses == ["root_link_pose_w", "root_com_vel_w", "joint_pos", "joint_vel", "compute_post_step"]
+
+
+def test_masked_reset_refresh_updates_only_selected_environments():
+    for num_joints in (8, 21):
+        env = _make_environment_data("cpu", num_joints)
+        buffers = _LocomotionPostStepBuffers(_NUM_ENVS, num_joints, 12 + 3 * num_joints, "cpu")
+        buffers.bind_environment_outputs(env)
+        buffers.compute_post_step(env)
+        wp.synchronize_device("cpu")
+
+        env_mask = torch.tensor([True, False, False, True, False, True, False, False])
+        env.torso_position[env_mask] = torch.tensor(
+            [[0.25, -0.5, 0.5], [1.5, 0.75, 0.5], [-2.0, 1.0, 0.5]],
+            dtype=torch.float32,
+        )
+        env.velocity[env_mask] = 0.0
+        env.ang_velocity[env_mask] = 0.0
+        env.dof_pos[env_mask] = 0.0
+        env.dof_vel[env_mask] = 0.0
+
+        observation_before = buffers.observation_torch.clone()
+        potentials_before = env.potentials.clone()
+        previous_potentials_before = env.prev_potentials.clone()
+        reward_before = buffers.reward_torch.clone()
+        terminated_before = buffers.terminated_torch.clone()
+        time_out_before = buffers.time_out_torch.clone()
+        episode_length_before = env.episode_length_buf.clone()
+
+        reference_env = SimpleNamespace(**vars(env))
+        reference_env.potentials = env.potentials.clone()
+        target_delta = env.targets[env_mask, :2] - env.torso_position[env_mask, :2]
+        reference_env.potentials[env_mask] = -torch.linalg.norm(target_delta, dim=-1) / env.cfg.sim.dt
+        reference = _compute_torch_reference(reference_env)
+
+        buffers.compute_masked_reset_observation(env, wp.from_torch(env_mask))
+        wp.synchronize_device("cpu")
+
+        torch.testing.assert_close(
+            buffers.observation_torch[env_mask], reference["observation"][env_mask], rtol=2e-5, atol=2e-5
+        )
+        torch.testing.assert_close(env.potentials[env_mask], reference["potentials"][env_mask], rtol=2e-5, atol=2e-5)
+        torch.testing.assert_close(
+            env.prev_potentials[env_mask], reference["previous_potentials"][env_mask], rtol=2e-5, atol=2e-5
+        )
+        torch.testing.assert_close(buffers.observation_torch[~env_mask], observation_before[~env_mask])
+        torch.testing.assert_close(env.potentials[~env_mask], potentials_before[~env_mask])
+        torch.testing.assert_close(env.prev_potentials[~env_mask], previous_potentials_before[~env_mask])
+        torch.testing.assert_close(buffers.reward_torch, reward_before)
+        torch.testing.assert_close(buffers.terminated_torch, terminated_before)
+        torch.testing.assert_close(buffers.time_out_torch, time_out_before)
+        torch.testing.assert_close(env.episode_length_buf[env_mask], torch.zeros(3, dtype=torch.int64))
+        torch.testing.assert_close(env.episode_length_buf[~env_mask], episode_length_before[~env_mask])
+
+
+def test_mask_reset_support_requires_safe_newton_configuration():
+    env = object.__new__(LocomotionDirectEnv)
+    env._is_closed = True
+    env._use_fused_post_step = True
+    env.has_rtx_sensors = False
+    env.cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=NewtonCfg()),
+        compute_final_obs=False,
+        events=None,
+        action_noise_model=None,
+        observation_noise_model=None,
+        num_rerenders_on_reset=0,
+    )
+    env.robot = SimpleNamespace(
+        _has_newton_actuators=False,
+        actuators={"joints": Mock(spec=ImplicitActuator)},
+    )
+
+    assert env._supports_mask_reset()
+
+    for attribute in ("events", "action_noise_model", "observation_noise_model"):
+        setattr(env.cfg, attribute, object())
+        assert not env._supports_mask_reset()
+        setattr(env.cfg, attribute, None)
+
+    env.cfg.compute_final_obs = True
+    assert not env._supports_mask_reset()
+    env.cfg.compute_final_obs = False
+    env.has_rtx_sensors = True
+    env.cfg.num_rerenders_on_reset = 1
+    assert not env._supports_mask_reset()
+    env.has_rtx_sensors = False
+    env.robot._has_newton_actuators = True
+    assert not env._supports_mask_reset()
+    env.robot._has_newton_actuators = False
+    env.robot.actuators = {"joints": object()}
+    assert not env._supports_mask_reset()
+    env.robot.actuators = {"joints": Mock(spec=ImplicitActuator)}
+    env.cfg.sim.physics = PhysxCfg()
+    assert not env._supports_mask_reset()
+
+
+def test_masked_reset_preserves_robot_buffers_and_float_metric() -> None:
+    env = object.__new__(LocomotionDirectEnv)
+    env._is_closed = True
+    env.reset_buf = torch.tensor([False, True, False, True])
+    env.reset_time_outs = torch.tensor([False, True, False, False])
+    env.extras = {}
+    instantaneous_wrench_composer = Mock(active=True)
+    permanent_wrench_composer = Mock(active=True)
+    env.robot = Mock(
+        instantaneous_wrench_composer=instantaneous_wrench_composer,
+        permanent_wrench_composer=permanent_wrench_composer,
+    )
+    env.robot.data = SimpleNamespace(
+        default_root_vel=SimpleNamespace(warp=object()),
+        default_joint_pos=SimpleNamespace(warp=object()),
+        default_joint_vel=SimpleNamespace(warp=object()),
+    )
+    env._default_root_pose_w = object()
+    env._post_step_buffers = Mock()
+    env_mask = wp.from_torch(env.reset_buf)
+
+    env._reset_idx_mask(env_mask)
+
+    assert env.extras["log"]["Metrics/success_rate"] == 0.5
+    assert isinstance(env.extras["log"]["Metrics/success_rate"], float)
+    instantaneous_wrench_composer.reset.assert_called_once_with(env_mask=env_mask)
+    permanent_wrench_composer.reset.assert_called_once_with(env_mask=env_mask)
+    env.robot.write_root_pose_to_sim_mask.assert_called_once_with(root_pose=env._default_root_pose_w, env_mask=env_mask)
+    env.robot.write_root_velocity_to_sim_mask.assert_called_once_with(
+        root_velocity=env.robot.data.default_root_vel.warp, env_mask=env_mask
+    )
+    env.robot.write_joint_state_to_sim_mask.assert_called_once_with(
+        position=env.robot.data.default_joint_pos.warp,
+        velocity=env.robot.data.default_joint_vel.warp,
+        env_mask=env_mask,
+    )
+    env._post_step_buffers.compute_masked_reset_observation.assert_called_once_with(env, env_mask)

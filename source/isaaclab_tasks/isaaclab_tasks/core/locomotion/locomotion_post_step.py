@@ -324,6 +324,76 @@ def compute_locomotion_intermediate_and_observation(
     )
 
 
+@wp.kernel
+def compute_locomotion_masked_reset_observation(
+    env_mask: wp.array(dtype=wp.bool),
+    episode_length: wp.array(dtype=wp.int64),
+    targets: wp.array2d(dtype=wp.float32),
+    torso_position: wp.array2d(dtype=wp.float32),
+    torso_rotation: wp.array2d(dtype=wp.float32),
+    velocity: wp.array2d(dtype=wp.float32),
+    angular_velocity: wp.array2d(dtype=wp.float32),
+    joint_position: wp.array2d(dtype=wp.float32),
+    joint_velocity: wp.array2d(dtype=wp.float32),
+    joint_position_limits: wp.array2d(dtype=wp.vec2f),
+    actions: wp.array2d(dtype=wp.float32),
+    dt: wp.float32,
+    angular_velocity_scale: wp.float32,
+    joint_velocity_scale: wp.float32,
+    num_joints: int,
+    potentials: wp.array(dtype=wp.float32),
+    previous_potentials: wp.array(dtype=wp.float32),
+    up_projection: wp.array(dtype=wp.float32),
+    heading_projection: wp.array(dtype=wp.float32),
+    up_vector: wp.array2d(dtype=wp.float32),
+    heading_vector: wp.array2d(dtype=wp.float32),
+    local_velocity: wp.array2d(dtype=wp.float32),
+    local_angular_velocity: wp.array2d(dtype=wp.float32),
+    roll: wp.array(dtype=wp.float32),
+    pitch: wp.array(dtype=wp.float32),
+    yaw: wp.array(dtype=wp.float32),
+    angle_to_target: wp.array(dtype=wp.float32),
+    scaled_joint_position: wp.array2d(dtype=wp.float32),
+    observation: wp.array2d(dtype=wp.float32),
+):
+    env_id = wp.tid()
+    if env_mask[env_id]:
+        target_x = targets[env_id, 0] - torso_position[env_id, 0]
+        target_y = targets[env_id, 1] - torso_position[env_id, 1]
+        potentials[env_id] = -wp.sqrt(target_x * target_x + target_y * target_y) / dt
+        episode_length[env_id] = wp.int64(0)
+        _compute_intermediate_and_observation(
+            env_id,
+            targets,
+            torso_position,
+            torso_rotation,
+            velocity,
+            angular_velocity,
+            joint_position,
+            joint_velocity,
+            joint_position_limits,
+            actions,
+            dt,
+            angular_velocity_scale,
+            joint_velocity_scale,
+            num_joints,
+            potentials,
+            previous_potentials,
+            up_projection,
+            heading_projection,
+            up_vector,
+            heading_vector,
+            local_velocity,
+            local_angular_velocity,
+            roll,
+            pitch,
+            yaw,
+            angle_to_target,
+            scaled_joint_position,
+            observation,
+        )
+
+
 class _LocomotionPostStepBuffers:
     """Persistent task outputs used by the fused locomotion post-step kernels."""
 
@@ -445,6 +515,45 @@ class _LocomotionPostStepBuffers:
             compute_locomotion_intermediate_and_observation,
             dim=self.num_envs,
             inputs=[
+                env.targets,
+                env.torso_position,
+                env.torso_rotation,
+                env.velocity,
+                env.ang_velocity,
+                env.dof_pos,
+                env.dof_vel,
+                env._joint_position_limits,
+                env.actions,
+                env.cfg.sim.dt,
+                env.cfg.angular_velocity_scale,
+                env.cfg.dof_vel_scale,
+                self.num_joints,
+                env.potentials,
+                env.prev_potentials,
+                self.up_projection,
+                self.heading_projection,
+                self.up_vector,
+                self.heading_vector,
+                self.local_velocity,
+                self.local_angular_velocity,
+                self.roll,
+                self.pitch,
+                self.yaw,
+                self.angle_to_target,
+                self.scaled_joint_position,
+                self.observation,
+            ],
+            device=self.device,
+        )
+
+    def compute_masked_reset_observation(self, env, env_mask: wp.array(dtype=wp.bool)) -> None:
+        """Refresh reset rows and zero their episode lengths without changing terminal outputs."""
+        wp.launch(
+            compute_locomotion_masked_reset_observation,
+            dim=self.num_envs,
+            inputs=[
+                env_mask,
+                env.episode_length_buf,
                 env.targets,
                 env.torso_position,
                 env.torso_rotation,

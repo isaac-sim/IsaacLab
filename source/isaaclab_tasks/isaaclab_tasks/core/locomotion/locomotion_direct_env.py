@@ -13,6 +13,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.utils.math import (
@@ -134,6 +135,10 @@ class LocomotionDirectEnv(DirectRLEnv):
                 device=self.device,
             )
             self._post_step_buffers.bind_environment_outputs(self)
+            if self._supports_mask_reset():
+                self._default_root_pose_w_torch = self.robot.data.default_root_pose.torch.clone()
+                self._default_root_pose_w_torch[:, :3] += self.scene.env_origins
+                self._default_root_pose_w = wp.from_torch(self._default_root_pose_w_torch, dtype=wp.transformf)
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot)
@@ -282,6 +287,53 @@ class LocomotionDirectEnv(DirectRLEnv):
         data = self.robot.data
         _ = data.root_link_pose_w, data.root_com_vel_w, data.joint_pos, data.joint_vel
 
+    def _reset_envs_from_buffer(self) -> torch.Tensor | None:
+        if not self._supports_mask_reset():
+            return super()._reset_envs_from_buffer()
+
+        self._reset_idx_mask(wp.from_torch(self.reset_buf))
+        return None
+
+    def _supports_mask_reset(self) -> bool:
+        """Return whether the task supports Newton device-mask resets."""
+        return (
+            self._use_fused_post_step
+            and isinstance(self.cfg.sim.physics, NewtonCfg)
+            and not getattr(self.robot, "_has_newton_actuators", False)
+            and all(isinstance(actuator, ImplicitActuator) for actuator in self.robot.actuators.values())
+            and not self.cfg.compute_final_obs
+            and not self.cfg.events
+            and not self.cfg.action_noise_model
+            and not self.cfg.observation_noise_model
+            and not (self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0)
+        )
+
+    def _reset_idx_mask(self, env_mask: wp.array(dtype=wp.bool)) -> None:
+        """Reset direct locomotion environments selected by a device mask."""
+        reset_counts = torch.stack(
+            (self.reset_buf.sum(), torch.logical_and(self.reset_time_outs, self.reset_buf).sum())
+        )
+        reset_count, survived_count = reset_counts.tolist()
+        if reset_count > 0:
+            self.extras.setdefault("log", {})["Metrics/success_rate"] = survived_count / reset_count
+
+        # Supported tasks use stateless implicit actuators, so only active wrench buffers need reset.
+        if self.robot.instantaneous_wrench_composer.active:
+            self.robot.instantaneous_wrench_composer.reset(env_mask=env_mask)
+        if self.robot.permanent_wrench_composer.active:
+            self.robot.permanent_wrench_composer.reset(env_mask=env_mask)
+        self.robot.write_root_pose_to_sim_mask(root_pose=self._default_root_pose_w, env_mask=env_mask)
+        self.robot.write_root_velocity_to_sim_mask(
+            root_velocity=self.robot.data.default_root_vel.warp,
+            env_mask=env_mask,
+        )
+        self.robot.write_joint_state_to_sim_mask(
+            position=self.robot.data.default_joint_pos.warp,
+            velocity=self.robot.data.default_joint_vel.warp,
+            env_mask=env_mask,
+        )
+        self._post_step_buffers.compute_masked_reset_observation(self, env_mask)
+
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
             env_ids = wp.to_torch(self.robot._ALL_INDICES)
@@ -296,7 +348,7 @@ class LocomotionDirectEnv(DirectRLEnv):
         joint_vel = self.robot.data.default_joint_vel.torch[env_ids]
         default_root_pose = self.robot.data.default_root_pose.torch[env_ids]
         default_root_vel = self.robot.data.default_root_vel.torch[env_ids]
-        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
+        self._default_root_pose_w_torch[:, :3] += self.scene.env_origins[env_ids]
 
         self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
