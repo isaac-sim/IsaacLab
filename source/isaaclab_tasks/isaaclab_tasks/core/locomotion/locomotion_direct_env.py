@@ -288,7 +288,7 @@ class LocomotionDirectEnv(DirectRLEnv):
 
         # Log survival success rate (survived = timed out without falling)
         survived = self.reset_time_outs[env_ids].float()
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean()
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
 
         super()._reset_idx(env_ids)
 
