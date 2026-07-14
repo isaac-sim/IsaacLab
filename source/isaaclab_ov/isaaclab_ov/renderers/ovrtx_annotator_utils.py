@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Host-side stand-in for the not-yet-released ``ovannotators`` segmentation annotators.
+"""Host-side stand-in for the not-yet-released ``ovannotators`` library.  This module will be replaced
+by the library once released.
 
 Until ``ovannotators`` ships, these helpers decode the OVRTX segmentation "map" render vars and rebuild the
 ``idToLabels`` / ``idToSemantics`` info dicts that Replicator / Isaac RTX expose through ``camera.data.info``:

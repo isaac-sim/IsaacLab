@@ -95,16 +95,19 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
 def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     """Return render var configs needed for the requested data types.
 
-    Returns the single render var resolved by :func:`get_render_var_config`,
-    plus ``HdrColor`` when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are
-    in ``data_types`` so PPISP can consume the HDR AOV alongside the LDR
-    destination on the same render product, plus ``SemanticIdMap`` when
-    ``"semantic_segmentation"`` is requested so the semantic-ID-to-label
-    mapping can be decoded for ``camera.data.info``, plus the
-    ``StableIdSemanticIdMap`` / ``SemanticIdMap`` / ``StableIdMap`` trio when
-    ``"instance_segmentation_fast"`` is requested so the instance-ID-to-prim-path
-    (``idToLabels``) and instance-ID-to-semantic (``idToSemantics``) mappings can be
-    decoded. Other multi-AOV combinations are not supported.
+    Each config is a ``(render_var_path, render_var_name, source_name)`` tuple as defined by
+    :func:`get_render_var_config`. Always includes the single render var resolved by
+    :func:`get_render_var_config`, plus the following extras when applicable:
+
+    * ``HdrColor`` — when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are requested, so
+      PPISP can consume the HDR AOV alongside the LDR destination on the same render product.
+    * ``SemanticIdMap`` — when ``"semantic_segmentation"`` is requested, so the
+      semantic-ID-to-label mapping can be decoded for ``camera.data.info``.
+    * ``StableIdSemanticIdMap``, ``StableIdMap``, ``SemanticIdMap`` — when
+      ``"instance_segmentation_fast"`` is requested, so the instance-ID-to-prim-path
+      (``idToLabels``) and instance-ID-to-semantic (``idToSemantics``) mappings can be decoded.
+
+    Other multi-AOV combinations are not supported.
     """
     data_types = data_types if data_types else ["rgb"]
     render_vars: list[tuple[str, str, str]] = [get_render_var_config(data_types)]

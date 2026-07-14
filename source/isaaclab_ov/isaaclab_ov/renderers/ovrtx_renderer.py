@@ -961,18 +961,25 @@ class OVRTXRenderer(BaseRenderer):
         Populates ``"idToLabels"`` (instance pixel ID -> USD prim path) and ``"idToSemantics"`` (instance pixel
         ID -> ``{semantic_type: label}``) compatible with Isaac RTX / Replicator. Resolving both requires all
         three map render vars — ``StableIdSemanticIdMap`` (pixel ID -> stable ID + semantic ID), ``StableIdMap``
-        (stable ID -> prim path), and ``SemanticIdMap`` (semantic ID -> label) — so nothing is written unless all
-        are present. Keys are the raw pixel IDs (``colorize_instance_segmentation=False``) or the RGBA color
-        tuples the segmentation buffer uses (``colorize_instance_segmentation=True``); the reserved BACKGROUND
-        (ID 0) and UNLABELLED (ID 1) entries are always included.
+        (stable ID -> prim path), and ``SemanticIdMap`` (semantic ID -> label). Keys are the raw pixel IDs
+        (``colorize_instance_segmentation=False``) or the RGBA color tuples the segmentation buffer uses
+        (``colorize_instance_segmentation=True``); the reserved BACKGROUND (ID 0) and UNLABELLED (ID 1) entries
+        are always included.
+
+        Raises:
+            RuntimeError: If any of the three required render vars is absent from ``frame``.
 
         Args:
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
         required_vars = ("StableIdSemanticIdMap", "StableIdMap", "SemanticIdMap")
-        if any(var_name not in frame.render_vars for var_name in required_vars):
-            return
+        missing = [v for v in required_vars if v not in frame.render_vars]
+        if missing:
+            raise RuntimeError(
+                f"instance_segmentation_fast was requested but the following render vars are missing from the "
+                f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars.keys())}"
+            )
 
         with frame.render_vars["StableIdSemanticIdMap"].map(device=Device.CPU) as mapping:
             stable_id_semantic_id_map = decode_stable_id_semantic_id_map(np.from_dlpack(mapping.tensor))
@@ -1153,7 +1160,7 @@ class OVRTXRenderer(BaseRenderer):
             self.cfg.colorize_instance_segmentation,
         )
         # Decode the StableIdSemanticIdMap/StableIdMap/SemanticIdMap trio into
-        # camera.data.info["instance_segmentation_fast"]["idToLabels" / "idToSemantics"].
+        # camera.data.info["instance_segmentation_fast"]["idToLabels"] and ["idToSemantics"].
         if "instance_segmentation_fast" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
 
