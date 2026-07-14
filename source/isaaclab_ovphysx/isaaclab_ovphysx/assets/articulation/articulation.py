@@ -244,7 +244,8 @@ class Articulation(BaseArticulation):
             )
             if self._get_binding(TT.LINK_WRENCH) is not None:
                 self._root_view.set_attribute(TT.LINK_WRENCH, self._wrench_buf)
-            inst.reset()
+            if inst.active:
+                inst.reset()
 
         # apply actuator models
         self._apply_actuator_model()

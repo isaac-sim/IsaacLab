@@ -270,7 +270,8 @@ class Articulation(BaseArticulation):
                 indices=self._ALL_INDICES,
                 is_global=False,
             )
-        self._instantaneous_wrench_composer.reset()
+        if self._instantaneous_wrench_composer.active:
+            self._instantaneous_wrench_composer.reset()
 
         if getattr(self, "_has_newton_actuators", False):
             # Newton fast path: pos/vel targets pass straight through; the
