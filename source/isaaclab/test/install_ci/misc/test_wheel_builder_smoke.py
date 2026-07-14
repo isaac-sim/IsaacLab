@@ -23,9 +23,7 @@ Tests:
 from __future__ import annotations
 
 import glob
-import re
 import shutil
-import zipfile
 
 import pytest
 from utils import UV_Mixin, run_cmd
