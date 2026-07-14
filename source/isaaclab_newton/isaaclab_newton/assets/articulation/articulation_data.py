@@ -941,7 +941,6 @@ class ArticulationData(BaseArticulationData):
             joint_S_s=self._joint_S_s_buf,
         )
         joint_ordering = self.joint_ordering
-        body_ordering = self.body_ordering
         wp.launch(
             articulation_kernels.gather_jacobian_rows,
             dim=self._body_com_jacobian_w_buf.shape,
@@ -950,9 +949,7 @@ class ArticulationData(BaseArticulationData):
                 self._jacobian_view_art_ids,
                 self._jacobian_body_user_to_backend,
                 joint_ordering.user_to_backend if joint_ordering is not None else None,
-                self._jacobian_link_offset,
                 self._num_base_dofs,
-                body_ordering is not None,
                 joint_ordering is not None,
             ],
             outputs=[self._body_com_jacobian_w_buf],
@@ -2062,6 +2059,35 @@ class ArticulationData(BaseArticulationData):
             ]
         )
 
+    def _make_jacobian_body_user_to_backend(self) -> wp.array:
+        """Build the Newton-layout user-to-backend row map for Jacobian body axes.
+
+        Newton's ``eval_jacobian`` keeps every link row in its output, including the
+        fixed-base root row at index 0, so this map indexes that full-row layout
+        directly with no shift. It therefore differs from the PhysX-style base
+        implementation ``BaseArticulationData._make_jacobian_body_user_to_backend``,
+        whose source omits the root row and shifts the remaining rows down by one.
+        Fixed-base articulations drop the root row here (Newton pins the root at
+        public index 0), so the map already encodes the link offset: the gather
+        kernel needs neither a runtime link offset nor a body-ordering branch. The
+        map is built even under identity ordering so the kernel can index it
+        unconditionally.
+
+        Returns:
+            One-dimensional ``wp.int32`` device array of backend Jacobian rows in
+            public body order.
+        """
+        body_ordering = self.body_ordering
+        body_user_to_backend = (
+            body_ordering.user_to_backend_indices if body_ordering is not None else range(self._num_bodies)
+        )
+        if self._jacobian_link_offset == 0:
+            backend_rows = tuple(int(backend_id) for backend_id in body_user_to_backend)
+        else:
+            # Fixed-base: drop the root row (backend id 0, pinned at public index 0); no shift.
+            backend_rows = tuple(int(backend_id) for backend_id in body_user_to_backend if int(backend_id) != 0)
+        return wp.array(backend_rows, dtype=wp.int32, device=self.device)
+
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Configure and re-pin public buffers after ordering maps are installed.
 
@@ -2070,9 +2096,9 @@ class ArticulationData(BaseArticulationData):
         (re)allocation below reconciles from those maps read directly, so an
         ordering that was cleared on rebind releases its buffers.
         """
-        self._jacobian_body_user_to_backend = (
-            self._make_jacobian_body_user_to_backend() if self.body_ordering is not None else None
-        )
+        # Always build the row map (even under identity ordering) so the gather kernel can
+        # index the body axis unconditionally -- the map owns the entire body-axis encoding.
+        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
 
         self._configure_joint_ordering_buffers()
         if self.joint_ordering is not None:

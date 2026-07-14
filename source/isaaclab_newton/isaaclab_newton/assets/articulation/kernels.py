@@ -637,9 +637,7 @@ def gather_jacobian_rows(
     art_ids: wp.array(dtype=wp.int32),
     jacobian_body_user_to_backend: wp.array(dtype=wp.int32),
     joint_user_to_backend: wp.array(dtype=wp.int32),
-    link_offset: wp.int32,
     num_base_dofs: wp.int32,
-    has_body_ordering: bool,
     has_joint_ordering: bool,
     dst: wp.array4d(dtype=wp.float32),
 ):
@@ -655,11 +653,16 @@ def gather_jacobian_rows(
     ``(num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs)`` is
     preserved.
 
-    For fixed-base articulations Newton fills link row 0 with the fixed root joint
-    (zero motion subspace), so we skip it with ``link_offset = 1``. For floating-
-    base, ``link_offset = 0`` and the full DoF axis is preserved including the 6
-    leading free-root joint columns, matching the cross-library industry
-    convention used by PhysX, Pinocchio, Drake, MuJoCo, RBDL, OCS2, and iDynTree.
+    Newton's output keeps every link row, including the fixed-base root row at
+    index 0. The body-axis mapping is owned entirely by
+    ``jacobian_body_user_to_backend``: it holds, for each public Jacobian body
+    row, the backend row to read from ``src`` in Newton's full-row layout, and
+    for fixed-base articulations it already excludes the root row. The kernel
+    therefore indexes ``src`` by that map directly, with no runtime link offset
+    and no body-ordering branch. The DoF axis is preserved in full including the
+    6 leading free-root joint columns for floating-base, matching the
+    cross-library industry convention used by PhysX, Pinocchio, Drake, MuJoCo,
+    RBDL, OCS2, and iDynTree.
 
     The gather is in-place on a pre-allocated ``dst`` buffer, so the kernel launch
     is safe under CUDA graph capture.
@@ -669,32 +672,28 @@ def gather_jacobian_rows(
             (model.articulation_count, max_links, 6, max_dofs).
         art_ids: Model-level articulation indices owned by this view. Shape is
             (num_instances,).
-        jacobian_body_user_to_backend: Compact map from public Jacobian body row
-            to backend Jacobian body row. For fixed-base articulations the fixed
-            root row is excluded.
+        jacobian_body_user_to_backend: Map from public Jacobian body row to
+            backend Jacobian body row in Newton's full-row layout. Built for
+            every view (also under identity ordering); for fixed-base
+            articulations it excludes the fixed root row.
         joint_user_to_backend: Map from public actuated-joint index to backend
             actuated-joint index.
-        link_offset: Constant offset added to the backend Jacobian body row when
-            reading from ``src``. ``1`` for fixed-base views, ``0`` for
-            floating-base.
         num_base_dofs: Number of leading floating-base DoF columns.
-        has_body_ordering: Whether ``jacobian_body_user_to_backend`` is non-identity.
         has_joint_ordering: Whether ``joint_user_to_backend`` is non-identity.
         dst: Output jacobian buffer for this view. Shape is
             (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
-            where ``num_jacobi_bodies = this asset's num_bodies - link_offset``
-            (per-asset count, not the model-wide ``max_links``).
+            where ``num_jacobi_bodies`` is this asset's ``num_bodies`` minus the
+            fixed-base root row (per-asset count, not the model-wide
+            ``max_links``).
     """
     i, user_link, s, user_dof = wp.tid()
-    backend_link = user_link
-    if has_body_ordering:
-        backend_link = jacobian_body_user_to_backend[user_link]
+    backend_link = jacobian_body_user_to_backend[user_link]
 
     backend_dof = user_dof
     if has_joint_ordering and user_dof >= num_base_dofs:
         backend_dof = num_base_dofs + joint_user_to_backend[user_dof - num_base_dofs]
 
-    dst[i, user_link, s, user_dof] = src[art_ids[i], backend_link + link_offset, s, backend_dof]
+    dst[i, user_link, s, user_dof] = src[art_ids[i], backend_link, s, backend_dof]
 
 
 @wp.kernel
