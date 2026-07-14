@@ -151,7 +151,7 @@ The physics backend is selected via the ``physics`` field in
 
     # Use Newton with MuJoCo-Warp solver
     sim_cfg = SimulationCfg(physics=NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(),
+        solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
         num_substeps=4,
     ))
 
@@ -183,7 +183,7 @@ below shows only the physics-related fields:
         default: PhysxCfg = PhysxCfg()
         physx: PhysxCfg = PhysxCfg()
         newton_mjwarp: NewtonCfg = NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3)
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, njmax=5, nconmax=3)
         )
         ovphysx: OvPhysxCfg = OvPhysxCfg()
 

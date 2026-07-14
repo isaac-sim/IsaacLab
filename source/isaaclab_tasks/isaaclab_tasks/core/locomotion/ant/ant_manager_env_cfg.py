@@ -35,6 +35,7 @@ class AntPhysicsCfg(PresetCfg):
     physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
+            use_mujoco_contacts=False,
             njmax=38,
             nconmax=15,
             cone="pyramidal",

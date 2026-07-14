@@ -123,8 +123,8 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
         pytest.param(
             "IsaacContrib-Velocity-Rough-UnitreeA1",
             1,
-            16,
-            "split",
+            8,
+            "matrix_free",
             0.02,
             1.0e-5,
             0.005,
@@ -135,8 +135,8 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
         pytest.param(
             "IsaacContrib-Velocity-Rough-UnitreeGo1",
             1,
-            16,
-            "split",
+            8,
+            "matrix_free",
             0.02,
             1.0e-5,
             0.005,
@@ -169,8 +169,8 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
         pytest.param("Isaac-Velocity-Rough-Cassie", 1, 16, "split", 0.02, 1.0e-5, 0.005, 4, id="cassie-rough"),
         pytest.param("Isaac-Velocity-Flat-G1", 1, 4, "matrix_free", 0.05, 1.0e-6, 0.01, 2, id="g1-flat"),
         pytest.param("Isaac-Velocity-Rough-G1", 1, 16, "split", 0.02, 1.0e-5, 0.005, 4, id="g1-rough"),
-        pytest.param("Isaac-Velocity-Flat-H1", 2, 8, "split", 0.05, 1.0e-6, 0.005, 4, id="h1-flat"),
-        pytest.param("Isaac-Velocity-Rough-H1", 1, 8, "split", 0.05, 1.0e-6, 0.005, 4, id="h1-rough"),
+        pytest.param("Isaac-Velocity-Flat-H1", 1, 8, "matrix_free", 0.05, 1.0e-6, 0.005, 4, id="h1-flat"),
+        pytest.param("Isaac-Velocity-Rough-H1", 1, 8, "matrix_free", 0.05, 1.0e-6, 0.005, 4, id="h1-rough"),
         pytest.param("Isaac-Humanoid", 1, 24, "split", 0.002, 1.0e-4, 1 / 120, 2, id="humanoid-manager"),
         pytest.param("Isaac-Humanoid-Direct", 1, 24, "split", 0.002, 1.0e-4, 1 / 120, 2, id="humanoid-direct"),
         pytest.param(

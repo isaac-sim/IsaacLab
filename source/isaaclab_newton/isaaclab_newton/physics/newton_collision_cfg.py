@@ -77,7 +77,8 @@ class NewtonCollisionPipelineCfg:
     Full-featured collision pipeline with GJK/MPR narrow phase and pluggable broad phase.
     When this config is set on :attr:`NewtonCfg.collision_cfg`:
 
-    - **MJWarpSolverCfg**: Newton's collision pipeline replaces MuJoCo's internal contact solver.
+    - **MJWarpSolverCfg**: Configures Newton's first-party contact pipeline when
+      ``use_mujoco_contacts=False``.
     - **Other solvers** (XPBD, Featherstone, etc.): Configures the collision pipeline parameters
       (these solvers always use Newton's collision pipeline).
 

@@ -16,6 +16,7 @@ class UnitreeGo2FlatEnvCfg(UnitreeGo2RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=65,
                 nconmax=35,
                 cone="pyramidal",

@@ -16,6 +16,7 @@ class H1FlatEnvCfg(H1RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=65,
                 nconmax=15,
                 cone="pyramidal",

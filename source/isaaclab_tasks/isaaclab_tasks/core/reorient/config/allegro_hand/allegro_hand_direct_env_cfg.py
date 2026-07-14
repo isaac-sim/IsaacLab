@@ -87,6 +87,7 @@ class PhysicsCfg(PresetCfg):
     )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
+            use_mujoco_contacts=False,
             solver="newton",
             integrator="implicitfast",
             njmax=80,

@@ -48,7 +48,6 @@ def build_source_builders(
         builder = create_builder()
         solvers.SolverMuJoCo.register_custom_attributes(builder)
         solvers.SolverKamino.register_custom_attributes(builder)
-        solvers.SolverFeatherPGS.register_custom_attributes(builder)
         builder.add_usd(
             stage,
             root_path=root_path,

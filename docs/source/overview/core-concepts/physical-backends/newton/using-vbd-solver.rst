@@ -194,14 +194,27 @@ VBD should advance deformables:
     * - ``coupling_mode="one_way"``
       - Rigid solver advances first, and VBD reacts to the updated rigid poses. The rigid solver does not feel particle contact forces.
     * - ``coupling_mode="two_way"``
-      - Contact reactions from deformables are injected into the rigid solver before the rigid step, then VBD advances deformables against the shared contacts. Use this for manipulation tasks where the robot should be pushed back by deformable contact.
+      - Reactions computed from Newton contacts are injected into the rigid solver before the rigid step, then VBD advances deformables against those same Newton contacts. Use this for manipulation tasks where the robot should be pushed back by deformable contact.
     * - ``coupling_mode="kinematic"``
       - Available on :class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg`. Rigid bodies are kinematically updated by Featherstone, and VBD reacts to them. The rigid solver does not feel particle contacts.
 
-The rigid solver parameters still matter. For example, MJWarp's ``nconmax`` and
-``njmax`` must be large enough for the rigid contacts in the scene, and
-``ccd_iterations`` can affect fast rigid contacts near deformables. See
-:doc:`mjwarp-solver` for the MJWarp-side parameters.
+First-party coupled MJWarp-VBD configurations set
+``rigid_solver_cfg.use_mujoco_contacts=False``. One Newton ``CollisionPipeline``
+then generates contacts shared with both rigid MJWarp and soft VBD. The public
+:class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` default retains
+``use_mujoco_contacts=True`` during the deprecation window so existing external
+configurations do not change behavior immediately. In that legacy mode, MJWarp
+keeps its internal rigid contact path and receives no Newton contacts; the
+manager still runs Newton collision detection and passes those contacts to VBD
+only. New and migrated configurations should explicitly select ``False``.
+
+In external-contact mode, Newton's
+``collision_cfg.rigid_contact_max`` must be large enough to generate contacts,
+while MJWarp's ``nconmax`` and ``njmax`` must be large enough to accept contacts
+and constraint rows. In legacy internal-contact mode, the MJWarp limits instead
+size its internal contacts and rows, while Newton's generation capacity remains
+relevant to VBD. ``ccd_iterations`` applies only to MJWarp's deprecated internal
+collision path. See :doc:`mjwarp-solver` for the MJWarp-side parameters.
 
 
 .. _newton-vbd-proxy-coupling:

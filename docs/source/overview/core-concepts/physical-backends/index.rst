@@ -46,7 +46,7 @@ asset, sensor, and renderer instantiated thereafter:
     sim_cfg = SimulationCfg(physics=PhysxCfg())
 
     # Newton with MuJoCo-Warp
-    sim_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+    sim_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False)))
 
 
 Feature Support Matrix
@@ -134,7 +134,7 @@ declares all three backends side by side:
     class CartpolePhysicsCfg(PresetCfg):
         default: PhysxCfg = PhysxCfg()
         physx: PhysxCfg = PhysxCfg()
-        newton_mjwarp: NewtonCfg = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+        newton_mjwarp: NewtonCfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False))
         ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 Users then select the backend at the command line via ``presets=<name>`` or by

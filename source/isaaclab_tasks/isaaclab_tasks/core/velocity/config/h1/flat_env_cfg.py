@@ -8,8 +8,6 @@ from isaaclab_newton.physics import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
-    NewtonCollisionPipelineCfg,
-    NewtonShapeCfg,
 )
 from isaaclab_physx.physics import PhysxCfg
 
@@ -26,6 +24,7 @@ class PhysicsCfg(PresetCfg):
     default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
+            use_mujoco_contacts=False,
             njmax=65,
             nconmax=15,
             cone="pyramidal",
@@ -38,22 +37,24 @@ class PhysicsCfg(PresetCfg):
     feather_pgs = NewtonCfg(
         solver_cfg=FeatherPGSSolverCfg(
             angular_damping=0.05,
+            pgs_mode="matrix_free",
             update_mass_matrix_interval=1,
             enable_joint_limits=True,
+            joint_limit_activation_gap=0.1,
             pgs_iterations=8,
+            pgs_velocity_iterations=0,
+            dense_max_constraints=64,
+            mf_max_constraints=512,
+            pgs_warmstart=False,
+            pgs_omega=1.0,
+            pgs_velocity_drive_mode="freeze",
             pgs_beta=0.05,
             pgs_cfm=1.0e-6,
-            pgs_omega=1.0,
-            dense_max_constraints=64,
-            pgs_warmstart=False,
-            pgs_mode="split",
-            mf_max_constraints=512,
+            serial_kernel_block_dim=64,
         ),
-        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=2,
+        num_substeps=1,
         debug_mode=False,
-        use_cuda_graph=False,
-        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+        use_cuda_graph=True,
     )
     physx = default
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))

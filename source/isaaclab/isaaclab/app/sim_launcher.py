@@ -21,7 +21,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -66,7 +66,7 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     if physics_cfg_str == "physx":
         return PhysxCfg()
     if physics_cfg_str == "newton_mjwarp":
-        return NewtonCfg()
+        return NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False))
     if physics_cfg_str == "newton_vbd":
         # lazy import: core depends on isaaclab_contrib only when VBD is requested
         try:

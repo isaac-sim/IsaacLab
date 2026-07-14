@@ -77,12 +77,16 @@ Contact Detection and Resolution
         buffers (``gpu_max_rigid_contact_count`` etc.) cap the number of
         contacts per step; oversubscription is a hard error.
     * - MJWarp
-      - Two modes selected by
-        :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_contacts`:
-        MuJoCo's internal contact pipeline (default) or Newton's
-        :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg`. The two
-        are mutually exclusive. GJK/EPA iteration count is exposed via
-        :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.ccd_iterations`.
+      - First-party presets use Newton's
+        :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg`, selected
+        with :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_contacts`
+        set to ``False``. The public default remains ``True`` during the
+        deprecation window so external configurations can temporarily retain
+        MuJoCo's internal contact pipeline; the modes are mutually exclusive.
+        New configurations should use Newton and customize it with
+        :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`.
+        :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.ccd_iterations` applies
+        only to the deprecated internal collision path.
     * - Kamino
       - Optionally uses Kamino's internal collision detector (``"primitive"``
         or ``"unified"``) via
@@ -249,12 +253,15 @@ GPU Buffers and Throughput
         :doc:`PhysX configuration page <physx/configuration>` for the
         ``gpu_*`` knobs.
     * - MJWarp
-      - Pre-allocated per-environment limits:
-        :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.njmax`
-        (constraint rows) and
-        :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.nconmax` (contact
-        points). The remainder of state lives in dynamically-sized Warp
-        arrays.
+      - Capacity is two-stage. Newton first generates contacts into
+        :attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.rigid_contact_max`;
+        MJWarp then accepts them into
+        :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.nconmax` and allocates
+        constraint rows according to
+        :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.njmax`. Undersizing
+        either contact stage can truncate work and emit an overflow warning;
+        oversizing either MJWarp limit increases fixed allocation and kernel
+        work. The remainder of state lives in dynamically-sized Warp arrays.
     * - Kamino
       - Inherits MJWarp's pre-allocation pattern via Newton, plus its own
         contact-pair allocator

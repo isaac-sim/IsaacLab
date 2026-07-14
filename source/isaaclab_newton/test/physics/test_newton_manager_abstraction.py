@@ -31,8 +31,11 @@ Covers:
 from __future__ import annotations
 
 import inspect
+import typing
 from types import SimpleNamespace
+from unittest import mock
 
+import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
@@ -63,6 +66,7 @@ try:
 except ImportError:
     from newton._src.solvers import SolverFeatherPGS
 
+from isaaclab.physics import PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -73,11 +77,14 @@ from isaaclab.sim import SimulationCfg, build_simulation_context
 #  expected_use_single_state, expected_needs_collision_pipeline)
 SOLVER_MATRIX = [
     pytest.param(
-        lambda: MJWarpSolverCfg(use_mujoco_contacts=True),
+        lambda: MJWarpSolverCfg(),
         NewtonMJWarpManager,
         SolverMuJoCo,
         True,
         False,
+        marks=pytest.mark.filterwarnings(
+            "ignore:MJWarpSolverCfg.use_mujoco_contacts=True selects.*:DeprecationWarning"
+        ),
         id="mjwarp_internal_contacts",
     ),
     pytest.param(
@@ -193,6 +200,42 @@ def test_newton_cfg_post_init_propagates_class_type(
     assert cfg.class_type.__name__ == expected_manager.__name__
 
 
+def test_newton_cfg_mesh_bvh_constructor_type_exposes_all_supported_values():
+    """The public type must expose every triangle-mesh BVH constructor supported by Newton."""
+    module = inspect.getmodule(NewtonCfg)
+    assert module is not None
+    annotation = inspect.get_annotations(
+        NewtonCfg,
+        globals={**vars(module), "NewtonManager": NewtonManager, "PhysicsManager": PhysicsManager},
+        eval_str=True,
+    )["mesh_bvh_constructor"]
+    literal = next(member for member in typing.get_args(annotation) if typing.get_origin(member) is typing.Literal)
+
+    assert set(typing.get_args(literal)) == {"lbvh", "sah", "median", "cubql"}
+    assert type(None) in typing.get_args(annotation)
+
+
+@pytest.mark.parametrize("mesh_bvh_constructor", [None, "sah", "median"])
+def test_create_builder_applies_mesh_bvh_constructor_to_main_and_prototype_builders(monkeypatch, mesh_bvh_constructor):
+    """Main and prototype builders must share the manager-owned mesh BVH constructor."""
+    upstream_mesh_bvh_constructor = newton_manager_module.ModelBuilder().default_bvh_cfg.mesh_constructor
+    if mesh_bvh_constructor is None:
+        cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False))
+    else:
+        cfg = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
+            mesh_bvh_constructor=mesh_bvh_constructor,
+        )
+    monkeypatch.setattr(PhysicsManager, "_cfg", cfg)
+
+    main_builder = NewtonManager.create_builder()
+    prototype_builder = NewtonManager.create_builder()
+    expected = upstream_mesh_bvh_constructor if mesh_bvh_constructor is None else mesh_bvh_constructor
+
+    assert main_builder.default_bvh_cfg.mesh_constructor == expected
+    assert prototype_builder.default_bvh_cfg.mesh_constructor == expected
+
+
 @pytest.mark.parametrize(
     "num_substeps, collision_decimation, should_warn",
     [
@@ -209,7 +252,11 @@ def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimat
     import logging
 
     with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_manager_cfg"):
-        cfg = NewtonCfg(num_substeps=num_substeps, collision_decimation=collision_decimation)
+        cfg = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
+            num_substeps=num_substeps,
+            collision_decimation=collision_decimation,
+        )
     warned = any("collision_decimation" in rec.getMessage() for rec in caplog.records)
     assert warned is should_warn
     # Cfg field round-trips regardless of warning.
@@ -304,6 +351,18 @@ def test_mpm_register_builder_attributes_is_idempotent():
     # Second call must be a no-op (no exceptions, attribute still present).
     NewtonMPMManager._register_builder_attributes(builder)
     assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+def test_feather_pgs_register_builder_attributes_is_idempotent():
+    """The FeatherPGS manager owns registration without duplicating attributes."""
+    builder = mock.Mock()
+    builder.has_custom_attribute.side_effect = [False, True]
+
+    with mock.patch.object(SolverFeatherPGS, "register_custom_attributes") as register:
+        NewtonFeatherPGSManager._register_builder_attributes(builder)
+        NewtonFeatherPGSManager._register_builder_attributes(builder)
+
+    register.assert_called_once_with(builder)
 
 
 def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
@@ -729,8 +788,28 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         NewtonManager.set_builder(builder)
 
-        with pytest.raises(ValueError, match="collision_cfg cannot be set"):
-            sim.reset()
+        with pytest.warns(DeprecationWarning, match="internal contact pipeline"):
+            with pytest.raises(ValueError, match="collision_cfg cannot be set"):
+                sim.reset()
+
+
+def test_mjwarp_cpu_with_newton_contacts_raises():
+    """Pure MuJoCo CPU cannot silently discard contacts from Newton's pipeline."""
+    solver_cfg = MJWarpSolverCfg(use_mujoco_cpu=True, use_mujoco_contacts=False)
+
+    with pytest.raises(ValueError, match="cannot consume Newton CollisionPipeline contacts"):
+        NewtonMJWarpManager._build_solver(None, solver_cfg)  # type: ignore[arg-type]
+
+
+def test_mjwarp_cfg_owns_contact_mode_validation():
+    """The public solver config owns warnings and invalid contact-mode combinations."""
+    with pytest.warns(DeprecationWarning, match="internal contact pipeline"):
+        MJWarpSolverCfg(use_mujoco_contacts=True).validate_contact_mode()
+
+    MJWarpSolverCfg(use_mujoco_contacts=False).validate_contact_mode()
+
+    with pytest.raises(ValueError, match="cannot consume Newton CollisionPipeline contacts"):
+        MJWarpSolverCfg(use_mujoco_cpu=True, use_mujoco_contacts=False).validate_contact_mode()
 
 
 @pytest.mark.parametrize(

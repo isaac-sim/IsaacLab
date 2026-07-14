@@ -16,6 +16,7 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=120,
                 nconmax=15,
                 cone="elliptic",

@@ -114,6 +114,7 @@ class PhysicsCfg(PresetCfg):
     newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=40,
                 nconmax=20,
                 ls_iterations=20,
@@ -145,6 +146,7 @@ class PhysicsCfg(PresetCfg):
                 CouplerEntryCfg(
                     name="rigid",
                     solver_cfg=MJWarpSolverCfg(
+                        use_mujoco_contacts=False,
                         cone="elliptic",
                         ls_iterations=20,
                         integrator="implicitfast",

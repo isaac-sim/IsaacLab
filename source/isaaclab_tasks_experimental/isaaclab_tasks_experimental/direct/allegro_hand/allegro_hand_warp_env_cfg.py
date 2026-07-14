@@ -31,6 +31,7 @@ class AllegroHandWarpEnvCfg(DirectRLEnvCfg):
     obs_type = "full"
 
     solver_cfg = MJWarpSolverCfg(
+        use_mujoco_contacts=False,
         solver="newton",
         integrator="implicitfast",
         njmax=80,

@@ -63,6 +63,7 @@ class CabinetSimCfg(PresetCfg):
         render_interval=1,
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=90,
                 nconmax=100,
                 cone="pyramidal",

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils.configclass import configclass
 
@@ -20,7 +20,12 @@ if TYPE_CHECKING:
 
 @configclass
 class FeatherPGSSolverCfg(NewtonSolverCfg):
-    """Configuration for Newton's FeatherPGS reduced-coordinate solver."""
+    """Configuration for Newton's reduced-coordinate FeatherPGS solver.
+
+    FeatherPGS evaluates articulated-body dynamics in generalized coordinates
+    and resolves contacts and enabled joint constraints with projected
+    Gauss-Seidel iterations. It always uses Newton's collision pipeline.
+    """
 
     class_type: type[NewtonManager] | str = "{DIR}.feather_pgs_manager:NewtonFeatherPGSManager"
     """Manager class for the FeatherPGS solver."""
@@ -29,13 +34,13 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     """Solver type metadata."""
 
     angular_damping: float = 0.05
-    """Angular damping factor."""
+    """Angular velocity damping rate [s^-1]."""
 
     update_mass_matrix_interval: int = 1
     """How often to update the mass matrix, in simulation steps."""
 
     friction_smoothing: float = 1.0
-    """Huber smoothing value for friction normalization."""
+    """Huber delta for normalizing tangential contact velocity [m/s]."""
 
     contact_friction_gap_threshold: float = math.inf
     """Gap threshold [m] for enabling tangential contact friction rows."""
@@ -50,7 +55,7 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     """Maximum stored contact-friction anchors per world."""
 
     contact_friction_scale: float = 1.0
-    """Scale factor applied to contact friction limits."""
+    """Dimensionless scale factor applied to contact friction limits."""
 
     contact_shared_anchor: bool = False
     """Whether normal contact rows use shared anchors."""
@@ -65,10 +70,13 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     """Distance [m or rad, depending on joint type] from a joint limit at which rows activate."""
 
     enable_joint_velocity_limits: bool = False
-    """Whether to enforce per-DOF joint velocity limits as PGS constraints."""
+    """Whether to enforce per-DOF joint velocity limits as PGS constraints.
+
+    This option requires :attr:`pgs_mode` to be ``"matrix_free"``.
+    """
 
     velocity_limit_activation_fraction: float = 0.0
-    """Fraction of each joint velocity limit at which velocity-limit rows activate."""
+    """Dimensionless fraction of each joint velocity limit at which velocity-limit rows activate."""
 
     pgs_iterations: int = 12
     """Number of Gauss-Seidel iterations per simulation step."""
@@ -77,25 +85,29 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     """Number of velocity-level Gauss-Seidel iterations per simulation step."""
 
     pgs_beta: float = 0.2
-    """ERP-style position correction factor."""
+    """Dimensionless ERP-style position correction factor."""
 
     pgs_cfm: float = 1.0e-6
-    """Compliance/regularization on the Delassus diagonal."""
+    """Regularization added to Newton's impulse-space Delassus diagonal.
+
+    Units follow the constraint row: [kg^-1] for contact and prismatic rows, and [(kg·m²)^-1] for revolute and angular
+    rows.
+    """
 
     dense_contact_compliance: float = 0.0
-    """Normal contact compliance for dense articulated contact rows."""
+    """Normal contact compliance for dense articulated contact rows [m/N]."""
 
     speculative_dense_contact_compliance: float = 0.0
-    """Normal compliance for speculative dense contact rows."""
+    """Additional normal contact compliance for speculative dense contact rows [m/N]."""
 
     pgs_omega: float = 1.0
-    """Successive over-relaxation factor for PGS."""
+    """Dimensionless successive over-relaxation factor for PGS."""
 
     pgs_velocity_omega: float | None = None
-    """Velocity-level successive over-relaxation factor. ``None`` uses the solver default."""
+    """Dimensionless velocity-level relaxation factor. ``None`` uses :attr:`pgs_omega`."""
 
-    pgs_velocity_drive_mode: str = "freeze"
-    """Velocity-drive handling mode for velocity-level PGS rows."""
+    pgs_velocity_drive_mode: Literal["active", "freeze"] = "freeze"
+    """Drive-row handling during velocity-only PGS: ``"active"`` updates rows and ``"freeze"`` holds impulses."""
 
     dense_max_constraints: int = 32
     """Maximum articulation-contact constraints per world."""
@@ -103,31 +115,41 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     pgs_warmstart: bool = False
     """Whether to warm-start impulses from the previous frame."""
 
-    pgs_mode: str = "split"
-    """PGS mode: ``"dense"``, ``"split"``, or ``"matrix_free"``."""
+    pgs_mode: Literal["dense", "split", "matrix_free"] = "split"
+    """Constraint solve layout.
 
-    pgs_schedule: str = "interleaved"
-    """Ordering schedule for contact/internal PGS rows."""
+    ``"dense"`` builds the full Delassus matrix, ``"split"`` uses dense articulated rows and matrix-free free-body
+    rows, and ``"matrix_free"`` avoids constructing the dense matrix.
+    """
 
-    friction_mode: str = "current"
-    """Per-row Coulomb friction strategy for the matrix-free PGS path."""
+    pgs_schedule: Literal["interleaved", "contact_then_internal", "physx_grasp"] = "interleaved"
+    """Ordering schedule for matrix-free contact and internal rows.
+
+    Values other than ``"interleaved"`` require :attr:`pgs_mode` to be ``"matrix_free"``.
+    """
+
+    friction_mode: Literal["current", "bisection", "bisection_desaxce", "coulomb_newton"] = "current"
+    """Per-row Coulomb friction strategy.
+
+    Values other than ``"current"`` require :attr:`pgs_mode` to be ``"matrix_free"``.
+    """
 
     mf_max_constraints: int = 512
     """Maximum matrix-free constraints per world."""
 
-    cholesky_kernel: str = "auto"
+    cholesky_kernel: Literal["tiled", "loop", "auto"] = "auto"
     """Cholesky kernel: ``"tiled"``, ``"loop"``, or ``"auto"``."""
 
-    trisolve_kernel: str = "auto"
+    trisolve_kernel: Literal["tiled", "loop", "auto"] = "auto"
     """Tri-solve kernel: ``"tiled"``, ``"loop"``, or ``"auto"``."""
 
-    hinv_jt_kernel: str = "auto"
+    hinv_jt_kernel: Literal["tiled", "par_row", "auto"] = "auto"
     """H^-1 J^T kernel: ``"tiled"``, ``"par_row"``, or ``"auto"``."""
 
-    delassus_kernel: str = "auto"
+    delassus_kernel: Literal["tiled", "par_row_col", "auto"] = "auto"
     """Delassus accumulation kernel: ``"tiled"``, ``"par_row_col"``, or ``"auto"``."""
 
-    pgs_kernel: str = "tiled_row"
+    pgs_kernel: Literal["loop", "tiled_row", "tiled_contact", "streaming"] = "tiled_row"
     """PGS kernel: ``"loop"``, ``"tiled_row"``, ``"tiled_contact"``, or ``"streaming"``."""
 
     delassus_chunk_size: int | None = None
@@ -151,11 +173,15 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     pgs_debug: bool = False
     """Whether to enable PGS debug diagnostics."""
 
-    drive_mode: str = "augmented"
-    """Drive model used by the FeatherPGS solver."""
+    drive_mode: Literal["augmented", "physx_pgs"] = "augmented"
+    """Joint drive model.
 
-    effort_limit_mode: str = "actuator"
-    """Effort-limit clamp mode forwarded to Newton's FeatherPGS solver."""
+    ``"augmented"`` uses implicit PD, while ``"physx_pgs"`` uses PhysX-style rows and requires
+    :attr:`pgs_mode` to be ``"matrix_free"``.
+    """
+
+    effort_limit_mode: Literal["actuator"] = "actuator"
+    """Effort-limit policy. FeatherPGS supports actuator-drive clamping only."""
 
     serial_kernel_block_dim: int = 256
     """Block dimension for serial matrix-free kernels."""

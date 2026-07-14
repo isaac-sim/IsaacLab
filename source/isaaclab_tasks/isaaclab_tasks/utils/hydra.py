@@ -112,7 +112,7 @@ class PresetCfg:
         @configclass
         class PhysicsCfg(PresetCfg):
             default: PhysxCfg = PhysxCfg()
-            newton_mjwarp: NewtonCfg = NewtonCfg()
+            newton_mjwarp: NewtonCfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False))
 
     The preset *name* (``newton_mjwarp``) is decoupled from the config class
     (``NewtonCfg``): the class describes the Newton backend, while the field
@@ -243,7 +243,8 @@ def collect_presets(cfg, path: str = "") -> dict:
 
     Returns:
         Dict mapping dotted paths to preset dicts, e.g.:
-        ``{"backend": {"default": PhysxCfg(), "newton_mjwarp": NewtonCfg()}}``
+        ``{"backend": {"default": PhysxCfg(), "newton_mjwarp":
+        NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False))}}``
     """
     result = {}
 

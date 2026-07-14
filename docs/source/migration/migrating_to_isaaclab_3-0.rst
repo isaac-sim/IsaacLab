@@ -675,7 +675,7 @@ subclass that carries both a PhysX and a Newton variant.
 
 .. code-block:: python
 
-   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
@@ -685,10 +685,12 @@ subclass that carries both a PhysX and a Newton variant.
        physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
+               use_mujoco_contacts=False,
                njmax=20, nconmax=20, ls_iterations=20,
                cone="pyramidal", integrator="implicitfast",
                impratio=1,
            ),
+           collision_cfg=NewtonCollisionPipelineCfg(),
            num_substeps=1,
            debug_mode=False,
        )
@@ -697,6 +699,15 @@ subclass that carries both a PhysX and a Newton variant.
    def __post_init__(self):
        self.sim.dt = 1 / 60
        self.sim.physics = ReachPhysicsCfg()
+
+First-party MJWarp presets use Newton's ``CollisionPipeline`` for contact
+generation. The public ``use_mujoco_contacts=True`` setting remains available
+during its deprecation window so existing external configurations do not break
+immediately, but it selects the legacy MuJoCo internal collision path. When
+migrating, set ``use_mujoco_contacts=False`` and move collision-generation
+settings to :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`. Keep
+``nconmax`` and ``njmax`` on MJWarp: they size the contacts and constraint rows
+that the solver accepts after Newton generates contacts.
 
 Key Newton solver parameters:
 
@@ -709,10 +720,14 @@ Key Newton solver parameters:
    * - ``njmax``
      - Max constraint rows; set ≥ expected contact count per env
    * - ``nconmax``
-     - Max contacts per env
+     - Max contacts per environment accepted by MJWarp after Newton contact
+       generation
    * - ``ls_iterations``
      - Iterative line search cap; stops early when convergence is reached.
        Tune alongside outer solver iterations for runtime and convergence.
+   * - ``collision_cfg.rigid_contact_max``
+     - Newton contact-generation capacity. Set this and MJWarp's ``nconmax``
+       high enough for the scene; they control different stages.
    * - ``cone``
      - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
    * - ``integrator``

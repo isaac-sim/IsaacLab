@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from newton import Model
+from newton import Model, ModelBuilder
 
 try:
     from newton.solvers import SolverFeatherPGS
@@ -24,6 +24,12 @@ class NewtonFeatherPGSManager(NewtonManager):
     FeatherPGS uses Newton's :class:`CollisionPipeline` for contact handling and
     steps with separate input/output states.
     """
+
+    @classmethod
+    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+        """Register the rigid-body custom attributes required by FeatherPGS."""
+        if not builder.has_custom_attribute("rigid_body_max_linear_velocity"):
+            SolverFeatherPGS.register_custom_attributes(builder)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: FeatherPGSSolverCfg) -> SolverFeatherPGS:

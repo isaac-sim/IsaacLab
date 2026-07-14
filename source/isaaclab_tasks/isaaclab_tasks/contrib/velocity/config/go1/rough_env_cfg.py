@@ -21,31 +21,39 @@ from isaaclab_assets.robots.unitree import UNITREE_GO1_CFG  # isort: skip
 
 
 @configclass
-class PhysicsCfg(RoughPhysicsCfg):
-    feather_pgs = NewtonCfg(
-        solver_cfg=FeatherPGSSolverCfg(
-            angular_damping=0.6,
-            update_mass_matrix_interval=1,
-            enable_joint_limits=True,
-            pgs_iterations=16,
-            pgs_beta=0.02,
-            pgs_cfm=1.0e-5,
-            pgs_omega=0.8,
-            dense_max_constraints=64,
-            pgs_warmstart=False,
-            pgs_mode="split",
-            mf_max_constraints=512,
-        ),
-        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=False,
-        default_shape_cfg=NewtonShapeCfg(margin=0.01),
-    )
-
-
-@configclass
 class UnitreeGo1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    @configclass
+    class PhysicsCfg(RoughPhysicsCfg):
+        """Go1 rough-terrain physics presets owned by this task."""
+
+        feather_pgs = NewtonCfg(
+            solver_cfg=FeatherPGSSolverCfg(
+                angular_damping=0.6,
+                update_mass_matrix_interval=1,
+                enable_joint_limits=True,
+                enable_joint_velocity_limits=True,
+                velocity_limit_activation_fraction=0.35,
+                pgs_iterations=8,
+                pgs_velocity_iterations=0,
+                pgs_beta=0.02,
+                pgs_cfm=1.0e-5,
+                pgs_omega=0.8,
+                pgs_velocity_drive_mode="freeze",
+                dense_max_constraints=64,
+                pgs_warmstart=False,
+                pgs_mode="matrix_free",
+                mf_max_constraints=512,
+                serial_kernel_block_dim=64,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(
+                reduce_contacts=False, rigid_contact_max=None, max_triangle_pairs=2_500_000
+            ),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=True,
+            default_shape_cfg=NewtonShapeCfg(margin=0.01),
+        )
+
     sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     def __post_init__(self):

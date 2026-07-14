@@ -103,7 +103,7 @@ _XFAIL_OVRTX_GAUSSIAN_PPISP = pytest.mark.xfail(
 def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
     return SimulationCfg(
         dt=SIM_DT,
-        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1),
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False), num_substeps=1),
         device=device,
     )
 

@@ -6,6 +6,7 @@
 """Unit tests for Newton clone label rewriting and visualization clone-plan sources."""
 
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 import newton
@@ -333,7 +334,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         if translation is not None:
             xform.AddTranslateOp().Set(translation)
 
-    def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
+    def test_visualization_builder_rewrites_labels_without_feather_pgs_dependency(self):
         stage = Usd.Stage.CreateInMemory()
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
         self._define_xform(stage, "/World")
@@ -351,14 +352,17 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=torch.tensor([[True, False, True], [False, True, False]], dtype=torch.bool),
             env_ids=torch.tensor([0, 1, 2], dtype=torch.long),
         )
+        solvers_without_feather_pgs = SimpleNamespace(
+            SolverMuJoCo=mock.Mock(),
+            SolverKamino=mock.Mock(),
+        )
 
         with (
             mock.patch.object(visualization_builder_module, "ModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(newton_clone_utils_module, "ModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
-            mock.patch.object(newton_clone_utils_module.solvers.SolverMuJoCo, "register_custom_attributes"),
-            mock.patch.object(newton_clone_utils_module.solvers.SolverKamino, "register_custom_attributes"),
+            mock.patch.object(newton_clone_utils_module, "solvers", solvers_without_feather_pgs),
         ):
             builder = visualization_builder_module.build_visualization_builder_from_stage_envs(
                 stage, env_paths, clone_plan

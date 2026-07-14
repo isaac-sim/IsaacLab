@@ -28,6 +28,7 @@ class AntPhysicsCfg(PresetCfg):
     physx: PhysxCfg = PhysxCfg()
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
+            use_mujoco_contacts=False,
             njmax=45,
             nconmax=25,
             cone="pyramidal",
