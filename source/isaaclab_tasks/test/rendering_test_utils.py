@@ -354,7 +354,7 @@ def maybe_save_stage(
                 flat_stage_path = flat_tmp.name
             try:
                 if not flat_layer.Export(flat_stage_path):
-                    pytest.fail(f"Failed to write flattened result stage for comparison.")
+                    pytest.fail("Failed to write flattened result stage for comparison.")
                 problems = compare_golden_stage(golden_path, flat_stage_path)
             finally:
                 if os.path.exists(flat_stage_path):
