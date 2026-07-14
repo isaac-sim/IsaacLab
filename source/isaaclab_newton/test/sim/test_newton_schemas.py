@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import math
+
 import pytest
 from isaaclab_newton.sim.schemas import (
     MujocoJointDrivePropertiesCfg,
@@ -426,3 +428,94 @@ def test_newton_legacy_cfg_authors_contact_attrs(setup_sim):
     assert prim.GetAttribute("newton:contactDamping").Get() == pytest.approx(250.0)
     assert prim.GetAttribute("newton:contactFrictionGain").Get() == pytest.approx(40.0)
     assert prim.GetAttribute("newton:contactAdhesion").Get() == pytest.approx(0.02)
+
+
+# ---------------------------------------------------------------------------
+# Inherited PhysX-routed fields on Newton/MuJoCo cfgs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_rigid_body_disable_gravity_routes_to_physx_namespace(setup_sim):
+    """``disable_gravity`` is a PhysX-consumed field inherited from the base cfg. Setting it on
+    the Newton cfg must author ``physxRigidBody:disableGravity``, not a bare ``physics:*``
+    attribute that no backend reads."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/nrb_dg", prim_type="Cube")
+    schemas.define_rigid_body_properties("/World/nrb_dg", NewtonRigidBodyPropertiesCfg(disable_gravity=True))
+    prim = stage.GetPrimAtPath("/World/nrb_dg")
+    assert prim.GetAttribute("physxRigidBody:disableGravity").Get() is True
+    assert not prim.GetAttribute("physics:disableGravity").IsValid()
+
+
+@pytest.mark.isaacsim_ci
+def test_mujoco_rigid_body_disable_gravity_routes_to_physx_namespace(setup_sim):
+    """The MuJoCo rigid-body cfg inherits ``disable_gravity`` and must route it like its parents,
+    while its own ``gravcomp`` keeps its ``mjc:*`` namespace."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/mrb_dg", prim_type="Cube")
+    schemas.define_rigid_body_properties(
+        "/World/mrb_dg", MujocoRigidBodyPropertiesCfg(disable_gravity=True, gravcomp=0.5)
+    )
+    prim = stage.GetPrimAtPath("/World/mrb_dg")
+    assert prim.GetAttribute("physxRigidBody:disableGravity").Get() is True
+    assert prim.GetAttribute("mjc:gravcomp").Get() == pytest.approx(0.5)
+    assert not prim.GetAttribute("physics:disableGravity").IsValid()
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_collision_offsets_route_to_physx_namespace(setup_sim):
+    """``contact_offset``/``rest_offset`` are PhysX-consumed fields inherited from the base cfg
+    and must author ``physxCollision:*`` attributes on Newton collision cfgs."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/ncol_off", prim_type="Cube")
+    schemas.define_collision_properties(
+        "/World/ncol_off", NewtonCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.01)
+    )
+    prim = stage.GetPrimAtPath("/World/ncol_off")
+    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
+    assert prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.01)
+    assert not prim.GetAttribute("physics:contactOffset").IsValid()
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_sdf_collision_offsets_route_to_physx_namespace(setup_sim):
+    """The deepest Newton collision subclass must inherit the same PhysX routing for the
+    offset fields as its parents."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/nsdf_off", prim_type="Cube")
+    schemas.define_collision_properties("/World/nsdf_off", NewtonSDFCollisionPropertiesCfg(contact_offset=0.02))
+    prim = stage.GetPrimAtPath("/World/nsdf_off")
+    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
+    assert not prim.GetAttribute("physics:contactOffset").IsValid()
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_joint_drive_max_velocity_routes_to_physx_namespace(setup_sim):
+    """``max_joint_velocity`` is a PhysX-consumed field inherited from the base cfg. Setting it
+    on the Newton joint-drive cfg must author ``physxJoint:maxJointVelocity`` instead of
+    raising."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/njd_mv", prim_type="Xform")
+    sim_utils.create_prim("/World/njd_mv/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/njd_mv/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/njd_mv/joint0")
+    schemas.modify_joint_drive_properties("/World/njd_mv", NewtonJointDrivePropertiesCfg(max_joint_velocity=5.0))
+    attr = stage.GetPrimAtPath("/World/njd_mv/joint0").GetAttribute("physxJoint:maxJointVelocity")
+    # the writer converts angular joint velocities from rad/s to PhysX's degree convention
+    assert attr.Get() == pytest.approx(math.degrees(5.0))
+
+
+@pytest.mark.isaacsim_ci
+def test_mujoco_joint_drive_max_velocity_routes_to_physx_namespace(setup_sim):
+    """The MuJoCo joint-drive cfg inherits ``max_joint_velocity`` and must route it like its
+    parents instead of raising."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/mjd_mv", prim_type="Xform")
+    sim_utils.create_prim("/World/mjd_mv/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/mjd_mv/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/mjd_mv/joint0")
+    schemas.modify_joint_drive_properties("/World/mjd_mv", MujocoJointDrivePropertiesCfg(max_joint_velocity=5.0))
+    attr = stage.GetPrimAtPath("/World/mjd_mv/joint0").GetAttribute("physxJoint:maxJointVelocity")
+    # the writer converts angular joint velocities from rad/s to PhysX's degree convention
+    assert attr.Get() == pytest.approx(math.degrees(5.0))
