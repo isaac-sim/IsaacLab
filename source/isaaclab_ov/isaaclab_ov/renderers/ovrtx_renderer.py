@@ -458,6 +458,18 @@ class OVRTXRenderer(BaseRenderer):
         xform_attr_name = "omni:xform"
 
         # Snapshot per-env root transforms before clone_usd overwrites them with the source env root.
+        #
+        # We only create xform bindings for prims in the body_label list, so their transforms are
+        # driven each frame from simulation data. Prims not in that list (e.g. static rigid objects
+        # such as tables) get no binding, and we never reset their xform stack. Their world placement
+        # therefore relies on every ancestor holding a correct xform in the ovrtx data. In
+        # particular, if an env root has no valid xform, these prims collapse toward env_0 frame
+        # (e.g. tables ending up at env_0 and missing from the other tiles).
+        #
+        # Snapshotting the env-root xforms here and restoring them after clone (see below) keeps those
+        # hierarchy-positioned prims correctly placed per env. This is a cheap one-off operation,
+        # preferable to forcing every static object into the body_label list just to bind its xform.
+        #
         env_root_xforms = np.empty((num_envs, 4, 4), dtype=np.float64)
         self._renderer.read_attribute(
             xform_attr_name,
@@ -493,9 +505,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
-        # OVRTX clone_usd copies the source env-root transform onto cloned env roots.
-        # Restore the pre-clone offsets so hierarchy-positioned prims (e.g. static props)
-        # under /World/envs/env_* keep their intended per-env world placement.
+        # Restore the pre-clone xforms.
         self._renderer.write_attribute(
             prim_paths=env_prim_paths,
             attribute_name=xform_attr_name,
@@ -736,14 +746,11 @@ class OVRTXRenderer(BaseRenderer):
 
     def update_geometries(self) -> None:
         """Sync geometries to OVRTX."""
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping deformable points update")
-            return
-
         if self._deformable_points_binding is None:
             return
+
+        # If self._deformable_points_binding is not None, then Newton's the current physics backend
+        from isaaclab_newton.physics import NewtonManager
 
         newton_state = NewtonManager.get_state()
         if newton_state is None:
