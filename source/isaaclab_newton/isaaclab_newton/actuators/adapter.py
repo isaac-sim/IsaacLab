@@ -340,9 +340,11 @@ def build_newton_actuator_defaults(
     stiffness = wp.to_torch(flat_stiffness.reshape((num_envs, num_joints)))
     damping = wp.to_torch(flat_damping.reshape((num_envs, num_joints)))
     if user_to_backend is not None:
-        user_to_backend_tensor = torch.tensor(user_to_backend, dtype=torch.long, device=device)
-        stiffness = stiffness.index_select(1, user_to_backend_tensor)
-        damping = damping.index_select(1, user_to_backend_tensor)
+        # ``index_select(1, backend_column_indices)`` gathers backend-order columns into user-order
+        # positions: for each user position ``u`` it holds the backend column ``user_to_backend[u]``.
+        backend_column_indices = torch.tensor(user_to_backend, dtype=torch.long, device=device)
+        stiffness = stiffness.index_select(1, backend_column_indices)
+        damping = damping.index_select(1, backend_column_indices)
         if not isinstance(joint_indices, slice):
             backend_to_user = [0] * num_joints
             for user_index, backend_index in enumerate(user_to_backend):
