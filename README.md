@@ -150,37 +150,6 @@ Generate augemented dataset w domain randomization
     --enable_domain_randomization
 ```
 
-## Generate augmented dataset(Cosmos-transfer)
-
-```
-git clone https://github.com/nvidia-cosmos/cosmos-transfer1.git
-cd cosmos-transfer1
-git checkout e4055e39ee9c53165e85275bdab84ed20909714a   # tested commit
-
-conda create -n cosmos python=3.10 -y
-conda activate cosmos
-pip install -e .
-```
-
-```
-./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-Cosmos-Mimic-v0     --input_file logs/demos/pickup_source_annotated.hdf5     --output_file logs/demos/pickup_source_generated_10_cosmos.hdf5     --generation_num_trials 10 --num_envs 4 --enable_cameras     --rendering_mode performance
-```
-
-```
- python scripts/tools/hdf5_to_mp4.py \
-    --input_file logs/demos/pickup_source_generated_10_cosmos.hdf5 \
-    --output_dir logs/demos/pickup_cosmos_mp4 \
-    --input_keys front_cam wrist_cam body_cam \
-                 front_cam_segmentation front_cam_normals front_cam_depth \
-                 wrist_cam_depth \
-    --video_height 704 --video_width 1280 --framerate 30
-```
-
-```
-cd ~/Stanley_ws/cosmos-transfer1
-/home/csl/Stanley_ws/IsaacLab/scripts/cosmos/run_cosmos_inference.sh
-```
-
 # Convert HDF5 to LeRobot format 
 
 ```
@@ -237,7 +206,7 @@ conda activate env_isaaclab
 
 ```
 cd ~/Stanley_ws/IsaacLab
-./isaaclab.sh -p scripts/imitation_learning/lerobot/eval_smolvla.py \
+./isaaclab.sh -p scripts/imitation_learning/lerobot/eval_smolvla_jointspace.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
     --num_rollouts 5 --horizon 300 --enable_cameras \
     --cameras body_cam,wrist_cam
@@ -262,6 +231,10 @@ python deploy_smolvla_pickup_jointspace.py \
     --inference-hz 10 \
     --max-joint-speed 0.3 \
     --max-episode-seconds 10
+```
+
+```
+python deploy_smolvla_pickup_jointspace.py     --checkpoint ethanCSL/openarm_visuomotor_no_domain_randomization_1000_joints     --body-cam-index 4 --wrist-cam-index 10     --inference-hz 30     --max-joint-speed 1.0     --max-episode-seconds 30 --calibration calibration.json
 ```
 
 ## OpenARM Motors Check
