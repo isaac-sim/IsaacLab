@@ -286,6 +286,13 @@ class PhysxManager(PhysicsManager):
         """Initialize the physics manager."""
         from isaaclab.sim.utils.stage import get_current_stage_id
 
+        from isaaclab_physx import _subscribe_to_simulation_manager_enable
+
+        # Optional Isaac Sim extensions can load their SimulationManager after
+        # isaaclab_physx. Subscribe once Kit is available so its callbacks are
+        # disabled before they can compete with this manager for tensor views.
+        _subscribe_to_simulation_manager_enable()
+
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
 

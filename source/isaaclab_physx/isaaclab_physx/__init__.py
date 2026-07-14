@@ -8,6 +8,10 @@
 import importlib.metadata
 import sys
 
+
+_simulation_manager_hook: object | None = None
+
+
 try:
     __version__ = importlib.metadata.version("isaaclab_physx")
 except importlib.metadata.PackageNotFoundError:
@@ -49,13 +53,11 @@ def _patch_isaacsim_simulation_manager():
 
     This function is intentionally lazy: it only patches if
     ``isaacsim.core.simulation_manager`` is already present in ``sys.modules``.
-    In the normal production flow Kit loads that module during extension startup,
-    before any user script imports :mod:`isaaclab_physx`, so the condition is
-    true and the patch fires on time. If :mod:`isaaclab_physx` happens to be
-    imported for pure config loading before Kit has launched (e.g. in
-    ``test_env_cfg_no_forbidden_imports``), the module is absent and this
-    function is a no-op — which is correct, because no callbacks have been
-    registered yet.
+    If :mod:`isaaclab_physx` is imported before Kit has launched or before an
+    optional extension loads Isaac Sim's manager, this function is a no-op. The
+    extension-enable subscription installed by
+    :func:`_subscribe_to_simulation_manager_enable` applies the patch when the
+    manager is loaded later.
     """
     original_module = sys.modules.get("isaacsim.core.simulation_manager")
     if original_module is None:
@@ -70,6 +72,12 @@ def _patch_isaacsim_simulation_manager():
     # stage_close (CLOSED). Older Isaac Sim builds may not expose this API, so
     # fall back gracefully.
     original_class = getattr(original_module, "SimulationManager", None)
+    if original_class is PhysxManager:
+        # Extension reloads run the original implementation's startup again, but
+        # the package-level symbol remains patched. Recover the implementation
+        # class so its newly registered callbacks can be disabled again.
+        implementation_module = sys.modules.get("isaacsim.core.simulation_manager.impl.simulation_manager")
+        original_class = getattr(implementation_module, "SimulationManager", None)
     if original_class is not None and original_class is not PhysxManager:
         try:
             original_class.enable_all_default_callbacks(False)
@@ -90,4 +98,37 @@ def _patch_isaacsim_simulation_manager():
     original_module.IsaacEvents = IsaacEvents
 
 
+def _subscribe_to_simulation_manager_enable():
+    """Patch Isaac Sim's simulation manager whenever its extension is enabled.
+
+    The extension may be loaded after :mod:`isaaclab_physx` by an optional
+    dependency, such as the surface gripper. Keeping this subscription alive
+    prevents that late load from registering a second owner of the PhysX
+    simulation lifecycle without loading the extension for other workflows.
+    """
+    global _simulation_manager_hook
+
+    if _simulation_manager_hook is not None:
+        return
+
+    # Do not import Kit here. Config-only imports must remain usable before the
+    # app launches; PhysxManager.initialize() retries this once Kit is available.
+    kit_app = sys.modules.get("omni.kit.app")
+    if kit_app is None:
+        return
+
+    app = kit_app.get_app()
+    if app is None:
+        return
+
+    extension_manager = app.get_extension_manager()
+    _simulation_manager_hook = extension_manager.subscribe_to_extension_enable(
+        on_enable_fn=lambda _: _patch_isaacsim_simulation_manager(),
+        on_disable_fn=lambda _: None,
+        ext_name="isaacsim.core.simulation_manager",
+        hook_name="isaaclab_physx simulation manager lifecycle patch",
+    )
+
+
 _patch_isaacsim_simulation_manager()
+_subscribe_to_simulation_manager_enable()
