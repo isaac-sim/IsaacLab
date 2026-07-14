@@ -14,6 +14,7 @@
     from_files
     materials
     wrappers
+    simready
 
   .. rubric:: Classes
 
@@ -384,4 +385,28 @@ Wrappers
 
 .. autoclass:: MultiUsdFileCfg
     :members:
+    :exclude-members: __init__, func
+
+SimReady Assets
+---------------
+
+.. automodule:: isaaclab.sim.spawners.simready
+
+  .. rubric:: Classes
+
+  .. autosummary::
+
+    SimReadyUsdFileCfg
+    SimReadyMultiUsdFileCfg
+
+.. autofunction:: search_simready_usd_paths
+
+.. autoclass:: SimReadyUsdFileCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: SimReadyMultiUsdFileCfg
+    :members:
+    :show-inheritance:
     :exclude-members: __init__, func
