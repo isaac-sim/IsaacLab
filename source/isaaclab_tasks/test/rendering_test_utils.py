@@ -102,18 +102,46 @@ _DEFAULT_SENSOR_DATA_TYPES = (
 )
 
 
+# Data types the Newton Warp renderer (``newton_renderer``) supports. Expand this tuple as the
+# renderer gains support for additional output types.
+_NEWTON_WARP_DATA_TYPES = (
+    "rgb",
+    "depth",
+    "distance_to_camera",
+    "distance_to_image_plane",
+    "normals",
+)
+
+
 def _make_sensor_data_type_params(
-    physics_backend: str, renderer: str, sensor_data_types: list[str] = None
+    physics_backend: str,
+    renderer: str,
+    sensor_data_types: list[str] = None,
+    *,
+    flaky: bool = True,
+    renderer_label: str | None = None,
 ) -> list[pytest.param]:
-    """Create golden-image parameter entries for every supported output type."""
+    """Create golden-image parameter entries for the given data types.
+
+    Args:
+        physics_backend: Physics backend label (e.g. ``"physx"``, ``"newton"``, ``"ovphysx"``).
+        renderer: Renderer nickname; the camera renderer argument becomes ``f"{renderer}_renderer"``.
+        sensor_data_types: Data types to parametrize. Defaults to :data:`_DEFAULT_SENSOR_DATA_TYPES`.
+        flaky: Whether to apply the retry mark. RTX renderers are non-deterministic and need it; the
+            deterministic Warp rasterizer does not.
+        renderer_label: Overrides the renderer segment of the test id. Defaults to ``renderer``; used
+            to keep the ``newton_warp`` id distinct from its ``newton_renderer`` argument.
+    """
     sensor_data_types = sensor_data_types or _DEFAULT_SENSOR_DATA_TYPES
+    label = renderer_label or renderer
+    marks = _FLAKY_MARK if flaky else ()
     return [
         pytest.param(
             physics_backend,
             f"{renderer}_renderer",
             data_type,
-            id=f"{physics_backend}-{renderer}-{data_type}",
-            marks=_FLAKY_MARK,
+            id=f"{physics_backend}-{label}-{data_type}",
+            marks=marks,
         )
         for data_type in sensor_data_types
     ]
@@ -122,67 +150,19 @@ def _make_sensor_data_type_params(
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
     *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
-    # physx + newton_renderer (warp)
-    pytest.param(
-        "physx",
-        "newton_renderer",
-        "rgb",
-        id="physx-newton_warp-rgb",
-    ),
-    pytest.param(
-        "physx",
-        "newton_renderer",
-        "depth",
-        id="physx-newton_warp-depth",
-    ),
-    pytest.param(
-        "physx",
-        "newton_renderer",
-        "normals",
-        id="physx-newton_warp-normals",
+    *_make_sensor_data_type_params(
+        "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("ovphysx", "ovrtx"),
     *_make_sensor_data_type_params("newton", "ovrtx"),
-    # ovphysx + newton_renderer (warp)
-    pytest.param(
-        "ovphysx",
-        "newton_renderer",
-        "rgb",
-        id="ovphysx-newton_warp-rgb",
+    *_make_sensor_data_type_params(
+        "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
-    pytest.param(
-        "ovphysx",
-        "newton_renderer",
-        "depth",
-        id="ovphysx-newton_warp-depth",
-    ),
-    pytest.param(
-        "ovphysx",
-        "newton_renderer",
-        "normals",
-        id="ovphysx-newton_warp-normals",
-    ),
-    # newton + newton_renderer (warp)
-    pytest.param(
-        "newton",
-        "newton_renderer",
-        "rgb",
-        id="newton-newton_warp-rgb",
-    ),
-    pytest.param(
-        "newton",
-        "newton_renderer",
-        "depth",
-        id="newton-newton_warp-depth",
-    ),
-    pytest.param(
-        "newton",
-        "newton_renderer",
-        "normals",
-        id="newton-newton_warp-normals",
+    *_make_sensor_data_type_params(
+        "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
 ]
 

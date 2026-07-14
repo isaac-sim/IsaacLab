@@ -273,6 +273,67 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
 
+  # aarch64 build + marker-gated tests on NVIDIA DGX Spark self-hosted runners.
+  # Build and test must share one runner because ECR is not wired for arm64 —
+  # the locally-built image cannot be handed off across machines.
+  arm-ci:
+    name: arm-ci
+    runs-on: [self-hosted, arm64]
+    needs: [changes, config]
+    if: needs.changes.outputs.run_docker_tests == 'true'
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build base image (linux/arm64)
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        platform: linux/arm64
+        # The Spark runner is long-lived self-hosted with no ECR, so its local
+        # deps-cache tags accumulate; evict ones older than 14 days each run.
+        evict-stale-cache: "true"
+
+    - name: Run arm_ci marker tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: tools
+        result-file: arm-ci-report.xml
+        container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        extra-pip-packages: "ovrtx ovphysx==0.4.13"
+        # ovphysx-backed test params require ovphysx >= 0.5.1, which has no aarch64
+        # wheel yet; keep the newton/ovrtx rendering coverage, mirroring the public
+        # pip-index fallback of rendering-correctness-kitless. Running them anyway
+        # exhausts ovrtx SyncScopeIds (>15 renderer creations in one process).
+        test-k-expr: not ovphysx
+        ci-marker: arm_ci
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Run shared Cartpole smoke
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
+        result-file: arm-ci-cartpole-smoke-report.xml
+        container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: arm-ci-reports
+        path: reports/
+        retention-days: 7
+
   #endregion
 
   #region test jobs

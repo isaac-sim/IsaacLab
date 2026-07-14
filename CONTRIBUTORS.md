@@ -44,6 +44,7 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Advait Jayant
 * Agon Serifi
 * Alessandro Assirelli
 * Alex Omar
@@ -57,6 +58,7 @@ Guidelines for modifications:
 * Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
+* Asier Arranz
 * Bikram Pandit
 * Bingjie Tang
 * Bocheng Zou
