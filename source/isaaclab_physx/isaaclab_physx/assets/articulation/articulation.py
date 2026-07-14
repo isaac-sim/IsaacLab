@@ -4232,7 +4232,6 @@ class Articulation(BaseArticulation):
                 NewtonActuatorAdapter,
                 PhysxActuatorWrapper,
                 build_implicit_dof_mask,
-                build_newton_actuator_defaults,
             )
 
             from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
@@ -4285,18 +4284,6 @@ class Articulation(BaseArticulation):
                 w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
                 adapter.finalize(w)
                 self.newton_actuator_adapter = adapter
-                (
-                    self.newton_default_stiffness,
-                    self.newton_default_damping,
-                    self.newton_managed_local_joints,
-                ) = build_newton_actuator_defaults(
-                    actuators=adapter.actuators,
-                    num_envs=self.num_instances,
-                    num_joints=self.num_joints,
-                    dof_offset=0,
-                    env_stride=adapter.num_joints,
-                    device=self.device,
-                )
                 self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
                 self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
 
@@ -4312,22 +4299,33 @@ class Articulation(BaseArticulation):
                 else:
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
-            # ``_implicit_dof_mask_owner`` is the underlying torch tensor that owns
-            # the GPU memory aliased by ``_implicit_dof_mask``. We keep it as an
-            # instance attribute so the memory isn't freed while a CUDA graph
-            # holds a captured pointer into it.
-            self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
-                self.actuators,
-                self.num_joints,
-                self.device,
-            )
-            # Per-articulation view of the adapter's pre-clamp computed-effort
-            # buffer (or zero fallback when there are no explicit Newton
-            # actuators). Set once here so ``_apply_actuator_model_newton``
-            # passes it straight to ``sync_torque_telemetry``.
+            # Bind this articulation to its Newton adapter: one call snapshots
+            # the initial gains, builds the implicit-DOF mask, and takes the
+            # per-articulation computed-effort view that ``_apply_actuator_model_newton``
+            # passes straight to ``sync_torque_telemetry``. ``_implicit_dof_mask_owner``
+            # is retained as an instance attribute so the torch tensor backing
+            # ``_implicit_dof_mask`` isn't freed while a captured CUDA graph holds
+            # a pointer into it. Falls back to a freshly built mask and a zero
+            # computed-effort buffer when there are no explicit Newton actuators —
+            # the kernel only reads the buffer on explicit DOFs.
             if self.newton_actuator_adapter is not None:
-                self._data._sim_bind_joint_computed_effort = self.newton_actuator_adapter.computed_effort_2d
+                binding = self.newton_actuator_adapter.bind_articulation(
+                    lab_actuators=self.actuators,
+                    dof_offset=0,
+                    num_joints=self.num_joints,
+                )
+                self.newton_default_stiffness = binding.stiffness
+                self.newton_default_damping = binding.damping
+                self.newton_managed_local_joints = binding.joint_indices
+                self._implicit_dof_mask = binding.implicit_dof_mask
+                self._implicit_dof_mask_owner = binding.implicit_dof_mask_owner
+                self._data._sim_bind_joint_computed_effort = binding.computed_effort_view
             else:
+                self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
+                    self.actuators,
+                    self.num_joints,
+                    self.device,
+                )
                 self._data._sim_bind_joint_computed_effort = wp.zeros(
                     (self.num_instances, self.num_joints),
                     dtype=wp.float32,
