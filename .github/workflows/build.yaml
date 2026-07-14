@@ -824,8 +824,10 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         include-files: >-
           test_rendering_cartpole.py,
-          test_rendering_dexsuite_kuka_homo.py,
           test_rendering_dexsuite_kuka_hetero.py,
+          test_rendering_dexsuite_kuka_homo.py,
+          test_rendering_franka_cloth.py,
+          test_rendering_franka_soft.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
@@ -862,8 +864,10 @@ jobs:
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
           test_rendering_cartpole_kitless.py,
-          test_rendering_dexsuite_kuka_homo_kitless.py,
           test_rendering_dexsuite_kuka_hetero_kitless.py,
+          test_rendering_dexsuite_kuka_homo_kitless.py,
+          test_rendering_franka_cloth_kitless.py,
+          test_rendering_franka_soft_kitless.py,
           test_rendering_shadow_hand_kitless.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless' || '' }}
