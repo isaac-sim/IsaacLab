@@ -25,6 +25,8 @@ from isaaclab.utils.math import (
     scale_transform,
 )
 
+from isaaclab_tasks.core.locomotion.locomotion_post_step import _LocomotionPostStepBuffers
+
 
 def normalize_angle(x: torch.Tensor) -> torch.Tensor:
     """Wrap angles [rad] to the range ``[-pi, pi]``."""
@@ -111,6 +113,29 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.basis_vec0 = self.heading_vec.clone()
         self.basis_vec1 = self.up_vec.clone()
 
+        self._use_fused_post_step = self._supports_fused_post_step()
+        self._fused_inputs_require_refresh = isinstance(self.cfg.sim.physics, PhysxCfg)
+        if self._use_fused_post_step:
+            # Cache slices of Tier-1 packed state. Newton component properties may materialize
+            # staging buffers for strided views and only refresh them when accessed.
+            root_link_pose_w = self.robot.data.root_link_pose_w.torch
+            root_com_vel_w = self.robot.data.root_com_vel_w.torch
+            self.torso_position = root_link_pose_w[:, :3]
+            self.torso_rotation = root_link_pose_w[:, 3:7]
+            self.velocity = root_com_vel_w[:, :3]
+            self.ang_velocity = root_com_vel_w[:, 3:6]
+            self.dof_pos = self.robot.data.joint_pos.torch
+            self.dof_vel = self.robot.data.joint_vel.torch
+            self._joint_position_limits = self.robot.data.soft_joint_pos_limits.warp
+
+            self._post_step_buffers = _LocomotionPostStepBuffers(
+                num_envs=self.num_envs,
+                num_joints=self.robot.num_joints,
+                observation_size=self.cfg.observation_space,
+                device=self.device,
+            )
+            self._post_step_buffers.bind_environment_outputs(self)
+
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot)
         # add ground plane
@@ -138,6 +163,10 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.robot.set_joint_effort_target_index(target=forces, joint_ids=self._joint_dof_idx)
 
     def _compute_intermediate_values(self):
+        if self._use_fused_post_step:
+            self._refresh_fused_post_step_inputs()
+            self._post_step_buffers.compute_intermediate_and_observation(self)
+            return
         self.torso_position, self.torso_rotation = (
             self.robot.data.root_pos_w.torch,
             self.robot.data.root_quat_w.torch,
@@ -180,6 +209,8 @@ class LocomotionDirectEnv(DirectRLEnv):
         )
 
     def _get_observations(self) -> dict[str, torch.Tensor]:
+        if self._use_fused_post_step:
+            return {"policy": self._post_step_buffers.observation_torch}
         obs = torch.cat(
             (
                 self.torso_position[:, 2].view(-1, 1),
@@ -200,6 +231,8 @@ class LocomotionDirectEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
+        if self._use_fused_post_step:
+            return self._post_step_buffers.reward_torch
         total_reward = compute_rewards(
             self.actions,
             self.reset_terminated,
@@ -221,10 +254,32 @@ class LocomotionDirectEnv(DirectRLEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
+        if self._use_fused_post_step:
+            self._refresh_fused_post_step_inputs()
+            self._post_step_buffers.compute_post_step(self)
+            return self._post_step_buffers.terminated_torch, self._post_step_buffers.time_out_torch
         self._compute_intermediate_values()
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         died = self.torso_position[:, 2] < self.cfg.termination_height
         return died, time_out
+
+    def _supports_fused_post_step(self) -> bool:
+        """Return whether state views and terminal outputs can safely use the fused post-step path."""
+        expected_observation_size = 12 + 3 * self.robot.num_joints
+        return (
+            isinstance(self.cfg.sim.physics, (NewtonCfg, PhysxCfg))
+            and self.cfg.action_space == self.robot.num_joints
+            and self.cfg.observation_space == expected_observation_size
+            and not self.cfg.compute_final_obs
+        )
+
+    def _refresh_fused_post_step_inputs(self) -> None:
+        """Pull current PhysX state into the stable buffers consumed by the fused kernel."""
+        if not self._fused_inputs_require_refresh:
+            return
+
+        data = self.robot.data
+        _ = data.root_link_pose_w, data.root_com_vel_w, data.joint_pos, data.joint_vel
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:

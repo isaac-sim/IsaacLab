@@ -14,20 +14,20 @@ import warp as wp
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab_tasks.core.locomotion.ant.ant_direct_env import AntEnv
-from isaaclab_tasks.core.locomotion.ant.ant_post_step import _AntPostStepBuffers
 from isaaclab_tasks.core.locomotion.locomotion_direct_env import (
+    LocomotionDirectEnv,
     compute_intermediate_values,
     compute_rewards,
     normalize_angle,
 )
+from isaaclab_tasks.core.locomotion.locomotion_post_step import _LocomotionPostStepBuffers
 
 _NUM_ENVS = 8
 _NUM_JOINTS = 8
 _OBSERVATION_SIZE = 12 + 3 * _NUM_JOINTS
 
 
-def _make_environment_data(device: str) -> SimpleNamespace:
+def _make_environment_data(device: str, num_joints: int = _NUM_JOINTS) -> SimpleNamespace:
     dtype = torch.float32
     angles = torch.tensor(
         [0.0, torch.pi - 1.0e-5, -torch.pi + 1.0e-5, 0.5, -0.7, 1.2, -2.1, 0.9],
@@ -63,9 +63,9 @@ def _make_environment_data(device: str) -> SimpleNamespace:
     values = torch.arange(_NUM_ENVS * 3, dtype=dtype, device=device).reshape(_NUM_ENVS, 3)
     velocity = (values - 8.0) * 0.17
     angular_velocity = (11.0 - values) * 0.13
-    joint_position = torch.linspace(-1.2, 1.2, _NUM_ENVS * _NUM_JOINTS, device=device).reshape(_NUM_ENVS, _NUM_JOINTS)
-    joint_velocity = torch.linspace(2.0, -2.0, _NUM_ENVS * _NUM_JOINTS, device=device).reshape(_NUM_ENVS, _NUM_JOINTS)
-    actions = torch.linspace(-1.5, 1.5, _NUM_ENVS * _NUM_JOINTS, device=device).reshape(_NUM_ENVS, _NUM_JOINTS)
+    joint_position = torch.linspace(-1.2, 1.2, _NUM_ENVS * num_joints, device=device).reshape(_NUM_ENVS, num_joints)
+    joint_velocity = torch.linspace(2.0, -2.0, _NUM_ENVS * num_joints, device=device).reshape(_NUM_ENVS, num_joints)
+    actions = torch.linspace(-1.5, 1.5, _NUM_ENVS * num_joints, device=device).reshape(_NUM_ENVS, num_joints)
 
     cfg = SimpleNamespace(
         sim=SimpleNamespace(dt=1.0 / 120.0),
@@ -88,13 +88,13 @@ def _make_environment_data(device: str) -> SimpleNamespace:
         ang_velocity=angular_velocity,
         dof_pos=joint_position,
         dof_vel=joint_velocity,
-        _joint_position_lower_limits=torch.linspace(-1.4, -0.7, _NUM_JOINTS, device=device),
-        _joint_position_upper_limits=torch.linspace(0.8, 1.5, _NUM_JOINTS, device=device),
+        _joint_position_lower_limits=torch.linspace(-1.4, -0.7, num_joints, device=device),
+        _joint_position_upper_limits=torch.linspace(0.8, 1.5, num_joints, device=device),
         _joint_position_limits=wp.from_torch(
             torch.stack(
                 (
-                    torch.linspace(-1.4, -0.7, _NUM_JOINTS, device=device).expand(_NUM_ENVS, -1),
-                    torch.linspace(0.8, 1.5, _NUM_JOINTS, device=device).expand(_NUM_ENVS, -1),
+                    torch.linspace(-1.4, -0.7, num_joints, device=device).expand(_NUM_ENVS, -1),
+                    torch.linspace(0.8, 1.5, num_joints, device=device).expand(_NUM_ENVS, -1),
                 ),
                 dim=-1,
             ).contiguous(),
@@ -102,7 +102,7 @@ def _make_environment_data(device: str) -> SimpleNamespace:
         ),
         actions=actions,
         episode_length_buf=torch.tensor([0, 898, 899, 900, 10, 899, 1, 50], dtype=torch.int64, device=device),
-        motor_effort_ratio=torch.linspace(0.7, 1.3, _NUM_JOINTS, device=device),
+        motor_effort_ratio=torch.linspace(0.7, 1.3, num_joints, device=device),
         max_episode_length=900,
         potentials=torch.linspace(-100.0, -107.0, _NUM_ENVS, device=device),
         prev_potentials=torch.linspace(-90.0, -97.0, _NUM_ENVS, device=device),
@@ -203,13 +203,14 @@ def _compute_torch_reference(env: SimpleNamespace) -> dict[str, torch.Tensor]:
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_fused_post_step_matches_torch_reference(device: str):
+@pytest.mark.parametrize("num_joints", [8, 21])
+def test_fused_post_step_matches_torch_reference(device: str, num_joints: int):
     if device.startswith("cuda") and not torch.cuda.is_available():
         pytest.skip("CUDA is not available")
 
-    env = _make_environment_data(device)
+    env = _make_environment_data(device, num_joints)
     reference = _compute_torch_reference(env)
-    buffers = _AntPostStepBuffers(_NUM_ENVS, _NUM_JOINTS, _OBSERVATION_SIZE, device)
+    buffers = _LocomotionPostStepBuffers(_NUM_ENVS, num_joints, 12 + 3 * num_joints, device)
     buffers.bind_environment_outputs(env)
     buffers.compute_post_step(env)
     wp.synchronize_device(device)
@@ -239,7 +240,7 @@ def test_fused_post_step_matches_torch_reference(device: str):
 
 def test_post_step_preserves_previous_observation():
     env = _make_environment_data("cpu")
-    buffers = _AntPostStepBuffers(_NUM_ENVS, _NUM_JOINTS, _OBSERVATION_SIZE, "cpu")
+    buffers = _LocomotionPostStepBuffers(_NUM_ENVS, _NUM_JOINTS, _OBSERVATION_SIZE, "cpu")
     buffers.compute_post_step(env)
     wp.synchronize_device("cpu")
     previous_observation = buffers.observation_torch
@@ -255,7 +256,7 @@ def test_post_step_preserves_previous_observation():
 
 def test_post_reset_refresh_preserves_terminal_outputs():
     env = _make_environment_data("cpu")
-    buffers = _AntPostStepBuffers(_NUM_ENVS, _NUM_JOINTS, _OBSERVATION_SIZE, "cpu")
+    buffers = _LocomotionPostStepBuffers(_NUM_ENVS, _NUM_JOINTS, _OBSERVATION_SIZE, "cpu")
     buffers.bind_environment_outputs(env)
     buffers.compute_post_step(env)
     wp.synchronize_device("cpu")
@@ -282,29 +283,56 @@ def test_post_reset_refresh_preserves_terminal_outputs():
     ("physics", "compute_final_obs"),
     [(PhysxCfg(), True), (NewtonCfg(), True)],
 )
-def test_fused_post_step_falls_back_for_unsupported_configurations(
-    physics, compute_final_obs: bool, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    env = object.__new__(AntEnv)
+def test_fused_post_step_falls_back_for_unsupported_configurations(physics, compute_final_obs: bool) -> None:
+    env = object.__new__(LocomotionDirectEnv)
     env._is_closed = True
-    env.cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics), compute_final_obs=compute_final_obs)
+    env.cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=physics, dt=0.1),
+        action_space=8,
+        observation_space=36,
+        compute_final_obs=compute_final_obs,
+        decimation=1,
+        episode_length_s=1.0,
+        termination_height=0.31,
+    )
+    env.robot = SimpleNamespace(num_joints=8)
     env._use_fused_post_step = env._supports_fused_post_step()
-    expected = (torch.tensor([True]), torch.tensor([False]))
-    fallback = Mock(return_value=expected)
-    monkeypatch.setattr("isaaclab_tasks.core.locomotion.locomotion_direct_env.LocomotionDirectEnv._get_dones", fallback)
+    env._compute_intermediate_values = Mock()
+    env.episode_length_buf = torch.tensor([0, 9])
+    env.torso_position = torch.tensor([[0.0, 0.0, 0.2], [0.0, 0.0, 1.0]])
 
     assert not env._use_fused_post_step
-    assert env._get_dones() is expected
-    fallback.assert_called_once_with()
+    terminated, time_out = env._get_dones()
+    env._compute_intermediate_values.assert_called_once_with()
+    torch.testing.assert_close(terminated, torch.tensor([True, False]))
+    torch.testing.assert_close(time_out, torch.tensor([False, True]))
 
 
 @pytest.mark.parametrize("physics", [NewtonCfg(), PhysxCfg()])
 def test_fused_post_step_selects_supported_backend_without_final_observations(physics) -> None:
-    env = object.__new__(AntEnv)
+    env = object.__new__(LocomotionDirectEnv)
     env._is_closed = True
-    env.cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics), compute_final_obs=False)
+    env.cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=physics), action_space=21, observation_space=75, compute_final_obs=False
+    )
+    env.robot = SimpleNamespace(num_joints=21)
 
     assert env._supports_fused_post_step()
+
+
+@pytest.mark.parametrize(("action_space", "observation_space"), [(7, 36), (8, 35)])
+def test_fused_post_step_rejects_incompatible_space_layout(action_space: int, observation_space: int) -> None:
+    env = object.__new__(LocomotionDirectEnv)
+    env._is_closed = True
+    env.cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=NewtonCfg()),
+        action_space=action_space,
+        observation_space=observation_space,
+        compute_final_obs=False,
+    )
+    env.robot = SimpleNamespace(num_joints=8)
+
+    assert not env._supports_fused_post_step()
 
 
 def test_physx_fused_post_step_refreshes_pull_on_demand_inputs() -> None:
@@ -332,7 +360,7 @@ def test_physx_fused_post_step_refreshes_pull_on_demand_inputs() -> None:
         terminated_torch=torch.tensor([False]),
         time_out_torch=torch.tensor([False]),
     )
-    env = object.__new__(AntEnv)
+    env = object.__new__(LocomotionDirectEnv)
     env._is_closed = True
     env._use_fused_post_step = True
     env._fused_inputs_require_refresh = True

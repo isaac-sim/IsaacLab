@@ -149,7 +149,7 @@ def _compute_intermediate_and_observation(
 
 
 @wp.kernel
-def compute_ant_post_step(
+def compute_locomotion_post_step(
     targets: wp.array2d(dtype=wp.float32),
     torso_position: wp.array2d(dtype=wp.float32),
     torso_rotation: wp.array2d(dtype=wp.float32),
@@ -262,7 +262,7 @@ def compute_ant_post_step(
 
 
 @wp.kernel
-def compute_ant_intermediate_and_observation(
+def compute_locomotion_intermediate_and_observation(
     targets: wp.array2d(dtype=wp.float32),
     torso_position: wp.array2d(dtype=wp.float32),
     torso_rotation: wp.array2d(dtype=wp.float32),
@@ -324,8 +324,8 @@ def compute_ant_intermediate_and_observation(
     )
 
 
-class _AntPostStepBuffers:
-    """Persistent task outputs used by the fused Ant post-step kernels."""
+class _LocomotionPostStepBuffers:
+    """Persistent task outputs used by the fused locomotion post-step kernels."""
 
     def __init__(self, num_envs: int, num_joints: int, observation_size: int, device: str):
         self.num_envs = num_envs
@@ -387,12 +387,12 @@ class _AntPostStepBuffers:
         env.dof_pos_scaled = self.scaled_joint_position_torch
 
     def compute_post_step(self, env) -> None:
-        """Compute Ant intermediates, dones, reward, and observations in one launch."""
+        """Compute locomotion intermediates, dones, reward, and observations in one launch."""
         self._observation_index ^= 1
         self.observation = self._observations[self._observation_index]
         self.observation_torch = self._observation_torch[self._observation_index]
         wp.launch(
-            compute_ant_post_step,
+            compute_locomotion_post_step,
             dim=self.num_envs,
             inputs=[
                 env.targets,
@@ -442,7 +442,7 @@ class _AntPostStepBuffers:
     def compute_intermediate_and_observation(self, env) -> None:
         """Refresh intermediates and observations after reset without changing reward or dones."""
         wp.launch(
-            compute_ant_intermediate_and_observation,
+            compute_locomotion_intermediate_and_observation,
             dim=self.num_envs,
             inputs=[
                 env.targets,
