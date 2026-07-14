@@ -17,51 +17,14 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
-from isaaclab_tasks.core.reorient.reorient_task_constants import (
-    OPENAI_ACT_MOVING_AVERAGE,
-    OPENAI_ACTION_PENALTY_SCALE,
-    OPENAI_AV_FACTOR,
-    OPENAI_DECIMATION,
-    OPENAI_DIST_REWARD_SCALE,
-    OPENAI_EPISODE_LENGTH_S,
-    OPENAI_FALL_PENALTY,
-    OPENAI_FORCE_TORQUE_OBS_SCALE,
-    OPENAI_MAX_CONSECUTIVE_SUCCESS,
-    OPENAI_REACH_GOAL_BONUS,
-    OPENAI_RESET_DOF_POS_NOISE,
-    OPENAI_RESET_DOF_VEL_NOISE,
-    OPENAI_RESET_POSITION_NOISE,
-    OPENAI_ROT_EPS,
-    OPENAI_ROT_REWARD_SCALE,
-    OPENAI_SIM_DT,
-    OPENAI_SUCCESS_TOLERANCE,
-    OPENAI_VEL_OBS_SCALE,
-    SHADOW_ACT_MOVING_AVERAGE,
-    SHADOW_ACTION_PENALTY_SCALE,
+from isaaclab_tasks.core.reorient.reorient_task_base import (
     SHADOW_ACTUATED_JOINT_NAMES,
-    SHADOW_AV_FACTOR,
-    SHADOW_DECIMATION,
-    SHADOW_DIST_REWARD_SCALE,
-    SHADOW_EPISODE_LENGTH_S,
-    SHADOW_FALL_DIST,
-    SHADOW_FALL_PENALTY,
     SHADOW_FINGERTIP_BODY_NAMES,
-    SHADOW_FORCE_TORQUE_OBS_SCALE,
-    SHADOW_REACH_GOAL_BONUS,
-    SHADOW_RESET_DOF_POS_NOISE,
-    SHADOW_RESET_DOF_VEL_NOISE,
-    SHADOW_RESET_POSITION_NOISE,
-    SHADOW_ROT_EPS,
-    SHADOW_ROT_REWARD_SCALE,
-    SHADOW_SIM_DT,
-    SHADOW_SUCCESS_COUNT_THRESHOLD,
-    SHADOW_SUCCESS_TOLERANCE,
-    SHADOW_VEL_OBS_SCALE,
 )
 from isaaclab_tasks.utils import PresetCfg
 
@@ -312,10 +275,16 @@ class ShadowHandSceneCfg(PresetCfg):
     """
 
     physx: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+        num_envs=8192,
+        env_spacing=0.75,
+        replicate_physics=True,
+        clone_in_fabric=True,
     )
     newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
+        num_envs=8192,
+        env_spacing=0.75,
+        replicate_physics=True,
+        clone_in_fabric=False,
     )
     default: InteractiveSceneCfg = physx
     newton_kamino = newton_mjwarp
@@ -359,13 +328,29 @@ GOAL_OBJECT_CFG = VisualizationMarkersCfg(
         )
     },
 )
+# Simulation settings shared by the Direct and manager variants (configclass
+# deep-copies these defaults per cfg instance). The solver-common base material
+# is sufficient: only friction values are set, so no PhysX-specific
+# ``physxMaterial`` attributes are authored.
+SHADOW_SIM_CFG = SimulationCfg(
+    dt=1 / 120,
+    render_interval=2,
+    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+    physics=PhysicsCfg(),
+)
+OPENAI_SIM_CFG = SimulationCfg(
+    dt=1 / 60,
+    render_interval=3,
+    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+    physics=PhysicsCfg(),
+)
 
 
 @configclass
 class ShadowHandEnvCfg(DirectRLEnvCfg):
     # env
-    decimation = SHADOW_DECIMATION
-    episode_length_s = SHADOW_EPISODE_LENGTH_S
+    decimation = 2
+    episode_length_s = 10.0
     action_space = 20
     observation_space = 157  # (full)
     state_space = 0
@@ -373,12 +358,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     obs_type = "full"
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=SHADOW_SIM_DT,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
+    sim: SimulationCfg = SHADOW_SIM_CFG
     # robot
     robot_cfg: ShadowHandRobotCfg = ROBOT_CFG
     actuated_joint_names = SHADOW_ACTUATED_JOINT_NAMES
@@ -392,25 +372,25 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     scene: ShadowHandSceneCfg = ShadowHandSceneCfg()
 
     # reset
-    reset_position_noise = SHADOW_RESET_POSITION_NOISE  # range of position at reset
-    reset_dof_pos_noise = SHADOW_RESET_DOF_POS_NOISE  # range of dof pos at reset
-    reset_dof_vel_noise = SHADOW_RESET_DOF_VEL_NOISE  # range of dof vel at reset
+    reset_position_noise = 0.01  # range of position at reset
+    reset_dof_pos_noise = 0.2  # range of dof pos at reset
+    reset_dof_vel_noise = 0.0  # range of dof vel at reset
     # reward scales
-    dist_reward_scale = SHADOW_DIST_REWARD_SCALE
-    rot_reward_scale = SHADOW_ROT_REWARD_SCALE
-    rot_eps = SHADOW_ROT_EPS
-    action_penalty_scale = SHADOW_ACTION_PENALTY_SCALE
-    reach_goal_bonus = SHADOW_REACH_GOAL_BONUS
-    fall_penalty = SHADOW_FALL_PENALTY
-    fall_dist = SHADOW_FALL_DIST
-    vel_obs_scale = SHADOW_VEL_OBS_SCALE
-    success_tolerance = SHADOW_SUCCESS_TOLERANCE
+    dist_reward_scale = -10.0
+    rot_reward_scale = 1.0
+    rot_eps = 0.1
+    action_penalty_scale = -0.0002
+    reach_goal_bonus = 250.0
+    fall_penalty = 0.0
+    fall_dist = 0.24
+    vel_obs_scale = 0.2
+    success_tolerance = 0.1
     max_consecutive_success = 0
-    success_count_threshold: int = SHADOW_SUCCESS_COUNT_THRESHOLD
+    success_count_threshold: int = 1
     """Minimum number of goals reached in an episode to count it as a successful episode."""
-    av_factor = SHADOW_AV_FACTOR
-    act_moving_average = SHADOW_ACT_MOVING_AVERAGE
-    force_torque_obs_scale = SHADOW_FORCE_TORQUE_OBS_SCALE
+    av_factor = 0.1
+    act_moving_average = 1.0
+    force_torque_obs_scale = 10.0
 
 
 # Per-step gaussian noise + reset-sampled bias, shared verbatim by the manager-based variant.
@@ -427,37 +407,32 @@ OPENAI_OBSERVATION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
 @configclass
 class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     # env
-    decimation = OPENAI_DECIMATION
-    episode_length_s = OPENAI_EPISODE_LENGTH_S
+    decimation = 3
+    episode_length_s = 8.0
     action_space = 20
     observation_space = 42
     state_space = 187
     asymmetric_obs = True
     obs_type = "openai"
     # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=OPENAI_SIM_DT,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
+    sim: SimulationCfg = OPENAI_SIM_CFG
     # reset
-    reset_position_noise = OPENAI_RESET_POSITION_NOISE  # range of position at reset
-    reset_dof_pos_noise = OPENAI_RESET_DOF_POS_NOISE  # range of dof pos at reset
-    reset_dof_vel_noise = OPENAI_RESET_DOF_VEL_NOISE  # range of dof vel at reset
+    reset_position_noise = 0.01  # range of position at reset
+    reset_dof_pos_noise = 0.2  # range of dof pos at reset
+    reset_dof_vel_noise = 0.0  # range of dof vel at reset
     # reward scales
-    dist_reward_scale = OPENAI_DIST_REWARD_SCALE
-    rot_reward_scale = OPENAI_ROT_REWARD_SCALE
-    rot_eps = OPENAI_ROT_EPS
-    action_penalty_scale = OPENAI_ACTION_PENALTY_SCALE
-    reach_goal_bonus = OPENAI_REACH_GOAL_BONUS
-    fall_penalty = OPENAI_FALL_PENALTY
-    vel_obs_scale = OPENAI_VEL_OBS_SCALE
-    success_tolerance = OPENAI_SUCCESS_TOLERANCE
-    max_consecutive_success = OPENAI_MAX_CONSECUTIVE_SUCCESS
-    av_factor = OPENAI_AV_FACTOR
-    act_moving_average = OPENAI_ACT_MOVING_AVERAGE
-    force_torque_obs_scale = OPENAI_FORCE_TORQUE_OBS_SCALE
+    dist_reward_scale = -10.0
+    rot_reward_scale = 1.0
+    rot_eps = 0.1
+    action_penalty_scale = -0.0002
+    reach_goal_bonus = 250.0
+    fall_penalty = -50.0
+    vel_obs_scale = 0.2
+    success_tolerance = 0.4
+    max_consecutive_success = 50
+    av_factor = 0.1
+    act_moving_average = 0.3
+    force_torque_obs_scale = 10.0
     # domain randomization config
     events: ShadowHandEventCfg = ShadowHandEventCfg()
     # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset

@@ -18,22 +18,14 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.handover.handover_task_constants import (
+from isaaclab_tasks.core.handover.handover_task_base import (
     ACTUATED_JOINT_NAMES_PRESET,
-    DECIMATION,
-    DIST_REWARD_SCALE,
-    EPISODE_LENGTH_S,
-    FALL_DISTANCE,
     FINGERTIP_BODY_NAMES,
-    RESET_DOF_POS_NOISE,
-    RESET_DOF_VEL_NOISE,
-    RESET_POSITION_NOISE,
-    SIM_DT,
-    SUCCESS_DISTANCE_THRESHOLD,
-    VEL_OBS_SCALE,
+    GOAL_MARKER_CFG,
+    OBJECT_RADIUS,
 )
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -267,7 +259,7 @@ class ObjectCfg(PresetCfg):
     physx = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.SphereCfg(
-            radius=0.0335,
+            radius=OBJECT_RADIUS,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
             physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -288,7 +280,7 @@ class ObjectCfg(PresetCfg):
     newton_mjwarp = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.SphereCfg(
-            radius=0.0335,
+            radius=OBJECT_RADIUS,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=False,
@@ -339,26 +331,30 @@ class PhysicsCfg(PresetCfg):
     default = physx
 
 
+# Simulation settings shared by the Direct and manager variants (configclass
+# deep-copies these defaults per cfg instance). The solver-common base material
+# is sufficient: only friction values are set, so no PhysX-specific
+# ``physxMaterial`` attributes are authored.
+HANDOVER_SIM_CFG = SimulationCfg(
+    dt=1 / 120,
+    render_interval=2,
+    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+    physics=PhysicsCfg(),
+)
+
+
 @configclass
 class HandoverEnvCfg(DirectMARLEnvCfg):
     # env
-    decimation = DECIMATION
-    episode_length_s = EPISODE_LENGTH_S
+    decimation = 2
+    episode_length_s = 7.5
     possible_agents = ["right_hand", "left_hand"]
     action_spaces = {"right_hand": 20, "left_hand": 20}
     observation_spaces = {"right_hand": 157, "left_hand": 157}
     state_space = 290
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=SIM_DT,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        physics=PhysicsCfg(),
-    )
+    sim: SimulationCfg = HANDOVER_SIM_CFG
     # robot
     right_robot_cfg: PresetCfg = RIGHT_HAND_CFG
     left_robot_cfg: PresetCfg = LEFT_HAND_CFG
@@ -368,28 +364,20 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     # in-hand object
     object_cfg: ObjectCfg = ObjectCfg()
     # goal object
-    goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
-        prim_path="/Visuals/goal_marker",
-        markers={
-            "goal": sim_utils.SphereCfg(
-                radius=0.0335,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.3, 1.0)),
-            ),
-        },
-    )
+    goal_object_cfg: VisualizationMarkersCfg = GOAL_MARKER_CFG
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
 
     # reset
-    reset_position_noise = RESET_POSITION_NOISE  # range of position at reset
-    reset_dof_pos_noise = RESET_DOF_POS_NOISE  # range of dof pos at reset
-    reset_dof_vel_noise = RESET_DOF_VEL_NOISE  # range of dof vel at reset
+    reset_position_noise = 0.01  # range of position at reset
+    reset_dof_pos_noise = 0.2  # range of dof pos at reset
+    reset_dof_vel_noise = 0.0  # range of dof vel at reset
     # scales and constants
-    fall_dist = FALL_DISTANCE
-    vel_obs_scale = VEL_OBS_SCALE
+    fall_dist = 0.24
+    vel_obs_scale = 0.2
     act_moving_average = 1.0
     # success criteria
-    success_distance_threshold: float = SUCCESS_DISTANCE_THRESHOLD
+    success_distance_threshold: float = 0.1
     """Object-to-goal distance below which the handover is considered successful [m]."""
     # reward-related scales
-    dist_reward_scale = DIST_REWARD_SCALE
+    dist_reward_scale = 20.0
