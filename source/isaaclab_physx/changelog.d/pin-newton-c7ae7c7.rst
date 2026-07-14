@@ -1,6 +1,6 @@
 Changed
 ^^^^^^^
 
-* Changed the ``newton[sim]`` dependency pin of the ``newton`` extra to Newton
-  commit ``c7ae7c7648cd0717df39e5c94b95d5a02c997320`` and added the
-  ``newton-usd-schemas`` dependency required by Newton's USD parsing.
+* Changed the repository's ``newton[sim]`` dependency pin to Newton
+  commit ``32b69be8726f89bdb1f9ddf31984d1609c73c1bc`` and updated the
+  ``newton-usd-schemas`` dependency to version 0.4.0 or newer.

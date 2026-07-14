@@ -85,7 +85,7 @@ dependencies = [
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
     # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
     "newton[sim]>=1.2.0",
-    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.3.1.
+    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
@@ -168,7 +168,7 @@ torchaudio = "2.11.0"
 ovphysx = "0.5.2+head.f62c22207c"
 ovrtx = ">=0.3.0,<0.4.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
-newton = "c7ae7c7648cd0717df39e5c94b95d5a02c997320"
+newton = "32b69be8726f89bdb1f9ddf31984d1609c73c1bc"
 warp = "1.15.0.dev20260626"
 
 [tool.ruff]
@@ -335,9 +335,9 @@ prerelease = "allow"
 # the CUDA indexes via [tool.uv.sources]. Values mirror [tool.isaaclab.versions] above.
 override-dependencies = [
     "numpy>=2",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@c7ae7c7648cd0717df39e5c94b95d5a02c997320",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@32b69be8726f89bdb1f9ddf31984d1609c73c1bc",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.3.1",
+    "newton-usd-schemas>=0.4.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
