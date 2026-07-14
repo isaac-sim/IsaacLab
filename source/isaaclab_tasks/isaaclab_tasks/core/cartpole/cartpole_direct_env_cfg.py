@@ -11,6 +11,7 @@ from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -80,7 +81,17 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=CartpolePhysicsCfg())
 
     # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(
+        prim_path="/World/envs/env_.*/Robot",
+        actuators={
+            "cartpole_actuator": ImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                effort_limit_sim=400.0,
+                stiffness=0.0,
+                damping={"slider_to_cart": 10.0, "cart_to_pole": 0.0},
+            )
+        },
+    )
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
