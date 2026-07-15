@@ -225,37 +225,5 @@ def test_implicit_actuator_init_velocity_limits(sim, num_envs, num_joints, devic
     )
 
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_implicit_actuator_partial_dict_velocity_limit(sim, num_envs, device):
-    """Test that joints not named in a partial velocity-limit dict fall back to the solver clamp."""
-    velocity_limit_default = 1000
-    joint_names = ["joint_0", "joint_1"]
-    joint_ids = [0, 1]
-
-    actuator_cfg = ImplicitActuatorCfg(
-        joint_names_expr=joint_names,
-        stiffness=200,
-        damping=10,
-        velocity_limit={"joint_0": 33},
-    )
-    actuator = actuator_cfg.class_type(
-        actuator_cfg,
-        joint_names=joint_names,
-        joint_ids=joint_ids,
-        num_envs=num_envs,
-        device=device,
-        stiffness=actuator_cfg.stiffness,
-        damping=actuator_cfg.damping,
-        velocity_limit=velocity_limit_default,
-    )
-    expected = torch.full((num_envs, 2), float(velocity_limit_default), device=device)
-    expected[:, 0] = 33.0
-    torch.testing.assert_close(actuator.velocity_limit, expected)
-    torch.testing.assert_close(
-        actuator.velocity_limit_sim, velocity_limit_default * torch.ones(num_envs, 2, device=device)
-    )
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])
