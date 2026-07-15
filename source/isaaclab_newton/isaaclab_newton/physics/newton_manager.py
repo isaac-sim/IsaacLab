@@ -1186,13 +1186,42 @@ class NewtonManager(PhysicsManager):
         device = wp.get_device(str(PhysicsManager._device))
         if not device.is_cuda:
             return
-        # Private Warp API: the drain primitive is not exposed publicly; getting the
-        # device above guarantees the runtime is initialized.
-        from warp._src.context import runtime as _wp_runtime
+        # Private Warp API: the drain primitives are not exposed publicly; getting the
+        # device above guarantees the runtime is initialized. Guard the whole private
+        # interaction so a future Warp internals reshuffle degrades to a skipped drain
+        # rather than hard-failing simulation start.
+        try:
+            from warp._src.context import runtime as _wp_runtime
 
-        stale = _wp_runtime.core.wp_cuda_context_check(device.context)
-        if stale != 0:
-            logger.warning("Cleared stale CUDA error %d latched by a prior Warp graph-memory free failure.", stale)
+            core = _wp_runtime.core
+            # wp_cuda_context_check drains via cudaGetLastError() but returns the
+            # post-sync error state (0 once a non-sticky error was drained), and its
+            # internal check_cuda() prints the drained error verbatim to stderr;
+            # suppress the print and diff Warp's error buffer to report the drain.
+            before = core.wp_get_error_string()
+            was_enabled = bool(core.wp_is_error_output_enabled())
+            core.wp_set_error_output_enabled(0)
+            try:
+                persistent = core.wp_cuda_context_check(device.context)
+            finally:
+                core.wp_set_error_output_enabled(1 if was_enabled else 0)
+            after = core.wp_get_error_string()
+        except (ImportError, AttributeError) as exc:
+            logger.warning("Skipping stale CUDA error drain; Warp internals unavailable: %s", exc)
+            return
+
+        if persistent != 0:
+            logger.error(
+                "CUDA error %d persists after drain; the device context is likely unrecoverable: %s",
+                persistent,
+                after.decode(errors="replace"),
+            )
+        elif after != before:
+            logger.warning(
+                "Drained stale CUDA error latched by a prior lifecycle: %s (last Warp error recorded before drain: %s)",
+                after.decode(errors="replace"),
+                before.decode(errors="replace") or "<none>",
+            )
 
     @classmethod
     def start_simulation(cls) -> None:
