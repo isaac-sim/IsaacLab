@@ -99,7 +99,6 @@ test = [
     "pytest",
     "pytest-mock",
     "junitparser",
-    "flatdict>=4.1.0",
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
