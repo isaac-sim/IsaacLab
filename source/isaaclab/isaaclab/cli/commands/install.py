@@ -677,23 +677,22 @@ def _install_isaacsim() -> None:
 
 
 # Source directories installed on every ./isaaclab.sh -i invocation (even "core").
-# Order must respect inter-package dependencies (topological sort):
-#   isaaclab first, then ppisp (no inter-package deps, precedes renderer backends),
-#   then contrib (needed by assets), then assets, then tasks (needed by rl),
-#   then rl. Packages with only an isaaclab dep can go anywhere after isaaclab.
+# Order matters: isaaclab must be first so dependents resolve against the local copy,
+# and isaaclab_ppisp should precede renderer backends (newton/ov/physx) so local
+# camera ISP support is available when CameraCfg.isp_cfg is used.
 CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab",
     "isaaclab_ppisp",
-    "isaaclab_contrib",
     "isaaclab_assets",
+    "isaaclab_contrib",
     "isaaclab_experimental",
     "isaaclab_newton",
     "isaaclab_ov",
     "isaaclab_ovphysx",
     "isaaclab_physx",
+    "isaaclab_rl",
     "isaaclab_tasks",
     "isaaclab_tasks_experimental",
-    "isaaclab_rl",
     "isaaclab_visualizers",
 ]
 
