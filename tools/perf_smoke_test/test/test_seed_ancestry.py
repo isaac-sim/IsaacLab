@@ -131,3 +131,15 @@ def test_filter_unresolvable_tip_keeps_when_lenient_raises_when_strict(repo) -> 
 
     with pytest.raises(RuntimeError, match="cannot resolve tip"):
         seed_baselines._filter_plan_by_ancestry(plan, work, target_sha="", strict=True)
+
+
+def test_prepare_jit_cache_opens_sample_cache(tmp_path: Path) -> None:
+    """Each seed sample gets writable Warp/CUDA cache roots."""
+    cache_dir = tmp_path / "jit-cache" / "seed" / "sample0"
+
+    prepared = seed_baselines._prepare_jit_cache(cache_dir)
+
+    assert prepared == cache_dir
+    assert (cache_dir / "warp").is_dir()
+    assert (cache_dir / "nv").is_dir()
+    assert cache_dir.stat().st_mode & 0o777 == 0o777

@@ -348,6 +348,17 @@ def _prepare_seed_source(workdir: Path, seed_src_dir: Path, sha: str) -> None:
     subprocess.run(["chmod", "-R", "a+rwX", str(seed_src_dir)], check=False)
 
 
+def _prepare_jit_cache(cache_dir: Path) -> Path:
+    """Create a writable JIT cache directory for one benchmark container."""
+    for subdir in (cache_dir / "warp", cache_dir / "nv"):
+        subdir.mkdir(parents=True, exist_ok=True)
+    # Containers can write cache files as a different uid than the runner. Open
+    # the per-sample cache root before the bind mount so ownership never leaks
+    # across samples or workflow runs.
+    _run(["chmod", "-R", "0777", str(cache_dir)], check=False)
+    return cache_dir
+
+
 def _docker_run_benchmark(
     *,
     image: str,
@@ -589,11 +600,15 @@ def main() -> int:
     seed_src_dir = (
         Path(args.seed_src_dir).resolve() if args.seed_src_dir else Path(tempfile.gettempdir()) / "perf-seed-src"
     )
-    jit_cache = workdir / "jit-cache"
+    jit_cache_root = (
+        workdir
+        / "jit-cache"
+        / "seed"
+        / f"run-{os.environ.get('GITHUB_RUN_ID', 'local')}-attempt-{os.environ.get('GITHUB_RUN_ATTEMPT', '0')}"
+    )
     kit_cache = workdir / "kit-cache"
-    for sub in (jit_cache / "warp", jit_cache / "nv", kit_cache):
-        sub.mkdir(parents=True, exist_ok=True)
-    _run(["chmod", "-R", "0777", str(jit_cache), str(kit_cache)], check=False)
+    kit_cache.mkdir(parents=True, exist_ok=True)
+    _run(["chmod", "-R", "0777", str(kit_cache)], check=False)
 
     plan = _build_seed_plan(args)
     plan = _filter_plan_by_ancestry(
@@ -652,13 +667,21 @@ def main() -> int:
                 )
 
                 _write_launch_config(task, artifact_dir, gpu_model)
+                sample_jit_cache = _prepare_jit_cache(
+                    jit_cache_root
+                    / target_dir
+                    / short
+                    / _safe_path_component(task.task_id)
+                    / task.backend_key
+                    / f"sample{sample_idx}"
+                )
                 subprocess.run(["docker", "rm", "-f", container], capture_output=True, text=True)
                 start = time.time()
                 exit_code = _docker_run_benchmark(
                     image=args.image,
                     task=task,
                     artifact_dir=artifact_dir,
-                    jit_cache=jit_cache,
+                    jit_cache=sample_jit_cache,
                     kit_cache=kit_cache,
                     seed_src_dir=seed_src_dir if source_mount else None,
                     container_name=container,
