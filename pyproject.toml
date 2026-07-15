@@ -83,7 +83,7 @@ dependencies = [
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
+    # exact git commit is forced via [tool.uv].override-dependencies.
     "newton[sim]>=1.2.0",
     # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
     "newton-usd-schemas>=0.2.0",
@@ -328,13 +328,13 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-# Isaac Lab owns the Newton and torch versions. Overrides replace these requirements
-# for EVERY requester (unlike constraints, which only intersect), so ``--extra isaacsim``
-# — which pins ``newton[sim]==1.2.0`` and its own torch stack — can neither block
-# resolution nor downgrade an already-installed newton/torch. The torch stack routes to
-# the CUDA indexes via [tool.uv.sources]. Values mirror [tool.isaaclab.versions] above.
+# Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace these
+# requirements for every requester, so Isaac Sim cannot downgrade them. The torch stack
+# routes to the CUDA indexes via [tool.uv.sources].
 override-dependencies = [
     "numpy>=2",
+    "mujoco==3.10.0",
+    "mujoco-warp==3.10.0.1",
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@32b69be8726f89bdb1f9ddf31984d1609c73c1bc",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.0",
