@@ -251,7 +251,10 @@ class KitVisualizer(BaseVisualizer):
 
     def _setup_backend_menubar_label(self) -> None:
         """Add a read-only backend label to the viewport menubar and hide the PhysX Simulation menu."""
-        from omni.kit.viewport.menubar.core import IconMenuDelegate, ViewportMenuItem, get_menu_item
+        try:
+            from omni.kit.viewport.menubar.core import IconMenuDelegate, ViewportMenuItem, get_menu_item
+        except (ImportError, ModuleNotFoundError):
+            return
 
         backend = self.physics_backend or "unknown"
         backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
@@ -276,8 +279,11 @@ class KitVisualizer(BaseVisualizer):
     def _teardown_backend_menubar_label(self) -> None:
         """Remove the backend label and restore the Simulation menu visibility."""
         if self._hid_simulation_menu:
-            from omni.kit.viewport.menubar.core import get_menu_item
-
+            try:
+                from omni.kit.viewport.menubar.core import get_menu_item
+            except (ImportError, ModuleNotFoundError):
+                self._hid_simulation_menu = False
+                return
             sim_item = get_menu_item("Simulation")
             if sim_item is not None:
                 sim_item.visible_model.set_value(True)

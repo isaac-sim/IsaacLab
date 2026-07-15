@@ -362,7 +362,9 @@ class ViserVisualizer(BaseVisualizer):
         )
         backend = self.physics_backend or "unknown"
         backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
-        self._viewer._server.gui.add_markdown(f"Physics: {backend_display}")
+        server = getattr(self._viewer, "_server", None)
+        if server is not None:
+            server.gui.add_markdown(f"Physics: {backend_display}")
         viewer_url = self._viewer.share_url or _viser_web_viewer_url(self.cfg.port, self.cfg.display_address)
         if self.cfg.verbose:
             print()
