@@ -958,6 +958,12 @@ class OVRTXRenderer(BaseRenderer):
     def _process_instance_segmentation_maps(self, render_data: OVRTXRenderData, frame) -> None:
         """Decode the instance-segmentation map render vars into ``renderer_info["instance_segmentation_fast"]``.
 
+        An *instance pixel ID* is a compact integer that the renderer assigns to each visible object instance.
+        Every pixel in the segmentation buffer holds the ID of the instance rendered at that location; the same
+        ID maps to the same object across the entire frame.  ID 0 is reserved for BACKGROUND (no geometry), and
+        ID 1 for UNLABELLED (geometry with no semantic annotation).  All other IDs are dynamically assigned per
+        frame.
+
         Populates ``"idToLabels"`` (instance pixel ID -> USD prim path) and ``"idToSemantics"`` (instance pixel
         ID -> ``{semantic_type: label}``) compatible with Isaac RTX / Replicator. Resolving both requires all
         three map render vars — ``StableIdSemanticIdMap`` (pixel ID -> stable ID + semantic ID), ``StableIdMap``
@@ -982,11 +988,11 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         with frame.render_vars["StableIdSemanticIdMap"].map(device=Device.CPU) as mapping:
-            stable_id_semantic_id_map = decode_stable_id_semantic_id_map(np.from_dlpack(mapping.tensor))
+            stable_id_semantic_id_map = decode_stable_id_semantic_id_map(np.from_dlpack(mapping))
         with frame.render_vars["StableIdMap"].map(device=Device.CPU) as mapping:
-            stable_id_to_path = decode_stable_id_map(np.from_dlpack(mapping.tensor))
+            stable_id_to_path = decode_stable_id_map(np.from_dlpack(mapping))
         with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
-            semantic_id_to_labels = decode_semantic_id_map(np.from_dlpack(mapping.tensor))
+            semantic_id_to_labels = decode_semantic_id_map(np.from_dlpack(mapping))
 
         id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
             stable_id_semantic_id_map,
