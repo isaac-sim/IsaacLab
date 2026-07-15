@@ -43,10 +43,16 @@ class SO101SceneCfg(dexsuite.SceneCfg):
     def __post_init__(self):
         super().__post_init__()
         self.robot.spawn.activate_contact_sensors = True
+        # soften the jaw drive to the SO-101 scale: the asset-default 10 N*m effort against
+        # palm-sized objects ejects them from every pinch attempt, so a stable held placement
+        # (and with it the success reward) never becomes learnable
+        self.robot.actuators["gripper"].effort_limit_sim = 0.5
         # the object hosts the contact sensors (see below); note that ``default`` is a deep
-        # copy of ``shapes`` in the preset config, so each preset is flagged separately
+        # copy of ``shapes`` in the preset config, so each preset is flagged separately.
+        # Objects are lightened to the jaw's scale (the dexsuite default is 0.2 kg)
         for preset in ("shapes", "cube", "default"):
             getattr(self.object.spawn, preset).activate_contact_sensors = True
+            getattr(self.object.spawn, preset).mass_props.mass = 0.05
         # the jaw-vs-object contact pair, sensed from the object side (both bodies in the
         # pairing have a single collision shape, which PhysX filtered reporting requires)
         self.jaw_object_s = ContactSensorCfg(
@@ -65,8 +71,9 @@ class SO101SceneCfg(dexsuite.SceneCfg):
         ]
         self.object.spawn.shapes.assets_cfg = graspable_shape_assets_cfg
         self.object.spawn.default.assets_cfg = graspable_shape_assets_cfg
-        # float the spawn region within the SO-101's compact reach envelope
-        self.object.init_state.pos = (-0.55, -0.08, 0.38)
+        # float the spawn region within the SO-101's measured reach envelope (the dense
+        # reachable band sits at base-relative y in (-0.27, -0.13); the base is at y=0.2)
+        self.object.init_state.pos = (-0.55, 0.0, 0.38)
 
 
 @configclass
@@ -90,16 +97,12 @@ class SO101StateObservationCfg(dexsuite.ObservationsCfg):
 
 @configclass
 class SO101LiftRewardCfg(dexsuite.RewardsCfg):
+    # no ``contact_count`` term: with a single jaw sensor it duplicates ``good_finger_contact``
+    # exactly, and the doubled touch payout teaches parking in contact instead of transporting
     good_finger_contact = RewTerm(
         func=mdp.contacts,
-        weight=1.0,
+        weight=0.75,
         params={"threshold": 0.01, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
-    )
-
-    contact_count = RewTerm(
-        func=mdp.contact_count,
-        weight=1.0,
-        params={"threshold": 0.01, "sensor_names": [THUMB_SENSOR]},
     )
 
     def __post_init__(self):
@@ -109,6 +112,9 @@ class SO101LiftRewardCfg(dexsuite.RewardsCfg):
         self.fingers_to_object.params["finger_names"] = FINGER_SENSORS
         self.position_tracking.params["thumb_name"] = THUMB_SENSOR
         self.position_tracking.params["finger_names"] = FINGER_SENSORS
+        # widen the tracking kernel so the transport gradient reaches typical spawn-to-goal
+        # distances (~0.2-0.3 m); at std 0.1 the touch stream dominates and the policy parks
+        self.position_tracking.params["std"] = 0.15
         if self.orientation_tracking:
             self.orientation_tracking.params["thumb_name"] = THUMB_SENSOR
             self.orientation_tracking.params["finger_names"] = FINGER_SENSORS
@@ -126,10 +132,13 @@ class SO101MixinCfg:
     def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
         super().__post_init__()
         self.commands.object_pose.body_name = "gripper"
-        # goal workspace within the SO-101's compact reach (root frame: the arm works at -y)
-        self.commands.object_pose.ranges.pos_x = (-0.1, 0.1)
-        self.commands.object_pose.ranges.pos_y = (-0.36, -0.2)
-        self.commands.object_pose.ranges.pos_z = (0.1, 0.22)
+        # goal workspace inside the measured dense reachable band (root frame, arm works at
+        # -y): random-joint FK sampling puts the gripper's 25th-75th percentile envelope at
+        # x (-0.08, 0.12), y (-0.24, -0.13), z (0.11, 0.30); goals beyond y=-0.31 are
+        # practically unreachable and cap the achievable success rate
+        self.commands.object_pose.ranges.pos_x = (-0.08, 0.08)
+        self.commands.object_pose.ranges.pos_y = (-0.30, -0.16)
+        self.commands.object_pose.ranges.pos_z = (0.08, 0.22)
         events = self.events.conditional_reset.params["terms"]
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="wrist_roll")
         events["reset_object_to_target"].params["target_cfg"] = SceneEntityCfg("robot", body_names="gripper")
@@ -139,10 +148,10 @@ class SO101MixinCfg:
             "y": [-0.02, 0.02],
             "z": [-0.12, -0.08],
         }
-        # spawn the free-floating object within the arm's reach envelope
+        # spawn the free-floating object within the measured reach envelope
         events["reset_object"].params["pose_range"] = {
-            "x": [-0.1, 0.1],
-            "y": [-0.08, 0.08],
+            "x": [-0.08, 0.08],
+            "y": [-0.07, 0.07],
             "z": [0.0, 0.08],
             "roll": [-3.14, 3.14],
             "pitch": [-3.14, 3.14],
@@ -154,6 +163,18 @@ class SO101MixinCfg:
         self.terminations.abnormal_robot.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names="(shoulder_pan|shoulder_lift|elbow_flex|wrist_flex|wrist_roll)"
         )
+        # keep the generic gain randomization off the jaw (cf. the Franka config): scaling the
+        # soft jaw drive by x2 restores the object-ejecting grip the effort limit removes
+        self.events.joint_stiffness_and_damping.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names="(shoulder_pan|shoulder_lift|elbow_flex|wrist_flex|wrist_roll)"
+        )
+        # size the inertia randomization to the palm-sized objects: the dexsuite default adds
+        # 0.01 kg*m^2, three orders of magnitude above these objects' natural inertia, which
+        # gyroscopically freezes their rotation and fights reorienting a held object
+        self.events.object_physics_inertia.params["inertia_distribution_params"] = (0.0002, 0.0002)
+        # give the 5-DOF arm time to transport a held object per goal: repositioning the
+        # pinch across the workspace needs wrist reorientation a 6-DOF arm does not
+        self.commands.object_pose.resampling_time_range = (4.0, 6.0)
 
 
 @configclass
