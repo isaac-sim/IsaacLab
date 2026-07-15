@@ -3,8 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import warnings
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 import warp as wp
 
@@ -22,6 +25,13 @@ from isaaclab.utils.leapp import (
     leapp_tensor_semantics,
 )
 from isaaclab.utils.warp import ProxyArray
+
+from . import ordering_kernels
+
+if TYPE_CHECKING:
+    from isaaclab.utils.buffers import TimestampedBufferWarp
+
+    from .ordering import ArticulationNameMap
 
 
 class BaseArticulationData(ABC):
@@ -41,6 +51,9 @@ class BaseArticulationData(ABC):
     Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
     can be interpreted as the link frame.
     """
+
+    __backend_name__: str = "base"
+    """The name of the backend for the articulation data container."""
 
     def __init__(self, root_view, device: str):
         """Initializes the articulation data.
@@ -89,16 +102,121 @@ class BaseArticulationData(ABC):
     ##
 
     body_names: list[str] | None = None
-    """Body names in the order parsed by the simulation view."""
+    """Body names in public API order.
+
+    Configured order is used when present; otherwise this is active backend
+    solver-view order.
+    """
 
     joint_names: list[str] | None = None
-    """Joint names in the order parsed by the simulation view."""
+    """Joint names in public API order.
+
+    Configured order is used when present; otherwise this is active backend
+    solver-view order.
+    """
+
+    joint_ordering: ArticulationNameMap | None = None
+    """Bidirectional map between backend and public joint order.
+
+    This is ``None`` whenever public and backend orders coincide (default
+    ordering, or a configured ordering that resolved to backend order); a
+    non-``None`` map always denotes an actual permutation.
+    """
+
+    body_ordering: ArticulationNameMap | None = None
+    """Bidirectional map between backend and public body order.
+
+    This is ``None`` whenever public and backend orders coincide (default
+    ordering, or a configured ordering that resolved to backend order); a
+    non-``None`` map always denotes an actual permutation.
+    """
 
     fixed_tendon_names: list[str] | None = None
-    """Fixed tendon names in the order parsed by the simulation view."""
+    """Fixed tendon names in active backend solver-view order."""
 
     spatial_tendon_names: list[str] | None = None
-    """Spatial tendon names in the order parsed by the simulation view."""
+    """Spatial tendon names in active backend solver-view order."""
+
+    def _apply_ordering_maps_after_resolve(self) -> None:
+        """Configure backend-order staging after the articulation resolves ordering maps.
+
+        The owning articulation calls this once it has resolved and stored the joint
+        and body ordering maps (:attr:`joint_ordering` and :attr:`body_ordering`) on
+        this data container. The base implementation is a no-op; backend data classes
+        override it to allocate or release the backend-order shadow buffers their read
+        paths require when the public order differs from backend order.
+        """
+
+    def _make_jacobian_body_user_to_backend(self) -> wp.array:
+        """Build the compact user-to-backend row map for Jacobian body axes.
+
+        The map follows the installed :attr:`body_ordering`, or backend body
+        order when no ordering is active. Fixed-base articulations omit the
+        root link's Jacobian rows, so a nonzero :attr:`_jacobian_link_offset`
+        drops backend row 0 and shifts the remaining rows down by one.
+
+        Returns:
+            One-dimensional ``wp.int32`` device array of backend Jacobian rows in
+            public body order.
+        """
+        body_ordering = self.body_ordering
+        body_user_to_backend = (
+            body_ordering.user_to_backend_indices if body_ordering is not None else range(self._num_bodies)
+        )
+        if self._jacobian_link_offset == 0:
+            backend_rows = tuple(int(backend_id) for backend_id in body_user_to_backend)
+        else:
+            backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
+        return wp.array(backend_rows, dtype=wp.int32, device=self.device)
+
+    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBufferWarp) -> None:
+        """Read the current backend-order static body COM pose into ``buf`` when stale.
+
+        Backend hook for :meth:`_ensure_body_com_pose_b_current` and
+        :attr:`_backend_body_com_pose_b`. The base raises because only backends that
+        stage a static body COM pose implement the fetch.
+
+        Args:
+            buf: Timestamped buffer to refresh with the backend-order COM pose.
+        """
+        raise NotImplementedError
+
+    def _ensure_body_com_pose_b_current(self) -> None:
+        """Refresh the static body COM pose cache when explicitly invalidated.
+
+        Under body ordering the fetch fills the backend-order staging buffer and the
+        result is gathered into public order; otherwise it fills the public buffer
+        directly.
+        """
+        if self._body_com_pose_b.timestamp >= 0.0:
+            return
+        if self.body_ordering is None:
+            self._fetch_body_com_pose_b_backend(self._body_com_pose_b)
+            return
+        backend_staging = self._body_com_pose_b_backend
+        if backend_staging is None:
+            raise RuntimeError(f"{self.__backend_name__} body COM ordering staging was not initialized.")
+        self._fetch_body_com_pose_b_backend(backend_staging)
+        wp.launch(
+            ordering_kernels.reorder_2d_backend_to_user,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[backend_staging.data, self.body_ordering.user_to_backend],
+            outputs=[self._body_com_pose_b.data],
+            device=self.device,
+        )
+        self._body_com_pose_b.timestamp = backend_staging.timestamp
+
+    @property
+    def _backend_body_com_pose_b(self) -> wp.array(dtype=wp.transformf, ndim=2):
+        """Backend-order body COM pose buffer for root-only computations."""
+        if self.body_ordering is None:
+            self._ensure_body_com_pose_b_current()
+            return self._body_com_pose_b.data
+        backend_staging = self._body_com_pose_b_backend
+        if backend_staging is None:
+            raise RuntimeError(f"{self.__backend_name__} body COM ordering staging was not initialized.")
+        self._fetch_body_com_pose_b_backend(backend_staging)
+        return backend_staging.data
 
     ##
     # Defaults - Initial state.
@@ -720,6 +838,8 @@ class BaseArticulationData(ABC):
         Conventions:
             * Body axis: ``jacobi_body_idx == body_idx - 1`` for fixed-base (fixed-root
               row excluded); ``jacobi_body_idx == body_idx`` for floating-base.
+              With custom body ordering, fixed-base Jacobian rows follow user body
+              order with the fixed root omitted.
             * DoF axis: leading
               :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` floating-base
               columns (world-frame ``[lin_x, lin_y, lin_z, ang_x, ang_y, ang_z]``),
