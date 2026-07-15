@@ -95,10 +95,8 @@ def sim():
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
     robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
-    robot_cfg.actuators["panda_shoulder"].damping = 0.0
-    robot_cfg.actuators["panda_forearm"].stiffness = 0.0
-    robot_cfg.actuators["panda_forearm"].damping = 0.0
+    robot_cfg.actuators["panda_arm"].stiffness = 0.0
+    robot_cfg.actuators["panda_arm"].damping = 0.0
     robot_cfg.spawn.rigid_props.disable_gravity = True
 
     # Define the ContactSensor
