@@ -133,9 +133,9 @@ def test_filter_unresolvable_tip_keeps_when_lenient_raises_when_strict(repo) -> 
         seed_baselines._filter_plan_by_ancestry(plan, work, target_sha="", strict=True)
 
 
-def test_prepare_jit_cache_opens_sample_cache(tmp_path: Path) -> None:
-    """Each seed sample gets writable Warp/CUDA cache roots."""
-    cache_dir = tmp_path / "jit-cache" / "seed" / "sample0"
+def test_prepare_jit_cache_opens_task_cache(tmp_path: Path) -> None:
+    """Each task/backend bucket gets writable Warp/CUDA cache roots."""
+    cache_dir = tmp_path / "jit-cache" / "seed" / "task" / "newton"
 
     prepared = seed_baselines._prepare_jit_cache(cache_dir)
 
@@ -143,3 +143,40 @@ def test_prepare_jit_cache_opens_sample_cache(tmp_path: Path) -> None:
     assert (cache_dir / "warp").is_dir()
     assert (cache_dir / "nv").is_dir()
     assert cache_dir.stat().st_mode & 0o777 == 0o777
+
+
+def test_jit_cache_reuses_samples_and_isolates_backends(tmp_path: Path) -> None:
+    """Repeated samples share compiled kernels, but different backends do not."""
+    cache_root = tmp_path / "jit-cache" / "seed" / "run-1-attempt-1"
+    newton_cache = seed_baselines._jit_cache_path(
+        cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Cartpole-Direct", "newton"
+    )
+    repeated_newton_cache = seed_baselines._jit_cache_path(
+        cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Cartpole-Direct", "newton"
+    )
+    physx_cache = seed_baselines._jit_cache_path(
+        cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Cartpole-Direct", "physx"
+    )
+
+    _ = seed_baselines._prepare_jit_cache(newton_cache)
+    compiled_kernel = newton_cache / "warp" / "compiled-kernel.so"
+    compiled_kernel.write_bytes(b"compiled")
+    _ = seed_baselines._prepare_jit_cache(repeated_newton_cache)
+
+    assert repeated_newton_cache == newton_cache
+    assert compiled_kernel.read_bytes() == b"compiled"
+    assert physx_cache != newton_cache
+    assert not physx_cache.exists()
+
+
+def test_cleanup_jit_cache_removes_run_tree(tmp_path: Path) -> None:
+    """Seeder exit cleanup removes compiled kernels from its run directory."""
+    cache_dir = tmp_path / "jit-cache" / "seed" / "run-1-attempt-1"
+    compiled_dir = cache_dir / "warp" / "version" / "module"
+    compiled_dir.mkdir(parents=True)
+    (compiled_dir / "kernel.so").write_bytes(b"compiled")
+    compiled_dir.chmod(0o500)
+
+    seed_baselines._cleanup_jit_cache(cache_dir)
+
+    assert not cache_dir.exists()
