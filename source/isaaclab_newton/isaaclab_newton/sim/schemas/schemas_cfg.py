@@ -10,6 +10,7 @@ from typing import ClassVar, Literal
 
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
+    ArticulationRootFragment,
     CollisionBaseCfg,
     CollisionFragment,
     DeformableBodyPropertiesBaseCfg,
@@ -574,7 +575,6 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonArticulationRootAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     self_collision_enabled: bool | None = None
     """Whether self-collisions between bodies in this articulation are enabled.
@@ -582,4 +582,30 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     Written to ``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``.
     Newton's resolver checks this native attribute first before falling back to
     ``physxArticulation:enabledSelfCollisions``.
+    """
+
+
+@configclass
+class NewtonArticulationCfg(ArticulationRootFragment):
+    """``newton:*`` articulation-root attributes for Newton.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) carrying
+    Newton-native self-collision control. It owns the ``NewtonArticulationRootAPI`` applied
+    schema. Composes with :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` in an
+    ``articulation_props`` fragment list; the ``UsdPhysics.ArticulationRootAPI`` anchor is
+    applied by :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`.
+
+    .. note::
+        If the values are None, they are not modified.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = "NewtonArticulationRootAPI"
+
+    self_collision_enabled: bool | None = None
+    """Whether self-collisions between bodies in this articulation are enabled.
+
+    Written to ``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``. Newton's
+    resolver checks this native attribute first before falling back to the PhysX namespace
+    (:attr:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg.enabled_self_collisions`).
     """

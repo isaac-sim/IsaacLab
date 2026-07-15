@@ -206,10 +206,56 @@ def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
     assert NewtonManager._state_0 == "live-state"
 
 
+@pytest.mark.parametrize("newton_active", [True, False])
+def test_get_state_forwards_only_for_live_newton_state(monkeypatch, newton_active):
+    """PhysX shadow state keeps its visualization update without entering Newton FK."""
+    from isaaclab_newton.physics import NewtonManager
+
+    events: list[str] = []
+    state = object()
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", object(), raising=False)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_backend_is_newton",
+        classmethod(lambda cls, provider=None: newton_active),
+    )
+    monkeypatch.setattr(NewtonManager, "forward", classmethod(lambda cls: events.append("forward")))
+    monkeypatch.setattr(
+        NewtonManager,
+        "update_visualization_state",
+        classmethod(lambda cls, provider=None: events.append("visualization")),
+    )
+    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+
+    assert NewtonManager.get_state() is state
+    expected = ["forward", "visualization"] if newton_active else ["visualization"]
+    assert events == expected
+
+
+def test_scene_data_reads_through_public_state_boundary(monkeypatch):
+    """SceneData does not bypass the coherent Newton state accessor."""
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import newton_manager as nm
+
+    events: list[str] = []
+    body_q = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    state = SimpleNamespace(body_q=body_q)
+    backend = nm.NewtonSceneDataBackend()
+    monkeypatch.setattr(
+        NewtonManager,
+        "get_state",
+        classmethod(lambda cls, provider=None: events.append("state") or state),
+    )
+
+    transforms = backend.transforms
+
+    assert events == ["state"]
+    assert transforms.transforms is body_q
+
+
 def test_resolve_scene_data_body_paths_uses_joint_body_targets():
     """PhysX visualization sync maps Newton joint labels to the actual body prim path."""
-    import pytest
-
     pytest.importorskip("pxr")
     from isaaclab_newton.physics import NewtonManager
 

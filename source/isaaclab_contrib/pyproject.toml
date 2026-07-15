@@ -9,15 +9,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_contrib"
-version = "0.4.6"
+version = "0.4.7"
 description = "An extension used to stage and integrate externally contributed features and implementations."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["kit", "robotics", "assets", "isaaclab"]
 requires-python = ">=3.12"
-# Third-party requirements are centralized in the root pyproject.toml.
-dependencies = []
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
