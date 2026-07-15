@@ -249,7 +249,10 @@ class KitVisualizer(BaseVisualizer):
         self.kit_manager_visualizers: dict[str, ManagerLiveVisualizer] = {
             name: ManagerLiveVisualizer(
                 manager=mgr,
-                cfg=ManagerLiveVisualizerCfg(manager_name=name),
+                cfg=ManagerLiveVisualizerCfg(
+                    manager_name=name,
+                    term_names=(term_names or {}).get(name),
+                ),
             )
             for name, mgr in managers.items()
         }

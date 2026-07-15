@@ -81,9 +81,7 @@ class ManagerLivePlots:
                     continue
                 result[term_name] = [float(v) for v in flat]
         except Exception:
-            logger.debug(
-                "[ManagerLivePlots] Failed to collect terms from %s.", self.manager_name, exc_info=True
-            )
+            logger.debug("[ManagerLivePlots] Failed to collect terms from %s.", self.manager_name, exc_info=True)
         return result
 
     def collect_images(self, env_idx: int) -> dict[str, np.ndarray]:
@@ -104,7 +102,5 @@ class ManagerLivePlots:
                 if arr.ndim >= 3:
                     result[term_name] = arr
         except Exception:
-            logger.debug(
-                "[ManagerLivePlots] Failed to collect images from %s.", self.manager_name, exc_info=True
-            )
+            logger.debug("[ManagerLivePlots] Failed to collect images from %s.", self.manager_name, exc_info=True)
         return result

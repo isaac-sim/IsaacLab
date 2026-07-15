@@ -45,11 +45,15 @@ class RerunVisualizerCfg(VisualizerCfg):
     keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
 
-    keep_scalar_history: bool = True
+    keep_scalar_history: bool = False
     """Keep scalar/plot history in timeline.
 
-    Must be ``True`` for live plots to accumulate as a time-series; ``False`` logs each value as
-    static (no timeline association), which overwrites the previous value and produces a flat chart.
+    When ``True``, scalars logged via :meth:`~RerunVisualizer.step` accumulate as a time-series
+    in the Rerun viewer.  When ``False`` (default), each value is logged as static, which keeps
+    memory constant for long training runs at the cost of losing history.
+
+    This is automatically set to ``True`` when live plots are registered via
+    :meth:`~RerunVisualizer.add_live_plots`, so callers do not need to set it manually.
     """
 
     record_to_rrd: str | None = None

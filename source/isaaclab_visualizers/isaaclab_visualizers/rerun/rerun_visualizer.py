@@ -135,10 +135,7 @@ class NewtonViewerRerun(ViewerRerun):
     def _get_blueprint(self):
         """Return a per-manager blueprint when live plots are registered, else the default."""
         if self._live_plot_manager_names:
-            manager_views = [
-                rrb.TimeSeriesView(name=name, origin=f"/{name}")
-                for name in self._live_plot_manager_names
-            ]
+            manager_views = [rrb.TimeSeriesView(name=name, origin=f"/{name}") for name in self._live_plot_manager_names]
             return rrb.Blueprint(
                 rrb.Horizontal(
                     rrb.Spatial3DView(),
@@ -432,6 +429,10 @@ class RerunVisualizer(BaseVisualizer):
         super().add_live_plots(managers, term_names=term_names, env_idx=env_idx)
         if self._viewer is None or not self._live_plot_sources:
             return
+        # Enable scalar history now that live plots are registered so scalars accumulate as
+        # a time-series.  The default is False to keep memory constant for training runs that
+        # don't use live plots.
+        self._viewer.keep_scalar_history = True
         # Store manager names on the viewer so _get_blueprint() returns the per-manager
         # layout.  ViewerRerun.log_scalar calls _get_blueprint() on the first scalar logged,
         # which would overwrite any blueprint we send here — so we inject the layout into
