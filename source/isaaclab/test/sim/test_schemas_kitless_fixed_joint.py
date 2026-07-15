@@ -6,7 +6,7 @@
 """Regression tests for authoring the world fixed joint with pure USD.
 
 These tests run on an in-memory USD stage and intentionally do NOT launch Isaac Sim /
-Kit. :func:`_create_world_fixed_joint` is the single fixed-root-link authoring path for
+Kit. :func:`create_world_fixed_joint` is the single fixed-root-link authoring path for
 every backend, so passing here also covers kitless backends (e.g. Newton) where
 ``omni.physx`` is unavailable.
 """
@@ -15,7 +15,7 @@ import math
 
 from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.schemas.schemas import _create_world_fixed_joint
+from isaaclab.sim.schemas.schemas import create_world_fixed_joint
 
 
 def _make_root_prim(stage: Usd.Stage, path: str, translation: tuple[float, float, float]) -> Usd.Prim:
@@ -45,7 +45,7 @@ def test_create_world_fixed_joint_authors_world_anchored_joint():
     stage = Usd.Stage.CreateInMemory()
     prim = _make_root_prim(stage, "/World/Robot", translation=(1.0, 2.0, 3.0))
 
-    _create_world_fixed_joint(prim, stage)
+    create_world_fixed_joint(prim, stage)
 
     joint = _find_fixed_joint(stage)
     assert joint is not None, "no UsdPhysics.FixedJoint was authored"
@@ -72,7 +72,7 @@ def test_create_world_fixed_joint_skips_instanceable_root():
     prim.SetInstanceable(True)
     assert prim.IsInstanceable()
 
-    _create_world_fixed_joint(prim, stage)
+    create_world_fixed_joint(prim, stage)
 
     joint = _find_fixed_joint(stage)
     assert joint is not None, "no UsdPhysics.FixedJoint was authored"

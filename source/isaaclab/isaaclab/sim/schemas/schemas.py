@@ -413,7 +413,7 @@ def define_articulation_root_properties(
     modify_articulation_root_properties(prim_path, cfg, stage)
 
 
-def _create_world_fixed_joint(articulation_prim: Usd.Prim, stage: Usd.Stage) -> None:
+def create_world_fixed_joint(articulation_prim: Usd.Prim, stage: Usd.Stage) -> None:
     """Author a ``UsdPhysics.FixedJoint`` fixing an articulation root link to the world frame.
 
     This is a pure-USD equivalent of
@@ -552,7 +552,7 @@ def modify_articulation_root_properties(
                 )
 
             # create a fixed joint between the root link and the world frame
-            _create_world_fixed_joint(articulation_prim, stage)
+            create_world_fixed_joint(articulation_prim, stage)
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
             # instead, it is treated as a part of the maximal coordinate tree.
