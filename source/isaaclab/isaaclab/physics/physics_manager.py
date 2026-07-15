@@ -124,7 +124,7 @@ class PhysicsManager(ABC):
         # Keep pxr local as well: this module is imported while environment configs load (via the
         # manager classes), and config loading must not pull USD/omni modules before the simulation
         # app starts.
-        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
+        from pxr import UsdPhysics  # noqa: PLC0415
 
         from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
 
@@ -138,17 +138,9 @@ class PhysicsManager(ABC):
         if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
             raise NotImplementedError(f"Cannot fix non-rigid articulation root '{root_path}'.")
 
-        joint_path = f"{root_path}/FixedJoint"
-        index = 0
-        while stage.GetPrimAtPath(joint_path).IsValid():
-            index += 1
-            joint_path = f"{root_path}/FixedJoint{index}"
+        from isaaclab.sim.schemas.schemas import _create_world_fixed_joint  # noqa: PLC0415
 
-        world_xform = UsdGeom.XformCache().GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
-        joint = UsdPhysics.FixedJoint.Define(stage, joint_path)
-        joint.CreateBody1Rel().SetTargets([articulation_prim.GetPath()])
-        joint.CreateLocalPos0Attr().Set(Gf.Vec3f(world_xform.ExtractTranslation()))
-        joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_xform.ExtractRotationQuat()))
+        _create_world_fixed_joint(articulation_prim, stage)
         return articulation_prim
 
     @staticmethod
