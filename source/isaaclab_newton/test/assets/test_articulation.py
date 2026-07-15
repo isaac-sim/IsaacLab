@@ -1660,9 +1660,10 @@ def test_setting_velocity_limit_implicit(
     """Test setting of velocity limit for implicit actuators.
 
     This test verifies that:
-    1. Velocity limits can be set correctly for implicit actuators
-    2. The limits are applied correctly to the simulation
-    3. The limits are handled correctly when both sim and non-sim limits are set
+    1. The solver clamp ``velocity_limit_sim`` is applied to the simulation; when unset, the
+       USD-authored value is kept
+    2. The joint velocity limit ``velocity_limit`` is never pushed to the solver and keeps its
+       configured value; when unset, it falls back to the solver clamp
 
     Args:
         sim: The simulation fixture
@@ -1683,10 +1684,6 @@ def test_setting_velocity_limit_implicit(
         device=device,
     )
     # Play sim
-    if vel_limit_sim is not None and vel_limit is not None:
-        with pytest.raises(ValueError):
-            sim.reset()
-        return
     sim.reset()
 
     # read the values set into the simulation
@@ -1697,27 +1694,20 @@ def test_setting_velocity_limit_implicit(
     torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, newton_vel_limit)
     # check actuator has simulation velocity limit
     torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, newton_vel_limit)
-    # check that both values match for velocity limit
-    torch.testing.assert_close(
-        articulation.actuators["joint"].velocity_limit_sim,
-        articulation.actuators["joint"].velocity_limit,
-    )
 
+    # the solver clamp comes from velocity_limit_sim when set, otherwise the USD-authored value
     if vel_limit_sim is None:
-        # Case 2: both velocity limit and velocity limit sim are not set
-        #  This is the case where the velocity limit keeps its USD default value
-        # Case 3: velocity limit sim is not set but velocity limit is set
-        #   For backwards compatibility, we do not set velocity limit to simulation
-        #   Thus, both default to USD default value.
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
-        # Case 4: only velocity limit sim is set
-        #   In this case, the velocity limit is set to the USD value
-        limit = vel_limit_sim
-
-    # check max velocity is what we set
-    expected_velocity_limit = torch.full_like(newton_vel_limit, limit)
+        sim_limit = vel_limit_sim
+    expected_velocity_limit = torch.full_like(newton_vel_limit, sim_limit)
     torch.testing.assert_close(newton_vel_limit, expected_velocity_limit)
+
+    # the joint velocity limit keeps its configured value and is not pushed to the solver;
+    # when unset it falls back to the solver clamp
+    joint_limit = vel_limit if vel_limit is not None else sim_limit
+    expected_joint_limit = torch.full_like(newton_vel_limit, joint_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].velocity_limit, expected_joint_limit)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
