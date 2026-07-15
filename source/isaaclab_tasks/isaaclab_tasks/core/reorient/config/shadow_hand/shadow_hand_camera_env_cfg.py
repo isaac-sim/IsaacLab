@@ -124,7 +124,15 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
         renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
-        warp_supported = {"rgb", "depth", "distance_to_camera", "distance_to_image_plane", "normals"}
+        warp_supported = {
+            "rgb",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+            "semantic_segmentation",
+            "instance_segmentation_fast",
+        }
         if renderer_type == "newton_warp":
             unsupported = set(self.tiled_camera.data_types) - warp_supported
             if unsupported:

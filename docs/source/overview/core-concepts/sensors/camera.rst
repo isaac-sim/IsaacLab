@@ -107,7 +107,7 @@ parameters.
     tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
         offset=CameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
-        data_types=["rgb", "depth"],  # only rgb and depth supported with Newton renderer
+        data_types=["rgb", "depth"],  # see the support matrix below for all Newton-supported types
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
@@ -244,7 +244,7 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
    * - ``semantic_segmentation``
      - ✅
      - ✅
-     - ❌
+     - ✅
    * - ``instance_segmentation_fast``
      - ✅
      - ✅

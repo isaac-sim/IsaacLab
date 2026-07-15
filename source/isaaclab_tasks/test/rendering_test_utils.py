@@ -139,6 +139,8 @@ _NEWTON_WARP_DATA_TYPES = (
     "distance_to_camera",
     "distance_to_image_plane",
     "normals",
+    "semantic_segmentation",
+    "instance_segmentation_fast",
 )
 
 # Data types the OVRTX renderer supports. ``instance_id_segmentation_fast`` is intentionally
