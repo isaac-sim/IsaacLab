@@ -359,9 +359,7 @@ def _prepare_jit_cache(cache_dir: Path) -> Path:
     return cache_dir
 
 
-def _jit_cache_path(
-    cache_root: Path, target_branch: str, commit: str, task_id: str, backend_key: str
-) -> Path:
+def _jit_cache_path(cache_root: Path, target_branch: str, commit: str, task_id: str, backend_key: str) -> Path:
     """Return the cache shared by repeated samples of one task/backend bucket."""
     return (
         cache_root
@@ -628,12 +626,7 @@ def main() -> int:
     )
     run_id = os.environ.get("GITHUB_RUN_ID", f"local-{os.getpid()}")
     run_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "0")
-    jit_cache_root = (
-        workdir
-        / "jit-cache"
-        / "seed"
-        / f"run-{run_id}-attempt-{run_attempt}"
-    )
+    jit_cache_root = workdir / "jit-cache" / "seed" / f"run-{run_id}-attempt-{run_attempt}"
     atexit.register(_cleanup_jit_cache, jit_cache_root)
     kit_cache = workdir / "kit-cache"
     kit_cache.mkdir(parents=True, exist_ok=True)
