@@ -332,7 +332,7 @@ class AppLauncher:
 
         # Set up signal handlers for graceful shutdown
         # -- during explicit `kill` commands
-        signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
+        signal.signal(signal.SIGTERM, self._terminate_signal_handle_callback)
         # -- during aborts
         signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
         # -- during segfaults
@@ -1375,6 +1375,11 @@ class AppLauncher:
         self._app.close()
         # raise the error for keyboard interrupt
         raise KeyboardInterrupt
+
+    @staticmethod
+    def _terminate_signal_handle_callback(signum, _frame):
+        """Terminate the process while preserving Python cleanup handlers."""
+        raise SystemExit(128 + signum)
 
     def is_isaac_sim_version_5(self) -> bool:
         if not hasattr(self, "_is_sim_ver_5"):
