@@ -415,6 +415,11 @@ class NewtonWarpRenderer(BaseRenderer):
         sim.physics_manager.forward()
         NewtonManager.update_visualization_state()
 
+    def update_geometries(self) -> None:
+        """No-op for Newton Warp - geometry is read directly from Newton state during render.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries`."""
+        pass
+
     def update_camera(
         self,
         render_data: RenderData,

@@ -297,7 +297,8 @@ class Articulation(BaseArticulation):
                     self._ALL_BODY_MASK,
                 ],
             )
-        self._instantaneous_wrench_composer.reset()
+        if self._instantaneous_wrench_composer.active:
+            self._instantaneous_wrench_composer.reset()
 
         if getattr(self, "_has_newton_actuators", False):
             # Raw targets go directly to Newton's control object. Newton PD
