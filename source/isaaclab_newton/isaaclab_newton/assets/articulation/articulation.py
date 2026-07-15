@@ -3455,10 +3455,9 @@ class Articulation(BaseArticulation):
         self._ordering_configure_backend_staging()
         # Cache a torch ``long`` alias of the joint user-to-backend map so per-call actuator
         # writes reuse it instead of re-wrapping and re-casting the Warp map every call.
+        joint_ordering = self.data.joint_ordering
         self._joint_user_to_backend_torch = (
-            wp.to_torch(self.data.joint_ordering.user_to_backend).to(dtype=torch.long)
-            if self.data.joint_ordering is not None
-            else None
+            wp.to_torch(joint_ordering.user_to_backend).to(dtype=torch.long) if joint_ordering is not None else None
         )
         # Republish the Tier-1 backend->user state shadows inside the stepped
         # (and captured) region after the last solver substep. Registering only
@@ -3645,12 +3644,13 @@ class Articulation(BaseArticulation):
                     arti_start = int(dof_layout.indices.numpy()[0])
                 else:
                     arti_start = 0
+                joint_ordering = self.joint_ordering
                 binding = adapter.bind_articulation(
                     lab_actuators=self.actuators,
                     dof_offset=arti_start,
                     num_joints=self.num_joints,
                     joint_user_to_backend_indices=(
-                        self.joint_ordering.user_to_backend_indices if self.joint_ordering is not None else None
+                        joint_ordering.user_to_backend_indices if joint_ordering is not None else None
                     ),
                 )
                 self.newton_actuator_adapter = adapter
