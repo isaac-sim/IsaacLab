@@ -7,7 +7,7 @@
 
 import os
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
@@ -16,6 +16,9 @@ from PIL import Image, ImageChops
 
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
+
+if TYPE_CHECKING:
+    from isaaclab.sensors.camera import CameraData
 
 # Directory containing golden images.
 _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
@@ -750,27 +753,124 @@ def validate_camera_outputs(
 def maybe_validate_semantic_segmentation(
     data_type: str,
     info: dict[str, Any] | None,
-    expected_id_to_labels: dict[str, dict[str, str]],
+    expected_id_to_labels: dict[tuple[int, int, int, int], dict[str, str]],
+    stringify_keys: bool = False,
 ) -> None:
     """For the ``semantic_segmentation`` data type, assert ``camera.data.info`` matches ground truth.
 
-    No-op for any other data type. The ``idToLabels`` mapping (keyed by RGBA color for the default colorized
-    output) is a Replicator contract that both the Isaac RTX and OVRTX renderers must satisfy, so it is
-    compared for exact equality against the expected mapping.
+    No-op for any other data type. The ``idToLabels`` mapping (keyed by the colorized RGBA value for the
+    default colorized output) is a Replicator contract that both the Isaac RTX and OVRTX renderers must
+    satisfy, so it is compared for exact equality against the expected mapping.
+
+    ``expected_id_to_labels`` is keyed by raw ``(r, g, b, a)`` **tuples** (the form the OVRTX renderer and
+    Replicator's fast nodes produce). isaacsim's Isaac RTX ``semantic_segmentation`` annotator, however,
+    returns the stringified ``"(r, g, b, a)"`` keys, so pass ``stringify_keys=True`` for that renderer to cast
+    the expected keys to ``str`` before comparing.
 
     Args:
         data_type: The camera data type under test.
         info: The ``camera.data.info`` dict (or ``None``) produced by the renderer.
-        expected_id_to_labels: Expected ``idToLabels`` mapping (color/ID key -> ``{semantic_type: label}``).
+        expected_id_to_labels: Expected ``idToLabels`` mapping (RGBA-tuple key -> ``{semantic_type: label}``).
+        stringify_keys: Cast the expected keys to ``str`` before comparing, to match a renderer that returns
+            stringified color keys (isaacsim Isaac RTX ``semantic_segmentation``).
     """
     if data_type != "semantic_segmentation":
         return
 
+    expected = (
+        {str(key): value for key, value in expected_id_to_labels.items()} if stringify_keys else expected_id_to_labels
+    )
+
     assert info is not None, "camera.data.info is None; renderer did not populate segmentation metadata."
-    assert info["semantic_segmentation"]["idToLabels"] == expected_id_to_labels, (
+    assert info["semantic_segmentation"]["idToLabels"] == expected, (
         f"semantic_segmentation idToLabels mismatch.\n"
-        f"  expected: {expected_id_to_labels}\n"
+        f"  expected: {expected}\n"
         f"  actual:   {info['semantic_segmentation']}"
+    )
+
+
+def maybe_validate_instance_segmentation_fast(
+    data_type: str,
+    camera_data: "CameraData",
+    expected_prim_paths: set[str],
+    expected_semantics: list[dict[str, str]],
+) -> None:
+    """For the ``instance_segmentation_fast`` data type, assert ``camera.data.info`` matches ground truth.
+
+    No-op for any other data type. Instance segmentation exposes two mappings that the Isaac RTX and OVRTX
+    renderers must both satisfy: ``idToLabels`` (instance -> USD prim path) and ``idToSemantics`` (instance ->
+    ``{semantic_type: label}``), both keyed by the colorized ``(r, g, b, a)`` instance value.
+
+    The colorized keys come from ``NonStableInstanceSegmentation`` ids, whose id -> prim assignment is not
+    stable across runs, so the keys cannot be hard-coded. Instead they are validated for self-consistency
+    against the rendered image: each map's key set must equal the unique colors in ``instance_image`` plus the
+    reserved BACKGROUND / UNLABELLED keys (which the maps always include even when those pixels are not
+    rendered). The *values* are then compared against the expected ground truth.
+
+    Concretely it checks:
+
+    - each map's key set equals the unique image colors plus the reserved BACKGROUND / UNLABELLED keys,
+    - the reserved BACKGROUND / UNLABELLED entries (fixed colorized keys) are present and correct,
+    - the set of non-reserved prim paths (``idToLabels`` values) equals ``expected_prim_paths``, and
+    - the multiset of non-reserved semantic labels (``idToSemantics`` values) equals ``expected_semantics``.
+
+    Args:
+        data_type: The camera data type under test.
+        camera_data: The camera's :class:`~isaaclab.sensors.camera.CameraData`; its ``info`` and colorized
+            ``instance_segmentation_fast`` output image are read internally.
+        expected_prim_paths: Expected set of non-reserved ``idToLabels`` values (one USD prim path per instance).
+        expected_semantics: Expected multiset of non-reserved ``idToSemantics`` values (``{semantic_type: label}``
+            per instance).
+    """
+    if data_type != "instance_segmentation_fast":
+        return
+
+    info = camera_data.info
+    assert info is not None, "camera.data.info is None; renderer did not populate segmentation metadata."
+    segmentation = info["instance_segmentation_fast"]
+    id_to_labels = segmentation["idToLabels"]
+    id_to_semantics = segmentation["idToSemantics"]
+
+    # Reserved BACKGROUND / UNLABELLED entries have fixed colorized (RGBA tuple) keys and are always present in
+    # the maps even when the corresponding pixels are not rendered (e.g. no unlabelled prim in view).
+    reserved_keys = {(0, 0, 0, 0), (0, 0, 0, 255)}
+
+    # The colorized keys are non-stable across runs, so validate them against the rendered image instead of
+    # hard-coding: the map keys must be exactly the unique colors present in the image plus the reserved keys.
+    instance_image = camera_data.output["instance_segmentation_fast"]
+    color_image = instance_image if isinstance(instance_image, torch.Tensor) else instance_image.torch
+    color_image = color_image.reshape(-1, color_image.shape[-1]).cpu().numpy()
+    unique_colors = {tuple(int(channel) for channel in row) for row in np.unique(color_image, axis=0)}
+    assert set(id_to_labels) == unique_colors | reserved_keys, (
+        f"instance_segmentation_fast idToLabels keys != rendered colors + reserved.\n"
+        f"  image colors:    {sorted(unique_colors)}\n"
+        f"  idToLabels keys: {sorted(id_to_labels)}"
+    )
+    assert set(id_to_semantics) == unique_colors | reserved_keys, (
+        f"instance_segmentation_fast idToSemantics keys != rendered colors + reserved.\n"
+        f"  image colors:       {sorted(unique_colors)}\n"
+        f"  idToSemantics keys: {sorted(id_to_semantics)}"
+    )
+    assert id_to_labels.get((0, 0, 0, 0)) == "BACKGROUND"
+    assert id_to_labels.get((0, 0, 0, 255)) == "UNLABELLED"
+    assert id_to_semantics.get((0, 0, 0, 0)) == {"class": "BACKGROUND"}
+    assert id_to_semantics.get((0, 0, 0, 255)) == {"class": "UNLABELLED"}
+
+    actual_prim_paths = {value for key, value in id_to_labels.items() if key not in reserved_keys}
+    assert actual_prim_paths == expected_prim_paths, (
+        f"instance_segmentation_fast idToLabels prim paths mismatch.\n"
+        f"  expected: {sorted(expected_prim_paths)}\n"
+        f"  actual:   {sorted(actual_prim_paths)}"
+    )
+
+    def _as_multiset(semantics: list[dict[str, str]]) -> list[tuple[tuple[str, str], ...]]:
+        return sorted(tuple(sorted(entry.items())) for entry in semantics)
+
+    actual_semantics = [value for key, value in id_to_semantics.items() if key not in reserved_keys]
+    assert _as_multiset(actual_semantics) == _as_multiset(expected_semantics), (
+        f"instance_segmentation_fast idToSemantics labels mismatch.\n"
+        f"  expected: {expected_semantics}\n"
+        f"  actual:   {actual_semantics}"
     )
 
 
@@ -870,10 +970,21 @@ def rendering_test_shadow_hand(
             data_type,
             env._tiled_camera.data.info,
             expected_id_to_labels={
-                "(0, 0, 0, 0)": {"class": "BACKGROUND"},
-                "(0, 0, 0, 255)": {"class": "UNLABELLED"},
-                "(33, 243, 3, 255)": {"class": "cube"},
+                (0, 0, 0, 0): {"class": "BACKGROUND"},
+                (0, 0, 0, 255): {"class": "UNLABELLED"},
+                (33, 243, 3, 255): {"class": "cube"},
             },
+            # isaacsim Isaac RTX semantic_segmentation returns stringified color keys; OVRTX returns raw tuples.
+            stringify_keys=(renderer == "isaacsim_rtx_renderer"),
+        )
+
+        # Instance segmentation yields one instance per env's ``class:cube`` object (num_envs=4). The colorized
+        # keys are non-stable, so they are validated against the rendered image; only the values are hard-coded.
+        maybe_validate_instance_segmentation_fast(
+            data_type,
+            env._tiled_camera.data,
+            expected_prim_paths={f"/World/envs/env_{i}/object" for i in range(4)},
+            expected_semantics=[{"class": "cube"} for _ in range(4)],
         )
     finally:
         if env is not None:
@@ -999,10 +1110,21 @@ def rendering_test_cartpole(
             data_type,
             env._tiled_camera.data.info,
             expected_id_to_labels={
-                "(0, 0, 0, 0)": {"class": "BACKGROUND"},
-                "(0, 0, 0, 255)": {"class": "UNLABELLED"},
-                "(33, 243, 3, 255)": {"class": "cartpole"},
+                (0, 0, 0, 0): {"class": "BACKGROUND"},
+                (0, 0, 0, 255): {"class": "UNLABELLED"},
+                (33, 243, 3, 255): {"class": "cartpole"},
             },
+            # isaacsim Isaac RTX semantic_segmentation returns stringified color keys; OVRTX returns raw tuples.
+            stringify_keys=(renderer == "isaacsim_rtx_renderer"),
+        )
+
+        # Instance segmentation yields one instance per env's ``class:cartpole`` robot (num_envs=4). The colorized
+        # keys are non-stable, so they are validated against the rendered image; only the values are hard-coded.
+        maybe_validate_instance_segmentation_fast(
+            data_type,
+            env._tiled_camera.data,
+            expected_prim_paths={f"/World/envs/env_{i}/Robot" for i in range(4)},
+            expected_semantics=[{"class": "cartpole"} for _ in range(4)],
         )
     finally:
         if env is not None:
@@ -1226,6 +1348,9 @@ def rendering_test_franka_cloth(
     if physics_backend == "ovphysx":
         pytest.skip("FrankaCloth env cfg does not define an ovphysx preset yet.")
 
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
+        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_cloth (OMPE-101520).")
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
@@ -1349,6 +1474,9 @@ def rendering_test_franka_soft(
 ) -> None:
     if physics_backend == "ovphysx":
         pytest.skip("FrankaSoft env cfg does not define an ovphysx preset yet.")
+
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
+        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_soft (OMPE-101520).")
 
     if physics_backend == "physx" and renderer == "newton_renderer":
         pytest.skip("The test cases will be enabled after Newton Github Issue#3228 is fixed.")
