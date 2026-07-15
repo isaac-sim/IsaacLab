@@ -258,6 +258,42 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
   To enable or disable the tiled camera panel, use the "Visualizer Tiled Camera" option found in the Tiled Camera View dropdown menu on the left sidebar.
 
 
+Live Plots
+~~~~~~~~~~
+
+Live plots stream manager term values (actions, observations) into the visualizer each step.
+All four backends support live plots. They are **disabled by default** to avoid overhead during
+headless training runs.
+
+.. note::
+
+   Live plots are only supported in **manager-based environments**
+   (:class:`~isaaclab.envs.ManagerBasedEnv`, :class:`~isaaclab.envs.ManagerBasedRLEnv`).
+   They are not available in direct environments (:class:`~isaaclab.envs.DirectRLEnv`).
+
+**Enabling live plots:**
+
+Set ``enable_live_plots=True`` on any :class:`~isaaclab.visualizers.VisualizerCfg`:
+
+.. code-block:: python
+
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    visualizer_cfg = NewtonVisualizerCfg(
+        enable_live_plots=True,
+    )
+
+**Per-backend behavior:**
+
+- **Kit (Omniverse):** Plots appear as panels in the IsaacLab omni.ui window,
+  collapsed by default.
+- **Newton:** A floating **"Plots"** ImGui window appears alongside the main viewport.
+- **Rerun:** Time-series panels are added to the Rerun blueprint.
+  ``keep_scalar_history`` is automatically set to ``True`` on the viewer when live plots
+  are registered, so scalars accumulate as a time series without requiring manual config.
+- **Viser:** A **"Plots"** folder is added to the Viser sidebar.
+
+
 Video Recording
 ---------------
 
@@ -383,7 +419,7 @@ Omniverse Visualizer
         lookat=(0.0, 0.0, 0.0),
 
         enable_markers=True,
-        enable_live_plots=True,
+        enable_live_plots=False,  # set to True to enable live plots
     )
 
 Newton Visualizer
@@ -595,11 +631,6 @@ URL printed by Isaac Lab. On a remote machine, set ``display_address`` to the ma
 ensure the configured ``port`` is reachable from your browser. Set ``share=True`` to request Viser's
 public share/tunnel URL when that service is available.
 
-.. note::
-
-   The Viser visualizer does not currently support live plots.
-
-
 Performance Note
 ----------------
 
@@ -628,11 +659,6 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 **Rerun Visualizer FPS Control**
 
 The FPS control in the Rerun visualizer UI may not affect the visualization frame rate in all configurations.
-
-
-**Live Plots**
-
-Currently, live plots are only available in the Kit Visualizer.
 
 
 **Newton Contact Visualization**
