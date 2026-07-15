@@ -8,7 +8,6 @@ import logging
 import os
 
 import omni
-import omni.kit.app
 import omni.kit.commands
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
@@ -16,7 +15,7 @@ from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
 from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.sim.utils import delete_prim, export_prim_to_file
+from isaaclab.sim.utils import delete_prim, enable_extension, export_prim_to_file
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -247,11 +246,7 @@ class MeshConverter(AssetConverterBase):
         Returns:
             True if the conversion succeeds.
         """
-        # Enable through Kit directly because the experimental Isaac Sim helper depends on omni.warp.core,
-        # which is excluded by apps that provide Warp as a Python dependency.
-        extension_manager = omni.kit.app.get_app().get_extension_manager()
-        if not extension_manager.is_extension_enabled("omni.kit.asset_converter"):
-            extension_manager.set_extension_enabled_immediate("omni.kit.asset_converter", True)
+        enable_extension("omni.kit.asset_converter")
 
         import omni.kit.asset_converter as kit_asset_converter
 

@@ -14,8 +14,6 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni.kit.app
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 from isaaclab.cloner import queue_usd_replication
@@ -457,11 +455,7 @@ class SurfaceGripper(AssetBase):
                 " `--device cpu` to run the simulation on CPU."
             )
 
-        # Enable through Kit directly because the experimental Isaac Sim helper depends on omni.warp.core,
-        # which is excluded by apps that provide Warp as a Python dependency.
-        extension_manager = omni.kit.app.get_app().get_extension_manager()
-        if not extension_manager.is_extension_enabled("isaacsim.robot.surface_gripper"):
-            extension_manager.set_extension_enabled_immediate("isaacsim.robot.surface_gripper", True)
+        sim_utils.enable_extension("isaacsim.robot.surface_gripper")
         from isaacsim.robot.surface_gripper import GripperView
 
         def is_surface_gripper(prim) -> bool:

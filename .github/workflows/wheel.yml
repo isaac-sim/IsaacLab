@@ -180,8 +180,7 @@ jobs:
           python -m pip install --user uv
           export PATH="$HOME/.local/bin:$PATH"
 
-          overrides="$RUNNER_TEMP/isaaclab-uv-overrides.txt"
-          ./isaaclab.sh -p tools/wheel_builder/gen_uv_overrides.py pyproject.toml "$overrides"
+          overrides="$GITHUB_WORKSPACE/tools/wheel_builder/uv-overrides.txt"
 
           cd /tmp
 

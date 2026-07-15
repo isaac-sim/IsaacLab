@@ -16,6 +16,8 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
+from isaaclab.sim.utils import enable_extension, get_extension_path
+
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -39,11 +41,7 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
     Returns:
         A tuple containing the paths to the URDF file and the mesh directory.
     """
-    import omni.kit.app  # noqa: PLC0415
-
-    extension_manager = omni.kit.app.get_app().get_extension_manager()
-    if not extension_manager.is_extension_enabled("isaacsim.asset.exporter.urdf"):
-        extension_manager.set_extension_enabled_immediate("isaacsim.asset.exporter.urdf", True)
+    enable_extension("isaacsim.asset.exporter.urdf")
 
     urdf_output_dir = os.path.join(output_path, "urdf")
     urdf_file_name = os.path.splitext(os.path.basename(usd_path))[0] + ".urdf"
@@ -156,9 +154,6 @@ def resolve_rmpflow_path(path: str) -> str:
     """
     if path.startswith(_RMPFLOW_EXT_PREFIX):
         rel = path[len(_RMPFLOW_EXT_PREFIX) :]
-        # imported lazily so the module loads without Kit (e.g. the kitless Newton visualizer)
-        from isaacsim.core.experimental.utils.app import get_extension_path
-
         ext_dir = get_extension_path(_RMPFLOW_EXT_NAME)
         return os.path.join(ext_dir, rel)
     return path
@@ -222,11 +217,7 @@ def import_lula():
             pass
 
     # Last resort: under a running Kit app, enabling the owning extension registers its prebundle.
-    try:
-        from isaacsim.core.experimental.utils.app import enable_extension
-    except (ImportError, ModuleNotFoundError):
-        pass
-    else:
+    with contextlib.suppress(ImportError, ModuleNotFoundError, RuntimeError):
         enable_extension(_LULA_EXT_NAME)
         try:
             import lula

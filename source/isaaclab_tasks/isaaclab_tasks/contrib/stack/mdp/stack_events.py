@@ -321,7 +321,7 @@ def randomize_visual_texture_material(
         # textures = [default_texture]
 
     # enable replicator extension if not already enabled
-    from isaacsim.core.experimental.utils.app import enable_extension
+    from isaaclab.sim.utils import enable_extension
 
     enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator

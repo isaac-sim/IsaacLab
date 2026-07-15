@@ -32,7 +32,12 @@ class _SimulationManagerPatch:
     def __init__(self):
         self._extension_enable_hook: object | None = None
 
-    def patch(self):
+    def claim_physics_lifecycle(self) -> None:
+        """Patch an already-loaded manager and subscribe for late enablement."""
+        self._patch_if_loaded()
+        self._subscribe_to_enable()
+
+    def _patch_if_loaded(self) -> None:
         """Replace Isaac Sim's manager after disabling its lifecycle callbacks.
 
         The patch is intentionally lazy. Config-only imports can occur before Kit
@@ -52,7 +57,7 @@ class _SimulationManagerPatch:
         original_module.SimulationManager = PhysxManager
         original_module.IsaacEvents = IsaacEvents
 
-    def subscribe(self):
+    def _subscribe_to_enable(self) -> None:
         """Subscribe once to late enablement of Isaac Sim's manager extension."""
         if self._extension_enable_hook is not None:
             return
@@ -63,7 +68,7 @@ class _SimulationManagerPatch:
 
         extension_manager = app.get_extension_manager()
         self._extension_enable_hook = extension_manager.subscribe_to_extension_enable(
-            on_enable_fn=lambda _: self.patch(),
+            on_enable_fn=lambda _: self._patch_if_loaded(),
             on_disable_fn=lambda _: None,
             ext_name="isaacsim.core.simulation_manager",
             hook_name="isaaclab_physx simulation manager lifecycle patch",

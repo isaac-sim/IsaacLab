@@ -17,5 +17,4 @@ except importlib.metadata.PackageNotFoundError:
 
 
 _simulation_manager_patch = _SimulationManagerPatch()
-_simulation_manager_patch.patch()
-_simulation_manager_patch.subscribe()
+_simulation_manager_patch.claim_physics_lifecycle()

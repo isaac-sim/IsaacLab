@@ -30,7 +30,7 @@ def test_patch_replaces_manager_after_disabling_original_callbacks(monkeypatch):
     monkeypatch.setitem(sys.modules, "isaacsim.core.simulation_manager", original_module)
     monkeypatch.setitem(sys.modules, "isaaclab_physx.physics.physx_manager", physx_manager_module)
 
-    _SimulationManagerPatch().patch()
+    _SimulationManagerPatch()._patch_if_loaded()
 
     OriginalSimulationManager.enable_all_default_callbacks.assert_called_once_with(False)
     assert original_module.SimulationManager is PhysxManager
@@ -44,7 +44,7 @@ def test_subscribe_waits_for_kit_app(monkeypatch):
     monkeypatch.setitem(sys.modules, "omni.kit.app", kit_app_module)
     manager_patch = _SimulationManagerPatch()
 
-    manager_patch.subscribe()
+    manager_patch.claim_physics_lifecycle()
 
     assert manager_patch._extension_enable_hook is None
 
@@ -60,16 +60,28 @@ def test_subscribe_retains_one_extension_hook(monkeypatch):
     kit_app_module.get_app = MagicMock(return_value=app)
     monkeypatch.setitem(sys.modules, "omni.kit.app", kit_app_module)
     manager_patch = _SimulationManagerPatch()
-    manager_patch.patch = MagicMock()
+    manager_patch._patch_if_loaded = MagicMock()
 
-    manager_patch.subscribe()
-    manager_patch.subscribe()
+    manager_patch.claim_physics_lifecycle()
+    manager_patch.claim_physics_lifecycle()
 
     assert manager_patch._extension_enable_hook is extension_hook
     extension_manager.subscribe_to_extension_enable.assert_called_once()
     on_enable_fn = extension_manager.subscribe_to_extension_enable.call_args.kwargs["on_enable_fn"]
     on_enable_fn("isaacsim.core.simulation_manager")
-    manager_patch.patch.assert_called_once_with()
+    assert manager_patch._patch_if_loaded.call_count == 3
+
+
+def test_claim_physics_lifecycle_patches_before_subscribing():
+    """Patch already-loaded state before retaining the late-enable hook."""
+    manager_patch = _SimulationManagerPatch()
+    calls = []
+    manager_patch._patch_if_loaded = MagicMock(side_effect=lambda: calls.append("patch"))
+    manager_patch._subscribe_to_enable = MagicMock(side_effect=lambda: calls.append("subscribe"))
+
+    manager_patch.claim_physics_lifecycle()
+
+    assert calls == ["patch", "subscribe"]
 
 
 def test_disable_default_callbacks_uses_supported_api():

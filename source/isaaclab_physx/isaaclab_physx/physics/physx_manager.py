@@ -288,10 +288,9 @@ class PhysxManager(PhysicsManager):
 
         from isaaclab_physx import _simulation_manager_patch
 
-        # Optional Isaac Sim extensions can load their SimulationManager after
-        # isaaclab_physx. Subscribe once Kit is available so its callbacks are
-        # disabled before they can compete with this manager for tensor views.
-        _simulation_manager_patch.subscribe()
+        # Claim an already-loaded SimulationManager and subscribe once Kit is
+        # available so late callbacks cannot compete for tensor views.
+        _simulation_manager_patch.claim_physics_lifecycle()
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()

@@ -2386,7 +2386,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             )
 
         # enable replicator extension if not already enabled (local: Kit-only import)
-        _enable_kit_extension("omni.replicator.core")
+        sim_utils.enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep  # noqa: PLC0415
 
@@ -2555,7 +2555,7 @@ class randomize_visual_color(ManagerTermBase):
         super().__init__(cfg, env)
 
         # enable replicator extension if not already enabled (local: Kit-only import)
-        _enable_kit_extension("omni.replicator.core")
+        sim_utils.enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep  # noqa: PLC0415
 
@@ -2703,15 +2703,6 @@ class randomize_visual_color(ManagerTermBase):
 """
 Internal helper functions.
 """
-
-
-def _enable_kit_extension(extension_name: str) -> None:
-    """Enable a Kit extension without depending on Isaac Sim's experimental helpers."""
-    import omni.kit.app  # noqa: PLC0415
-
-    extension_manager = omni.kit.app.get_app().get_extension_manager()
-    if not extension_manager.is_extension_enabled(extension_name):
-        extension_manager.set_extension_enabled_immediate(extension_name, True)
 
 
 def _randomize_prop_by_op(

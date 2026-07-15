@@ -1289,15 +1289,16 @@ def pytest_sessionstart(session):
     # device mask is unset.
     run_device = resolve_test_sim_device()
 
-    summary_str += "\n\n=======================\n"
-    summary_str += "Per File Result Summary\n"
-    summary_str += "=======================\n"
+    summary_str += "\n\n================\n"
+    summary_str += "Slowest 30 Tests\n"
+    summary_str += "================\n"
 
     per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
     per_file_result_table.align["Test Path"] = "l"
     per_file_result_table.align["Test (s)"] = "r"
     per_file_result_table.align["Wall (s)"] = "r"
-    for test_path in test_files:
+    slowest_test_files = sorted(test_files, key=lambda path: test_status[path]["wall_time"], reverse=True)[:30]
+    for test_path in slowest_test_files:
         num_tests_passed = (
             test_status[test_path]["tests"]
             - test_status[test_path]["failures"]
