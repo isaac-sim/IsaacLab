@@ -2110,6 +2110,57 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
         sim.reset()
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_write_joint_state_to_sim_index_partial(sim, device):
+    """Test fused joint-state writes with partial environment and joint indices."""
+    sim._app_control_on_stop_handle = None
+    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device)
+    sim.reset()
+
+    original_joint_pos = articulation.data.joint_pos.torch.clone()
+    original_joint_vel = articulation.data.joint_vel.torch.clone()
+    _ = articulation.data.body_link_pose_w
+    _ = articulation.data.body_com_vel_w
+    pose_timestamp = articulation.data._body_link_pose_w.timestamp
+    velocity_timestamp = articulation.data._body_com_vel_w.timestamp
+
+    previous_joint_vel = wp.to_torch(articulation.data._previous_joint_vel)
+    joint_acc = wp.to_torch(articulation.data._joint_acc.data)
+    previous_joint_vel.fill_(3.0)
+    joint_acc.fill_(4.0)
+    articulation.data._joint_acc.timestamp = -1.0
+
+    position = torch.tensor([[0.1, -0.1]], device=device)
+    velocity = torch.tensor([[0.2, -0.2]], device=device)
+    articulation.write_joint_state_to_sim_index(
+        position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2], skip_forward=True
+    )
+
+    expected_joint_pos = original_joint_pos.clone()
+    expected_joint_vel = original_joint_vel.clone()
+    expected_previous_joint_vel = torch.full_like(previous_joint_vel, 3.0)
+    expected_joint_acc = torch.full_like(joint_acc, 4.0)
+    expected_joint_pos[1, [0, 2]] = position[0]
+    expected_joint_vel[1, [0, 2]] = velocity[0]
+    expected_previous_joint_vel[1, [0, 2]] = velocity[0]
+    expected_joint_acc[1, [0, 2]] = 0.0
+
+    torch.testing.assert_close(articulation.data.joint_pos.torch, expected_joint_pos)
+    torch.testing.assert_close(articulation.data.joint_vel.torch, expected_joint_vel)
+    torch.testing.assert_close(previous_joint_vel, expected_previous_joint_vel)
+    torch.testing.assert_close(joint_acc, expected_joint_acc)
+    assert articulation.data._joint_acc.timestamp == articulation.data._sim_timestamp
+    assert articulation.data._body_link_pose_w.timestamp == pose_timestamp
+    assert articulation.data._body_com_vel_w.timestamp == velocity_timestamp
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.DOF_POSITION, device), expected_joint_pos)
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.DOF_VELOCITY, device), expected_joint_vel)
+
+    articulation.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
+    assert articulation.data._body_link_pose_w.timestamp < articulation.data._sim_timestamp
+    assert articulation.data._body_com_vel_w.timestamp < articulation.data._sim_timestamp
+
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
@@ -2150,8 +2201,7 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     rand_joint_pos = pos_dist.sample()
     rand_joint_vel = vel_dist.sample()
 
-    articulation.write_joint_position_to_sim_index(position=rand_joint_pos)
-    articulation.write_joint_velocity_to_sim_index(velocity=rand_joint_vel)
+    articulation.write_joint_state_to_sim_index(position=rand_joint_pos, velocity=rand_joint_vel)
     # make sure valued updated
     body_link_pose_w = articulation.data.body_link_pose_w.torch
     body_com_vel_w = articulation.data.body_com_vel_w.torch

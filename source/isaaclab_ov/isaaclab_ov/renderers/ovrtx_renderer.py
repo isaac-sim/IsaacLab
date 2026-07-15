@@ -66,7 +66,13 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
-from .ovrtx_annotator_utils import build_semantic_id_to_labels, decode_semantic_id_map
+from .ovrtx_annotator_utils import (
+    build_instance_id_to_labels_and_semantics,
+    build_semantic_id_to_labels,
+    decode_semantic_id_map,
+    decode_stable_id_map,
+    decode_stable_id_semantic_id_map,
+)
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
@@ -224,7 +230,8 @@ class OVRTXRenderData:
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
         # Per-output metadata collected during render() and copied into CameraData.info by read_output().
-        # Currently only "semantic_segmentation" is populated (with an "idToLabels" mapping).
+        # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
+        # "instance_segmentation_fast" (with "idToLabels" and "idToSemantics" mappings).
         self.renderer_info: dict[str, Any] = {}
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
@@ -899,7 +906,7 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         with frame.render_vars[render_var_name].map(device=Device.CUDA) as mapping:
-            tiled_data = wp.from_dlpack(mapping.tensor)
+            tiled_data = wp.from_dlpack(mapping)
             if tiled_data.dtype != wp.uint32:
                 return
 
@@ -917,11 +924,11 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_data = wp.from_torch(colors_uint8, dtype=wp.uint8)
                 self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
             else:
-                # Non-colorized: ensure (TH, TW, 1) shape for the uint32 extraction kernel.
-                data_torch = wp.to_torch(tiled_data)
-                if data_torch.dim() == 2:
-                    data_torch = data_torch.unsqueeze(-1)
-                tiled_data = wp.from_torch(data_torch, dtype=wp.uint32)
+                # Non-colorized: ensure (TH, TW, 1) shape for the uint32 extraction kernel. Reshape the warp
+                # array directly instead of round-tripping through torch, which raises on ``torch.uint32``
+                # (newer torch exposes the dtype but ``wp.from_torch`` still rejects it).
+                if tiled_data.ndim == 2:
+                    tiled_data = tiled_data.reshape((*tiled_data.shape, 1))
                 self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
 
     def _process_semantic_id_map(self, render_data: OVRTXRenderData, frame) -> None:
@@ -940,12 +947,63 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
-            labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping.tensor))
+            labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping))
 
         render_data.renderer_info["semantic_segmentation"] = {
             "idToLabels": build_semantic_id_to_labels(
                 labels_by_id, colorize=self.cfg.colorize_semantic_segmentation, device=self._device
             )
+        }
+
+    def _process_instance_segmentation_maps(self, render_data: OVRTXRenderData, frame) -> None:
+        """Decode the instance-segmentation map render vars into ``renderer_info["instance_segmentation_fast"]``.
+
+        An *instance pixel ID* is a compact integer that the renderer assigns to each visible object instance.
+        Every pixel in the segmentation buffer holds the ID of the instance rendered at that location; the same
+        ID maps to the same object across the entire frame.  ID 0 is reserved for BACKGROUND (no geometry), and
+        ID 1 for UNLABELLED (geometry with no semantic annotation).  All other IDs are dynamically assigned per
+        frame.
+
+        Populates ``"idToLabels"`` (instance pixel ID -> USD prim path) and ``"idToSemantics"`` (instance pixel
+        ID -> ``{semantic_type: label}``) compatible with Isaac RTX / Replicator. Resolving both requires all
+        three map render vars — ``StableIdSemanticIdMap`` (pixel ID -> stable ID + semantic ID), ``StableIdMap``
+        (stable ID -> prim path), and ``SemanticIdMap`` (semantic ID -> label). Keys are the raw pixel IDs
+        (``colorize_instance_segmentation=False``) or the RGBA color tuples the segmentation buffer uses
+        (``colorize_instance_segmentation=True``); the reserved BACKGROUND (ID 0) and UNLABELLED (ID 1) entries
+        are always included.
+
+        Raises:
+            RuntimeError: If any of the three required render vars is absent from ``frame``.
+
+        Args:
+            render_data: OVRTX render data for the current frame.
+            frame: OVRTX frame holding the mapped render vars.
+        """
+        required_vars = ("StableIdSemanticIdMap", "StableIdMap", "SemanticIdMap")
+        missing = [v for v in required_vars if v not in frame.render_vars]
+        if missing:
+            raise RuntimeError(
+                f"instance_segmentation_fast was requested but the following render vars are missing from the "
+                f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars.keys())}"
+            )
+
+        with frame.render_vars["StableIdSemanticIdMap"].map(device=Device.CPU) as mapping:
+            stable_id_semantic_id_map = decode_stable_id_semantic_id_map(np.from_dlpack(mapping))
+        with frame.render_vars["StableIdMap"].map(device=Device.CPU) as mapping:
+            stable_id_to_path = decode_stable_id_map(np.from_dlpack(mapping))
+        with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
+            semantic_id_to_labels = decode_semantic_id_map(np.from_dlpack(mapping))
+
+        id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
+            stable_id_semantic_id_map,
+            stable_id_to_path,
+            semantic_id_to_labels,
+            colorize=self.cfg.colorize_instance_segmentation,
+            device=self._device,
+        )
+        render_data.renderer_info["instance_segmentation_fast"] = {
+            "idToLabels": id_to_labels,
+            "idToSemantics": id_to_semantics,
         }
 
     def _launch_extract_all_tiles(
@@ -1061,14 +1119,14 @@ class OVRTXRenderer(BaseRenderer):
 
             if buffer_key is not None:
                 with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
-                    tiled_data = wp.from_dlpack(mapping.tensor)
+                    tiled_data = wp.from_dlpack(mapping)
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
             with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
-                tiled_depth_data = wp.from_dlpack(mapping.tensor)
+                tiled_depth_data = wp.from_dlpack(mapping)
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
@@ -1078,12 +1136,12 @@ class OVRTXRenderer(BaseRenderer):
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
             with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
-                tiled_albedo_data = wp.from_dlpack(mapping.tensor)
+                tiled_albedo_data = wp.from_dlpack(mapping)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         if "HdrColor" in frame.render_vars and "rgb_hdr" in output_buffers:
             with frame.render_vars["HdrColor"].map(device=Device.CUDA) as mapping:
-                tiled_hdr_data = wp.from_dlpack(mapping.tensor)
+                tiled_hdr_data = wp.from_dlpack(mapping)
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
@@ -1107,6 +1165,10 @@ class OVRTXRenderer(BaseRenderer):
             "instance_segmentation_fast",
             self.cfg.colorize_instance_segmentation,
         )
+        # Decode the StableIdSemanticIdMap/StableIdMap/SemanticIdMap trio into
+        # camera.data.info["instance_segmentation_fast"]["idToLabels"] and ["idToSemantics"].
+        if "instance_segmentation_fast" in output_buffers:
+            self._process_instance_segmentation_maps(render_data, frame)
 
         self._process_id_segmentation_render_var(
             render_data,
@@ -1119,7 +1181,7 @@ class OVRTXRenderer(BaseRenderer):
 
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:
             with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
-                tiled_normals_data = wp.from_dlpack(mapping.tensor)
+                tiled_normals_data = wp.from_dlpack(mapping)
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
 
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
@@ -1127,7 +1189,7 @@ class OVRTXRenderer(BaseRenderer):
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
         if "TargetMotionSD" in frame.render_vars and "motion_vectors" in output_buffers:
             with frame.render_vars["TargetMotionSD"].map(device=Device.CUDA) as mapping:
-                tiled_motion_vectors_data = wp.from_dlpack(mapping.tensor)
+                tiled_motion_vectors_data = wp.from_dlpack(mapping)
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
     def render(self, render_data: OVRTXRenderData) -> None:
