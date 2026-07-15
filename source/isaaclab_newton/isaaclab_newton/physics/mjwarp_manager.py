@@ -12,7 +12,7 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Model
+from newton import BodyFlags, Contacts, Model, ModelBuilder
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
@@ -21,6 +21,12 @@ from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .newton_manager import NewtonManager
 
 logger = logging.getLogger(__name__)
+
+_BOUND_MASS = 1.0e-3
+"""Minimum mass [kg] assigned to massless dynamic bodies before MJCF conversion."""
+
+_BOUND_INERTIA = 1.0e-6
+"""Minimum principal inertia [kg·m²] assigned to massless dynamic bodies with degenerate inertia."""
 
 
 class NewtonMJWarpManager(NewtonManager):
@@ -56,6 +62,39 @@ class NewtonMJWarpManager(NewtonManager):
                 "NewtonCfg: collision_cfg cannot be set when "
                 "solver_cfg.use_mujoco_contacts=True. Either set "
                 "use_mujoco_contacts=False or remove collision_cfg."
+            )
+
+    @classmethod
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Raise massless dynamic bodies to a minimal mass before finalization.
+
+        USD assets may author frame bodies (e.g. end-effector or TCP frames)
+        with ``physics:mass = 0`` while attaching them through movable joints.
+        PhysX computes a fallback mass for such bodies, but MuJoCo's compiler
+        rejects moving bodies whose mass or inertia is not larger than
+        ``mjMINVAL``. Mirroring MuJoCo's ``boundmass``/``boundinertia``
+        compiler options, raise the mass (and degenerate inertia) of massless
+        dynamic bodies to a small bound so the generated MJCF compiles.
+        """
+        kinematic_flag = int(BodyFlags.KINEMATIC)
+        bounded = []
+        for body_id, mass in enumerate(builder.body_mass):
+            if mass > 0.0 or int(builder.body_flags[body_id]) & kinematic_flag:
+                continue
+            builder.body_mass[body_id] = _BOUND_MASS
+            builder.body_inv_mass[body_id] = 1.0 / _BOUND_MASS
+            inertia_diag = np.diagonal(np.array(builder.body_inertia[body_id]).reshape(3, 3))
+            if np.min(inertia_diag) <= 0.0:
+                b, b_inv = _BOUND_INERTIA, 1.0 / _BOUND_INERTIA
+                builder.body_inertia[body_id] = wp.mat33(b, 0.0, 0.0, 0.0, b, 0.0, 0.0, 0.0, b)
+                builder.body_inv_inertia[body_id] = wp.mat33(b_inv, 0.0, 0.0, 0.0, b_inv, 0.0, 0.0, 0.0, b_inv)
+            bounded.append(builder.body_label[body_id])
+        if bounded:
+            logger.warning(
+                "Assigned minimal mass %.0e kg to %d massless dynamic bodies for MuJoCo compilation: %s",
+                _BOUND_MASS,
+                len(bounded),
+                ", ".join(bounded),
             )
 
     @classmethod

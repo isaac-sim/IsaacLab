@@ -277,6 +277,47 @@ def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
     assert np.allclose(np.array(builder.body_inertia[dynamic_body]), 2.0)
 
 
+def test_mjwarp_prepare_builder_bounds_massless_dynamic_bodies():
+    """Massless dynamic bodies get a minimal mass/inertia so the generated MJCF compiles.
+
+    USD frame bodies (e.g. end-effector frames) can author ``physics:mass = 0`` while
+    hanging off a movable joint; MuJoCo's compiler rejects moving bodies whose mass or
+    inertia is not larger than ``mjMINVAL``.
+    """
+    import newton
+    from isaaclab_newton.physics.mjwarp_manager import _BOUND_INERTIA, _BOUND_MASS
+
+    builder = newton.ModelBuilder()
+    diag_inertia = wp.mat33(1e-4, 0.0, 0.0, 0.0, 1e-4, 0.0, 0.0, 0.0, 1e-4)
+    massless_with_inertia = builder.add_body(mass=0.0, inertia=diag_inertia, label="ee_frame")
+    massless_degenerate = builder.add_body(mass=0.0, inertia=wp.mat33(0.0), label="tcp_frame")
+    kinematic_body = builder.add_body(mass=0.0, inertia=wp.mat33(0.0), is_kinematic=True, label="kinematic_collider")
+    dynamic_body = builder.add_body(mass=1.2, inertia=wp.mat33(2.0), label="dynamic_body")
+
+    NewtonMJWarpManager._prepare_builder_for_finalize(builder)
+
+    # massless dynamic body with valid inertia: only the mass is bounded.
+    assert builder.body_mass[massless_with_inertia] == pytest.approx(_BOUND_MASS)
+    assert builder.body_inv_mass[massless_with_inertia] == pytest.approx(1.0 / _BOUND_MASS)
+    assert np.allclose(np.array(builder.body_inertia[massless_with_inertia]), np.array(diag_inertia))
+
+    # massless dynamic body with degenerate inertia: mass and inertia are bounded.
+    assert builder.body_mass[massless_degenerate] == pytest.approx(_BOUND_MASS)
+    assert np.allclose(np.array(builder.body_inertia[massless_degenerate]).reshape(3, 3), np.eye(3) * _BOUND_INERTIA)
+    assert np.allclose(
+        np.array(builder.body_inv_inertia[massless_degenerate]).reshape(3, 3), np.eye(3) / _BOUND_INERTIA
+    )
+
+    # kinematic and regular dynamic bodies are untouched.
+    assert builder.body_mass[kinematic_body] == 0.0
+    assert builder.body_mass[dynamic_body] == pytest.approx(1.2)
+    assert np.allclose(np.array(builder.body_inertia[dynamic_body]), 2.0)
+
+    # the hook is idempotent: a second pass leaves the bounded values unchanged.
+    NewtonMJWarpManager._prepare_builder_for_finalize(builder)
+    assert builder.body_mass[massless_with_inertia] == pytest.approx(_BOUND_MASS)
+
+
 def test_active_manager_create_builder_registers_mpm_attributes():
     """The active MPM manager registers solver-specific builder attributes."""
     sim_cfg = SimulationCfg(
