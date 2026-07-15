@@ -263,7 +263,6 @@ class Articulation(BaseArticulation):
         """
         if isinstance(env_ids, slice) and env_ids == slice(None):
             env_ids = None
-        self.data._reset_cached_read_launches()
         # reset Lab actuators registered on this articulation
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
