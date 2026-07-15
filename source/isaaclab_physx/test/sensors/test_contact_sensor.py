@@ -574,6 +574,60 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
         )
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize(
+    ("history_length", "update_period_steps", "expected_fetches", "expected_last_update"),
+    [(0, 1, 0, 0.0), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
+)
+def test_contact_history_updates_at_sensor_period(
+    setup_simulation, device, history_length, update_period_steps, expected_fetches, expected_last_update
+):
+    """History-bearing sensors update at their period even when the scene is lazy."""
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", False)
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=True)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            update_period=update_period_steps * sim_dt,
+            track_air_time=True,
+            history_length=history_length,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        contact_sensor: ContactSensor = scene["contact_sensor"]
+        fetch_count = 0
+        original_fetch = contact_sensor._fetch_physx_buffers
+
+        def count_fetches() -> None:
+            nonlocal fetch_count
+            fetch_count += 1
+            original_fetch()
+
+        contact_sensor._fetch_physx_buffers = count_fetches
+
+        for _ in range(4):
+            _perform_sim_step(sim, scene, sim_dt)
+
+        assert fetch_count == expected_fetches
+        last_update = wp.to_torch(contact_sensor._timestamp_last_update).item()
+        assert last_update == pytest.approx(expected_last_update)
+
+        _ = contact_sensor.data
+        expected_fetches_after_read = 1 if history_length == 0 else expected_fetches
+        assert fetch_count == expected_fetches_after_read
+        air_time = contact_sensor.data.current_air_time.torch.item()
+        expected_air_time = 4 * sim_dt if history_length == 0 else expected_last_update
+        assert air_time == pytest.approx(expected_air_time)
+        _ = contact_sensor.data
+        assert fetch_count == expected_fetches_after_read
+
+
 @pytest.mark.isaacsim_ci
 def test_sensor_print(setup_simulation):
     """Test sensor print is working correctly."""
