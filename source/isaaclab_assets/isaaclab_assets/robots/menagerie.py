@@ -61,7 +61,7 @@ _PATCH_CACHE_ROOT = os.path.join(os.path.expanduser("~"), ".cache", "isaaclab", 
 _PATCH_MARKER_KEY = "isaaclabMenageriePatchVersion"
 """``customLayerData`` key stamped on a fully patched entry layer."""
 
-_PATCH_VERSION = 4
+_PATCH_VERSION = 5
 """Bump when the set or content of the fixes below changes, to invalidate stale caches."""
 
 
@@ -262,12 +262,12 @@ def _author_joint_armature(mujoco_layer: str, physx_layer: str, armature: float)
 
     authored = 0
     # ``newton:armature`` is what Isaac Lab's Newton import path reads (its schema
-    # resolver list is [newton, physx]; the mjc resolver is not registered).
-    # ``mjc:armature`` keeps the mujoco variant faithful for native MuJoCo-USD
-    # consumers; ``physxJoint:armature`` covers the physx variant.
+    # resolver list is [newton, physx]; the mjc resolver is not registered, so
+    # ``mjc:armature`` would be ignored and is intentionally NOT authored — the
+    # source MJCF has no armature, and the patched file should not diverge further
+    # than required). ``physxJoint:armature`` covers the physx variant.
     for layer_path, attr_name, sdf_type in (
         (mujoco_layer, "newton:armature", Sdf.ValueTypeNames.Float),
-        (mujoco_layer, "mjc:armature", Sdf.ValueTypeNames.Double),
         (physx_layer, "physxJoint:armature", Sdf.ValueTypeNames.Float),
     ):
         stage, joints = joints_of(layer_path)
