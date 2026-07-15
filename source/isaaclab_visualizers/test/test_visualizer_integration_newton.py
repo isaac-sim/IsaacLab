@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cartpole env + all non-tiled visualizers on Newton MJWarp."""
+"""Cartpole env + all non-tiled and tiled visualizers on Newton MJWarp."""
 
 import sys
 from pathlib import Path
@@ -24,6 +24,7 @@ import visualizer_integration_utils as _viz_utils  # noqa: E402
 _viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
 run_cartpole_env_visualizers_motion_with_play_pause = _viz_utils.run_cartpole_env_visualizers_motion_with_play_pause
+run_cartpole_env_visualizers_tiled_camera_motion = _viz_utils.run_cartpole_env_visualizers_tiled_camera_motion
 
 pytestmark = [pytest.mark.isaacsim_ci]
 
@@ -33,6 +34,14 @@ def test_cartpole_env_visualizers_motion_with_play_pause_newton(
 ) -> None:
     """Cartpole env + all non-tiled visualizers on Newton MJWarp."""
     run_cartpole_env_visualizers_motion_with_play_pause("newton", caplog)
+    _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
+
+
+def test_visualizer_tiled_integration_newton(
+    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Cartpole env + tiled Kit/Newton visualizers on Newton MJWarp."""
+    run_cartpole_env_visualizers_tiled_camera_motion("newton", caplog)
     _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
