@@ -111,6 +111,8 @@ def _build_newton_builder_from_mapping(
 class NewtonReplicateContext:
     """Queue and run Newton replication work for one stage."""
 
+    replicates_physics = True
+
     def __init__(
         self,
         stage: Usd.Stage,

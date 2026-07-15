@@ -578,6 +578,52 @@ def test_replicate_runs_lower_priority_backends_first(sim):
     assert call_order == ["low", "high"]
 
 
+def test_replicate_can_skip_physics_backends(sim):
+    """replicate_physics=False drains physics work while retaining USD-style work."""
+
+    call_order: list[str] = []
+
+    class PhysicsCtx:
+        replicates_physics = True
+
+        def __init__(self, stage):
+            pass
+
+        def queue_mapping(self, *args, **kwargs):
+            call_order.append("physics-queued")
+
+        def replicate(self):
+            call_order.append("physics-replicated")
+
+    class UsdCtx:
+        def __init__(self, stage):
+            pass
+
+        def queue_mapping(self, *args, **kwargs):
+            call_order.append("usd-queued")
+
+        def replicate(self):
+            call_order.append("usd-replicated")
+
+    cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+    REPLICATION_QUEUE.append((cfg, PhysicsCtx))
+    REPLICATION_QUEUE.append((cfg, UsdCtx))
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
+        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
+        positions=None,
+        cfg_rows={id(cfg): (0,)},
+    )
+
+    replicate(plan, stage=sim_utils.get_current_stage(), replicate_physics=False)
+
+    assert call_order == ["usd-queued", "usd-replicated"]
+    assert REPLICATION_QUEUE == []
+    assert sim.get_clone_plan() is plan
+
+
 def test_replicate_skips_cfgs_not_in_plan(sim):
     """Cfgs absent from plan.cfg_rows are silently skipped."""
     sentinel = MagicMock()

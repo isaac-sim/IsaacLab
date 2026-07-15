@@ -24,12 +24,14 @@ REPLICATION_QUEUE: list[tuple[Any, type]] = []
 """``(cfg, BackendCtxCls)`` pairs appended by ``queue_<backend>_replication`` and drained by :func:`replicate`."""
 
 
-def replicate(plan: ClonePlan, *, stage: Usd.Stage) -> None:
+def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = True) -> None:
     """Drain :data:`REPLICATION_QUEUE` against ``plan``, dispatch each backend, publish the plan.
 
-    Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
-    ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
-    failure cannot leak stale entries into the next call.
+    Cfgs absent from ``plan.cfg_rows`` are silently skipped. When ``replicate_physics``
+    is false, contexts marked with ``replicates_physics`` are drained but not dispatched;
+    USD replication still authors the complete stage for normal physics discovery.
+    Backend contexts run in ascending ``replicate_priority`` order. The queue is cleared
+    up front, so a backend failure cannot leak stale entries into the next call.
     """
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
@@ -42,6 +44,8 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage) -> None:
     # union keeps it as a single row — no redundant copy specs are authored.
     backend_rows: dict[type, set[int]] = {}
     for cfg, BackendCtxCls in queued:
+        if not replicate_physics and getattr(BackendCtxCls, "replicates_physics", False):
+            continue
         rows = plan.cfg_rows.get(id(cfg))
         if rows is None:
             continue
@@ -92,6 +96,7 @@ class ReplicateSession:
         stage: Usd.Stage,
         clone_strategy: Callable = sequential,
         valid_set: torch.Tensor | None = None,
+        replicate_physics: bool = True,
     ):
         """Capture arguments for :func:`make_clone_plan` and :func:`replicate`.
 
@@ -104,9 +109,13 @@ class ReplicateSession:
             clone_strategy: Prototype-to-env assignment function.
             valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid
                 prototype combinations; ``None`` uses the full cartesian product.
+            replicate_physics: Whether to dispatch physics-backend replication.
+                When false, USD clones are still authored and physics discovers the
+                completed stage through its normal parsing path.
         """
         self._cfgs = cfgs
         self._stage = stage
+        self._replicate_physics = replicate_physics
         self._kwargs = dict(
             num_clones=num_clones,
             env_spacing=env_spacing,
@@ -125,7 +134,7 @@ class ReplicateSession:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if exc_type is None:
             assert self._plan is not None
-            replicate(self._plan, stage=self._stage)
+            replicate(self._plan, stage=self._stage, replicate_physics=self._replicate_physics)
         else:
             # Drop cfgs registered before the failure so the next session is clean.
             REPLICATION_QUEUE.clear()

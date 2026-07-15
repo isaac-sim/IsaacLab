@@ -42,6 +42,8 @@ def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> t
 class OvPhysxReplicateContext:
     """Queue and run OvPhysX clone operations for one stage."""
 
+    replicates_physics = True
+
     def __init__(self, stage: Usd.Stage):
         """Initialize the context.
 

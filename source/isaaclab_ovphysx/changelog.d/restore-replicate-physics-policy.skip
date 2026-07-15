@@ -1,0 +1,2 @@
+Marked the OV PhysX replication context as physics work so core replication sessions can honor
+``InteractiveSceneCfg.replicate_physics=False`` without importing backend-specific types.
