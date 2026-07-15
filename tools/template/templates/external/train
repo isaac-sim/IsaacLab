@@ -3,14 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unified playback executable for Isaac Lab reinforcement learning workflows."""
+"""Unified training executable for '{{ name }}' reinforcement learning tasks."""
 
-from isaaclab_rl.entrypoints import run_play_cli
+import {{ name }}.tasks  # noqa: F401
+
+from isaaclab_rl.entrypoints import run_train_cli
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the selected reinforcement learning play library."""
-    return run_play_cli(argv)
+    """Run the selected reinforcement learning training library."""
+    return run_train_cli(argv)
 
 
 if __name__ == "__main__":

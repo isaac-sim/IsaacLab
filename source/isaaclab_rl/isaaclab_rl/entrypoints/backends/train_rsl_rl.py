@@ -15,33 +15,32 @@ import os
 import platform
 import time
 from datetime import datetime
-from pathlib import Path
 
-from common import (
+from packaging import version
+
+from isaaclab.app import add_launcher_args
+
+from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
+from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
-    add_isaaclab_launcher_args,
     apply_env_overrides,
     configure_io_descriptors,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
-    import_local_module,
     resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
 )
-from packaging import version
 
 import isaaclab_tasks  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
 RSL_RL_VERSION = "5.0.1"
-RL_ROOT = Path(__file__).resolve().parents[1]
-CLI_ARGS = import_local_module("isaaclab_rsl_rl_cli_args", RL_ROOT / "rsl_rl" / "cli_args.py")
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -82,9 +81,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Fully qualified path to an externally defined callback.",
     )
-    CLI_ARGS.add_rsl_rl_args(parser)
-    add_isaaclab_launcher_args(parser)
-    # setup_preset_cli registers preset-selection help text + runs parse_known_args
+    cli_args.add_rsl_rl_args(parser)
+    add_launcher_args(parser)
     args_cli, remaining_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
 
@@ -93,7 +91,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
         remaining_args_env_registration = external_callback_function()
 
-    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later
     set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
     return args_cli
 
@@ -105,6 +102,7 @@ def run(argv: list[str]) -> None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
+    from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
@@ -120,7 +118,7 @@ def run(argv: list[str]) -> None:
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
 
     with launch_simulation(env_cfg, args_cli):
-        agent_cfg = CLI_ARGS.update_rsl_rl_cfg(agent_cfg, args_cli)
+        agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
         apply_env_overrides(args_cli, env_cfg)
         agent_cfg.max_iterations = (
             args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
@@ -187,6 +185,10 @@ def run(argv: list[str]) -> None:
             runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
         else:
             raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+
+        # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, torch_deterministic=True)
 
         runner.add_git_repo_to_log(__file__)
         if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":

@@ -65,7 +65,7 @@ Usage:
 DOCKER_PREFIX = "/workspace/isaaclab/"
 BASE_DIR = os.path.expanduser("~")
 PYTHON_EXEC = "./isaaclab.sh -p"
-WORKFLOW = "scripts/reinforcement_learning/rl_games/train.py"
+WORKFLOW = "scripts/reinforcement_learning/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
 MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS = 1000  # maximum number of lines to read from the training process logs
@@ -362,6 +362,7 @@ class JobCfg:
         cfg["runner_args"]["enable_cameras_singleton"] = "--enable_cameras"
         """
         assert "runner_args" in cfg, "No runner arguments specified."
+        cfg["runner_args"].setdefault("--rl_library", "rl_games")
         """
         Task is the desired task to train on. For example:
         cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])

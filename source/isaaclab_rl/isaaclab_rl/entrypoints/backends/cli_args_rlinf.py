@@ -20,7 +20,7 @@ def resolve_config_dir(config_name: str, explicit_path: str | None) -> str:
     Resolution order:
     1. *explicit_path* if provided (``--config_path``).
     2. Walk the ``isaaclab_tasks`` package tree looking for a matching YAML.
-    3. Fall back to the script directory (``scripts/reinforcement_learning/rlinf/``).
+    3. Fall back to the package directory containing the RLinf entrypoint implementation.
     """
     if explicit_path is not None:
         return explicit_path

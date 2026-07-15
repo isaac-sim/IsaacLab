@@ -51,9 +51,6 @@ and play. Instead of launching library-specific scripts under
 
 .. code-block:: bash
 
-   # Isaac Lab 2.x/deprecated
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole
-
    # Isaac Lab 3.0
    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
 
@@ -64,9 +61,8 @@ The same pattern applies to the play workflow:
    ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
 
 Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
-``sb3``, and ``rlinf``. The old per-library ``train.py`` and ``play.py`` scripts
-remain available as deprecated compatibility entrypoints and emit a
-``DeprecationWarning`` when used.
+``sb3``, and ``rlinf``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
+unified commands instead.
 
 For distributed launchers that execute a Python script directly, use the unified
 script path and pass ``--rl_library`` to it:

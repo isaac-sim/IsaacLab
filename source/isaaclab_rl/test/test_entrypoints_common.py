@@ -8,38 +8,22 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
-import sys
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from typing import Any
 
 import gymnasium as gym
 import pytest
 import torch
 
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
-
-
-def _load_rl_common_module() -> ModuleType:
-    module_path = _repo_root() / "scripts" / "reinforcement_learning" / "common.py"
-    spec = importlib.util.spec_from_file_location("isaaclab_test_reinforcement_learning_common", module_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not load reinforcement learning common module from {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_rl_common = _load_rl_common_module()
-CaptureEnvSensors: Any = getattr(_rl_common, "CaptureEnvSensors")
-add_common_train_args: Any = getattr(_rl_common, "add_common_train_args")
-enable_cameras_for_video: Any = getattr(_rl_common, "enable_cameras_for_video")
-dispatch_library_entrypoint: Any = getattr(_rl_common, "dispatch_library_entrypoint")
-wrap_sensor_capture: Any = getattr(_rl_common, "wrap_sensor_capture")
+from isaaclab_rl.entrypoints import common as _rl_common
+from isaaclab_rl.entrypoints.common import (
+    CaptureEnvSensors,
+    add_common_train_args,
+    dispatch_library_entrypoint,
+    enable_cameras_for_video,
+    wrap_sensor_capture,
+)
 
 
 class _FakeEnv(gym.Env):

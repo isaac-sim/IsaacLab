@@ -6,15 +6,11 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-RL_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(RL_SCRIPTS_DIR))
-
-from common import RUN_MANIFEST_FILENAME, resolve_checkpoint_selector, write_run_manifest  # noqa: E402
+from isaaclab_rl.entrypoints.common import RUN_MANIFEST_FILENAME, resolve_checkpoint_selector, write_run_manifest
 
 
 def _set_created_at(run_dir: Path, created_at: str) -> None:

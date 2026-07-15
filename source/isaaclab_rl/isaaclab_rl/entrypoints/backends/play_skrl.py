@@ -20,13 +20,14 @@ import time
 import gymnasium as gym
 import skrl
 import torch
-from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from packaging import version
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.seed import configure_seed
 
+from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
@@ -98,7 +99,6 @@ if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
     )
     exit()
 
-# config shortcuts
 if args_cli.agent is None:
     algorithm = args_cli.algorithm.lower()
     agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
@@ -118,11 +118,9 @@ def main():
 
         from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
-        # grab task name for checkpoint path
         task_name = args_cli.task.split(":")[-1]
         train_task_name = task_name.replace("-Play", "")
 
-        # override configurations with non-hydra CLI arguments
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
         env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
@@ -130,19 +128,15 @@ def main():
         if args_cli.ml_framework.startswith("jax"):
             skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
-        # randomly sample a seed if seed = -1
         if args_cli.seed == -1:
             args_cli.seed = random.randint(0, 10000)
 
-        # set the agent and environment seed from command line
         experiment_cfg["seed"] = args_cli.seed if args_cli.seed is not None else experiment_cfg["seed"]
         env_cfg.seed = experiment_cfg["seed"]
 
-        # specify directory for logging experiments (load checkpoint)
         log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
         log_root_path = os.path.abspath(log_root_path)
         print(f"[INFO] Loading experiment from directory: {log_root_path}")
-        # get checkpoint path
         if args_cli.use_pretrained_checkpoint:
             resume_path = get_published_pretrained_checkpoint("skrl", train_task_name)
             if not resume_path:
@@ -170,25 +164,20 @@ def main():
             )
         log_dir = os.path.dirname(os.path.dirname(resume_path))
 
-        # set the log directory for the environment
         env_cfg.log_dir = log_dir
 
-        # create isaac environment
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
-        # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and algorithm in ["ppo"]:
             from isaaclab.envs import multi_agent_to_single_agent
 
             env = multi_agent_to_single_agent(env)
 
-        # get environment (step) dt for real-time evaluation
         try:
             dt = env.step_dt
         except AttributeError:
             dt = env.unwrapped.step_dt
 
-        # wrap for video recording
         if args_cli.video:
             video_kwargs = {
                 "video_folder": os.path.join(log_dir, "videos", "play"),
@@ -200,24 +189,23 @@ def main():
             print_dict(video_kwargs, nesting=4)
             env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
-        # wrap around environment for skrl
         env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
 
-        # configure and instantiate the skrl runner
         experiment_cfg["trainer"]["close_environment_at_exit"] = False
         experiment_cfg["agent"]["experiment"]["write_interval"] = 0
         experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
         runner = Runner(env, experiment_cfg)
+        # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, torch_deterministic=True)
 
         print(f"[INFO] Loading model checkpoint from: {resume_path}")
         runner.agent.load(resume_path)
         runner.agent.enable_training_mode(False, apply_to_models=True)
 
-        # reset environment
         obs, _ = env.reset()
         states = env.state()
         timestep = 0
-        # simulate environment
         try:
             while True:
                 start_time = time.time()
@@ -239,7 +227,6 @@ def main():
                 if args_cli.real_time and sleep_time > 0:
                     time.sleep(sleep_time)
 
-            # close the simulator
             env.close()
         except KeyboardInterrupt:
             pass

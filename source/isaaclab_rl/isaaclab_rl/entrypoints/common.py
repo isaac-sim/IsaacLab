@@ -24,7 +24,7 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
-from isaaclab.app import AppLauncher, add_launcher_args
+from isaaclab.app import AppLauncher
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -298,15 +298,6 @@ def add_common_train_args(
         default="tensorboard",
         help="Format used to save the captured sensor frames.",
     )
-
-
-def add_isaaclab_launcher_args(parser: argparse.ArgumentParser) -> None:
-    """Add Isaac Lab simulation launcher arguments to a parser.
-
-    Args:
-        parser: The parser to add arguments to.
-    """
-    add_launcher_args(parser)
 
 
 def enable_cameras_for_video(args_cli: argparse.Namespace) -> None:

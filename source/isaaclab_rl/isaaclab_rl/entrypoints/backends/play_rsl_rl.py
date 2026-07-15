@@ -3,17 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to play a checkpoint if an RL agent from RSL-RL."""
-
-import warnings
-
-warnings.warn(
-    "scripts/reinforcement_learning/rsl_rl/play.py is deprecated. Use "
-    "`./isaaclab.sh play --rl_library rsl_rl --task <TASK>` instead. "
-    "Example: `./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole`.",
-    DeprecationWarning,
-    stacklevel=1,
-)
+"""Script to play a checkpoint of an RL agent from RSL-RL."""
 
 import argparse
 import contextlib
@@ -34,6 +24,8 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection, string_to_callable
 
+from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
+from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
     RslRlVecEnvWrapper,
@@ -50,16 +42,13 @@ from isaaclab_tasks.utils import (
 )
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
-# local imports
-import cli_args  # isort: skip
-
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
 # -- argparse ----------------------------------------------------------------
-parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
-parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from RSL-RL.")
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -85,22 +74,17 @@ if args_cli.video:
     args_cli.enable_cameras = True
 
 
-# Call an external callback if requested. This gives opportunity to external code to register the environments
-# The function is expected to return a list of arguments that were not consumed by the callback.
+# an external callback lets downstream code register its environments; it returns
+# the arguments it did not consume
 remaining_args_env_registration = None
 if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# clear out sys.argv for Hydra
-# The remaining arguments are the arguments that were not consumed by both this scripts
-# argparser and (optionally) the external callback function. Both sides of this
-# intersection are pre-fold (the callback reads the user's original sys.argv), so
-# preset tokens like ``physics=NAME`` compare correctly here. Fold runs after.
+# hand the arguments consumed by neither this parser nor the callback over to Hydra
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
 sys.argv = [sys.argv[0]] + remaining_args
 
-# Check for installed RSL-RL version
 installed_version = metadata.version("rsl-rl-lib")
 
 
@@ -108,23 +92,18 @@ installed_version = metadata.version("rsl-rl-lib")
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Play with RSL-RL agent."""
     with launch_simulation(env_cfg, args_cli):
-        # grab task name for checkpoint path
         task_name = args_cli.task.split(":")[-1]
         train_task_name = task_name.replace("-Play", "")
 
-        # override configurations with non-hydra CLI arguments
         agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
 
-        # handle deprecated configurations
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
-        # set the environment seed
         # note: certain randomizations occur in the environment initialization so we set the seed here
         env_cfg.seed = agent_cfg.seed
         env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-        # specify directory for logging experiments
         log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
         log_root_path = os.path.abspath(log_root_path)
         print(f"[INFO] Loading experiment from directory: {log_root_path}")
@@ -133,6 +112,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             if not resume_path:
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
+        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="rsl_rl",
+                task=train_task_name,
+                checkpoint_pattern=r"model_.*\.pt",
+                metadata={"agent": args_cli.agent},
+            )
         elif args_cli.checkpoint:
             resume_path = retrieve_file_path(args_cli.checkpoint)
         else:
@@ -140,19 +128,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
         log_dir = os.path.dirname(resume_path)
 
-        # set the log directory for the environment
         env_cfg.log_dir = log_dir
 
-        # create isaac environment
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
-        # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
             from isaaclab.envs import multi_agent_to_single_agent
 
             env = multi_agent_to_single_agent(env)
 
-        # wrap for video recording
         if args_cli.video:
             video_kwargs = {
                 "video_folder": os.path.join(log_dir, "videos", "play"),
@@ -160,46 +144,38 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 "video_length": args_cli.video_length,
                 "disable_logger": True,
             }
-            print("[INFO] Recording videos during training.")
+            print("[INFO] Recording videos during play.")
             print_dict(video_kwargs, nesting=4)
             env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
-        # wrap around environment for rsl-rl
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        # load previously trained model
         if agent_cfg.class_name == "OnPolicyRunner":
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
         elif agent_cfg.class_name == "DistillationRunner":
             runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
         else:
             raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-        # configure_seed must be called after runner construction so that PyTorch deterministic settings
-        # do not interfere with the runner's internal initialization.
+        # configure_seed must run after runner construction so torch determinism does not disturb its initialization
         if args_cli.deterministic:
-            configure_seed(env_cfg.seed, True)
+            configure_seed(env_cfg.seed, torch_deterministic=True)
         runner.load(resume_path)
 
-        # obtain the trained policy for inference
         policy = runner.get_inference_policy(device=env.unwrapped.device)
 
-        # export the trained policy to JIT and ONNX formats
         export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
 
         if version.parse(installed_version) >= version.parse("4.0.0"):
-            # use the new export functions for rsl-rl >= 4.0.0
             runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
             runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
             policy_nn = None  # Not needed for rsl-rl >= 4.0.0
         else:
-            # extract the neural network for rsl-rl < 4.0.0
             if version.parse(installed_version) >= version.parse("2.3.0"):
                 policy_nn = runner.alg.policy
             else:
                 policy_nn = runner.alg.actor_critic
 
-            # extract the normalizer
             if hasattr(policy_nn, "actor_obs_normalizer"):
                 normalizer = policy_nn.actor_obs_normalizer
             elif hasattr(policy_nn, "student_obs_normalizer"):
@@ -207,24 +183,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             else:
                 normalizer = None
 
-            # export to JIT and ONNX
             export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
             export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
 
         dt = env.unwrapped.step_dt
 
-        # reset environment
         obs = env.get_observations()
         timestep = 0
-        # simulate environment
         try:
             while True:
                 start_time = time.time()
-                # run everything in inference mode
                 with torch.inference_mode():
-                    # agent stepping
                     actions = policy(obs)
-                    # env stepping
                     obs, _, dones, _ = env.step(actions)
                     # reset recurrent states for episodes that have terminated
                     if version.parse(installed_version) >= version.parse("4.0.0"):
@@ -240,7 +210,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 if args_cli.real_time and sleep_time > 0:
                     time.sleep(sleep_time)
 
-            # close the simulator
             env.close()
         except KeyboardInterrupt:
             pass
