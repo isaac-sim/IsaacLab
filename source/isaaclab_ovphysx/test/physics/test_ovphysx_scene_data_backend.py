@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for OvPhysxSceneDataBackend (new SceneDataBackend interface, post-#5128)."""
+"""Unit tests for OvPhysxSceneDataBackend (new SceneDataBackend interface, post-#5128) and OvPhysxManager."""
 
 from __future__ import annotations
 
