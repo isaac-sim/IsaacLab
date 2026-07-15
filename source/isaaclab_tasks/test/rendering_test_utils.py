@@ -133,7 +133,8 @@ _NEWTON_WARP_DATA_TYPES = (
 )
 
 # Data types the OVRTX renderer supports. ``instance_id_segmentation_fast`` is intentionally
-# excluded; the OVRTX renderer does not support it.
+# excluded: it has no real-world sensor equivalent, so the OVRTX integration does not support it.
+# Users should use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
 
 
