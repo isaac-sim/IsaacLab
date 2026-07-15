@@ -21,6 +21,7 @@ _DEFAULT_CFG = {
     "eye": (7.5, 7.5, 7.5),
     "lookat": (0.0, 0.0, 0.0),
     "backend_source": "visualizer",
+    "env_index": 0,
     "window_width": 1280,
     "window_height": 720,
 }
@@ -54,6 +55,7 @@ def _make_visualizer_cfg(visualizer_type, eye=(1.0, 2.0, 3.0), lookat=(4.0, 5.0,
 
 def _make_scene(visualizer_cfgs=(), physics_backend="PhysxPhysicsManager", renderer_types=()):
     scene = MagicMock()
+    scene.num_envs = 4
     scene.sim._resolve_visualizer_cfgs.return_value = list(visualizer_cfgs)
     scene.sim.physics_manager.__name__ = physics_backend
     scene.sim.visualizers = []
@@ -143,6 +145,9 @@ def test_newton_visualizer_capture_is_bound_on_first_render():
     recorder = VideoRecorder(_make_cfg(), scene)
 
     assert recorder._capture is None
+    assert newton_cfg.visible_env_indices == [0]
+    assert newton_cfg.max_visible_envs == 1
+    assert not newton_cfg.randomly_sample_visible_envs
     scene.sim.visualizers = [newton]
     assert recorder.render_rgb_array() is _FRAME
     assert recorder._capture is newton
@@ -214,6 +219,7 @@ def test_renderer_source_creates_standalone_newton_capture():
         window_height=720,
         eye=(7.5, 7.5, 7.5),
         lookat=(0.0, 0.0, 0.0),
+        env_index=0,
     )
 
 

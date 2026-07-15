@@ -195,6 +195,77 @@ def test_common_train_args_include_sensor_capture_options() -> None:
     assert args_cli.capture_env_sensors_format == "file"
 
 
+def test_common_train_args_video_flag_uses_capture_defaults() -> None:
+    """The video flag is sufficient while length and interval remain optional overrides."""
+    parser = argparse.ArgumentParser()
+    add_common_train_args(parser, agent_default=None, agent_help="", include_agent=False)
+
+    default_args = parser.parse_args(["--video"])
+    override_args = parser.parse_args(["--video", "--video_length", "17", "--video_interval", "29"])
+
+    assert default_args.video
+    assert default_args.video_length == 200
+    assert default_args.video_interval == 2000
+    assert override_args.video_length == 17
+    assert override_args.video_interval == 29
+
+
+def test_enable_cameras_for_video_limits_primary_rank_to_one_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Primary distributed rank records one environment when video is requested."""
+    monkeypatch.setenv("RANK", "0")
+    args_cli = argparse.Namespace(
+        video=True,
+        distributed=True,
+        capture_env_sensors=0,
+        enable_cameras=False,
+        max_visible_envs=None,
+    )
+
+    enable_cameras_for_video(args_cli)
+
+    assert args_cli.video
+    assert args_cli.enable_cameras
+    assert args_cli.max_visible_envs == 1
+
+
+def test_enable_cameras_for_video_disables_non_primary_distributed_rank(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-primary distributed ranks neither record nor render training video."""
+    monkeypatch.setenv("RANK", "3")
+    args_cli = argparse.Namespace(
+        video=True,
+        distributed=True,
+        capture_env_sensors=0,
+        enable_cameras=False,
+        max_visible_envs=None,
+    )
+
+    enable_cameras_for_video(args_cli)
+
+    assert not args_cli.video
+    assert not args_cli.enable_cameras
+    assert args_cli.max_visible_envs is None
+
+
+def test_enable_cameras_for_video_ignores_rank_for_single_process(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stale rank environment variable does not disable single-process video."""
+    monkeypatch.setenv("RANK", "3")
+    args_cli = argparse.Namespace(
+        video=True,
+        distributed=False,
+        capture_env_sensors=0,
+        enable_cameras=False,
+        max_visible_envs=None,
+    )
+
+    enable_cameras_for_video(args_cli)
+
+    assert args_cli.video
+    assert args_cli.enable_cameras
+    assert args_cli.max_visible_envs == 1
+
+
 def test_enable_cameras_for_video_enables_cameras_for_sensor_capture() -> None:
     """Sensor capture requires camera rendering even when normal video capture is disabled."""
     args_cli = argparse.Namespace(video=False, capture_env_sensors=1, enable_cameras=False)

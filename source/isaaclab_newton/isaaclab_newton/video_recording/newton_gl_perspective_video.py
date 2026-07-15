@@ -48,6 +48,7 @@ class NewtonGlPerspectiveVideo:
         w, h = self.cfg.window_width, self.cfg.window_height
         viewer = ViewerGL(width=w, height=h, headless=True)
         viewer.set_model(model)
+        viewer.set_visible_worlds([self.cfg.env_index])
         viewer.set_world_offsets((0.0, 0.0, 0.0))
         viewer.up_axis = 2
 

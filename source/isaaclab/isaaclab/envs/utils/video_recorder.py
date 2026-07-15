@@ -86,6 +86,13 @@ class VideoRecorder:
         eye = cfg.eye if visualizer_cfg is None else visualizer_cfg.eye
         lookat = cfg.lookat if visualizer_cfg is None else visualizer_cfg.lookat
 
+        if visualizer_cfg is not None:
+            # The recorder reads the active visualizer framebuffer. Keep training capture bounded
+            # to the first environment when this is a persistent scene visualizer configuration.
+            visualizer_cfg.visible_env_indices = [0]
+            visualizer_cfg.max_visible_envs = 1
+            visualizer_cfg.randomly_sample_visible_envs = False
+
         if backend == "newton_gl" and visualizer_cfg is not None:
             self._use_newton_visualizer = True
         elif backend == "newton_gl":
@@ -100,6 +107,7 @@ class VideoRecorder:
                     window_height=cfg.window_height,
                     eye=eye,
                     lookat=lookat,
+                    env_index=0,
                 )
             )
         else:

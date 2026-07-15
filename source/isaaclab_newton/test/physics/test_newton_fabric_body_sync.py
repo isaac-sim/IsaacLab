@@ -114,9 +114,13 @@ class _FakeXformable:
 class _FakeFabricHierarchy:
     def __init__(self):
         self.update_world_xforms_count = 0
+        self.reset_xform_stacks = []
 
     def update_world_xforms(self):
         self.update_world_xforms_count += 1
+
+    def set_reset_xform_stack(self, path, enabled):
+        self.reset_xform_stacks.append((path, enabled))
 
 
 class _FakeRt:
@@ -129,6 +133,7 @@ class _FakeValueTypeNames:
 
 class _FakeSdf:
     ValueTypeNames = _FakeValueTypeNames
+    Path = str
 
 
 class _FakeUsdrt:
@@ -155,7 +160,7 @@ def test_initialize_fabric_body_prims_uses_existing_fabric_prim():
     assert fabric_hierarchy.update_world_xforms_count == 1
 
 
-def test_initialize_fabric_body_prims_creates_missing_body_as_xform():
+def test_initialize_fabric_body_prims_skips_solver_only_body():
     stage = _FakeStage()
     fabric_hierarchy = _FakeFabricHierarchy()
 
@@ -163,14 +168,8 @@ def test_initialize_fabric_body_prims_creates_missing_body_as_xform():
         stage, fabric_hierarchy, _FakeUsdrt, [("/World/envs/env_1/Robot/joints/forearm", 7)]
     )
 
-    prim = stage.prims["/World/envs/env_1/Robot/joints/forearm"]
-    assert stage.defined_prims == [("/World/envs/env_1/Robot/joints/forearm", "Xform")]
-    assert prim.set_world_xform_from_usd == 0
-    assert prim.created_world_matrix_attrs == 1
-    assert prim.GetAttribute("newton:index").value_type == "UInt"
-    assert prim.GetAttribute("newton:index").custom is True
-    assert prim.GetAttribute("newton:index").value == 7
-    assert prim.applied_schemas == ["PhysicsRigidBodyAPI"]
+    assert stage.defined_prims == []
+    assert stage.prims == {}
     assert fabric_hierarchy.update_world_xforms_count == 1
 
 
@@ -260,3 +259,16 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
                 )
         finally:
             sim.register_interactive_scene(None)
+
+
+def test_initialize_mpm_body_prims_reset_fabric_stack(monkeypatch):
+    prim = _FakePrim()
+    prim_path = "/World/envs/env_0/Robot/base"
+    stage = _FakeStage({prim_path: prim})
+    fabric_hierarchy = _FakeFabricHierarchy()
+    monkeypatch.setattr(NewtonManager, "_mpm_object_registry", [object()], raising=False)
+
+    NewtonManager._initialize_fabric_body_prims(stage, fabric_hierarchy, _FakeUsdrt, [(prim_path, 3)])
+
+    assert prim.applied_schemas == []
+    assert fabric_hierarchy.reset_xform_stacks == [(prim_path, True)]

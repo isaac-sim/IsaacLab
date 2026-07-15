@@ -5,12 +5,16 @@
 
 __all__ = [
     "NewtonReplicateContext",
+    "copy_newton_source_builder",
+    "newton_builder_world_hook",
     "newton_physics_replicate",
     "queue_newton_physics_replication",
 ]
 
 from .replicate import (
     NewtonReplicateContext,
+    copy_newton_source_builder,
+    newton_builder_world_hook,
     newton_physics_replicate,
     queue_newton_physics_replication,
 )

@@ -35,5 +35,8 @@ class NewtonGlPerspectiveVideoCfg:
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Camera look-at target in world space (metres)."""
 
+    env_index: int = 0
+    """Environment index shown by the standalone Newton viewer."""
+
     horiz_fov_deg: float = 60.0
     """Horizontal FOV assumed for Kit ``/OmniverseKit_Persp``; converted to vertical FOV for GL viewer."""

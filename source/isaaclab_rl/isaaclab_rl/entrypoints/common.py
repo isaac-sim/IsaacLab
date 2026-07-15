@@ -301,12 +301,22 @@ def add_common_train_args(
 
 
 def enable_cameras_for_video(args_cli: argparse.Namespace) -> None:
-    """Enable camera rendering when video recording or sensor capture is requested.
+    """Configure rank-local rendering for video and sensor capture.
 
     Args:
         args_cli: Parsed command-line arguments.
     """
-    if getattr(args_cli, "video", False) or getattr(args_cli, "capture_env_sensors", 0) > 0:
+    video_enabled = getattr(args_cli, "video", False)
+    if video_enabled and getattr(args_cli, "distributed", False) and int(os.getenv("RANK", "0")) != 0:
+        args_cli.video = False
+        video_enabled = False
+
+    if video_enabled:
+        # Training videos intentionally show one world. Besides avoiding an unreadable overlay of
+        # thousands of environments, this keeps rendering overhead independent of the training batch.
+        args_cli.max_visible_envs = 1
+
+    if video_enabled or getattr(args_cli, "capture_env_sensors", 0) > 0:
         args_cli.enable_cameras = True
 
 
