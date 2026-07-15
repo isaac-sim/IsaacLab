@@ -127,18 +127,7 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
         # spawned palm-up catch pose (fingers -Y, spread +X, palm facing up), derived from
         # the measured legacy fingertip layout.
         rot=(0.063, 0.0592, -0.6823, 0.7259),
-        # Light pre-curl so the fingers start in the cube's grasp zone: the stock v4
-        # fingers are shorter than the legacy BioTac-equipped ones, and from a flat pose
-        # they cannot passively cradle the task cube. Improves PhysX reorient success
-        # 0.43 -> 0.53 at 500 iterations with the stock task config.
-        joint_pos={
-            "(ff|mf|rf)j1": 0.30,
-            "(ff|mf|rf)j2": 0.30,
-            "(ff|mf|rf)j3": 0.20,
-            "thj0": 0.28,
-            "(ff|mf|rf)j0": 0.0,
-            "thj[1-3]": 0.0,
-        },
+        joint_pos={"^(?!thj0).*": 0.0, "thj0": 0.28},
     ),
     actuators={
         "fingers": ImplicitActuatorCfg(
@@ -151,6 +140,12 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
             stiffness=3.0,
             damping=0.1,
             friction=0.01,
+            # Motor rotor inertia, absent from the Menagerie MJCF. The stock v4 links are
+            # ~2.6x lighter than the legacy BioTac hand's, so without armature the joint-
+            # space inertia is near zero and MJWarp contact dynamics are too noisy to
+            # learn from (reorient success 0.16 -> 1.0 at 1500 iterations with this value;
+            # same value the Shadow Hand configuration uses).
+            armature=2e-3,
         ),
     },
     soft_joint_pos_limit_factor=1.0,

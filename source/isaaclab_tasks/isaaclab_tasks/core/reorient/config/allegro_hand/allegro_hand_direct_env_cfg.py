@@ -99,11 +99,7 @@ class PhysicsCfg(PresetCfg):
             iterations=100,
             # save_to_mjcf="AllegroHand.xml",
         ),
-        # The Menagerie links are ~2.6x lighter than the legacy BioTac hand's, so at the
-        # legacy 2-substep rate a fast finger penetrates the cube deeply within one
-        # substep and the corrective impulse ejects it (measured: cube launched in
-        # 33-37/64 envs under a worst-case finger sweep at 2 substeps, 0/64 at 4).
-        num_substeps=4,
+        num_substeps=2,
         debug_mode=False,
     )
     ovphysx = OvPhysxCfg()

@@ -21,4 +21,7 @@ Added
   :obj:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_MENAGERIE_PHYSX_CFG` for the
   Mujoco Menagerie Shadow Hand conversion.
 * Added :obj:`~isaaclab_assets.robots.allegro.ALLEGRO_HAND_MENAGERIE_CFG` for the Mujoco
-  Menagerie Allegro Hand conversion.
+  Menagerie Allegro Hand conversion. The actuator configuration authors the motor rotor
+  inertia (``armature``) that the MJCF omits; without it the stock hand's lightweight
+  links leave the joint-space inertia near zero and Newton/MJWarp contact dynamics are
+  too noisy to train on (reorient success 0.16 vs 1.0 at 1500 iterations).
