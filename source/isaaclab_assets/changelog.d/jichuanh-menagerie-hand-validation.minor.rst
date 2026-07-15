@@ -12,17 +12,21 @@ Added
   friction, collision pairs manufactured by welded-body splits, ``physx``-layer joint
   velocity limits, and the Shadow hand's fixed tendons -- and a
   ``isaaclabMenageriePatchVersion`` marker on the
-  entry layer short-circuits repeated patching. Assets resolve from the public
-  production release via :obj:`~isaaclab_assets.robots.menagerie.MENAGERIE_ASSET_ROOT`
-  (no Nucleus authentication required; a local mirror is copied and the S3 release is
-  downloaded via an anonymous ``ListObjectsV2`` enumeration; override with the
-  ``MENAGERIE_ASSET_ROOT`` environment variable).
+  entry layer short-circuits repeated patching. The fix parameters live in a per-asset
+  recipe registry keyed by the asset directory, so every physics variant and robot
+  configuration referencing an asset shares one declaration. Assets resolve through the
+  Isaac asset root via :obj:`~isaaclab_assets.robots.menagerie.MENAGERIE_ASSET_ROOT`
+  (the conversions are currently staged on the ``isaac-dev`` Nucleus server pending
+  production publication; override with the ``MENAGERIE_ASSET_ROOT`` environment
+  variable to use a local mirror).
 * Added :obj:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_MENAGERIE_CFG` and
   :obj:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_MENAGERIE_PHYSX_CFG` for the
   Mujoco Menagerie Shadow Hand conversion.
 * Added :obj:`~isaaclab_assets.robots.allegro.ALLEGRO_HAND_MENAGERIE_CFG` for the Mujoco
-  Menagerie Allegro Hand conversion. The patched asset authors the motor rotor inertia
-  the MJCF omits (``newton:armature``, ``mjc:armature``, and ``physxJoint:armature`` on
-  every revolute joint); without it the stock hand's lightweight links leave the
-  joint-space inertia near zero and contact dynamics are too noisy to train on
-  (reorient success 0.16 vs 1.0 at 1500 iterations).
+  Menagerie Allegro Hand conversion, derived from :obj:`~isaaclab_assets.robots.allegro.ALLEGRO_HAND_CFG`
+  so it expresses only the asset source, spawn-frame compensation, and joint naming.
+  Physical parameters the asset can express come from the patched asset itself: it
+  authors the motor rotor inertia the MJCF omits (``newton:armature`` and
+  ``physxJoint:armature`` on every revolute joint); without it the stock hand's
+  lightweight links leave the joint-space inertia near zero and contact dynamics are
+  too noisy to train on (reorient success 0.16 vs 1.0 at 1500 iterations).

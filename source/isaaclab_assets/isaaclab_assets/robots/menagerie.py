@@ -64,6 +64,45 @@ _PATCH_MARKER_KEY = "isaaclabMenageriePatchVersion"
 _PATCH_VERSION = 5
 """Bump when the set or content of the fixes below changes, to invalidate stale caches."""
 
+_ASSET_PATCH_RECIPES: dict[str, dict] = {
+    "wonik_allegro/right_hand": {
+        # The conversion splits the welded fingertip geoms into ``*_tip`` bodies,
+        # manufacturing tip<->medial collision pairs that cannot exist in MuJoCo
+        # (same-body geoms never collide).
+        "filtered_body_pairs": [
+            ("ff_tip", "ff_medial"),
+            ("mf_tip", "mf_medial"),
+            ("rf_tip", "rf_medial"),
+            ("th_tip", "th_medial"),
+        ],
+        # The Menagerie layers author no joint velocity limits (the legacy asset bakes
+        # 360 deg/s); without one, PhysX joint velocities spike and produce NaNs.
+        "joint_velocity_limit_deg_s": 360.0,
+        # Motor rotor inertia, absent from the Menagerie MJCF. The stock v4 links are
+        # ~2.6x lighter than the legacy BioTac hand's, leaving the joint-space inertia
+        # near zero; the model is authored for MuJoCo's default 2 ms timestep and the
+        # unconditioned dynamics turn contact into noise at coarser steps (reorient
+        # success 0.16 -> 1.0 at 1500 iterations). Same value the Shadow Hand uses.
+        "joint_armature": 2e-3,
+    },
+    "shadow_hand/right_hand": {
+        # Legacy asset's baked joint velocity limit; the Menagerie layers omit one and
+        # PhysX needs it for stability.
+        "joint_velocity_limit_deg_s": 5729.6,
+        # The MuJoCo USD Converter does not translate MJCF tendon couplings into PhysX
+        # tendon schemas, leaving the four distal finger joints uncoupled and undriven
+        # in the ``physx`` variant.
+        "author_shadow_tendons": True,
+    },
+}
+"""Per-asset conversion-defect fix parameters, keyed by asset directory under
+:obj:`MENAGERIE_ASSET_ROOT`.
+
+The recipe describes the full fix set for the asset directory (shared by all physics
+variants and all robot configurations referencing it), so the patched cache is complete
+regardless of which consumer spawns first. When the fixed assets ship upstream, delete
+the corresponding entry here."""
+
 
 """
 Conversion-defect fixes.
@@ -493,6 +532,8 @@ def _ensure_patched_asset(cfg: "MenageriePatchedUsdFileCfg") -> str:
     cache_dir = os.path.join(_PATCH_CACHE_ROOT, *asset_reldir.split("/"))
     entry_path = os.path.join(cache_dir, entry_name)
 
+    recipe = _ASSET_PATCH_RECIPES.get(asset_reldir, {})
+
     os.makedirs(_PATCH_CACHE_ROOT, exist_ok=True)
     with FileLock(cache_dir.rstrip("/") + ".lock"):
         if not (os.path.exists(entry_path) and _read_patch_marker(entry_path) == _PATCH_VERSION):
@@ -500,11 +541,10 @@ def _ensure_patched_asset(cfg: "MenageriePatchedUsdFileCfg") -> str:
             patch_menagerie_asset(
                 cache_dir,
                 entry_name,
-                author_static_friction=cfg.author_static_friction,
-                filtered_body_pairs=cfg.filtered_body_pairs,
-                joint_velocity_limit_deg_s=cfg.joint_velocity_limit_deg_s,
-                joint_armature=cfg.joint_armature,
-                author_shadow_tendons=cfg.author_shadow_tendons,
+                filtered_body_pairs=recipe.get("filtered_body_pairs", ()),
+                joint_velocity_limit_deg_s=recipe.get("joint_velocity_limit_deg_s"),
+                joint_armature=recipe.get("joint_armature"),
+                author_shadow_tendons=recipe.get("author_shadow_tendons", False),
             )
     return entry_path
 
@@ -540,24 +580,9 @@ def spawn_menagerie_asset(
 class MenageriePatchedUsdFileCfg(sim_utils.UsdFileCfg):
     """Spawn configuration that patches a Menagerie conversion on disk before loading it.
 
-    The patch parameters describe the full set of fixes for the asset directory (shared by
-    all physics variants of the same asset), so the cached copy is complete regardless of
-    which variant spawns first.
+    The fix parameters for each asset live in :obj:`_ASSET_PATCH_RECIPES`, keyed by the
+    asset's directory: they describe defects of the asset itself, shared by all physics
+    variants and all robot configurations referencing it.
     """
 
     func: Callable = spawn_menagerie_asset
-
-    author_static_friction: bool = True
-    """Copy the material's dynamic friction to the unauthored static coefficient."""
-
-    filtered_body_pairs: list[tuple[str, str]] = []
-    """Body-name pairs to exclude from collision (pairs manufactured by the conversion)."""
-
-    joint_velocity_limit_deg_s: float | None = None
-    """Max joint velocity [deg/s] to author on every revolute joint in the ``physx`` layer."""
-
-    joint_armature: float | None = None
-    """Motor rotor inertia to author on every revolute joint, in both physics variants."""
-
-    author_shadow_tendons: bool = False
-    """Author the four Shadow-hand distal-middle fixed tendons in the ``physx`` layer."""

@@ -71,58 +71,21 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
 """Configuration of Allegro Hand robot."""
 
 
-ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
+ALLEGRO_HAND_MENAGERIE_CFG = ALLEGRO_HAND_CFG.replace(
     spawn=MenageriePatchedUsdFileCfg(
         usd_path=f"{MENAGERIE_ASSET_ROOT}/wonik_allegro/right_hand/right_hand.usda",
         # The Menagerie exports default to the "physx" variant; Newton/MJWarp needs "mujoco".
         # For PhysX runs, replace with variants={"Physics": "physx"}.
         variants={"Physics": "mujoco"},
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            retain_accelerations=False,
-            enable_gyroscopic_forces=False,
-            angular_damping=0.01,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=64 / math.pi * 180.0,
-            max_depenetration_velocity=1000.0,
-            max_contact_impulse=1e32,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            # The conversion splits the fingertip geoms into welded ``*_tip`` bodies,
-            # manufacturing tip<->medial collision pairs that cannot exist in MuJoCo
-            # (same-body geoms never collide). The pairs are filtered in the patched asset via
-            # :attr:`~isaaclab_assets.robots.menagerie.MenageriePatchedUsdFileCfg.filtered_body_pairs`,
-            # so self-collisions can be re-enabled after a training revalidation.
-            enabled_self_collisions=False,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0005,
-        ),
+        # Same solver-facing properties as the legacy hand. Self-collisions stay enabled:
+        # the impossible tip<->medial pairs manufactured by the conversion's weld split are
+        # filtered in the patched asset (see ``menagerie._ASSET_PATCH_RECIPES``).
+        rigid_props=ALLEGRO_HAND_CFG.spawn.rigid_props.replace(),
+        articulation_props=ALLEGRO_HAND_CFG.spawn.articulation_props.replace(),
         # The mujoco variant authors no UsdPhysics drives (actuation is declared as MjcActuator
         # prims); IsaacLab's implicit actuators require the drive APIs to exist.
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
-        # Conversion-defect fixes written into a patched copy of the asset on disk by the
-        # Menagerie patcher (see :class:`~isaaclab_assets.robots.menagerie.MenageriePatchedUsdFileCfg`):
-        # the unauthored static friction is copied from the asset's sliding coefficient
-        # (the converter authors only ``physics:dynamicFriction``, so static falls back to
-        # zero); the collision pairs manufactured by the fingertip weld split are filtered;
-        # and a 360 deg/s joint velocity limit (from the legacy asset) is authored into the
-        # ``physx`` layer, inert for this ``mujoco`` variant but completing the patched asset.
-        filtered_body_pairs=[
-            ("ff_tip", "ff_medial"),
-            ("mf_tip", "mf_medial"),
-            ("rf_tip", "rf_medial"),
-            ("th_tip", "th_medial"),
-        ],
-        joint_velocity_limit_deg_s=360.0,
-        # Motor rotor inertia, absent from the Menagerie MJCF. The stock v4 links are
-        # ~2.6x lighter than the legacy BioTac hand's, leaving the joint-space inertia
-        # near zero; the model is authored for MuJoCo's default 2 ms timestep and the
-        # unconditioned dynamics turn contact into noise at coarser steps (reorient
-        # success 0.16 -> 1.0 at 1500 iterations). Same value the Shadow Hand uses.
-        joint_armature=2e-3,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         # Offset so the cube's measured rest point coincides with the task's in-hand target
@@ -135,24 +98,14 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
         rot=(0.063, 0.0592, -0.6823, 0.7259),
         joint_pos={"^(?!thj0).*": 0.0, "thj0": 0.28},
     ),
-    actuators={
-        "fingers": ImplicitActuatorCfg(
-            joint_names_expr=[".*"],
-            effort_limit_sim=0.5,
-            # The Menagerie layers author no joint velocity limits (the legacy asset bakes
-            # 360 deg/s); without a limit, PhysX joint velocities spike to hundreds of rad/s
-            # and produce NaN observations.
-            velocity_limit_sim=6.28,
-            stiffness=3.0,
-            damping=0.1,
-            friction=0.01,
-        ),
-    },
-    soft_joint_pos_limit_factor=1.0,
 )
 """Configuration of the Mujoco Menagerie Allegro Hand (right), MuJoCo physics variant.
 
-Unlike the legacy BioTac-equipped :obj:`ALLEGRO_HAND_CFG` asset, this is the stock
-Allegro Hand v4 with density-derived link masses (~0.81 kg total vs ~2.14 kg) and
-per-joint calibrated limits; training rewards are expected to differ accordingly.
+Derived from :obj:`ALLEGRO_HAND_CFG`: same solver properties and actuator gains; only the
+asset source (patched Menagerie conversion), the spawn-frame compensation, and the joint
+naming differ. Physical parameters the asset can express (armature, joint velocity limits,
+friction, collision filters) come from the patched asset itself rather than the config.
+Unlike the legacy BioTac-equipped hand, this is the stock Allegro Hand v4 with
+density-derived link masses (~0.81 kg total vs ~2.14 kg) and per-joint calibrated limits;
+training rewards are expected to differ accordingly.
 """

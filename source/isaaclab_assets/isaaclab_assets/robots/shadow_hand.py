@@ -103,12 +103,6 @@ SHADOW_HAND_MENAGERIE_CFG = ArticulationCfg(
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
         fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
-        # The mujoco variant needs only the static-friction fix at runtime, but it shares a
-        # patched cache directory with the physx variant below. The patch parameters describe
-        # the full asset fix set so the cache is complete regardless of which variant spawns
-        # first; the physx-layer fixes (velocity limit, tendons) are inert for this variant.
-        joint_velocity_limit_deg_s=5729.6,
-        author_shadow_tendons=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
@@ -165,13 +159,9 @@ only the joint/body naming differs.
 SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
     spawn=MenageriePatchedUsdFileCfg(
         usd_path=f"{MENAGERIE_ASSET_ROOT}/shadow_hand/right_hand/right_hand.usda",
-        # UPSTREAM(asset): the MuJoCo USD Converter does not translate MJCF tendon couplings
-        # into PhysX tendon schemas, so the ``physx`` variant leaves the four distal finger
-        # joints uncoupled and undriven; the patcher authors them into the ``physx`` layer.
-        # It also authors the legacy asset's 5729.6 deg/s joint velocity limit, which the
-        # Menagerie layers omit and PhysX needs for stability.
-        author_shadow_tendons=True,
-        joint_velocity_limit_deg_s=5729.6,
+        # The patched asset authors the distal-finger tendon couplings and the legacy
+        # 5729.6 deg/s joint velocity limit into the ``physx`` layer (the converter
+        # translates neither); see ``menagerie._ASSET_PATCH_RECIPES``.
         variants={"Physics": "physx"},
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -203,9 +193,6 @@ SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
         # all joints shift by +1 (robot0_FFJn -> rh_FFJ{n+1}, ..., robot0_WRJn -> rh_WRJ{n+1}).
         "fingers": ImplicitActuatorCfg(
             joint_names_expr=["rh_WR.*", "rh_(FF|MF|RF|LF)J(4|3|2)", "rh_LFJ5", "rh_THJ.*"],
-            # The legacy asset bakes a 5729.58 deg/s joint velocity limit; the Menagerie
-            # layers author none, which destabilizes PhysX.
-            velocity_limit_sim=100.0,
             effort_limit_sim={
                 "rh_WRJ2": 4.785,
                 "rh_WRJ1": 2.175,
