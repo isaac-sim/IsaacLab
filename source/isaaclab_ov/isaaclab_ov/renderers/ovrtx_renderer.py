@@ -265,11 +265,6 @@ class OVRTXRenderer(BaseRenderer):
         instance_seg_spec = (
             RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.uint32)
         )
-        instance_id_seg_spec = (
-            RenderBufferSpec(4, wp.uint8)
-            if self.cfg.colorize_instance_id_segmentation
-            else RenderBufferSpec(1, wp.uint32)
-        )
         # Semantic segmentation: colorized RGBA (uint8), else raw int32 IDs (matches Isaac RTX, whose
         # non-colorized per-pixel value is the semantic ID).
         semantic_seg_spec = (
@@ -285,7 +280,6 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SEMANTIC_SEGMENTATION: semantic_seg_spec,
             RenderBufferKind.INSTANCE_SEGMENTATION_FAST: instance_seg_spec,
-            RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST: instance_id_seg_spec,
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
@@ -890,9 +884,9 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Extract a uint32 ID-segmentation render var into ``output_buffers[buffer_key]``.
 
-        Shared by ``semantic_segmentation`` (``SemanticSegmentation``), ``instance_segmentation_fast``
-        (``NonStableInstanceSegmentation``), and ``instance_id_segmentation_fast`` (``InstanceSegmentationSD``),
-        which only differ in the source render var, the destination buffer, and whether to colorize.
+        Shared by ``semantic_segmentation`` (``SemanticSegmentation``) and ``instance_segmentation_fast``
+        (``NonStableInstanceSegmentation``), which only differ in the source render var, the destination buffer,
+        and whether to colorize.
 
         Args:
             render_data: OVRTX render data for the current frame.
@@ -1169,15 +1163,6 @@ class OVRTXRenderer(BaseRenderer):
         # camera.data.info["instance_segmentation_fast"]["idToLabels"] and ["idToSemantics"].
         if "instance_segmentation_fast" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
-
-        self._process_id_segmentation_render_var(
-            render_data,
-            frame,
-            output_buffers,
-            "InstanceSegmentationSD",
-            "instance_id_segmentation_fast",
-            self.cfg.colorize_instance_id_segmentation,
-        )
 
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:
             with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
