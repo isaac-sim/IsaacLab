@@ -65,9 +65,19 @@ fi
 # LD_LIBRARY_PATH so its patched pxr is found before usd-core's pxr and the
 # native USD shared libraries are resolvable.  This resolves TfType::AddAlias
 # conflicts when omni.usd.schema packages (ovrtx/ovphysx) are also installed.
+#
+# omni.usd.libs/pxr/ is a namespace package (no __init__.py), but Python's
+# import system always prefers a regular package (with __init__.py) over a
+# namespace package, regardless of sys.path order.  Since usd-core installs a
+# regular pxr package, prepending omni.usd.libs to PYTHONPATH alone does nothing.
+# We write a minimal __init__.py into omni.usd.libs/pxr/ to promote it to a
+# regular package, making the sys.path order actually take effect.
 if [ -d "$ISAACLAB_PATH/_isaac_sim/extscache" ]; then
     _ov_usd_libs_dir=$(find "$ISAACLAB_PATH/_isaac_sim/extscache" -maxdepth 1 -name "omni.usd.libs-*" -type d 2>/dev/null | sort | tail -1)
     if [ -n "$_ov_usd_libs_dir" ]; then
+        if [ -d "$_ov_usd_libs_dir/pxr" ] && [ ! -f "$_ov_usd_libs_dir/pxr/__init__.py" ]; then
+            printf '' > "$_ov_usd_libs_dir/pxr/__init__.py" 2>/dev/null || true
+        fi
         export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
         export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
     fi
