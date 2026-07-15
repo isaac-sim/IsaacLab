@@ -15,9 +15,3 @@ Changed
   warning is emitted at actuator construction in this case. To keep the old behavior, remove
   ``velocity_limit`` from the actuator configuration; to impose a solver-level clamp, use
   ``velocity_limit_sim``.
-
-Fixed
-^^^^^
-
-* Fixed joints missing from a partial ``velocity_limit`` dictionary resolving to a zero
-  velocity limit in the data buffers; they now fall back to the resolved solver clamp.
