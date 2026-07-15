@@ -679,11 +679,15 @@ class PhysxManager(PhysicsManager):
         sim_utils.bind_physics_material(sim_cfg.physics_prim_path, mat_path)
 
         # warnings
-        if cfg.solver_type == 1 and not cfg.enable_external_forces_every_iteration:
-            warnings.warn(
+        if not cfg.enable_external_forces_every_iteration:
+            warning_message = (
                 "PhysxCfg.enable_external_forces_every_iteration is deprecated and will be removed in a future "
-                "PhysX release. External forces are applied every iteration by default; remove this override. "
-                "Disabling this behavior with the TGS solver may cause noisy velocities.",
+                "PhysX release. External forces are applied every iteration by default; remove this override."
+            )
+            if cfg.solver_type == 1:
+                warning_message += " Disabling this behavior with the TGS solver may cause noisy velocities."
+            warnings.warn(
+                warning_message,
                 DeprecationWarning,
                 stacklevel=2,
             )
