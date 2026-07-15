@@ -47,6 +47,8 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
+    # Aliasing artifacts on the table and MPM particle noise.
+    "franka_pour": 8.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
@@ -1721,6 +1723,146 @@ def rendering_test_franka_soft(
         _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
+
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["tiled_camera"].data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def _make_franka_pour_camera_env_cfg(data_type: str):
+    """Create a test-local Franka pour camera env cfg without exposing a production task."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.envs import mdp as env_mdp
+    from isaaclab.managers import ObservationGroupCfg as ObsGroup
+    from isaaclab.managers import ObservationTermCfg as ObsTerm
+    from isaaclab.managers import SceneEntityCfg
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.utils.configclass import configclass
+
+    from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import FrankaPourEnvCfg, PourSceneCfg
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+    @configclass
+    class TestFrankaPourCameraSceneCfg(PourSceneCfg):
+        """Franka pour scene with a test-only camera sensor."""
+
+        tiled_camera: CameraCfg = CameraCfg(
+            prim_path="/World/envs/env_.*/Camera",
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.85, -0.55, 0.42),
+                rot=(0.5080, 0.2114, 0.318, 0.7720),
+                convention="opengl",
+            ),
+            data_types=[data_type],
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
+            width=128,
+            height=128,
+            renderer_cfg=MultiBackendRendererCfg(),
+        )
+
+    @configclass
+    class TestFrankaPourCameraObservationsCfg:
+        """Image-only observations for the local rendering test env."""
+
+        @configclass
+        class PolicyCfg(ObsGroup):
+            image = ObsTerm(
+                func=env_mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
+            )
+
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: ObsGroup = PolicyCfg()
+
+    @configclass
+    class TestFrankaPourCameraEnvCfg(FrankaPourEnvCfg):
+        """Test-only camera variant of ``Isaac-Pour-Franka-v0``."""
+
+        scene: TestFrankaPourCameraSceneCfg = TestFrankaPourCameraSceneCfg(
+            num_envs=4, env_spacing=2.5, replicate_physics=True
+        )
+        observations: TestFrankaPourCameraObservationsCfg = TestFrankaPourCameraObservationsCfg()
+
+        def __post_init__(self) -> None:
+            super().__post_init__()
+            self.seed = 42
+            full_stage = self.curriculum_stage_names.index("full")
+            self.curriculum_start_stage = full_stage
+            self.curriculum_freeze = True
+            self.decimation = 1
+            self.physics_substeps = 1
+            self.mpm_iterations = 2
+            self.use_cuda_graph = False
+            self.sim.render_interval = 1
+            self.sim.device = "cuda:0"
+
+    return TestFrankaPourCameraEnvCfg()
+
+
+def rendering_test_franka_pour(
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    comparison_scores: list[dict],
+) -> None:
+    if physics_backend in ("physx", "ovphysx"):
+        pytest.skip("FrankaPour env cfg is Newton-only.")
+
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
+
+    import warp as wp
+
+    if not wp.is_cuda_available():
+        pytest.skip("FrankaPour rendering tests require a CUDA device.")
+
+    from isaaclab_tasks.contrib.franka_pour.pour_env import FrankaPourEnv
+
+    import isaaclab.sim as sim_utils
+
+    env_cfg = _make_franka_pour_camera_env_cfg(data_type)
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer}"]
+    )
+
+    env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    test_name = "franka_pour"
+    env = None
+
+    try:
+        # Kit-based RTX tests need a fresh stage between parametrized cases. Kitless OVRTX uses a
+        # different USD bootstrap path and can segfault if we force-create a stage here.
+        if renderer == "isaacsim_rtx_renderer":
+            sim_utils.create_new_stage()
+        env = FrankaPourEnv(env_cfg)
+        env.sim._app_control_on_stop_handle = None
+
+        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        maybe_step_env_for_motion(env, data_type, num_steps=2, action_value=0.0)
+        if data_type != "motion_vectors":
+            env.step(zero_actions)
 
         validate_camera_outputs(
             test_name,
