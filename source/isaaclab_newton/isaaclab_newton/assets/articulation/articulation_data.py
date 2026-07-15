@@ -95,6 +95,8 @@ class ArticulationData(BaseArticulationData):
         command = self._cached_read_launches.get(key)
         if command is None:
             command = wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device, record_cmd=True)
+            if command is None:
+                return
             self._cached_read_launches[key] = command
         command.launch()
 
