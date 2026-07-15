@@ -74,10 +74,11 @@ class ActuatorBase(ABC):
     """
 
     velocity_limit: torch.Tensor
-    """The motor velocity limit for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
+    """The joint velocity limit for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
 
-    Feeds the articulation data buffers (e.g. soft joint velocity limits) and explicit-model
-    effort clipping; it is not pushed to the physics solver. Defaults to
+    The peak velocity of the actuated joint (the actuator's rated speed reflected at the joint,
+    after any gearbox). Feeds the articulation data buffers (e.g. soft joint velocity limits) and
+    explicit-model effort clipping; it is not pushed to the physics solver. Defaults to
     :attr:`velocity_limit_sim` when only the solver clamp is configured.
     """
 
@@ -210,7 +211,13 @@ class ActuatorBase(ABC):
                     actuator_param=param_name,
                 )
 
-        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
+        if isinstance(self.cfg.velocity_limit, dict):
+            # dict parsing zero-fills unmatched joints; they must fall back to the solver clamp instead
+            indices, _, values = string_utils.resolve_matching_names_values(self.cfg.velocity_limit, joint_names)
+            self.velocity_limit = self.velocity_limit_sim.clone()
+            self.velocity_limit[:, indices] = torch.tensor(values, dtype=torch.float, device=self._device)
+        else:
+            self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
         # Parse effort_limit with special default handling:
         # - If cfg.effort_limit is None, use the original USD value (effort_limit parameter from constructor)
         # - Otherwise, use effort_limit_sim as the default

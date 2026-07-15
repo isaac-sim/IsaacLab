@@ -58,15 +58,17 @@ class ActuatorBaseCfg:
 
     .. attention::
 
-        This attribute describes the motor's rated speed. It populates the articulation data
+        This attribute describes the joint's peak velocity, i.e. the actuator's rated speed
+        reflected at the joint (after any gearbox). It populates the articulation data
         buffers (e.g. :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits`, read by
         velocity-limit terminations and rewards) and clips the effort output of explicit
         actuator models, but it is **not** pushed to the physics solver.
 
         Use :attr:`velocity_limit_sim` to additionally impose a solver-level hard clamp
-        (PhysX ``maxJointVelocity``). A real motor limits speed through its torque curve
-        rather than a kinematic clamp, so the two limits are resolved independently. When
-        only :attr:`velocity_limit_sim` is set, it also serves as the motor limit.
+        (PhysX ``maxJointVelocity``). A physical actuator limits joint speed through its
+        torque curve rather than a kinematic clamp, so the two limits are resolved
+        independently. When only :attr:`velocity_limit_sim` is set, it also serves as the
+        joint velocity limit.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None

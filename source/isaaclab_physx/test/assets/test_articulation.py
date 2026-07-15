@@ -1404,7 +1404,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     This test verifies that:
     1. The solver clamp ``velocity_limit_sim`` is applied to the simulation; when unset, the
        USD-authored value is kept
-    2. The motor limit ``velocity_limit`` is never pushed to the solver and keeps its
+    2. The joint velocity limit ``velocity_limit`` is never pushed to the solver and keeps its
        configured value; when unset, it falls back to the solver clamp
 
     Args:
@@ -1443,11 +1443,11 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     expected_velocity_limit = torch.full_like(physx_vel_limit, sim_limit)
     torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
 
-    # the motor limit keeps its configured value and is not pushed to the solver;
+    # the joint velocity limit keeps its configured value and is not pushed to the solver;
     # when unset it falls back to the solver clamp
-    motor_limit = vel_limit if vel_limit is not None else sim_limit
-    expected_motor_limit = torch.full_like(physx_vel_limit, motor_limit)
-    torch.testing.assert_close(articulation.actuators["joint"].velocity_limit, expected_motor_limit)
+    joint_limit = vel_limit if vel_limit is not None else sim_limit
+    expected_joint_limit = torch.full_like(physx_vel_limit, joint_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].velocity_limit, expected_joint_limit)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
