@@ -101,6 +101,17 @@ class NewtonKaminoManager(NewtonManager):
             )
 
     @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Skip the generic solver reset.
+
+        :meth:`_eval_fk_impl` already performs the masked
+        :meth:`SolverKamino.reset` with an explicit reset configuration.
+
+        Args:
+            world_mask: Unused; accepted to match the base hook signature.
+        """
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: KaminoSolverCfg) -> None:
         """Construct :class:`SolverKamino` and populate the base-class slots.
 
@@ -108,12 +119,9 @@ class NewtonKaminoManager(NewtonManager):
         when ``use_collision_detector=False`` (Kamino's internal detector
         handles contacts otherwise).
 
-        Sets :attr:`NewtonManager._needs_fk_before_step` because Kamino treats body state as
-        authoritative: reset worlds (written via joint coordinates) must be reconciled before each
-        step. The shared :attr:`NewtonManager._world_reset_mask` and
-        :attr:`NewtonManager._fk_reset_mask` restrict that pre-step reconcile and
-        :meth:`NewtonManager.forward` to reset worlds, so non-reset worlds keep their live,
-        authoritative body state through Kamino's :meth:`_eval_fk_impl` overwrite.
+        Kamino treats body state as authoritative. The shared pre-step
+        :meth:`NewtonManager.forward` boundary reconciles authored joint state
+        only for worlds selected by :attr:`NewtonManager._world_reset_mask`.
 
         Raises:
             RuntimeError: If the model has more than one articulation per environment. The Kamino
@@ -144,4 +152,3 @@ class NewtonKaminoManager(NewtonManager):
         NewtonManager._solver = SolverKamino(model, solver_cfg.to_solver_config())
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
-        NewtonManager._needs_fk_before_step = True

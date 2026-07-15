@@ -62,7 +62,12 @@ class ContactSensorCfg(SensorBaseCfg):
 
     history_length: int = 0
     """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
-    the current data is stored (no history)."""
+    the current data is stored (no history).
+
+    A positive value updates the sensor buffers at :attr:`update_period` during scene updates,
+    including when the scene uses lazy sensor updates. This preserves physics-step contact history
+    until it is read at a later environment step.
+    """
 
     filter_prim_paths_expr: list[str] = []
     """List of body prim path expressions to filter contacts against. Defaults to empty,

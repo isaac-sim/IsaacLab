@@ -149,4 +149,4 @@ See also
 --------
 
 * :doc:`/source/overview/core-concepts/visualization` - visualizer configuration and UI controls.
-* :doc:`/source/how-to/configure_rendering` - selecting rendering presets and quality modes.
+* :doc:`/source/how-to/configure_rendering` - customizing RTX rendering settings.

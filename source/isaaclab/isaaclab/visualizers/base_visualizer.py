@@ -109,6 +109,20 @@ class BaseVisualizer(ABC):
         """Check if close() has been called."""
         return self._is_closed
 
+    @property
+    def physics_backend(self) -> str | None:
+        """Return the active physics backend name (e.g. ``'newton'``, ``'physx'``, ``'ovphysx'``).
+
+        Returns:
+            Backend name string, or ``None`` when no simulation context is active yet.
+        """
+        try:
+            from isaaclab.utils.backend_utils import FactoryBase
+
+            return FactoryBase._get_backend()
+        except Exception:
+            return None
+
     def supports_markers(self) -> bool:
         """Check if visualizer supports VisualizationMarkers.
 

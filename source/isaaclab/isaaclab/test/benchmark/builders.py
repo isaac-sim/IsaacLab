@@ -20,6 +20,8 @@ from isaaclab.test.benchmark.schema import (
     Hardware,
     Learning,
     LearningCurve,
+    MeanStd,
+    PlayBundle,
     Resources,
     RunConfig,
     RunIdentity,
@@ -259,6 +261,57 @@ def build_training_bundle(
         resources=resources,
         learning=learning,
         success_rate=success_rate,
+        checkpoint_path=checkpoint_path,
+        video_path=video_path,
+        extra=extra,
+    )
+
+
+def build_play_bundle(
+    *,
+    run: RunIdentity,
+    versions: Versions,
+    hardware: Hardware,
+    runtime: Runtime,
+    resources: Resources,
+    success_rate: float | None = None,
+    reward: MeanStd | None = None,
+    ep_length: MeanStd | None = None,
+    checkpoint_path: str | None = None,
+    video_path: str | None = None,
+    extra: dict | None = None,
+) -> PlayBundle:
+    """Assemble a :class:`~isaaclab.test.benchmark.schema.PlayBundle`.
+
+    Args:
+        run: Run identity metadata.
+        versions: Software versions snapshot.
+        hardware: Host hardware snapshot.
+        runtime: Aggregated runtime metrics.
+        resources: Aggregated resource-utilisation metrics.
+        success_rate: Mean success rate ``[0..1]`` over completed episodes, or
+            ``None`` when the task does not report one.
+        reward: Episode-return aggregate over completed episodes, or ``None``
+            when no episode completed.
+        ep_length: Episode-length aggregate over completed episodes, or ``None``
+            when no episode completed.
+        checkpoint_path: Path to the policy checkpoint that was rolled out.
+        video_path: Path to a recorded rollout video/gif, if any.
+        extra: Optional free-form scalar values not covered by the stable
+            schema.
+
+    Returns:
+        Populated :class:`~isaaclab.test.benchmark.schema.PlayBundle`.
+    """
+    return PlayBundle(
+        run=run,
+        versions=versions,
+        hardware=hardware,
+        runtime=runtime,
+        resources=resources,
+        success_rate=success_rate,
+        reward=reward,
+        ep_length=ep_length,
         checkpoint_path=checkpoint_path,
         video_path=video_path,
         extra=extra,

@@ -58,6 +58,7 @@ def _make_ovrtx_render_data() -> OVRTXRenderData:
     rd.height = 8
     rd.num_envs = 2
     rd.warp_buffers = {}
+    rd.renderer_info = {}
     rd.ppisp_pipeline = None
     return rd
 
@@ -245,8 +246,8 @@ def test_launch_extract_all_tiles_launches_kernel_when_channels_are_compatible(m
     assert launch_calls[0]["inputs"][:2] == [tiled_buffer, output_buffer]
 
 
-def test_ovrtx_read_output_is_a_no_op_after_consolidation():
-    """OVRTXRenderer.read_output is a no-op once set_outputs wires up zero-copy."""
+def test_ovrtx_read_output_copies_no_pixel_data():
+    """OVRTXRenderer.read_output copies no pixel data; with empty renderer_info it leaves info untouched."""
     renderer = _make_ovrtx_renderer_without_backend()
     render_data = _make_ovrtx_render_data()
     camera_data = CameraData()
@@ -258,3 +259,55 @@ def test_ovrtx_read_output_is_a_no_op_after_consolidation():
     assert render_data.warp_buffers == {}
     assert camera_data.info == {}
     assert camera_data.output == {}
+
+
+def test_ovrtx_read_output_forwards_renderer_info():
+    """OVRTXRenderer.read_output forwards render_data.renderer_info (e.g. semantic idToLabels) into info."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    render_data = _make_ovrtx_render_data()
+    id_to_labels = {"2": {"class": "cartpole"}}
+    render_data.renderer_info = {"semantic_segmentation": {"idToLabels": id_to_labels}}
+
+    camera_data = CameraData()
+    camera_data.info = {"semantic_segmentation": None}
+    camera_data._output = {}
+
+    renderer.read_output(render_data, camera_data)
+    assert camera_data.info["semantic_segmentation"] == {"idToLabels": id_to_labels}
+
+
+def test_ovrtx_read_output_clears_stale_metadata_and_keeps_seeded_keys():
+    """read_output replaces (not merges): a dropped render var resets its info entry, seeded keys persist."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    render_data = _make_ovrtx_render_data()
+
+    # ``camera_data.info`` is seeded with one key per output (mirrors ``camera_data.output``); both start None.
+    camera_data = CameraData()
+    camera_data.info = {"rgb": None, "semantic_segmentation": None}
+    camera_data._output = {}
+
+    # Frame 1: the SemanticIdMap render var is present, so its metadata lands in info.
+    id_to_labels = {"2": {"class": "cartpole"}}
+    render_data.renderer_info = {"semantic_segmentation": {"idToLabels": id_to_labels}}
+    renderer.read_output(render_data, camera_data)
+    assert camera_data.info["semantic_segmentation"] == {"idToLabels": id_to_labels}
+
+    # Frame 2: render() rebuilds renderer_info from scratch and the SemanticIdMap is gone this frame.
+    render_data.renderer_info = {}
+    renderer.read_output(render_data, camera_data)
+
+    # The stale idToLabels must be cleared, and the seeded keys (rgb, semantic_segmentation) must remain.
+    assert camera_data.info == {"rgb": None, "semantic_segmentation": None}
+
+
+def test_ovrtx_semantic_spec_follows_colorize_flag():
+    """Semantic segmentation output spec is colorized RGBA (uint8) or raw int32 IDs per the cfg flag."""
+    colorized = OVRTXRenderer.__new__(OVRTXRenderer)
+    colorized.cfg = OVRTXRendererCfg(colorize_semantic_segmentation=True)
+    assert colorized.supported_output_types()[RenderBufferKind.SEMANTIC_SEGMENTATION] == RenderBufferSpec(4, wp.uint8)
+
+    non_colorized = OVRTXRenderer.__new__(OVRTXRenderer)
+    non_colorized.cfg = OVRTXRendererCfg(colorize_semantic_segmentation=False)
+    assert non_colorized.supported_output_types()[RenderBufferKind.SEMANTIC_SEGMENTATION] == RenderBufferSpec(
+        1, wp.int32
+    )
