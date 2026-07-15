@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import numpy as np
 import scipy.interpolate as interpolate
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.arm_ci]
 
 
 @pytest.mark.isaacsim_ci

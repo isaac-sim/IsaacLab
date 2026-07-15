@@ -96,7 +96,7 @@ class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
 
     newton_mjwarp_vbd: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="/World/envs/env_.*/Deformable",
+        prim_path="{ENV_REGEX_NS}/Deformable",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.05, 0.05),
@@ -112,7 +112,7 @@ class DeformableCfg(PresetCfg):
     )
 
     physx: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="/World/envs/env_.*/Deformable",
+        prim_path="{ENV_REGEX_NS}/Deformable",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.05, 0.05),
@@ -162,7 +162,7 @@ class PhysicsCfg(PresetCfg):
 class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
-    robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(

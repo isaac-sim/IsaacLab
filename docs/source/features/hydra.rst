@@ -48,8 +48,8 @@ As a result, training with hydra arguments can be run with the following syntax:
 
             ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
-The above command will run training with the task ``Isaac-Cartpole`` in headless mode, and set the
-``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
+The above command will run training with the task ``Isaac-Cartpole`` without selecting a visualizer,
+and set the ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
 
 .. note::
 

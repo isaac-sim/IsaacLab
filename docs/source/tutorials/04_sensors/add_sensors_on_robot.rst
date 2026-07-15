@@ -183,7 +183,7 @@ Additionally, you can switch the viewport to the camera view to see the RGB imag
 camera sensor. Please check `here <https://youtu.be/htPbcKkNMPs?feature=shared>`_ for more information
 on how to switch the viewport to the camera view.
 
-.. figure:: ../../_static/tutorials/tutorial_add_sensors. jpg
+.. figure:: ../../_static/tutorials/tutorial_add_sensors.jpg
     :align: center
     :figwidth: 100%
     :alt: result of add_sensors_on_robot.py

@@ -91,6 +91,9 @@ def setup_preset_cli(
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
         ``parser.parse_known_args(argv)``, ready to hand to Hydra via
         ``sys.argv``.
+
+    Raises:
+        SystemExit: If ``argv`` requests help, after printing parser help.
     """
     # --help short-circuits parsing, so help text that depends on --task has to
     # find it before argparse runs. Gate the env_cfg load on --help to keep
@@ -112,7 +115,12 @@ def setup_preset_cli(
     # ``renderer``) into SimulationApp config.
     parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
-    return parser.parse_known_args(argv)
+    args_to_parse = sys.argv[1:] if argv is None else argv
+    if "-h" in args_to_parse or "--help" in args_to_parse:
+        parser.print_help()
+        raise SystemExit(0)
+
+    return parser.parse_known_args(args_to_parse)
 
 
 # ============================================================================

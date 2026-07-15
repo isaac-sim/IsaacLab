@@ -13,11 +13,15 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sensors.joint_wrench import joint_wrench_sensor as joint_wrench_module
+from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor as PhysxJointWrenchSensor
+from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData
 
 from pxr import Gf, UsdPhysics
 
@@ -26,6 +30,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
+from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import math as math_utils
@@ -455,3 +460,151 @@ def test_no_stale_data_after_scene_reset(sim):
     post_reset_torque = sensor.data.torque.torch
     torch.testing.assert_close(post_reset_force, torch.zeros_like(post_reset_force))
     torch.testing.assert_close(post_reset_torque, torch.zeros_like(post_reset_torque))
+
+
+class _FakeArticulationView:
+    """Return one stable PhysX-like wrench buffer while counting typed-view construction."""
+
+    def __init__(self, wrenches: wp.array):
+        self.wrenches = wrenches
+        self.get_count = 0
+        self.view_count = 0
+
+    def get_link_incoming_joint_force(self):
+        self.get_count += 1
+        return self
+
+    def view(self, dtype):
+        assert dtype == wp.spatial_vectorf
+        self.view_count += 1
+        return self.wrenches
+
+    @property
+    def ptr(self):
+        return self.wrenches.ptr
+
+
+def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 1):
+    """Create a JointWrench sensor without a USD scene."""
+    device = "cuda:0"
+    wrenches_torch = torch.arange(1, num_envs * 6 + 1, dtype=torch.float32, device=device).reshape(num_envs, 1, 6)
+    wrenches = wp.from_torch(wrenches_torch.contiguous()).view(wp.spatial_vectorf)
+    root_view = _FakeArticulationView(wrenches)
+
+    sensor = PhysxJointWrenchSensor.__new__(PhysxJointWrenchSensor)
+    sensor.cfg = SimpleNamespace(prim_path="/World/Robot")
+    sensor._device = device
+    sensor._num_envs = num_envs
+    sensor._num_bodies = 1
+    sensor._root_view = root_view
+    sensor._joint_pos_b = wp.zeros(1, dtype=wp.vec3f, device=device)
+    sensor._joint_quat_b = wp.array([wp.quatf(0.0, 0.0, 0.0, 1.0)], dtype=wp.quatf, device=device)
+    sensor._timestamp = wp.ones(num_envs, dtype=wp.float32, device=device)
+    sensor._data = JointWrenchSensorData()
+    sensor._data.create_buffers(num_envs=num_envs, num_bodies=1, device=device)
+    sensor._raw_incoming_joint_wrench = None
+    sensor._update_cmd = None
+    sensor._use_recorded_launch = use_recorded_launch
+    sensor._physics_sim_view = None
+    sensor._initialize_handle = None
+    sensor._invalidate_initialize_handle = None
+    sensor._prim_deletion_handle = None
+
+    env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+    return sensor, root_view, wrenches_torch, env_mask
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+def test_joint_wrench_caches_physx_wrench_view():
+    """Repeated eager updates should reuse one typed view over the refreshed PhysX buffer."""
+    sensor, root_view, _, env_mask = _make_joint_wrench_sensor(use_recorded_launch=False)
+
+    sensor._update_buffers_impl(env_mask)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+
+    assert root_view.get_count == 2
+    assert root_view.view_count == 1
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+def test_joint_wrench_records_and_replays_update_launch():
+    """A recorded update should replay using changes to the stable environment mask."""
+    sensor, _, wrenches_torch, env_mask = _make_joint_wrench_sensor(num_envs=2)
+    env_mask_torch = wp.to_torch(env_mask)
+    env_mask_torch[:] = torch.tensor([True, False], device=sensor.device)
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+    update_cmd = sensor._update_cmd
+
+    assert update_cmd is not None
+    torch.testing.assert_close(
+        wp.to_torch(sensor._data._force)[0, 0],
+        torch.tensor([1.0, 2.0, 3.0], device=sensor.device),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(sensor._data._torque)[0, 0],
+        torch.tensor([4.0, 5.0, 6.0], device=sensor.device),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(sensor._data._force)[1, 0],
+        torch.zeros(3, device=sensor.device),
+    )
+
+    wrenches_torch[0, 0, 0] = 101.0
+    wrenches_torch[1, 0, 0] = 107.0
+    env_mask_torch[:] = torch.tensor([False, True], device=sensor.device)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+
+    assert sensor._update_cmd is update_cmd
+    torch.testing.assert_close(
+        wp.to_torch(sensor._data._force)[0, 0],
+        torch.tensor([1.0, 2.0, 3.0], device=sensor.device),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(sensor._data._force)[1, 0],
+        torch.tensor([107.0, 8.0, 9.0], device=sensor.device),
+    )
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+def test_joint_wrench_falls_back_when_recording_fails(monkeypatch):
+    """A recording failure should disable recording and execute the current update eagerly."""
+    sensor, _, _, env_mask = _make_joint_wrench_sensor()
+    original_launch = joint_wrench_module.wp.launch
+
+    def launch_with_recording_failure(*args, record_cmd=False, **kwargs):
+        if record_cmd:
+            raise RuntimeError("recording failed")
+        return original_launch(*args, **kwargs)
+
+    monkeypatch.setattr(joint_wrench_module.wp, "launch", launch_with_recording_failure)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+
+    assert not sensor._use_recorded_launch
+    torch.testing.assert_close(
+        wp.to_torch(sensor._data._force)[0, 0],
+        torch.tensor([1.0, 2.0, 3.0], device=sensor.device),
+    )
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+def test_joint_wrench_invalidation_drops_cached_launch_state(monkeypatch):
+    """Physics invalidation should release the cached PhysX view and recorded command."""
+    sensor, _, _, _ = _make_joint_wrench_sensor()
+    sensor._raw_incoming_joint_wrench = object()
+    sensor._update_cmd = object()
+    monkeypatch.setattr(BaseJointWrenchSensor, "_invalidate_initialize_callback", lambda self, event: None)
+
+    sensor._invalidate_initialize_callback(None)
+
+    assert sensor._root_view is None
+    assert sensor._raw_incoming_joint_wrench is None
+    assert sensor._update_cmd is None

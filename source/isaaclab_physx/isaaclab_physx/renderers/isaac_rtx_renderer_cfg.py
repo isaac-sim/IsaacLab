@@ -89,9 +89,6 @@ class IsaacRtxRendererGlobalSettingsCfg:
     carb_settings: dict[str, Any] | None = None
     """Raw carb settings applied after named fields."""
 
-    rendering_mode: Literal["performance", "balanced", "quality"] | None = None
-    """Legacy rendering-mode preset to apply before field overrides."""
-
 
 @configclass
 class IsaacRtxRendererCfg(RendererCfg):
