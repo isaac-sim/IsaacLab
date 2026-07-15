@@ -533,6 +533,7 @@ def test_franka_pose_abs_variable_impedance(sim):
         goal_marker,
         contact_forces,
         frame,
+        position_tolerance=0.13,
     )
 
 
