@@ -2386,6 +2386,10 @@ class NewtonManager(PhysicsManager):
 
         if cls._scene_data is None:
             cls._scene_data = SceneDataFormat.Transform()
+        # Invalidate stale mapping when the model's body count changed (e.g. tiled → viewport
+        # test within the same process where _model was rebuilt from a different stage).
+        if cls._scene_data_mapping is not None and cls._scene_data_mapping.shape[0] != cls._model.body_count:
+            cls._scene_data_mapping = None
         if cls._scene_data_mapping is None:
             body_paths = cls._resolve_scene_data_body_paths(list(cls._model.body_label), scene_data_provider.usd_stage)
             cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)

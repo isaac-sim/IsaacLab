@@ -44,10 +44,10 @@ _attach_comparison_properties_fixture = _golden.make_attach_comparison_propertie
 _PHYSICS_BACKEND = "newton"
 
 VISUALIZER_MODE_COMBINATIONS = [
-    pytest.param("kit", "viewport", id="newton-kit-viewport", marks=_golden.FLAKY_MARK),
     pytest.param("kit", "tiled", id="newton-kit-tiled", marks=_golden.FLAKY_MARK),
-    pytest.param("newton", "viewport", id="newton-newton-viewport", marks=_golden.FLAKY_MARK),
     pytest.param("newton", "tiled", id="newton-newton-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("kit", "viewport", id="newton-kit-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param("newton", "viewport", id="newton-newton-viewport", marks=_golden.FLAKY_MARK),
 ]
 
 

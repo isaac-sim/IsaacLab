@@ -974,6 +974,15 @@ def _prepare_visualizer_test_process() -> None:
     """Reset Python-side sim state and let Kit settle before a flaky retry starts."""
     with contextlib.suppress(Exception):
         SimulationContext.clear_instance()
+    # Clear Newton Manager shadow model so the next test rebuilds from the new USD stage.
+    # On PhysX backend, PhysicsManager.close() does not call NewtonManager.clear(), so the
+    # shadow _model and _state_0 built from the previous test's stage persist.  Clearing
+    # them here forces _ensure_visualization_model() to rebuild from the new stage.
+    with contextlib.suppress(Exception):
+        from isaaclab_newton.physics import NewtonManager
+
+        NewtonManager._model = None
+        NewtonManager._state_0 = None
     _drain_kit_app_updates(_VISUALIZER_STARTUP_DRAIN_UPDATES)
 
 
