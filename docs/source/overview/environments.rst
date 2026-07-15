@@ -1090,11 +1090,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Lift-Cube-SO101
-      - Isaac-Lift-Cube-SO101-Play
-      - Manager Based
-      - **rsl_rl** (PPO)
-      -
     * - IsaacContrib-Lift-Cube-OpenArm
       - IsaacContrib-Lift-Cube-OpenArm-Play
       - Manager Based
@@ -1102,6 +1097,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
     * - Isaac-Lift-KukaAllegro
       -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **presets=** ``cube``, ``shapes``
+    * - Isaac-Lift-SO101
+      - Isaac-Lift-SO101-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - **presets=** ``cube``, ``shapes``

@@ -11,7 +11,6 @@ __all__ = [
     # rewards
     "object_ee_distance",
     "object_goal_distance",
-    "object_grasped",
     "object_is_lifted",
     "deformable_lifted",
     "deformable_ee_distance",
@@ -36,7 +35,6 @@ from .rewards import (
     gripper_close_action,
     object_ee_distance,
     object_goal_distance,
-    object_grasped,
     object_is_lifted,
 )
 from .terminations import (
