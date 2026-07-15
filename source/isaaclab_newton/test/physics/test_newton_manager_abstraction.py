@@ -47,6 +47,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
+from newton import State
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverXPBD
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -819,3 +820,15 @@ def test_deferred_relaxed_capture_preserves_staged_wrench():
 
         joint_qd = NewtonManager._state_0.joint_qd.numpy()
         assert np.isclose(joint_qd[2], 0.0, atol=1e-3, rtol=0.0)
+
+
+def test_state_snapshot_restores_resized_array_prefix():
+    """State snapshots restore values after warmup grows a lazily allocated array."""
+    state = State()
+    state.body_f = wp.array([1.0], dtype=wp.float32, device="cpu")
+    snapshot = NewtonManager._snapshot_state_arrays(state)
+
+    state.body_f = wp.array([2.0, 3.0], dtype=wp.float32, device="cpu")
+    NewtonManager._restore_state_arrays(snapshot)
+
+    assert np.array_equal(state.body_f.numpy(), np.array([1.0, 3.0], dtype=np.float32))

@@ -1592,6 +1592,29 @@ class NewtonManager(PhysicsManager):
         """Return whether the active solver configuration supports CUDA graph capture."""
         return True
 
+    @staticmethod
+    def _snapshot_state_arrays(state: State) -> list[tuple[object, str, wp.array]]:
+        """Clone every allocated array in a Newton state and its attribute namespaces."""
+        owners = [state]
+        owners.extend(value for value in vars(state).values() if isinstance(value, Model.AttributeNamespace))
+        return [
+            (owner, name, wp.clone(value))
+            for owner in owners
+            for name, value in vars(owner).items()
+            if isinstance(value, wp.array)
+        ]
+
+    @staticmethod
+    def _restore_state_arrays(snapshot: list[tuple[object, str, wp.array]]) -> None:
+        """Restore cloned values into their current state arrays.
+
+        Solver warmup may replace an array with a larger lazily allocated buffer. Resolving
+        the destination through its owning attribute keeps that new allocation while restoring
+        the values that existed before warmup.
+        """
+        for owner, name, value in snapshot:
+            getattr(owner, name).assign(value)
+
     @classmethod
     def _capture_relaxed_graph(cls, device: str):
         """Capture Newton physics (only) as a CUDA graph, RTX-compatible.
@@ -1648,18 +1671,16 @@ class NewtonManager(PhysicsManager):
         simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
         state_0 = cls._state_0
         state_1 = cls._state_1
-        state_0_snapshot = cls._model.state()
-        state_1_snapshot = cls._model.state()
-        state_0_snapshot.assign(state_0)
-        state_1_snapshot.assign(state_1)
+        state_0_snapshot = cls._snapshot_state_arrays(state_0)
+        state_1_snapshot = cls._snapshot_state_arrays(state_1)
         try:
             with wp.ScopedDevice(device):
                 simulate()
         finally:
             NewtonManager._state_0 = state_0
             NewtonManager._state_1 = state_1
-            cls._state_0.assign(state_0_snapshot)
-            cls._state_1.assign(state_1_snapshot)
+            cls._restore_state_arrays(state_0_snapshot)
+            cls._restore_state_arrays(state_1_snapshot)
             wp.synchronize_stream(wp.get_stream(device))
 
         # Create a non-blocking stream (cudaStreamNonBlocking = 0x01).
