@@ -7,8 +7,13 @@
 
 .. code-block:: bash
 
-    # Usage with default PhysX physics and default kit visualizer.
+    # PhysX + Kit (default)
     ./isaaclab.sh -p scripts/demos/markers.py
+
+    # Newton physics + Newton/Rerun/Viser visualizer (exercises USD mesh marker support)
+    ./isaaclab.sh -p scripts/demos/markers.py --physics newton --visualizer newton
+    ./isaaclab.sh -p scripts/demos/markers.py --physics newton --visualizer rerun
+    ./isaaclab.sh -p scripts/demos/markers.py --physics newton --visualizer viser
 
 """
 
@@ -24,12 +29,11 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates different types of markers.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
-# Newton visualizer not supported for markers
-parser.add_argument("--visualizer", default="kit", choices=["kit"], help="Visualizer backend.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton"], help="Physics backend.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+
+import os
 
 import torch
 
@@ -42,6 +46,12 @@ from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_angle_axis
+
+# Local USD bundled with Newton — works without Nucleus access and exercises the
+# generic USD mesh path added in newton 1.4.0rc2.
+import newton as _newton
+
+_NEWTON_TEST_USD = os.path.join(os.path.dirname(_newton.__file__), "tests", "assets", "cube_cylinder.usda")
 
 if TYPE_CHECKING:
     from isaaclab.markers import VisualizationMarkers
@@ -92,6 +102,10 @@ def define_markers() -> "VisualizationMarkers":
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
                 scale=(2.0, 2.0, 2.0),
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(0.0, 0.1, 0.0)),
+            ),
+            "local_usd_mesh": sim_utils.UsdFileCfg(
+                usd_path=_NEWTON_TEST_USD,
+                scale=(0.5, 0.5, 0.5),
             ),
         },
     )

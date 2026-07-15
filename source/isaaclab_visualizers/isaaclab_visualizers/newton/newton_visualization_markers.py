@@ -368,6 +368,11 @@ def _load_usd_mesh(usd_path: str) -> Mesh | None:
     Material properties (color, texture) are resolved from the bound USD material and stored on
     the returned :class:`~newton.Mesh`.
 
+    For instanceable USD assets (e.g. ``*_instanceable.usd``) the geometry lives in USD prototype
+    prims rather than in the top-level stage hierarchy.  When the direct load raises
+    ``ValueError: No UsdGeom.Mesh prims found``, this function falls back to traversing prototype
+    prims and returns the first mesh found.
+
     Args:
         usd_path: Absolute path or URL to a USD asset.
 
@@ -378,7 +383,39 @@ def _load_usd_mesh(usd_path: str) -> Mesh | None:
     try:
         import newton.usd as nusd  # noqa: PLC0415
 
-        return nusd.get_mesh(usd_path, load_normals=True, load_uvs=True)
+        try:
+            return nusd.get_mesh(usd_path, load_normals=True, load_uvs=True)
+        except ValueError as exc:
+            if "No UsdGeom.Mesh prims found" not in str(exc):
+                raise
+
+        # Instanceable USD: geometry is in prototype prims, not the top-level hierarchy.
+        from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+        stage = Usd.Stage.Open(usd_path)
+        xform_cache = UsdGeom.XformCache()
+        for prototype in stage.GetPrototypes():
+            for prim in Usd.PrimRange(prototype):
+                if prim.IsA(UsdGeom.Mesh):
+                    try:
+                        mesh = nusd.get_mesh(prim, load_normals=True, load_uvs=True)
+                        if mesh is None:
+                            continue
+                        # nusd.get_mesh ignores the prim's local xform; bake it into vertices
+                        # so the loaded mesh matches the authored scale/rotation.
+                        # Normals are not transformed because mesh.normals has no setter;
+                        # for the common case of uniform scale this is correct.
+                        M = np.array(xform_cache.GetLocalToWorldTransform(prim), dtype=np.float32)
+                        mesh.vertices = mesh.vertices @ M[:3, :3] + M[3, :3]
+                        return mesh
+                    except Exception:
+                        continue
+        logger.warning(
+            "[NewtonVisualizationMarkers] No mesh geometry found in '%s' (including prototypes);"
+            " marker will not be rendered.",
+            usd_path,
+        )
+        return None
     except Exception:
         logger.warning(
             "[NewtonVisualizationMarkers] Failed to load USD mesh from '%s'; marker will not be rendered.",

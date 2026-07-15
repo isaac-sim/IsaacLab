@@ -28,9 +28,8 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates how to spawn deformable prims into the scene.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_vbd"], help="Physics backend.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
 if args_cli.visualizer and "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":
