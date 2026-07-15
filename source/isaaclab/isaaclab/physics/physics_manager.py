@@ -14,6 +14,7 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from isaaclab.sim.schemas.schemas import _create_world_fixed_joint
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils._device import set_cuda_device
 
@@ -137,8 +138,6 @@ class PhysicsManager(ABC):
             return articulation_prim
         if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
             raise NotImplementedError(f"Cannot fix non-rigid articulation root '{root_path}'.")
-
-        from isaaclab.sim.schemas.schemas import _create_world_fixed_joint  # noqa: PLC0415
 
         _create_world_fixed_joint(articulation_prim, stage)
         return articulation_prim
