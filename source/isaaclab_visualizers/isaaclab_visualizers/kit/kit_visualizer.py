@@ -222,8 +222,37 @@ class KitVisualizer(BaseVisualizer):
         return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
-        """Kit backend can host live plot widgets via viewport UI panels."""
+        """Kit backend hosts live plot widgets via :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer`."""
         return True
+
+    def add_live_plots(
+        self,
+        managers: dict,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting using the Kit omni.ui widget path.
+
+        Creates a :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` per manager and stores
+        them in :attr:`kit_manager_visualizers` so that :class:`~isaaclab.envs.ui.BaseEnvWindow`
+        can wire them into the viewport panel.  Also calls the base implementation to populate
+        :attr:`_live_plot_sources` for any non-omni.ui consumers.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, term_names=term_names, env_idx=env_idx)
+        from isaaclab.ui.widgets.manager_live_visualizer import ManagerLiveVisualizer, ManagerLiveVisualizerCfg
+
+        self.kit_manager_visualizers: dict[str, ManagerLiveVisualizer] = {
+            name: ManagerLiveVisualizer(
+                manager=mgr,
+                cfg=ManagerLiveVisualizerCfg(manager_name=name),
+            )
+            for name, mgr in managers.items()
+        }
 
     def requires_forward_before_step(self) -> bool:
         """OV viewport relies on refreshed kinematic state before render."""

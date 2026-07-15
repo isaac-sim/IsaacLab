@@ -517,6 +517,7 @@ class NewtonVisualizer(BaseVisualizer):
                                 self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
                             )
                         self._log_camera_sensor_image()
+                        self._render_live_plots()
                 finally:
                     self._viewer.end_frame()
             else:
@@ -786,8 +787,20 @@ class NewtonVisualizer(BaseVisualizer):
         return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
-        """Newton OpenGL viewer does not provide live-plot panels."""
-        return False
+        """Newton OpenGL viewer supports live plots via :meth:`newton.Viewer.log_scalar`."""
+        return True
+
+    def _render_live_plots(self) -> None:
+        """Push manager-term scalars to the Newton viewer's built-in plot panel."""
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        for source in self._live_plot_sources:
+            for term_name, values in source.collect(self._live_plot_env_idx).items():
+                if len(values) == 1:
+                    self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
+                else:
+                    for i, v in enumerate(values):
+                        self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
     def is_training_paused(self) -> bool:
         """Return whether training is paused from viewer controls."""

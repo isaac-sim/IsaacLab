@@ -105,8 +105,14 @@ def _rerun_web_viewer_url(host: str, web_port: int, connect_to: str) -> str:
 class NewtonViewerRerun(ViewerRerun):
     """Wrapper around Newton's ViewerRerun with rendering pause controls."""
 
+    #: Manager names set by :meth:`RerunVisualizer.add_live_plots`; when non-empty,
+    #: ``_get_blueprint`` produces one ``TimeSeriesView`` per manager instead of the
+    #: default single view.
+    _live_plot_manager_names: list[str]
+
     def __init__(self, *args, open_browser: bool = False, **kwargs):
         """Initialize viewer wrapper and Isaac Lab pause state."""
+        self._live_plot_manager_names = []
         if open_browser:
             super().__init__(*args, **kwargs)
         else:
@@ -125,6 +131,23 @@ class NewtonViewerRerun(ViewerRerun):
                 stack.callback(setattr, rr, "serve_web_viewer", original_serve_web_viewer)
                 super().__init__(*args, **kwargs)
         self._paused_rendering = False
+
+    def _get_blueprint(self):
+        """Return a per-manager blueprint when live plots are registered, else the default."""
+        if self._live_plot_manager_names:
+            manager_views = [
+                rrb.TimeSeriesView(name=name, origin=f"/{name}")
+                for name in self._live_plot_manager_names
+            ]
+            return rrb.Blueprint(
+                rrb.Horizontal(
+                    rrb.Spatial3DView(),
+                    rrb.Vertical(*manager_views),
+                ),
+                rrb.TimePanel(timeline="time", state="collapsed"),
+                collapse_panels=True,
+            )
+        return super()._get_blueprint()
 
     def is_rendering_paused(self) -> bool:
         """Return whether rendering is paused by viewer controls."""
@@ -310,6 +333,7 @@ class RerunVisualizer(BaseVisualizer):
                         render_newton_visualization_markers(
                             self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
                         )
+                    self._render_live_plots()
             finally:
                 self._viewer.end_frame()
 
@@ -384,8 +408,47 @@ class RerunVisualizer(BaseVisualizer):
         return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
-        """Rerun backend currently does not expose Isaac Lab live-plot widgets."""
-        return False
+        """Rerun backend supports live plots via :meth:`newton.Viewer.log_scalar` (mapped to ``rr.Scalars``)."""
+        return True
+
+    def add_live_plots(
+        self,
+        managers: dict,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting and send a per-manager blueprint.
+
+        Calls the base implementation to populate :attr:`_live_plot_sources`, then sends a
+        Rerun blueprint with one :class:`rerun.blueprint.TimeSeriesView` per manager so that
+        each manager's terms appear in a separate chart panel rather than all sharing a single
+        time-series view.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, term_names=term_names, env_idx=env_idx)
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        # Store manager names on the viewer so _get_blueprint() returns the per-manager
+        # layout.  ViewerRerun.log_scalar calls _get_blueprint() on the first scalar logged,
+        # which would overwrite any blueprint we send here — so we inject the layout into
+        # the viewer's own blueprint factory instead of calling rr.send_blueprint directly.
+        self._viewer._live_plot_manager_names = [source.manager_name for source in self._live_plot_sources]
+
+    def _render_live_plots(self) -> None:
+        """Push manager-term scalars to Rerun as time-series scalars."""
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        for source in self._live_plot_sources:
+            for term_name, values in source.collect(self._live_plot_env_idx).items():
+                if len(values) == 1:
+                    self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
+                else:
+                    for i, v in enumerate(values):
+                        self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
     def is_training_paused(self) -> bool:
         """Return whether training is paused.

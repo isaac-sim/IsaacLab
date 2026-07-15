@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
+    from isaaclab.managers import ManagerBase
     from isaaclab.scene_data import SceneDataProvider
 
     from .visualizer_cfg import VisualizerCfg
@@ -43,6 +44,8 @@ class BaseVisualizer(ABC):
         self._is_initialized = False
         self._is_closed = False
         self._deferred_startup_messages: list[str] = []
+        self._live_plot_sources: list = []
+        self._live_plot_env_idx: int = 0
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
@@ -132,12 +135,51 @@ class BaseVisualizer(ABC):
         return False
 
     def supports_live_plots(self) -> bool:
-        """Check if visualizer supports LivePlots.
+        """Check if visualizer supports live plots.
 
         Returns:
             ``True`` if live plots are supported, otherwise ``False``.
         """
         return False
+
+    def add_live_plots(
+        self,
+        managers: dict[str, ManagerBase],
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register environment managers as live-plot data sources.
+
+        Creates one :class:`~isaaclab.ui.live_plots.ManagerLivePlots` per manager and stores
+        them for use inside :meth:`_render_live_plots`.  Does nothing when
+        :meth:`supports_live_plots` returns ``False`` or ``cfg.enable_live_plots`` is ``False``.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            term_names: Optional per-manager allowlists of term names to include.
+                ``None`` (default) collects all terms for every manager.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        if not self.supports_live_plots():
+            return
+        if not getattr(self.cfg, "enable_live_plots", True):
+            return
+        from isaaclab.ui.live_plots.manager_live_plots import ManagerLivePlots
+
+        self._live_plot_sources = [
+            ManagerLivePlots(name, mgr, (term_names or {}).get(name)) for name, mgr in managers.items()
+        ]
+        self._live_plot_env_idx = env_idx
+
+    def _render_live_plots(self) -> None:
+        """Push live-plot data to the backend for the current step.
+
+        Called from each backend's :meth:`step` implementation when live plots are active.
+        The default implementation is a no-op; backends that support live plots override this
+        method to forward collected term values to their native plotting API (e.g.
+        ``viewer.log_scalar``).
+        """
+        pass
 
     def requires_forward_before_step(self) -> bool:
         """Whether simulation should run forward() before step().

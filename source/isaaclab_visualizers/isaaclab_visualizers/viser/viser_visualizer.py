@@ -285,6 +285,7 @@ class ViserVisualizer(BaseVisualizer):
             self._viewer.log_state(self._state)
             if self.cfg.enable_markers:
                 self._render_markers(num_envs)
+            self._render_live_plots()
         finally:
             self._viewer.end_frame()
 
@@ -338,8 +339,20 @@ class ViserVisualizer(BaseVisualizer):
         return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
-        """Viser backend currently does not expose Isaac Lab live-plot widgets."""
-        return False
+        """Viser backend supports live plots via :meth:`newton.Viewer.log_scalar` (uPlot sidebar charts)."""
+        return True
+
+    def _render_live_plots(self) -> None:
+        """Push manager-term scalars to the Viser viewer's built-in plot sidebar."""
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        for source in self._live_plot_sources:
+            for term_name, values in source.collect(self._live_plot_env_idx).items():
+                if len(values) == 1:
+                    self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
+                else:
+                    for i, v in enumerate(values):
+                        self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
     def _create_viewer(self, record_to_viser: str | None, metadata: dict | None = None) -> None:
         """Create Newton-backed Viser viewer and apply initial camera.

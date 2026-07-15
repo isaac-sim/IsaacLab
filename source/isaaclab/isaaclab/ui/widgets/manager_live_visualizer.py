@@ -14,6 +14,7 @@ import numpy
 
 from isaaclab.managers import ManagerBase
 from isaaclab.sim import SimulationContext
+from isaaclab.ui.live_plots.manager_live_plots import ManagerLivePlots
 from isaaclab.utils.configclass import configclass
 
 from .image_plot import ImagePlot
@@ -71,6 +72,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         self._viewer_env_idx = 0
         self._vis_frame: omni.ui.Frame
         self._vis_window: omni.ui.Window
+        self._live_plots: ManagerLivePlots | None = None
 
         # evaluate chosen terms if no terms provided use all available.
         self.term_names = []
@@ -168,14 +170,22 @@ class ManagerLiveVisualizer(UiVisualizerBase):
             # Visualizers have not been created yet.
             return
 
-        # get updated data and update visualization
-        for (_, term), vis in zip(
-            self._manager.get_active_iterable_terms(env_idx=self._env_idx), self._term_visualizers
-        ):
+        if self._live_plots is None:
+            return
+
+        # Collect scalar and image data through the shared ManagerLivePlots collector.
+        scalar_data = self._live_plots.collect(env_idx=self._env_idx)
+        image_data = self._live_plots.collect_images(env_idx=self._env_idx)
+        all_data = {**scalar_data, **image_data}
+
+        for vis, term_name in zip(self._term_visualizers, self._term_visualizer_names):
+            values = all_data.get(term_name)
+            if values is None:
+                continue
             if isinstance(vis, LiveLinePlot):
-                vis.add_datapoint(term)
+                vis.add_datapoint(values if not isinstance(values, numpy.ndarray) else values.flatten().tolist())
             elif isinstance(vis, ImagePlot):
-                vis.update_image(numpy.array(term))
+                vis.update_image(numpy.array(values))
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set the debug visualization implementation.
@@ -187,8 +197,17 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         if not hasattr(self, "_vis_frame"):
             raise RuntimeError("No frame set for debug visualization.")
 
+        # Build or rebuild the shared data collector, respecting any term filter.
+        allowed = self.term_names if self.term_names else None
+        self._live_plots = ManagerLivePlots(
+            manager_name=self.cfg.manager_name,
+            manager=self._manager,
+            term_names=allowed,
+        )
+
         # Clear internal visualizers
         self._term_visualizers = []
+        self._term_visualizer_names = []
         self._vis_frame.clear()
 
         if debug_vis:
@@ -227,10 +246,12 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                             if len_term_shape <= 2:
                                 plot = LiveLinePlot(y_data=[[elem] for elem in term], plot_height=150, show_legend=True)
                                 self._term_visualizers.append(plot)
+                                self._term_visualizer_names.append(name)
                             # create an image plot for 2d and greater data (i.e. mono and rgb images)
                             elif len_term_shape == 3:
                                 image = ImagePlot(image=numpy.array(term), label=name)
                                 self._term_visualizers.append(image)
+                                self._term_visualizer_names.append(name)
                             else:
                                 logger.warning(
                                     f"ManagerLiveVisualizer: Term ({name}) is not a supported data type for"
