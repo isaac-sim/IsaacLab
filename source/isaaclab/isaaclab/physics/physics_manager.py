@@ -14,6 +14,10 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from pxr import Usd, UsdPhysics
+
+from isaaclab.sim.schemas.schemas import create_world_fixed_joint
+from isaaclab.sim.utils import find_global_fixed_joint_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils._device import set_cuda_device
 
@@ -119,15 +123,6 @@ class PhysicsManager(ABC):
         Raises:
             NotImplementedError: If a new joint is needed and the root is not a rigid body.
         """
-        # Keep these imports local: this module is pulled in by env configs (via manager_base)
-        # before the simulation app starts, so USD/omni modules must not be imported at the
-        # top level. This also avoids a SimulationContext -> PhysicsManager ->
-        # sim.utils.queries -> SimulationContext import cycle.
-        from pxr import UsdPhysics  # noqa: PLC0415
-
-        from isaaclab.sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
-        from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
-
         if stage is None:
             stage = get_current_stage()
         root_path = articulation_prim.GetPath().pathString
@@ -148,11 +143,6 @@ class PhysicsManager(ABC):
         companion_namespace: str,
     ) -> Any:
         """Move root-bearing schemas and authored properties to the root link's parent."""
-        # Keep pxr local: this module is imported while environment configs load (via the manager
-        # classes), and config loading must not pull USD/omni modules before the simulation app
-        # starts.
-        from pxr import Usd, UsdPhysics  # noqa: PLC0415
-
         new_root = articulation_prim.GetParent()
         if new_root.HasAPI(UsdPhysics.ArticulationRootAPI):
             raise RuntimeError(
