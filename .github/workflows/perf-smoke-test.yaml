@@ -276,11 +276,19 @@ jobs:
         # the mounted tree), not the image's era source. When the image was built from source
         # the PR code is already baked in, so no mount (preserves the proven build path).
         IMAGE_WAS_PULLED: ${{ steps.pull_image.outcome == 'success' }}
+        # Matrix values from tasks.json flow through the environment, never interpolated into
+        # into shell source, to prevent injection. They are referenced as
+        # "$VAR" below and forwarded into the container with `docker run -e`.
+        TASK_ID: ${{ matrix.task_id }}
+        PHYSICS_BACKEND: ${{ matrix.physics_backend }}
+        RENDER_BACKEND: ${{ matrix.render_backend }}
+        NUM_ENVS: ${{ matrix.num_envs }}
+        NUM_FRAMES: ${{ matrix.num_frames }}
+        WARMUP_FRAMES: ${{ matrix.warmup_frames }}
+        SEED: ${{ matrix.seed }}
+        HYDRA_ARGS: ${{ matrix.hydra_args }}
       run: |
         set -euo pipefail
-        TASK_ID="${{ matrix.task_id }}"
-        PHYSICS_BACKEND="${{ matrix.physics_backend }}"
-        RENDER_BACKEND="${{ matrix.render_backend }}"
 
         # Compute backend_key: "{physics}_{render}" when render is set, else "{physics}"
         if [ -n "${RENDER_BACKEND}" ]; then
@@ -330,10 +338,6 @@ jobs:
         # Remove any stale container from a previous run attempt
         docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
-        # perf_runtime.py accepts Hydra-style preset tokens (no leading dashes).
-        # The matrix provides the resolved Hydra tokens from tasks.json.
-        HYDRA_ARGS="${{ matrix.hydra_args }}"
-
         # Overlay the PR checkout when running a pulled (prebuilt) env image, so the
         # benchmark runs the PR's code instead of the image's baked era source. The
         # in-container user (uid 1000) must be able to write _isaac_sim into the mounted
@@ -359,26 +363,27 @@ jobs:
           -e PYTHONDONTWRITEBYTECODE=1 \
           -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
           -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+          -e TASK_ID -e NUM_ENVS -e NUM_FRAMES -e WARMUP_FRAMES -e SEED -e HYDRA_ARGS \
           -v "${ARTIFACT_DIR}:/tmp/bench_out" \
           -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
           -v "${{ github.workspace }}/kit-cache:/isaac-sim/kit/cache" \
           ${SRC_MOUNT} \
           "${{ env.CI_IMAGE_TAG }}" \
-          -c "
+          -c '
             set -e
             cd /workspace/isaaclab
             rm -f _isaac_sim
             ln -s /isaac-sim _isaac_sim
             ./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py \
-              --task '${TASK_ID}' \
-              --num_envs ${{ matrix.num_envs }} \
-              --num_frames ${{ matrix.num_frames }} \
-              --warmup_frames ${{ matrix.warmup_frames }} \
+              --task "$TASK_ID" \
+              --num_envs "$NUM_ENVS" \
+              --num_frames "$NUM_FRAMES" \
+              --warmup_frames "$WARMUP_FRAMES" \
               --benchmark_formatter schema \
               --output_path /tmp/bench_out \
-              ${{ matrix.seed != '' && format('--seed {0}', matrix.seed) || '' }} \
-              ${HYDRA_ARGS}
-          "
+              ${SEED:+--seed "$SEED"} \
+              $HYDRA_ARGS
+          '
 
         START=$(date +%s)
 
@@ -416,11 +421,16 @@ jobs:
       env:
         # Same source-overlay rule as the first attempt (see "Run benchmark in Docker").
         IMAGE_WAS_PULLED: ${{ steps.pull_image.outcome == 'success' }}
+        TASK_ID: ${{ matrix.task_id }}
+        PHYSICS_BACKEND: ${{ matrix.physics_backend }}
+        RENDER_BACKEND: ${{ matrix.render_backend }}
+        NUM_ENVS: ${{ matrix.num_envs }}
+        NUM_FRAMES: ${{ matrix.num_frames }}
+        WARMUP_FRAMES: ${{ matrix.warmup_frames }}
+        SEED: ${{ matrix.seed }}
+        HYDRA_ARGS: ${{ matrix.hydra_args }}
       run: |
         set -uo pipefail
-        TASK_ID="${{ matrix.task_id }}"
-        PHYSICS_BACKEND="${{ matrix.physics_backend }}"
-        RENDER_BACKEND="${{ matrix.render_backend }}"
 
         if [ -n "${RENDER_BACKEND}" ]; then
           BACKEND_KEY="${PHYSICS_BACKEND}_${RENDER_BACKEND}"
@@ -441,8 +451,6 @@ jobs:
         rm -f "${ARTIFACT_DIR}/perf_smoke_test_info.json"
 
         docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
-
-        HYDRA_ARGS="${{ matrix.hydra_args }}"
 
         # Overlay the PR checkout when running a pulled (prebuilt) env image (see the
         # first attempt for rationale).
@@ -466,26 +474,27 @@ jobs:
           -e PYTHONDONTWRITEBYTECODE=1 \
           -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
           -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+          -e TASK_ID -e NUM_ENVS -e NUM_FRAMES -e WARMUP_FRAMES -e SEED -e HYDRA_ARGS \
           -v "${ARTIFACT_DIR}:/tmp/bench_out" \
           -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
           -v "${{ github.workspace }}/kit-cache:/isaac-sim/kit/cache" \
           ${SRC_MOUNT} \
           "${{ env.CI_IMAGE_TAG }}" \
-          -c "
+          -c '
             set -e
             cd /workspace/isaaclab
             rm -f _isaac_sim
             ln -s /isaac-sim _isaac_sim
             ./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py \
-              --task '${TASK_ID}' \
-              --num_envs ${{ matrix.num_envs }} \
-              --num_frames ${{ matrix.num_frames }} \
-              --warmup_frames ${{ matrix.warmup_frames }} \
+              --task "$TASK_ID" \
+              --num_envs "$NUM_ENVS" \
+              --num_frames "$NUM_FRAMES" \
+              --warmup_frames "$WARMUP_FRAMES" \
               --benchmark_formatter schema \
               --output_path /tmp/bench_out \
-              ${{ matrix.seed != '' && format('--seed {0}', matrix.seed) || '' }} \
-              ${HYDRA_ARGS}
-          "
+              ${SEED:+--seed "$SEED"} \
+              $HYDRA_ARGS
+          '
 
         START=$(date +%s)
 
@@ -516,10 +525,12 @@ jobs:
     # Uses the retry's exit code and wall time when a retry ran, and sets was_retried accordingly.
     - name: Build bench_result
       if: always()
+      env:
+        # Matrix values via env, never interpolated into shell (see "Run benchmark in Docker").
+        TASK_ID: ${{ matrix.task_id }}
+        PHYSICS_BACKEND: ${{ matrix.physics_backend }}
+        RENDER_BACKEND: ${{ matrix.render_backend }}
       run: |
-        TASK_ID="${{ matrix.task_id }}"
-        PHYSICS_BACKEND="${{ matrix.physics_backend }}"
-        RENDER_BACKEND="${{ matrix.render_backend }}"
         if [ -n "${RENDER_BACKEND}" ]; then
           BACKEND_KEY="${PHYSICS_BACKEND}_${RENDER_BACKEND}"
         else
@@ -601,10 +612,11 @@ jobs:
     # Force-clean the container if the job is cancelled mid-run
     - name: Cleanup container on cancellation
       if: cancelled()
+      env:
+        TASK_ID: ${{ matrix.task_id }}
+        PHYSICS_BACKEND: ${{ matrix.physics_backend }}
+        RENDER_BACKEND: ${{ matrix.render_backend }}
       run: |
-        TASK_ID="${{ matrix.task_id }}"
-        PHYSICS_BACKEND="${{ matrix.physics_backend }}"
-        RENDER_BACKEND="${{ matrix.render_backend }}"
         if [ -n "${RENDER_BACKEND}" ]; then
           BACKEND_KEY="${PHYSICS_BACKEND}_${RENDER_BACKEND}"
         else

@@ -354,7 +354,7 @@ def main() -> int:
         # seeding loop reuses the same artifact dir, leftover files would make every
         # run re-score the FIRST run's FPS (identical samples). Removing them forces
         # this run's results to be normalized and scored.
-        for stale in [artifact_dir / "perf_smoke_test_info.json", *artifact_dir.glob("benchmark_non_rl_*.json")]:
+        for stale in [artifact_dir / "perf_smoke_test_info.json", *artifact_dir.glob("benchmark_runtime_*.json")]:
             stale.unlink(missing_ok=True)
 
         launch_config = task_to_launch_config(

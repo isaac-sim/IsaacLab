@@ -196,6 +196,7 @@ def _sample_matches(record: dict[str, Any], context: dict[str, Any] | None) -> b
         "gpu_model",
         "task_id",
         "backend_key",
+        "target_branch",
         "launch_config_hash",
         "baseline_epoch",
         "benchmark_contract_hash",
