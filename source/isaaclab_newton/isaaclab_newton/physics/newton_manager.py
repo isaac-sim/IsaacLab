@@ -1588,22 +1588,30 @@ class NewtonManager(PhysicsManager):
     @staticmethod
     def _initialize_fabric_body_prims(stage, fabric_hierarchy, usdrt, body_bindings: Sequence[tuple[str, int]]) -> None:
         """Initialize Fabric body prims used by Newton transform sync."""
+        complete_hierarchy = bool(NewtonManager._mpm_object_registry)
         for prim_path, body_index in body_bindings:
             prim = stage.GetPrimAtPath(prim_path)
             if prim.IsValid():
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 xformable_prim.SetWorldXformFromUsd()
             else:
+                if complete_hierarchy:
+                    # Solver-only bodies without USD prims are skipped for MPM hierarchy sync.
+                    continue
                 prim = stage.DefinePrim(prim_path, "Xform")
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 xformable_prim.CreateFabricHierarchyWorldMatrixAttr()
 
             prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
             prim.GetAttribute(NewtonManager._newton_index_attr).Set(body_index)
-            # Tag with PhysicsRigidBodyAPI so FabricHierarchyGpuUpdateOptions.RIGID_BODY
-            # applies Inverse propagation (preserves Newton's world transforms and derives
-            # local) instead of Forward.
-            prim.AddAppliedSchema("PhysicsRigidBodyAPI")
+            if complete_hierarchy:
+                # MPM scenes publish absolute body poses through Fabric reset-stack locals.
+                fabric_hierarchy.set_reset_xform_stack(usdrt.Sdf.Path(prim_path), True)
+            else:
+                # Tag with PhysicsRigidBodyAPI so FabricHierarchyGpuUpdateOptions.RIGID_BODY
+                # applies Inverse propagation (preserves Newton's world transforms and derives
+                # local) instead of Forward.
+                prim.AddAppliedSchema("PhysicsRigidBodyAPI")
 
         fabric_hierarchy.update_world_xforms()
 

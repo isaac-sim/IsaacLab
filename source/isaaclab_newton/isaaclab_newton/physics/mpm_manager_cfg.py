@@ -64,7 +64,32 @@ class MPMSolverCfg(NewtonSolverCfg):
     """Number of empty cells to add around particles when allocating the grid."""
 
     max_active_cell_count: int = -1
-    """Maximum active cell count for dense-grid active subsets. ``-1`` means unlimited."""
+    """Maximum active cell count shared by all worlds.
+
+    A positive value also enables capacity-bounded sparse-grid rebuilding.
+    ``-1`` retains allocating sparse behavior and leaves other grids unbounded.
+    """
+
+    max_leaf_node_count: int = -1
+    """Maximum sparse-grid leaf-node count shared by all worlds.
+
+    ``-1`` derives the capacity from :attr:`max_active_cell_count`.
+    """
+
+    max_lower_node_count: int = -1
+    """Maximum sparse-grid lower internal-node count shared by all worlds.
+
+    ``-1`` derives the capacity from the initial topology.
+    """
+
+    max_upper_node_count: int = -1
+    """Maximum sparse-grid upper internal-node count shared by all worlds.
+
+    ``-1`` derives the capacity from the initial topology.
+    """
+
+    separate_worlds: bool = False
+    """Whether each Newton world uses an independent local MPM grid environment."""
 
     transfer_scheme: Literal["apic", "pic"] = "apic"
     """Particle-grid transfer scheme."""

@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import re
 from collections.abc import Callable, Iterator, Sequence
 from typing import TYPE_CHECKING, TypeAlias
 
+import numpy as np
 import torch
 from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
@@ -63,6 +65,46 @@ def newton_builder_world_hook(
     finally:
         if hook in hooks:
             hooks.remove(hook)
+
+
+def copy_newton_source_builder(source_path: str) -> ModelBuilder:
+    """Return an independent mutable copy of a retained clone-source builder.
+
+    Args:
+        source_path: Clone-source prim path retained by the active replication
+            plan.
+
+    Returns:
+        Builder copy that can be finalized or modified independently.
+
+    Raises:
+        RuntimeError: If the source path is not part of the active clone plan.
+    """
+    prototype = NewtonManager._cl_protos.get(source_path)
+    if prototype is None:
+        available = ", ".join(sorted(NewtonManager._cl_protos))
+        raise RuntimeError(f"No Newton clone source for {source_path!r}. Available: {available}")
+
+    def copy_mutable(value):
+        if isinstance(value, list):
+            return [copy_mutable(item) for item in value]
+        if isinstance(value, dict):
+            return {key: copy_mutable(item) for key, item in value.items()}
+        if isinstance(value, set):
+            return set(value)
+        if isinstance(value, np.ndarray):
+            return value.copy()
+        return value
+
+    builder = copy.copy(prototype)
+    for name, value in vars(prototype).items():
+        if isinstance(value, (list, dict, set, np.ndarray)):
+            setattr(builder, name, copy_mutable(value))
+    builder.shape_source = [
+        source.copy() if callable(getattr(source, "copy", None)) else copy.copy(source)
+        for source in prototype.shape_source
+    ]
+    return builder
 
 
 def _build_newton_builder_from_mapping(
