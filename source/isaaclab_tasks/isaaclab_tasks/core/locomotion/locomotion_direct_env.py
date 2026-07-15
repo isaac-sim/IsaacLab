@@ -245,12 +245,7 @@ class LocomotionDirectEnv(DirectRLEnv):
 
         self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
-        if hasattr(self.robot, "write_joint_state_to_sim_index"):
-            self.robot.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
-        else:
-            # Keep compatibility with backends that do not provide the fused writer.
-            self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
-            self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+        self.robot.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
         to_target = self.targets[env_ids] - default_root_pose[:, :3]
         to_target[:, 2].zero_()
