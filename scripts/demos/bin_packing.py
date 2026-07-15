@@ -5,14 +5,14 @@
 
 """Demonstration of heterogeneous bin-packing layouts with the cloner API.
 
-This script samples a different number of grocery objects for every environment
-and declares each sampled layout as a clone combination on the scene's
-:class:`~isaaclab.cloner.CloneCfg`. The scene's replication pipeline then spawns
-only the sampled subset of objects into each environment, so environments
-genuinely differ in object count instead of parking unused objects in an
-off-screen cache. The simulation loop periodically re-drops every spawned
-grocery into its bin with pose, velocity, and mass noise, and teleports
-out-of-bounds objects back in.
+This script samples a random subset of grocery slots for every environment and
+declares each sampled layout as a clone combination on the scene's
+:class:`~isaaclab.cloner.CloneCfg`. The scene's replication pipeline then
+spawns only the sampled subset of objects into each environment, so
+environments genuinely differ in object count and composition instead of
+parking unused objects in an off-screen cache. The simulation loop
+periodically re-drops every spawned grocery into its bin with pose, velocity,
+and mass noise, teleporting out-of-bounds objects back in.
 
 .. note::
     Heterogeneous per-environment object counts require the PhysX backend.
@@ -93,7 +93,7 @@ BIN_DIMENSIONS = (0.2, 0.3, 0.15)  # Physical size (m) of the storage bin.
 BIN_XY_BOUND = ((-0.2, -0.3), (0.2, 0.3))  # Valid XY region (min/max) for groceries.
 
 # Uniform reset noise ranges per [x, y, z, roll, pitch, yaw] ([m], [rad] and [m/s], [rad/s]).
-POSE_NOISE_RANGE = ((0.0, 0.0),) * 3 + ((-3.14, 3.14),) * 3
+POSE_NOISE_RANGE = ((-0.02, 0.02), (-0.03, 0.03), (0.0, 0.0)) + ((-3.14, 3.14),) * 3
 VELOCITY_NOISE_RANGE = ((0.0, 0.0),) * 3 + ((-0.2, 1.0),) * 3
 
 GROCERY_USDS = [
@@ -134,7 +134,7 @@ def grocery_spawn_poses(device: str = "cpu") -> torch.Tensor:
 
 
 def make_bin_packing_scene_cfg(
-    layout_counts: list[int],
+    layouts: list[list[int]],
     num_envs: int,
     env_spacing: float,
     replicate_physics: bool,
@@ -143,12 +143,12 @@ def make_bin_packing_scene_cfg(
 
     One :class:`~isaaclab.assets.RigidObjectCfg` field is declared per grocery slot,
     and each sampled layout becomes one :class:`~isaaclab.cloner.InclusionSet`
-    activating the first ``count`` slots. With the :func:`~isaaclab.cloner.sequential`
+    activating exactly the slots it lists. With the :func:`~isaaclab.cloner.sequential`
     clone strategy and one combination per environment, environment ``i`` receives
-    exactly ``layout_counts[i]`` objects.
+    exactly the slots in ``layouts[i]``.
 
     Args:
-        layout_counts: Sampled object count per environment.
+        layouts: Sampled grocery slot indices per environment.
         num_envs: Number of environments to spawn.
         env_spacing: Distance between environment origins [m].
         replicate_physics: Whether physics replication is enabled on the scene.
@@ -195,9 +195,9 @@ def make_bin_packing_scene_cfg(
     # referenced by any combination, so they stay active in every environment.
     # The zero-weight row claims every slot without spawning anything: assets no
     # combination mentions would otherwise default to active in every environment,
-    # which would wrongly spawn the slots above the largest sampled count.
+    # which would wrongly spawn the types missing from every sampled layout.
     clone_cfg = CloneCfg(
-        clone_combinations=[InclusionSet(assets=GROCERY_NAMES[:count]) for count in layout_counts]
+        clone_combinations=[InclusionSet(assets=[GROCERY_NAMES[slot] for slot in layout]) for layout in layouts]
         + [InclusionSet(assets=GROCERY_NAMES, weight=0)],
         clone_strategy=sequential,
     )
@@ -226,9 +226,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
     """
     device = scene.device
     # Resolve each spawned slot once: (asset, env ids owning an instance, world spawn poses).
-    spawn_poses = grocery_spawn_poses(device)
+    # The spawn pose is the asset's default (init-state) pose, which carries the jittered
+    # grid position sampled by :func:`grocery_spawn_poses` at scene-config build time.
     groceries = []
-    for slot, name in enumerate(GROCERY_NAMES):
+    for name in GROCERY_NAMES:
         if name not in scene.rigid_objects:
             continue
         asset = scene[name]
@@ -239,7 +240,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
             # Homogeneous fallback (e.g. Newton): one instance per environment.
             env_ids = range(asset.num_instances)
         env_ids = torch.tensor(list(env_ids), dtype=torch.long, device=device)
-        spawn_pose_w = spawn_poses[slot].repeat(len(env_ids), 1)
+        spawn_pose_w = asset.data.default_root_pose.torch.clone()
         spawn_pose_w[:, :3] += scene.env_origins[env_ids]
         groceries.append((asset, env_ids, spawn_pose_w))
 
@@ -313,11 +314,14 @@ def main():
         if args_cli.seed is not None:
             torch.manual_seed(args_cli.seed)
 
-        # Sample one bin layout per environment. Newton requires an identical body set
-        # in every environment, so it gets a single shared layout instead.
-        counts = torch.randint(MIN_OBJECTS_PER_BIN, MAX_OBJECTS_PER_BIN + 1, (args_cli.num_envs,)).tolist()
-        layout_counts = counts if not isinstance(physics_cfg, NewtonCfg) else [counts[0]] * args_cli.num_envs
-        print(f"[INFO] Sampled bin layouts (objects per environment): {layout_counts}")
+        # Sample one bin layout per environment: first how many objects, then which
+        # grocery slots provide them. Newton requires an identical body set in every
+        # environment, so it gets a single shared layout instead.
+        counts = torch.randint(MIN_OBJECTS_PER_BIN, MAX_OBJECTS_PER_BIN + 1, (args_cli.num_envs,))
+        layouts = [torch.randperm(MAX_OBJECTS_PER_BIN)[:count].tolist() for count in counts]
+        if isinstance(physics_cfg, NewtonCfg):
+            layouts = [layouts[0]] * args_cli.num_envs
+        print(f"[INFO] Sampled bin layouts (objects per environment): {[len(layout) for layout in layouts]}")
 
         # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
@@ -330,7 +334,7 @@ def main():
         # layouts here need per-environment parsing. The homogeneous Newton
         # fallback keeps the fast path.
         scene_cfg = make_bin_packing_scene_cfg(
-            layout_counts,
+            layouts,
             num_envs=args_cli.num_envs,
             env_spacing=1.0,
             replicate_physics=isinstance(physics_cfg, NewtonCfg),
