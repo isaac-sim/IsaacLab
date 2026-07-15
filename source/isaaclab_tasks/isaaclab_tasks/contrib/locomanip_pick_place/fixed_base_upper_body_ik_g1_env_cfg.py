@@ -239,7 +239,7 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
 
     # Table
     packing_table = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/PackingTable",
+        prim_path="{ENV_REGEX_NS}/PackingTable",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
@@ -258,7 +258,7 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     )
 
     # Unitree G1 Humanoid robot - fixed base configuration
-    robot: ArticulationCfg = G1_29DOF_CFG
+    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # Ground plane
     ground = AssetBaseCfg(
