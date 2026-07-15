@@ -181,7 +181,7 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
         np.testing.assert_allclose(body_q, root_pose.detach().cpu().numpy()[0], rtol=1.0e-5, atol=1.0e-6)
 
 
-def test_mpm_object_creates_kit_points_when_kit_visualizer_requested(monkeypatch):
+def test_mpm_object_creates_particle_visualization_prims():
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
@@ -202,7 +202,6 @@ def test_mpm_object_creates_kit_points_when_kit_visualizer_requested(monkeypatch
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["kit"])
         scene = InteractiveScene(MPMSceneCfg(num_envs=2, env_spacing=1.0))
         sim.reset()
 
@@ -225,7 +224,7 @@ def test_mpm_object_creates_kit_points_when_kit_visualizer_requested(monkeypatch
             assert tuple(points.GetDisplayColorAttr().Get()[0]) == pytest.approx((0.1, 0.2, 0.3))
 
 
-def test_mpm_kit_points_follow_particle_state(monkeypatch):
+def test_mpm_particle_visualization_follows_particle_state():
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
@@ -246,7 +245,6 @@ def test_mpm_kit_points_follow_particle_state(monkeypatch):
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["kit"])
         scene = InteractiveScene(MPMSceneCfg(num_envs=1, env_spacing=0.0))
         sim.reset()
 

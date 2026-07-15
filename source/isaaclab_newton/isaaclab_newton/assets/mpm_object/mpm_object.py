@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -343,14 +344,19 @@ class MPMObject(BaseDeformableObject):
         )
         self._data.default_nodal_state_w = ProxyArray(default_state)
         self._data.default_particle_state_w = self._data.default_nodal_state_w
-        self._create_kit_points()
+        self._create_particle_visualization()
 
-    def _create_kit_points(self) -> None:
-        """Create Kit-visible ``UsdGeom.Points`` prims for the particles when the Kit visualizer is active."""
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+    def _create_particle_visualization(self) -> None:
+        """Create ``UsdGeom.Points`` prims mirroring the particle state for USD-based renderers.
 
-        sim = SimulationContext.instance()
-        if sim is None or "kit" not in sim.resolve_visualizer_types() or not self.cfg.spawn.visible:
+        The prims are authored inside the environment hierarchy, as a ``Particles`` child of the
+        asset prim (e.g. ``/World/envs/env_{idx}/Media/Particles``), so each inherits its
+        environment's ``omni:scenePartition`` and is drawn in the correct tile by partition-aware
+        renderers. The prims are created whenever the object is configured visible; the spawner does
+        not inspect the active render backend. Per-frame position updates are handled by
+        :meth:`~isaaclab_newton.physics.NewtonManager.sync_particles_to_usd`.
+        """
+        if not self.cfg.spawn.visible:
             return
 
         first_offset = self._recorded_particle_offsets[0]
@@ -359,10 +365,11 @@ class MPMObject(BaseDeformableObject):
             .particle_radius[first_offset : first_offset + self._particles_per_object]
             .numpy()
         )
-        base_path = _create_kit_visualization_path(self.cfg.prim_path)
+        positions = self.data.particle_pos_w.warp.numpy()
+        prim_paths = _particle_visualization_paths(self.cfg.prim_path, positions.shape[0])
         prim_paths = create_mpm_particle_visualization(
-            prim_path=base_path,
-            positions=self.data.particle_pos_w.warp.numpy(),
+            prim_paths=prim_paths,
+            positions=positions,
             widths=2.0 * radii,
             color=self.cfg.spawn.visual_color,
         )
@@ -373,7 +380,7 @@ class MPMObject(BaseDeformableObject):
                 particle_count=self._particles_per_object,
                 sync_frequency=self.cfg.spawn.visual_update_frequency,
             )
-        logger.info("Kit MPM particle visualization initialized at: %s", base_path)
+        logger.info("MPM particle visualization initialized under: %s", self.cfg.prim_path)
 
     def _resolve_env_ids(self, env_ids):
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
@@ -441,6 +448,11 @@ def _compose_env_asset_pose(
     return (float(pos[0]), float(pos[1]), float(pos[2])), (float(rot[0]), float(rot[1]), float(rot[2]), float(rot[3]))
 
 
-def _create_kit_visualization_path(prim_path: str) -> str:
-    sanitized = "".join(char if char.isalnum() else "_" for char in prim_path.strip("/"))
-    return f"/World/Visuals/MPMParticles/{sanitized or 'Object'}"
+def _particle_visualization_paths(prim_path: str, num_envs: int) -> list[str]:
+    """Resolve one in-hierarchy ``UsdGeom.Points`` path per environment.
+
+    The particle cloud is authored as a ``Particles`` child of the asset prim, resolving the
+    cloned environment wildcard (``env_.*``) to each concrete index, so the prim lives under
+    ``/World/envs/env_{idx}/<Asset>/Particles`` and inherits the environment's scene partition.
+    """
+    return [re.sub(r"(?<=[Ee]nv_)\.\*", str(env_idx), prim_path) + "/Particles" for env_idx in range(num_envs)]
