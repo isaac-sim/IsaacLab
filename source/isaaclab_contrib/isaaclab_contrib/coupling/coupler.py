@@ -112,9 +112,6 @@ class NewtonCouplerManager(NewtonVBDManager):
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = needs_collision_pipeline
-        NewtonManager._needs_fk_before_step = any(
-            isinstance(entry.config.solver_cfg, MPMSolverCfg) for entry in resolved_entries
-        )
 
     @classmethod
     def _validate_config(cls, solver_cfg: CouplerCfg) -> None:

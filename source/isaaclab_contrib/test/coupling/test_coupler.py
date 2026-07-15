@@ -565,16 +565,16 @@ def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("case", "expected_outer", "expected_fk"),
+    ("case", "expected_outer"),
     [
-        ("mjwarp_internal", False, False),
-        ("mjwarp_external", True, False),
-        ("mpm", False, True),
-        ("destination_fallback", True, False),
-        ("destination_factory_fallback", True, False),
+        ("mjwarp_internal", False),
+        ("mjwarp_external", True),
+        ("mpm", False),
+        ("destination_fallback", True),
+        ("destination_factory_fallback", True),
     ],
 )
-def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expected_outer, expected_fk):
+def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expected_outer):
     """Proxy entries request shared contacts only when one of their solve paths consumes them."""
     model = _FakeModel()
     if case == "destination_fallback":
@@ -602,7 +602,6 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
         "_needs_collision_pipeline",
         "_supports_contact_sensors",
         "_report_contacts",
-        "_needs_fk_before_step",
     ):
         monkeypatch.setattr(coupler.NewtonManager, attribute, getattr(coupler.NewtonManager, attribute))
 
@@ -644,7 +643,6 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     NewtonCouplerManager._build_solver(model, proxy_cfg)
 
     assert coupler.NewtonManager._needs_collision_pipeline is expected_outer
-    assert coupler.NewtonManager._needs_fk_before_step is expected_fk
     assert coupler.NewtonManager._supports_contact_sensors is False
     assert recorded_entries == ["rigid", "soft"]
 
@@ -659,7 +657,6 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
         "_needs_collision_pipeline",
         "_supports_contact_sensors",
         "_report_contacts",
-        "_needs_fk_before_step",
     ):
         monkeypatch.setattr(coupler.NewtonManager, attribute, getattr(coupler.NewtonManager, attribute))
     monkeypatch.setattr(
@@ -693,7 +690,6 @@ def test_contact_sensor_guard_does_not_mutate_manager_state(monkeypatch):
     monkeypatch.setattr(coupler.NewtonManager, "_use_single_state", True)
     monkeypatch.setattr(coupler.NewtonManager, "_needs_collision_pipeline", True)
     monkeypatch.setattr(coupler.NewtonManager, "_supports_contact_sensors", True)
-    monkeypatch.setattr(coupler.NewtonManager, "_needs_fk_before_step", True)
     monkeypatch.setattr(coupler.NewtonManager, "_report_contacts", True)
 
     with pytest.raises(NotImplementedError, match="contact sensors"):
@@ -703,7 +699,6 @@ def test_contact_sensor_guard_does_not_mutate_manager_state(monkeypatch):
     assert coupler.NewtonManager._use_single_state is True
     assert coupler.NewtonManager._needs_collision_pipeline is True
     assert coupler.NewtonManager._supports_contact_sensors is True
-    assert coupler.NewtonManager._needs_fk_before_step is True
 
 
 class _RecordingAdmm:
