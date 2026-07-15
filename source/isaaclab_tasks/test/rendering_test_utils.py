@@ -1348,6 +1348,9 @@ def rendering_test_franka_cloth(
     if physics_backend == "ovphysx":
         pytest.skip("FrankaCloth env cfg does not define an ovphysx preset yet.")
 
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
+        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_cloth (OMPE-101520).")
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
@@ -1471,6 +1474,9 @@ def rendering_test_franka_soft(
 ) -> None:
     if physics_backend == "ovphysx":
         pytest.skip("FrankaSoft env cfg does not define an ovphysx preset yet.")
+
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
+        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_soft (OMPE-101520).")
 
     if physics_backend == "physx" and renderer == "newton_renderer":
         pytest.skip("The test cases will be enabled after Newton Github Issue#3228 is fixed.")
