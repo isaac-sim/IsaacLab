@@ -117,6 +117,12 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
             ("th_tip", "th_medial"),
         ],
         joint_velocity_limit_deg_s=360.0,
+        # Motor rotor inertia, absent from the Menagerie MJCF. The stock v4 links are
+        # ~2.6x lighter than the legacy BioTac hand's, leaving the joint-space inertia
+        # near zero; the model is authored for MuJoCo's default 2 ms timestep and the
+        # unconditioned dynamics turn contact into noise at coarser steps (reorient
+        # success 0.16 -> 1.0 at 1500 iterations). Same value the Shadow Hand uses.
+        joint_armature=2e-3,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         # Offset so the cube's measured rest point coincides with the task's in-hand target
@@ -140,12 +146,6 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
             stiffness=3.0,
             damping=0.1,
             friction=0.01,
-            # Motor rotor inertia, absent from the Menagerie MJCF. The stock v4 links are
-            # ~2.6x lighter than the legacy BioTac hand's, so without armature the joint-
-            # space inertia is near zero and MJWarp contact dynamics are too noisy to
-            # learn from (reorient success 0.16 -> 1.0 at 1500 iterations with this value;
-            # same value the Shadow Hand configuration uses).
-            armature=2e-3,
         ),
     },
     soft_joint_pos_limit_factor=1.0,

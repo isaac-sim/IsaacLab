@@ -61,7 +61,7 @@ _PATCH_CACHE_ROOT = os.path.join(os.path.expanduser("~"), ".cache", "isaaclab", 
 _PATCH_MARKER_KEY = "isaaclabMenageriePatchVersion"
 """``customLayerData`` key stamped on a fully patched entry layer."""
 
-_PATCH_VERSION = 2
+_PATCH_VERSION = 4
 """Bump when the set or content of the fixes below changes, to invalidate stale caches."""
 
 
@@ -236,6 +236,54 @@ def _author_joint_velocity_limit(physx_layer: str, limit_deg_s: float) -> None:
     _log_applied(f"{fix} ({limit_deg_s} deg/s on {len(missing)} joints)")
 
 
+def _author_joint_armature(mujoco_layer: str, physx_layer: str, armature: float) -> None:
+    """Author the motor rotor inertia on every revolute joint, in both physics variants.
+
+    UPSTREAM(model): the Menagerie MJCF authors no ``armature``, but the physical hand's
+    motors have rotor inertia, and the stock links are light enough that without it the
+    joint-space inertia is near zero. The model is authored for MuJoCo's default 2 ms
+    timestep; at the coarser steps engines commonly run, integration of the unconditioned
+    dynamics turns contact into noise (Allegro reorient success 0.16 vs 1.0 at 1500
+    iterations). Authored as ``mjc:armature`` in the ``mujoco`` layer (consumed by
+    Newton's importer) and ``physxJoint:armature`` in the ``physx`` layer. Delete once
+    the source model (or the robot spec upstream) authors it.
+    """
+    from pxr import Sdf, Usd, UsdPhysics
+
+    fix = f"author joint armature ({armature})"
+
+    def joints_of(layer_path):
+        stage = Usd.Stage.Open(layer_path)
+        return stage, [
+            prim
+            for prim in stage.TraverseAll()
+            if prim.GetTypeName() == "PhysicsRevoluteJoint" or prim.IsA(UsdPhysics.RevoluteJoint)
+        ]
+
+    authored = 0
+    # ``newton:armature`` is what Isaac Lab's Newton import path reads (its schema
+    # resolver list is [newton, physx]; the mjc resolver is not registered).
+    # ``mjc:armature`` keeps the mujoco variant faithful for native MuJoCo-USD
+    # consumers; ``physxJoint:armature`` covers the physx variant.
+    for layer_path, attr_name, sdf_type in (
+        (mujoco_layer, "newton:armature", Sdf.ValueTypeNames.Float),
+        (mujoco_layer, "mjc:armature", Sdf.ValueTypeNames.Double),
+        (physx_layer, "physxJoint:armature", Sdf.ValueTypeNames.Float),
+    ):
+        stage, joints = joints_of(layer_path)
+        missing = [j for j in joints if not j.GetAttribute(attr_name).HasAuthoredValue()]
+        for joint in missing:
+            over = stage.OverridePrim(joint.GetPath())
+            over.CreateAttribute(attr_name, sdf_type).Set(armature)
+        if missing:
+            stage.GetRootLayer().Save()
+            authored += len(missing)
+    if authored == 0:
+        _log_skipped(fix)
+        return
+    _log_applied(f"{fix} ({authored} joint attribute(s) across variants)")
+
+
 def _author_shadow_fixed_tendons(physx_layer: str) -> None:
     """Author the PhysX fixed tendons that the Menagerie ``physx`` layer omits.
 
@@ -294,6 +342,7 @@ def patch_menagerie_asset(
     author_static_friction: bool = True,
     filtered_body_pairs: Iterable[tuple[str, str]] = (),
     joint_velocity_limit_deg_s: float | None = None,
+    joint_armature: float | None = None,
     author_shadow_tendons: bool = False,
 ) -> str:
     """Apply the Menagerie conversion fixes in place to a copy of an asset directory.
@@ -313,6 +362,8 @@ def patch_menagerie_asset(
             by the conversion's weld splits).
         joint_velocity_limit_deg_s: Max joint velocity [deg/s] to author on every revolute
             joint in the ``physx`` layer. When ``None``, no limit is authored.
+        joint_armature: Motor rotor inertia to author on every revolute joint, in both
+            the ``mujoco`` and ``physx`` layers. When ``None``, none is authored.
         author_shadow_tendons: Author the four Shadow-hand distal-middle fixed tendons in
             the ``physx`` layer.
 
@@ -343,6 +394,8 @@ def patch_menagerie_asset(
         _author_filtered_pairs(physics_layer, list(filtered_body_pairs))
     if joint_velocity_limit_deg_s is not None:
         _author_joint_velocity_limit(physx_layer, joint_velocity_limit_deg_s)
+    if joint_armature is not None:
+        _author_joint_armature(mujoco_layer, physx_layer, joint_armature)
     if author_shadow_tendons:
         _author_shadow_fixed_tendons(physx_layer)
 
@@ -450,6 +503,7 @@ def _ensure_patched_asset(cfg: "MenageriePatchedUsdFileCfg") -> str:
                 author_static_friction=cfg.author_static_friction,
                 filtered_body_pairs=cfg.filtered_body_pairs,
                 joint_velocity_limit_deg_s=cfg.joint_velocity_limit_deg_s,
+                joint_armature=cfg.joint_armature,
                 author_shadow_tendons=cfg.author_shadow_tendons,
             )
     return entry_path
@@ -501,6 +555,9 @@ class MenageriePatchedUsdFileCfg(sim_utils.UsdFileCfg):
 
     joint_velocity_limit_deg_s: float | None = None
     """Max joint velocity [deg/s] to author on every revolute joint in the ``physx`` layer."""
+
+    joint_armature: float | None = None
+    """Motor rotor inertia to author on every revolute joint, in both physics variants."""
 
     author_shadow_tendons: bool = False
     """Author the four Shadow-hand distal-middle fixed tendons in the ``physx`` layer."""
