@@ -866,6 +866,28 @@ def write_2d_data_to_buffer_with_indices(
 
 
 @wp.kernel
+def write_joint_state_to_buffer_with_indices(
+    position: wp.array2d(dtype=wp.float32),
+    velocity: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    out_position: wp.array2d(dtype=wp.float32),
+    out_velocity: wp.array2d(dtype=wp.float32),
+    previous_velocity: wp.array2d(dtype=wp.float32),
+    acceleration: wp.array2d(dtype=wp.float32),
+):
+    """Write joint position and velocity state to selected buffer entries."""
+    i, j = wp.tid()
+    env_id = env_ids[i]
+    joint_id = joint_ids[j]
+    joint_velocity = velocity[i, j]
+    out_position[env_id, joint_id] = position[i, j]
+    out_velocity[env_id, joint_id] = joint_velocity
+    previous_velocity[env_id, joint_id] = joint_velocity
+    acceleration[env_id, joint_id] = 0.0
+
+
+@wp.kernel
 def write_body_inertia_to_buffer_index(
     in_data: wp.array3d(dtype=wp.float32),
     env_ids: wp.array(dtype=wp.int32),

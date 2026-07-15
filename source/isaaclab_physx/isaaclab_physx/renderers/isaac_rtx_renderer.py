@@ -447,6 +447,11 @@ class IsaacRtxRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
         pass
 
+    def update_geometries(self) -> None:
+        """No-op for Isaac RTX - uses USD scene directly.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries`."""
+        pass
+
     def update_camera(
         self,
         render_data: IsaacRtxRenderData,

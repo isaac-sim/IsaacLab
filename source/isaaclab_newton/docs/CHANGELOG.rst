@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.9.1 (2026-07-15)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_newton.renderers.newton_warp_renderer.NewtonWarpRenderer.update_geometries`
+  as a no-op hook implementation; Newton Warp reads deformable geometry directly
+  from Newton simulation state during rendering.
+
+
 1.9.0 (2026-07-14)
 ~~~~~~~~~~~~~~~~~~
 
