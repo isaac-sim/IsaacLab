@@ -46,6 +46,9 @@ from isaaclab.sim import SimulationContext
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpolePhysicsCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
+from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
 
 # Debugging mode configs.
 
@@ -1254,6 +1257,190 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
         )
 
     _attempt_replay()
+
+
+_SHADOW_HAND_INTEGRATION_NUM_ENVS = 1
+"""Vectorized env count for shadow hand + visualizer golden-image tests (viewport mode)."""
+
+_SHADOW_HAND_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
+"""Vectorized env count for shadow hand + visualizer golden-image tests (tiled mode)."""
+
+_SHADOW_HAND_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (0.4, 0.4, 1.0)
+"""Shadow hand golden test camera eye position: slightly above and to the side of the hand."""
+
+_SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 0.6)
+"""Shadow hand golden test camera lookat: wrist/hand level at the env origin."""
+
+_SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(  # type: ignore[assignment]
+    eye - lookat
+    for eye, lookat in zip(_SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT)
+)
+"""Target-relative eye offset for shadow hand generated tiled cameras."""
+
+_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
+"""Kit render product resolution for shadow hand viewport golden tests."""
+
+_SHADOW_HAND_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
+"""Newton viewer framebuffer size for shadow hand golden tests."""
+
+_SHADOW_HAND_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
+"""Number of generated tiled camera tiles for shadow hand golden tests."""
+
+_SHADOW_HAND_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
+"""Shadow hand articulation root prim followed by generated tiled cameras."""
+
+_ANYMAL_D_INTEGRATION_NUM_ENVS = 1
+"""Vectorized env count for AnymalD + visualizer golden-image tests (viewport mode)."""
+
+_ANYMAL_D_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
+"""Vectorized env count for AnymalD + visualizer golden-image tests (tiled mode)."""
+
+_ANYMAL_D_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (2.5, 2.5, 1.5)
+"""AnymalD golden test camera eye position: classic 3/4 view from above."""
+
+_ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 0.5)
+"""AnymalD golden test camera lookat: body height of the standing robot."""
+
+_ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(  # type: ignore[assignment]
+    eye - lookat for eye, lookat in zip(_ANYMAL_D_INTEGRATION_VISUALIZER_EYE, _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT)
+)
+"""Target-relative eye offset for AnymalD generated tiled cameras."""
+
+_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
+"""Kit render product resolution for AnymalD viewport golden tests."""
+
+_ANYMAL_D_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
+"""Newton viewer framebuffer size for AnymalD golden tests."""
+
+_ANYMAL_D_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
+"""Number of generated tiled camera tiles for AnymalD golden tests."""
+
+_ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
+"""AnymalD articulation root prim followed by generated tiled cameras."""
+
+
+def _make_shadow_hand_env(
+    visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
+) -> ReorientDirectEnv:
+    """Create a shadow hand env configured with selected visualizer and physics backend.
+
+    All backend-specific :class:`~isaaclab_tasks.utils.PresetCfg` fields on
+    :class:`~isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg.ShadowHandEnvCfg`
+    are resolved before the env is constructed.
+    """
+    env_cfg = copy.deepcopy(ShadowHandEnvCfg())
+    preset_key = "newton_mjwarp" if backend_kind == "newton" else "default"
+    env_cfg.sim.physics = getattr(env_cfg.sim.physics, preset_key)
+    env_cfg.scene = getattr(env_cfg.scene, preset_key)
+    env_cfg.robot_cfg = getattr(env_cfg.robot_cfg, preset_key)
+    env_cfg.object_cfg = getattr(env_cfg.object_cfg, preset_key)
+    env_cfg.events = getattr(env_cfg.events, preset_key)
+    env_cfg.scene.num_envs = (
+        _SHADOW_HAND_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _SHADOW_HAND_INTEGRATION_NUM_ENVS
+    )
+    env_cfg.viewer.eye = _SHADOW_HAND_INTEGRATION_VISUALIZER_EYE
+    env_cfg.viewer.lookat = _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT
+    env_cfg.seed = None
+    cam = {"eye": _SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, "lookat": _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT}
+    tiled_cam = (
+        {
+            "tiled_cam_view": True,
+            "tiled_cam_num": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "tiled_cam_prim_path": None,
+            "tiled_cam_eye": _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "tiled_cam_target_prim_path": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+        }
+        if tiled_camera
+        else {}
+    )
+    visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
+    visualizer_cfgs = []
+    for kind in visualizer_kinds:
+        if kind == "newton":
+            __import__("newton")
+            nw, nh = _SHADOW_HAND_NEWTON_INTEGRATION_WINDOW_SIZE
+            visualizer_cfgs.append(
+                NewtonVisualizerCfg(
+                    headless=True,
+                    window_width=nw,
+                    window_height=nh,
+                    randomly_sample_visible_envs=False,
+                    **tiled_cam,
+                    **cam,
+                )
+            )
+        else:
+            visualizer_cfgs.append(
+                KitVisualizerCfg(
+                    window_width=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION[0],
+                    window_height=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    randomly_sample_visible_envs=False,
+                    **tiled_cam,
+                    **cam,
+                )
+            )
+    env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
+    return ReorientDirectEnv(env_cfg)
+
+
+def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False):
+    """Create an AnymalD flat env configured with selected visualizer and physics backend.
+
+    :class:`~isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg.AnymalDFlatEnvCfg`
+    is a :class:`~isaaclab.envs.ManagerBasedRLEnv`; the returned instance uses
+    :class:`~isaaclab.envs.ManagerBasedRLEnv` directly.
+    """
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env_cfg = copy.deepcopy(AnymalDFlatEnvCfg())
+    preset_key = "newton_mjwarp" if backend_kind == "newton" else "default"
+    env_cfg.sim.physics = getattr(env_cfg.sim.physics, preset_key)
+    env_cfg.scene.num_envs = (
+        _ANYMAL_D_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _ANYMAL_D_INTEGRATION_NUM_ENVS
+    )
+    env_cfg.viewer.eye = _ANYMAL_D_INTEGRATION_VISUALIZER_EYE
+    env_cfg.viewer.lookat = _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT
+    env_cfg.seed = None
+    cam = {"eye": _ANYMAL_D_INTEGRATION_VISUALIZER_EYE, "lookat": _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT}
+    tiled_cam = (
+        {
+            "tiled_cam_view": True,
+            "tiled_cam_num": _ANYMAL_D_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "tiled_cam_prim_path": None,
+            "tiled_cam_eye": _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "tiled_cam_target_prim_path": _ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+        }
+        if tiled_camera
+        else {}
+    )
+    visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
+    visualizer_cfgs = []
+    for kind in visualizer_kinds:
+        if kind == "newton":
+            __import__("newton")
+            nw, nh = _ANYMAL_D_NEWTON_INTEGRATION_WINDOW_SIZE
+            visualizer_cfgs.append(
+                NewtonVisualizerCfg(
+                    headless=True,
+                    window_width=nw,
+                    window_height=nh,
+                    randomly_sample_visible_envs=False,
+                    **tiled_cam,
+                    **cam,
+                )
+            )
+        else:
+            visualizer_cfgs.append(
+                KitVisualizerCfg(
+                    window_width=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[0],
+                    window_height=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    randomly_sample_visible_envs=False,
+                    **tiled_cam,
+                    **cam,
+                )
+            )
+    env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
+    return ManagerBasedRLEnv(env_cfg)
 
 
 def _make_cartpole_camera_env(

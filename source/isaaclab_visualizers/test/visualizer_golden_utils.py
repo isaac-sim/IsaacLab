@@ -467,6 +467,164 @@ def run_visualizer_golden_cartpole(
         _viz_utils._cleanup_visualizer_test_process(env)
 
 
+def run_visualizer_golden_shadow_hand(
+    physics_backend: str,
+    visualizer_type: str,
+    mode: str,
+    comparison_scores: list[dict],
+) -> None:
+    """Run a golden-image test for shadow hand + one ``(physics_backend, visualizer_type, mode)`` combination.
+
+    Args:
+        physics_backend: ``"physx"`` or ``"newton"``.
+        visualizer_type: ``"kit"`` (RTX viewport) or ``"newton"`` (OpenGL).
+        mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
+        comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
+    """
+    import contextlib
+
+    import torch
+    import visualizer_integration_utils as _viz_utils
+    from isaaclab_visualizers.kit import KitVisualizer
+    from isaaclab_visualizers.newton import NewtonVisualizer
+
+    import isaaclab.sim as sim_utils
+
+    def _get_active_visualizer(env, viz_type: str):
+        cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
+        matches = [v for v in env.sim.visualizers if isinstance(v, cls)]
+        assert matches, f"Expected a {viz_type} visualizer in env.sim.visualizers."
+        return matches[0]
+
+    def _capture_frame(env, viz_type: str, capture_mode: str, backend: str, actions: torch.Tensor):
+        if capture_mode == "tiled":
+            viz = _get_active_visualizer(env, viz_type)
+            return _viz_utils._capture_visualizer_tiled_camera_rgb(viz)
+
+        if viz_type == "kit":
+            kit_viz = _get_active_visualizer(env, "kit")
+            camera_path = getattr(kit_viz, "_controlled_camera_path", None)
+            assert camera_path, "KitVisualizer did not expose a controlled camera path."
+            annotator, render_product = _viz_utils._build_rgb_annotator_for_camera(
+                camera_path, resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION
+            )
+            try:
+                _viz_utils._warm_kit_rtx_render_product(env, annotator)
+                if backend == "newton":
+                    _viz_utils._reapply_kit_camera_pose(env, kit_viz)
+                return _viz_utils._capture_kit_viewport_rgb(annotator)
+            finally:
+                with contextlib.suppress(Exception):
+                    annotator.detach([render_product])
+
+        newton_viz = _get_active_visualizer(env, "newton")
+        viewer = getattr(newton_viz, "_viewer", None)
+        assert viewer is not None, "NewtonVisualizer did not create a viewer."
+        _viz_utils._warm_newton_viewer(newton_viz, viewer)
+        return _viz_utils._frame_to_numpy(viewer.get_frame())
+
+    env = None
+    try:
+        _viz_utils._prepare_visualizer_test_process()
+        sim_utils.create_new_stage()
+        tiled = mode == "tiled"
+        env = _viz_utils._make_shadow_hand_env(visualizer_type, physics_backend, tiled_camera=tiled)
+        _viz_utils._configure_sim_for_visualizer_test(env)  # type: ignore[arg-type]
+        actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+        from isaaclab.utils.seed import configure_seed
+
+        configure_seed(42, torch_deterministic=True)
+        env.reset()
+
+        for _ in range(_viz_utils._START_BUFFER_STEPS):
+            env.step(action=actions)
+
+        frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
+
+        validate_visualizer_frame("shadow_hand", physics_backend, visualizer_type, mode, frame, comparison_scores)
+    finally:
+        _viz_utils._cleanup_visualizer_test_process(env)
+
+
+def run_visualizer_golden_anymal_d(
+    physics_backend: str,
+    visualizer_type: str,
+    mode: str,
+    comparison_scores: list[dict],
+) -> None:
+    """Run a golden-image test for AnymalD + one ``(physics_backend, visualizer_type, mode)`` combination.
+
+    Args:
+        physics_backend: ``"physx"`` or ``"newton"``.
+        visualizer_type: ``"kit"`` (RTX viewport) or ``"newton"`` (OpenGL).
+        mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
+        comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
+    """
+    import contextlib
+
+    import torch
+    import visualizer_integration_utils as _viz_utils
+    from isaaclab_visualizers.kit import KitVisualizer
+    from isaaclab_visualizers.newton import NewtonVisualizer
+
+    import isaaclab.sim as sim_utils
+
+    def _get_active_visualizer(env, viz_type: str):
+        cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
+        matches = [v for v in env.sim.visualizers if isinstance(v, cls)]
+        assert matches, f"Expected a {viz_type} visualizer in env.sim.visualizers."
+        return matches[0]
+
+    def _capture_frame(env, viz_type: str, capture_mode: str, backend: str, actions: torch.Tensor):
+        if capture_mode == "tiled":
+            viz = _get_active_visualizer(env, viz_type)
+            return _viz_utils._capture_visualizer_tiled_camera_rgb(viz)
+
+        if viz_type == "kit":
+            kit_viz = _get_active_visualizer(env, "kit")
+            camera_path = getattr(kit_viz, "_controlled_camera_path", None)
+            assert camera_path, "KitVisualizer did not expose a controlled camera path."
+            annotator, render_product = _viz_utils._build_rgb_annotator_for_camera(
+                camera_path, resolution=_viz_utils._ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION
+            )
+            try:
+                _viz_utils._warm_kit_rtx_render_product(env, annotator)
+                if backend == "newton":
+                    _viz_utils._reapply_kit_camera_pose(env, kit_viz)
+                return _viz_utils._capture_kit_viewport_rgb(annotator)
+            finally:
+                with contextlib.suppress(Exception):
+                    annotator.detach([render_product])
+
+        newton_viz = _get_active_visualizer(env, "newton")
+        viewer = getattr(newton_viz, "_viewer", None)
+        assert viewer is not None, "NewtonVisualizer did not create a viewer."
+        _viz_utils._warm_newton_viewer(newton_viz, viewer)
+        return _viz_utils._frame_to_numpy(viewer.get_frame())
+
+    env = None
+    try:
+        _viz_utils._prepare_visualizer_test_process()
+        sim_utils.create_new_stage()
+        tiled = mode == "tiled"
+        env = _viz_utils._make_anymal_d_env(visualizer_type, physics_backend, tiled_camera=tiled)
+        _viz_utils._configure_sim_for_visualizer_test(env)  # type: ignore[arg-type]
+        actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+        from isaaclab.utils.seed import configure_seed
+
+        configure_seed(42, torch_deterministic=True)
+        env.reset()
+
+        for _ in range(_viz_utils._START_BUFFER_STEPS):
+            env.step(action=actions)
+
+        frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
+
+        validate_visualizer_frame("anymal_d", physics_backend, visualizer_type, mode, frame, comparison_scores)
+    finally:
+        _viz_utils._cleanup_visualizer_test_process(env)
+
+
 def make_determinism_fixture():
     """Create an autouse fixture that seeds RNG determinism for each test."""
 
