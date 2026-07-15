@@ -899,7 +899,7 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         with frame.render_vars[render_var_name].map(device=Device.CUDA) as mapping:
-            tiled_data = wp.from_dlpack(mapping.tensor)
+            tiled_data = wp.from_dlpack(mapping)
             if tiled_data.dtype != wp.uint32:
                 return
 
@@ -940,7 +940,7 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
-            labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping.tensor))
+            labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping))
 
         render_data.renderer_info["semantic_segmentation"] = {
             "idToLabels": build_semantic_id_to_labels(
@@ -1061,14 +1061,14 @@ class OVRTXRenderer(BaseRenderer):
 
             if buffer_key is not None:
                 with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
-                    tiled_data = wp.from_dlpack(mapping.tensor)
+                    tiled_data = wp.from_dlpack(mapping)
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
             with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
-                tiled_depth_data = wp.from_dlpack(mapping.tensor)
+                tiled_depth_data = wp.from_dlpack(mapping)
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
@@ -1078,12 +1078,12 @@ class OVRTXRenderer(BaseRenderer):
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
             with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
-                tiled_albedo_data = wp.from_dlpack(mapping.tensor)
+                tiled_albedo_data = wp.from_dlpack(mapping)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         if "HdrColor" in frame.render_vars and "rgb_hdr" in output_buffers:
             with frame.render_vars["HdrColor"].map(device=Device.CUDA) as mapping:
-                tiled_hdr_data = wp.from_dlpack(mapping.tensor)
+                tiled_hdr_data = wp.from_dlpack(mapping)
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
@@ -1119,7 +1119,7 @@ class OVRTXRenderer(BaseRenderer):
 
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:
             with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
-                tiled_normals_data = wp.from_dlpack(mapping.tensor)
+                tiled_normals_data = wp.from_dlpack(mapping)
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
 
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
@@ -1127,7 +1127,7 @@ class OVRTXRenderer(BaseRenderer):
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
         if "TargetMotionSD" in frame.render_vars and "motion_vectors" in output_buffers:
             with frame.render_vars["TargetMotionSD"].map(device=Device.CUDA) as mapping:
-                tiled_motion_vectors_data = wp.from_dlpack(mapping.tensor)
+                tiled_motion_vectors_data = wp.from_dlpack(mapping)
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
     def render(self, render_data: OVRTXRenderData) -> None:
