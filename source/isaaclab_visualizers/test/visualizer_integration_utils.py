@@ -25,6 +25,7 @@ import contextlib
 import copy
 import gc
 import logging
+import math
 import os
 import re
 import socket
@@ -45,8 +46,6 @@ from isaaclab.sim import SimulationContext
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpolePhysicsCfg
-
-# TODO: Several test cases currently show flakiness with frozen bodies. Remove the test-level retry once fixed.
 
 # Debugging mode configs.
 
@@ -129,6 +128,16 @@ PLAY_VIZ_N_STEP = 20
 
 PAUSE_VIZ_N_STEP = 5
 """Steps to run for each paused visualization segment."""
+
+# Integration tests force a minimum initial pole displacement so the cartpole is guaranteed to produce
+# enough pixel motion in PLAY_VIZ_N_STEP steps regardless of the random seed.  Without this, a near-
+# equilibrium start (angle ≈ 0, velocity ≈ 0) produces fewer than _FRAME_MOTION_MIN_DIFFERING_PIXELS
+# pixel changes, causing the frozen-body frame checks to fail intermittently.
+_INTEGRATION_TEST_POLE_ANGLE_RANGE: tuple[float, float] = (0.15 * math.pi, 0.25 * math.pi)
+"""Minimum initial pole angle [rad] for integration motion tests — ensures visible motion."""
+
+_INTEGRATION_TEST_POLE_VELOCITY_RANGE: tuple[float, float] = (0.1 * math.pi, 0.25 * math.pi)
+"""Minimum initial pole angular velocity [rad/s] for integration motion tests."""
 
 # Early vs late frame motion: void background stays similar; only count *strongly* differing pixels.
 _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD = 50
@@ -714,6 +723,7 @@ def _run_newton_viewer_frame_motion_test(
     for _ in range(PLAY_VIZ_N_STEP):
         step_hook()
     play_end_idx = PLAY_VIZ_N_STEP
+    _flush_newton_render_for_motion_capture(visualizer)
     motion_end_frame = viewer.get_frame()
     _save_visualizer_debug_phase_images(
         motion_start_frame,
@@ -782,6 +792,7 @@ def _run_newton_viewer_frame_motion_test(
         rendering_play_start_frame = viewer.get_frame()
         for _ in range(PLAY_VIZ_N_STEP):
             step_hook()
+        _flush_newton_render_for_motion_capture(visualizer)
         rendering_play_end_frame = viewer.get_frame()
         _save_visualizer_debug_phase_images(
             rendering_play_start_frame,
@@ -852,6 +863,7 @@ def _run_newton_viewer_frame_motion_test(
         simulation_play_start_frame = viewer.get_frame()
         for _ in range(PLAY_VIZ_N_STEP):
             step_hook()
+        _flush_newton_render_for_motion_capture(visualizer)
         simulation_play_end_frame = viewer.get_frame()
         _save_visualizer_debug_phase_images(
             simulation_play_start_frame,
@@ -936,6 +948,28 @@ def _drain_kit_app_updates(num_updates: int) -> None:
         time.sleep(_KIT_APP_DRAIN_SLEEP_SECONDS)
 
 
+def _flush_kit_render_for_motion_capture(env) -> None:
+    """Flush the Kit RTX pipeline so the annotator reads the current physics frame.
+
+    Kit's RTX renderer is asynchronous: ``app.update()`` queues work but does not block
+    until the GPU finishes.  Calling ``sim.render()`` followed by one extra app update
+    gives the pipeline enough time to commit the frame, avoiding stale annotator reads
+    at the end of a motion-check step loop.
+    """
+    env.sim.render()
+    _update_active_simulation_app()
+
+
+def _flush_newton_render_for_motion_capture(visualizer) -> None:
+    """Force one Newton viewer render so ``get_frame()`` returns the current physics state.
+
+    The Newton viewer renders at its configured update frequency during ``env.step()``.
+    An extra ``step(0.0)`` after the motion loop guarantees the framebuffer reflects
+    the latest physics state before ``viewer.get_frame()`` is called.
+    """
+    visualizer.step(0.0)
+
+
 def _prepare_visualizer_test_process() -> None:
     """Reset Python-side sim state and let Kit settle before a flaky retry starts."""
     with contextlib.suppress(Exception):
@@ -1004,6 +1038,7 @@ def _run_kit_viewport_frame_motion_test(
         for _ in range(PLAY_VIZ_N_STEP):
             env.step(action=actions)
         play_end_idx = PLAY_VIZ_N_STEP
+        _flush_kit_render_for_motion_capture(env)
         motion_end_frame = _capture_kit_viewport_rgb(annotator)
         _save_visualizer_debug_phase_images(
             motion_start_frame,
@@ -1060,6 +1095,7 @@ def _run_kit_viewport_frame_motion_test(
             play_start_frame = _capture_kit_viewport_rgb(annotator)
             for _ in range(PLAY_VIZ_N_STEP):
                 env.step(action=actions)
+            _flush_kit_render_for_motion_capture(env)
             play_end_frame = _capture_kit_viewport_rgb(annotator)
             _save_visualizer_debug_phase_images(
                 play_start_frame,
@@ -1253,6 +1289,8 @@ def run_cartpole_env_visualizers_motion_with_play_pause(backend_kind: str, caplo
             visualizer_kind=("kit", "newton", "rerun", "viser"),
             backend_kind=backend_kind,
         )
+        env.cfg.initial_pole_angle_range = _INTEGRATION_TEST_POLE_ANGLE_RANGE
+        env.cfg.initial_pole_velocity_range = _INTEGRATION_TEST_POLE_VELOCITY_RANGE
         _configure_sim_for_visualizer_test(env)
         with caplog.at_level(logging.WARNING):
             env.reset()
@@ -1308,6 +1346,8 @@ def run_cartpole_env_visualizers_tiled_camera_motion(backend_kind: str, caplog: 
             backend_kind=backend_kind,
             tiled_camera=True,
         )
+        env.cfg.initial_pole_angle_range = _INTEGRATION_TEST_POLE_ANGLE_RANGE
+        env.cfg.initial_pole_velocity_range = _INTEGRATION_TEST_POLE_VELOCITY_RANGE
         _configure_sim_for_visualizer_test(env)
         with caplog.at_level(logging.WARNING):
             env.reset()
