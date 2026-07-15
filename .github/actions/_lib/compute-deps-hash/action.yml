@@ -1,0 +1,75 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Compute deps hash'
+description: >
+  Compute the deps-cache hash for the Isaac Lab Docker build. Shared by the
+  docker-build (local-store check) and ecr-build-push-pull (registry check)
+  actions so a local hit and a registry hit always agree on the same
+  `deps-<hash>` tag. Hashes the install-relevant files, resolved base image
+  digest, and target platform.
+
+inputs:
+  dockerfile-path:
+    description: 'Path to Dockerfile'
+    required: true
+  isaacsim-base-image:
+    description: 'IsaacSim base image'
+    required: true
+  isaacsim-version:
+    description: 'IsaacSim version'
+    required: true
+  platform:
+    description: 'Target platform included in the dependency-cache identity'
+    default: 'linux/amd64'
+    required: false
+
+outputs:
+  hash:
+    description: '16-char deps-cache hash'
+    value: ${{ steps.compute.outputs.hash }}
+
+runs:
+  using: composite
+  steps:
+    - id: compute
+      shell: bash
+      env:
+        DOCKERFILE_PATH: ${{ inputs.dockerfile-path }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
+        TARGET_PLATFORM: ${{ inputs.platform }}
+      run: |
+        set -euo pipefail
+
+        # Exact files/dirs whose full content is hashed. The Dockerfile is first.
+        deps_files=(
+          "${DOCKERFILE_PATH}"
+          isaaclab.sh
+          environment.yml
+          source/isaaclab/isaaclab/cli
+        )
+        deps_manifest_pattern='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
+
+        # Resolve the actual base image digest so a new push of a mutable tag
+        # (e.g. latest-develop) invalidates the deps cache automatically.
+        base_image_digest=$(docker buildx imagetools inspect \
+          "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
+        if [ -n "${base_image_digest}" ]; then
+          base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}:${base_image_digest}"
+        else
+          echo "🟠 Could not resolve base image digest, falling back to tag string"
+          base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}"
+        fi
+
+        mapfile -t manifest_files < <(git ls-files | grep -E "${deps_manifest_pattern}" || true)
+        file_hash=$(git ls-files -s "${deps_files[@]}" "${manifest_files[@]}" 2>/dev/null \
+          | sha256sum | cut -c1-16)
+        deps_hash=$(printf '%s %s %s' "${file_hash}" "${base_image_uniq_id}" "${TARGET_PLATFORM}" \
+          | sha256sum | cut -c1-16)
+
+        echo "🔵 Deps hash: ${deps_hash}"
+        echo "hash=${deps_hash}" >> "$GITHUB_OUTPUT"

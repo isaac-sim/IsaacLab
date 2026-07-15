@@ -3,16 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Focused tests for RL-library-specific training metric capture."""
+"""Focused tests for RL-library benchmark adapter behavior."""
 
 from types import SimpleNamespace
 
 import pytest
 import torch
 
-from scripts.benchmarks import training
+from scripts.benchmarks import play, training
+from scripts.benchmarks.rl_games import benchmark_rl_games_play as play_rl_games
+from scripts.benchmarks.rsl_rl import benchmark_rsl_rl_play as play_rsl_rl
 from scripts.benchmarks.rsl_rl import benchmark_rsl_rl_train as train_rsl_rl
+from scripts.benchmarks.sb3 import benchmark_sb3_play as play_sb3
 from scripts.benchmarks.sb3 import benchmark_sb3_train as train_sb3
+from scripts.benchmarks.skrl import benchmark_skrl_play as play_skrl
 from scripts.benchmarks.skrl import benchmark_skrl_train as train_skrl
 
 
@@ -20,6 +24,20 @@ from scripts.benchmarks.skrl import benchmark_skrl_train as train_skrl
 def test_training_dispatches_libraries_to_library_named_adapters(library: str):
     """The training dispatcher uses the library-named benchmark adapter."""
     assert training.LIBRARY_ENTRYPOINTS[library].name == f"benchmark_{library}_train.py"
+
+
+@pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])
+def test_play_dispatches_libraries_to_library_named_adapters(library: str):
+    """The play dispatcher uses the library-named benchmark adapter."""
+    assert play.LIBRARY_ENTRYPOINTS[library].name == f"benchmark_{library}_play.py"
+
+
+@pytest.mark.parametrize("adapter", [play_rl_games, play_rsl_rl, play_sb3, play_skrl])
+def test_play_adapter_help_does_not_require_task(adapter):
+    """Play adapter help exits successfully without a task selection."""
+    with pytest.raises(SystemExit) as exc_info:
+        adapter._parse_args(["--help"])
+    assert exc_info.value.code == 0
 
 
 def test_rsl_rl_disables_code_state_capture():

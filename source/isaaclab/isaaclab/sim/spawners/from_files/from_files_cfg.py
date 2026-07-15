@@ -34,8 +34,37 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     scale: tuple[float, float, float] | None = None
     """Scale of the asset. Defaults to None, in which case the scale is not modified."""
 
-    articulation_props: schemas.ArticulationRootPropertiesCfg | None = None
-    """Properties to apply to the articulation root."""
+    articulation_props: (
+        schemas.ArticulationRootBaseCfg
+        | schemas.ArticulationRootFragment
+        | list[schemas.ArticulationRootFragment]
+        | None
+    ) = None
+    """Properties to apply to the articulation root.
+
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`)
+    or a list of :class:`~isaaclab.sim.schemas.ArticulationRootFragment` fragments
+    (e.g. ``[PhysxArticulationCfg(...), NewtonArticulationCfg(...)]``). When a fragment list is
+    given, ``UsdPhysics.ArticulationRootAPI`` is applied as the anchor (presence-gated) and each
+    fragment writes its own namespace.
+    """
+
+    fix_root_link: bool | None = None
+    """Whether to fix the root link of the articulation. Defaults to None.
+
+    This is a non-USD, spawner-level behaviour flag consumed by
+    :func:`~isaaclab.sim.schemas.apply_articulation_root_properties` on the fragment/topology path,
+    including when :attr:`articulation_props` is ``None`` or an empty fragment collection. It is handled
+    independently of whether any schema properties are supplied:
+
+    * If set to None, the root link is not modified.
+    * If the articulation already has a fixed root link, this flag enables or disables the fixed joint.
+    * If the articulation does not have a fixed root link, this flag creates a fixed joint between the
+      world frame and the root link (named "FixedJoint" under the articulation prim).
+
+    When :attr:`articulation_props` is given as a legacy cfg, set
+    :attr:`~isaaclab.sim.schemas.ArticulationRootBaseCfg.fix_root_link` on that cfg instead.
+    """
 
     fixed_tendons_props: (
         schemas.FixedTendonPropertiesCfg | schemas.FixedTendonFragment | list[schemas.FixedTendonFragment] | None

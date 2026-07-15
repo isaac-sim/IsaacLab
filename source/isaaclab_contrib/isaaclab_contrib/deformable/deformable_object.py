@@ -729,7 +729,8 @@ class DeformableObject(BaseDeformableObject):
         # (UsdGeom.TetMesh for volume, UsdGeom.Mesh for surface) with a
         # ``*DeformableSimAPI`` applied, so we split candidates by that schema.
         def _is_sim_mesh(prim) -> bool:
-            return any("DeformableSimAPI" in api for api in prim.GetAppliedSchemas())
+            # composed view: also sees token-authored (unregistered) schemas, unlike GetAppliedSchemas
+            return any("DeformableSimAPI" in api for api in prim.GetPrimTypeInfo().GetAppliedAPISchemas())
 
         tet_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "TetMesh")
         mesh_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "Mesh")

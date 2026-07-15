@@ -96,8 +96,8 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
 Running Benchmark Scripts
 -------------------------
 
-Isaac Lab provides unified ``runtime.py``, ``startup.py``, and ``training.py`` entry points
-under ``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
+Isaac Lab provides unified ``runtime.py``, ``startup.py``, ``training.py``, and ``play.py``
+entry points under ``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
 emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
 ``--benchmark_formatter`` accepts a comma-separated list (e.g.
 ``schema,omniperf``) to emit several formats in a single run. Each selected
@@ -110,6 +110,7 @@ Isaac Lab environment, run the same workflows directly instead:
 * Runtime: ``./isaaclab.sh -p scripts/benchmarks/runtime.py <arguments>``
 * Startup: ``./isaaclab.sh -p scripts/benchmarks/startup.py <arguments>``
 * Training: ``./isaaclab.sh -p scripts/benchmarks/training.py <arguments>``
+* Play: ``./isaaclab.sh -p scripts/benchmarks/play.py <arguments>``
 
 Non-RL / Runtime Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -150,6 +151,41 @@ Measure training performance.  Use ``--rl_library`` to select the RL library
        --max_iterations 500 \
        --benchmark_formatter json \
        --output_path ./results
+
+RL Play Benchmarks
+~~~~~~~~~~~~~~~~~~
+
+Load a trained checkpoint and benchmark policy inference (the *play* workflow).
+The same ``--rl_library`` dispatch selects the RL library (``rsl_rl``, ``rl_games``,
+``skrl``, or ``sb3``).  In addition to the inference throughput, the emitted
+``PlayBundle`` reports the rolled-out policy's reward, episode length, and success
+rate.  The checkpoints consumed here are produced by ``training.py``.
+
+.. code-block:: bash
+
+   # Benchmark inference of a trained RSL-RL policy
+   uv run isaaclab benchmark play \
+       --rl_library rsl_rl \
+       --task Isaac-Cartpole \
+       --num_envs 4096 \
+       --num_frames 1000 \
+       --checkpoint /path/to/model.pt \
+       --benchmark_formatter json \
+       --output_path ./results
+
+The checkpoint is resolved in the following order:
+
+#. ``--checkpoint`` — a local filesystem path or a Nucleus URI.
+#. Otherwise, the published Nucleus checkpoint for the task is downloaded
+   (a warning is logged).
+#. If neither is available, an error is raised.
+
+.. note::
+
+   ``reward``, ``ep_length``, and ``success_rate`` aggregate only **completed**
+   episodes.  Set ``--num_frames`` larger than the task's episode length so at
+   least one episode finishes during the rollout; otherwise these fields remain
+   ``null`` (the inference throughput is still reported).
 
 PhysX Micro-Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -319,6 +355,35 @@ RL Training Arguments
    * - ``--max_iterations``
      - ``None`` (task config)
      - Number of training iterations
+
+RL Play Arguments
+~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 60
+
+   * - Argument
+     - Default
+     - Description
+   * - ``--task``
+     - required
+     - Environment task name
+   * - ``--rl_library``
+     - required
+     - RL library that produced the checkpoint: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
+   * - ``--num_envs``
+     - ``None`` (task config)
+     - Number of parallel environments
+   * - ``--num_frames``
+     - ``100``
+     - Number of inference steps to roll out
+   * - ``--checkpoint``
+     - ``None`` (published Nucleus checkpoint)
+     - Local path or Nucleus URI of the checkpoint to roll out
+   * - ``--benchmark_formatter``
+     - ``schema``
+     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
 
 Measurement Types
 -----------------

@@ -55,7 +55,7 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     """Build a concrete physics config for the requested backend.
 
     Args:
-        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, or ``"ovphysx"``.
+        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, ``"newton_vbd"``, or ``"ovphysx"``.
 
     Returns:
         A new physics config instance for the requested backend.
@@ -67,9 +67,22 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
         return PhysxCfg()
     if physics_cfg_str == "newton_mjwarp":
         return NewtonCfg()
+    if physics_cfg_str == "newton_vbd":
+        # lazy import: core depends on isaaclab_contrib only when VBD is requested
+        try:
+            from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+        except ImportError as err:
+            raise ImportError(
+                "The 'newton_vbd' physics backend requires the isaaclab_contrib package."
+                " Install it with `./isaaclab.sh -i contrib`."
+            ) from err
+
+        return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
-    raise ValueError(f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', or 'ovphysx').")
+    raise ValueError(
+        f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', 'newton_vbd', or 'ovphysx')."
+    )
 
 
 """

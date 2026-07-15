@@ -127,16 +127,6 @@ class AppLauncher:
                 settings.set_int("/isaaclab/visualizer/max_visible_envs", -1)
 
     @staticmethod
-    def apply_rtx_determinism_settings() -> None:
-        """Apply RTX RealTimePathTracing and disable RTPT caches for reproducible RTX rendering.
-        Called after :class:`isaacsim.simulation_app.SimulationApp` starts whenever ``--deterministic`` is set.
-        """
-        settings = get_settings_manager()
-        settings.set_string("/rtx/rendermode", "RealTimePathTracing")
-        settings.set_bool("/rtx/rtpt/cached/enabled", False)
-        settings.set_bool("/rtx/rtpt/lightcache/cached/enabled", False)
-
-    @staticmethod
     def _parse_visualizer_csv(value: str) -> list[str] | None:
         """Parse visualizer list from a single comma-delimited CLI token."""
         valid = {"kit", "newton", "rerun", "viser", "none"}
@@ -445,7 +435,7 @@ class AppLauncher:
           * If headless is True and enable_cameras is False, the experience file is set to
             ``isaaclab.python.headless.kit``.
 
-        * ``deterministic`` (bool): After startup, applies RTX/RTPT carb settings for reproducible rendering.
+        * ``deterministic`` (bool): Publishes ``/isaaclab/render/deterministic`` for reproducible rendering.
           Does not change how the default experience file is chosen.
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
@@ -585,7 +575,7 @@ class AppLauncher:
             "--deterministic",
             action="store_true",
             default=AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1],
-            help="After startup, apply RTX/RTPT settings for reproducible rendering (see AppLauncher docs).",
+            help="Request reproducible rendering (see AppLauncher docs).",
         )
         arg_group.add_argument(
             "--kit_args",
@@ -1105,8 +1095,22 @@ class AppLauncher:
             launcher_args.get("deterministic", AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1])
         )
 
-        # If nothing is provided resolve the experience file based on the headless flag
-        kit_app_exp_path = os.environ["EXP_PATH"]
+        # If nothing is provided resolve the experience file based on the headless flag.
+        # EXP_PATH is normally set by ``isaacsim.bootstrap_kernel()`` on first import.
+        # If it is not set (e.g. on aarch64 where the bootstrap early-return triggered
+        # under certain install layouts), derive it from the installed isaacsim package.
+        kit_app_exp_path = os.environ.get("EXP_PATH")
+        if not kit_app_exp_path:
+            try:
+                import isaacsim as _isaacsim_for_paths
+            except ImportError as e:
+                raise RuntimeError(
+                    "EXP_PATH is not set and the 'isaacsim' package is not importable."
+                    " Install Isaac Sim (`pip install isaacsim` or the binary distribution)"
+                    " before launching AppLauncher."
+                ) from e
+            kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
+            os.environ["EXP_PATH"] = kit_app_exp_path
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
@@ -1163,7 +1167,7 @@ class AppLauncher:
                 "tensor views when launched through Isaac Lab with livestreaming enabled. Omit '--experience' so "
                 "AppLauncher can select an Isaac Lab experience file, or remove the 'isaacsim.exp.full' dependency."
             )
-        self._apply_rtx_determinism = bool(deterministic_mode)
+        self._deterministic_rendering = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
 
     @staticmethod
@@ -1271,10 +1275,6 @@ class AppLauncher:
         # Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).
         initialize_carb_settings()
 
-        if self._apply_rtx_determinism:
-            AppLauncher.apply_rtx_determinism_settings()
-            logger.info("Applied RTX settings for deterministic rendering (--deterministic).")
-
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
         # Re-apply the intended Python logging level, then add a scoped stream handler for
         # Isaac Lab INFO records that Kit's bridge does not mirror to the console.
@@ -1309,6 +1309,9 @@ class AppLauncher:
 
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
+
+        # publish the reproducible-rendering intent; rendering backends read this on initialization
+        settings.set_bool("/isaaclab/render/deterministic", self._deterministic_rendering)
 
         # set fabric update flag to disable updating transforms when rendering is disabled
         settings.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())

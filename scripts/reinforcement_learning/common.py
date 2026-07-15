@@ -33,6 +33,7 @@ from isaaclab.utils.io import dump_yaml
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
+logger = logging.getLogger(__name__)
 
 
 class CaptureEnvSensors(gym.Wrapper):
@@ -199,6 +200,37 @@ def dispatch_library_entrypoint(
     module = import_local_module(f"isaaclab_rl_{action}_{args_cli.rl_library}", module_path)
     module.run(library_args)
     return 0
+
+
+def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -> str:
+    """Resolve an explicit or published checkpoint for a play workflow.
+
+    Args:
+        checkpoint: Local or Nucleus checkpoint path.
+        framework: RL library name.
+        task: Gym task id; namespaces and a trailing ``-Play`` are ignored for published lookups.
+
+    Returns:
+        Local checkpoint path.
+
+    Raises:
+        FileNotFoundError: If no explicit or published checkpoint is available.
+    """
+    if checkpoint:
+        from isaaclab.utils.assets import retrieve_file_path
+
+        return retrieve_file_path(checkpoint)
+
+    from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+
+    logger.warning("No --checkpoint given; using the published checkpoint for %s / %s.", framework, task)
+    published_task = task.split(":")[-1].replace("-Play", "")
+    path = get_published_pretrained_checkpoint(framework, published_task)
+    if path is None:
+        raise FileNotFoundError(
+            f"No checkpoint available for framework {framework!r} and task {task!r}; pass --checkpoint"
+        )
+    return path
 
 
 def add_common_train_args(

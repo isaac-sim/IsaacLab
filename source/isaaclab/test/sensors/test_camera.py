@@ -1124,6 +1124,9 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
         def update_transforms(self):
             pass
 
+        def update_geometries(self):
+            pass
+
         def update_camera(self, render_data, positions, orientations, intrinsics):
             pass
 

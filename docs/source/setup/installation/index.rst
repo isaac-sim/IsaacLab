@@ -114,7 +114,7 @@ Other notable limitations with respect to Isaac Lab include...
 
 .. note::
 
-   **Build prerequisites on aarch64:** Some Python packages (notably ``imgui-bundle`` and ``quadprog``) do not ship
+   **Build prerequisites on aarch64:** Some Python packages, notably ``imgui-bundle``, do not ship
    pre-built wheels for aarch64 and are compiled from source during installation. This requires
    Python 3.12, OpenGL, and X11 development headers to be installed on the system:
 

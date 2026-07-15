@@ -170,7 +170,7 @@ def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
 
     exported = export_stage_to_string(
         stage,
-        num_envs=num_envs,
+        num_envs,
         source_paths=tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
     )
 
@@ -184,7 +184,7 @@ def test_export_stage_full_when_single_env():
 
     exported = export_stage_to_string(
         stage,
-        num_envs=num_envs,
+        num_envs,
         source_paths=("/World/envs/env_0",),
     )
 
@@ -198,7 +198,7 @@ def test_export_stage_homogeneous_keeps_only_env0_prototype():
 
     exported = export_stage_to_string(
         stage,
-        num_envs=num_envs,
+        num_envs,
         source_paths=("/World/envs/env_0",),
     )
 
@@ -213,7 +213,7 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
 
     exported = export_stage_to_string(
         stage,
-        num_envs=num_envs,
+        num_envs,
         source_paths=("/World/envs/env_0/Object_env0_only", "/World/envs/env_3/Object_env3_only"),
     )
 
@@ -241,7 +241,7 @@ def test_export_stage_restores_active_state():
 
     export_stage_to_string(
         stage,
-        num_envs=num_envs,
+        num_envs,
         source_paths=("/World/envs/env_0",),
     )
 
