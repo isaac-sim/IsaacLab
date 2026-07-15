@@ -303,6 +303,9 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_points_binding = None
         self._deformable_particle_offsets: list[int] = []
         self._deformable_particle_counts: list[int] = []
+        self._particle_points_binding = None
+        self._particle_visual_offsets: list[int] = []
+        self._particle_visual_counts: list[int] = []
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
@@ -447,6 +450,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._setup_xform_bindings()
         self._setup_deformable_bindings(num_envs)
+        self._setup_particle_points_bindings(num_envs)
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -677,6 +681,67 @@ class OVRTXRenderer(BaseRenderer):
         if self._deformable_points_binding is None:
             raise RuntimeError("Failed to create OVRTX deformable body bindings")
 
+    def _setup_particle_points_bindings(self, num_envs: int) -> None:
+        """Setup OVRTX bindings for Newton MPM ``UsdGeom.Points`` particle clouds.
+
+        Args:
+            num_envs: Number of environments.
+        """
+        try:
+            from isaaclab_newton.physics import NewtonManager
+        except ImportError:
+            logger.debug("NewtonManager not available, skipping MPM particle point bindings")
+            return
+
+        particle_visual_prims = NewtonManager._particle_visual_prims
+        if not particle_visual_prims:
+            logger.debug("No MPM particle visual prims registered, skipping particle point bindings")
+            return
+
+        prim_count = len(particle_visual_prims)
+        if prim_count not in (0, num_envs):
+            raise RuntimeError(
+                f"OVRTX expects one MPM particle visual prim per environment ({num_envs}), "
+                f"but {prim_count} prims were registered."
+            )
+
+        self._particle_visual_offsets = []
+        self._particle_visual_counts = []
+        points_prim_paths: list[str] = []
+
+        for prim_path, record in sorted(particle_visual_prims.items()):
+            points_prim_paths.append(prim_path)
+            self._particle_visual_offsets.append(record.offset)
+            self._particle_visual_counts.append(record.count)
+
+        # World-space particle_q is written directly into points. Reset the xform stack
+        # and pin identity omni:xform so inherited env/asset transforms are not applied twice.
+        self._renderer.write_attribute(
+            prim_paths=points_prim_paths,
+            attribute_name="omni:resetXformStack",
+            tensor=np.full(prim_count, True, dtype=np.bool_),
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+        self._renderer.write_attribute(
+            prim_paths=points_prim_paths,
+            attribute_name="omni:xform",
+            tensor=np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1)),
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+
+        self._particle_points_binding = self._renderer.bind_array_attribute(
+            prim_paths=points_prim_paths,
+            attribute_name="points",
+            dtype=np.float32,
+            shape=(3,),
+            prim_mode=PrimMode.MUST_EXIST,
+            flags=BindingFlag.OPTIMIZE,
+        )
+
+        if self._particle_points_binding is None:
+            raise RuntimeError("Failed to create OVRTX MPM particle point bindings")
+
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
 
@@ -745,36 +810,41 @@ class OVRTXRenderer(BaseRenderer):
                 device=self._device,
             )
 
-    def update_geometries(self) -> None:
-        """Sync geometries to OVRTX."""
-        if self._deformable_points_binding is None:
+    def _write_particle_q_slices(
+        self,
+        binding: Any,
+        particle_q: wp.array,
+        particle_offsets: list[int],
+        particle_counts: list[int],
+        to_host: bool = False,
+    ) -> None:
+        """Write world-space ``particle_q`` slices into one OVRTX array-attribute binding.
+
+        Args:
+            binding: OVRTX array-attribute binding for the ``points`` attribute.
+            particle_q: Flat world-space particle positions [m], shape ``[total_particles]``.
+            particle_offsets: Start index of each prim's slice into :paramref:`particle_q`.
+            particle_counts: Number of particles in each prim's slice.
+            to_host: Copy the slices to host memory and write them synchronously. Required for
+                ``UsdGeom.Points`` prims, whose sphere geometry OVRTX does not refresh from a
+                GPU-buffer write. Meshes leave this ``False`` to keep the zero-copy GPU path.
+        """
+        if to_host:
+            # ``numpy()`` copies device -> host and synchronizes the kernels that wrote
+            # ``particle_q``, so the host slices are complete before OVRTX reads them.
+            # ``DataAccess.SYNC`` is required because OVRTX rejects SYNC for GPU buffers and
+            # ASYNC would alias the freed host copy.
+            particle_q_host = particle_q.numpy()
+            host_slices = [
+                particle_q_host[particle_offset : particle_offset + particle_count]
+                for particle_offset, particle_count in zip(particle_offsets, particle_counts, strict=True)
+            ]
+            binding.write(cast(Any, host_slices), data_access=DataAccess.SYNC)
             return
 
-        # If self._deformable_points_binding is not None, then Newton's the current physics backend
-        from isaaclab_newton.physics import NewtonManager
-
-        newton_state = NewtonManager.get_state()
-        if newton_state is None:
-            raise RuntimeError("Newton state should not be None")
-
-        # particle_q is the world-space particle positions for all deformable bodies. A non-None
-        # deformable points binding means deformable entries were registered, so Newton must
-        # expose particle state; a missing particle_q here is an inconsistent state.
-        particle_q = getattr(newton_state, "particle_q", None)
-        if particle_q is None:
-            raise RuntimeError("Newton state has no particle_q but deformable bindings exist")
-
-        # OVRTX ``write()`` needs one DLPack tensor per mesh prim, not one flat
-        # ``particle_q`` plus offsets. Warp slices are zero-copy views with
-        # distinct base pointers, so this list satisfies that contract without
-        # staging buffers or ``wp.copy`` calls.
         particle_slices = [
             particle_q[particle_offset : particle_offset + particle_count]
-            for particle_offset, particle_count in zip(
-                self._deformable_particle_offsets,
-                self._deformable_particle_counts,
-                strict=True,
-            )
+            for particle_offset, particle_count in zip(particle_offsets, particle_counts, strict=True)
         ]
 
         # Array attributes cannot use ``binding.map()`` like rigid-body xforms, and
@@ -785,11 +855,49 @@ class OVRTXRenderer(BaseRenderer):
         # GPU-side wait (a cross-stream dependency) before its read, instead of us
         # forcing a host-side ``wp.synchronize_device()`` that would stall the CPU.
         cuda_stream = wp.get_stream(self._device).cuda_stream
-        self._deformable_points_binding.write(
+        binding.write(
             cast(Any, particle_slices),
             data_access=DataAccess.ASYNC,
             cuda_stream=cuda_stream,
         )
+
+    def update_geometries(self) -> None:
+        """Sync deformable meshes and MPM particle points to OVRTX."""
+        if self._deformable_points_binding is None and self._particle_points_binding is None:
+            return
+
+        from isaaclab_newton.physics import NewtonManager
+
+        newton_state = NewtonManager.get_state()
+        if newton_state is None:
+            raise RuntimeError("Newton state should not be None")
+
+        # particle_q is the world-space particle positions for all deformable bodies and MPM
+        # particle clouds. A non-None geometry binding means entries were registered, so Newton
+        # must expose particle state; a missing particle_q here is an inconsistent state.
+        particle_q = getattr(newton_state, "particle_q", None)
+        if particle_q is None:
+            raise RuntimeError("Newton state has no particle_q but geometry bindings exist")
+
+        if self._deformable_points_binding is not None:
+            self._write_particle_q_slices(
+                self._deformable_points_binding,
+                particle_q,
+                self._deformable_particle_offsets,
+                self._deformable_particle_counts,
+            )
+
+        if self._particle_points_binding is not None:
+            # MPM clouds are ``UsdGeom.Points`` prims. OVRTX's GPU-buffer write path does not
+            # refresh point-sphere geometry (unlike deformable meshes, whose surface is topology
+            # defined), so the particles would silently vanish. Write from host memory instead.
+            self._write_particle_q_slices(
+                self._particle_points_binding,
+                particle_q,
+                self._particle_visual_offsets,
+                self._particle_visual_counts,
+                to_host=True,
+            )
 
     def update_camera(
         self,
@@ -1222,9 +1330,13 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_binding = None
         _safe_unbind(self._deformable_points_binding, "deformable points")
         self._deformable_points_binding = None
+        _safe_unbind(self._particle_points_binding, "MPM particle points")
+        self._particle_points_binding = None
 
         self._deformable_particle_offsets = []
         self._deformable_particle_counts = []
+        self._particle_visual_offsets = []
+        self._particle_visual_counts = []
 
         if self._renderer:
             try:
