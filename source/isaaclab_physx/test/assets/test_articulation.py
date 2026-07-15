@@ -67,7 +67,9 @@ def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
 
     class FakeDevice:
         is_cuda = True
+        is_capturing = False
 
+    device = FakeDevice()
     command = FakeCommand()
     launch_calls = []
 
@@ -76,7 +78,7 @@ def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
         return command
 
     module = sys.modules[ArticulationData.__module__]
-    monkeypatch.setattr(module.wp, "get_device", lambda device: FakeDevice())
+    monkeypatch.setattr(module.wp, "get_device", lambda device_name: device)
     monkeypatch.setattr(module.wp, "launch", fake_launch)
     data = ArticulationData.__new__(ArticulationData)
     data.device = "cuda:0"
@@ -89,6 +91,9 @@ def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
     assert launch_calls[0][1]["record_cmd"] is True
     assert command.launch_count == 2
     data._reset_cached_read_launches()
+    device.is_capturing = True
+    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+    assert "record_cmd" not in launch_calls[-1][1]
     assert data._cached_read_launches == {}
 
 

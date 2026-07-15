@@ -236,7 +236,6 @@ class Articulation(BaseArticulation):
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
-        self.data._reset_cached_read_launches()
         # reset actuators (including Newton-native adapter which owns its states)
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
