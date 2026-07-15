@@ -228,7 +228,7 @@ def root_orientation_exp(
 
 class survival_success_rate(ManagerTermBase):
     """Logs ``Metrics/success_rate`` = fraction of environments that survived the full episode."""
-    
+
     def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
         super().__init__(cfg, env)
 
