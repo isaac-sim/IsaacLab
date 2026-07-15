@@ -8,6 +8,7 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
+    PhysicsCfg,
     StackEnvCfg,
     StackEventCfg,
     apply_default_semantics,
@@ -48,6 +49,20 @@ SO101_GRIPPER_CLOSE = 0.0
 _SO101_MOUNT_Z = -0.03008
 _SO101_BASE_SEAT_POS = (0.0, 0.0, _SO101_MOUNT_Z)
 _SO101_BASE_SEAT_ROT = (0.0, 0.0, 0.70710678, 0.70710678)
+
+
+@configclass
+class SO101StackPhysicsCfg(PhysicsCfg):
+    """Physics presets for the SO-101 stack tasks.
+
+    Extends the stack-family presets with
+    :attr:`~isaaclab_physx.physics.PhysxCfg.solve_articulation_contact_last` so contacts
+    are solved after the articulation position drive and can stall the closing jaw at the
+    object surface instead of letting it tunnel through grasped objects.
+    """
+
+    default = PhysicsCfg().default.replace(solve_articulation_contact_last=True)
+    physx = default
 
 
 @configclass
@@ -127,3 +142,7 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
             ],
             marker_scale=(0.05, 0.05, 0.05),
         )
+
+        # simulation settings: solve finger contacts after the position drive so they can
+        # stall the closing jaw at the object surface (see SO101StackPhysicsCfg).
+        self.sim.physics = SO101StackPhysicsCfg()

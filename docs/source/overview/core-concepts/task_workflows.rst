@@ -6,6 +6,15 @@ Task Design Workflows
 
 .. currentmodule:: isaaclab
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-building-environments`` and
+   ``isaaclab-planning-manipulation-tasks`` agent skills
+   (`skills/user/create-environments/ <../../../../skills/user/create-environments/SKILL.md>`__,
+   `skills/user/plan-manipulation-tasks/ <../../../../skills/user/plan-manipulation-tasks/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 A **Task** is defined by an environment with specific interfaces for observations to and actions from a specific agent (robot). The environment is what provides an agent with the current observations and executes that agent's actions by updating the simulation forward in time. There are many common components of simulating a robot in an environment, regardless of what you might want that robot to do or how it might be trained to do it.
 
 This is especially true of Reinforcement Learning (RL), where managing the actions, observations, rewards, etc... across a vectorized GPU simulation can be daunting to even think about! To meet this need, Isaac Lab provides the ability to build your RL environments within our **Manager-based** system, allowing you to trust various minutia of the appropriate manager classes. However, we also recognize the need to exert granular control over an environment, especially during development. For this need, we also provide a **Direct** interface into the simulation, giving you full control!

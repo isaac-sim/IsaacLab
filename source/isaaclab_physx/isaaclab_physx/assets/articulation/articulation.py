@@ -270,7 +270,8 @@ class Articulation(BaseArticulation):
                 indices=self._ALL_INDICES,
                 is_global=False,
             )
-        self._instantaneous_wrench_composer.reset()
+        if self._instantaneous_wrench_composer.active:
+            self._instantaneous_wrench_composer.reset()
 
         if getattr(self, "_has_newton_actuators", False):
             # Newton fast path: pos/vel targets pass straight through; the
@@ -4080,6 +4081,7 @@ class Articulation(BaseArticulation):
                     num_envs=self.num_instances,
                     num_joints=self.num_joints,
                     dof_offset=0,
+                    env_stride=adapter.num_joints,
                     device=self.device,
                 )
                 self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)

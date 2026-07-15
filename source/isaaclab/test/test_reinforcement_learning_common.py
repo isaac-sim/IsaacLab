@@ -38,6 +38,7 @@ _rl_common = _load_rl_common_module()
 CaptureEnvSensors: Any = getattr(_rl_common, "CaptureEnvSensors")
 add_common_train_args: Any = getattr(_rl_common, "add_common_train_args")
 enable_cameras_for_video: Any = getattr(_rl_common, "enable_cameras_for_video")
+dispatch_library_entrypoint: Any = getattr(_rl_common, "dispatch_library_entrypoint")
 wrap_sensor_capture: Any = getattr(_rl_common, "wrap_sensor_capture")
 
 
@@ -217,3 +218,20 @@ def test_enable_cameras_for_video_enables_cameras_for_sensor_capture() -> None:
     enable_cameras_for_video(args_cli)
 
     assert args_cli.enable_cameras
+
+
+def test_dispatch_library_entrypoint_shows_help_without_library(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The unified dispatcher shows its help before requiring a library selection."""
+    result = dispatch_library_entrypoint(
+        ["--help"],
+        {"rsl_rl": tmp_path / "bench_rsl_rl.py"},
+        action="bench",
+        description="Benchmark training.",
+        library_help="Training library to benchmark.",
+    )
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert "--rl_library {rsl_rl}" in output

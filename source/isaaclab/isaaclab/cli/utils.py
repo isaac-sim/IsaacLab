@@ -529,6 +529,27 @@ def determine_python_version() -> str:
     return python_version
 
 
+def _aarch64_libgomp_env(env: dict[str, str] | None) -> dict[str, str] | None:
+    """Preload the system OpenMP runtime for python subprocesses on Linux aarch64.
+
+    The torch wheel bundles its own libgomp, which loads first and conflicts with the
+    library Isaac Sim expects, so isaacsim refuses to start unless the system libgomp is
+    preloaded. The pip installation docs tell users to export LD_PRELOAD by hand; doing it
+    here makes first runs through the CLI work out of the box. The bare soname is used so
+    ``ld.so`` resolves the library through the ldconfig cache on any distro. Returns the
+    env unchanged on other platforms or when a libgomp is already preloaded.
+    """
+    if platform.system() != "Linux" or platform.machine().lower() not in ("aarch64", "arm64"):
+        return env
+    libgomp = "libgomp.so.1"
+    merged = dict(os.environ if env is None else env)
+    preload = merged.get("LD_PRELOAD", "")
+    if any(os.path.basename(entry) == libgomp for entry in preload.split(":") if entry):
+        return env
+    merged["LD_PRELOAD"] = f"{libgomp}:{preload}" if preload else libgomp
+    return merged
+
+
 def run_python_command(
     script_or_module: str | Path,
     args: list[str],
@@ -567,6 +588,6 @@ def run_python_command(
     return run_command(
         cmd,
         cwd=os.getcwd(),
-        env=env,
+        env=_aarch64_libgomp_env(env),
         check=check,
     )

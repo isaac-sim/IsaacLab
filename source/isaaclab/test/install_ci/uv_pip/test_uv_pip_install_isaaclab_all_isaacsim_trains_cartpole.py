@@ -17,7 +17,9 @@ Setup:
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
-        presets=newton_mjwarp --max_iterations 5 --headless
+        presets=newton_mjwarp --max_iterations 5; ./isaaclab.sh train --rl_library rsl_rl
+        --task Isaac-Cartpole-Camera-Direct --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
+        --headless --enable_cameras -> verify state training, camera rendering, and camera training work
 """
 
 from __future__ import annotations
@@ -26,27 +28,6 @@ import shutil
 
 import pytest
 from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url, pinned_torch_specs
-
-_TRAIN_CMD = [
-    "train",
-    "--rl_library",
-    "rsl_rl",
-    "--task",
-    "Isaac-Cartpole-Direct",
-    "--num_envs",
-    "16",
-    "presets=newton_mjwarp",
-    "--max_iterations",
-    "5",
-    "--headless",
-]
-
-
-def _assert_training_passed(result) -> None:
-    output = result.stdout + (result.stderr or "")
-    assert result.returncode == 0, f"Training failed (rc={result.returncode}):\n{output}"
-    assert "Traceback (most recent call last):" not in output, f"Training produced a traceback:\n{output}"
-    assert "Training time:" in output, f"Training did not report completion:\n{output}"
 
 
 @pytest.mark.install_path_uv_pip
@@ -63,8 +44,8 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu
-    @pytest.mark.timeout(3600)
-    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(self, isaaclab_root, wheel):
+    @pytest.mark.timeout(4800)
+    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(self, isaaclab_root, wheel, cartpole_smoke_script):
         """Install the runner-supplied wheel with ``[all,isaacsim]`` via ``uv pip``, run cartpole training."""
         try:
             # 1. Create the uv env and install the wheel with [all,isaacsim] extras.
@@ -117,14 +98,13 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
             )
             assert result.returncode == 0, f"uv pip install CUDA torch failed:\n{result.stdout}\n{result.stderr}"
 
-            # 3. Run cartpole training via ./isaaclab.sh train (same invocation as
-            #    test_cli_install_training_in_uvenv::test_install_all_trains_cartpole).
+            # 3. Run the shared state and camera Cartpole smoke in the installed environment.
             result = self.run_in_uv_env(
-                [str(self.cli_script)] + _TRAIN_CMD,
+                [str(self.python), str(cartpole_smoke_script)],
                 cwd=isaaclab_root,
                 env=aarch64_isaacsim_env(),
-                timeout=900,
+                timeout=3000,
             )
-            _assert_training_passed(result)
+            assert result.returncode == 0, f"Cartpole smoke failed:\n{result.stdout}\n{result.stderr}"
         finally:
             self.destroy_uv_env()

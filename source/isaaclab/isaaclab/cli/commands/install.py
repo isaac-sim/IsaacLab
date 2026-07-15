@@ -53,8 +53,8 @@ def _install_system_deps() -> None:
         run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
     # On ARM Linux (e.g. DGX Spark), Python dev headers (Python.h) are needed
-    # to build C extensions such as quadprog. They are typically pre-installed
-    # in x86 Docker images but missing on bare-metal ARM systems.
+    # to build Python packages with native extensions. They are typically
+    # pre-installed in x86 Docker images but missing on bare-metal ARM systems.
     if is_arm():
         python_dev_pkg = f"python{sys.version_info.major}.{sys.version_info.minor}-dev"
         try:
