@@ -170,9 +170,7 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit
         # (renderer camera); skip in kitless Newton-only runs where no Kit app is running.
-        # Mirrors stable :class:`isaaclab.envs.DirectRLEnv` (PR #5103 changed the visualizer API).
-        has_visualizers = self.sim.has_active_visualizers()
-        if (self.sim.has_gui or has_visualizers) and has_kit():
+        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -567,9 +565,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # Rendering is possible if we have GUI or offscreen rendering enabled — mirror
-            # stable (PR #4646 replaced /isaaclab/has_gui and /isaaclab/render/offscreen
-            # settings with cached SimulationContext properties).
+            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
             if not (self.sim.has_gui or self.sim.has_offscreen_render):
                 render_mode_name = "NO_GUI_OR_RENDERING"
                 raise RuntimeError(

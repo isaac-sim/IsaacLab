@@ -42,25 +42,10 @@ class SceneEntityCfg(_SceneEntityCfg):
     def from_stable(cls, stable: _SceneEntityCfg) -> SceneEntityCfg:
         """Build a warp scene-entity cfg from a stable one.
 
-        Copies every selection field declared on the stable cfg (name, joint
-        names/ids, body names/ids, fixed-tendon names/ids, object-collection
-        names/ids, ``preserve_order``); warp-specific fields stay ``None``
-        and are filled by :meth:`resolve` at scene build time. Used by the
-        warp frontend to promote :class:`SceneEntityCfg` instances embedded
-        in term ``params`` without resorting to a ``__class__`` reassign.
+        Copies every field declared on the stable cfg; the warp-specific fields
+        stay ``None`` and are filled by :meth:`resolve` at scene build time.
         """
-        return cls(
-            name=stable.name,
-            joint_names=stable.joint_names,
-            joint_ids=stable.joint_ids,
-            fixed_tendon_names=stable.fixed_tendon_names,
-            fixed_tendon_ids=stable.fixed_tendon_ids,
-            body_names=stable.body_names,
-            body_ids=stable.body_ids,
-            object_collection_names=stable.object_collection_names,
-            object_collection_ids=stable.object_collection_ids,
-            preserve_order=stable.preserve_order,
-        )
+        return cls(**{name: getattr(stable, name) for name in _SceneEntityCfg.__dataclass_fields__})
 
     def resolve(self, scene: InteractiveScene):
         # run the stable resolution first (fills joint_ids/body_ids from names/regex)

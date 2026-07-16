@@ -403,13 +403,11 @@ def body_incoming_wrench(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg) 
     into ``out`` (shape ``(num_envs, 6 * num_selected_bodies)``).
     """
     sensor = env.scene.sensors[sensor_cfg.name]
-    force = sensor.data.force
-    torque = sensor.data.torque
-    if force is None or torque is None:
+    if sensor.data.force is None or sensor.data.torque is None:
         raise RuntimeError("Joint wrench sensor data is not initialized. Call sim.reset() before reading observations.")
     wp.launch(
         kernel=_body_incoming_wrench_kernel,
         dim=env.num_envs,
-        inputs=[force.warp, torque.warp, sensor_cfg.body_ids_wp, out],
+        inputs=[sensor.data.force.warp, sensor.data.torque.warp, sensor_cfg.body_ids_wp, out],
         device=env.device,
     )

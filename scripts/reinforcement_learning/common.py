@@ -233,6 +233,30 @@ def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -
     return path
 
 
+def add_frontend_args(parser: argparse.ArgumentParser) -> None:
+    """Add the environment-runtime selector argument.
+
+    The flag is always registered so the CLI surface does not depend on
+    optional packages; the warp runtime itself is imported only when selected
+    (see :func:`create_isaaclab_env`).
+
+    Args:
+        parser: The parser to add the argument to.
+    """
+    parser.add_argument(
+        "--frontend",
+        type=str,
+        choices=["torch", "warp"],
+        default="torch",
+        help=(
+            "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
+            " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
+            " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
+            " and `presets=newton_mjwarp`."
+        ),
+    )
+
+
 def add_common_train_args(
     parser: argparse.ArgumentParser,
     *,
@@ -257,18 +281,7 @@ def add_common_train_args(
     )
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-    parser.add_argument(
-        "--frontend",
-        type=str,
-        choices=["torch", "warp"],
-        default="torch",
-        help=(
-            "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
-            " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
-            " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
-            " and `presets=newton_mjwarp`."
-        ),
-    )
+    add_frontend_args(parser)
     if include_agent:
         parser.add_argument("--agent", type=str, default=agent_default, help=agent_help)
     parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
