@@ -55,14 +55,17 @@ SCENE_VISUALIZER_MODE_COMBINATIONS = [
     pytest.param("cartpole", "newton", "tiled", id="physx-cartpole-newton-tiled", marks=_golden.FLAKY_MARK),
     pytest.param("cartpole", "kit", "viewport", id="physx-cartpole-kit-viewport", marks=_golden.FLAKY_MARK),
     pytest.param("cartpole", "newton", "viewport", id="physx-cartpole-newton-viewport", marks=_golden.FLAKY_MARK),
-    pytest.param("shadow_hand", "kit", "tiled", id="physx-shadow_hand-kit-tiled", marks=_golden.FLAKY_MARK),
-    pytest.param("shadow_hand", "newton", "tiled", id="physx-shadow_hand-newton-tiled", marks=_golden.FLAKY_MARK),
-    pytest.param("shadow_hand", "kit", "viewport", id="physx-shadow_hand-kit-viewport", marks=_golden.FLAKY_MARK),
-    pytest.param("shadow_hand", "newton", "viewport", id="physx-shadow_hand-newton-viewport", marks=_golden.FLAKY_MARK),
+    # anymal_d runs before shadow_hand: shadow_hand leaves PhysX GPU tensor state that
+    # collapses the anymal_d robot on the next env init.  Running anymal_d first avoids
+    # this in-process contamination without needing a hard-to-replicate cleanup step.
     pytest.param("anymal_d", "kit", "tiled", id="physx-anymal_d-kit-tiled", marks=_golden.FLAKY_MARK),
     pytest.param("anymal_d", "newton", "tiled", id="physx-anymal_d-newton-tiled", marks=_golden.FLAKY_MARK),
     pytest.param("anymal_d", "kit", "viewport", id="physx-anymal_d-kit-viewport", marks=_golden.FLAKY_MARK),
     pytest.param("anymal_d", "newton", "viewport", id="physx-anymal_d-newton-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param("shadow_hand", "kit", "tiled", id="physx-shadow_hand-kit-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("shadow_hand", "newton", "tiled", id="physx-shadow_hand-newton-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("shadow_hand", "kit", "viewport", id="physx-shadow_hand-kit-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param("shadow_hand", "newton", "viewport", id="physx-shadow_hand-newton-viewport", marks=_golden.FLAKY_MARK),
 ]
 
 
