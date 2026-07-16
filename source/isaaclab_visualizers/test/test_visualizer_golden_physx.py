@@ -6,8 +6,9 @@
 """Visualizer golden image tests on the PhysX physics backend.
 
 Covers KitVisualizer (RTX viewport) and NewtonVisualizer (OpenGL) in both
-viewport and tiled-camera capture modes.  Golden images are stored under
-``golden_images/cartpole/{physics_backend}-{visualizer_type}-{mode}.png``.
+viewport and tiled-camera capture modes for the cartpole, shadow hand, and
+AnymalD environments.  Golden images are stored under
+``golden_images/{scene}/{physics_backend}-{visualizer_type}-{mode}.png``.
 
 On the first run for a new combination the current frame is saved as the
 golden; the test fails so the file can be reviewed before committing.
@@ -43,18 +44,32 @@ _attach_comparison_properties_fixture = _golden.make_attach_comparison_propertie
 
 _PHYSICS_BACKEND = "physx"
 
-VISUALIZER_MODE_COMBINATIONS = [
-    pytest.param("kit", "tiled", id="physx-kit-tiled", marks=_golden.FLAKY_MARK),
-    pytest.param("newton", "tiled", id="physx-newton-tiled", marks=_golden.FLAKY_MARK),
-    pytest.param("kit", "viewport", id="physx-kit-viewport", marks=_golden.FLAKY_MARK),
-    pytest.param("newton", "viewport", id="physx-newton-viewport", marks=_golden.FLAKY_MARK),
+_SCENE_RUNNERS = {
+    "cartpole": _golden.run_visualizer_golden_cartpole,
+    "shadow_hand": _golden.run_visualizer_golden_shadow_hand,
+    "anymal_d": _golden.run_visualizer_golden_anymal_d,
+}
+
+SCENE_VISUALIZER_MODE_COMBINATIONS = [
+    pytest.param("cartpole", "kit", "tiled", id="physx-cartpole-kit-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("cartpole", "newton", "tiled", id="physx-cartpole-newton-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("cartpole", "kit", "viewport", id="physx-cartpole-kit-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param("cartpole", "newton", "viewport", id="physx-cartpole-newton-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param("shadow_hand", "kit", "tiled", id="physx-shadow_hand-kit-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("shadow_hand", "newton", "tiled", id="physx-shadow_hand-newton-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("shadow_hand", "kit", "viewport", id="physx-shadow_hand-kit-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param("shadow_hand", "newton", "viewport", id="physx-shadow_hand-newton-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param("anymal_d", "kit", "tiled", id="physx-anymal_d-kit-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("anymal_d", "newton", "tiled", id="physx-anymal_d-newton-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("anymal_d", "kit", "viewport", id="physx-anymal_d-kit-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param("anymal_d", "newton", "viewport", id="physx-anymal_d-newton-viewport", marks=_golden.FLAKY_MARK),
 ]
 
 
-@pytest.mark.parametrize("visualizer_type,mode", VISUALIZER_MODE_COMBINATIONS)
-def test_visualizer_golden(visualizer_type: str, mode: str) -> None:
-    """Golden image correctness for cartpole + PhysX across visualizer types and modes."""
-    _golden.run_visualizer_golden_cartpole(_PHYSICS_BACKEND, visualizer_type, mode, _COMPARISON_SCORES)
+@pytest.mark.parametrize("scene,visualizer_type,mode", SCENE_VISUALIZER_MODE_COMBINATIONS)
+def test_visualizer_golden(scene: str, visualizer_type: str, mode: str) -> None:
+    """Golden image correctness for PhysX across scenes, visualizer types, and modes."""
+    _SCENE_RUNNERS[scene](_PHYSICS_BACKEND, visualizer_type, mode, _COMPARISON_SCORES)
 
 
 if __name__ == "__main__":
