@@ -24,6 +24,7 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg as Gnoise
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 
@@ -345,4 +346,4 @@ class ReorientObjectEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
         # change viewer settings
-        self.viewer.eye = (2.0, 2.0, 2.0)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.0, 2.0, 2.0))

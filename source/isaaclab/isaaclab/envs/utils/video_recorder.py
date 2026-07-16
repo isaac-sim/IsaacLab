@@ -52,16 +52,13 @@ def _select_video_backend(scene: InteractiveScene, backend_source: str) -> tuple
                 if visualizer_cfg.visualizer_type == visualizer_type:
                     return backend, visualizer_cfg
 
-    physics_name = scene.sim.physics_manager.__name__.lower()
-    renderer_types = scene._sensor_renderer_types()
-    if "physx" in physics_name or "isaac_rtx" in renderer_types:
-        return "kit", None
-    if "newton" in physics_name or "newton_warp" in renderer_types:
-        return "newton_gl", None
+    backend = scene.sim.physics_manager.video_capture_backend()
+    if backend is not None:
+        return backend, None
     raise RuntimeError(
-        "Video recording (--video) requires a supported backend: "
-        "PhysX or Isaac RTX renderer (Kit camera), or Newton physics / Newton Warp renderer (GL viewer). "
-        "No supported backend detected; do not use --video for this setup."
+        f"Video recording (--video) is not supported by the active physics backend "
+        f"'{type(scene.sim.physics_manager).__name__}'. "
+        "Use PhysxManager (Kit/Replicator capture) or NewtonManager (Newton GL capture)."
     )
 
 
@@ -83,8 +80,6 @@ class VideoRecorder:
             return
 
         backend, visualizer_cfg = _select_video_backend(scene, cfg.backend_source)
-        eye = cfg.eye if visualizer_cfg is None else visualizer_cfg.eye
-        lookat = cfg.lookat if visualizer_cfg is None else visualizer_cfg.lookat
 
         if backend == "newton_gl" and visualizer_cfg is not None:
             self._use_newton_visualizer = True
@@ -98,8 +93,6 @@ class VideoRecorder:
                 NewtonGlPerspectiveVideoCfg(
                     window_width=cfg.window_width,
                     window_height=cfg.window_height,
-                    eye=eye,
-                    lookat=lookat,
                 )
             )
         else:
@@ -112,8 +105,6 @@ class VideoRecorder:
 
             self._capture = create_isaacsim_kit_perspective_video(
                 IsaacsimKitPerspectiveVideoCfg(
-                    eye=eye,
-                    lookat=lookat,
                     window_width=cfg.window_width,
                     window_height=cfg.window_height,
                 )

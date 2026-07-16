@@ -21,11 +21,9 @@ from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
 from .utils.video_recorder import VideoRecorder
 
@@ -176,18 +174,6 @@ class ManagerBasedEnv:
                 self.scene.initialize_renderers()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
-
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
-        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
-        has_visualizers = self.sim.has_active_visualizers()
-        if (self.sim.has_gui or has_visualizers) and has_kit():
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -626,7 +612,6 @@ class ManagerBasedEnv:
                 self.obs_buf.clear()
 
             # destructor is order-sensitive
-            del self.viewport_camera_controller
             del self.action_manager
             del self.observation_manager
             del self.event_manager

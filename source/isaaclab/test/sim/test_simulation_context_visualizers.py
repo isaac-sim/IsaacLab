@@ -543,7 +543,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
 
 
 def test_kit_visualizer_default_camera_source_accepts_set_camera_view(monkeypatch: pytest.MonkeyPatch):
-    """Default Kit visualizer camera follows SimulationContext/ViewportCameraController updates."""
+    """Default Kit visualizer camera follows SimulationContext set_camera_view updates."""
     applied_camera_poses = []
     monkeypatch.setattr(
         kit_visualizer.KitVisualizer,

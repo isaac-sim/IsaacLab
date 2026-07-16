@@ -8,7 +8,6 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.envs.common import ViewerCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
@@ -121,10 +120,6 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 @configclass
 class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
-
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5), origin_type="asset_body", asset_name="robot", body_name="pelvis"
-    )
 
     # Scene settings
     scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(

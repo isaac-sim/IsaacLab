@@ -12,7 +12,7 @@ from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
+from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -74,9 +74,6 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     action_space = 1
     observation_space = 4
     state_space = 0
-
-    # viewer
-    viewer: ViewerCfg = ViewerCfg(eye=(8.0, 0.0, 5.0))
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=CartpolePhysicsCfg())

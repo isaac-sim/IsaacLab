@@ -6,7 +6,7 @@
 """Base configuration of the environment.
 
 This module defines the general configuration of the environment. It includes parameters for
-configuring the environment instances, viewer settings, and simulation parameters.
+configuring the environment instances and simulation parameters.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from .common import ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
@@ -45,9 +44,6 @@ class ManagerBasedEnvCfg:
     """Base configuration of the environment."""
 
     # simulation settings
-    viewer: ViewerCfg = ViewerCfg()
-    """Viewer configuration. Default is ViewerCfg()."""
-
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
 

@@ -10,7 +10,6 @@ import math
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs import ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
@@ -65,9 +64,6 @@ class CartpoleCameraEnvCfg(PresetCfg):
         # spaces: an image instead of the 4-dim joint-state vector
         observation_space = [3, 96, 96]
         state_space = 4
-
-        # change viewer settings
-        viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
 
         # scene: fewer, more-spaced envs and no fabric cloning so the camera renders cleanly
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)

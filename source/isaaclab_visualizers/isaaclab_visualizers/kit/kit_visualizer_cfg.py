@@ -38,3 +38,33 @@ class KitVisualizerCfg(VisualizerCfg):
 
     window_height: int = 720
     """Viewport height in pixels (when :attr:`create_viewport` is ``True``)."""
+
+    origin_type: str = "world"
+    """Frame in which :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+    :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` are interpreted.
+
+    Options:
+
+    * ``"world"``: global origin.
+    * ``"env"``: origin of the environment at :attr:`env_index`.
+    * ``"asset_root"``: root of the asset named :attr:`asset_name` in environment :attr:`env_index`.
+    * ``"asset_body"``: specific body of the asset (requires :attr:`asset_name` and :attr:`body_name`).
+    """
+
+    env_index: int = 0
+    """Index of the environment used as the camera origin.
+
+    Only meaningful when :attr:`origin_type` is ``"env"``, ``"asset_root"``, or ``"asset_body"``.
+    """
+
+    asset_name: str | None = None
+    """Name of the asset in the interactive scene used as the camera tracking target.
+
+    Required when :attr:`origin_type` is ``"asset_root"`` or ``"asset_body"``.
+    """
+
+    body_name: str | None = None
+    """Name of the body within :attr:`asset_name` used as the camera tracking target.
+
+    Required when :attr:`origin_type` is ``"asset_body"``.
+    """

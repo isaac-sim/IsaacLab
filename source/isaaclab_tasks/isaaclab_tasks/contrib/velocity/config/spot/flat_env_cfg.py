@@ -15,7 +15,6 @@ from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
-from isaaclab.envs import ViewerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -363,9 +362,6 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: SpotRewardsCfg = SpotRewardsCfg()
     terminations: SpotTerminationsCfg = SpotTerminationsCfg()
     events: SpotEventCfg = SpotEventCfg()
-
-    # Viewer
-    viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")
 
     def __post_init__(self):
         # post init of parent

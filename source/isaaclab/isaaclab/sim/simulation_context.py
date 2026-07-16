@@ -8,7 +8,7 @@ from __future__ import annotations
 import gc
 import logging
 import traceback
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
@@ -18,7 +18,6 @@ import torch
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
@@ -180,6 +179,9 @@ class SimulationContext:
             self.cfg.device = f"cuda:{device_id}"
 
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        # Must be set before physics_manager.initialize() so that any render callbacks
+        # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
+        self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
         self.physics_manager.initialize(self)
 
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
@@ -627,6 +629,24 @@ class SimulationContext:
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
 
+    def add_render_callback(self, name: str, fn: Callable[[Any], None], order: int = 0) -> None:
+        """Register a callback to fire after every render step.
+
+        Args:
+            name: Unique identifier. Silently replaces any existing callback with the same name.
+            fn: Callable invoked with a single ``None`` argument after each :meth:`render` call.
+            order: Execution order relative to other callbacks. Lower values fire first.
+        """
+        self._render_callbacks[name] = (order, fn)
+
+    def remove_render_callback(self, name: str) -> None:
+        """Unregister a previously registered render callback.
+
+        Args:
+            name: Identifier passed to :meth:`add_render_callback`. No-op if not found.
+        """
+        self._render_callbacks.pop(name, None)
+
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
@@ -670,9 +690,8 @@ class SimulationContext:
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
-        fetching data. Recording-related follow-up (Kit/RTX headless video, Newton GL
-        video, etc.) runs in :mod:`isaaclab.envs.utils.recording_hooks` so it is not tied to a
-        specific :class:`~isaaclab.physics.PhysicsManager` subclass.
+        fetching data. Physics-backend recording hooks (e.g. Kit/RTX headless video pump) fire through
+        :meth:`add_render_callback` so they are not hard-coded in this class.
 
         **Kit vs. standalone visualizers:**  The Kit app loop (``app.update()``) is the
         only way to drive camera/RTX sensor rendering and viewport GUI updates; it
@@ -692,13 +711,9 @@ class SimulationContext:
         self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt(), skip_app_pumping=skip_app_pumping)
         self.physics_manager.after_visualizers_render()
-        run_recording_hooks_after_visualizers(self)
+        for _, callback in sorted(self._render_callbacks.values(), key=lambda x: x[0]):
+            callback(None)
         self._render_generation += 1
-
-        # Call render callbacks
-        if hasattr(self, "_render_callbacks"):
-            for callback in self._render_callbacks.values():
-                callback(None)  # Pass None as event data
 
     def update_visualizers(self, dt: float, skip_app_pumping: bool = False) -> None:
         """Update visualizers without triggering renderer/GUI.

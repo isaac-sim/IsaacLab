@@ -77,7 +77,7 @@ _CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (2.25, 0.0, 3
 """Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
 
 _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
-"""Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
+"""Passed to visualizer cfgs (``lookat``); also applied to the env's visualizer configuration."""
 
 _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(
     eye - lookat for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)

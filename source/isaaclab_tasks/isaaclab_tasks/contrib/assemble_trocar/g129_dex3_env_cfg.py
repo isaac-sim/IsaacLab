@@ -8,7 +8,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -369,12 +369,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         num_envs=1,
         env_spacing=6.0,
         replicate_physics=True,
-    )
-    # viewer settings
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(-0.5, 2.4, 1.6),
-        lookat=(-5.4, 0.2, -1.2),
-        cam_prim_path="/OmniverseKit_Persp",
     )
     # basic settings
     observations: ObservationsCfg = ObservationsCfg()

@@ -8,7 +8,6 @@ __all__ = [
     "ui",
     "VecEnvObs",
     "VecEnvStepReturn",
-    "ViewerCfg",
     "DirectMARLEnv",
     "DirectMARLEnvCfg",
     "DirectRLEnv",
@@ -29,7 +28,7 @@ __all__ = [
 ]
 
 from . import mdp, ui
-from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
+from .common import VecEnvObs, VecEnvStepReturn
 from .direct_marl_env import DirectMARLEnv
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .direct_rl_env import DirectRLEnv

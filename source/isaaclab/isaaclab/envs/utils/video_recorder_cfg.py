@@ -32,20 +32,6 @@ class VideoRecorderCfg:
     Set automatically by the environment base classes; do not set manually.
     """
 
-    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
-    """Perspective camera position in world space (metres).
-
-    Direct RL / MARL and manager-based RL environments overwrite this from
-    :attr:`~isaaclab.envs.common.ViewerCfg.eye`. Kit and renderer-selected Newton capture use this
-    value. Visualizer-selected Newton capture uses the active visualizer camera instead.
-    """
-
-    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Perspective camera look-at target in world space (metres).
-
-    Visualizer-selected Newton capture uses the active visualizer camera instead.
-    """
-
     backend_source: Literal["visualizer", "renderer"] = "visualizer"
     """Source used to resolve the video capture backend.
 

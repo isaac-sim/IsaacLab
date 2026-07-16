@@ -18,8 +18,6 @@ pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 _FRAME = np.zeros((8, 12, 3), dtype=np.uint8)
 _DEFAULT_CFG = {
     "env_render_mode": "rgb_array",
-    "eye": (7.5, 7.5, 7.5),
-    "lookat": (0.0, 0.0, 0.0),
     "backend_source": "visualizer",
     "window_width": 1280,
     "window_height": 720,
@@ -52,12 +50,11 @@ def _make_visualizer_cfg(visualizer_type, eye=(1.0, 2.0, 3.0), lookat=(4.0, 5.0,
     return SimpleNamespace(visualizer_type=visualizer_type, eye=eye, lookat=lookat)
 
 
-def _make_scene(visualizer_cfgs=(), physics_backend="PhysxPhysicsManager", renderer_types=()):
+def _make_scene(visualizer_cfgs=(), video_backend: str | None = "kit"):
     scene = MagicMock()
     scene.sim._resolve_visualizer_cfgs.return_value = list(visualizer_cfgs)
-    scene.sim.physics_manager.__name__ = physics_backend
+    scene.sim.physics_manager.video_capture_backend.return_value = video_backend
     scene.sim.visualizers = []
-    scene._sensor_renderer_types.return_value = list(renderer_types)
     return scene
 
 
@@ -77,56 +74,60 @@ def test_resolve_backend_selects_newton_visualizer():
     """A configured Newton visualizer selects direct Newton framebuffer capture."""
     newton_cfg = _make_visualizer_cfg("newton")
 
-    backend, visualizer_cfg = _select_video_backend(_make_scene([newton_cfg], "NewtonPhysicsManager"), "visualizer")
+    backend, visualizer_cfg = _select_video_backend(_make_scene([newton_cfg], video_backend="newton_gl"), "visualizer")
 
     assert backend == "newton_gl"
     assert visualizer_cfg is newton_cfg
 
 
 def test_resolve_backend_renderer_source_ignores_visualizers():
-    """Renderer source bypasses active visualizers."""
+    """Renderer source bypasses active visualizers and falls through to physics manager."""
     newton_cfg = _make_visualizer_cfg("newton")
 
-    backend, visualizer_cfg = _select_video_backend(_make_scene([newton_cfg], "PhysxPhysicsManager"), "renderer")
+    backend, visualizer_cfg = _select_video_backend(_make_scene([newton_cfg], video_backend="kit"), "renderer")
 
     assert backend == "kit"
     assert visualizer_cfg is None
 
 
 def test_resolve_backend_unsupported_visualizer_falls_back():
-    """A visualizer without RGB capture falls back to the renderer stack."""
+    """A visualizer without RGB capture falls back to the physics manager."""
     viser_cfg = _make_visualizer_cfg("viser")
 
-    backend, visualizer_cfg = _select_video_backend(_make_scene([viser_cfg], "PhysxPhysicsManager"), "visualizer")
+    backend, visualizer_cfg = _select_video_backend(_make_scene([viser_cfg], video_backend="kit"), "visualizer")
 
     assert backend == "kit"
     assert visualizer_cfg is None
 
 
 @pytest.mark.parametrize(
-    ("physics_backend", "renderer_types", "expected"),
+    ("video_backend", "expected"),
     [
-        ("PhysxPhysicsManager", (), "kit"),
-        ("unknown", ("isaac_rtx",), "kit"),
-        ("NewtonPhysicsManager", (), "newton_gl"),
-        ("unknown", ("newton_warp",), "newton_gl"),
+        ("kit", "kit"),
+        ("newton_gl", "newton_gl"),
     ],
 )
-def test_resolve_backend_uses_renderer_stack(physics_backend, renderer_types, expected):
-    """Physics and sensor renderers select the fallback capture backend."""
-    backend, visualizer = _select_video_backend(
-        _make_scene(physics_backend=physics_backend, renderer_types=renderer_types),
-        "visualizer",
-    )
+def test_resolve_backend_uses_physics_manager_method(video_backend, expected):
+    """Backend selection delegates to physics_manager.video_capture_backend()."""
+    backend, visualizer = _select_video_backend(_make_scene(video_backend=video_backend), "visualizer")
 
     assert backend == expected
     assert visualizer is None
 
 
-def test_resolve_backend_raises_without_supported_source():
-    """An unsupported stack cannot provide RGB video."""
-    with pytest.raises(RuntimeError, match="No supported backend detected"):
-        _select_video_backend(_make_scene(physics_backend="unknown"), "visualizer")
+def test_resolve_backend_raises_for_unsupported_physics_manager():
+    """A physics manager that returns None from video_capture_backend() raises RuntimeError."""
+    with pytest.raises(RuntimeError, match="not supported by the active physics backend"):
+        _select_video_backend(_make_scene(video_backend=None), "visualizer")
+
+
+def test_resolve_backend_ovphysx_not_supported():
+    """OvPhysxManager is Kit-free and explicitly returns None from video_capture_backend()."""
+    scene = _make_scene(video_backend=None)
+    type(scene.sim.physics_manager).__name__ = "OvPhysxManager"
+
+    with pytest.raises(RuntimeError, match="not supported by the active physics backend"):
+        _select_video_backend(scene, "renderer")
 
 
 def test_resolve_backend_rejects_invalid_source():
@@ -139,7 +140,7 @@ def test_newton_visualizer_capture_is_bound_on_first_render():
     """Newton video reads the initialized visualizer framebuffer without creating another viewer."""
     newton_cfg = _make_visualizer_cfg("newton")
     newton = _FakeVisualizer("newton")
-    scene = _make_scene([newton_cfg], "NewtonPhysicsManager")
+    scene = _make_scene([newton_cfg], video_backend="newton_gl")
     recorder = VideoRecorder(_make_cfg(), scene)
 
     assert recorder._capture is None
@@ -176,8 +177,6 @@ def test_init_creates_kit_capture_with_visualizer_camera():
 
     assert frame is _FRAME
     capture_cfg_type.assert_called_once_with(
-        eye=(1.0, 2.0, 3.0),
-        lookat=(4.0, 5.0, 6.0),
         window_width=1280,
         window_height=720,
     )
@@ -203,7 +202,7 @@ def test_renderer_source_creates_standalone_newton_capture():
     ):
         recorder = VideoRecorder(
             _make_cfg(backend_source="renderer"),
-            _make_scene([newton_cfg], "NewtonPhysicsManager"),
+            _make_scene([newton_cfg], video_backend="newton_gl"),
         )
         create_capture.assert_called_once_with(capture_cfg)
         frame = recorder.render_rgb_array()
@@ -212,15 +211,13 @@ def test_renderer_source_creates_standalone_newton_capture():
     capture_cfg_type.assert_called_once_with(
         window_width=1280,
         window_height=720,
-        eye=(7.5, 7.5, 7.5),
-        lookat=(0.0, 0.0, 0.0),
     )
 
 
 def test_newton_visualizer_capture_requires_initialized_visualizer():
     """The selected Newton visualizer must be initialized before its framebuffer is read."""
     newton_cfg = _make_visualizer_cfg("newton")
-    recorder = VideoRecorder(_make_cfg(), _make_scene([newton_cfg], "NewtonPhysicsManager"))
+    recorder = VideoRecorder(_make_cfg(), _make_scene([newton_cfg], video_backend="newton_gl"))
 
     with pytest.raises(RuntimeError, match="not initialized"):
         recorder.render_rgb_array()

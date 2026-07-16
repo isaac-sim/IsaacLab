@@ -35,7 +35,6 @@ from isaaclab.utils.timer import Timer
 
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType
 from .direct_marl_env_cfg import DirectMARLEnvCfg
-from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
 
@@ -155,18 +154,6 @@ class DirectMARLEnv(gym.Env):
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
-        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
-        has_visualizers = self.sim.has_active_visualizers()
-        if (self.sim.has_gui or has_visualizers) and has_kit():
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
-
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
@@ -183,9 +170,6 @@ class DirectMARLEnv(gym.Env):
         # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
         if self.cfg.video_recorder is not None:
             self.cfg.video_recorder.env_render_mode = render_mode
-            vr = self.cfg.video_recorder
-            vr.eye = tuple(float(x) for x in self.cfg.viewer.eye)
-            vr.lookat = tuple(float(x) for x in self.cfg.viewer.lookat)
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
         else:
             self.video_recorder = None
@@ -621,8 +605,6 @@ class DirectMARLEnv(gym.Env):
             if self.cfg.events:
                 del self.event_manager
             del self.scene
-            if self.viewport_camera_controller is not None:
-                del self.viewport_camera_controller
 
             self.sim.clear_instance()
 

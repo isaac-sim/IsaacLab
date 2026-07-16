@@ -16,7 +16,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import NoiseModelCfg
 
-from .common import AgentID, SpaceType, ViewerCfg
+from .common import AgentID, SpaceType
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
@@ -28,9 +28,6 @@ class DirectMARLEnvCfg:
     """
 
     # simulation settings
-    viewer: ViewerCfg = ViewerCfg()
-    """Viewer configuration. Default is ViewerCfg()."""
-
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
 
