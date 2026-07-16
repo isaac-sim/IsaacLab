@@ -18,7 +18,6 @@ import re
 import shutil
 
 import pytest
-import tomllib
 from utils import run_cmd
 
 
@@ -48,10 +47,10 @@ class Test_Uv_Universal_Resolution_Smoke:
     @pytest.mark.timeout(900)
     def test_uv_pip_compile_universal_resolves_base_dependencies(self, isaaclab_root, tmp_path):
         """Verify the base dependencies resolve universally, as ``uv run`` would."""
-        with (isaaclab_root / "pyproject.toml").open("rb") as f:
-            requires_python = tomllib.load(f)["project"]["requires-python"]
-        lower_bound = re.search(r">=\s*(\d+\.\d+)", requires_python)
-        assert lower_bound, f"Could not read a lower bound from requires-python: {requires_python!r}"
+        # Plain-text parse instead of tomllib: the collection host may run Python < 3.11.
+        pyproject_text = (isaaclab_root / "pyproject.toml").read_text(encoding="utf-8")
+        lower_bound = re.search(r'^requires-python\s*=\s*"[^"]*>=\s*(\d+\.\d+)', pyproject_text, re.MULTILINE)
+        assert lower_bound, "Could not read a requires-python lower bound from pyproject.toml"
 
         result = run_cmd(
             [
