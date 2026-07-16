@@ -79,19 +79,6 @@ parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
-parser.add_argument(
-    "--frontend",
-    type=str,
-    default="torch",
-    choices=["torch", "warp"],
-    help=(
-        "Runtime backend for the env. 'torch' uses isaaclab.envs.* (PhysX or Newton via"
-        " factory dispatch); 'warp' routes through the WarpFrontend, which adapts a"
-        " manager-based cfg onto ManagerBasedRLEnvWarp or dispatches a direct task to its"
-        " registered warp env class. See isaaclab_experimental.envs.frontend for the"
-        " pluggable rule pipeline."
-    ),
-)
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
 args_cli, remaining_args = setup_preset_cli(parser)
@@ -113,22 +100,6 @@ if args_cli.external_callback:
 # intersection share the same token vocabulary (the callback reads the user's
 # original sys.argv), so preset tokens like ``physics=NAME`` compare correctly.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
-
-# Build path for ``--frontend=warp`` lives in ``isaaclab_experimental``, which is an
-# optional package — torch (the default) must still work without it, so import lazily.
-# Warp callers are required to pass ``presets=newton_mjwarp`` themselves; the frontend hard-checks
-# it at build time rather than mutating Hydra args here.
-_frontend_build = None
-try:
-    from isaaclab_experimental.envs.frontend import build as _frontend_build  # noqa: E402
-except ImportError as _frontend_import_err:
-    if args_cli.frontend != "torch":
-        raise SystemExit(
-            f"--frontend={args_cli.frontend} requires isaaclab_experimental to be installed,"
-            f" but the import failed: {_frontend_import_err}"
-        ) from _frontend_import_err
-    logger.info("isaaclab_experimental not available; --frontend=torch will dispatch via plain gym.make.")
-
 sys.argv = [sys.argv[0]] + remaining_args
 
 # -- check RSL-RL version ----------------------------------------------------
@@ -213,13 +184,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # set the log directory for the environment (works for all environment types)
         env_cfg.log_dir = log_dir
 
-        # Build the env via the selected frontend. Warp adapts env_cfg in place;
-        # missing warp twins are a hard failure.
-        render_mode = "rgb_array" if args_cli.video else None
-        if _frontend_build is not None:
-            env = _frontend_build(args_cli.frontend, env_cfg, args_cli.task, render_mode=render_mode)
-        else:
-            env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
+        # create isaac environment
+        env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):

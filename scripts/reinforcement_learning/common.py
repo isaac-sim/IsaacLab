@@ -257,6 +257,18 @@ def add_common_train_args(
     )
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+    parser.add_argument(
+        "--frontend",
+        type=str,
+        choices=["torch", "warp"],
+        default="torch",
+        help=(
+            "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
+            " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
+            " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
+            " and `presets=newton_mjwarp`."
+        ),
+    )
     if include_agent:
         parser.add_argument("--agent", type=str, default=agent_default, help=agent_help)
     parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
@@ -415,7 +427,7 @@ def create_isaaclab_env(
         The created Gymnasium environment.
     """
     render_mode = "rgb_array" if args_cli.video else None
-    frontend = getattr(args_cli, "frontend", "torch")
+    frontend = args_cli.frontend
     if frontend == "torch":
         env = gym.make(task, cfg=env_cfg, render_mode=render_mode)
     else:

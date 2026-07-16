@@ -82,16 +82,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Fully qualified path to an externally defined callback.",
     )
-    parser.add_argument(
-        "--frontend",
-        choices=["torch", "warp"],
-        default="torch",
-        help=(
-            "Environment runtime. 'torch' uses the registered stable environment; "
-            "'warp' adapts a manager-based config to ManagerBasedRLEnvWarp or requires "
-            "a registered Warp environment for direct tasks."
-        ),
-    )
     CLI_ARGS.add_rsl_rl_args(parser)
     add_isaaclab_launcher_args(parser)
     # setup_preset_cli registers preset-selection help text + runs parse_known_args

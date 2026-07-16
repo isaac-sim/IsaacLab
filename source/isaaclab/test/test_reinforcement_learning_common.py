@@ -221,6 +221,17 @@ def test_enable_cameras_for_video_enables_cameras_for_sensor_capture() -> None:
     assert args_cli.enable_cameras
 
 
+def test_common_train_args_register_frontend_with_torch_default() -> None:
+    """Every RL library CLI exposes ``--frontend`` and defaults to the torch runtime."""
+    parser = argparse.ArgumentParser()
+    add_common_train_args(parser, agent_default=None, agent_help="", include_agent=False)
+
+    assert parser.parse_args([]).frontend == "torch"
+    assert parser.parse_args(["--frontend", "warp"]).frontend == "warp"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--frontend", "tensorflow"])
+
+
 def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """The shared factory preserves the existing Gym path when no frontend is selected."""
     expected_env = object()
@@ -232,7 +243,7 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
         return expected_env
 
     monkeypatch.setattr(_rl_common.gym, "make", fake_make)
-    args_cli = argparse.Namespace(video=False)
+    args_cli = argparse.Namespace(video=False, frontend="torch")
 
     env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
 
