@@ -166,11 +166,11 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
-        prim_path="/World/envs/env_.*/Robot/panda_link0",
+        prim_path="/World/envs/env_.*/Robot/Geometry/panda_link0",
         debug_vis=False,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="/World/envs/env_.*/Robot/panda_hand",
+                prim_path="/World/envs/env_.*/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/panda_link4/panda_link5/panda_link6/panda_link7/panda_hand",
                 name="end_effector",
                 offset=OffsetCfg(pos=[0.0, 0.0, 0.1034]),
             ),

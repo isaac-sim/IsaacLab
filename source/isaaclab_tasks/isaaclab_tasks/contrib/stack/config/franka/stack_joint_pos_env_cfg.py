@@ -75,11 +75,23 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
 
         # End-effector frame (the shared cubes/spawns come from the base scene).
         self.scene.ee_frame = make_ee_frame_cfg(
-            base_prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
+            base_prim_path="{ENV_REGEX_NS}/Robot/Geometry/panda_link0",
             target_specs=[
-                ("{ENV_REGEX_NS}/Robot/panda_hand", "end_effector", (0.0, 0.0, 0.1034)),
-                ("{ENV_REGEX_NS}/Robot/panda_rightfinger", "tool_rightfinger", (0.0, 0.0, 0.046)),
-                ("{ENV_REGEX_NS}/Robot/panda_leftfinger", "tool_leftfinger", (0.0, 0.0, 0.046)),
+                (
+                    "{ENV_REGEX_NS}/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/panda_link4/panda_link5/panda_link6/panda_link7/panda_hand",
+                    "end_effector",
+                    (0.0, 0.0, 0.1034),
+                ),
+                (
+                    "{ENV_REGEX_NS}/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/panda_link4/panda_link5/panda_link6/panda_link7/panda_hand/panda_rightfinger",
+                    "tool_rightfinger",
+                    (0.0, 0.0, 0.046),
+                ),
+                (
+                    "{ENV_REGEX_NS}/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/panda_link4/panda_link5/panda_link6/panda_link7/panda_hand/panda_leftfinger",
+                    "tool_leftfinger",
+                    (0.0, 0.0, 0.046),
+                ),
             ],
             marker_scale=(0.1, 0.1, 0.1),
         )
