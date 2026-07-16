@@ -8,6 +8,6 @@ Added
 Changed
 ^^^^^^^
 
-* Changed the Franka cabinet task configuration to the renamed
-  ``Robots/FrankaEmika/franka_panda.usda`` asset, following the asset update on the
-  Nucleus server.
+* Changed the Franka cabinet task configuration to the relocated
+  ``Robots/FrankaEmika/Legacy/panda_instanceable.usd`` asset, following the asset
+  reorganization on the Nucleus server.
