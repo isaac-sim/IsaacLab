@@ -221,7 +221,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         wp.launch(
-            update_actions,
+            kernel=update_actions,
             dim=self.num_envs,
             inputs=[
                 actions,
@@ -229,13 +229,14 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 self.action_scale,
                 self._cart_dof_idx[0],
             ],
+            device=self.device,
         )
 
     def _apply_action(self) -> None:
         self.cartpole.set_joint_effort_target_mask(target=self.actions)
 
     def _get_observations(self) -> dict:
-        wp.launch(
+        self._warp_launch.launch(
             get_observations,
             dim=self.num_envs,
             inputs=[
@@ -249,7 +250,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         return {"policy": self.torch_obs_buf}
 
     def _get_rewards(self) -> None:
-        wp.launch(
+        self._warp_launch.launch(
             compute_rewards,
             dim=self.num_envs,
             inputs=[
@@ -268,7 +269,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         )
 
     def _get_dones(self) -> None:
-        wp.launch(
+        self._warp_launch.launch(
             get_dones,
             dim=self.num_envs,
             inputs=[
@@ -290,7 +291,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
 
         super()._reset_idx(mask)
 
-        wp.launch(
+        self._warp_launch.launch(
             reset,
             dim=self.num_envs,
             inputs=[
@@ -304,4 +305,5 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 mask,
                 self.states,
             ],
+            site=mask,
         )

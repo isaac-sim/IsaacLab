@@ -32,6 +32,7 @@ from isaaclab.utils.timer import Timer
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
+from ..managers.command_manager import _CommandViewCache
 from .manager_based_env_warp import ManagerBasedEnvWarp
 
 DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
@@ -73,6 +74,35 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         in a vectorized environment.
 
     """
+
+    class _CommandManagerWarpView(CommandManager):
+        """Stable command manager with persistent Warp views of its Torch commands."""
+
+        def __init__(self, cfg: object, env: ManagerBasedRLEnvWarp):
+            super().__init__(cfg, env)
+            self._command_views = _CommandViewCache(self.active_terms, self.get_command)
+
+        def compute(self, dt: float):
+            """Update commands and refresh staging buffers for computed command properties."""
+            super().compute(dt)
+            self._command_views.refresh()
+
+        def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+            """Reset commands and refresh staging buffers before observations are computed."""
+            extras = super().reset(env_ids=env_ids)
+            self._command_views.refresh()
+            return extras
+
+        def get_command_wp(self, name: str) -> wp.array(dtype=wp.float32):
+            """Return the persistent Warp view of a command.
+
+            Args:
+                name: Name of the command term.
+
+            Returns:
+                Persistent command array with shape ``(num_envs, command_dim)``.
+            """
+            return self._command_views.get(name)
 
     is_vector_env: ClassVar[bool] = True
     """Whether the environment is a vectorized environment."""
@@ -156,7 +186,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
         # -- command manager (stable impl — not routed through ManagerCallSwitch)
-        self.command_manager = CommandManager(self.cfg.commands, self)
+        self.command_manager = self._CommandManagerWarpView(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
 
         # call the parent class to load the managers for observations and actions.
@@ -199,13 +229,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     """
     Operations - MDP
     """
-
-    def invalidate_wp_graphs(self) -> None:
-        """Invalidate all cached Warp graphs.
-
-        Call this if the captured launch topology changes (e.g. different term list, shapes, etc.).
-        """
-        self._manager_call_switch.invalidate_graphs()
 
     def step_warp_termination_compute(self) -> None:
         """Captured stage: compute terminations (env-step frequency)."""
@@ -269,8 +292,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 warp_call={"fn": self.scene.write_data_to_sim},
                 timer=DEBUG_TIMER_STEP,
             )
-
-            # simulate
             with Timer(name="simulate", msg="Newton simulation step took:", enable=DEBUG_TIMER_STEP, time_unit="us"):
                 self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()

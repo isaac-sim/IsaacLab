@@ -259,11 +259,10 @@ class TerminationManager(ManagerBase):
             env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         if len(self._term_names) > 0:
             self._term_done_avg_wp.zero_()
-            wp.launch(
-                kernel=_termination_reset_mean_all_2d,
+            self._env._warp_launch.launch(
+                _termination_reset_mean_all_2d,
                 dim=(self.num_envs, len(self._term_names)),
                 inputs=[self._last_episode_dones_wp, self._term_done_avg_wp],
-                device=self.device,
             )
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_mask=env_mask)
@@ -281,11 +280,10 @@ class TerminationManager(ManagerBase):
             The combined termination signal of shape (num_envs,).
         """
         # reset computation (Warp buffers) in a single kernel launch
-        wp.launch(
-            kernel=_termination_pre_compute_reset,
+        self._env._warp_launch.launch(
+            _termination_pre_compute_reset,
             dim=self.num_envs,
             inputs=[self._term_dones_wp, self._truncated_wp, self._terminated_wp, self._dones_wp],
-            device=self.device,
         )
 
         # iterate over all the termination terms (fixed list; per-term math is Warp)
@@ -293,8 +291,8 @@ class TerminationManager(ManagerBase):
             term_cfg.func(self._env, term_cfg.out, **term_cfg.params)
 
         # finalize dones and update last-episode term flags (single kernel launch)
-        wp.launch(
-            kernel=_termination_finalize,
+        self._env._warp_launch.launch(
+            _termination_finalize,
             dim=self.num_envs,
             inputs=[
                 self._term_dones_wp,
@@ -304,7 +302,6 @@ class TerminationManager(ManagerBase):
                 self._dones_wp,
                 self._last_episode_dones_wp,
             ],
-            device=self.device,
         )
 
         return self._dones_tensor_view

@@ -34,6 +34,16 @@ from isaaclab_experimental.utils.warp import WarpCapturable
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
+
+def _get_event_scratch(env) -> dict[tuple[object, ...], tuple[wp.array, ...]]:
+    """Return the persistent Warp scratch arrays owned by an environment."""
+    scratch = getattr(env, "_warp_mdp_event_scratch", None)
+    if scratch is None:
+        scratch = {}
+        env._warp_mdp_event_scratch = scratch
+    return scratch
+
+
 # ---------------------------------------------------------------------------
 # Randomize rigid body center of mass
 # ---------------------------------------------------------------------------
@@ -79,26 +89,22 @@ def randomize_rigid_body_com(
     """
     asset: Articulation = env.scene[asset_cfg.name]
 
-    fn = randomize_rigid_body_com
-    if not getattr(fn, "_is_warmed_up", False) or fn._asset_name != asset_cfg.name:
-        fn._asset_name = asset_cfg.name
-        r = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        fn._com_lo = wp.vec3f(r[0][0], r[1][0], r[2][0])
-        fn._com_hi = wp.vec3f(r[0][1], r[1][1], r[2][1])
-        fn._is_warmed_up = True
+    ranges = tuple(tuple(float(value) for value in com_range.get(key, (0.0, 0.0))) for key in ["x", "y", "z"])
+    com_lo = wp.vec3f(ranges[0][0], ranges[1][0], ranges[2][0])
+    com_hi = wp.vec3f(ranges[0][1], ranges[1][1], ranges[2][1])
 
-    wp.launch(
-        kernel=_randomize_com_kernel,
+    env._warp_launch.launch(
+        _randomize_com_kernel,
         dim=env.num_envs,
         inputs=[
             env_mask,
             env.rng_state_wp,
             asset.data.body_com_pos_b.warp,
             asset_cfg.body_ids_wp,
-            fn._com_lo,
-            fn._com_hi,
+            com_lo,
+            com_hi,
         ],
-        device=env.device,
+        site=(asset_cfg.body_ids_wp, ranges, env_mask),
     )
 
     # Notify the solver that inertial properties changed (COM position affects inertia).
@@ -156,36 +162,37 @@ def apply_external_force_torque(
     Warp-first override of :func:`isaaclab.envs.mdp.events.apply_external_force_torque`.
     """
     asset: Articulation = env.scene[asset_cfg.name]
+    force_range = (float(force_range[0]), float(force_range[1]))
+    torque_range = (float(torque_range[0]), float(torque_range[1]))
 
-    # First-call: allocate scratch and pre-convert constant arguments.
-    if not getattr(apply_external_force_torque, "_is_warmed_up", False):
-        apply_external_force_torque._scratch_forces = wp.zeros(
-            (env.num_envs, asset.num_bodies), dtype=wp.vec3f, device=env.device
+    scratch = _get_event_scratch(env)
+    scratch_key = (apply_external_force_torque, asset_cfg.name, force_range, torque_range)
+    if scratch_key not in scratch:
+        scratch[scratch_key] = (
+            wp.zeros((env.num_envs, asset.num_bodies), dtype=wp.vec3f, device=env.device),
+            wp.zeros((env.num_envs, asset.num_bodies), dtype=wp.vec3f, device=env.device),
         )
-        apply_external_force_torque._scratch_torques = wp.zeros(
-            (env.num_envs, asset.num_bodies), dtype=wp.vec3f, device=env.device
-        )
-        apply_external_force_torque._is_warmed_up = True
+    scratch_forces, scratch_torques = scratch[scratch_key]
 
-    wp.launch(
-        kernel=_apply_external_force_torque_kernel,
+    env._warp_launch.launch(
+        _apply_external_force_torque_kernel,
         dim=env.num_envs,
         inputs=[
             env_mask,
             env.rng_state_wp,
-            apply_external_force_torque._scratch_forces,
-            apply_external_force_torque._scratch_torques,
+            scratch_forces,
+            scratch_torques,
             force_range[0],
             force_range[1],
             torque_range[0],
             torque_range[1],
         ],
-        device=env.device,
+        site=(scratch_forces, env_mask, force_range, torque_range),
     )
 
     asset.permanent_wrench_composer.set_forces_and_torques_mask(
-        forces=apply_external_force_torque._scratch_forces,
-        torques=apply_external_force_torque._scratch_torques,
+        forces=scratch_forces,
+        torques=scratch_torques,
         env_mask=env_mask,
     )
 
@@ -237,33 +244,38 @@ def push_by_setting_velocity(
     """
     asset: Articulation = env.scene[asset_cfg.name]
 
-    # First-call: allocate scratch and pre-parse constant range arguments.
-    if not getattr(push_by_setting_velocity, "_is_warmed_up", False):
-        push_by_setting_velocity._scratch_vel = wp.zeros((env.num_envs,), dtype=wp.spatial_vectorf, device=env.device)
-        r = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-        push_by_setting_velocity._lin_lo = wp.vec3f(r[0][0], r[1][0], r[2][0])
-        push_by_setting_velocity._lin_hi = wp.vec3f(r[0][1], r[1][1], r[2][1])
-        push_by_setting_velocity._ang_lo = wp.vec3f(r[3][0], r[4][0], r[5][0])
-        push_by_setting_velocity._ang_hi = wp.vec3f(r[3][1], r[4][1], r[5][1])
-        push_by_setting_velocity._is_warmed_up = True
+    scratch = _get_event_scratch(env)
+    ranges = tuple(
+        tuple(float(value) for value in velocity_range.get(key, (0.0, 0.0)))
+        for key in ["x", "y", "z", "roll", "pitch", "yaw"]
+    )
+    scratch_key = (push_by_setting_velocity, asset_cfg.name, *ranges)
+    if scratch_key not in scratch:
+        scratch[scratch_key] = (wp.zeros((env.num_envs,), dtype=wp.spatial_vectorf, device=env.device),)
+    (scratch_vel,) = scratch[scratch_key]
 
-    wp.launch(
-        kernel=_push_by_setting_velocity_kernel,
+    lin_lo = wp.vec3f(ranges[0][0], ranges[1][0], ranges[2][0])
+    lin_hi = wp.vec3f(ranges[0][1], ranges[1][1], ranges[2][1])
+    ang_lo = wp.vec3f(ranges[3][0], ranges[4][0], ranges[5][0])
+    ang_hi = wp.vec3f(ranges[3][1], ranges[4][1], ranges[5][1])
+
+    env._warp_launch.launch(
+        _push_by_setting_velocity_kernel,
         dim=env.num_envs,
         inputs=[
             env_mask,
             env.rng_state_wp,
             asset.data.root_vel_w.warp,
-            push_by_setting_velocity._scratch_vel,
-            push_by_setting_velocity._lin_lo,
-            push_by_setting_velocity._lin_hi,
-            push_by_setting_velocity._ang_lo,
-            push_by_setting_velocity._ang_hi,
+            scratch_vel,
+            lin_lo,
+            lin_hi,
+            ang_lo,
+            ang_hi,
         ],
-        device=env.device,
+        site=(scratch_vel, env_mask, ranges),
     )
 
-    asset.write_root_velocity_to_sim_mask(root_velocity=push_by_setting_velocity._scratch_vel, env_mask=env_mask)
+    asset.write_root_velocity_to_sim_mask(root_velocity=scratch_vel, env_mask=env_mask)
 
 
 # ---------------------------------------------------------------------------
@@ -348,26 +360,34 @@ def reset_root_state_uniform(
     """
     asset: Articulation = env.scene[asset_cfg.name]
 
-    # First-call: allocate scratch and pre-parse range dicts.
-    if not getattr(reset_root_state_uniform, "_is_warmed_up", False):
-        reset_root_state_uniform._scratch_pose = wp.zeros((env.num_envs,), dtype=wp.transformf, device=env.device)
-        reset_root_state_uniform._scratch_vel = wp.zeros((env.num_envs,), dtype=wp.spatial_vectorf, device=env.device)
-        # Pre-parse pose_range dict
-        p = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-        reset_root_state_uniform._pos_lo = wp.vec3f(p[0][0], p[1][0], p[2][0])
-        reset_root_state_uniform._pos_hi = wp.vec3f(p[0][1], p[1][1], p[2][1])
-        reset_root_state_uniform._rot_lo = wp.vec3f(p[3][0], p[4][0], p[5][0])
-        reset_root_state_uniform._rot_hi = wp.vec3f(p[3][1], p[4][1], p[5][1])
-        # Pre-parse velocity_range dict
-        v = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-        reset_root_state_uniform._vel_lin_lo = wp.vec3f(v[0][0], v[1][0], v[2][0])
-        reset_root_state_uniform._vel_lin_hi = wp.vec3f(v[0][1], v[1][1], v[2][1])
-        reset_root_state_uniform._vel_ang_lo = wp.vec3f(v[3][0], v[4][0], v[5][0])
-        reset_root_state_uniform._vel_ang_hi = wp.vec3f(v[3][1], v[4][1], v[5][1])
-        reset_root_state_uniform._is_warmed_up = True
+    scratch = _get_event_scratch(env)
+    pose_ranges = tuple(
+        tuple(float(value) for value in pose_range.get(key, (0.0, 0.0)))
+        for key in ["x", "y", "z", "roll", "pitch", "yaw"]
+    )
+    velocity_ranges = tuple(
+        tuple(float(value) for value in velocity_range.get(key, (0.0, 0.0)))
+        for key in ["x", "y", "z", "roll", "pitch", "yaw"]
+    )
+    scratch_key = (reset_root_state_uniform, asset_cfg.name, *pose_ranges, *velocity_ranges)
+    if scratch_key not in scratch:
+        scratch[scratch_key] = (
+            wp.zeros((env.num_envs,), dtype=wp.transformf, device=env.device),
+            wp.zeros((env.num_envs,), dtype=wp.spatial_vectorf, device=env.device),
+        )
+    scratch_pose, scratch_vel = scratch[scratch_key]
 
-    wp.launch(
-        kernel=_reset_root_state_uniform_kernel,
+    pos_lo = wp.vec3f(pose_ranges[0][0], pose_ranges[1][0], pose_ranges[2][0])
+    pos_hi = wp.vec3f(pose_ranges[0][1], pose_ranges[1][1], pose_ranges[2][1])
+    rot_lo = wp.vec3f(pose_ranges[3][0], pose_ranges[4][0], pose_ranges[5][0])
+    rot_hi = wp.vec3f(pose_ranges[3][1], pose_ranges[4][1], pose_ranges[5][1])
+    vel_lin_lo = wp.vec3f(velocity_ranges[0][0], velocity_ranges[1][0], velocity_ranges[2][0])
+    vel_lin_hi = wp.vec3f(velocity_ranges[0][1], velocity_ranges[1][1], velocity_ranges[2][1])
+    vel_ang_lo = wp.vec3f(velocity_ranges[3][0], velocity_ranges[4][0], velocity_ranges[5][0])
+    vel_ang_hi = wp.vec3f(velocity_ranges[3][1], velocity_ranges[4][1], velocity_ranges[5][1])
+
+    env._warp_launch.launch(
+        _reset_root_state_uniform_kernel,
         dim=env.num_envs,
         inputs=[
             env_mask,
@@ -375,22 +395,22 @@ def reset_root_state_uniform(
             asset.data.default_root_pose.warp,
             asset.data.default_root_vel.warp,
             env.env_origins_wp,
-            reset_root_state_uniform._scratch_pose,
-            reset_root_state_uniform._scratch_vel,
-            reset_root_state_uniform._pos_lo,
-            reset_root_state_uniform._pos_hi,
-            reset_root_state_uniform._rot_lo,
-            reset_root_state_uniform._rot_hi,
-            reset_root_state_uniform._vel_lin_lo,
-            reset_root_state_uniform._vel_lin_hi,
-            reset_root_state_uniform._vel_ang_lo,
-            reset_root_state_uniform._vel_ang_hi,
+            scratch_pose,
+            scratch_vel,
+            pos_lo,
+            pos_hi,
+            rot_lo,
+            rot_hi,
+            vel_lin_lo,
+            vel_lin_hi,
+            vel_ang_lo,
+            vel_ang_hi,
         ],
-        device=env.device,
+        site=(scratch_pose, env_mask, pose_ranges, velocity_ranges),
     )
 
-    asset.write_root_pose_to_sim_mask(root_pose=reset_root_state_uniform._scratch_pose, env_mask=env_mask)
-    asset.write_root_velocity_to_sim_mask(root_velocity=reset_root_state_uniform._scratch_vel, env_mask=env_mask)
+    asset.write_root_pose_to_sim_mask(root_pose=scratch_pose, env_mask=env_mask)
+    asset.write_root_velocity_to_sim_mask(root_velocity=scratch_vel, env_mask=env_mask)
 
 
 # ---------------------------------------------------------------------------
@@ -456,6 +476,8 @@ def reset_joints_by_offset(
     via `isaaclab_experimental.envs.mdp`.
     """
     asset: Articulation = env.scene[asset_cfg.name]
+    position_range = (float(position_range[0]), float(position_range[1]))
+    velocity_range = (float(velocity_range[0]), float(velocity_range[1]))
 
     # Assume cfg params are already resolved by the manager stack (Warp-first workflow).
     if asset_cfg.joint_ids_wp is None:
@@ -470,8 +492,8 @@ def reset_joints_by_offset(
             "Use ManagerBasedEnvWarp or ManagerBasedRLEnvWarp as the base environment."
         )
 
-    wp.launch(
-        kernel=_reset_joints_by_offset_kernel,
+    env._warp_launch.launch(
+        _reset_joints_by_offset_kernel,
         dim=env.num_envs,
         inputs=[
             env_mask,
@@ -488,7 +510,7 @@ def reset_joints_by_offset(
             float(velocity_range[0]),
             float(velocity_range[1]),
         ],
-        device=env.device,
+        site=(asset_cfg.joint_ids_wp, position_range, velocity_range, env_mask),
     )
 
     # Sync derived buffers (_previous_joint_vel, joint_acc) for reset envs.
@@ -548,6 +570,8 @@ def reset_joints_by_scale(
 ):
     """Warp-first reset of joint state by scaling defaults with random factors."""
     asset: Articulation = env.scene[asset_cfg.name]
+    position_range = (float(position_range[0]), float(position_range[1]))
+    velocity_range = (float(velocity_range[0]), float(velocity_range[1]))
 
     if asset_cfg.joint_ids_wp is None:
         raise ValueError(
@@ -561,8 +585,8 @@ def reset_joints_by_scale(
             "Use ManagerBasedEnvWarp or ManagerBasedRLEnvWarp as the base environment."
         )
 
-    wp.launch(
-        kernel=_reset_joints_by_scale_kernel,
+    env._warp_launch.launch(
+        _reset_joints_by_scale_kernel,
         dim=env.num_envs,
         inputs=[
             env_mask,
@@ -579,7 +603,7 @@ def reset_joints_by_scale(
             float(velocity_range[0]),
             float(velocity_range[1]),
         ],
-        device=env.device,
+        site=(asset_cfg.joint_ids_wp, position_range, velocity_range, env_mask),
     )
 
     # Sync derived buffers (_previous_joint_vel, joint_acc) for reset envs.

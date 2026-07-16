@@ -387,17 +387,17 @@ class ActionManager(ManagerBase):
             self._prev_action.fill_(0.0)
             self._action.fill_(0.0)
         else:
-            wp.launch(
-                kernel=_zero_masked_2d,
+            self._env._warp_launch.launch(
+                _zero_masked_2d,
                 dim=(self.num_envs, self.total_action_dim),
                 inputs=[env_mask, self._prev_action],
-                device=self.device,
+                site=(self._prev_action, env_mask),
             )
-            wp.launch(
-                kernel=_zero_masked_2d,
+            self._env._warp_launch.launch(
+                _zero_masked_2d,
                 dim=(self.num_envs, self.total_action_dim),
                 inputs=[env_mask, self._action],
-                device=self.device,
+                site=(self._action, env_mask),
             )
 
         # reset all action terms

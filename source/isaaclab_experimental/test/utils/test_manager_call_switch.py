@@ -14,6 +14,8 @@ import unittest
 import warp as wp
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 
 @wp.kernel
 def _add_one(a: wp.array(dtype=wp.float32), b: wp.array(dtype=wp.float32)):
@@ -270,6 +272,33 @@ class TestStageDispatch(unittest.TestCase):
         )
         self.assertEqual(received, {"a": 1, "b": 2, "key": "val"})
 
+    def test_uncapturable_manager_still_replays_neighboring_launch(self):
+        """A manager downgrade should preserve launch-level replay for its other terms."""
+        switch = ManagerCallSwitch(cfg_source={"default": 2})
+        switch.register_manager_capturability("RewardManager", capturable=False)
+        cache = WarpLaunchCache(device="cpu")
+        source = wp.full(4, value=1.0, dtype=wp.float32, device="cpu")
+        output = wp.zeros(4, dtype=wp.float32, device="cpu")
+        uncapturable_call_count = 0
+
+        def manager_stage():
+            nonlocal uncapturable_call_count
+            uncapturable_call_count += 1
+            cache.launch(_add_one, dim=4, inputs=[source, output])
+
+        switch.call_stage(stage="RewardManager_compute", warp_call={"fn": manager_stage})
+        command = next(iter(cache._entries.values())).command
+        self.assertEqual(output.numpy().tolist(), [2.0] * 4)
+
+        source.fill_(5.0)
+        switch.call_stage(stage="RewardManager_compute", warp_call={"fn": manager_stage})
+
+        self.assertEqual(switch.get_mode_for_manager("RewardManager"), ManagerCallMode.WARP_NOT_CAPTURED)
+        self.assertEqual(uncapturable_call_count, 2)
+        self.assertEqual(len(cache._entries), 1)
+        self.assertIs(next(iter(cache._entries.values())).command, command)
+        self.assertEqual(output.numpy().tolist(), [6.0] * 4)
+
 
 class TestStageDispatchCaptured(unittest.TestCase):
     """Tests for WARP_CAPTURED mode (requires GPU)."""
@@ -362,8 +391,8 @@ class TestStageDispatchCaptured(unittest.TestCase):
         for val in result2.numpy():
             self.assertAlmostEqual(val, 6.0, places=5)
 
-    def test_warp_eager_no_warmup(self):
-        """WARP_NOT_CAPTURED mode should call fn exactly once per call (no warm-up)."""
+    def test_warp_uncaptured_has_no_stage_warmup(self):
+        """WARP_NOT_CAPTURED should call the stage once while allowing launch-level replay inside it."""
         switch = ManagerCallSwitch(cfg_source={"default": 1})
         call_count = [0]
 
@@ -371,10 +400,10 @@ class TestStageDispatchCaptured(unittest.TestCase):
             call_count[0] += 1
 
         switch.call_stage(stage="RewardManager_compute", warp_call={"fn": warp_fn})
-        self.assertEqual(call_count[0], 1, "Eager mode should call fn exactly once")
+        self.assertEqual(call_count[0], 1, "Uncaptured mode should call the stage exactly once")
 
         switch.call_stage(stage="RewardManager_compute", warp_call={"fn": warp_fn})
-        self.assertEqual(call_count[0], 2, "Eager mode should call fn again each time")
+        self.assertEqual(call_count[0], 2, "Uncaptured mode should call the stage again each time")
 
 
 # ======================================================================

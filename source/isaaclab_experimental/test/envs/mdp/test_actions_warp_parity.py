@@ -12,6 +12,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
@@ -42,6 +44,7 @@ class MockEnv:
         self.scene = MockScene({"robot": asset}, env_origins=None)
         self.num_envs = NUM_ENVS
         self.device = DEVICE
+        self._warp_launch = WarpLaunchCache(device=DEVICE)
 
 
 # ============================================================================
@@ -166,6 +169,42 @@ class TestJointActions:
         raw = wp.to_torch(actions_wp)
         expected = raw * 2.5
         assert_close(term.processed_actions, expected)
+
+    def test_joint_action_replay_reads_mutated_persistent_action(self, env):
+        """Replay should consume updated values from the persistent action buffer."""
+        cfg = JointEffortActionCfg(asset_name="robot", joint_names=[".*"])
+        term = JointEffortAction(cfg, env)
+        first = wp.full((NUM_ENVS, 2 * NUM_JOINTS), value=1.0, dtype=wp.float32, device=DEVICE)
+        second_torch = torch.cat(
+            (
+                torch.full((NUM_ENVS, NUM_JOINTS), 2.0, device=DEVICE),
+                torch.full((NUM_ENVS, NUM_JOINTS), 7.0, device=DEVICE),
+            ),
+            dim=1,
+        )
+
+        term.process_actions(first, action_offset=NUM_JOINTS)
+        wp.copy(first, wp.from_torch(second_torch))
+        term.process_actions(first, action_offset=NUM_JOINTS)
+
+        assert_close(term.raw_actions, torch.full((NUM_ENVS, NUM_JOINTS), 7.0, device=DEVICE))
+
+    def test_joint_action_replay_updates_reset_mask_pointer(self, env):
+        """Replay should apply the current reset mask when its allocation changes."""
+        cfg = JointEffortActionCfg(asset_name="robot", joint_names=[".*"])
+        term = JointEffortAction(cfg, env)
+        actions = wp.ones((NUM_ENVS, NUM_JOINTS), dtype=wp.float32, device=DEVICE)
+        first_mask = wp.array([index < NUM_ENVS // 2 for index in range(NUM_ENVS)], dtype=wp.bool, device=DEVICE)
+        second_mask = wp.array([index >= NUM_ENVS // 2 for index in range(NUM_ENVS)], dtype=wp.bool, device=DEVICE)
+
+        term.process_actions(actions)
+        term.reset(env_mask=first_mask)
+        term.process_actions(actions)
+        term.reset(env_mask=second_mask)
+
+        raw = wp.to_torch(term.raw_actions)
+        assert_close(raw[: NUM_ENVS // 2], torch.ones((NUM_ENVS // 2, NUM_JOINTS), device=DEVICE))
+        assert_close(raw[NUM_ENVS // 2 :], torch.zeros((NUM_ENVS // 2, NUM_JOINTS), device=DEVICE))
 
 
 # ============================================================================

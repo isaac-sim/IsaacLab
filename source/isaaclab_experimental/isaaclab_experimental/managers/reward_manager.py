@@ -255,20 +255,25 @@ class RewardManager(ManagerBase):
         self._reset_count_wp.zero_()
         self._reset_scale_wp.zero_()
 
-        wp.launch(kernel=count_masked, dim=self.num_envs, inputs=[env_mask, self._reset_count_wp], device=self.device)
-        wp.launch(
-            kernel=compute_reset_scale,
+        self._env._warp_launch.launch(
+            count_masked,
+            dim=self.num_envs,
+            inputs=[env_mask, self._reset_count_wp],
+            site=(self, env_mask),
+        )
+        self._env._warp_launch.launch(
+            compute_reset_scale,
             dim=1,
             inputs=[self._reset_count_wp, float(self._env.max_episode_length_s), self._reset_scale_wp],
-            device=self.device,
+            site=(self, float(self._env.max_episode_length_s)),
         )
 
         if self._num_terms > 0:
-            wp.launch(
-                kernel=_sum_and_zero_masked,
+            self._env._warp_launch.launch(
+                _sum_and_zero_masked,
                 dim=(self._num_terms, self.num_envs),
                 inputs=[env_mask, self._reset_scale_wp, self._episode_sums_wp, self._episode_sum_avg_wp],
-                device=self.device,
+                site=(self, env_mask),
             )
 
         # reset all the reward terms
@@ -291,11 +296,10 @@ class RewardManager(ManagerBase):
         """
         # TODO: Investigate performance diff between two .fill_ and kernel launch
         # reset computation (Warp buffers) in a single kernel launch
-        wp.launch(
-            kernel=_reward_pre_compute_reset,
+        self._env._warp_launch.launch(
+            _reward_pre_compute_reset,
             dim=self.num_envs,
             inputs=[self._reward_wp, self._step_reward_wp, self._term_outs_wp],
-            device=self.device,
         )
         # iterate over all the reward terms (Python loop; per-term math is warp)
         for term_cfg in self._term_cfgs:
@@ -307,8 +311,8 @@ class RewardManager(ManagerBase):
             term_cfg.func(self._env, term_cfg.out, **term_cfg.params)
 
         # update total reward, episodic sums and step rewards in a single kernel launch
-        wp.launch(
-            kernel=_reward_finalize,
+        self._env._warp_launch.launch(
+            _reward_finalize,
             dim=self.num_envs,
             inputs=[
                 self._term_outs_wp,
@@ -318,7 +322,7 @@ class RewardManager(ManagerBase):
                 self._episode_sums_wp,
                 self._step_reward_wp,
             ],
-            device=self.device,
+            site=float(dt),
         )
 
         return self._reward_tensor_view
@@ -347,6 +351,7 @@ class RewardManager(ManagerBase):
         self._term_cfgs[term_idx] = cfg
         # keep on-device weights in sync (call this to update weights used in compute)
         self._term_weights_tensor_view[term_idx] = float(cfg.weight)
+        self._env.invalidate_wp_graphs()
 
     def get_term_cfg(self, term_name: str) -> RewardTermCfg:
         """Gets the configuration for the specified term.

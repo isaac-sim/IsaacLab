@@ -12,6 +12,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 # Skip entire module if no CUDA device available
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
@@ -131,6 +133,7 @@ def warp_env(scene, action_wp, episode_length_buf):
     env.action_manager = MockActionManagerWarp(action_wp[0], action_wp[1])
     env.num_envs = NUM_ENVS
     env.device = DEVICE
+    env._warp_launch = WarpLaunchCache(device=DEVICE)
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
@@ -169,6 +172,7 @@ def warp_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, cmd
     env.command_manager = MockCommandManager(cmd_tensor, cmd_term)
     env.num_envs = NUM_ENVS
     env.device = DEVICE
+    env._warp_launch = WarpLaunchCache(device=DEVICE)
     env.episode_length_buf = episode_length_buf
     env._episode_length_buf_wp = wp.from_torch(episode_length_buf)
     env.step_dt = 0.02
@@ -229,6 +233,17 @@ class TestTerminationParity:
         )
         assert_equal(actual, expected)
         assert_equal(actual_cap, expected)
+
+    def test_root_height_rerecords_changed_minimum(self, warp_env, stable_env, all_joints_cfg):
+        """A changed scalar term parameter records a command with the new value."""
+        warp_env._warp_launch = WarpLaunchCache(device=DEVICE, debug=False)
+        out = wp.empty((NUM_ENVS,), dtype=wp.bool, device=DEVICE)
+
+        warp_term.root_height_below_minimum(warp_env, out, minimum_height=-100.0, asset_cfg=all_joints_cfg)
+        warp_term.root_height_below_minimum(warp_env, out, minimum_height=100.0, asset_cfg=all_joints_cfg)
+
+        expected = stable_term.root_height_below_minimum(stable_env, minimum_height=100.0, asset_cfg=all_joints_cfg)
+        assert_equal(wp.to_torch(out).clone(), expected)
 
     def test_joint_pos_out_of_manual_limit(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg

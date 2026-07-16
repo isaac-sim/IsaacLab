@@ -12,6 +12,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 # Skip entire module if no CUDA device available
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
@@ -35,25 +37,6 @@ from parity_helpers import (
 # ============================================================================
 # Fixtures
 # ============================================================================
-
-
-@pytest.fixture(autouse=True)
-def _clear_function_caches():
-    """Clear first-call caches on warp MDP functions so each test starts fresh.
-
-    Functions that cache warp views via the ``hasattr`` pattern need clearing
-    between tests to avoid stale references from prior fixtures.
-    """
-    yield
-    for fn in (
-        warp_evt.push_by_setting_velocity,
-        warp_evt.apply_external_force_torque,
-        warp_evt.reset_root_state_uniform,
-        warp_evt.randomize_rigid_body_com,
-    ):
-        for attr in list(vars(fn)):
-            if attr.startswith("_"):
-                delattr(fn, attr)
 
 
 @pytest.fixture()
@@ -99,6 +82,7 @@ def warp_env(scene, action_wp, episode_length_buf):
     env.action_manager = MockActionManagerWarp(action_wp[0], action_wp[1])
     env.num_envs = NUM_ENVS
     env.device = DEVICE
+    env._warp_launch = WarpLaunchCache(device=DEVICE)
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
@@ -288,7 +272,9 @@ class TestEventCapturedDataMutation:
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
-        scratch = wp.to_torch(warp_evt.push_by_setting_velocity._scratch_vel)
+        range_values = tuple(zero_range[key] for key in ("x", "y", "z", "roll", "pitch", "yaw"))
+        (scratch_vel,) = warp_env._warp_mdp_event_scratch[(warp_evt.push_by_setting_velocity, "robot", *range_values)]
+        scratch = wp.to_torch(scratch_vel)
         expected = torch.tensor([1.0, 2.0, 3.0, 0.1, 0.2, 0.3], device=DEVICE).expand(NUM_ENVS, -1)
         assert_close(scratch, expected)
 
@@ -305,8 +291,11 @@ class TestEventCapturedDataMutation:
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
-        forces = wp.to_torch(warp_evt.apply_external_force_torque._scratch_forces)
-        torques = wp.to_torch(warp_evt.apply_external_force_torque._scratch_torques)
+        scratch_forces, scratch_torques = warp_env._warp_mdp_event_scratch[
+            (warp_evt.apply_external_force_torque, "robot", (0.0, 0.0), (0.0, 0.0))
+        ]
+        forces = wp.to_torch(scratch_forces)
+        torques = wp.to_torch(scratch_torques)
         assert_close(forces, torch.zeros_like(forces))
         assert_close(torques, torch.zeros_like(torques))
 

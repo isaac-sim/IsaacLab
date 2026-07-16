@@ -509,18 +509,18 @@ class ObservationManager(ManagerBase):
 
             # clip then scale (stable semantics); implementation may use Warp kernels
             if term_cfg.clip is not None:
-                wp.launch(
-                    kernel=_apply_clip,
+                self._env._warp_launch.launch(
+                    _apply_clip,
                     dim=self.num_envs,
                     inputs=[term_cfg.out_wp, float(term_cfg.clip[0]), float(term_cfg.clip[1])],
-                    device=self.device,
+                    site=(term_cfg.out_wp, float(term_cfg.clip[0]), float(term_cfg.clip[1])),
                 )
             if term_cfg.scale is not None:
-                wp.launch(
-                    kernel=_apply_scale,
+                self._env._warp_launch.launch(
+                    _apply_scale,
                     dim=self.num_envs,
                     inputs=[term_cfg.out_wp, term_cfg.scale_wp],
-                    device=self.device,
+                    site=term_cfg.out_wp,
                 )
 
             # TODO(jichuanh): This is not migrated yet. Need revisit.

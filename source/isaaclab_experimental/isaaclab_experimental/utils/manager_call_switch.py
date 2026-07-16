@@ -22,7 +22,8 @@ class ManagerCallMode(IntEnum):
     """Execution mode for manager stage calls.
 
     * ``STABLE``  (0): Call stable Python manager implementations from :mod:`isaaclab.managers`.
-    * ``WARP_NOT_CAPTURED`` (1): Call Warp-compatible implementations without CUDA graph capture.
+    * ``WARP_NOT_CAPTURED`` (1): Call Warp-compatible implementations without enclosing the manager stage in a
+      CUDA graph. Individual pointer-stable kernel calls may still use recorded-launch replay.
     * ``WARP_CAPTURED`` (2): Call Warp implementations with CUDA graph capture/replay.
     """
 
@@ -35,8 +36,9 @@ class ManagerCallSwitch:
     """Per-manager call switch for stable/warp/captured execution.
 
     Routes each manager stage call through the configured execution path:
-    stable Python, Warp (eager), or Warp (captured CUDA graph). Optionally
-    wraps each call in a :class:`Timer` context for profiling.
+    stable Python, uncaptured Warp, or a captured Warp CUDA graph. The uncaptured
+    path delegates individual kernel launch policy to owner-scoped launch caches.
+    Optionally wraps each call in a :class:`Timer` context for profiling.
     """
 
     DEFAULT_CONFIG: dict[str, int] = {"default": 2}
@@ -121,7 +123,7 @@ class ManagerCallSwitch:
 
         Args:
             stage: Stage identifier in the form ``"ManagerName_function_name"``.
-            warp_call: Call spec for the warp path (eager or captured).
+            warp_call: Call spec for the uncaptured or graph-captured Warp path.
             stable_call: Call spec for the stable (torch) path. Defaults to ``None``.
             timer: Whether to wrap execution in a :class:`Timer`. Defaults to ``True``
                 (controlled by the global :attr:`Timer.enable` class-level toggle).
@@ -202,7 +204,11 @@ class ManagerCallSwitch:
     # ------------------------------------------------------------------
 
     def _run_call(self, call: dict[str, Any]) -> Any:
-        """Execute a single call spec eagerly."""
+        """Execute a call without stage-level graph capture.
+
+        The called Warp implementation may replay its own pointer-stable kernel
+        commands through an owner-scoped launch cache.
+        """
         return call["fn"](*call.get("args", ()), **call.get("kwargs", {}))
 
     def _wp_capture_or_launch(self, stage: str, call: dict[str, Any]) -> Any:

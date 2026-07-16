@@ -596,6 +596,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
 
         # track goal resets
         self.reset_goal_buf = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self._target_pose_env_mask = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         # used to compare object position
         self.in_hand_pos = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
         # default goal positions
@@ -690,7 +691,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         wp.copy(self.actions, actions)
 
     def _apply_action(self) -> None:
-        wp.launch(
+        self._warp_launch.launch(
             apply_actions_to_targets,
             dim=(self.num_envs, self.num_actuated_dofs),
             inputs=[
@@ -702,7 +703,6 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.prev_targets,
                 self.cur_targets,
             ],
-            device=self.device,
         )
 
         # Apply position targets using mask method (CUDA graph safe).
@@ -728,7 +728,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         # wp.assign(self._finished_cons_successes, 0.0)
         self._num_resets.zero_()
         self._finished_cons_successes.zero_()
-        wp.launch(
+        self._warp_launch.launch(
             compute_rewards,
             dim=self.num_envs,
             inputs=[
@@ -752,11 +752,10 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self._finished_cons_successes,
                 self.rewards,
             ],
-            device=self.device,
         )
 
         # A separate kernel is needed as Warp does not support thread synchronization for reductions.
-        wp.launch(
+        self._warp_launch.launch(
             update_consecutive_successes_from_stats,
             dim=1,
             inputs=[
@@ -765,7 +764,6 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.cfg.av_factor,
                 self.consecutive_successes,
             ],
-            device=self.device,
         )
 
         if "log" not in self.extras:
@@ -780,7 +778,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
     def _get_dones(self) -> None:
         self._compute_intermediate_values()
 
-        wp.launch(
+        self._warp_launch.launch(
             get_dones,
             dim=self.num_envs,
             inputs=[
@@ -797,7 +795,6 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.reset_time_outs,
                 self.reset_buf,
             ],
-            device=self.device,
         )
 
     def _reset_idx(self, mask: wp.array | None = None):
@@ -811,7 +808,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         self._reset_target_pose(mask=mask)
 
         # reset object
-        wp.launch(
+        self._warp_launch.launch(
             reset_object,
             dim=self.num_envs,
             inputs=[
@@ -825,11 +822,11 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.object.data.root_link_pose_w.warp,
                 self.object.data.root_com_vel_w.warp,
             ],
-            device=self.device,
+            site=mask,
         )
 
         # reset hand
-        wp.launch(
+        self._warp_launch.launch(
             reset_hand,
             dim=self.num_envs,
             inputs=[
@@ -848,19 +845,19 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.cur_targets,
                 self.hand_dof_targets,
             ],
-            device=self.device,
+            site=mask,
         )
 
         self.hand.set_joint_position_target_mask(target=self.cur_targets, env_mask=mask)
 
-        wp.launch(
+        self._warp_launch.launch(
             reset_successes,
             dim=self.num_envs,
             inputs=[
                 mask,
                 self.successes,
             ],
-            device=self.device,
+            site=mask,
         )
 
         self._compute_intermediate_values()
@@ -873,10 +870,11 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             env_mask_list = [False] * self.num_envs
             for env_id in env_ids:
                 env_mask_list[int(env_id)] = True
-            mask = wp.array(env_mask_list, dtype=wp.bool, device=self.device)
+            self._target_pose_env_mask.assign(wp.array(env_mask_list, dtype=wp.bool, device=self.device))
+            mask = self._target_pose_env_mask
 
         # update goal pose and markers
-        wp.launch(
+        self._warp_launch.launch(
             reset_target_pose,
             dim=self.num_envs,
             inputs=[
@@ -890,7 +888,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.reset_goal_buf,
                 self.goal_pos_w,
             ],
-            device=self.device,
+            site=mask,
         )
 
     def _post_step_visualize(self) -> None:
@@ -899,7 +897,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
 
     def _compute_intermediate_values(self):
         # data for hand/object (Warp version of the Torch env's `_compute_intermediate_values`)
-        wp.launch(
+        self._warp_launch.launch(
             compute_intermediate_values,
             dim=self.num_envs,
             inputs=[
@@ -917,7 +915,6 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.object_pose,
                 self.object_vels,
             ],
-            device=self.device,
         )
 
     def compute_reduced_observations(self):
@@ -925,7 +922,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         #   Fingertip positions
         #   Object Position, but not orientation
         #   Relative target orientation
-        wp.launch(
+        self._warp_launch.launch(
             compute_reduced_observations,
             dim=self.num_envs,
             inputs=[
@@ -937,19 +934,18 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.cfg.action_space,
                 self.observations,
             ],
-            device=self.device,
         )
         # Warp-native non-finite sanitization + print-once.
-        wp.launch(
+        self._warp_launch.launch(
             sanitize_and_print_once,
             dim=(self.num_envs * self.cfg.observation_space),
             inputs=[self.observations.flatten(), self.obs_nonfinite_flag],
-            device=self.device,
+            site="reduced_observations_sanitize",
         )
         self.obs_nonfinite_flag.zero_()
 
     def compute_full_observations(self):
-        wp.launch(
+        self._warp_launch.launch(
             compute_full_observations,
             dim=self.num_envs,
             inputs=[
@@ -971,13 +967,12 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.cfg.action_space,
                 self.observations,
             ],
-            device=self.device,
         )
         # Warp-native non-finite sanitization + print-once.
-        wp.launch(
+        self._warp_launch.launch(
             sanitize_and_print_once,
             dim=(self.num_envs * self.cfg.observation_space),
             inputs=[self.observations.flatten(), self.obs_nonfinite_flag],
-            device=self.device,
+            site="full_observations_sanitize",
         )
         self.obs_nonfinite_flag.zero_()

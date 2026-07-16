@@ -31,11 +31,13 @@ from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
 
 # from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp import WarpLaunchCache
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
@@ -245,6 +247,14 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # Warp CUDA graph cache for capture-or-replay
         self._graph_cache = WarpGraphCache()
+        # Warp launch cache for low-overhead execution outside captured stages
+        self._warp_launch = WarpLaunchCache(device=self.device)
+        self._warp_cache_physics_ready_handle = self.sim.physics_manager.register_callback(
+            self._reset_warp_caches_after_physics_ready,
+            PhysicsEvent.PHYSICS_READY,
+            order=30,
+            name="direct_rl_env_warp_cache_rebind",
+        )
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -486,7 +496,7 @@ class DirectRLEnvWarp(DirectRLEnv):
 
     def _step_warp_end_pre(self) -> None:
         """Capturable portion before write_data_to_sim (pure warp kernels)."""
-        wp.launch(
+        self._warp_launch.launch(
             add_to_env,
             dim=self.num_envs,
             inputs=[
@@ -614,6 +624,11 @@ class DirectRLEnvWarp(DirectRLEnv):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            if self._warp_cache_physics_ready_handle is not None:
+                self._warp_cache_physics_ready_handle.deregister()
+                self._warp_cache_physics_ready_handle = None
+            self._reset_warp_caches_after_physics_ready(None)
+
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
@@ -638,6 +653,11 @@ class DirectRLEnvWarp(DirectRLEnv):
                 self._window = None
             # update closing status
             self._is_closed = True
+
+    def _reset_warp_caches_after_physics_ready(self, _payload: Any) -> None:
+        """Drop graphs and launches recorded against previous simulation storage."""
+        self._graph_cache.invalidate()
+        self._warp_launch.reset()
 
     """
     Operations - Debug Visualization.
@@ -740,13 +760,14 @@ class DirectRLEnvWarp(DirectRLEnv):
         #    self._observation_noise_model.reset(env_ids)
 
         # reset the episode length buffer
-        wp.launch(
+        self._warp_launch.launch(
             zero_mask_int32,
             dim=self.num_envs,
             inputs=[
                 mask,
                 self._episode_length_buf_wp,
             ],
+            site=mask,
         )
 
     """

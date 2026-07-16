@@ -37,9 +37,9 @@ def joint_pos_target_l2(env: ManagerBasedRLEnv, out, target: float, asset_cfg: S
     """Penalize joint position deviation from a target value. Writes into ``out``."""
     asset: Articulation = env.scene[asset_cfg.name]
     assert asset.data.joint_pos.warp.shape[1] == asset_cfg.joint_mask.shape[0]
-    wp.launch(
-        kernel=_joint_pos_target_l2_kernel,
+    env._warp_launch.launch(
+        _joint_pos_target_l2_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, out, target],
-        device=env.device,
+        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, out, float(target)],
+        site=(out, float(target)),
     )

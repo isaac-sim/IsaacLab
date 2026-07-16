@@ -12,6 +12,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 # Skip entire module if no CUDA device available
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
@@ -138,6 +140,7 @@ def warp_env(scene, action_wp, episode_length_buf, term_mgr):
     env.termination_manager = term_mgr
     env.num_envs = NUM_ENVS
     env.device = DEVICE
+    env._warp_launch = WarpLaunchCache(device=DEVICE)
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
@@ -177,6 +180,7 @@ def warp_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, cmd
     env.command_manager = MockCommandManager(cmd_tensor, cmd_term)
     env.num_envs = NUM_ENVS
     env.device = DEVICE
+    env._warp_launch = WarpLaunchCache(device=DEVICE)
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length = 500
@@ -299,6 +303,17 @@ class TestRewardParity:
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
+    def test_sum_squared_helpers_reuse_output(self, warp_env, stable_env, all_joints_cfg):
+        """Distinct public reductions sharing a kernel may safely reuse one output buffer."""
+        warp_env._warp_launch = WarpLaunchCache(device=DEVICE, debug=False)
+        out = wp.empty((NUM_ENVS,), dtype=wp.float32, device=DEVICE)
+
+        warp_rew.joint_torques_l2(warp_env, out, asset_cfg=all_joints_cfg)
+        warp_rew.joint_vel_l2(warp_env, out, asset_cfg=all_joints_cfg)
+        warp_rew.joint_acc_l2(warp_env, out, asset_cfg=all_joints_cfg)
+
+        assert_close(wp.to_torch(out).clone(), stable_rew.joint_acc_l2(stable_env, asset_cfg=all_joints_cfg))
+
     # -- Joint L1 penalties (masked) --------------------------------------------
 
     def test_joint_vel_l1(self, warp_env, stable_env, all_joints_cfg):
@@ -367,6 +382,19 @@ class TestNewRewardParity:
         )
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
+
+    def test_track_lin_vel_xy_exp_rerecords_changed_std(self, warp_env_bodies, stable_env_bodies):
+        """A changed scalar term parameter records a command with the new value."""
+        cfg = MockBodyCfg("robot")
+        cfg.joint_ids = list(range(NUM_JOINTS))
+        warp_env_bodies._warp_launch = WarpLaunchCache(device=DEVICE, debug=False)
+        out = wp.empty((NUM_ENVS,), dtype=wp.float32, device=DEVICE)
+
+        warp_rew.track_lin_vel_xy_exp(warp_env_bodies, out, std=0.25, command_name="vel", asset_cfg=cfg)
+        warp_rew.track_lin_vel_xy_exp(warp_env_bodies, out, std=0.75, command_name="vel", asset_cfg=cfg)
+
+        expected = stable_rew.track_lin_vel_xy_exp(stable_env_bodies, std=0.75, command_name="vel", asset_cfg=cfg)
+        assert_close(wp.to_torch(out).clone(), expected)
 
     def test_track_ang_vel_z_exp(self, warp_env_bodies, stable_env_bodies, body_cfg):
         cfg = MockBodyCfg("robot")

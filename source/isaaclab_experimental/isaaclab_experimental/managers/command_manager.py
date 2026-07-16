@@ -10,7 +10,7 @@ from __future__ import annotations
 import inspect
 import weakref
 from abc import abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -225,31 +225,36 @@ class CommandTerm(ManagerTermBase):
         # compute selected count and reset scale
         self._reset_count_wp.zero_()
         self._reset_scale_wp.zero_()
-        wp.launch(kernel=count_masked, dim=self.num_envs, inputs=[env_mask, self._reset_count_wp], device=self.device)
-        wp.launch(
-            kernel=compute_reset_scale,
+        self._env._warp_launch.launch(
+            count_masked,
+            dim=self.num_envs,
+            inputs=[env_mask, self._reset_count_wp],
+            site=(self, env_mask),
+        )
+        self._env._warp_launch.launch(
+            compute_reset_scale,
             dim=1,
             inputs=[self._reset_count_wp, 1.0, self._reset_scale_wp],
-            device=self.device,
+            site=self,
         )
 
         # update pre-allocated reset extras and clear selected metric rows
         for metric_name, metric_value_wp in self.metrics.items():
             out_mean_wp = self._reset_metric_mean_wp[metric_name]
             out_mean_wp.zero_()
-            wp.launch(
-                kernel=_sum_and_zero_masked,
+            self._env._warp_launch.launch(
+                _sum_and_zero_masked,
                 dim=self.num_envs,
                 inputs=[env_mask, self._reset_scale_wp, metric_value_wp, out_mean_wp],
-                device=self.device,
+                site=(out_mean_wp, env_mask),
             )
 
         # set the command counter to zero
-        wp.launch(
-            kernel=_zero_counter_masked,
+        self._env._warp_launch.launch(
+            _zero_counter_masked,
             dim=self.num_envs,
             inputs=[env_mask, self.command_counter_wp],
-            device=self.device,
+            site=(self, env_mask),
         )
         # resample the command
         self._resample(env_mask=env_mask)
@@ -288,11 +293,11 @@ class CommandTerm(ManagerTermBase):
         # update the metrics based on current state
         self._update_metrics()
         # reduce the time left before resampling and build resample mask
-        wp.launch(
-            kernel=_step_time_left_and_build_resample_mask,
+        self._env._warp_launch.launch(
+            _step_time_left_and_build_resample_mask,
             dim=self.num_envs,
             inputs=[self.time_left_wp, float(dt), self._resample_mask_wp],
-            device=self.device,
+            site=(self, float(dt)),
         )
         # resample masked envs
         self._resample(env_mask=self._resample_mask_wp)
@@ -320,8 +325,8 @@ class CommandTerm(ManagerTermBase):
             raise RuntimeError("Environment rng_state_wp is not initialized.")
 
         # resample time-left and increment command-counter for masked envs
-        wp.launch(
-            kernel=_resample_time_left_and_increment_counter,
+        self._env._warp_launch.launch(
+            _resample_time_left_and_increment_counter,
             dim=self.num_envs,
             inputs=[
                 env_mask,
@@ -331,7 +336,12 @@ class CommandTerm(ManagerTermBase):
                 float(self.cfg.resampling_time_range[0]),
                 float(self.cfg.resampling_time_range[1]),
             ],
-            device=self.device,
+            site=(
+                self,
+                env_mask,
+                float(self.cfg.resampling_time_range[0]),
+                float(self.cfg.resampling_time_range[1]),
+            ),
         )
         # resample command values for masked envs
         self._resample_command(env_mask)
@@ -372,6 +382,73 @@ class CommandTerm(ManagerTermBase):
         raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
 
 
+class _CommandViewCache:
+    """Maintain pointer-stable Warp command views across replacing properties."""
+
+    def __init__(self, names: Sequence[str], get_command: Callable[[str], torch.Tensor | wp.array]):
+        self._names = frozenset(names)
+        self._get_command = get_command
+        self._owners: dict[str, torch.Tensor | wp.array] = {}
+        self._sources: dict[str, torch.Tensor | wp.array] = {}
+        self.views: dict[str, wp.array(dtype=wp.float32)] = {}
+
+    def _create(self, name: str) -> None:
+        """Create the persistent view for one command on first use."""
+        if name not in self._names:
+            raise KeyError(f"Unknown command term {name!r}.")
+        command = self._get_command(name)
+        if isinstance(command, torch.Tensor):
+            if command.dtype != torch.float32:
+                raise TypeError(f"Command {name!r} must use torch.float32, got {command.dtype}.")
+            # Keep a distinct tensor object so ``command.set_(...)`` cannot
+            # repoint the storage retained by the persistent Warp view.
+            owner = command.detach()
+            self._owners[name] = owner
+            self.views[name] = wp.from_torch(owner)
+        elif isinstance(command, wp.array):
+            if command.dtype != wp.float32:
+                raise TypeError(f"Command {name!r} must use wp.float32, got {command.dtype}.")
+            self._owners[name] = command
+            self.views[name] = command
+        else:
+            raise TypeError(f"Command {name!r} must return a Torch tensor or Warp array, got {type(command).__name__}.")
+
+    def refresh(self) -> None:
+        """Copy replaced command properties into their original persistent buffers."""
+        for name, owner in self._owners.items():
+            current = self._get_command(name)
+            if isinstance(owner, torch.Tensor) and isinstance(current, torch.Tensor):
+                owner_specialization = (owner.shape, owner.dtype, owner.device, owner.stride())
+                current_specialization = (current.shape, current.dtype, current.device, current.stride())
+                if owner_specialization != current_specialization:
+                    raise RuntimeError(
+                        f"Command {name!r} changed tensor specialization from "
+                        f"{owner_specialization} to {current_specialization}."
+                    )
+                if owner.data_ptr() != current.data_ptr():
+                    owner.copy_(current)
+                    self._sources[name] = current
+            elif isinstance(owner, wp.array) and isinstance(current, wp.array):
+                owner_specialization = (owner.shape, owner.dtype, owner.device, owner.strides)
+                current_specialization = (current.shape, current.dtype, current.device, current.strides)
+                if owner_specialization != current_specialization:
+                    raise RuntimeError(
+                        f"Command {name!r} changed array specialization from "
+                        f"{owner_specialization} to {current_specialization}."
+                    )
+                if owner.ptr != current.ptr:
+                    wp.copy(owner, current)
+                    self._sources[name] = current
+            else:
+                raise TypeError(f"Command {name!r} changed from {type(owner).__name__} to {type(current).__name__}.")
+
+    def get(self, name: str) -> wp.array(dtype=wp.float32):
+        """Return the pointer-stable Warp view for a command term."""
+        if name not in self.views:
+            self._create(name)
+        return self.views[name]
+
+
 class CommandManager(ManagerBase):
     """Manager for generating commands.
 
@@ -403,6 +480,8 @@ class CommandManager(ManagerBase):
         super().__init__(cfg, env)
         # store the commands
         self._commands = dict()
+        self._command_views = _CommandViewCache(self.active_terms, lambda name: self._terms[name].command)
+        self._commands_wp = self._command_views.views
         if self.cfg:
             self.cfg.debug_vis = False
             for term in self._terms.values():
@@ -526,6 +605,8 @@ class CommandManager(ManagerBase):
             # reset the command term
             term.reset(env_mask=env_mask)
 
+        self._command_views.refresh()
+
         return self._reset_extras
 
     def compute(self, dt: float):
@@ -541,6 +622,7 @@ class CommandManager(ManagerBase):
         for term in self._terms.values():
             # compute term's value
             term.compute(dt)
+        self._command_views.refresh()
 
     def get_command(self, name: str) -> torch.Tensor:
         """Returns the command for the specified command term.
@@ -555,6 +637,17 @@ class CommandManager(ManagerBase):
         if isinstance(command, wp.array):
             return wp.to_torch(command)
         return command
+
+    def get_command_wp(self, name: str) -> wp.array(dtype=wp.float32):
+        """Return the persistent Warp view of a command.
+
+        Args:
+            name: Name of the command term.
+
+        Returns:
+            Command array with shape ``(num_envs, command_dim)``.
+        """
+        return self._command_views.get(name)
 
     def get_term(self, name: str) -> CommandTerm:
         """Returns the command term with the specified name.

@@ -30,12 +30,14 @@ from isaaclab.envs.common import VecEnvObs
 from isaaclab.envs.manager_based_env_cfg import ManagerBasedEnvCfg
 from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp import WarpLaunchCache
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
@@ -102,6 +104,15 @@ class ManagerBasedEnvWarp:
             # if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             #     raise RuntimeError("Simulation context already exists. Cannot create a new one.")
             self.sim: SimulationContext = SimulationContext.instance()
+
+        # Owner-scoped Warp launcher for eager or recorded execution.
+        self._warp_launch = WarpLaunchCache(device=self.device)
+        self._warp_cache_physics_ready_handle = self.sim.physics_manager.register_callback(
+            self._reset_warp_caches_after_physics_ready,
+            PhysicsEvent.PHYSICS_READY,
+            order=30,
+            name="manager_based_env_warp_cache_rebind",
+        )
 
         # make sure torch is running on the correct device
         if "cuda" in self.device:
@@ -592,6 +603,11 @@ class ManagerBasedEnvWarp:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            if self._warp_cache_physics_ready_handle is not None:
+                self._warp_cache_physics_ready_handle.deregister()
+                self._warp_cache_physics_ready_handle = None
+            self._reset_warp_caches_after_physics_ready(None)
+
             # destructor is order-sensitive
             del self.viewport_camera_controller
             del self.action_manager
@@ -608,6 +624,20 @@ class ManagerBasedEnvWarp:
                 self._window = None
             # update closing status
             self._is_closed = True
+
+    def invalidate_wp_graphs(self) -> None:
+        """Invalidate cached Warp graphs and recorded launches.
+
+        Call this if launch topology, term shapes, or static argument storage
+        changes. The method synchronizes device work before releasing recorded
+        argument owners.
+        """
+        self._reset_warp_caches_after_physics_ready(None)
+
+    def _reset_warp_caches_after_physics_ready(self, _payload: Any) -> None:
+        """Drop graphs and launches recorded against previous simulation storage."""
+        self._manager_call_switch.invalidate_graphs()
+        self._warp_launch.reset()
 
     """
     Helper functions.

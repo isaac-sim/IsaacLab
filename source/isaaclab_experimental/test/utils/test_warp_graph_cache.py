@@ -8,9 +8,12 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 import warp as wp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+
+from isaaclab.utils.warp import WarpLaunchCache
 
 
 @wp.kernel
@@ -222,6 +225,54 @@ class TestWarpGraphCache(unittest.TestCase):
     def test_invalidate_nonexistent_stage_is_noop(self):
         """Invalidating a stage that was never captured should not raise."""
         self.cache.invalidate("nonexistent")  # should not raise
+
+    def test_graph_invalidation_drains_when_launch_cache_is_eager(self):
+        """A graph should drain even when the neighboring launch cache has no commands."""
+        launch_cache = WarpLaunchCache(device=self.device, enabled=False)
+        src = wp.zeros(4, dtype=wp.float32, device=self.device)
+        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
+
+        def my_fn():
+            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
+
+        self.cache.capture_or_replay("stage", my_fn)
+        graph_device = self.cache._graphs["stage"].device
+
+        with patch.object(wp, "synchronize_device", wraps=wp.synchronize_device) as synchronize:
+            self.cache.invalidate()
+            launch_cache.reset()
+
+        synchronize.assert_called_once_with(graph_device)
+        self.assertFalse(self.cache._graphs)
+        self.assertFalse(launch_cache._entries)
+
+    def test_empty_graph_and_launch_caches_do_not_synchronize(self):
+        """Empty eager caches should not introduce a lifecycle synchronization."""
+        graph_cache = WarpGraphCache(mode="eager")
+        launch_cache = WarpLaunchCache(device=self.device, enabled=False)
+
+        with patch.object(wp, "synchronize_device", side_effect=AssertionError("unexpected sync")):
+            graph_cache.invalidate()
+            launch_cache.reset()
+
+    def test_eager_mode_invokes_function_on_every_call(self):
+        """Eager mode should bypass graph capture without changing call results."""
+        cache = WarpGraphCache(mode="eager")
+        call_count = 0
+
+        def counted_fn(value):
+            nonlocal call_count
+            call_count += 1
+            return value
+
+        self.assertEqual(cache.capture_or_replay("stage", counted_fn, args=(1,)), 1)
+        self.assertEqual(cache.capture_or_replay("stage", counted_fn, args=(2,)), 2)
+        self.assertEqual(call_count, 2)
+
+    def test_invalid_mode_is_rejected(self):
+        """An unknown graph execution mode should fail during construction."""
+        with self.assertRaisesRegex(ValueError, "Invalid Warp graph mode"):
+            WarpGraphCache(mode="invalid")
 
     # ------------------------------------------------------------------
     # Args / kwargs forwarding

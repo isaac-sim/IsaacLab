@@ -230,6 +230,7 @@ class EventManager(ManagerBase):
                 break
         if not term_found:
             raise ValueError(f"Event term '{term_name}' not found.")
+        self._env.invalidate_wp_graphs()
 
     def get_term_cfg(self, term_name: str) -> EventTermCfg:
         for mode, terms in self._mode_term_names.items():
@@ -266,8 +267,8 @@ class EventManager(ManagerBase):
                 if term_cfg.is_global_time or not term_cfg.resample_interval_on_reset:
                     continue
                 lower, upper = self._interval_term_ranges[i]
-                wp.launch(
-                    kernel=_interval_reset_selected,
+                self._env._warp_launch.launch(
+                    _interval_reset_selected,
                     dim=self.num_envs,
                     inputs=[
                         env_mask,
@@ -276,7 +277,7 @@ class EventManager(ManagerBase):
                         float(lower),
                         float(upper),
                     ],
-                    device=self.device,
+                    site=(self._interval_term_time_left_wp[i], env_mask, float(lower), float(upper)),
                 )
         return {}
 
@@ -342,8 +343,8 @@ class EventManager(ManagerBase):
                         "EventManager._apply_interval: _interval_global_rng_state_wp is not initialized."
                     )
                 # update scalar time_left and scalar flag (mask is a broadcast view of the flag)
-                wp.launch(
-                    kernel=_interval_step_global,
+                self._env._warp_launch.launch(
+                    _interval_step_global,
                     dim=1,
                     inputs=[
                         self._interval_term_time_left_wp[i],
@@ -353,12 +354,12 @@ class EventManager(ManagerBase):
                         float(lower),
                         float(upper),
                     ],
-                    device=self.device,
+                    site=(self._interval_term_time_left_wp[i], float(dt), float(lower), float(upper)),
                 )
                 term_cfg.func(self._env, self._scratch_interval_trigger_mask_view_wp, **term_cfg.params)
             else:
-                wp.launch(
-                    kernel=_interval_step_per_env,
+                self._env._warp_launch.launch(
+                    _interval_step_per_env,
                     dim=self.num_envs,
                     inputs=[
                         self._interval_term_time_left_wp[i],
@@ -368,7 +369,7 @@ class EventManager(ManagerBase):
                         float(lower),
                         float(upper),
                     ],
-                    device=self.device,
+                    site=(self._interval_term_time_left_wp[i], float(dt), float(lower), float(upper)),
                 )
                 term_cfg.func(self._env, self._scratch_term_mask_wp, **term_cfg.params)
 
@@ -379,8 +380,8 @@ class EventManager(ManagerBase):
         # iterate over all the reset terms
         for index, term_cfg in enumerate(self._mode_term_cfgs["reset"]):
             min_step_count = int(term_cfg.min_step_count_between_reset)
-            wp.launch(
-                kernel=_reset_compute_valid_mask,
+            self._env._warp_launch.launch(
+                _reset_compute_valid_mask,
                 dim=self.num_envs,
                 inputs=[
                     env_mask_wp,
@@ -390,7 +391,12 @@ class EventManager(ManagerBase):
                     global_env_step_count_wp,
                     int(min_step_count),
                 ],
-                device=self.device,
+                site=(
+                    self._reset_term_last_triggered_step_wp[index],
+                    env_mask_wp,
+                    global_env_step_count_wp,
+                    min_step_count,
+                ),
             )
             term_cfg.func(self._env, self._scratch_term_mask_wp, **term_cfg.params)
 
