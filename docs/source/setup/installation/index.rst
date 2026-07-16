@@ -39,6 +39,30 @@ Local Installation
    required for this mode. See :doc:`kitless_installation` for which features are available
    without Isaac Sim.
 
+   The ``--uv`` command requires `uv <https://docs.astral.sh/uv/getting-started/installation/>`__
+   and creates a repository-local Python environment. Activating that environment prevents the
+   installer from falling back to the operating system's Python.
+
+   If the environment creation and activation steps are skipped on a Debian-based system, the
+   install may fail with an error similar to:
+
+   .. code-block:: text
+
+      [INFO] Using Python: "/usr/bin/python3.12"
+      [INFO] Upgrading pip...
+      error: externally-managed-environment
+
+      × This environment is externally managed
+      ╰─> To install Python packages system-wide, try apt install
+          python3-xyz, where xyz is the package you are trying to install.
+
+      [ERROR] Command failed with code 1: "/usr/bin/python3.12 -m pip install --upgrade pip"
+
+   This happens because Debian and Ubuntu mark the system Python as externally managed according
+   to :pep:`668`. The protection prevents ``pip`` from upgrading or installing packages into the
+   Python environment managed by the operating system. Do not bypass it with
+   ``--break-system-packages``; create and activate the uv environment as shown above instead.
+
    When you need full simulation features — including PhysX, ROS, URDF/MJCF
    importers — install Isaac Sim via pip (see the
    :doc:`pip_installation` guide).

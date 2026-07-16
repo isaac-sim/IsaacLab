@@ -113,7 +113,9 @@ class IsaacLabKitlessInstallSnippet(SphinxDirective):
 
    git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
    cd IsaacLab
-   ./isaaclab.sh --install   # or ./isaaclab.sh -i
+   ./isaaclab.sh --uv
+   source env_isaaclab/bin/activate
+   ./isaaclab.sh --install
 """
         return _parse_rst(self, content)
 
