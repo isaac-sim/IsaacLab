@@ -322,13 +322,16 @@ def test_compare_get_world_poses_with_isaacsim():
         sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=pos, orientation=quat, stage=stage)
 
     pattern = "/World/Env_.*/Object"
+    isaacsim_paths = [f"/World/Env_{i}/Object" for i in range(num_prims)]
     isaaclab_view = FrameView(pattern, device="cpu")
-    try:
-        isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
-    except TypeError as exc:
-        if "reset_xform_properties" not in str(exc):
+    for kwargs in ({"reset_xform_properties": False}, {"reset_xform_op_properties": False}, {}):
+        try:
+            isaacsim_view = _IsaacSimXformPrimView(isaacsim_paths, **kwargs)
+            break
+        except TypeError as exc:
+            if kwargs and next(iter(kwargs)) in str(exc):
+                continue
             raise
-        isaacsim_view = _IsaacSimXformPrimView(pattern)
 
     isaaclab_pos = isaaclab_view.get_world_poses()[0].torch
     isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()
