@@ -21,6 +21,9 @@ if TYPE_CHECKING:
 class MPMObjectCfg(DeformableObjectCfg):
     """Configuration parameters for a Newton MPM particle object."""
 
+    cloning_contexts: tuple[str | type, ...] | None = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+    """Cloning contexts for the MPM object; particle rendering syncs through Fabric, so no USD clones."""
+
     class_type: type[MPMObject] | str = "{DIR}.mpm_object:MPMObject"
 
     spawn: MPMParticleSpawnerCfg = MISSING

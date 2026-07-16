@@ -156,7 +156,7 @@ class InteractiveScene:
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner_cfg = cloner.CloneCfg(device=self.device)
+        self.cloner_cfg = cloner.CloneCfg(device=self.device, replicate_physics=self.cfg.replicate_physics)
         env_root = self.cloner_cfg.clone_regex.rsplit("/", 1)[0]
         self.env_prim_paths = [f"{env_root}/env_{i}" for i in range(self.cfg.num_envs)]
 
@@ -184,6 +184,7 @@ class InteractiveScene:
             device=self.device,
             stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
+            replicate_physics=self.cloner_cfg.replicate_physics,
         ):
             if self._is_scene_setup_from_cfg():
                 self._add_entities_from_cfg()

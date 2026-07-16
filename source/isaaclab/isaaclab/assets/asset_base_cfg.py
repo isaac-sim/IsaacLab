@@ -46,6 +46,15 @@ class AssetBaseCfg:
     The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.
     """
 
+    cloning_contexts: tuple[str | type, ...] | None = None
+    """Cloning contexts for this asset. Defaults to None.
+
+    Entries are ``"module:ContextClass"`` references (or classes) that clone this asset
+    across environments. If None, :func:`~isaaclab.cloner.replicate` uses the active
+    physics backend's default stack (``isaaclab_<backend>.cloner.REPLICATION``); an empty
+    tuple means the asset is not cloned.
+    """
+
     prim_path: str = MISSING
     """Prim path (or expression) to the asset.
 
