@@ -6,6 +6,10 @@ Changed
   events that have no warp twins yet. The variants now require selecting the
   Newton solver on the CLI via ``presets=newton_mjwarp`` instead of
   hard-coding it in the configuration.
+* **Breaking:** Changed the package layout to mirror :mod:`isaaclab_tasks.core`
+  (``isaaclab_tasks_experimental.core.<task>``), replacing the previous
+  ``manager_based``/``direct`` split. Update imports of the old paths to the
+  ``core`` equivalents (e.g. ``isaaclab_tasks_experimental.core.cartpole.mdp``).
 
 Removed
 ^^^^^^^

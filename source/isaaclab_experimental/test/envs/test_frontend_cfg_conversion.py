@@ -163,10 +163,6 @@ def test_stable_cartpole_cfg_adapts_to_current_warp_module_layout():
 
     cfg = _load_adapted_cfg(_cfg_entry_point("Isaac-Cartpole"))
 
-    assert cfg.rewards.pole_pos.func.__module__.startswith(
-        "isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp"
-    )
-    assert cfg.rewards.success_rate.func.__module__.startswith(
-        "isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp"
-    )
+    assert cfg.rewards.pole_pos.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
+    assert cfg.rewards.success_rate.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
     assert issubclass(cfg.actions.joint_effort.class_type, ActionTerm)
