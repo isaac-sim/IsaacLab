@@ -154,22 +154,69 @@ def test_request_dispatches_to_library_module(monkeypatch) -> None:
     ]
 
 
-def test_legacy_namespace_warns_and_reexports_public_api() -> None:
-    sys.modules.pop("isaaclab.test.benchmark", None)
+def test_legacy_namespace_warns_and_aliases_public_modules() -> None:
+    legacy_modules = (
+        "isaaclab.test.benchmark",
+        "isaaclab.test.benchmark.schema",
+        "isaaclab.test.benchmark.recorders",
+        "isaaclab.test.benchmark.recorders.record_cpu_info",
+        "isaaclab.test.benchmark.recorders.record_gpu_info",
+    )
+    for module_name in legacy_modules:
+        sys.modules.pop(module_name, None)
+    sys.modules.pop("isaaclab.benchmark.recorders.record_cpu_info", None)
+    sys.modules.pop("isaaclab.benchmark.recorders.record_gpu_info", None)
 
-    with pytest.warns(DeprecationWarning, match="import isaaclab.benchmark instead"):
+    with pytest.warns(
+        DeprecationWarning,
+        match="removed in Isaac Lab 3.1.*Import isaaclab.benchmark instead",
+    ):
         legacy_benchmark = importlib.import_module("isaaclab.test.benchmark")
 
     assert legacy_benchmark.BenchmarkTrainingRequest is BenchmarkTrainingRequest
     assert legacy_benchmark.RuntimeBundle is RuntimeBundle
     assert legacy_benchmark.__all__ == benchmark.__all__
     assert "warnings" not in legacy_benchmark.__all__
+    assert "isaaclab.benchmark.recorders.record_cpu_info" not in sys.modules
+    assert "isaaclab.benchmark.recorders.record_gpu_info" not in sys.modules
 
     legacy_schema = importlib.import_module("isaaclab.test.benchmark.schema")
     assert legacy_schema.RuntimeBundle is RuntimeBundle
 
+    legacy_cpu_info = importlib.import_module("isaaclab.test.benchmark.recorders.record_cpu_info")
+    assert "isaaclab.benchmark.recorders.record_cpu_info" not in sys.modules
+    public_cpu_info = importlib.import_module("isaaclab.benchmark.recorders.record_cpu_info")
+    assert legacy_cpu_info.CPUInfoRecorder is public_cpu_info.CPUInfoRecorder
+
     legacy_recorders = importlib.import_module("isaaclab.test.benchmark.recorders")
-    assert legacy_recorders.__all__ == benchmark_recorders.__all__
+    assert legacy_recorders.CPUInfoRecorder is benchmark_recorders.CPUInfoRecorder
+
+    importlib.import_module("isaaclab.test.benchmark.recorders.record_gpu_info")
+    assert "isaaclab.benchmark.recorders.record_gpu_info" not in sys.modules
+
+
+def test_legacy_wildcard_import_reexports_public_symbols() -> None:
+    sys.modules.pop("isaaclab.test.benchmark", None)
+    sys.modules.pop("isaaclab.test.benchmark.schema", None)
+    namespace: dict[str, object] = {}
+
+    with pytest.warns(DeprecationWarning, match="removed in Isaac Lab 3.1"):
+        exec("from isaaclab.test.benchmark.schema import *", namespace)
+
+    assert namespace["RuntimeBundle"] is RuntimeBundle
+
+
+def test_legacy_submodules_retain_type_stubs() -> None:
+    legacy_benchmark = importlib.import_module("isaaclab.test.benchmark")
+    legacy_root = Path(legacy_benchmark.__file__).parent
+
+    for submodule in legacy_benchmark._LEGACY_SUBMODULES:
+        if submodule == "recorders":
+            stub_path = legacy_root / "recorders" / "__init__.pyi"
+        else:
+            stub_path = legacy_root.joinpath(*submodule.split(".")).with_suffix(".pyi")
+        assert stub_path.is_file(), submodule
+        assert f"from isaaclab.benchmark.{submodule} import *" in stub_path.read_text()
 
 
 def test_success_check_rejects_unsupported_backend() -> None:

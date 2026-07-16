@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.benchmark.recorders import *
+from isaaclab.benchmark.recorders import *  # noqa: F403

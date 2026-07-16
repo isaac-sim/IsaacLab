@@ -3,6 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated compatibility exports for :mod:`isaaclab.benchmark.profiling`."""
-
-from isaaclab.benchmark.profiling import *  # noqa: F403
+from isaaclab.benchmark.builders import *  # noqa: F403

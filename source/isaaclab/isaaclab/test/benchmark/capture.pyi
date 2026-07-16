@@ -3,6 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated compatibility exports for :mod:`isaaclab.benchmark.stepping`."""
-
-from isaaclab.benchmark.stepping import *  # noqa: F403
+from isaaclab.benchmark.capture import *  # noqa: F403

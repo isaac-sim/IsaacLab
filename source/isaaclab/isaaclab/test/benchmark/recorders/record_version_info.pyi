@@ -3,6 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated compatibility exports for :mod:`isaaclab.benchmark.builders`."""
-
-from isaaclab.benchmark.builders import *  # noqa: F403
+from isaaclab.benchmark.recorders.record_version_info import *  # noqa: F403
