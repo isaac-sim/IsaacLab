@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Runtime selector for IsaacLab tasks (``--frontend {torch,warp}``).
+"""Warp runtime frontend for IsaacLab tasks (``--frontend warp``).
 
-:func:`build` decides which runtime constructs the env: torch via ``gym.make``,
-or warp via :class:`WarpFrontend`, which encapsulates everything the warp
-runtime needs from a stable task definition:
+:class:`WarpFrontend` encapsulates everything the warp runtime needs from a
+stable task definition:
 
 * Manager-based tasks: adapt the stable cfg in place (Newton physics check,
   :class:`SceneEntityCfg` promotion, MDP twin swap) and construct
@@ -18,7 +17,9 @@ runtime needs from a stable task definition:
   via its ``warp_entry_point`` kwarg, sharing the stable cfg.
 
 Task packages declare where their warp MDP twins live with
-:func:`register_mdp_route`; the frontend holds no per-task table.
+:func:`register_mdp_route`; the frontend holds no per-task table. The torch
+runtime never touches this module — the shared RL CLI dispatches to plain
+``gym.make`` before importing it, so this (optional) package stays warp-only.
 """
 
 from __future__ import annotations
@@ -39,26 +40,11 @@ logger = logging.getLogger(__name__)
 
 
 __all__ = [
-    "Frontend",
     "FrontendIncompatibleError",
     "WarpFrontend",
     "Workflow",
-    "adapt_cfg_for_warp",
-    "build",
     "register_mdp_route",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Enums + error
-# ---------------------------------------------------------------------------
-
-
-class Frontend(StrEnum):
-    """Runtime selector exposed by ``--frontend``."""
-
-    TORCH = "torch"
-    WARP = "warp"
 
 
 class Workflow(StrEnum):
@@ -69,55 +55,7 @@ class Workflow(StrEnum):
 
 
 class FrontendIncompatibleError(RuntimeError):
-    """Raised when the chosen frontend can't run the requested task."""
-
-
-# ---------------------------------------------------------------------------
-# Public entry points
-# ---------------------------------------------------------------------------
-
-
-def build(
-    frontend: Frontend | str,
-    env_cfg: Any,
-    task_id: str,
-    **construct_kwargs: Any,
-) -> gym.Env:
-    """Construct the env on the selected runtime.
-
-    Args:
-        frontend: ``"torch"`` (default IsaacLab path) or ``"warp"``
-            (:class:`WarpFrontend`).
-        env_cfg: Stable env cfg. Mutated in place when ``frontend == "warp"``.
-        task_id: Gym registration id, e.g. ``"Isaac-Cartpole"``.
-        **construct_kwargs: Forwarded to the env constructor (``render_mode``, …).
-
-    Returns:
-        The constructed :class:`gym.Env`.
-
-    Raises:
-        FrontendIncompatibleError: If the warp runtime can't run the task
-            (wrong physics, missing MDP twins, direct task without a warp
-            implementation).
-    """
-    frontend = Frontend(frontend)
-    if frontend is Frontend.TORCH:
-        return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
-    return WarpFrontend.build_env(env_cfg, task_id, **construct_kwargs)
-
-
-def adapt_cfg_for_warp(cfg: Any) -> None:
-    """Mutate a stable manager-based ``cfg`` in place so warp managers can consume it.
-
-    Functional alias for :meth:`WarpFrontend.adapt_cfg`, used by
-    :class:`ManagerBasedRLEnvWarp` in its ``__init__``.
-    """
-    WarpFrontend.adapt_cfg(cfg)
-
-
-# ---------------------------------------------------------------------------
-# Warp frontend
-# ---------------------------------------------------------------------------
+    """Raised when the warp frontend can't run the requested task."""
 
 
 class WarpFrontend:
@@ -206,7 +144,18 @@ class WarpFrontend:
 
     @classmethod
     def build_env(cls, env_cfg: Any, task_id: str, **construct_kwargs: Any) -> gym.Env:
-        """Construct the warp env for ``task_id`` from a stable env cfg."""
+        """Construct the warp env for ``task_id`` from a stable env cfg.
+
+        Args:
+            env_cfg: Stable env cfg. Manager-based cfgs are mutated in place.
+            task_id: Gym registration id, e.g. ``"Isaac-Cartpole"``.
+            **construct_kwargs: Forwarded to the env constructor (``render_mode``, …).
+
+        Raises:
+            FrontendIncompatibleError: If the warp runtime can't run the task
+                (wrong physics, missing MDP twins, direct task without a warp
+                implementation).
+        """
         if cls._detect_workflow(env_cfg) is Workflow.DIRECT:
             return cls._build_direct_env(env_cfg, task_id, **construct_kwargs)
         return cls._build_manager_env(env_cfg, **construct_kwargs)
@@ -390,7 +339,7 @@ class WarpFrontend:
 
     @staticmethod
     def _detect_workflow(cfg: Any) -> Workflow:
-        """Classify the env cfg into manager-based or direct (used to pick build path).
+        """Classify the env cfg into manager-based or direct (used to pick the build path).
 
         Note:
             The env cfg roots (ManagerBasedRLEnvCfg, DirectRLEnvCfg,

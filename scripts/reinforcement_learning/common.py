@@ -440,13 +440,14 @@ def create_isaaclab_env(
         The created Gymnasium environment.
     """
     render_mode = "rgb_array" if args_cli.video else None
-    frontend = args_cli.frontend
-    if frontend == "torch":
+    if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg, render_mode=render_mode)
     else:
-        from isaaclab_experimental.envs.frontend import build as build_frontend_env
+        # Imported lazily: the warp frontend lives in the optional
+        # isaaclab_experimental package, and the torch path must work without it.
+        from isaaclab_experimental.envs.frontend import WarpFrontend
 
-        env = build_frontend_env(frontend, env_cfg, task, render_mode=render_mode)
+        env = WarpFrontend.build_env(env_cfg, task, render_mode=render_mode)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
         from isaaclab.envs import multi_agent_to_single_agent
 

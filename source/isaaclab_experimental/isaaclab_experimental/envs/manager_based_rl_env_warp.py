@@ -97,9 +97,9 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # promotion, MDP twin swap). Idempotent: a warp-native cfg passes through
         # unchanged, and a stable-derived cfg (``--frontend=warp`` or a registered
         # warp task variant subclassing a stable cfg) is adapted in place.
-        from isaaclab_experimental.envs.frontend import adapt_cfg_for_warp
+        from isaaclab_experimental.envs.frontend import WarpFrontend
 
-        adapt_cfg_for_warp(cfg)
+        WarpFrontend.adapt_cfg(cfg)
 
         # -- counter for curriculum
         self.common_step_counter = 0

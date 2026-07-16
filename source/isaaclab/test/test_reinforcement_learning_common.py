@@ -262,17 +262,17 @@ def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.Mon
     env_cfg = object()
     calls: list[tuple[Any, ...]] = []
 
-    def fake_build(frontend: str, cfg: Any, task: str, **kwargs: Any) -> Any:
-        calls.append((frontend, cfg, task, kwargs))
+    def fake_build_env(cfg: Any, task: str, **kwargs: Any) -> Any:
+        calls.append((cfg, task, kwargs))
         return expected_env
 
-    monkeypatch.setattr(frontend_module, "build", fake_build)
+    monkeypatch.setattr(frontend_module.WarpFrontend, "build_env", fake_build_env)
     args_cli = argparse.Namespace(video=True, frontend="warp")
 
     env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
 
     assert env is expected_env
-    assert calls == [("warp", env_cfg, "Isaac-Test", {"render_mode": "rgb_array"})]
+    assert calls == [(env_cfg, "Isaac-Test", {"render_mode": "rgb_array"})]
 
 
 def test_dispatch_library_entrypoint_shows_help_without_library(

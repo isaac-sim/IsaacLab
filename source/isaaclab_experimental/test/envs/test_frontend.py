@@ -7,7 +7,7 @@
 
 Pure-Python unit tests; no app launch. Covers:
 
-* :class:`Frontend` / :class:`Workflow` enum surface.
+* :class:`Workflow` enum surface.
 * :func:`SceneEntityCfg.from_stable` field copy.
 * :func:`_require_newton_physics` hard-check.
 * :func:`_walk_terms` recursive ManagerTermBaseCfg discovery over instance
@@ -34,10 +34,9 @@ import gymnasium as gym
 import isaaclab_experimental.envs.frontend as fe
 import pytest
 from isaaclab_experimental.envs.frontend import (
-    Frontend,
     FrontendIncompatibleError,
+    WarpFrontend,
     Workflow,
-    build,
     register_mdp_route,
 )
 from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
@@ -146,18 +145,6 @@ def fake_routes(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
 # ======================================================================
 
 
-def test_frontend_values():
-    assert Frontend.TORCH == "torch"
-    assert Frontend.WARP == "warp"
-
-
-def test_frontend_coercion():
-    assert Frontend("torch") is Frontend.TORCH
-    assert Frontend("warp") is Frontend.WARP
-    with pytest.raises(ValueError):
-        Frontend("kit")
-
-
 def test_workflow_values():
     assert Workflow.MANAGER_BASED == "manager_based"
     assert Workflow.DIRECT == "direct"
@@ -182,7 +169,7 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
         return expected_env
 
     with patch.object(envs, "ManagerBasedRLEnvWarp", fake_env):
-        env = build("warp", cfg, "Isaac-Test", render_mode="rgb_array")
+        env = WarpFrontend.build_env(cfg, "Isaac-Test", render_mode="rgb_array")
 
     assert env is expected_env
     assert calls == [(cfg, {"render_mode": "rgb_array"})]

@@ -19,7 +19,7 @@ Changed
 
 * Changed :class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` to adapt
   its configuration in ``__init__`` via
-  :func:`~isaaclab_experimental.envs.frontend.adapt_cfg_for_warp`, so
+  :meth:`~isaaclab_experimental.envs.frontend.WarpFrontend.adapt_cfg`, so
   registered warp task variants can derive from stable configurations instead
   of duplicating them.
 

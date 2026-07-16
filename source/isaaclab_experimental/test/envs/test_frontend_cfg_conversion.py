@@ -5,7 +5,7 @@
 
 """Coverage tests for warp task configuration adaptation.
 
-Two sweeps, both running :func:`adapt_cfg_for_warp` — the same adaptation
+Two sweeps, both running :meth:`WarpFrontend.adapt_cfg` — the same adaptation
 :class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` runs in its
 ``__init__``:
 
@@ -27,7 +27,7 @@ import importlib
 import gymnasium as gym
 import isaaclab_tasks_experimental  # noqa: F401
 import pytest
-from isaaclab_experimental.envs.frontend import adapt_cfg_for_warp
+from isaaclab_experimental.envs.frontend import WarpFrontend
 from isaaclab_newton.physics import NewtonCfg
 
 # Registering the task packages is the whole point — import for side effects.
@@ -74,7 +74,7 @@ def _load_adapted_cfg(cfg_entry_point: str):
     cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
     assert isinstance(cfg.sim.physics, NewtonCfg), "task does not provide a newton_mjwarp physics preset"
     # Raises FrontendIncompatibleError if any warp-managed term lacks a warp twin.
-    adapt_cfg_for_warp(cfg)
+    WarpFrontend.adapt_cfg(cfg)
     return cfg
 
 
