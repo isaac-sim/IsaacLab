@@ -52,20 +52,18 @@ rem regardless of sys.path order.  Since usd-core installs a regular pxr
 rem package, prepending omni.usd.libs to PYTHONPATH alone does nothing.
 rem We write a minimal __init__.py to promote it to a regular package so the
 rem PYTHONPATH prepend actually takes effect.
-if exist "%ISAACLAB_PATH%\omni.usd.libs\" (
-    "%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py" > "%TEMP%\_isaaclab_usd_libs.tmp"
-    if errorlevel 1 (
-        echo [WARNING] Failed to configure omni.usd.libs USD path; continuing without it. 1>&2
-    ) else (
-        set /p _usd_libs_dir=<"%TEMP%\_isaaclab_usd_libs.tmp"
-        if defined _usd_libs_dir (
-            set "PYTHONPATH=!_usd_libs_dir!;!PYTHONPATH!"
-            set "PATH=!_usd_libs_dir!\bin;!PATH!"
-        )
-        set "_usd_libs_dir="
+"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py" > "%TEMP%\_isaaclab_usd_libs.tmp"
+if errorlevel 1 (
+    echo [WARNING] Failed to configure omni.usd.libs USD path; continuing without it. 1>&2
+) else (
+    set /p _usd_libs_dir=<"%TEMP%\_isaaclab_usd_libs.tmp"
+    if defined _usd_libs_dir (
+        set "PYTHONPATH=!_usd_libs_dir!;!PYTHONPATH!"
+        set "PATH=!_usd_libs_dir!\bin;!PATH!"
     )
-    del "%TEMP%\_isaaclab_usd_libs.tmp" 2>nul
+    set "_usd_libs_dir="
 )
+del "%TEMP%\_isaaclab_usd_libs.tmp" 2>nul
 
 
 rem Execute CLI.
