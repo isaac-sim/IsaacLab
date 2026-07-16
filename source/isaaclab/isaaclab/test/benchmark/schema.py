@@ -40,8 +40,13 @@ class MeanStd:
     """Scalar aggregate with mean, standard deviation, and optional peak.
 
     Args:
-        mean: Sample mean.
-        std: Sample standard deviation.
+        mean: Central value of the aggregate. For most fields this is the
+            arithmetic sample mean; for effective-throughput fields it is the
+            aggregate rate (total completed work over total wall time).
+        std: Dispersion of the per-sample values. For most fields this is the
+            sample standard deviation about the sample mean; for
+            effective-throughput fields it is their deviation about the
+            effective (aggregate) mean.
         peak: Maximum observed value, or ``None`` where a peak is not
             meaningful (e.g. GPU utilisation, whose ceiling is always 100%).
     """

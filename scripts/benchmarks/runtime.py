@@ -50,9 +50,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     )
     parser.add_argument(
         "--measure_synchronized_step_breakdown",
-        dest="measure_synchronized_step_breakdown",
         action="store_true",
-        default=False,
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
@@ -164,10 +162,8 @@ def run(argv: list[str]) -> None:
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env, measure_synchronized_step_breakdown=args.measure_synchronized_step_breakdown
             )
-            with BenchmarkMonitor(benchmark, interval=1.0):
-                timer_context = environment_step_timer
-                with timer_context:
-                    step_times_s = stepping.run_runtime_loop(env, args.num_frames, reset=False)
+            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+                step_times_s = stepping.run_runtime_loop(env, args.num_frames, reset=False)
 
             first_step_s = warmup_step_times_s[0]
 

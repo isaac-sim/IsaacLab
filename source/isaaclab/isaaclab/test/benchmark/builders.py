@@ -153,11 +153,11 @@ def build_runtime(
             [frames/s].
         total_fps: Per-iteration end-to-end throughput [frames/s].
         steps_per_iteration: Environment steps collected per iteration.
-        frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
         aggregate_throughput: When ``True``, report throughput means as total
             completed steps divided by total wall time. Standard deviation
             measures per-iteration dispersion around the effective mean, and
             peak remains the maximum per-iteration throughput.
+        frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
         environment_step_times_s: Positive per-environment-step wall times [s].
         simulation_step_times_s: Synchronized simulation wall times per environment step [s].
         simulation_step_calls: Number of measured simulation-step calls.
