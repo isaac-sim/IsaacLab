@@ -74,6 +74,7 @@ def test_factories_are_kitless_in_fresh_process():
         capture_output=True,
         text=True,
         check=False,
+        timeout=120,
     )
 
     output = "\n".join(part for part in (result.stdout, result.stderr) if part)
