@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Joint-space DisplayPort insertion environment for Flexiv Rizon 4S + Grav gripper.
-
-Relative joint-position control of the 7-DoF arm; the plug is grasped at reset
-and the goal is the verified seated mate.
-"""
+"""Joint-space DisplayPort insertion environment for Flexiv Rizon 4S + Grav gripper."""
 
 import math
 
@@ -32,19 +28,11 @@ from isaaclab_tasks.contrib.deploy.cable_insertion.displayport_insertion_env_cfg
     compute_socket_root,
 )
 
-# ---------------------------------------------------------------------------
-# Flexiv workspace layout (DisplayPort insertion station)
-# ---------------------------------------------------------------------------
-# Insertion(mate) point in the robot workspace, socket orientation (opening up,
-# matching the verified drop-test seated pose), and the vertical clearance the
-# plug starts above the socket.
-#
-# CALIBRATE: _GEOMETRY_POS must be re-measured for the real DisplayPort fixture
-# (reachable by the Flexiv, socket opening facing +Z). Verify reset poses in sim
-# before training.
+# DisplayPort insertion station layout in the Flexiv workspace.
+# _GEOMETRY_POS is the desired insertion (mate) point; _SOCKET_ROT orients the socket opening up.
 _GEOMETRY_POS = (0.475, 0.125, 0.06)
 _SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)  # opening faces +Z (top-down insertion)
-_PLUG_CLEARANCE_Z = 0.068
+_PLUG_CLEARANCE_Z = 0.068  # vertical clearance between plug and socket at reset
 
 _SOCKET_ROOT = compute_socket_root(_GEOMETRY_POS, _SOCKET_ROT)
 _PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
@@ -53,9 +41,7 @@ _PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
     z_clearance=_PLUG_CLEARANCE_Z,
 )
 
-# DisplayPort plug insertion length (blade engagement along the insertion axis)
-# used by the at-goal curriculum. ~11 mm of blade nests in the socket cavity at
-# the verified seated pose. Kept identical to the task-space env.
+# Blade engagement along the insertion axis used by the at-goal curriculum [m].
 _INSERTION_LENGTH = 0.011
 
 ##
@@ -75,35 +61,38 @@ def set_finger_joint_pos_grav(
     finger_joints: list[int],
     finger_joint_position: float,
 ):
-    """Set finger joint positions for the Grav gripper.
+    """Set finger joint positions for Grav gripper.
 
     Args:
-        joint_pos: Joint positions tensor for the reset envs slice.
-        reset_ind_joint_pos: Row indices into the sliced ``joint_pos`` tensor.
-        finger_joints: List of all gripper joint indices (6 joints total).
-        finger_joint_position: Target position for the main finger joint [rad].
+        joint_pos: Joint positions tensor
+        reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
+        finger_joints: List of all gripper joint indices (6 joints total)
+        finger_joint_position: Target position for main finger joint (in radians)
 
     Note:
-        Grav gripper joint structure (indices from ``finger_joints`` list):
-            ``[0]`` ``finger_joint`` - main controllable joint
-            ``[1]`` ``left_inner_knuckle_joint`` - mimic with -1 gearing
-            ``[2]`` ``right_inner_knuckle_joint`` - mimic with -1 gearing
-            ``[3]`` ``right_outer_knuckle_joint`` - mimic with -1 gearing
-            ``[4]`` ``left_outer_finger_joint`` - mimic with +1 gearing
-            ``[5]`` ``right_outer_finger_joint`` - mimic with +1 gearing
+        Grav gripper joint structure (indices from finger_joints list):
+        [0] finger_joint - main controllable joint
+        [1] left_inner_knuckle_joint - mimic with -1 gearing
+        [2] right_inner_knuckle_joint - mimic with -1 gearing
+        [3] right_outer_knuckle_joint - mimic with -1 gearing
+        [4] left_outer_finger_joint - mimic with +1 gearing
+        [5] right_outer_finger_joint - mimic with +1 gearing
     """
     for idx in reset_ind_joint_pos:
         if len(finger_joints) < 6:
             raise ValueError(f"Grav gripper requires at least 6 finger joints, got {len(finger_joints)}")
 
+        # Main controllable joint
         joint_pos[idx, finger_joints[0]] = finger_joint_position
 
-        joint_pos[idx, finger_joints[1]] = finger_joint_position
-        joint_pos[idx, finger_joints[2]] = finger_joint_position
-        joint_pos[idx, finger_joints[3]] = finger_joint_position
+        # Mimic joints with -1 gearing
+        joint_pos[idx, finger_joints[1]] = finger_joint_position  # left_inner_knuckle_joint
+        joint_pos[idx, finger_joints[2]] = finger_joint_position  # right_inner_knuckle_joint
+        joint_pos[idx, finger_joints[3]] = finger_joint_position  # right_outer_knuckle_joint
 
-        joint_pos[idx, finger_joints[4]] = -finger_joint_position
-        joint_pos[idx, finger_joints[5]] = -finger_joint_position
+        # Mimic joints with +1 gearing
+        joint_pos[idx, finger_joints[4]] = -finger_joint_position  # left_outer_finger_joint
+        joint_pos[idx, finger_joints[5]] = -finger_joint_position  # right_outer_finger_joint
 
 
 ##
@@ -161,53 +150,15 @@ class EventCfg:
                 "x": [-0.01, 0.01],
                 "y": [-0.01, 0.01],
                 "z": [-0.02, 0.02],
-                # "x": [-0.00, 0.00],
-                # "y": [-0.00, 0.00],
-                # "z": [-0.00, 0.00],
-                "roll": [-math.radians(2.0), math.radians(2.0)],
-                "pitch": [-math.radians(2.0), math.radians(2.0)],
-                "yaw": [-math.radians(2.0), math.radians(2.0)],
-                # "roll": [0., 0.],
-                # "pitch": [0., 0.],
-                # "yaw": [0., 0.],
+                "roll": [-math.radians(2.0), math.radians(2.0)],  # 2 degree
+                "pitch": [-math.radians(2.0), math.radians(2.0)],  # 2 degree
+                "yaw": [-math.radians(2.0), math.radians(2.0)],  # 2 degree
             },
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("dp_socket"),
         },
     )
 
-    # Disabled: plain uniform plug randomization. Superseded by the at-goal
-    # curriculum below (re-enable this and comment out reset_plug_curriculum to
-    # revert to simple uniform plug randomization).
-    # randomize_plug_pose = EventTerm(
-    #     func=mdp.reset_root_state_uniform,
-    #     mode="reset",
-    #     params={
-    #         "pose_range": {
-    #             "x": [-0.02, 0.02],
-    #             "y": [-0.02, 0.02],
-    #             "z": [-0.01, 0.01],
-    #             "roll": [0.0, 0.0],
-    #             "pitch": [0.0, 0.0],
-    #             "yaw": [0.0, 0.0],
-    #         },
-    #         "velocity_range": {},
-    #         "asset_cfg": SceneEntityCfg("dp_plug"),
-    #     },
-    # )
-
-    # 80% at-goal curriculum (mirrors IsaacLab_UR gb300, osmo at_goal_prob=0.8).
-    # Identical to the task-space env: IsaacLab_UR applies this curriculum
-    # regardless of control space (it lives in the object reset, not the
-    # controller). A fraction `at_goal_prob` of envs spawn the plug already
-    # inserted at a random depth (0 -> insertion_length) with goal orientation;
-    # the rest get uniform approach-pose randomization via `normal_pose_range`.
-    #
-    # at_goal_prob is annealed linearly from `at_goal_prob` (start) down to
-    # `at_goal_prob_final` between iterations `anneal_start_iter` and
-    # `anneal_end_iter`. Iterations are derived from the env step counter via
-    # `num_steps_per_env` (must match the agent cfg). Set `at_goal_prob_final=None`
-    # to disable annealing (constant at_goal_prob).
     reset_plug_curriculum = EventTerm(
         func=mdp.reset_plug_at_goal_curriculum,
         mode="reset",
@@ -217,22 +168,19 @@ class EventCfg:
             "at_goal_prob": 0.8,
             "at_goal_prob_final": 0.0,
             "anneal_start_iter": 0.0,
-            "anneal_end_iter": 100.0,
+            "anneal_end_iter": 500.0,
             "num_steps_per_env": 512,
             "insertion_axis": [1.0, 0.0, 0.0],
             "insertion_length": _INSERTION_LENGTH,
+            "at_goal_depth_range": [0.0, 0.015],
+            "approach_depth_range": [0.02, 0.06],
             "socket_insertion_offset": SOCKET_INSERTION_OFFSET,
             "plug_insertion_offset": PLUG_INSERTION_OFFSET,
             "goal_rot": list(PLUG_GOAL_ROT),
-            # Non-at-goal approach randomization. Matches gb300's
-            # held_asset_init_pos_range = [0.02, 0.02, 0.01] (x, y, z) [m].
             "normal_pose_range": {
                 "x": [-0.02, 0.02],
                 "y": [-0.02, 0.02],
-                "z": [-0.01, 0.01],
-                # "x": [-0.00, 0.00],
-                # "y": [-0.00, 0.00],
-                # "z": [-0.00, 0.00],
+                "z": [0.0, 0.0],
             },
         },
     )
@@ -283,27 +231,36 @@ class TerminationsCfg:
 
 @configclass
 class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
-    """Flexiv Rizon 4s + Grav gripper DisplayPort insertion (joint-space)."""
+    """Configuration for Flexiv Rizon 4s with Grav Gripper DisplayPort insertion.
+
+    The Flexiv Rizon 4s is a 7-DOF collaborative robot arm equipped with the
+    Flexiv Grav parallel gripper for DisplayPort plug insertion tasks.
+    """
 
     def __post_init__(self):
+        # post init of parent
         super().__post_init__()
 
-        self.end_effector_body_name = "flange"
-        self.num_arm_joints = 7
-        # CALIBRATE: flange position in the DisplayPort plug's local frame.
-        # Seeded from the GB300 grasp offset; the right-angle DP plug/overmold
-        # geometry differs, so verify the grasp lands on the plug body in sim
-        # before training (the grasp event solves IK toward plug + this offset).
+        # Match exponential keypoint reward weight to the linear term (1:1 weighting)
+        self.rewards.plug_socket_keypoint_tracking_exp.weight = abs(
+            self.rewards.plug_socket_keypoint_tracking.weight
+        )
+
+        # Robot-specific parameters for Flexiv Rizon 4s with Grav gripper
+        self.end_effector_body_name = "flange"  # End effector body name for IK
+        self.num_arm_joints = 7  # Number of arm joints (Rizon 4s has 7 DOF)
+        # Grasp offset in the DisplayPort plug's local frame [m]
         self.grasp_offset = [0.0025, 0.0, -0.1875]
-        # Identity: the target EEF orientation equals the plug orientation.
+        # Rotation offset for grasp pose (quaternion [x, y, z, w])
         self.grasp_rot_offset = [0.0, 0.0, 0.0, 1.0]
-        self.gripper_joint_setter_func = set_finger_joint_pos_grav
+        self.gripper_joint_setter_func = set_finger_joint_pos_grav  # Grav gripper joint setter function
 
-        self.plug_orientation_roll_threshold_deg = 15.0
-        self.plug_orientation_pitch_threshold_deg = 15.0
-        self.plug_orientation_yaw_threshold_deg = 180.0
+        # Plug orientation termination thresholds (in degrees)
+        self.plug_orientation_roll_threshold_deg = 15.0  # Maximum allowed roll deviation
+        self.plug_orientation_pitch_threshold_deg = 15.0  # Maximum allowed pitch deviation
+        self.plug_orientation_yaw_threshold_deg = 180.0  # Maximum allowed yaw deviation
 
-        # Observation configuration for Rizon 4s arm joints only
+        # Common observation configuration for Rizon 4s joints (arm only, not gripper)
         self.observations.policy.joint_pos.params["asset_cfg"].joint_names = [
             "joint1",
             "joint2",
@@ -323,10 +280,12 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             "joint7",
         ]
 
+        # override events
         self.events = EventCfg()
 
         self.terminations = TerminationsCfg()
 
+        # Update termination thresholds from config
         self.terminations.plug_orientation_exceeded.params["roll_threshold_deg"] = (
             self.plug_orientation_roll_threshold_deg
         )
@@ -337,6 +296,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             self.plug_orientation_yaw_threshold_deg
         )
 
+        # Action configuration for Rizon 4s arm
         self.joint_action_scale = 0.025
         _arm_joint_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
         self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
@@ -346,6 +306,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             use_zero_offset=True,
         )
 
+        # Switch robot to Flexiv Rizon 4s with Grav gripper
         self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn.replace(
@@ -368,6 +329,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
                 ),
                 collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
             ),
+            # Joint positions for the DisplayPort insertion station home pose
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
                     "joint1": math.radians(32.44),
@@ -383,7 +345,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             ),
         )
 
-        # Grav gripper actuator configuration (implicit - PhysX built-in joint drives).
+        # Grav gripper actuator configuration
         self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
             effort_limit_sim=2.0,
@@ -392,6 +354,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             damping=1e1,
         )
 
+        # Passive/mimic joints in the gripper - set to zero stiffness/damping
         self.scene.robot.actuators["gripper_passive"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_knuckle_joint"],
             effort_limit_sim=1.0,
@@ -400,6 +363,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             damping=0.0,
         )
 
+        # Override socket/plug initial states for the DisplayPort insertion station
         self.scene.dp_socket.init_state = RigidObjectCfg.InitialStateCfg(
             pos=_SOCKET_ROOT,
             rot=_SOCKET_ROT,
@@ -409,15 +373,12 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             rot=_PLUG_ROT,
         )
 
-        # Grav gripper widths (joint angles).
-        # grasp: fingers wide open for approach.
-        # hold: fingers touching plug surface (no mesh overlap).
-        # close: fully-closed target that the actuator drives toward.
-        # CALIBRATE: tune for the DisplayPort plug width.
+        # Grasp widths for Grav gripper (raw radian values for finger_joint)
         self.hand_grasp_width = 0.3
         self.hand_hold_width = -0.05
         self.hand_close_width = -0.155
 
+        # Populate event term parameters
         self.events.set_robot_to_grasp_pose.params["end_effector_body_name"] = self.end_effector_body_name
         self.events.set_robot_to_grasp_pose.params["num_arm_joints"] = self.num_arm_joints
         self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
@@ -425,6 +386,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
         self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
         self.events.set_robot_to_grasp_pose.params["max_iterations"] = 150
 
+        # Populate termination term parameters
         self.terminations.plug_dropped.params["end_effector_body_name"] = self.end_effector_body_name
         self.terminations.plug_dropped.params["grasp_offset"] = self.grasp_offset
         self.terminations.plug_dropped.params["grasp_rot_offset"] = self.grasp_rot_offset
@@ -446,21 +408,14 @@ class Rizon4sGravDisplayportInsertionEnvCfg_PLAY(Rizon4sGravDisplayportInsertion
 
 @configclass
 class Rizon4sGravDisplayportInsertionNoJointVelEnvCfg(Rizon4sGravDisplayportInsertionEnvCfg):
-    """Joint-space variant that hides joint velocity from the actor (policy).
+    """DisplayPort insertion without joint velocity in the policy observation.
 
-    Identical to :class:`Rizon4sGravDisplayportInsertionEnvCfg` except the actor
-    observation drops joint velocity (actor sees joint positions + socket pose
-    only). The critic keeps joint velocity as privileged information, so the
-    value function is unaffected. Useful for testing velocity-free deployment
-    (e.g. when reliable joint-velocity estimates are not available on the real
-    robot).
+    The critic retains joint velocity as privileged information for the value function.
     """
 
     def __post_init__(self):
         super().__post_init__()
-        # Remove joint velocity from the actor group; setting a term to None
-        # disables it in the manager-based ObservationManager. The critic group
-        # still includes joint_vel.
+        # Remove joint velocity from the actor observation group
         self.observations.policy.joint_vel = None
 
 

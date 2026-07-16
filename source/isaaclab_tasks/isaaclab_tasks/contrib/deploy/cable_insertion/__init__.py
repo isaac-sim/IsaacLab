@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Insert GB300 plug into socket."""
+"""DisplayPort cable insertion environments."""
