@@ -478,9 +478,8 @@ def test_infer_newton_marker_cfg_frame_prim_usd_still_maps_to_frame_renderer():
 
 
 def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
-    import numpy as np
-
     import isaaclab_visualizers.newton.newton_visualization_markers as _mod
+    import numpy as np
     from isaaclab_visualizers.newton.newton_visualization_markers import (
         NewtonVisualizationMarkers,
         _NewtonMarkerSpec,

@@ -362,16 +362,10 @@ def _create_mesh(newton_cfg: _NewtonMarkerSpec):
 
 
 def _load_usd_mesh(usd_path: str) -> Mesh | None:
-    """Load a Newton :class:`~newton.Mesh` from a USD file path.
+    """Open a USD file and return a Newton :class:`~newton.Mesh` from the first :class:`UsdGeom.Mesh` prim found.
 
-    Uses :func:`newton.usd.get_mesh` with the path directly (available since newton 1.4.0rc2).
-    Material properties (color, texture) are resolved from the bound USD material and stored on
-    the returned :class:`~newton.Mesh`.
-
-    For instanceable USD assets (e.g. ``*_instanceable.usd``) the geometry lives in USD prototype
-    prims rather than in the top-level stage hierarchy.  When the direct load raises
-    ``ValueError: No UsdGeom.Mesh prims found``, this function falls back to traversing prototype
-    prims and returns the first mesh found.
+    Material properties (color, texture) are resolved from the prim's bound USD material and stored
+    on the returned :class:`~newton.Mesh`.
 
     Args:
         usd_path: Absolute path or URL to a USD asset.
@@ -381,41 +375,23 @@ def _load_usd_mesh(usd_path: str) -> Mesh | None:
         ``None`` if the USD could not be opened or contains no mesh geometry.
     """
     try:
-        import newton.usd as nusd  # noqa: PLC0415
-
-        try:
-            return nusd.get_mesh(usd_path, load_normals=True, load_uvs=True)
-        except ValueError as exc:
-            if "No UsdGeom.Mesh prims found" not in str(exc):
-                raise
-
-        # Instanceable USD: geometry is in prototype prims, not the top-level hierarchy.
         from pxr import Usd, UsdGeom  # noqa: PLC0415
 
         stage = Usd.Stage.Open(usd_path)
-        xform_cache = UsdGeom.XformCache()
-        for prototype in stage.GetPrototypes():
-            for prim in Usd.PrimRange(prototype):
-                if prim.IsA(UsdGeom.Mesh):
-                    try:
-                        mesh = nusd.get_mesh(prim, load_normals=True, load_uvs=True)
-                        if mesh is None:
-                            continue
-                        # nusd.get_mesh ignores the prim's local xform; bake it into vertices
-                        # so the loaded mesh matches the authored scale/rotation.
-                        # Normals are not transformed because mesh.normals has no setter;
-                        # for the common case of uniform scale this is correct.
-                        M = np.array(xform_cache.GetLocalToWorldTransform(prim), dtype=np.float32)
-                        mesh.vertices = mesh.vertices @ M[:3, :3] + M[3, :3]
-                        return mesh
-                    except Exception:
-                        continue
-        logger.warning(
-            "[NewtonVisualizationMarkers] No mesh geometry found in '%s' (including prototypes);"
-            " marker will not be rendered.",
-            usd_path,
-        )
-        return None
+        if stage is None:
+            logger.warning("[NewtonVisualizationMarkers] Failed to open USD stage: %s", usd_path)
+            return None
+        mesh_prims = [p for p in stage.Traverse() if p.IsA(UsdGeom.Mesh)]
+        if not mesh_prims:
+            logger.warning("[NewtonVisualizationMarkers] No UsdGeom.Mesh prims found in USD: %s", usd_path)
+            return None
+        if len(mesh_prims) > 1:
+            logger.debug(
+                "[NewtonVisualizationMarkers] Multiple mesh prims in '%s'; using first: %s",
+                usd_path,
+                mesh_prims[0].GetPath(),
+            )
+        return Mesh.create_from_usd(mesh_prims[0], load_normals=True, load_uvs=True)
     except Exception:
         logger.warning(
             "[NewtonVisualizationMarkers] Failed to load USD mesh from '%s'; marker will not be rendered.",
