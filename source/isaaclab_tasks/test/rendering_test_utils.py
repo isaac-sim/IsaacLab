@@ -339,9 +339,7 @@ def _skip_if_physics_preset_unsupported(env_cfg: Any, physics_preset_name: str) 
     # Preset variants are declared as annotated fields; aliases such as ``default`` are not.
     supported_physics_preset_names = set(getattr(type(physics_cfg), "__dataclass_fields__", {}))
     if physics_preset_name not in supported_physics_preset_names:
-        pytest.skip(
-            f"{type(env_cfg).__name__} does not support '{physics_preset_name}' physics preset."
-        )
+        pytest.skip(f"{type(env_cfg).__name__} does not support '{physics_preset_name}'.")
 
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
