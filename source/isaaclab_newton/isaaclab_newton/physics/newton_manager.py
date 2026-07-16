@@ -73,6 +73,7 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp import WarpLaunchCache
 
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
@@ -303,6 +304,7 @@ class NewtonManager(PhysicsManager):
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
+    _warp_launch: WarpLaunchCache | None = None
     # In-graph hooks invoked after the actuator step and before the solver
     # substeps, in registration order. Multiple articulations register their
     # implicit-DOF telemetry / FF-routing kernels here.
@@ -787,6 +789,13 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def close(cls) -> None:
         """Clean up Newton physics resources."""
+        # Asset STOP callbacks invalidate recorded commands. A solver graph may
+        # contain those commands, so release the graph and drain device work
+        # before PhysicsManager dispatches STOP.
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = False
+        if PhysicsManager._device is not None:
+            wp.synchronize_device(PhysicsManager._device)
         super().close()
         cls.clear()
 
@@ -829,6 +838,10 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         if cls._cubric is not None and cls._cubric_adapter is not None:
             cls._cubric.release_adapter(cls._cubric_adapter)
+        # Recorded commands may be embedded in the graph and retain pointers
+        # owned by the adapter cache. Destroy the graph before that cache.
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = False
         NewtonManager._cubric = None
         NewtonManager._cubric_adapter = None
         NewtonManager._cubric_bound_fabric_id = None
@@ -848,7 +861,10 @@ class NewtonManager(PhysicsManager):
         NewtonManager._newton_frame_transform_sensors = []
         NewtonManager._newton_imu_sensors = []
         NewtonManager._report_contacts = False
+        if NewtonManager._adapter is not None:
+            NewtonManager._adapter._invalidate_launch_cache()
         NewtonManager._adapter = None
+        NewtonManager._warp_launch = None
         NewtonManager._post_actuator_callbacks = []
         NewtonManager._post_step_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
@@ -860,8 +876,6 @@ class NewtonManager(PhysicsManager):
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
-        NewtonManager._graph = None
-        NewtonManager._graph_capture_pending = False
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
@@ -1237,6 +1251,11 @@ class NewtonManager(PhysicsManager):
         Note: Collision pipeline is initialized later in initialize_solver() after
         we determine whether the solver needs external collision detection.
         """
+        # A previous graph may embed recorded adapter launches. Destroy it
+        # before replacing model/state storage or the owning adapter cache.
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = False
+
         logger.debug(f"Builder: {cls._builder}")
 
         cls._drain_stale_cuda_error()
@@ -1281,7 +1300,10 @@ class NewtonManager(PhysicsManager):
         # articulation after this point. Assign through the explicit base
         # class so external readers (which import ``NewtonManager`` directly)
         # observe the canonical state regardless of which subclass is active.
+        if NewtonManager._adapter is not None:
+            NewtonManager._adapter._invalidate_launch_cache()
         NewtonManager._adapter = None
+        NewtonManager._warp_launch = None
         NewtonManager._use_newton_actuators_active = False
 
         # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset).
@@ -2162,12 +2184,18 @@ class NewtonManager(PhysicsManager):
         from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls._model.joint_dof_count // cls._num_envs
+        cfg = PhysicsManager._cfg
+        NewtonManager._warp_launch = WarpLaunchCache(
+            device=PhysicsManager._device,
+            enabled=getattr(cfg, "use_warp_launch_cache", False),
+        )
         NewtonManager._adapter = NewtonActuatorAdapter(
             actuators=list(cls._model.actuators),
             num_envs=cls._num_envs,
             num_joints=dofs_per_env,
             dof_offset=0,
             device=PhysicsManager._device,
+            warp_launch=NewtonManager._warp_launch,
         )
         cls._adapter.finalize(cls._control)
 
