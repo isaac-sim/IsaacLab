@@ -46,7 +46,7 @@ def sim():
 def test_spawn_usd(sim):
     """Test loading prim from Usd file."""
     # Spawn cone
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd")
     prim = cfg.func("/World/Franka", cfg)
     # Check validity
     assert prim.IsValid()
