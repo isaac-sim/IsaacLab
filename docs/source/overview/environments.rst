@@ -1126,6 +1126,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-NeedlePass-dVRK-IK-Abs
+      -
+      - Manager Based
+      -
+      - **physics=** ``physx``
     * - IsaacContrib-NutPour-GR1T2-Pink-IK-Abs
       -
       - Manager Based

@@ -385,6 +385,70 @@ choose the tab that matches your hardware.
       #. Click **Disconnect** when finished.
 
 
+.. _teleoperate-dvrk-needle-pass:
+
+Teleoperate the dVRK needle-pass task
+-------------------------------------
+
+The ``IsaacContrib-NeedlePass-dVRK-IK-Abs`` environment uses paired motion controllers to
+operate two da Vinci Research Kit (dVRK) Patient Side Manipulators. It references revisioned
+public assets from the Isaac for Healthcare ``0.6.0`` catalogue. Verify the downloaded bytes
+against the pinned SHA-256 digests before the first run:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/preflight_dvrk_needle_pass_assets.py
+
+.. note::
+
+   Until `NVIDIA/IsaacTeleop PR #769 <https://github.com/NVIDIA/IsaacTeleop/pull/769>`__
+   is included in a release satisfying Isaac Lab's normal version constraint, the dVRK
+   retargeters are a temporary source-pinned prerequisite. From the Isaac Lab repository root,
+   install that immutable revision for local validation with:
+
+   .. code-block:: bash
+
+      ISAACLAB_PATH=$PWD bash scripts/tools/install_isaacteleop_pr769_for_tests.sh
+
+   The helper installs ``git`` and ``libx11-dev`` through ``sudo`` when they are missing, pins
+   its ``uv`` build tool in Isaac Sim's Python environment, builds the exact source revision
+   against that Python version, and force-reinstalls the resulting ``isaacteleop`` wheel without
+   changing its runtime dependencies.
+
+   Use the normal Isaac Lab installation again once a released ``isaacteleop`` package contains
+   the dVRK retargeters.
+
+Launch the task through its unified Isaac Teleop pipeline. Do not pass ``--teleop_device``;
+that option selects the legacy native-device path.
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-NeedlePass-dVRK-IK-Abs \
+       --device cuda:0 \
+       --visualizer kit \
+       --xr
+
+The controller mapping is:
+
+* the left controller commands the left PSM, and the right controller commands the right PSM;
+* squeeze acts as the deadman clutch for the corresponding PSM;
+* the controller grip pose commands the tool-tip pose while squeeze is held; and
+* relative index-trigger motion commands the two corresponding jaw targets.
+
+The first valid squeezed frame captures a controller origin without moving the tool. Releasing
+squeeze or losing valid grip tracking holds that PSM's last pose and jaw targets, while the other
+side continues independently. The next valid squeeze re-clutches at the held target. ``RESET``
+returns the donor to its needle-holding state and opens the receiver jaws.
+
+The resulting action has 18 values in this order:
+
+.. code-block:: text
+
+   [left position xyz, left quaternion xyzw, left jaw_1, left jaw_2,
+    right position xyz, right quaternion xyzw, right jaw_1, right jaw_2]
+
+
 .. _manus-vive-handtracking:
 
 Manus Gloves

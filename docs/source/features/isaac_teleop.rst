@@ -75,6 +75,11 @@ starting point, then see the detailed pipeline examples below.
      - ``Se3AbsRetargeter`` + ``GripperRetargeter``
      - 8
      - ``stack_ik_abs_env_cfg.py``
+   * - Bimanual surgical manipulation (dVRK)
+     - Motion controllers
+     - Bimanual ``DVRKPSMClutchRetargeter`` + ``DVRKPSMGripperRetargeter``
+     - 18
+     - ``ik_abs_env_cfg.py``
    * - Bimanual dex + locomotion (e.g. G1 TriHand)
      - Motion controllers
      - Bimanual ``Se3AbsRetargeter`` + ``TriHandMotionControllerRetargeter`` + ``LocomotionRootCmdRetargeter``
@@ -261,6 +266,19 @@ retargeters not listed here -- refer to the
    Outputs a single float (-1.0 closed, 1.0 open). Uses controller trigger (priority) or
    thumb-index pinch distance from hand tracking.
 
+.. dropdown:: DVRKPSMClutchRetargeter / DVRKPSMGripperRetargeter
+
+   Provides the paired motion-controller mapping for a da Vinci Research Kit (dVRK) Patient
+   Side Manipulator (PSM). ``DVRKPSMClutchRetargeter`` emits a workspace-bounded 7D absolute
+   tool-tip pose. The controller squeeze is a deadman clutch: the first valid squeezed frame
+   captures the controller origin, and releasing squeeze holds the last target before the next
+   engagement captures a fresh origin.
+
+   ``DVRKPSMGripperRetargeter`` maps relative analogue-trigger motion to the two ordered PSM jaw
+   targets. Closing intent is applied immediately, while opening intent must cross a deadband
+   and persist for a configured duration. Tracking loss, an inactive session, or a released
+   squeeze holds the last pose and jaw targets for that PSM.
+
 .. dropdown:: DexHandRetargeter / DexBiManualRetargeter
 
    Retargets full hand tracking (26 joints) to robot-specific hand joint angles using the
@@ -305,6 +323,8 @@ The built-in Isaac Lab environments use these retargeters as follows:
      - ``Se3AbsRetargeter``, ``TriHandMotionControllerRetargeter``, ``TensorReorderer``
    * - G1 loco-manipulation
      - ``Se3AbsRetargeter``, ``TriHandMotionControllerRetargeter``, ``LocomotionRootCmdRetargeter``, ``TensorReorderer``
+   * - dVRK PSM needle pass
+     - ``DVRKPSMClutchRetargeter``, ``DVRKPSMGripperRetargeter``, ``TensorReorderer``
 
 
 .. _isaac-teleop-env-control-reference:
@@ -334,6 +354,11 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
+   * - ``IsaacContrib-NeedlePass-dVRK-IK-Abs``
+     - Controllers
+     - Both
+     - **Arms:** left/right controller grip pose drives the corresponding PSM while squeeze is held.
+       **Jaws:** relative left/right trigger motion commands the corresponding paired jaws.
    * - ``IsaacContrib-PickPlace-GR1T2-Abs``
      - Hand tracking
      - Both
