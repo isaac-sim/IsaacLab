@@ -450,17 +450,20 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
 
     Args:
         sim: The simulation context to use.
-        zero_actuator_pd: If True, sets the panda_arm actuator stiffness
-            and damping to zero. Used by the OSC test so OSC's joint-effort
-            output is not opposed by the implicit-PD's residual ``kp·(target − q)``.
+        zero_actuator_pd: If True, sets the panda_shoulder/panda_forearm
+            actuator stiffness and damping to zero. Used by the OSC test
+            so OSC's joint-effort output is not opposed by the
+            implicit-PD's residual ``kp·(target − q)``.
 
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
     """
     cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
     if zero_actuator_pd:
-        cfg.actuators["panda_arm"].stiffness = 0.0
-        cfg.actuators["panda_arm"].damping = 0.0
+        cfg.actuators["panda_shoulder"].stiffness = 0.0
+        cfg.actuators["panda_shoulder"].damping = 0.0
+        cfg.actuators["panda_forearm"].stiffness = 0.0
+        cfg.actuators["panda_forearm"].damping = 0.0
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
     robot = Articulation(cfg)
     sim.reset()

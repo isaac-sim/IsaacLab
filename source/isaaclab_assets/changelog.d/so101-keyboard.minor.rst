@@ -1,15 +1,10 @@
 Changed
 ^^^^^^^
 
-* Updated :obj:`~isaaclab_assets.robots.franka.FRANKA_PANDA_CFG` to use a menagerie-converted
-  USD asset (``franka_panda.usda``) that carries identified Franka inertial parameters calibrated
-  against Newton's actuator model, replacing the previous ``panda_instanceable.usd``.
-* Merged the ``panda_shoulder`` and ``panda_forearm`` arm actuators in
-  :obj:`~isaaclab_assets.robots.franka.FRANKA_PANDA_CFG` into a single ``panda_arm``
-  :class:`~isaaclab.actuators.ImplicitActuatorCfg` with per-joint stiffness, damping, and
-  armature values derived from the hardware datasheet and Drake's Franka model.
-* Added a ``panda_finger2_passive`` actuator to
-  :obj:`~isaaclab_assets.robots.franka.FRANKA_PANDA_CFG` (zero stiffness/damping) to model the
-  passive finger joint driven through the hand's mimic coupling rather than an independent motor.
-* Updated :obj:`~isaaclab_assets.robots.franka.FRANKA_PANDA_HIGH_PD_CFG` overrides to target
-  the new ``panda_arm`` actuator key.
+* Changed :obj:`~isaaclab_assets.robots.franka.FRANKA_PANDA_CFG` to load the Franka Panda
+  from its new ``Robots/FrankaEmika/Legacy/panda_instanceable.usd`` location, following the
+  asset reorganization on the Nucleus server. The robot model itself is unchanged.
+* Changed the :obj:`~isaaclab_assets.robots.kuka_allegro.KUKA_ALLEGRO_CFG` actuator
+  parameters to identified values: per-joint effort limits, stiffness, damping, and armature
+  derived from the iiwa7 and Allegro hand references (Drake models, Wonik Robotics
+  datasheet), motor velocity limits for MDP checks, and gravity enabled on the rigid bodies.

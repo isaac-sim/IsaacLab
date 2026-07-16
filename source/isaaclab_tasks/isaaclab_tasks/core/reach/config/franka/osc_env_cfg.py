@@ -17,8 +17,10 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         super().__post_init__()
 
         # Remove stiffness and damping for the shoulder and forearm joints for effort control
-        self.scene.robot.actuators["panda_arm"].stiffness = 0.0
-        self.scene.robot.actuators["panda_arm"].damping = 0.0
+        self.scene.robot.actuators["panda_shoulder"].stiffness = 0.0
+        self.scene.robot.actuators["panda_shoulder"].damping = 0.0
+        self.scene.robot.actuators["panda_forearm"].stiffness = 0.0
+        self.scene.robot.actuators["panda_forearm"].damping = 0.0
         self.scene.robot.spawn.rigid_props.disable_gravity = True
 
         # If closed-loop contact force control is desired, contact sensors should be enabled for the robot

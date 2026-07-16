@@ -206,8 +206,8 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, enable_ri
 
     Args:
         sim: The simulation context to use.
-        zero_actuator_pd: If True, sets the panda_arm actuator stiffness
-            and damping to zero.
+        zero_actuator_pd: If True, sets the panda_shoulder/panda_forearm
+            actuator stiffness and damping to zero.
         enable_rigid_body_gravity: If True, override
             ``FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props.disable_gravity``
             (which defaults to True) so gravity actually loads the arm. Required
@@ -219,8 +219,10 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, enable_ri
     """
     cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
     if zero_actuator_pd:
-        cfg.actuators["panda_arm"].stiffness = 0.0
-        cfg.actuators["panda_arm"].damping = 0.0
+        cfg.actuators["panda_shoulder"].stiffness = 0.0
+        cfg.actuators["panda_shoulder"].damping = 0.0
+        cfg.actuators["panda_forearm"].stiffness = 0.0
+        cfg.actuators["panda_forearm"].damping = 0.0
     if enable_rigid_body_gravity:
         cfg = cfg.replace(
             spawn=cfg.spawn.replace(

@@ -3,12 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots import FRANKA_PANDA_CFG
@@ -16,6 +18,56 @@ from isaaclab_assets.robots import FRANKA_PANDA_CFG
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
 from .camera_cfg import StateObservationCfg
+
+# Dexsuite runs the menagerie-converted asset (identified inertials, authored finger
+# coupling) with actuators calibrated for it; the stock FRANKA_PANDA_CFG stays on the
+# legacy asset so the upstream franka tasks keep their demos and baselines.
+FRANKA_PANDA_DEXSUITE_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_DEXSUITE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+FRANKA_PANDA_DEXSUITE_CFG.actuators = {
+    # inspired by libfranka's joint_impedance_control.cpp
+    "panda_arm": ImplicitActuatorCfg(
+        joint_names_expr=["panda_joint[1-7]"],
+        effort_limit_sim={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+        velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+        velocity_limit_sim={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
+        stiffness={
+            "panda_joint[1-4]": 600.0,
+            "panda_joint5": 250.0,
+            "panda_joint6": 150.0,
+            "panda_joint7": 50.0,
+        },
+        damping={
+            "panda_joint[1-4]": 50.0,
+            "panda_joint5": 30.0,
+            "panda_joint6": 25.0,
+            "panda_joint7": 15.0,
+        },
+        armature={
+            "panda_joint[1-2]": 0.6057,
+            "panda_joint[3-4]": 0.4625,
+            "panda_joint[5-7]": 0.2055,
+        },
+    ),
+    "panda_hand": ImplicitActuatorCfg(
+        joint_names_expr=["panda_finger_joint1"],
+        effort_limit_sim=70.0,
+        velocity_limit=0.2,
+        velocity_limit_sim=2.0,
+        stiffness=350.0,
+        damping=175.0,
+        armature=0.1,
+    ),
+    "panda_finger2_passive": ImplicitActuatorCfg(
+        joint_names_expr=["panda_finger_joint2"],
+        effort_limit_sim=1.0,
+        velocity_limit=0.2,
+        velocity_limit_sim=2.0,
+        stiffness=0.0,
+        damping=0.0,
+        armature=0.1,
+    ),
+}
 
 FINGERTIP_LIST = ["panda_rightfinger", "panda_leftfinger"]
 THUMB_SENSOR = "panda_leftfinger_object_s"
@@ -30,7 +82,7 @@ class FrankaSceneCfg(dexsuite.SceneCfg):
     camera env config populates them (see ``dexsuite_franka_camera_env_cfg``).
     """
 
-    robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = FRANKA_PANDA_DEXSUITE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     base_camera: CameraCfg | None = None
     wrist_camera: CameraCfg | None = None
 
@@ -114,9 +166,9 @@ class FrankaEventCfg(dexsuite.EventCfg):
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint1"),
             "damping_distribution_params": (
-                FRANKA_PANDA_CFG.actuators["panda_hand"].damping,
-                FRANKA_PANDA_CFG.actuators["panda_hand"].stiffness * 0.1 / 0.01
-                - FRANKA_PANDA_CFG.actuators["panda_hand"].damping,
+                FRANKA_PANDA_DEXSUITE_CFG.actuators["panda_hand"].damping,
+                FRANKA_PANDA_DEXSUITE_CFG.actuators["panda_hand"].stiffness * 0.1 / 0.01
+                - FRANKA_PANDA_DEXSUITE_CFG.actuators["panda_hand"].damping,
             ),
             "operation": "add",
         },
