@@ -14,14 +14,6 @@ inputs:
     description: 'Docker base image for the test container'
     required: false
     default: 'ubuntu:24.04'
-  premerge:
-    description: 'Run smoke tests plus tests selected by Testmon coverage'
-    required: false
-    default: 'false'
-  testmon-data-dir:
-    description: 'Host directory for the persisted Testmon dependency database'
-    required: false
-    default: ''
   test-filter:
     description: 'pytest -k expression (empty = run everything)'
     required: false
@@ -41,20 +33,12 @@ runs:
       shell: bash
       env:
         BASE_IMAGE: ${{ inputs.base-image }}
-        PREMERGE: ${{ inputs.premerge }}
-        TESTMON_DATA_DIR: ${{ inputs.testmon-data-dir }}
         TEST_FILTER: ${{ inputs.test-filter }}
       run: |
         args=(docker --gpu --base-image "$BASE_IMAGE"
               --build-wheel
-              --testmon-data-dir "$TESTMON_DATA_DIR"
               --results-dir "${{ github.workspace }}/results"
-              -- --tb=short -sv --testmon)
-        if [ "$PREMERGE" = "true" ]; then
-          args+=(--testmon-forceselect)
-        else
-          args+=(--testmon-noselect)
-        fi
+              -- --tb=short -sv)
         [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
         # Make `python3` resolve to the uv-managed 3.12 for build.sh's gen_pyproject.py.
         # --seed installs pip/setuptools/wheel into the venv so build.sh's `python3 -m pip install`
