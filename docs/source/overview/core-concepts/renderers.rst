@@ -85,7 +85,7 @@ For the RTX renderer (requires Isaac Sim):
    # or return an existing renderer with a matching config
    renderer: BaseRenderer = sim_ctx.render_context.get_renderer(IsaacRtxRendererCfg())
 
-For RTX renderer settings and presets (quality, balanced, performance), see
+For RTX renderer settings, see
 :doc:`/source/how-to/configure_rendering`.
 
 Core concepts

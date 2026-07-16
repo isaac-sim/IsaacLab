@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+6.3.1 (2026-07-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``fix_root_link=True`` for OVPhysX fragment-based articulation spawns by relocating the
+  articulation root to the parser-required parent, including when an existing disabled world fixed
+  joint is re-enabled.
+
+
+6.3.0 (2026-07-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :data:`~isaaclab_ovphysx.tensor_types.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION` alias for
+  the per-collision-shape rigid-body material tensor type (static friction, dynamic friction,
+  restitution) exposed by the ovphysx wheel. Read and write it through
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`, e.g.
+  ``root_view.get_attribute(tensor_types.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)``.
+
+
 6.2.0 (2026-07-08)
 ~~~~~~~~~~~~~~~~~~
 

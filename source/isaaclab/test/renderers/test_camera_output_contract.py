@@ -133,6 +133,8 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.RGB_HDR,
         RenderBufferKind.ALBEDO,
         RenderBufferKind.DEPTH,
+        RenderBufferKind.DISTANCE_TO_CAMERA,
+        RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.NORMALS,
         RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
     }

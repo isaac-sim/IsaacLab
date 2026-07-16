@@ -5,6 +5,8 @@
 
 import warp as wp
 
+from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
+
 """
 Articulation-specific warp functions.
 """
@@ -38,6 +40,25 @@ Articulation-specific warp kernels.
 
 
 @wp.kernel
+def update_wrench_array_with_force_and_torque_ordered(
+    forces: wp.array2d(dtype=wp.vec3f),
+    torques: wp.array2d(dtype=wp.vec3f),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    wrench: wp.array2d(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+) -> None:
+    """Write public-order force and torque into a backend-order wrench array."""
+    env_id, user_body_id = wp.tid()
+    if env_mask[env_id] and body_mask[user_body_id]:
+        backend_body_id = resolve_backend_index(user_body_id, user_to_backend, has_ordering)
+        wrench[env_id, backend_body_id] = wp.spatial_vector(
+            forces[env_id, user_body_id], torques[env_id, user_body_id], wp.float32
+        )
+
+
+@wp.kernel
 def get_joint_acc_from_joint_vel(
     joint_vel: wp.array2d(dtype=wp.float32),
     prev_joint_vel: wp.array2d(dtype=wp.float32),
@@ -63,125 +84,34 @@ def get_joint_acc_from_joint_vel(
 
 
 @wp.kernel
-def write_joint_vel_data_index(
-    in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
-    joint_vel: wp.array2d(dtype=wp.float32),
-    prev_joint_vel: wp.array2d(dtype=wp.float32),
-    joint_acc: wp.array2d(dtype=wp.float32),
-):
-    """Write joint velocity data to the output buffers.
-
-    This kernel writes joint velocity data from the input array to the output buffers.
-    It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
+def get_body_com_acc_from_body_com_vel_ordered(
+    body_com_vel_backend: wp.array2d(dtype=wp.spatial_vectorf),
+    prev_body_com_vel_backend: wp.array2d(dtype=wp.spatial_vectorf),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    dt: wp.float32,
+    body_com_acc_user: wp.array2d(dtype=wp.spatial_vectorf),
+) -> None:
+    """Derive public-order body COM acceleration from backend-order velocity.
 
     Args:
-        in_data: Input array containing joint velocity data. Shape is (num_selected_envs, num_selected_joints).
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
-        joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
-        prev_joint_vel: Output array where previous joint velocities are written. Shape is
-            (num_envs, num_joints).
-        joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
-            (num_envs, num_joints).
+        body_com_vel_backend: Current body center-of-mass velocity in backend
+            order [m/s, rad/s], shape (num_envs, num_bodies).
+        prev_body_com_vel_backend: Previous body center-of-mass velocity in
+            backend order [m/s, rad/s], shape (num_envs, num_bodies).
+            Updated in place with the current velocity.
+        user_to_backend: Public-to-backend body permutation, shape
+            (num_bodies,).
+        has_ordering: Whether the public-to-backend map is nonidentity.
+        dt: Finite-difference time step [s].
+        body_com_acc_user: Body center-of-mass acceleration in public order
+            [m/s^2, rad/s^2], shape (num_envs, num_bodies).
     """
-    i, j = wp.tid()
-    joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
-    prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
-    joint_acc[env_ids[i], joint_ids[j]] = 0.0
-
-
-@wp.kernel
-def write_joint_vel_data_mask(
-    in_data: wp.array2d(dtype=wp.float32),
-    env_mask: wp.array(dtype=wp.bool),
-    joint_mask: wp.array(dtype=wp.bool),
-    joint_vel: wp.array2d(dtype=wp.float32),
-    prev_joint_vel: wp.array2d(dtype=wp.float32),
-    joint_acc: wp.array2d(dtype=wp.float32),
-):
-    """Write joint velocity data to the output buffers.
-
-    This kernel writes joint velocity data from the input array to the output buffers.
-    It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
-
-    Args:
-        in_data: Input array containing joint velocity data. Shape is (num_envs, num_joints).
-        env_mask: Input array of environment mask. Shape is (num_envs,).
-        joint_mask: Input array of joint mask. Shape is (num_joints,).
-        joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
-        prev_joint_vel: Output array where previous joint velocities are written. Shape is
-            (num_envs, num_joints).
-        joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
-            (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and joint_mask[j]:
-        joint_vel[i, j] = in_data[i, j]
-        prev_joint_vel[i, j] = in_data[i, j]
-        joint_acc[i, j] = 0.0
-
-
-@wp.kernel
-def write_joint_state_data_index(
-    pos_data: wp.array2d(dtype=wp.float32),
-    vel_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
-    joint_pos: wp.array2d(dtype=wp.float32),
-    joint_vel: wp.array2d(dtype=wp.float32),
-    prev_joint_vel: wp.array2d(dtype=wp.float32),
-    joint_acc: wp.array2d(dtype=wp.float32),
-):
-    """Write joint position and velocity data in a single kernel launch.
-
-    Args:
-        pos_data: Input joint positions. Shape is (num_selected_envs, num_selected_joints).
-        vel_data: Input joint velocities. Shape is (num_selected_envs, num_selected_joints).
-        env_ids: Environment indices. Shape is (num_selected_envs,).
-        joint_ids: Joint indices. Shape is (num_selected_joints,).
-        joint_pos: Output joint positions. Shape is (num_envs, num_joints).
-        joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
-        prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
-        joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    joint_pos[env_ids[i], joint_ids[j]] = pos_data[i, j]
-    joint_vel[env_ids[i], joint_ids[j]] = vel_data[i, j]
-    prev_joint_vel[env_ids[i], joint_ids[j]] = vel_data[i, j]
-    joint_acc[env_ids[i], joint_ids[j]] = 0.0
-
-
-@wp.kernel
-def write_joint_state_data_mask(
-    pos_data: wp.array2d(dtype=wp.float32),
-    vel_data: wp.array2d(dtype=wp.float32),
-    env_mask: wp.array(dtype=wp.bool),
-    joint_mask: wp.array(dtype=wp.bool),
-    joint_pos: wp.array2d(dtype=wp.float32),
-    joint_vel: wp.array2d(dtype=wp.float32),
-    prev_joint_vel: wp.array2d(dtype=wp.float32),
-    joint_acc: wp.array2d(dtype=wp.float32),
-):
-    """Write joint position and velocity data in a single kernel launch using masks.
-
-    Args:
-        pos_data: Input joint positions. Shape is (num_envs, num_joints).
-        vel_data: Input joint velocities. Shape is (num_envs, num_joints).
-        env_mask: Environment mask. Shape is (num_envs,).
-        joint_mask: Joint mask. Shape is (num_joints,).
-        joint_pos: Output joint positions. Shape is (num_envs, num_joints).
-        joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
-        prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
-        joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and joint_mask[j]:
-        joint_pos[i, j] = pos_data[i, j]
-        joint_vel[i, j] = vel_data[i, j]
-        prev_joint_vel[i, j] = vel_data[i, j]
-        joint_acc[i, j] = 0.0
+    env_id, user_body_id = wp.tid()
+    backend_body_id = resolve_backend_index(user_body_id, user_to_backend, has_ordering)
+    body_com_vel = body_com_vel_backend[env_id, backend_body_id]
+    body_com_acc_user[env_id, user_body_id] = (body_com_vel - prev_body_com_vel_backend[env_id, backend_body_id]) / dt
+    prev_body_com_vel_backend[env_id, backend_body_id] = body_com_vel
 
 
 @wp.kernel
@@ -288,6 +218,85 @@ def write_joint_limit_data_to_buffer_mask(
         soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(
             wp.vec2f(joint_pos_limits_lower[i, j], joint_pos_limits_upper[i, j]), soft_limit_factor
         )
+
+
+@wp.kernel
+def write_joint_limit_data_to_user_and_backend_index(
+    in_data: wp.array2d(dtype=wp.vec2f),
+    soft_limit_factor: wp.float32,
+    env_ids: wp.array(dtype=wp.int32),
+    user_ids: wp.array(dtype=wp.int32),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    user_joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
+    user_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    backend_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    backend_joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    default_joint_pos: wp.array2d(dtype=wp.float32),
+    clamped_defaults: wp.array(dtype=wp.int32),
+):
+    """Write indexed user-order joint limits into public and backend-order buffers."""
+    i, j = wp.tid()
+    env_id = env_ids[i]
+    user_id = user_ids[j]
+    backend_id = resolve_backend_index(user_id, user_to_backend, has_ordering)
+    limits = in_data[i, j]
+    lower = limits[0]
+    upper = limits[1]
+
+    user_joint_pos_limits_lower[env_id, user_id] = lower
+    user_joint_pos_limits_upper[env_id, user_id] = upper
+    user_joint_pos_limits[env_id, user_id] = limits
+    backend_joint_pos_limits_lower[env_id, backend_id] = lower
+    backend_joint_pos_limits_upper[env_id, backend_id] = upper
+
+    if (default_joint_pos[env_id, user_id] < lower) or default_joint_pos[env_id, user_id] > upper:
+        wp.atomic_add(clamped_defaults, 0, 1)
+        default_joint_pos[env_id, user_id] = wp.clamp(default_joint_pos[env_id, user_id], lower, upper)
+
+    soft_joint_pos_limits[env_id, user_id] = compute_soft_joint_pos_limits_func(limits, soft_limit_factor)
+
+
+@wp.kernel
+def write_joint_limit_data_to_user_and_backend_mask(
+    in_data: wp.array2d(dtype=wp.vec2f),
+    soft_limit_factor: wp.float32,
+    env_mask: wp.array(dtype=wp.bool),
+    user_mask: wp.array(dtype=wp.bool),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    user_joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
+    user_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    backend_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    backend_joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    default_joint_pos: wp.array2d(dtype=wp.float32),
+    clamped_defaults: wp.array(dtype=wp.int32),
+):
+    """Write masked user-order joint limits into public and backend-order buffers."""
+    env_id, user_id = wp.tid()
+    if not env_mask[env_id] or not user_mask[user_id]:
+        return
+
+    backend_id = resolve_backend_index(user_id, user_to_backend, has_ordering)
+    limits = in_data[env_id, user_id]
+    lower = limits[0]
+    upper = limits[1]
+
+    user_joint_pos_limits_lower[env_id, user_id] = lower
+    user_joint_pos_limits_upper[env_id, user_id] = upper
+    user_joint_pos_limits[env_id, user_id] = limits
+    backend_joint_pos_limits_lower[env_id, backend_id] = lower
+    backend_joint_pos_limits_upper[env_id, backend_id] = upper
+
+    if (default_joint_pos[env_id, user_id] < lower) or default_joint_pos[env_id, user_id] > upper:
+        wp.atomic_add(clamped_defaults, 0, 1)
+        default_joint_pos[env_id, user_id] = wp.clamp(default_joint_pos[env_id, user_id], lower, upper)
+
+    soft_joint_pos_limits[env_id, user_id] = compute_soft_joint_pos_limits_func(limits, soft_limit_factor)
 
 
 @wp.kernel
@@ -624,7 +633,10 @@ def concat_joint_pos_limits_lower_and_upper(
 def gather_jacobian_rows(
     src: wp.array4d(dtype=wp.float32),
     art_ids: wp.array(dtype=wp.int32),
-    link_offset: wp.int32,
+    jacobian_body_user_to_backend: wp.array(dtype=wp.int32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
+    num_base_dofs: wp.int32,
+    has_joint_ordering: bool,
     dst: wp.array4d(dtype=wp.float32),
 ):
     """Copy per-view articulation jacobian rows from a model-sized buffer into a view-sized buffer.
@@ -639,11 +651,16 @@ def gather_jacobian_rows(
     ``(num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs)`` is
     preserved.
 
-    For fixed-base articulations Newton fills link row 0 with the fixed root joint
-    (zero motion subspace), so we skip it with ``link_offset = 1``. For floating-
-    base, ``link_offset = 0`` and the full DoF axis is preserved including the 6
-    leading free-root joint columns, matching the cross-library industry
-    convention used by PhysX, Pinocchio, Drake, MuJoCo, RBDL, OCS2, and iDynTree.
+    Newton's output keeps every link row, including the fixed-base root row at
+    index 0. The body-axis mapping is owned entirely by
+    ``jacobian_body_user_to_backend``: it holds, for each public Jacobian body
+    row, the backend row to read from ``src`` in Newton's full-row layout, and
+    for fixed-base articulations it already excludes the root row. The kernel
+    therefore indexes ``src`` by that map directly, with no runtime link offset
+    and no body-ordering branch. The DoF axis is preserved in full including the
+    6 leading free-root joint columns for floating-base, matching the
+    cross-library industry convention used by PhysX, Pinocchio, Drake, MuJoCo,
+    RBDL, OCS2, and iDynTree.
 
     The gather is in-place on a pre-allocated ``dst`` buffer, so the kernel launch
     is safe under CUDA graph capture.
@@ -653,22 +670,37 @@ def gather_jacobian_rows(
             (model.articulation_count, max_links, 6, max_dofs).
         art_ids: Model-level articulation indices owned by this view. Shape is
             (num_instances,).
-        link_offset: Constant offset added to the destination link index when
-            reading from ``src``. ``1`` for fixed-base views, ``0`` for
-            floating-base.
+        jacobian_body_user_to_backend: Map from public Jacobian body row to
+            backend Jacobian body row in Newton's full-row layout. Built for
+            every view (also under identity ordering); for fixed-base
+            articulations it excludes the fixed root row.
+        joint_user_to_backend: Map from public actuated-joint index to backend
+            actuated-joint index.
+        num_base_dofs: Number of leading floating-base DoF columns.
+        has_joint_ordering: Whether ``joint_user_to_backend`` is non-identity.
         dst: Output jacobian buffer for this view. Shape is
             (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
-            where ``num_jacobi_bodies = this asset's num_bodies - link_offset``
-            (per-asset count, not the model-wide ``max_links``).
+            where ``num_jacobi_bodies`` is this asset's ``num_bodies`` minus the
+            fixed-base root row (per-asset count, not the model-wide
+            ``max_links``).
     """
-    i, link, s, d = wp.tid()
-    dst[i, link, s, d] = src[art_ids[i], link + link_offset, s, d]
+    i, user_link, s, user_dof = wp.tid()
+    backend_link = jacobian_body_user_to_backend[user_link]
+
+    backend_dof = user_dof
+    if has_joint_ordering and user_dof >= num_base_dofs:
+        backend_dof = num_base_dofs + joint_user_to_backend[user_dof - num_base_dofs]
+
+    dst[i, user_link, s, user_dof] = src[art_ids[i], backend_link, s, backend_dof]
 
 
 @wp.kernel
 def gather_mass_matrix_rows(
     src: wp.array3d(dtype=wp.float32),
     art_ids: wp.array(dtype=wp.int32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
+    num_base_dofs: wp.int32,
+    has_joint_ordering: bool,
     dst: wp.array3d(dtype=wp.float32),
 ):
     """Copy per-view articulation mass-matrix rows from a model-sized buffer into a view-sized buffer.
@@ -684,12 +716,24 @@ def gather_mass_matrix_rows(
             (model.articulation_count, max_dofs, max_dofs).
         art_ids: Model-level articulation indices owned by this view. Shape is
             (num_instances,).
+        joint_user_to_backend: Map from public actuated-joint index to backend
+            actuated-joint index.
+        num_base_dofs: Number of leading floating-base DoF rows/columns.
+        has_joint_ordering: Whether ``joint_user_to_backend`` is non-identity.
         dst: Output mass-matrix buffer for this view. Shape is
             (num_instances, num_joints + num_base_dofs,
             num_joints + num_base_dofs).
     """
-    i, r, c = wp.tid()
-    dst[i, r, c] = src[art_ids[i], r, c]
+    i, user_row, user_col = wp.tid()
+    backend_row = user_row
+    backend_col = user_col
+    if has_joint_ordering:
+        if user_row >= num_base_dofs:
+            backend_row = num_base_dofs + joint_user_to_backend[user_row - num_base_dofs]
+        if user_col >= num_base_dofs:
+            backend_col = num_base_dofs + joint_user_to_backend[user_col - num_base_dofs]
+
+    dst[i, user_row, user_col] = src[art_ids[i], backend_row, backend_col]
 
 
 @wp.kernel

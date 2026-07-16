@@ -10,15 +10,15 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
 
 from isaaclab.app import AppLauncher
+from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
 
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -138,7 +138,7 @@ def _fill_position(out: wp.array(dtype=wp.float32, ndim=2), x: float, y: float, 
     out[i, 2] = wp.float32(z)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     """Verify that set_world_poses in Fabric mode does NOT sync back to USD.
 
@@ -183,7 +183,7 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_fabric_rebuild_after_topology_change(device, view_factory):
     """A simulated topology change rebuilds the indexed fabric arrays and leaves
     the view in a state where subsequent writes/reads still produce correct data.
@@ -638,11 +638,7 @@ def test_multi_view_writer_isolation(device):
 # ------------------------------------------------------------------
 
 
-@pytest.mark.skipif(
-    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
-    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
-)
-@pytest.mark.parametrize("device", ["cuda:1"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.NON_DEFAULT_CUDA))
 def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     """set_world_poses -> get_world_poses roundtrip works on cuda:1.
 
@@ -663,11 +659,7 @@ def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Roundtrip failed on {device}: {pos_torch}"
 
 
-@pytest.mark.skipif(
-    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
-    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
-)
-@pytest.mark.parametrize("device", ["cuda:1"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.NON_DEFAULT_CUDA))
 def test_fabric_cuda1_no_usd_writeback(device, view_factory):
     """set_world_poses on cuda:1 does not write back to USD.
 
@@ -696,11 +688,7 @@ def test_fabric_cuda1_no_usd_writeback(device, view_factory):
     )
 
 
-@pytest.mark.skipif(
-    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
-    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
-)
-@pytest.mark.parametrize("device", ["cuda:1"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.NON_DEFAULT_CUDA))
 def test_fabric_cuda1_scales_roundtrip(device, view_factory):
     """World-space scale writes roundtrip via ``worldMatrix`` on ``cuda:1``.
 

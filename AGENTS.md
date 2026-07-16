@@ -87,6 +87,18 @@ Proper workflow:
 
 **When reviewing code** (e.g. via a code-reviewer agent), always run `./isaaclab.sh -f` as part of the review to catch formatting or lint issues early.
 
+## Agent skills
+
+- Repo-owned agent skills live under `skills/`.
+- Codex discovers name-based aliases under `.agents/skills/`; Claude discovers the same aliases through `.claude/skills`.
+- Keep `skills/` as the canonical source. Do not copy skill bodies into native discovery directories.
+- Developer workflow skills live under `skills/developer/`; user-facing skills live under `skills/user/`.
+- For PR preparation, follow the `isaaclab-preparing-pr-workflow` skill at `skills/developer/pr-workflow/SKILL.md`.
+- Keep `SKILL.md` files concise and link to one-level reference files for longer details.
+- Keep official docs and maintained source examples as the source of truth; skills should route agents through those references instead of duplicating them.
+- Validate skills with `./isaaclab.sh -p tools/skills/cli.py check` before opening a PR that changes `skills/`.
+- The CI skills gate runs only for PRs that modify `skills/`, `tools/skills/`, or the skills workflow.
+
 ## Changelog
 
 - **Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.** Each PR adds a fragment file under `source/<package>/changelog.d/`; the changelog and version are compiled by the nightly CI workflow.

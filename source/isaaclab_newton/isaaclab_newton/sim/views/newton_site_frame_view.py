@@ -27,6 +27,16 @@ logger = logging.getLogger(__name__)
 
 WORLD_BODY_INDEX = -1
 
+# Regex metacharacters that mark a body pattern as a genuine expression rather than a literal
+# USD path. Patterns free of these can be resolved via an exact dict lookup instead of scanning
+# every body label with a compiled regex.
+_REGEX_TOKENS = frozenset(".*[]()+?|\\^$")
+
+
+def _has_regex_tokens(pattern: str) -> bool:
+    """Return whether ``pattern`` contains regex metacharacters (i.e. is not a literal path)."""
+    return any(token in _REGEX_TOKENS for token in pattern)
+
 
 @wp.kernel
 def _compute_site_world_transforms(
@@ -397,6 +407,12 @@ class NewtonSiteFrameView(BaseFrameView):
     def _initialize_from_specs(self, model) -> None:
         """Initialize arrays directly from resolved specs and Newton body labels."""
         body_labels = list(model.body_label)
+        # Exact label -> index map, built once. Replicated frames expand to one concrete
+        # body path per environment, so matching each against every label via regex is
+        # ``O(num_envs * num_bodies)`` (quadratic in ``num_envs``). Fast-pathing literal
+        # paths through this map keeps the common per-environment case linear; genuine
+        # regex patterns (e.g. the cloned ``.*`` pattern) still fall back to a full scan.
+        label_to_index = {label: idx for idx, label in enumerate(body_labels)}
         site_bodies: list[int] = []
         site_locals: list[list[float]] = []
         site_scales: list[tuple[float, float, float]] = []
@@ -419,7 +435,11 @@ class NewtonSiteFrameView(BaseFrameView):
                 continue
 
             for body_pattern in body_patterns:
-                matched_indices, _ = resolve_matching_names(body_pattern, body_labels, raise_when_no_match=False)
+                exact_index = label_to_index.get(body_pattern) if not _has_regex_tokens(body_pattern) else None
+                if exact_index is not None:
+                    matched_indices = [exact_index]
+                else:
+                    matched_indices, _ = resolve_matching_names(body_pattern, body_labels, raise_when_no_match=False)
                 if not matched_indices:
                     raise ValueError(
                         f"FrameView '{self._prim_path}' body pattern '{body_pattern}' matched no Newton bodies."

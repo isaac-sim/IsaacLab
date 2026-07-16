@@ -150,6 +150,17 @@ def _replace_inf_kernel(
         buf[n, h, w, c] = replacement
 
 
+@wp.kernel
+def _replace_background_depth_kernel(
+    buf: wp.array(dtype=wp.float32, ndim=4),
+    replacement: float,
+):
+    """Replace non-positive (background/beyond-far) values with ``replacement``."""
+    n, a, b, c = wp.tid()
+    if buf[n, a, b, c] <= 0.0:
+        buf[n, a, b, c] = replacement
+
+
 def clamp_depth_to_inf_wp(buf: wp.array, max_range: float, device: str | None = None) -> None:
     """Replace depth values above ``max_range`` with ``+inf`` using a warp kernel.
 
@@ -180,6 +191,27 @@ def replace_inf_depth_wp(buf: wp.array, replacement: float, device: str | None =
     """
     wp.launch(
         _replace_inf_kernel,
+        dim=buf.shape,
+        inputs=[buf, float(replacement)],
+        device=device or buf.device,
+    )
+
+
+def replace_background_depth_wp(buf: wp.array, replacement: float, device: str | None = None) -> None:
+    """Replace non-positive depth values with ``replacement`` using a warp kernel.
+
+    Ray tracers that write ``0.0`` for missed rays and rays beyond the far plane (rather than
+    ``+inf``) use this to normalize the background, e.g. to the far clip distance. Real hits keep a
+    strictly positive distance because the camera's near clip is positive, so ``depth <= 0`` uniquely
+    identifies the background/beyond-far sentinel.
+
+    Args:
+        buf: Depth buffer. Shape ``(N, ..., )`` with four dimensions, dtype ``wp.float32``.
+        replacement: Value to write where ``depth <= 0`` was found (e.g. the far clip ``max_range``).
+        device: Warp device string. Defaults to ``buf.device``.
+    """
+    wp.launch(
+        _replace_background_depth_kernel,
         dim=buf.shape,
         inputs=[buf, float(replacement)],
         device=device or buf.device,
