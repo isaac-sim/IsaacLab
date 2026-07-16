@@ -11,8 +11,9 @@ prim ordering, xformOp standardization, and Isaac Sim comparison.
 """
 
 from isaaclab.app import AppLauncher
+from isaaclab.test.utils import resolve_test_sim_device, test_devices
 
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -101,7 +102,7 @@ def view_factory():
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", test_devices())
 def test_visibility_toggle(device):
     """Test toggling visibility multiple times."""
     if device == "cuda" and not torch.cuda.is_available():
@@ -129,7 +130,7 @@ def test_visibility_toggle(device):
     assert vis[0] and not vis[1] and vis[2]
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", test_devices())
 def test_visibility_parent_inheritance(device):
     """Making a parent invisible hides all children."""
     if device == "cuda" and not torch.cuda.is_available():
@@ -155,7 +156,7 @@ def test_visibility_parent_inheritance(device):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", test_devices())
 def test_prim_ordering_follows_creation_order(device):
     """Prims are returned in USD creation order (DFS), not alphabetical."""
     if device == "cuda" and not torch.cuda.is_available():
@@ -181,7 +182,7 @@ def test_prim_ordering_follows_creation_order(device):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", test_devices())
 def test_standardize_transform_op(device):
     """FrameView standardizes a prim with xformOp:transform to translate/orient/scale."""
     if device == "cuda" and not torch.cuda.is_available():
@@ -209,7 +210,7 @@ def test_standardize_transform_op(device):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", test_devices())
 def test_nested_hierarchy_world_poses(device):
     """World pose of nested child == sum of parent + child translations."""
     if device == "cuda" and not torch.cuda.is_available():
@@ -334,7 +335,7 @@ def test_compare_get_world_poses_with_isaacsim():
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", test_devices())
 def test_with_franka_robots(device):
     """Verify FrameView works with real Franka robot USD assets."""
     if device == "cuda" and not torch.cuda.is_available():

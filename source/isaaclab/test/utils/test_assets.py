@@ -25,7 +25,7 @@ def test_nucleus_connection():
 def test_check_file_path_nucleus():
     """Test checking a file path on the Nucleus server."""
     # robot file path
-    usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     # check file path
     assert assets_utils.check_file_path(usd_path) == 2
 

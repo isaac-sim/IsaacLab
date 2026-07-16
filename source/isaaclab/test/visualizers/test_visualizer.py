@@ -226,3 +226,9 @@ def test_resolve_camera_pose_from_usd_path_uses_provider_transforms():
     pos, target = viz._resolve_camera_pose_from_usd_path("/World/envs/env_0/Camera")
     assert pos == (1.0, 2.0, 3.0)
     assert target == pytest.approx((1.0, 2.0, 2.0))
+
+
+def test_physics_backend_returns_none_without_simulation_context():
+    """physics_backend is None when no SimulationContext is active."""
+    viz = _DummyVisualizer(_make_cfg())
+    assert viz.physics_backend is None

@@ -139,6 +139,23 @@ def _minimal_startup_bundle():
     )
 
 
+def _minimal_play_bundle():
+    from isaaclab.test.benchmark.schema import MeanStd, PlayBundle
+
+    bundle = _minimal_runtime_bundle()
+    return PlayBundle(
+        run=replace(bundle.run, framework="rsl_rl"),
+        versions=bundle.versions,
+        hardware=bundle.hardware,
+        runtime=bundle.runtime,
+        resources=bundle.resources,
+        success_rate=0.75,
+        reward=MeanStd(mean=4.0, std=1.0, peak=5.0),
+        ep_length=MeanStd(mean=20.0, std=2.0, peak=25.0),
+        checkpoint_path="model.pt",
+    )
+
+
 def _formatter_keys(benchmark: BaseIsaacLabBenchmark) -> list[str]:
     return [key for key, _ in benchmark._metrics]
 
@@ -238,6 +255,7 @@ def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
     cases = [
         (_minimal_runtime_bundle(), "runtime", "Mean Total FPS", 100.0),
         (_minimal_training_bundle(), "train", "Last Reward", 3.0),
+        (_minimal_play_bundle(), "play", "Mean Reward", 4.0),
         (_minimal_startup_bundle(), "python_imports", "Wall Clock Time", 0.25),
     ]
 

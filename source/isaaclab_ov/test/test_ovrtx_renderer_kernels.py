@@ -19,13 +19,16 @@ DEVICE = "cuda:0"
 
 
 def _color_hash(seed: int) -> int:
-    h = seed
+    # MurmurHash3-style 32-bit finalizer with wraparound, matching color_hash in ovrtx_renderer_kernels
+    # and omni.replicator's randomColoursCPU. The 32-bit truncation (0xFFFFFFFF masks) is load-bearing.
+    mask = 0xFFFFFFFF
+    h = seed & mask
     h ^= h >> 16
-    h *= 0x85EBCA6B
+    h = (h * 0x85EBCA6B) & mask
     h ^= h >> 13
-    h *= 0xC2B2AE35
+    h = (h * 0xC2B2AE35) & mask
     h ^= h >> 16
-    return h
+    return h & mask
 
 
 def _random_colours_id(input_id: int) -> tuple[int, int, int, int]:

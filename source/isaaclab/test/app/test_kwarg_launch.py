@@ -13,7 +13,7 @@ import isaaclab.app.app_launcher as app_launcher_module
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
 from isaaclab.app import AppLauncher
-from isaaclab.app.sim_launcher import _ensure_livestream_kit_visualizer
+from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _uses_isaac_sim_runtime
 
 pytestmark = pytest.mark.integration
 
@@ -44,6 +44,24 @@ def test_livestream_rejects_disabled_visualizers():
 
     with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
         _ensure_livestream_kit_visualizer(args)
+
+
+def test_explicit_experience_requires_isaac_sim_runtime():
+    """An explicit Kit experience must override a kitless physics configuration."""
+    scan = Scan(
+        resolved_physics_cfg=None,
+        effective_cfg=object(),
+        visualizer_intent={"has_any_visualizers": False, "has_kit_visualizer": False},
+        has_ovrtx=False,
+        has_kit_camera=False,
+        has_kit_physics=False,
+        has_kitless_physics=True,
+        has_ovphysx_physics=False,
+        needs_kit=False,
+    )
+    args = argparse.Namespace(experience="isaaclab.python.kit", visualizer=None)
+
+    assert _uses_isaac_sim_runtime(scan, args)
 
 
 def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.MonkeyPatch):
@@ -106,6 +124,30 @@ class _DummySettings:
         self.values[path] = value
 
 
+@pytest.mark.parametrize("deterministic", [True, False])
+def test_load_extensions_publishes_deterministic_setting(monkeypatch: pytest.MonkeyPatch, deterministic: bool):
+    """Publish ``/isaaclab/render/deterministic`` from ``_load_extensions``."""
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._deterministic_rendering = deterministic
+    launcher._python_logging_level = logging.ERROR
+    launcher._headless = True
+    launcher._livestream = 0
+    launcher._enable_cameras = False
+    launcher._offscreen_render = False
+    launcher._render_viewport = False
+    launcher._xr = False
+    launcher._video_enabled = False
+
+    settings = _DummySettings()
+    monkeypatch.setattr(app_launcher_module, "initialize_carb_settings", lambda: None)
+    monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
+    monkeypatch.setattr(app_launcher_module, "apply_python_logging_level", lambda _level: None)
+
+    launcher._load_extensions()
+
+    assert settings.values["/isaaclab/render/deterministic"] is deterministic
+
+
 @pytest.mark.parametrize(
     ("headless", "livestream", "xr", "expected_has_gui"),
     [
@@ -120,7 +162,7 @@ def test_load_extensions_publishes_has_gui_setting(
 ):
     """Publish the GUI state consumed by SimulationContext and RTX rendering."""
     launcher = AppLauncher.__new__(AppLauncher)
-    launcher._apply_rtx_determinism = False
+    launcher._deterministic_rendering = False
     launcher._python_logging_level = logging.ERROR
     launcher._headless = headless
     launcher._livestream = livestream
@@ -133,7 +175,7 @@ def test_load_extensions_publishes_has_gui_setting(
     settings = _DummySettings()
     monkeypatch.setattr(app_launcher_module, "initialize_carb_settings", lambda: None)
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
-    monkeypatch.setattr(AppLauncher, "_apply_python_logging_level", lambda _level: None)
+    monkeypatch.setattr(app_launcher_module, "apply_python_logging_level", lambda _level: None)
 
     launcher._load_extensions()
 
@@ -323,7 +365,7 @@ def _new_launcher_for_experience_check():
     launcher._enable_cameras = False
     launcher._headless = False
     launcher._xr = False
-    launcher._apply_rtx_determinism = False
+    launcher._deterministic_rendering = False
     launcher.is_isaac_sim_version_5 = lambda: False
     return launcher
 

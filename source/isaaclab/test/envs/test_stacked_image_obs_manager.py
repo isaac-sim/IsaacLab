@@ -29,7 +29,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.envs.mdp.observations import stacked_image
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 

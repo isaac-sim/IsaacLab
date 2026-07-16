@@ -224,11 +224,11 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
    * - ``distance_to_camera``
      - ✅
      - ✅
-     - ❌
+     - ✅
    * - ``distance_to_image_plane``
      - ✅
      - ✅
-     - ❌
+     - ✅
    * - ``depth``
      - ✅
      - ✅
@@ -251,7 +251,7 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ✅
    * - ``instance_id_segmentation_fast``
      - ✅
-     - ✅
+     - ❌
      - ❌
 
 RGB and RGBA

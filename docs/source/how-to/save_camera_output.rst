@@ -94,7 +94,7 @@ To run the accompanying script, execute the following command:
    # Usage with saving and drawing
    python scripts/tutorials/04_sensors/run_usd_camera.py --save --draw --enable_cameras
 
-   # Usage with saving only in headless mode
+   # Usage with saving only (no visualizer)
    python scripts/tutorials/04_sensors/run_usd_camera.py --save --enable_cameras
 
 

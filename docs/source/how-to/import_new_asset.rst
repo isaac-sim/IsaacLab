@@ -44,7 +44,7 @@ is then passed to the :class:`~sim.converters.UrdfConverter` class.
    See the :doc:`/source/migration/migrating_to_isaaclab_3-0` for a full list of breaking changes.
 
 The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
-The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
+The default values for the importer's configuration parameters are specified in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the documentation at `URDF importer`_.
 
 Articulation and joint structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -219,7 +219,7 @@ The default values for the importer's configuration parameters are specified in 
 :class:`~sim.converters.MjcfConverterCfg` class. The configuration parameters are listed below.
 We made a few commonly modified settings to be available as command-line arguments when calling the
 ``convert_mjcf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration
-parameters, please check the the documentation at `MJCF importer`_.
+parameters, please check the documentation at `MJCF importer`_.
 
 .. note::
    The MJCF importer was rewritten in Isaac Sim 5.0 to use the ``mujoco-usd-converter`` library.

@@ -563,3 +563,20 @@ def find_global_fixed_joint_prim(
                 break
 
     return fixed_joint_prim
+
+
+def has_deformable_body_api(prim: Usd.Prim) -> bool:
+    """Check whether a deformable body API schema is applied on the prim.
+
+    Uses :meth:`Usd.PrimTypeInfo.GetAppliedAPISchemas` so that token-authored schemas
+    (e.g. Newton's unregistered ``PhysicsDeformableBodyAPI``) are detected in addition
+    to registered applied schemas.
+
+    Args:
+        prim: The USD prim to check.
+
+    Returns:
+        True if ``OmniPhysicsDeformableBodyAPI`` or ``PhysicsDeformableBodyAPI`` is applied.
+    """
+    applied_schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+    return "OmniPhysicsDeformableBodyAPI" in applied_schemas or "PhysicsDeformableBodyAPI" in applied_schemas
