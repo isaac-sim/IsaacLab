@@ -12,24 +12,85 @@ set -euo pipefail
 readonly ISAAC_TELEOP_REPOSITORY="https://github.com/NVIDIA/IsaacTeleop.git"
 readonly ISAAC_TELEOP_PR769_HEAD_SHA="ca175df7afc8198cbba0592cd1b447b11a4f3165"
 readonly UV_VERSION="0.11.29"
-if [[ -x /isaac-sim/python.sh ]]; then
-    readonly ISAACLAB_PYTHON="/isaac-sim/python.sh"
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly ISAACLAB_ROOT="${ISAACLAB_PATH:-$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)}"
+
+selected_python=""
+python_source=""
+if [[ -n "${ISAACLAB_PYTHON:-}" ]]; then
+    selected_python="${ISAACLAB_PYTHON}"
+    python_source="ISAACLAB_PYTHON"
+elif [[ -n "${VIRTUAL_ENV:-}" && -x "${VIRTUAL_ENV}/bin/python" ]]; then
+    selected_python="${VIRTUAL_ENV}/bin/python"
+    python_source="VIRTUAL_ENV"
+elif [[ -n "${CONDA_PREFIX:-}" && -x "${CONDA_PREFIX}/bin/python" ]]; then
+    selected_python="${CONDA_PREFIX}/bin/python"
+    python_source="CONDA_PREFIX"
+elif [[ -x "${ISAACLAB_ROOT}/env_isaaclab/bin/python" ]]; then
+    selected_python="${ISAACLAB_ROOT}/env_isaaclab/bin/python"
+    python_source="${ISAACLAB_ROOT}/env_isaaclab"
+elif [[ -x /isaac-sim/python.sh ]]; then
+    selected_python="/isaac-sim/python.sh"
+    python_source="/isaac-sim"
+elif [[ -x "${ISAACLAB_ROOT}/_isaac_sim/python.sh" ]]; then
+    selected_python="${ISAACLAB_ROOT}/_isaac_sim/python.sh"
+    python_source="${ISAACLAB_ROOT}/_isaac_sim"
+elif command -v python3 >/dev/null 2>&1; then
+    selected_python="$(command -v python3)"
+    python_source="PATH"
 else
-    readonly ISAACLAB_PYTHON="${ISAACLAB_PATH:?ISAACLAB_PATH must be set}/_isaac_sim/python.sh"
+    echo "Unable to find a Python interpreter for the IsaacTeleop source build." >&2
+    echo "Set ISAACLAB_PYTHON to an executable interpreter or launcher." >&2
+    exit 1
 fi
-readonly ISAAC_TELEOP_PYTHON_VERSION="$(
+
+if [[ ! -x "${selected_python}" ]]; then
+    echo "Python interpreter selected from ${python_source} is not executable: ${selected_python}" >&2
+    exit 1
+fi
+readonly ISAACLAB_PYTHON="${selected_python}"
+
+if ! selected_python_version="$(
     "${ISAACLAB_PYTHON}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'
-)"
-readonly ISAACLAB_PYTHON_SCRIPTS="$("${ISAACLAB_PYTHON}" -c 'import sysconfig; print(sysconfig.get_path("scripts"))')"
+)"; then
+    echo "Failed to run Python interpreter selected from ${python_source}: ${ISAACLAB_PYTHON}" >&2
+    exit 1
+fi
+if [[ ! "${selected_python_version}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    echo "Selected Python interpreter returned an invalid version: ${selected_python_version}" >&2
+    exit 1
+fi
+readonly ISAAC_TELEOP_PYTHON_VERSION="${selected_python_version}"
+
+if ! selected_python_scripts="$(
+    "${ISAACLAB_PYTHON}" -c 'import sysconfig; path = sysconfig.get_path("scripts"); assert path; print(path)'
+)"; then
+    echo "Failed to locate the console-script directory for ${ISAACLAB_PYTHON}." >&2
+    exit 1
+fi
+readonly ISAACLAB_PYTHON_SCRIPTS="${selected_python_scripts}"
 readonly BUILD_ROOT="${ISAACLAB_TELEOP_TEST_CACHE:-/tmp/isaacteleop-pr769-${ISAAC_TELEOP_PR769_HEAD_SHA}}"
 readonly SOURCE_DIR="${BUILD_ROOT}/source"
 readonly CMAKE_BUILD_DIR="${BUILD_ROOT}/build-python-${ISAAC_TELEOP_PYTHON_VERSION}"
 readonly SOURCE_REVISION_FILE="${BUILD_ROOT}/source-revision"
 
-# The Isaac Sim launcher owns a Python installation whose console-script
-# directory is not always on ``PATH`` in a test container.  CMake finds the
-# same ``uv`` executable that the launcher installs only after this export.
+# The selected Python environment's console-script directory is not always on
+# ``PATH`` in a test container. CMake finds the same ``uv`` executable that
+# the interpreter installs only after this export.
 export PATH="${ISAACLAB_PYTHON_SCRIPTS}:${PATH}"
+
+assert_source_checkout_clean() {
+    local source_status
+    if ! source_status="$(git -C "${SOURCE_DIR}" status --porcelain --untracked-files=all)"; then
+        echo "Failed to inspect IsaacTeleop source checkout: ${SOURCE_DIR}" >&2
+        return 1
+    fi
+    if [[ -n "${source_status}" ]]; then
+        echo "IsaacTeleop source checkout is not clean: ${SOURCE_DIR}" >&2
+        printf '%s\n' "${source_status}" >&2
+        return 1
+    fi
+}
 
 if ! command -v git >/dev/null || ! dpkg-query --show --showformat='${db:Status-Status}' libx11-dev 2>/dev/null | grep -qx installed; then
     # IsaacTeleop's CMake dependencies are fetched through Git and its static
@@ -56,11 +117,15 @@ fi
 test "$("${ISAACLAB_PYTHON}" -c 'import importlib.metadata; print(importlib.metadata.version("uv"))')" = "${UV_VERSION}"
 
 source_cache_valid=false
+source_cache_head=""
+source_cache_status=""
 if [[ -f "${SOURCE_REVISION_FILE}" ]] \
     && [[ "$(<"${SOURCE_REVISION_FILE}")" = "${ISAAC_TELEOP_PR769_HEAD_SHA}" ]] \
     && [[ -d "${SOURCE_DIR}/.git" ]] \
-    && [[ "$(git -C "${SOURCE_DIR}" rev-parse HEAD 2>/dev/null || true)" = "${ISAAC_TELEOP_PR769_HEAD_SHA}" ]] \
-    && [[ -z "$(git -C "${SOURCE_DIR}" status --porcelain --untracked-files=all 2>/dev/null || true)" ]]; then
+    && source_cache_head="$(git -C "${SOURCE_DIR}" rev-parse HEAD 2>/dev/null)" \
+    && [[ "${source_cache_head}" = "${ISAAC_TELEOP_PR769_HEAD_SHA}" ]] \
+    && source_cache_status="$(git -C "${SOURCE_DIR}" status --porcelain --untracked-files=all 2>/dev/null)" \
+    && [[ -z "${source_cache_status}" ]]; then
     source_cache_valid=true
 fi
 
@@ -72,14 +137,14 @@ if [[ "${source_cache_valid}" != "true" ]]; then
     git -C "${SOURCE_DIR}" fetch --depth 1 origin "${ISAAC_TELEOP_PR769_HEAD_SHA}"
     git -C "${SOURCE_DIR}" checkout --quiet --detach FETCH_HEAD
     test "$(git -C "${SOURCE_DIR}" rev-parse HEAD)" = "${ISAAC_TELEOP_PR769_HEAD_SHA}"
-    test -z "$(git -C "${SOURCE_DIR}" status --porcelain --untracked-files=all)"
+    assert_source_checkout_clean
     printf '%s\n' "${ISAAC_TELEOP_PR769_HEAD_SHA}" > "${SOURCE_REVISION_FILE}"
 fi
 
 test -f "${SOURCE_DIR}/CMakeLists.txt"
 test "$(<"${SOURCE_REVISION_FILE}")" = "${ISAAC_TELEOP_PR769_HEAD_SHA}"
 test "$(git -C "${SOURCE_DIR}" rev-parse HEAD)" = "${ISAAC_TELEOP_PR769_HEAD_SHA}"
-test -z "$(git -C "${SOURCE_DIR}" status --porcelain --untracked-files=all)"
+assert_source_checkout_clean
 
 cmake -S "${SOURCE_DIR}" -B "${CMAKE_BUILD_DIR}" \
     -DISAAC_TELEOP_PYTHON_VERSION="${ISAAC_TELEOP_PYTHON_VERSION}" \

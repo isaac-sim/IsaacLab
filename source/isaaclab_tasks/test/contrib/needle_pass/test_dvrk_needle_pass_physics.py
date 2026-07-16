@@ -1466,8 +1466,21 @@ def test_one_env_native_grasp_generator_handoff_video():
         _assert_live_needle_topology(env)
         _assert_native_handoff_audit(audit)
 
-    videos = sorted(video_dir.glob("dvrk-needle-pass-native-handoff-episode-0*.mp4"))
-    assert videos, f"RecordVideo did not write the qualified handoff video to {video_dir}"
+    videos = sorted(video_dir.glob("*.mp4"))
+    assert len(videos) == 1, f"RecordVideo wrote {len(videos)} MP4 files to {video_dir}, expected exactly one"
+    video_path = videos[0]
+    assert video_path.stat().st_size > 0, f"RecordVideo wrote an empty MP4 file to {video_path}"
+
+    import imageio.v2 as imageio
+
+    reader = imageio.get_reader(video_path)
+    try:
+        first_frame = reader.get_data(0)
+    finally:
+        reader.close()
+    assert isinstance(first_frame, np.ndarray)
+    assert first_frame.ndim == 3
+    assert first_frame.size > 0
 
 
 @pytest.mark.isaacsim_ci

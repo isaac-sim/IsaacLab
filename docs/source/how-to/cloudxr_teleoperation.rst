@@ -217,10 +217,9 @@ choose the tab that matches your hardware.
 
          .. note::
 
-            The web client URL is versioned. The ``release-1.3.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in the
-            ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
-            Teleop pin, update this link to the matching client release.
+            The web client URL is versioned. This URL targets ``release-1.3.x``. The ``teleop``
+            extra accepts ``isaacteleop>=1.3.0,<2.0.0``; when using a newer 1.x release, select
+            the matching client release instead.
 
          .. tip::
 
@@ -401,19 +400,21 @@ against the pinned SHA-256 digests before the first run:
 
 .. note::
 
-   Until `NVIDIA/IsaacTeleop PR #769 <https://github.com/NVIDIA/IsaacTeleop/pull/769>`__
-   is included in a release satisfying Isaac Lab's normal version constraint, the dVRK
-   retargeters are a temporary source-pinned prerequisite. From the Isaac Lab repository root,
-   install that immutable revision for local validation with:
+   The dVRK retargeter API in
+   `NVIDIA/IsaacTeleop PR #769 <https://github.com/NVIDIA/IsaacTeleop/pull/769>`__ is not yet
+   released. Until it is included in a release satisfying Isaac Lab's normal version constraint,
+   the dVRK retargeters are a temporary source-pinned prerequisite. From the Isaac Lab repository
+   root, install that immutable revision for local validation with:
 
    .. code-block:: bash
 
-      ISAACLAB_PATH=$PWD bash scripts/tools/install_isaacteleop_pr769_for_tests.sh
+      bash scripts/tools/install_isaacteleop_pr769_for_tests.sh
 
    The helper installs ``git`` and ``libx11-dev`` through ``sudo`` when they are missing, pins
-   its ``uv`` build tool in Isaac Sim's Python environment, builds the exact source revision
+   its ``uv`` build tool in the selected Python environment, builds the exact source revision
    against that Python version, and force-reinstalls the resulting ``isaacteleop`` wheel without
-   changing its runtime dependencies.
+   changing its runtime dependencies. Set ``ISAACLAB_PYTHON`` to an executable interpreter or
+   launcher to override the automatic environment selection.
 
    Use the normal Isaac Lab installation again once a released ``isaacteleop`` package contains
    the dVRK retargeters.

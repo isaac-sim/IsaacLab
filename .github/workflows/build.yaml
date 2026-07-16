@@ -416,7 +416,6 @@ jobs:
     name: dVRK needle-pass teleop
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    continue-on-error: true
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&

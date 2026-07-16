@@ -20,14 +20,27 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True, enable_cameras=False)
 simulation_app = app_launcher.app
 
-from isaacteleop.retargeters import DVRKPSMClutchRetargeter, DVRKPSMGripperRetargeter  # noqa: E402
-from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource  # noqa: E402
+from isaacteleop.retargeting_engine.interface import (  # noqa: E402
+    ComputeContext,
+    ExecutionEvents,
+    ExecutionState,
+    GraphTime,
+    OutputCombiner,
+    TensorGroup,
+)
+from isaacteleop.schema import (  # noqa: E402
+    ControllerInputState,
+    ControllerPose,
+    ControllerSnapshot,
+    ControllerSnapshotTrackedT,
+    Point,
+    Pose,
+    Quaternion,
+)
 
 from isaaclab_tasks.contrib.needle_pass.config.dvrk.ik_abs_env_cfg import (  # noqa: E402
     _TELEOP_AVAILABLE,
-    DONOR_GRASP_CLOSEDNESS,
     DONOR_GRASP_JAW_POS,
-    DVRK_PSM_JAW_CLOSED_POS,
     LEFT_TOOL_HOME_POS_W,
     LEFT_TOOL_HOME_ROT_XYZW,
     LEFT_WORKSPACE_LOWER,
@@ -39,31 +52,80 @@ from isaaclab_tasks.contrib.needle_pass.config.dvrk.ik_abs_env_cfg import (  # n
     _build_dvrk_needle_pass_pipeline,
 )
 
-_EXPECTED_ACTION_ORDER = [
-    "left_pos_x",
-    "left_pos_y",
-    "left_pos_z",
-    "left_quat_x",
-    "left_quat_y",
-    "left_quat_z",
-    "left_quat_w",
-    "left_jaw_1",
-    "left_jaw_2",
-    "right_pos_x",
-    "right_pos_y",
-    "right_pos_z",
-    "right_quat_x",
-    "right_quat_y",
-    "right_quat_z",
-    "right_quat_w",
-    "right_jaw_1",
-    "right_jaw_2",
-]
+from isaaclab_assets.robots.dvrk import DVRK_PSM_JAW_CLOSED_POS, DVRK_PSM_JAW_OPEN_POS  # noqa: E402
 
 
-def _reorderer_subgraph():
-    pipeline = _build_dvrk_needle_pass_pipeline()
-    return pipeline, pipeline.output_mapping["action"].module
+def _tracked_controller(
+    position: tuple[float, float, float],
+    *,
+    squeeze: float = 1.0,
+    trigger: float = 0.5,
+) -> ControllerSnapshotTrackedT:
+    """Build one valid tracked controller sample for public graph execution."""
+
+    pose = Pose(Point(*position), Quaternion(0.0, 0.0, 0.0, 1.0))
+    controller_pose = ControllerPose(pose, True)
+    inputs = ControllerInputState(
+        primary_click=False,
+        secondary_click=False,
+        thumbstick_click=False,
+        menu_click=False,
+        thumbstick_x=0.0,
+        thumbstick_y=0.0,
+        squeeze_value=squeeze,
+        trigger_value=trigger,
+    )
+    return ControllerSnapshotTrackedT(ControllerSnapshot(controller_pose, controller_pose, inputs))
+
+
+def _pipeline_inputs(
+    pipeline: OutputCombiner,
+    left_controller: ControllerSnapshotTrackedT,
+    right_controller: ControllerSnapshotTrackedT,
+) -> dict:
+    """Build leaf-keyed inputs with an identity anchor-to-world transform."""
+
+    leaf_nodes = {node.name: node for node in pipeline.get_leaf_nodes()}
+    assert set(leaf_nodes) == {"controllers", "world_T_anchor"}
+
+    controller_spec = leaf_nodes["controllers"].input_spec()
+    left_group = TensorGroup(controller_spec["deviceio_controller_left"])
+    left_group[0] = left_controller
+    right_group = TensorGroup(controller_spec["deviceio_controller_right"])
+    right_group[0] = right_controller
+
+    transform_group = TensorGroup(leaf_nodes["world_T_anchor"].input_spec()["value"])
+    transform_group[0] = np.eye(4, dtype=np.float32)
+    return {
+        "controllers": {
+            "deviceio_controller_left": left_group,
+            "deviceio_controller_right": right_group,
+        },
+        "world_T_anchor": {"value": transform_group},
+    }
+
+
+def _running_context(time_ns: int, *, reset: bool = False) -> ComputeContext:
+    """Build a deterministic running-session context for one graph step."""
+
+    return ComputeContext(
+        graph_time=GraphTime(sim_time_ns=time_ns, real_time_ns=time_ns),
+        execution_events=ExecutionEvents(reset=reset, execution_state=ExecutionState.RUNNING),
+    )
+
+
+def _expected_initial_action() -> np.ndarray:
+    """Return the task-ordered left pose/jaws then right pose/jaws reset action."""
+
+    return np.asarray(
+        LEFT_TOOL_HOME_POS_W
+        + LEFT_TOOL_HOME_ROT_XYZW
+        + DONOR_GRASP_JAW_POS
+        + RIGHT_TOOL_HOME_POS_W
+        + RIGHT_TOOL_HOME_ROT_XYZW
+        + DVRK_PSM_JAW_OPEN_POS,
+        dtype=np.float32,
+    )
 
 
 def test_dvrk_pipeline_action_is_18d():
@@ -74,69 +136,96 @@ def test_dvrk_pipeline_action_is_18d():
     assert pipeline.output_types()["action"].types[0].shape == (18,)
 
 
-def test_dvrk_pipeline_output_order_matches_action_terms():
-    """The flattened values resolve in left pose/jaws then right pose/jaws order."""
-    _, subgraph = _reorderer_subgraph()
-    try:
-        output_order = subgraph._target_module._output_order
-    except AttributeError:
-        pytest.skip("IsaacTeleop does not expose graph wiring for order inspection")
+def test_dvrk_pipeline_executes_tracked_controller_samples():
+    """Public execution emits ordered homes, independent side motion, and tracking-loss holds."""
 
-    assert output_order == _EXPECTED_ACTION_ORDER
+    pipeline = _build_dvrk_needle_pass_pipeline()
+    assert isinstance(pipeline, OutputCombiner)
+    initial_left = _tracked_controller((0.10, 0.20, 0.30))
+    initial_right = _tracked_controller((-0.10, -0.20, -0.30))
+
+    initial_outputs = pipeline.execute_pipeline(
+        _pipeline_inputs(pipeline, initial_left, initial_right),
+        _running_context(0, reset=True),
+    )
+    initial_action = initial_outputs["action"][0]
+    expected_initial_action = _expected_initial_action()
+    assert initial_action.shape == (18,)
+    np.testing.assert_allclose(initial_action, expected_initial_action, atol=1.0e-6, rtol=0.0)
+
+    left_delta = np.asarray((0.01, -0.02, 0.03), dtype=np.float32)
+    moved_left = _tracked_controller(tuple(np.asarray((0.10, 0.20, 0.30)) + left_delta))
+    moved_outputs = pipeline.execute_pipeline(
+        _pipeline_inputs(pipeline, moved_left, initial_right),
+        _running_context(1_000_000_000),
+    )
+    moved_action = moved_outputs["action"][0]
+    expected_moved_action = expected_initial_action.copy()
+    expected_moved_action[:3] += left_delta
+    np.testing.assert_allclose(moved_action, expected_moved_action, atol=1.0e-6, rtol=0.0)
+
+    right_delta = np.asarray((-0.02, 0.01, 0.04), dtype=np.float32)
+    moved_right = _tracked_controller(tuple(np.asarray((-0.10, -0.20, -0.30)) + right_delta))
+    tracking_loss_outputs = pipeline.execute_pipeline(
+        _pipeline_inputs(pipeline, ControllerSnapshotTrackedT(), moved_right),
+        _running_context(2_000_000_000),
+    )
+    tracking_loss_action = tracking_loss_outputs["action"][0]
+    expected_tracking_loss_action = expected_moved_action.copy()
+    expected_tracking_loss_action[9:12] += right_delta
+    np.testing.assert_allclose(tracking_loss_action, expected_tracking_loss_action, atol=1.0e-6, rtol=0.0)
 
 
-def test_dvrk_pipeline_routes_world_transformed_controller_sides():
-    """Each PSM consumes its own controller after the shared world transform."""
-    _, reorderer_subgraph = _reorderer_subgraph()
-    try:
-        connections = reorderer_subgraph._input_connections
-        left_pose = connections["left_pose"].module
-        left_jaws = connections["left_jaws"].module
-        right_pose = connections["right_pose"].module
-        right_jaws = connections["right_jaws"].module
-    except AttributeError:
-        pytest.skip("IsaacTeleop does not expose graph wiring for route inspection")
+def test_dvrk_pipeline_clips_each_side_to_its_world_workspace():
+    """Public execution applies each side's configured world-frame bounds."""
 
-    assert isinstance(left_pose._target_module, DVRKPSMClutchRetargeter)
-    assert isinstance(left_jaws._target_module, DVRKPSMGripperRetargeter)
-    assert isinstance(right_pose._target_module, DVRKPSMClutchRetargeter)
-    assert isinstance(right_jaws._target_module, DVRKPSMGripperRetargeter)
-    assert list(left_pose._target_module.input_spec()) == [ControllersSource.LEFT]
-    assert list(left_jaws._target_module.input_spec()) == [ControllersSource.LEFT]
-    assert list(right_pose._target_module.input_spec()) == [ControllersSource.RIGHT]
-    assert list(right_jaws._target_module.input_spec()) == [ControllersSource.RIGHT]
+    pipeline = _build_dvrk_needle_pass_pipeline()
+    initial_left_position = np.asarray((0.10, 0.20, 0.30))
+    initial_right_position = np.asarray((-0.10, -0.20, -0.30))
+    initial_left = _tracked_controller(tuple(initial_left_position))
+    initial_right = _tracked_controller(tuple(initial_right_position))
+    pipeline.execute_pipeline(
+        _pipeline_inputs(pipeline, initial_left, initial_right),
+        _running_context(0, reset=True),
+    )
 
-    left_transform = left_pose._input_connections[ControllersSource.LEFT].module
-    right_transform = right_pose._input_connections[ControllersSource.RIGHT].module
-    assert left_jaws._input_connections[ControllersSource.LEFT].module is left_transform
-    assert right_jaws._input_connections[ControllersSource.RIGHT].module is right_transform
-    assert left_transform is right_transform
-    assert left_transform._input_connections["transform"].module.name == "world_T_anchor"
+    extreme_left = _tracked_controller(tuple(initial_left_position + np.asarray((1.0, -1.0, 1.0))))
+    extreme_right = _tracked_controller(tuple(initial_right_position + np.asarray((-1.0, 1.0, -1.0))))
+    clipped_outputs = pipeline.execute_pipeline(
+        _pipeline_inputs(pipeline, extreme_left, extreme_right),
+        _running_context(1_000_000_000),
+    )
+    expected_action = _expected_initial_action()
+    expected_action[:3] = (LEFT_WORKSPACE_UPPER[0], LEFT_WORKSPACE_LOWER[1], LEFT_WORKSPACE_UPPER[2])
+    expected_action[9:12] = (RIGHT_WORKSPACE_LOWER[0], RIGHT_WORKSPACE_UPPER[1], RIGHT_WORKSPACE_LOWER[2])
+    np.testing.assert_allclose(clipped_outputs["action"][0], expected_action, atol=1.0e-6, rtol=0.0)
 
 
-def test_dvrk_pipeline_preserves_side_homes_workspaces_and_reset_jaws():
-    """Each side retains its calibrated world limits and intended reset jaw state."""
-    _, reorderer_subgraph = _reorderer_subgraph()
-    try:
-        connections = reorderer_subgraph._input_connections
-        left_clutch_cfg = connections["left_pose"].module._target_module._clutch_state._config
-        right_clutch_cfg = connections["right_pose"].module._target_module._clutch_state._config
-        left_gripper_cfg = connections["left_jaws"].module._target_module._jaw_intent._config
-        right_gripper_cfg = connections["right_jaws"].module._target_module._jaw_intent._config
-    except AttributeError:
-        pytest.skip("IsaacTeleop does not expose graph node configs for contract inspection")
+def test_dvrk_pipeline_maps_independent_trigger_intent_to_ordered_jaws():
+    """Public execution maps trigger changes to the correct two-jaw action slices."""
 
-    np.testing.assert_allclose(left_clutch_cfg.home_position, LEFT_TOOL_HOME_POS_W)
-    np.testing.assert_allclose(left_clutch_cfg.home_orientation, LEFT_TOOL_HOME_ROT_XYZW)
-    assert left_clutch_cfg.workspace_lower == LEFT_WORKSPACE_LOWER
-    assert left_clutch_cfg.workspace_upper == LEFT_WORKSPACE_UPPER
-    np.testing.assert_allclose(right_clutch_cfg.home_position, RIGHT_TOOL_HOME_POS_W)
-    np.testing.assert_allclose(right_clutch_cfg.home_orientation, RIGHT_TOOL_HOME_ROT_XYZW)
-    assert right_clutch_cfg.workspace_lower == RIGHT_WORKSPACE_LOWER
-    assert right_clutch_cfg.workspace_upper == RIGHT_WORKSPACE_UPPER
+    pipeline = _build_dvrk_needle_pass_pipeline()
+    left_position = (0.10, 0.20, 0.30)
+    right_position = (-0.10, -0.20, -0.30)
+    pipeline.execute_pipeline(
+        _pipeline_inputs(
+            pipeline,
+            _tracked_controller(left_position, trigger=0.5),
+            _tracked_controller(right_position, trigger=0.5),
+        ),
+        _running_context(0, reset=True),
+    )
 
-    assert DONOR_GRASP_CLOSEDNESS == 1.0
-    assert DONOR_GRASP_JAW_POS == DVRK_PSM_JAW_CLOSED_POS
-    assert left_gripper_cfg.initial_closedness == DONOR_GRASP_CLOSEDNESS
-    assert left_gripper_cfg.jaw_closed == DONOR_GRASP_JAW_POS
-    assert right_gripper_cfg.initial_closedness == 0.0
+    output = pipeline.execute_pipeline(
+        _pipeline_inputs(
+            pipeline,
+            _tracked_controller(left_position, trigger=0.5),
+            _tracked_controller(right_position, trigger=0.8),
+        ),
+        _running_context(100_000_000),
+    )["action"][0]
+    expected_action = _expected_initial_action()
+    expected_action[16:18] = np.asarray(DVRK_PSM_JAW_OPEN_POS) + 0.3 * (
+        np.asarray(DVRK_PSM_JAW_CLOSED_POS) - np.asarray(DVRK_PSM_JAW_OPEN_POS)
+    )
+    np.testing.assert_allclose(output, expected_action, atol=1.0e-6, rtol=0.0)
