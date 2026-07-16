@@ -6,9 +6,12 @@
 """Visualizer golden image tests on the Newton MJWarp physics backend.
 
 Covers KitVisualizer (RTX viewport) and NewtonVisualizer (OpenGL) in both
-viewport and tiled-camera capture modes for the cartpole, shadow hand, and
-AnymalD environments.  Golden images are stored under
+viewport and tiled-camera capture modes for the cartpole, shadow hand, AnymalD,
+and franka cloth environments.  Golden images are stored under
 ``golden_images/{scene}/{physics_backend}-{visualizer_type}-{mode}.png``.
+
+Franka cloth uses Newton VBD cloth physics exclusively (no PhysX preset), so it
+appears only in this file.
 
 On the first run for a new combination the current frame is saved as the
 golden; the test fails so the file can be reviewed before committing.
@@ -48,6 +51,7 @@ _SCENE_RUNNERS = {
     "cartpole": _golden.run_visualizer_golden_cartpole,
     "shadow_hand": _golden.run_visualizer_golden_shadow_hand,
     "anymal_d": _golden.run_visualizer_golden_anymal_d,
+    "franka_cloth": _golden.run_visualizer_golden_franka_cloth,
 }
 
 SCENE_VISUALIZER_MODE_COMBINATIONS = [
@@ -65,6 +69,13 @@ SCENE_VISUALIZER_MODE_COMBINATIONS = [
     pytest.param("anymal_d", "newton", "tiled", id="newton-anymal_d-newton-tiled", marks=_golden.FLAKY_MARK),
     pytest.param("anymal_d", "kit", "viewport", id="newton-anymal_d-kit-viewport", marks=_golden.FLAKY_MARK),
     pytest.param("anymal_d", "newton", "viewport", id="newton-anymal_d-newton-viewport", marks=_golden.FLAKY_MARK),
+    # Franka cloth: Newton VBD deformable only (no PhysX preset). Tiled first to avoid RTX state contamination.
+    pytest.param("franka_cloth", "kit", "tiled", id="newton-franka_cloth-kit-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("franka_cloth", "newton", "tiled", id="newton-franka_cloth-newton-tiled", marks=_golden.FLAKY_MARK),
+    pytest.param("franka_cloth", "kit", "viewport", id="newton-franka_cloth-kit-viewport", marks=_golden.FLAKY_MARK),
+    pytest.param(
+        "franka_cloth", "newton", "viewport", id="newton-franka_cloth-newton-viewport", marks=_golden.FLAKY_MARK
+    ),
 ]
 
 

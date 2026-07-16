@@ -1489,6 +1489,28 @@ _FRANKA_CLOTH_WARMUP_STEPS = 20
 """Steps after reset to let the cloth fall and drape over the cube before capturing."""
 
 
+def _resolve_nucleus_url_to_local(url: str) -> str:
+    """Return the local /tmp path for a nucleus S3 URL if the file already exists there.
+
+    Nucleus URLs follow the pattern ``https://<host>/Assets/Isaac/<ver>/...``.
+    ``retrieve_file_path`` downloads them into ``/tmp`` mirroring the URL path, so
+    the cached file lives at ``/tmp/Assets/Isaac/<ver>/...``.  When network is
+    unavailable (sandbox) and the asset was not previously fetched via omni.client
+    (so the hash-based omni.client cache is cold), ``check_file_path`` returns 0
+    and the spawner raises ``FileNotFoundError`` even though the file is present
+    locally.  This helper lets us point the spawner directly at the local copy.
+    """
+    import re
+    import tempfile
+
+    m = re.match(r"https?://[^/]+(/.*)", url)
+    if m:
+        local = os.path.join(tempfile.gettempdir(), m.group(1).lstrip("/"))
+        if os.path.isfile(local):
+            return local
+    return url
+
+
 def _apply_env_cfg_preset(env_cfg, preset_name: str):
     """Apply a named preset to all :class:`~isaaclab_tasks.utils.PresetCfg` fields in *env_cfg*.
 
@@ -1515,6 +1537,10 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
 
     env_cfg = copy.deepcopy(FrankaClothEnvCfg())
     env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp_vbd")
+    # Remap nucleus S3 URLs to local /tmp cache so the test works offline when the
+    # omni.client hash cache is cold (shadow hand / AnymalD are warm from prior runs).
+    env_cfg.scene.robot.spawn.usd_path = _resolve_nucleus_url_to_local(env_cfg.scene.robot.spawn.usd_path)
+    env_cfg.scene.table.spawn.usd_path = _resolve_nucleus_url_to_local(env_cfg.scene.table.spawn.usd_path)
     env_cfg.scene.num_envs = (
         _FRANKA_CLOTH_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _FRANKA_CLOTH_INTEGRATION_NUM_ENVS
     )
