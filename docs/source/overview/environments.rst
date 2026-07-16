@@ -1115,7 +1115,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO)
       - **presets=** ``cube``, ``shapes``
-      - 
+      -
     * - Isaac-Lift-SO101
       - Isaac-Lift-SO101-Play
       - Manager Based

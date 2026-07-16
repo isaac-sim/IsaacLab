@@ -76,9 +76,9 @@ class SO101SceneCfg(dexsuite.SceneCfg):
         ]
         self.object.spawn.shapes.assets_cfg = graspable_shape_assets_cfg
         self.object.spawn.default.assets_cfg = graspable_shape_assets_cfg
-        # float the spawn region within the SO-101's measured reach envelope: 0.2 m in
-        # front of the base, which with the -90 deg base yaw is along world -x
-        self.object.init_state.pos = (-0.36, 0.2, 0.38)
+        # spawn 40 mm above the tabletop (surface at z = 0.255), centered on the peak of the
+        # pinch-feasibility map (the spot with the most valid approach orientations)
+        self.object.init_state.pos = (-0.27, 0.2, 0.295)
 
 
 @configclass
@@ -102,6 +102,8 @@ class SO101StateObservationCfg(dexsuite.ObservationsCfg):
 
 @configclass
 class SO101LiftRewardCfg(dexsuite.RewardsCfg):
+    """Rewards for the SO-101 dexsuite lift task."""
+
     # no ``contact_count`` term: with a single jaw sensor it duplicates ``good_finger_contact``
     # exactly, and the doubled touch payout teaches parking in contact instead of transporting
     good_finger_contact = RewTerm(
@@ -129,6 +131,8 @@ class SO101LiftRewardCfg(dexsuite.RewardsCfg):
 
 @configclass
 class SO101MixinCfg:
+    """SO-101 overrides shared by the lift task and its PLAY variant."""
+
     scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     rewards: SO101LiftRewardCfg = SO101LiftRewardCfg()
     observations: SO101StateObservationCfg = SO101StateObservationCfg()
@@ -137,8 +141,8 @@ class SO101MixinCfg:
     def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
         super().__post_init__()
         self.commands.object_pose.body_name = "gripper"
-        # goal workspace inside the measured dense reachable band (root frame, arm works at
-        # -y): random-joint FK sampling puts the gripper's 25th-75th percentile envelope at
+        # goal workspace inside the dense reachable band (root frame, arm works at -y):
+        # random-joint FK sampling puts the gripper's 25th-75th percentile envelope at
         # x (-0.08, 0.12), y (-0.24, -0.13), z (0.11, 0.30); goals beyond y=-0.31 are
         # practically unreachable and cap the achievable success rate
         self.commands.object_pose.ranges.pos_x = (-0.08, 0.08)
@@ -147,18 +151,21 @@ class SO101MixinCfg:
         events = self.events.conditional_reset.params["terms"]
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="wrist_roll")
         events["reset_object_to_target"].params["target_cfg"] = SceneEntityCfg("robot", body_names="gripper")
-        # grasp center between the jaws sits at ~(0.012, -0.003, -0.097) in the gripper frame
+        # in-gripper placement ~20 mm toward the wrist: mid-face contact is a necessary
+        # condition for capture, tip-edge placements always slip
         events["reset_object_to_target"].params["pose_range"] = {
             "x": [-0.01, 0.03],
             "y": [-0.02, 0.02],
             "z": [-0.12, -0.08],
         }
-        # spawn the free-floating object within the measured reach envelope
-        # (x is along the arm's reach direction, y lateral, after the -90 deg base yaw)
+        # tabletop spawn region (x along the arm's reach direction after the -90 deg base
+        # yaw, y lateral): the band directly in front of the base where the 5-DOF arm can
+        # present a horizontal pinch at table height; peripheral spots are reachable but
+        # cannot pose a valid grasp orientation
         events["reset_object"].params["pose_range"] = {
-            "x": [-0.07, 0.07],
-            "y": [-0.08, 0.08],
-            "z": [0.0, 0.08],
+            "x": [-0.03, 0.03],
+            "y": [-0.03, 0.03],
+            "z": [0.0, 0.005],
             "roll": [-3.14, 3.14],
             "pitch": [-3.14, 3.14],
             "yaw": [-3.14, 3.14],
