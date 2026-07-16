@@ -89,6 +89,15 @@ class NewtonMPMManager(NewtonManager):
                 builder.body_inv_inertia[body_id] = wp.mat33()
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: MPMSolverCfg) -> SolverImplicitMPM:
+        """Construct the configured implicit MPM solver."""
+        return SolverImplicitMPM(
+            model,
+            _make_solver_config(solver_cfg),
+            temporary_store=TemporaryStore(),
+        )
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MPMSolverCfg) -> None:
         """Construct :class:`SolverImplicitMPM` and populate the base-class slots.
 
@@ -100,11 +109,7 @@ class NewtonMPMManager(NewtonManager):
             model: Finalized Newton model the solver should run on.
             solver_cfg: Implicit MPM solver configuration.
         """
-        NewtonManager._solver = SolverImplicitMPM(
-            model,
-            _make_solver_config(solver_cfg),
-            temporary_store=TemporaryStore(),
-        )
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = False
         cls._project_outside_colliders = solver_cfg.project_outside_colliders

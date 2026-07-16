@@ -181,7 +181,9 @@ def test_implicit_actuator_init_effort_limits(sim, num_envs, num_joints, device,
 def test_implicit_actuator_init_velocity_limits(sim, num_envs, num_joints, device, velocity_lim, velocity_lim_sim):
     """Test initialization of implicit actuator with velocity limits.
 
-    Note implicit actuators do no use velocity limits in computation, they are passed to physics via articulations.
+    The joint velocity limit ``velocity_limit`` and the solver clamp ``velocity_limit_sim`` are resolved
+    independently: the joint velocity limit is never pushed to the solver, and setting both is valid.
+    When only the solver clamp is set, it doubles as the joint velocity limit.
     """
     velocity_limit_default = 1000
     joint_names = [f"joint_{d}" for d in range(num_joints)]
@@ -195,49 +197,32 @@ def test_implicit_actuator_init_velocity_limits(sim, num_envs, num_joints, devic
         velocity_limit_sim=velocity_lim_sim,
     )
 
-    if velocity_lim is not None and velocity_lim_sim is not None and velocity_lim != velocity_lim_sim:
-        with pytest.raises(ValueError):
-            actuator = actuator_cfg.class_type(
-                actuator_cfg,
-                joint_names=joint_names,
-                joint_ids=joint_ids,
-                num_envs=num_envs,
-                device=device,
-                stiffness=actuator_cfg.stiffness,
-                damping=actuator_cfg.damping,
-                velocity_limit=velocity_limit_default,
-            )
+    actuator = actuator_cfg.class_type(
+        actuator_cfg,
+        joint_names=joint_names,
+        joint_ids=joint_ids,
+        num_envs=num_envs,
+        device=device,
+        stiffness=actuator_cfg.stiffness,
+        damping=actuator_cfg.damping,
+        velocity_limit=velocity_limit_default,
+    )
+    vel_lim_sim_expected = velocity_lim_sim if velocity_lim_sim is not None else velocity_limit_default
+    if velocity_lim is None:
+        # the joint velocity limit falls back to the solver clamp
+        assert actuator.cfg.velocity_limit == actuator.cfg.velocity_limit_sim
+        vel_lim_expected = vel_lim_sim_expected
     else:
-        actuator = actuator_cfg.class_type(
-            actuator_cfg,
-            joint_names=joint_names,
-            joint_ids=joint_ids,
-            num_envs=num_envs,
-            device=device,
-            stiffness=actuator_cfg.stiffness,
-            damping=actuator_cfg.damping,
-            velocity_limit=velocity_limit_default,
-        )
-        if velocity_lim is not None and velocity_lim_sim is None:
-            assert actuator.cfg.velocity_limit is None
-            vel_lim_expected = velocity_limit_default
-        elif velocity_lim is None and velocity_lim_sim is not None:
-            assert actuator.cfg.velocity_limit == actuator.cfg.velocity_limit_sim
-            vel_lim_expected = velocity_lim_sim
-        elif velocity_lim is None and velocity_lim_sim is None:
-            assert actuator.cfg.velocity_limit is None
-            assert actuator.cfg.velocity_limit_sim is None
-            vel_lim_expected = velocity_limit_default
-        else:
-            assert actuator.cfg.velocity_limit == actuator.cfg.velocity_limit_sim
-            vel_lim_expected = velocity_lim_sim
+        # the configured joint velocity limit is kept and not overwritten by the solver clamp
+        assert actuator.cfg.velocity_limit == velocity_lim
+        vel_lim_expected = velocity_lim
 
-        torch.testing.assert_close(
-            actuator.velocity_limit, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
-        )
-        torch.testing.assert_close(
-            actuator.velocity_limit_sim, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
-        )
+    torch.testing.assert_close(
+        actuator.velocity_limit, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
+    )
+    torch.testing.assert_close(
+        actuator.velocity_limit_sim, vel_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
+    )
 
 
 if __name__ == "__main__":

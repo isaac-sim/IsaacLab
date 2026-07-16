@@ -61,9 +61,9 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
     return outputs
 
 
-# Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank rendering.
-# The max different pixels percentage is set based on the screen space taken up by the env.
-# The ``presets`` column selects a data-type variant on the consolidated cartpole camera task;
+# Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank
+# rendering. The max different pixels percentage is set based on the screen space taken up by the
+# env. The ``presets`` column selects a data-type variant on the consolidated cartpole camera task;
 # ``None`` uses the default.
 _RENDER_CORRECTNESS_TASK_IDS = [
     ("Isaac-Cartpole-Camera-Direct", None, "cartpole"),
@@ -105,7 +105,13 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
         if sim is not None:
             sim._app_control_on_stop_handle = None
 
-        maybe_save_stage(f"registered_tasks_{task_id}", "default_physics", "default_renderer", "stage")
+        maybe_save_stage(
+            f"registered_tasks_{task_id}",
+            "default_physics",
+            "default_renderer",
+            "stage",
+            compare_golden=(presets is None),
+        )
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)
