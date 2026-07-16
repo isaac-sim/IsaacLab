@@ -70,27 +70,62 @@ class HandoffPhaseCfg:
     """
 
     engage_force_n: float = 1.0e-4
+    """Per-jaw normal load that engages a contact [N]."""
+
     disengage_force_n: float = 5.0e-5
+    """Per-jaw normal load below which an engaged contact disengages [N]."""
+
     opposed_normal_tolerance_rad: float = math.radians(20.0)
+    """Maximum angular deviation from opposed jaw reaction axes [rad]."""
+
     donor_dwell_s: float = 8.0 / 240.0
+    """Continuous donor-contact dwell required for donor hold [s]."""
+
     co_hold_dwell_s: float = 8.0 / 240.0
+    """Continuous bilateral co-hold dwell required for transfer [s]."""
+
     receiver_only_dwell_s: float = 8.0 / 240.0
+    """Continuous receiver-only dwell required for ownership [s]."""
+
     retained_lift_dwell_s: float = 10.0 / 240.0
+    """Continuous retained-lift dwell required for success [s]."""
+
     receiver_relative_position_target_m: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Target needle position in the receiver tool frame [m]."""
+
     receiver_relative_orientation_target_xyzw: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Target needle xyzw quaternion in the receiver tool frame."""
+
     receiver_relative_position_limit_m: float = 0.035
+    """Maximum position error from the receiver-relative target [m]."""
+
     receiver_relative_orientation_limit_rad: float = math.radians(60.0)
+    """Maximum orientation error from the receiver-relative target [rad]."""
+
     maximum_linear_velocity_m_s: float = 0.10
+    """Maximum needle linear speed accepted during transfer [m/s]."""
+
     maximum_angular_velocity_rad_s: float = 5.0
+    """Maximum needle angular speed accepted during transfer [rad/s]."""
+
     required_lift_delta_z_m: float = 0.015
+    """Minimum retained height above the reset reference [m]."""
 
     def __post_init__(self) -> None:
+        force_values = (self.engage_force_n, self.disengage_force_n)
+        if not all(math.isfinite(value) for value in force_values):
+            raise ValueError("contact hysteresis thresholds must be finite")
         if not 0.0 <= self.disengage_force_n < self.engage_force_n:
             raise ValueError("contact hysteresis requires 0 <= disengage < engage")
+        if not math.isfinite(self.opposed_normal_tolerance_rad):
+            raise ValueError("opposed_normal_tolerance_rad must be finite")
         if not 0.0 < self.opposed_normal_tolerance_rad < math.pi:
             raise ValueError("opposed_normal_tolerance_rad must lie in (0, pi)")
-        receiver_position_target = torch.tensor(self.receiver_relative_position_target_m)
-        receiver_orientation_target = torch.tensor(self.receiver_relative_orientation_target_xyzw)
+        receiver_position_target = torch.tensor(self.receiver_relative_position_target_m, dtype=torch.float64)
+        receiver_orientation_target = torch.tensor(
+            self.receiver_relative_orientation_target_xyzw,
+            dtype=torch.float64,
+        )
         if receiver_position_target.shape != (3,) or not torch.isfinite(receiver_position_target).all():
             raise ValueError("receiver relative position target must be a finite three-vector")
         if (
@@ -119,10 +154,19 @@ class HandoffMeasurements:
     """One post-physics batch consumed by :class:`HandoffPhaseMachine`."""
 
     normal_forces_n: torch.Tensor
+    """Projected jaw-normal loads [N], shape ``(num_envs, 4)``."""
+
     reaction_normals_w: torch.Tensor
+    """World-space jaw reaction axes, shape ``(num_envs, 4, 3)``."""
+
     needle_pose_w: torch.Tensor
+    """World position [m] and xyzw quaternion, shape ``(num_envs, 7)``."""
+
     needle_velocity_w: torch.Tensor
+    """World linear and angular velocity [m/s, rad/s], shape ``(num_envs, 6)``."""
+
     receiver_pose_w: torch.Tensor
+    """Receiver world position [m] and xyzw quaternion, shape ``(num_envs, 7)``."""
 
 
 class HandoffPhaseMachine:
@@ -131,6 +175,12 @@ class HandoffPhaseMachine:
     The machine reads filtered normal contact loads and simulated poses.  It
     never reads the commanded action.  All counters and hysteresis state are
     per environment and support partial resets.
+
+    Args:
+        num_envs: Number of parallel environments.
+        device: Torch device used for state buffers.
+        step_dt: Simulator step period [s].
+        cfg: Physical phase thresholds and dwell periods.
     """
 
     def __init__(self, num_envs: int, device: str, step_dt: float, cfg: HandoffPhaseCfg):
@@ -142,6 +192,25 @@ class HandoffPhaseMachine:
         self.device = device
         self.step_dt = step_dt
         self.cfg = cfg
+        self._engage_force_n = torch.full((num_envs,), cfg.engage_force_n, dtype=torch.float32, device=device)
+        self._disengage_force_n = torch.full((num_envs,), cfg.disengage_force_n, dtype=torch.float32, device=device)
+        self._receiver_position_target = torch.tensor(
+            cfg.receiver_relative_position_target_m,
+            dtype=torch.float32,
+            device=device,
+        ).unsqueeze(0)
+        self._receiver_orientation_target = torch.nn.functional.normalize(
+            torch.tensor(
+                cfg.receiver_relative_orientation_target_xyzw,
+                dtype=torch.float32,
+                device=device,
+            ).unsqueeze(0),
+            dim=-1,
+        ).repeat(num_envs, 1)
+        self._donor_required_steps = self._required_steps(cfg.donor_dwell_s)
+        self._co_hold_required_steps = self._required_steps(cfg.co_hold_dwell_s)
+        self._receiver_only_required_steps = self._required_steps(cfg.receiver_only_dwell_s)
+        self._retained_lift_required_steps = self._required_steps(cfg.retained_lift_dwell_s)
         self.phase = torch.zeros(num_envs, dtype=torch.long, device=device)
         self._donor_engaged = torch.zeros(num_envs, dtype=torch.bool, device=device)
         self._receiver_engaged = torch.zeros_like(self._donor_engaged)
@@ -161,7 +230,13 @@ class HandoffPhaseMachine:
         reset_needle_z_w: torch.Tensor,
         step_token: int | None = None,
     ) -> None:
-        """Reset to donor-held INITIAL and await a fresh post-action contact sample."""
+        """Reset to donor-held INITIAL and await a fresh contact sample.
+
+        Args:
+            env_ids: Environment indices to reset.
+            reset_needle_z_w: Reset needle heights in world coordinates [m].
+            step_token: Current simulator-step identifier, if available.
+        """
 
         env_ids = env_ids.to(device=self.device, dtype=torch.long)
         reset_z = reset_needle_z_w.to(device=self.device, dtype=torch.float32).reshape(-1)
@@ -183,10 +258,12 @@ class HandoffPhaseMachine:
         normals: torch.Tensor,
         engaged: torch.Tensor,
     ) -> torch.Tensor:
+        if not torch.is_floating_point(loads) or not torch.is_floating_point(normals):
+            raise TypeError("contact loads and normals must use floating-point dtypes")
         threshold = torch.where(
             engaged,
-            torch.full_like(loads[:, 0], self.cfg.disengage_force_n),
-            torch.full_like(loads[:, 0], self.cfg.engage_force_n),
+            self._disengage_force_n,
+            self._engage_force_n,
         )
         force_ok = torch.logical_and(loads[:, 0] >= threshold, loads[:, 1] >= threshold)
         unit_normals = torch.nn.functional.normalize(normals, dim=-1, eps=1.0e-12)
@@ -202,21 +279,12 @@ class HandoffPhaseMachine:
             measurements.needle_pose_w[:, :3],
             measurements.needle_pose_w[:, 3:7],
         )
-        position_target = torch.tensor(
-            self.cfg.receiver_relative_position_target_m,
-            dtype=needle_pos_r.dtype,
-            device=needle_pos_r.device,
-        )
+        position_target = self._receiver_position_target.to(dtype=needle_pos_r.dtype)
         relative_position_ok = torch.linalg.vector_norm(needle_pos_r - position_target, dim=-1) <= (
             self.cfg.receiver_relative_position_limit_m
         )
         unit_quat = torch.nn.functional.normalize(needle_quat_r, dim=-1, eps=1.0e-12)
-        orientation_target = torch.tensor(
-            self.cfg.receiver_relative_orientation_target_xyzw,
-            dtype=unit_quat.dtype,
-            device=unit_quat.device,
-        ).repeat(self.num_envs, 1)
-        orientation_target = torch.nn.functional.normalize(orientation_target, dim=-1, eps=1.0e-12)
+        orientation_target = self._receiver_orientation_target.to(dtype=unit_quat.dtype)
         relative_angle = math_utils.quat_error_magnitude(unit_quat, orientation_target)
         relative_orientation_ok = relative_angle <= self.cfg.receiver_relative_orientation_limit_rad
         linear_velocity_ok = torch.linalg.vector_norm(measurements.needle_velocity_w[:, :3], dim=-1) <= (
@@ -264,7 +332,26 @@ class HandoffPhaseMachine:
             self._retained_lift_counter[mask] = 0
 
     def advance(self, measurements: HandoffMeasurements, step_token: int) -> torch.Tensor:
-        """Advance each environment at most once for one simulator step token."""
+        """Advance each environment at most once for one simulator step token.
+
+        Args:
+            measurements: Current post-physics contact, pose, and velocity batch.
+            step_token: Monotonic simulator-step identifier.
+
+        Returns:
+            Current phase per environment.
+        """
+
+        measurement_tensors = {
+            "normal_forces_n": measurements.normal_forces_n,
+            "reaction_normals_w": measurements.reaction_normals_w,
+            "needle_pose_w": measurements.needle_pose_w,
+            "needle_velocity_w": measurements.needle_velocity_w,
+            "receiver_pose_w": measurements.receiver_pose_w,
+        }
+        for name, tensor in measurement_tensors.items():
+            if not torch.is_floating_point(tensor):
+                raise TypeError(f"{name} must use a floating-point dtype")
 
         if measurements.normal_forces_n.shape != (self.num_envs, 4):
             raise ValueError("normal_forces_n must have shape (num_envs, 4)")
@@ -295,7 +382,7 @@ class HandoffPhaseMachine:
 
         initial = active & (self.phase == int(HandoffPhase.INITIAL))
         self._count_consecutive(self._donor_counter, donor, initial)
-        donor_complete = initial & (self._donor_counter >= self._required_steps(self.cfg.donor_dwell_s))
+        donor_complete = initial & (self._donor_counter >= self._donor_required_steps)
         self.phase[donor_complete] = int(HandoffPhase.DONOR_HOLD)
 
         donor_phase = active & (self.phase == int(HandoffPhase.DONOR_HOLD)) & ~donor_complete
@@ -304,7 +391,7 @@ class HandoffPhaseMachine:
         self._clear_progress(donor_lost, after_phase=HandoffPhase.INITIAL)
         donor_phase = donor_phase & donor
         self._count_consecutive(self._co_hold_counter, donor & receiver, donor_phase)
-        co_hold_complete = donor_phase & (self._co_hold_counter >= self._required_steps(self.cfg.co_hold_dwell_s))
+        co_hold_complete = donor_phase & (self._co_hold_counter >= self._co_hold_required_steps)
         self.phase[co_hold_complete] = int(HandoffPhase.CO_HOLD)
 
         co_hold_phase = active & (self.phase == int(HandoffPhase.CO_HOLD)) & ~co_hold_complete
@@ -317,9 +404,7 @@ class HandoffPhaseMachine:
         self._clear_progress(receiver_lost_to_initial, after_phase=HandoffPhase.INITIAL)
         receiver_only_condition = ~donor & receiver & receiver_bounds
         self._count_consecutive(self._receiver_only_counter, receiver_only_condition, co_hold_phase & receiver)
-        receiver_only_complete = co_hold_phase & (
-            self._receiver_only_counter >= self._required_steps(self.cfg.receiver_only_dwell_s)
-        )
+        receiver_only_complete = co_hold_phase & (self._receiver_only_counter >= self._receiver_only_required_steps)
         self.phase[receiver_only_complete] = int(HandoffPhase.RECEIVER_ONLY_HOLD)
 
         receiver_phase = active & (self.phase == int(HandoffPhase.RECEIVER_ONLY_HOLD)) & ~receiver_only_complete
@@ -340,9 +425,7 @@ class HandoffPhaseMachine:
         lifted = measurements.needle_pose_w[:, 2] - self.reset_needle_z_w >= self.cfg.required_lift_delta_z_m
         retained_lift_condition = receiver_only_condition & lifted
         self._count_consecutive(self._retained_lift_counter, retained_lift_condition, receiver_phase)
-        lift_complete = receiver_phase & (
-            self._retained_lift_counter >= self._required_steps(self.cfg.retained_lift_dwell_s)
-        )
+        lift_complete = receiver_phase & (self._retained_lift_counter >= self._retained_lift_required_steps)
         self.phase[lift_complete] = int(HandoffPhase.RETAINED_LIFT)
         return self.phase
 
@@ -357,6 +440,13 @@ def jaw_needle_contact_measurements(
     into the jaw solids, and the unmodified filtered world-force vectors.  The
     force matrix is the reaction acting on the jaw sensor body.  Each sensor
     must contain exactly one jaw body and exactly one needle filter.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        sensor_names: Ordered names of the four filtered jaw contact sensors.
+
+    Returns:
+        Projected loads [N], reaction axes, and world force vectors [N].
     """
 
     if len(sensor_names) != 4:
@@ -407,7 +497,15 @@ def _asset_pose_w(asset: Articulation, body_name: str) -> torch.Tensor:
 
 
 def get_handoff_phase_machine(env: ManagerBasedRLEnv, phase_cfg: HandoffPhaseCfg) -> HandoffPhaseMachine:
-    """Return the environment-owned phase machine, constructing it once."""
+    """Return the environment-owned phase machine, constructing it once.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        phase_cfg: Shared physical phase configuration.
+
+    Returns:
+        Environment-owned hand-off phase machine.
+    """
 
     attribute_name = "_needle_pass_handoff_phase_machine"
     machine = getattr(env, attribute_name, None)
@@ -426,7 +524,18 @@ def update_handoff_phase(
     receiver_cfg: SceneEntityCfg = SceneEntityCfg("right_psm"),
     receiver_body_name: str = "psm_tool_tip_link",
 ) -> HandoffPhaseMachine:
-    """Update the shared phase machine idempotently from post-physics buffers."""
+    """Update the shared phase machine idempotently from post-physics buffers.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        phase_cfg: Shared physical phase configuration.
+        needle_cfg: Scene entity containing the free needle.
+        receiver_cfg: Scene entity containing the receiver PSM.
+        receiver_body_name: Receiver tool body used for relative bounds.
+
+    Returns:
+        Updated environment-owned hand-off phase machine.
+    """
 
     machine = get_handoff_phase_machine(env, phase_cfg)
     step_token = int(env.common_step_counter)
@@ -456,7 +565,14 @@ def reset_handoff_phase(
     reset_needle_z_w: torch.Tensor,
     phase_cfg: HandoffPhaseCfg,
 ) -> None:
-    """Partially reset state and the reset-relative height reference."""
+    """Partially reset state and the reset-relative height reference.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        env_ids: Environment indices to reset.
+        reset_needle_z_w: Reset needle heights in world coordinates [m].
+        phase_cfg: Shared physical phase configuration.
+    """
 
     get_handoff_phase_machine(env, phase_cfg).reset(
         env_ids,
@@ -466,7 +582,15 @@ def reset_handoff_phase(
 
 
 def success(env: ManagerBasedRLEnv, phase_cfg: HandoffPhaseCfg) -> torch.Tensor:
-    """Return true only after the measured retained-lift dwell completes."""
+    """Return true only after the measured retained-lift dwell completes.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        phase_cfg: Shared physical phase configuration.
+
+    Returns:
+        Boolean success flag per environment.
+    """
 
     machine = update_handoff_phase(env, phase_cfg)
     return machine.phase == int(HandoffPhase.RETAINED_LIFT)
@@ -479,8 +603,21 @@ def needle_dropped_or_out_of_bounds(
     drop_distance_m: float = 0.12,
     horizontal_distance_m: float = 0.45,
 ) -> torch.Tensor:
-    """Terminate a physically dropped needle separately from success."""
+    """Terminate a physically dropped needle separately from success.
 
+    Args:
+        env: Manager-based needle-pass environment.
+        phase_cfg: Shared physical phase configuration.
+        needle_cfg: Scene entity containing the free needle.
+        drop_distance_m: Maximum downward displacement from reset [m].
+        horizontal_distance_m: Maximum horizontal displacement from the environment origin [m].
+
+    Returns:
+        Boolean failure flag per environment.
+    """
+
+    if not math.isfinite(drop_distance_m) or not math.isfinite(horizontal_distance_m):
+        raise ValueError("drop and horizontal bounds must be finite")
     if drop_distance_m <= 0.0 or horizontal_distance_m <= 0.0:
         raise ValueError("drop and horizontal bounds must be positive")
     machine = update_handoff_phase(env, phase_cfg)

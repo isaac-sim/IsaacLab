@@ -52,9 +52,16 @@ class RetentionLoad:
     """Analytical two-contact load required by gravity and commanded motion."""
 
     external_force_n: float
+    """Worst-case external force from gravity and commanded motion [N]."""
+
     normal_force_per_jaw_n: float
+    """Required normal force at each opposed jaw contact [N]."""
+
     friction_coefficient: float
+    """Static Coulomb friction coefficient used by the calculation."""
+
     safety_factor: float
+    """Multiplicative safety factor applied to the required contact load."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,16 +76,37 @@ class ForceClosureProof:
     """
 
     exact_point_contact_feasible: bool
+    """Whether the exact point-contact tolerances are satisfied."""
+
     coefficients: tuple[float, ...]
+    """Non-negative friction-cone generator magnitudes [N]."""
+
     achieved_wrench: tuple[float, float, float, float, float, float]
+    """Achieved force and torque wrench [N, N*m]."""
+
     residual_wrench: tuple[float, float, float, float, float, float]
+    """Required-minus-achieved force and torque wrench [N, N*m]."""
+
     required_force_norm_n: float
+    """Euclidean norm of the required force [N]."""
+
     force_residual_norm_n: float
+    """Euclidean norm of the force residual [N]."""
+
     torque_residual_norm_n_m: float
+    """Euclidean norm of the torque residual [N*m]."""
+
     equivalent_moment_arm_residual_m: float
+    """Torque residual divided by required-force norm [m]."""
+
     force_residual_tolerance_n: float
+    """Numerical feasibility tolerance for force residual [N]."""
+
     moment_arm_residual_tolerance_m: float
+    """Numerical feasibility tolerance for equivalent moment arm [m]."""
+
     active_generator_indices: tuple[int, ...]
+    """Indices of non-zero friction-cone generators in the certificate."""
 
     @property
     def feasible(self) -> bool:
@@ -96,10 +124,19 @@ class FiniteContactAcceptance:
     """
 
     accepted: bool
+    """Whether both caller-supplied finite-contact tolerances are satisfied."""
+
     force_within_tolerance: bool
+    """Whether the force residual is within its tolerance."""
+
     moment_arm_within_tolerance: bool
+    """Whether the equivalent moment-arm residual is within its tolerance."""
+
     force_residual_tolerance_n: float
+    """Caller-supplied finite-contact force tolerance [N]."""
+
     moment_arm_residual_tolerance_m: float
+    """Caller-supplied finite-contact moment-arm tolerance [m]."""
 
 
 def required_retention_load(
@@ -110,7 +147,18 @@ def required_retention_load(
     friction_coefficient: float,
     safety_factor: float,
 ) -> RetentionLoad:
-    """Return the per-jaw normal load for an opposed two-contact grasp."""
+    """Return the per-jaw normal load for an opposed two-contact grasp.
+
+    Args:
+        mass_kg: Retained object mass [kg].
+        gravity_m_s2: Gravity magnitude [m/s^2].
+        maximum_commanded_acceleration_m_s2: Maximum commanded acceleration [m/s^2].
+        friction_coefficient: Static Coulomb friction coefficient.
+        safety_factor: Multiplicative load safety factor, at least one.
+
+    Returns:
+        Required external and per-jaw normal loads.
+    """
 
     values = (
         mass_kg,
@@ -135,7 +183,16 @@ def friction_cone_generators(
     friction_coefficient: float,
     facets: int,
 ) -> np.ndarray:
-    """Return a fixed polygonal approximation of one Coulomb friction cone."""
+    """Return a fixed polygonal approximation of one Coulomb friction cone.
+
+    Args:
+        inward_normal: Inward contact normal, shape ``(3,)``.
+        friction_coefficient: Static Coulomb friction coefficient.
+        facets: Number of polygonal friction-cone facets.
+
+    Returns:
+        Dimensionless force directions, shape ``(facets, 3)``.
+    """
 
     normal = _unit(inward_normal, "inward normal")
     if not math.isfinite(friction_coefficient) or friction_coefficient <= 0.0:
@@ -166,6 +223,14 @@ def two_contact_friction_wrench_generators(
     contributes eight edges of a polygonal Coulomb cone using the declared
     *static* friction coefficient.  A generator is ordered as ``[force,
     moment]``, with ``moment = point x force``.
+
+    Args:
+        contact_points_m: Contact positions relative to the wrench origin [m], shape ``(2, 3)``.
+        inward_normals: Inward contact normals, shape ``(2, 3)``.
+        static_friction_coefficient: Static Coulomb friction coefficient.
+
+    Returns:
+        Force and torque generators [dimensionless, m], shape ``(16, 6)``.
     """
 
     points = np.asarray(contact_points_m, dtype=np.float64)
@@ -213,6 +278,15 @@ def prove_two_contact_force_closure(
 
     Infeasible candidates are ranked by the maximum of their two dimensionless
     tolerance ratios.  No force value is ever added to a torque value.
+
+    Args:
+        contact_points_m: Contact positions relative to the wrench origin [m], shape ``(2, 3)``.
+        inward_normals: Inward contact normals, shape ``(2, 3)``.
+        static_friction_coefficient: Static Coulomb friction coefficient.
+        required_wrench: Required force and torque [N, N*m], shape ``(6,)``.
+
+    Returns:
+        Deterministic exact point-contact certificate and residuals.
     """
 
     target = np.asarray(required_wrench, dtype=np.float64)
@@ -316,6 +390,14 @@ def assess_finite_contact_acceptance(
     and therefore requires both physical tolerances from the caller.  A
     conservative task should keep the moment-arm allowance at or below
     10 micrometres unless independent contact-patch evidence supports more.
+
+    Args:
+        proof: Exact point-contact proof to assess.
+        force_residual_tolerance_n: Accepted force residual [N].
+        moment_arm_residual_tolerance_m: Accepted equivalent moment-arm residual [m].
+
+    Returns:
+        Explicit finite-contact acceptance decision.
     """
 
     for name, tolerance in (
@@ -336,7 +418,14 @@ def assess_finite_contact_acceptance(
 
 
 def grasp_matrix(contact_points_m: ArrayLike) -> np.ndarray:
-    """Return the six-dimensional point-contact grasp matrix for two contacts."""
+    """Return the six-dimensional point-contact grasp matrix for two contacts.
+
+    Args:
+        contact_points_m: Contact positions relative to the wrench origin [m], shape ``(2, 3)``.
+
+    Returns:
+        Matrix mapping two contact forces [N] to force and torque [N, N*m], shape ``(6, 6)``.
+    """
 
     points = np.asarray(contact_points_m, dtype=np.float64)
     if points.shape != (2, 3) or not np.isfinite(points).all():
@@ -356,7 +445,16 @@ def impedance_gains(
     natural_frequency_rad_s: float,
     damping_ratio: float,
 ) -> tuple[float, float]:
-    """Derive ``Kp`` and ``Kd`` from reflected inertia and pole placement."""
+    """Derive rotational ``Kp`` and ``Kd`` from inertia and pole placement.
+
+    Args:
+        reflected_inertia_kg_m2: Reflected rotational inertia [kg*m^2].
+        natural_frequency_rad_s: Target natural frequency [rad/s].
+        damping_ratio: Dimensionless damping ratio.
+
+    Returns:
+        Rotational stiffness and damping [N*m/rad, N*m*s/rad].
+    """
 
     inputs = (reflected_inertia_kg_m2, natural_frequency_rad_s, damping_ratio)
     if not all(math.isfinite(value) and value > 0.0 for value in inputs):
@@ -375,7 +473,19 @@ def solve_minimum_closing_target(
     tolerance: float = 1.0e-6,
     max_iterations: int = 80,
 ) -> float:
-    """Find the smallest bounded closedness whose measured model meets the load."""
+    """Find the smallest bounded closedness whose measured model meets the load.
+
+    Args:
+        normal_load_fn: Deterministic mapping from closedness to normal load [N].
+        required_normal_load_n: Minimum acceptable normal load [N].
+        lower_closedness: Inclusive lower bound on dimensionless jaw closedness.
+        upper_closedness: Inclusive upper bound on dimensionless jaw closedness.
+        tolerance: Absolute closedness tolerance for bisection.
+        max_iterations: Maximum number of bisection iterations.
+
+    Returns:
+        Smallest closedness meeting the required load within ``tolerance``.
+    """
 
     if not 0.0 <= lower_closedness <= upper_closedness <= 1.0:
         raise ValueError("closedness bounds must be ordered inside [0, 1]")

@@ -18,14 +18,30 @@ if TYPE_CHECKING:
 
 
 def handoff_phase_progress(env: ManagerBasedRLEnv, phase_cfg: HandoffPhaseCfg) -> torch.Tensor:
-    """Return normalised ordered progress; this is not success evidence."""
+    """Return normalised ordered progress; this is not success evidence.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        phase_cfg: Shared physical phase configuration.
+
+    Returns:
+        Dimensionless phase progress per environment in ``[0, 1]``.
+    """
 
     phase = update_handoff_phase(env, phase_cfg).phase
     return phase.to(dtype=torch.float32) / float(HandoffPhase.RETAINED_LIFT)
 
 
 def retained_lift_bonus(env: ManagerBasedRLEnv, phase_cfg: HandoffPhaseCfg) -> torch.Tensor:
-    """Return a sparse bonus after the retained-lift dwell has completed."""
+    """Return a sparse bonus after the retained-lift dwell has completed.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        phase_cfg: Shared physical phase configuration.
+
+    Returns:
+        Dimensionless zero-or-one bonus per environment.
+    """
 
     phase = update_handoff_phase(env, phase_cfg).phase
     return (phase == int(HandoffPhase.RETAINED_LIFT)).to(dtype=torch.float32)

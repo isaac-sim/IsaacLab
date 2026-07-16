@@ -36,6 +36,14 @@ def reset_needle_pass_to_default(
     open.  The free needle then receives exactly one pose write and one velocity
     write.  The event does not step or settle physics and never applies an
     action.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        env_ids: Environment indices to reset, or ``None`` for all environments.
+        phase_cfg: Shared physical phase configuration.
+        left_psm_cfg: Donor PSM scene entity.
+        right_psm_cfg: Receiver PSM scene entity.
+        needle_cfg: Free-needle scene entity.
     """
 
     if env_ids is None:

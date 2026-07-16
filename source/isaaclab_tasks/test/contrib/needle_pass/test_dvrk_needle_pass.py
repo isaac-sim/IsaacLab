@@ -5,6 +5,10 @@
 
 """Focused contracts for the manager-based dVRK needle-pass task."""
 
+import json
+import subprocess
+import sys
+import textwrap
 from types import SimpleNamespace
 
 from isaaclab.app import AppLauncher
@@ -67,11 +71,13 @@ from isaaclab_tasks.contrib.needle_pass.config.dvrk.ik_abs_env_cfg import (
 )
 from isaaclab_tasks.contrib.needle_pass.mdp.actions import (
     DonorReleaseGuardedPairedJawJointPositionAction,
-    DonorReleaseGuardedPairedJawJointPositionActionCfg,
+    PairedJawJointPositionAction,
+    WorldFrameDifferentialInverseKinematicsAction,
     donor_opening_requested,
     donor_release_is_allowed,
     world_pose_xyzw_to_root_pose_xyzw,
 )
+from isaaclab_tasks.contrib.needle_pass.mdp.actions_cfg import DonorReleaseGuardedPairedJawJointPositionActionCfg
 from isaaclab_tasks.contrib.needle_pass.mdp.events import reset_needle_pass_to_default
 from isaaclab_tasks.contrib.needle_pass.mdp.grasp_solver import (
     EXACT_POINT_CONTACT_FORCE_RESIDUAL_TOLERANCE_N,
@@ -107,6 +113,62 @@ from isaaclab_tasks.contrib.needle_pass.needle_pass_env_cfg import (
 from isaaclab_tasks.utils import parse_env_cfg
 
 TASK_ID = "IsaacContrib-NeedlePass-dVRK-IK-Abs"
+
+
+def test_config_load_is_lazy_before_simulation_app_startup():
+    """A fresh process must construct the task config without runtime imports."""
+
+    script = textwrap.dedent(
+        f"""\
+        import builtins
+        import json
+        import sys
+        import traceback
+
+        import isaaclab_tasks  # noqa: F401
+        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+        forbidden = ("pxr", "omni", "carb", "isaacsim", "scipy")
+        violations = {{}}
+        original_import = builtins.__import__
+
+        def import_hook(name, *args, **kwargs):
+            prefix = name.split(".")[0]
+            if prefix in forbidden and prefix not in violations:
+                violations[prefix] = "".join(traceback.format_stack())
+            return original_import(name, *args, **kwargs)
+
+        error = None
+        builtins.__import__ = import_hook
+        try:
+            load_cfg_from_registry({TASK_ID!r}, "env_cfg_entry_point")
+        except Exception as exception:
+            error = repr(exception)
+        finally:
+            builtins.__import__ = original_import
+
+        eager_runtime_modules = [
+            name
+            for name in (
+                "isaaclab_tasks.contrib.needle_pass.mdp.actions",
+                "isaaclab_tasks.contrib.needle_pass.spawners",
+            )
+            if name in sys.modules
+        ]
+        print("__RESULT__" + json.dumps({{
+            "error": error,
+            "violations": violations,
+            "eager_runtime_modules": eager_runtime_modules,
+        }}))
+        """
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60)
+    result_line = next((line for line in result.stdout.splitlines() if line.startswith("__RESULT__")), None)
+    assert result.returncode == 0 and result_line is not None, (
+        f"config subprocess failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    payload = json.loads(result_line.removeprefix("__RESULT__"))
+    assert payload == {"error": None, "violations": {}, "eager_runtime_modules": []}
 
 
 def _proxy(tensor: torch.Tensor) -> SimpleNamespace:
@@ -344,6 +406,118 @@ def test_world_targets_use_each_live_psm_root():
             atol=1.0e-6,
         )
     assert not np.allclose(actual[0], actual[1])
+
+
+def test_world_frame_action_clips_valid_rows_and_holds_invalid_rows():
+    """Device-side validation must preserve clip semantics without forwarding NaNs."""
+
+    action = object.__new__(WorldFrameDifferentialInverseKinematicsAction)
+    action.cfg = SimpleNamespace(clip={"pose": (-0.5, 0.5)}, body_offset=None)
+    action._raw_actions = torch.zeros((2, 7), dtype=torch.float32)
+    action._processed_actions = torch.zeros_like(action._raw_actions)
+    action._scale = torch.ones_like(action._raw_actions)
+    action._clip = torch.tensor(((-0.5, 0.5),) + ((-float("inf"), float("inf")),) * 6).repeat(2, 1, 1)
+    current_position = torch.tensor(((0.1, 0.2, 0.3), (-0.1, -0.2, -0.3)), dtype=torch.float32)
+    current_quaternion = torch.tensor(((0.0, 0.0, 0.0, 1.0),) * 2, dtype=torch.float32)
+    action._body_idx = 0
+    action._asset = SimpleNamespace(
+        data=SimpleNamespace(
+            body_pos_w=_proxy(current_position.unsqueeze(1)),
+            body_quat_w=_proxy(current_quaternion.unsqueeze(1)),
+        )
+    )
+
+    action.process_actions(
+        torch.tensor(
+            (
+                (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0),
+                (float("nan"), 1.0, 2.0, 0.0, 0.0, 0.0, 0.0),
+            ),
+            dtype=torch.float32,
+        )
+    )
+
+    torch.testing.assert_close(
+        action.processed_actions,
+        torch.tensor(
+            (
+                (0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+                (-0.1, -0.2, -0.3, 0.0, 0.0, 0.0, 1.0),
+            ),
+            dtype=torch.float32,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "controller",
+    (
+        SimpleNamespace(command_type="position", use_relative_mode=False),
+        SimpleNamespace(command_type="pose", use_relative_mode=True),
+    ),
+)
+def test_world_frame_action_rejects_nonabsolute_pose_controllers(controller):
+    """World-frame targets require an absolute seven-dimensional pose controller."""
+
+    cfg = SimpleNamespace(scale=1.0, controller=controller)
+    with pytest.raises(ValueError, match="absolute pose controller"):
+        WorldFrameDifferentialInverseKinematicsAction(cfg, None)
+
+
+def test_world_frame_action_injects_joint_limits_once():
+    """The specialised apply path must retain lazy joint-limit avoidance setup."""
+
+    class _Controller:
+        def __init__(self):
+            self.limit_calls = 0
+            self.compute_calls = 0
+
+        def set_command(self, target, ee_pos, ee_quat):
+            assert target.shape == (1, 7)
+
+        def set_joint_pos_limits(self, lower, upper):
+            self.limit_calls += 1
+            torch.testing.assert_close(lower, torch.tensor((-1.0, -2.0)))
+            torch.testing.assert_close(upper, torch.tensor((1.0, 2.0)))
+
+        def compute(self, ee_pos, ee_quat, jacobian, joint_pos):
+            self.compute_calls += 1
+            return joint_pos + 0.1
+
+    class _Asset:
+        def __init__(self):
+            identity = torch.tensor(((0.0, 0.0, 0.0, 1.0),), dtype=torch.float32)
+            self.data = SimpleNamespace(
+                root_pos_w=_proxy(torch.zeros((1, 3), dtype=torch.float32)),
+                root_quat_w=_proxy(identity),
+                joint_pos=_proxy(torch.zeros((1, 2), dtype=torch.float32)),
+                soft_joint_pos_limits=_proxy(torch.tensor((((-1.0, 1.0), (-2.0, 2.0)),))),
+            )
+            self.targets = []
+
+        def set_joint_position_target_index(self, *, target, joint_ids):
+            self.targets.append(target.clone())
+
+    action = object.__new__(WorldFrameDifferentialInverseKinematicsAction)
+    action.cfg = SimpleNamespace(controller=SimpleNamespace(joint_limit_avoidance_gain=1.0))
+    action._processed_actions = torch.tensor(((0.1, 0.2, 0.3, 0.0, 0.0, 0.0, 1.0),))
+    action._asset = _Asset()
+    action._joint_ids = [0, 1]
+    action._limits_injected = False
+    action._ik_controller = _Controller()
+    action._compute_frame_pose = lambda: (
+        torch.zeros((1, 3), dtype=torch.float32),
+        torch.tensor(((0.0, 0.0, 0.0, 1.0),), dtype=torch.float32),
+    )
+    action._compute_frame_jacobian = lambda: torch.zeros((1, 6, 2), dtype=torch.float32)
+
+    action.apply_actions()
+    action.apply_actions()
+
+    assert action._ik_controller.limit_calls == 1
+    assert action._ik_controller.compute_calls == 2
+    assert len(action._asset.targets) == 2
+    torch.testing.assert_close(action._asset.targets[-1], torch.full((1, 2), 0.1))
 
 
 def test_grasp_solver_derives_loads_and_impedance_gains():
@@ -677,6 +851,40 @@ def test_bilateral_contact_rejects_nonfinite_measurements(loads, normals):
     assert result.tolist() == [False]
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    (
+        {"engage_force_n": float("inf")},
+        {"disengage_force_n": float("nan")},
+        {"opposed_normal_tolerance_rad": float("inf")},
+    ),
+)
+def test_handoff_phase_config_rejects_nonfinite_contact_thresholds(kwargs):
+    """Non-finite physical thresholds must fail during configuration."""
+
+    with pytest.raises(ValueError, match="finite"):
+        HandoffPhaseCfg(**kwargs)
+
+
+def test_handoff_phase_config_accepts_integer_quaternion_values():
+    """Value-like integer quaternion components should be validated as floats."""
+
+    cfg = HandoffPhaseCfg(receiver_relative_orientation_target_xyzw=(0, 0, 0, 1))
+    assert cfg.receiver_relative_orientation_target_xyzw == (0, 0, 0, 1)
+
+
+def test_bilateral_contact_rejects_integer_measurements():
+    """Integer loads must not truncate the configured force threshold."""
+
+    machine = HandoffPhaseMachine(1, "cpu", 0.01, HandoffPhaseCfg())
+    with pytest.raises(TypeError, match="floating-point"):
+        machine._bilateral_contact(
+            torch.tensor(((0, 0),), dtype=torch.int64),
+            torch.tensor((((1, 0, 0), (-1, 0, 0)),), dtype=torch.int64),
+            torch.zeros(1, dtype=torch.bool),
+        )
+
+
 def test_handoff_update_reads_post_physics_buffers_once_per_step(monkeypatch):
     """Manager terms sharing one phase machine must also share one sensor sample."""
 
@@ -747,6 +955,24 @@ def test_donor_release_blocks_any_outward_jaw_command():
     assert donor_opening_requested(paired_open, held, 0.01).tolist() == [True]
 
 
+def test_paired_jaw_action_holds_last_target_for_nonfinite_commands():
+    """A malformed receiver command must not reach an articulation target."""
+
+    action = object.__new__(PairedJawJointPositionAction)
+    action.cfg = SimpleNamespace(clip=None)
+    action._raw_actions = torch.zeros((2, 2), dtype=torch.float32)
+    action._processed_actions = torch.zeros_like(action._raw_actions)
+    action._scale = 1.0
+    action._offset = 0.0
+    action._last_finite_target = torch.tensor(((-0.2, 0.2), (-0.3, 0.3)), dtype=torch.float32)
+    action._last_command_finite = torch.ones(2, dtype=torch.bool)
+
+    action.process_actions(torch.tensor(((-0.1, 0.1), (float("nan"), float("inf")))))
+
+    torch.testing.assert_close(action.processed_actions, torch.tensor(((-0.1, 0.1), (-0.3, 0.3))))
+    assert action._last_command_finite.tolist() == [True, False]
+
+
 def test_donor_release_guard_clamps_unqualified_jaw_targets_at_the_actuator(monkeypatch):
     """Exercise the production action term rather than only its pure predicates."""
 
@@ -761,31 +987,37 @@ def test_donor_release_guard_clamps_unqualified_jaw_targets_at_the_actuator(monk
 
     hold = torch.tensor(((-0.20, 0.01),), dtype=torch.float32)
     machine = SimpleNamespace(
-        phase=torch.tensor((int(HandoffPhase.CO_HOLD),) * 3),
-        _receiver_engaged=torch.ones(3, dtype=torch.bool),
-        _bilateral_contact=lambda loads, normals, engaged: torch.tensor((False, True, False)),
+        phase=torch.tensor((int(HandoffPhase.CO_HOLD),) * 4),
+        _receiver_engaged=torch.ones(4, dtype=torch.bool),
+        _bilateral_contact=lambda loads, normals, engaged: torch.tensor((False, True, False, True)),
     )
     env = SimpleNamespace()
     action = object.__new__(DonorReleaseGuardedPairedJawJointPositionAction)
     action._env = env
-    action._hold_target = hold.expand(3, -1).clone()
+    action._hold_target = hold.expand(4, -1).clone()
     action._joint_ids = [6, 7]
     action._asset = _Asset()
     action._debug_vis_handle = None
     action.cfg = SimpleNamespace(phase_cfg=object(), release_aperture_threshold_rad=0.01)
-    action._processed_actions = torch.tensor(((-0.40, 0.01), (-0.40, 0.30), (-0.40, 0.30)), dtype=torch.float32)
+    action._processed_actions = torch.tensor(
+        ((-0.40, 0.01), (-0.40, 0.30), (-0.40, 0.30), (-0.40, 0.30)), dtype=torch.float32
+    )
+    action._last_command_finite = torch.tensor((True, True, True, False))
 
     monkeypatch.setattr(terminations, "get_handoff_phase_machine", lambda *_: machine)
     monkeypatch.setattr(
         terminations,
         "jaw_needle_contact_measurements",
-        lambda _: (torch.zeros((3, 4)), torch.zeros((3, 4, 3)), torch.zeros((3, 4))),
+        lambda _: (torch.zeros((4, 4)), torch.zeros((4, 4, 3)), torch.zeros((4, 4))),
     )
 
     action.apply_actions()
 
     command, joint_ids = action._asset.calls.pop()
-    torch.testing.assert_close(command, torch.tensor(((-0.20, 0.01), (-0.40, 0.30), (-0.20, 0.01))))
+    torch.testing.assert_close(
+        command,
+        torch.tensor(((-0.20, 0.01), (-0.40, 0.30), (-0.20, 0.01), (-0.20, 0.01))),
+    )
     assert joint_ids == [6, 7]
 
 

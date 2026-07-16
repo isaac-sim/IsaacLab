@@ -33,7 +33,15 @@ def joint_position(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Return all live articulation joint positions in native USD order."""
+    """Return all live articulation joint positions in native USD order.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        asset_cfg: Articulation scene entity.
+
+    Returns:
+        Joint positions [m or rad, depending on joint type].
+    """
 
     return _articulation(env, asset_cfg).data.joint_pos.torch
 
@@ -42,7 +50,15 @@ def joint_velocity(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Return all live articulation joint velocities in native USD order."""
+    """Return all live articulation joint velocities in native USD order.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        asset_cfg: Articulation scene entity.
+
+    Returns:
+        Joint velocities [m/s or rad/s, depending on joint type].
+    """
 
     return _articulation(env, asset_cfg).data.joint_vel.torch
 
@@ -52,7 +68,16 @@ def end_effector_pose_w(
     asset_cfg: SceneEntityCfg,
     body_name: str = "psm_tool_tip_link",
 ) -> torch.Tensor:
-    """Return live tool-tip pose ``[xyz, qx, qy, qz, qw]`` in world frame."""
+    """Return live tool-tip pose ``[xyz, qx, qy, qz, qw]`` in world frame.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        asset_cfg: Articulation scene entity.
+        body_name: Tool-tip body name.
+
+    Returns:
+        World position [m] and xyzw quaternion, shape ``(num_envs, 7)``.
+    """
 
     asset = _articulation(env, asset_cfg)
     body_ids, body_names = asset.find_bodies(body_name)
@@ -66,7 +91,15 @@ def needle_pose_w(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("needle"),
 ) -> torch.Tensor:
-    """Return simulated needle pose ``[xyz, qx, qy, qz, qw]`` in world frame."""
+    """Return simulated needle pose ``[xyz, qx, qy, qz, qw]`` in world frame.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        asset_cfg: Needle scene entity.
+
+    Returns:
+        World position [m] and xyzw quaternion, shape ``(num_envs, 7)``.
+    """
 
     needle: RigidObject = env.scene[asset_cfg.name]
     return torch.cat((needle.data.root_pos_w.torch, needle.data.root_quat_w.torch), dim=-1)
@@ -76,21 +109,44 @@ def needle_velocity_w(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("needle"),
 ) -> torch.Tensor:
-    """Return simulated needle linear then angular world velocity."""
+    """Return simulated needle linear then angular world velocity.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        asset_cfg: Needle scene entity.
+
+    Returns:
+        World linear and angular velocity [m/s, rad/s], shape ``(num_envs, 6)``.
+    """
 
     needle: RigidObject = env.scene[asset_cfg.name]
     return torch.cat((needle.data.root_lin_vel_w.torch, needle.data.root_ang_vel_w.torch), dim=-1)
 
 
 def jaw_needle_contact_force(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return four projected normal loads in left-jaw-1 through right-jaw-2 order."""
+    """Return four projected normal loads in left-jaw-1 through right-jaw-2 order.
+
+    Args:
+        env: Manager-based needle-pass environment.
+
+    Returns:
+        Ordered projected jaw-normal loads [N], shape ``(num_envs, 4)``.
+    """
 
     loads, _, _ = jaw_needle_contact_measurements(env)
     return loads
 
 
 def handoff_phase(env: ManagerBasedRLEnv, phase_cfg: HandoffPhaseCfg) -> torch.Tensor:
-    """Return one physical phase column; INITIAL is reset-held pending fresh contact."""
+    """Return one physical phase column; INITIAL awaits fresh contact.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        phase_cfg: Shared physical phase configuration.
+
+    Returns:
+        Integer phase column, shape ``(num_envs, 1)``.
+    """
 
     return update_handoff_phase(env, phase_cfg).phase.unsqueeze(-1)
 
@@ -100,7 +156,16 @@ def phase_at_least(
     phase_cfg: HandoffPhaseCfg,
     phase: HandoffPhase,
 ) -> torch.Tensor:
-    """Return a recorder subtask flag derived solely from measured phase state."""
+    """Return a recorder subtask flag derived solely from measured phase state.
+
+    Args:
+        env: Manager-based needle-pass environment.
+        phase_cfg: Shared physical phase configuration.
+        phase: Earliest phase that sets the flag.
+
+    Returns:
+        Float flag column containing zero or one, shape ``(num_envs, 1)``.
+    """
 
     current = update_handoff_phase(env, phase_cfg).phase
     return (current >= int(phase)).to(dtype=torch.float32).unsqueeze(-1)

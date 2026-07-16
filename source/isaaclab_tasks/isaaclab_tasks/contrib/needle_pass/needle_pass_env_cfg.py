@@ -9,14 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 from isaaclab_teleop import XrCfg
-
-from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -29,8 +26,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.sim.spawners.from_files import UsdFileCfg, spawn_from_usd
-from isaaclab.sim.utils import bind_physics_material, find_matching_prim_paths, get_current_stage
+from isaaclab.sim.spawners.from_files import UsdFileCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
@@ -96,59 +92,15 @@ class NeedlePassPhysicsCfg(PresetCfg):
     physx: PhysxCfg = default
 
 
-def spawn_usd_with_rigid_material(
-    prim_path: str,
-    cfg: UsdFileWithRigidMaterialCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs: Any,
-) -> Usd.Prim:
-    """Spawn a USD and strongly bind one explicit rigid-body material.
-
-    Current Isaac Lab ``UsdFileCfg`` does not expose a physics-material field.
-    The stock USD spawner first creates/clones the asset; this wrapper then
-    creates one material beneath every resolved clone and recursively binds it
-    to collision descendants.  Binding happens during scene construction, not
-    during reset, and therefore cannot write or adapt needle state.
-    """
-
-    # The pinned needle authors its rigid body on a descendant without a
-    # ``MassAPI``.  The stock USD spawner only modifies existing mass schemas,
-    # so applying ``mass_props`` at the referenced asset root is a no-op.  Defer
-    # mass authoring until the unique rigid-body descendant has been resolved.
-    spawn_cfg = cfg.replace(mass_props=None)
-    prim = spawn_from_usd(prim_path, spawn_cfg, translation, orientation, **kwargs)
-    resolved_prim_paths = find_matching_prim_paths(prim_path)
-    if not resolved_prim_paths:
-        raise RuntimeError(f"USD material binding resolved no prims for {prim_path!r}")
-    stage = get_current_stage()
-    for resolved_prim_path in resolved_prim_paths:
-        material_path = f"{resolved_prim_path}/physicsMaterial"
-        cfg.physics_material.func(material_path, cfg.physics_material)
-        bind_physics_material(
-            resolved_prim_path,
-            material_path,
-            stronger_than_descendants=True,
-        )
-        if cfg.mass_props is not None:
-            root_prim = stage.GetPrimAtPath(resolved_prim_path)
-            rigid_body_prims = [prim for prim in Usd.PrimRange(root_prim) if prim.HasAPI(UsdPhysics.RigidBodyAPI)]
-            if len(rigid_body_prims) != 1:
-                raise RuntimeError(
-                    f"needle physical-property binding expected one rigid body beneath {resolved_prim_path!r}, "
-                    f"found {[str(prim.GetPath()) for prim in rigid_body_prims]}"
-                )
-            rigid_body_prim = rigid_body_prims[0]
-            sim_utils.define_mass_properties(str(rigid_body_prim.GetPath()), cfg.mass_props, stage=stage)
-    return prim
-
-
 @configclass
 class UsdFileWithRigidMaterialCfg(UsdFileCfg):
     """Task-local USD spawner with an explicit rigid-body material binding."""
 
-    func: Callable = spawn_usd_with_rigid_material
+    func: Callable | str = "{DIR}.spawners:spawn_usd_with_rigid_material"
+    """Spawner implementation, resolved lazily after the simulation application starts."""
+
     physics_material: PhysxRigidBodyMaterialCfg = MISSING
+    """Rigid-body contact material applied to every spawned clone."""
 
 
 @configclass
@@ -416,5 +368,4 @@ __all__ = [
     "RETENTION_LOAD_SAFETY_FACTOR",
     "TerminationsCfg",
     "UsdFileWithRigidMaterialCfg",
-    "spawn_usd_with_rigid_material",
 ]
