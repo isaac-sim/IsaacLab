@@ -72,12 +72,15 @@ fi
 # regular pxr package, prepending omni.usd.libs to PYTHONPATH alone does nothing.
 # We write a minimal __init__.py into omni.usd.libs/pxr/ to promote it to a
 # regular package, making the sys.path order actually take effect.
-_ov_usd_libs_dir=$("$python_exe" "$ISAACLAB_PATH/tools/setup_usd_libs.py" 2>/dev/null)
-if [ -n "$_ov_usd_libs_dir" ]; then
-    export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
-    export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
+if [ -d "$ISAACLAB_PATH/omni.usd.libs" ]; then
+    if ! usd_libs_dir="$("$python_exe" "$ISAACLAB_PATH/tools/setup_usd_libs.py")"; then
+        echo "[WARNING] Failed to configure omni.usd.libs USD path; continuing without it." >&2
+    elif [ -n "$usd_libs_dir" ]; then
+        export PYTHONPATH="$usd_libs_dir:$PYTHONPATH"
+        export LD_LIBRARY_PATH="$usd_libs_dir/bin:$LD_LIBRARY_PATH"
+    fi
 fi
-unset _ov_usd_libs_dir
+
 
 # Execute CLI.
 exec "$python_exe" -c "from isaaclab.cli import cli; cli()" "$@"
