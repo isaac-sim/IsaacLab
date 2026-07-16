@@ -111,6 +111,41 @@ These benchmark property accessors on data classes:
 
 All benchmarks are located in ``source/isaaclab_physx/benchmark/assets/``.
 
+Sensor Update Benchmarks
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The OVPhysX sensor benchmarks build kitless simulation scenes and measure sensor
+updates separately from physics stepping:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Benchmark File
+     - Sensor Path
+   * - ``benchmark_contact_sensor.py``
+     - Contact force collection
+   * - ``benchmark_frame_transformer.py``
+     - Source and target frame transforms
+   * - ``benchmark_imu_pva.py``
+     - IMU or PVA state estimation
+   * - ``benchmark_joint_wrench.py``
+     - Incoming joint wrench transforms
+   * - ``benchmark_ray_caster.py``
+     - Rigid-body tracking and ray casting
+
+They are located in ``source/isaaclab_ovphysx/benchmark/sensors/``. Each script
+reports synchronized update latency, asynchronous submission latency, and the
+blocking backend read latency measured without sensor Warp processing.
+Physics ``sim.step()`` calls occur outside all timed regions.
+
+For example:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/sensors/benchmark_contact_sensor.py \
+       --num_envs 4096 --warmup_steps 50 --num_steps 500
+
 Command Line Arguments
 ----------------------
 
