@@ -812,6 +812,10 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
 
         self.insertion_length: float = cfg.params.get("insertion_length", 0.02)
 
+        # Optional depth ranges along the insertion axis, measured from the socket keypoint origin.
+        self.at_goal_depth_range = cfg.params.get("at_goal_depth_range", None)
+        self.approach_depth_range = cfg.params.get("approach_depth_range", None)
+
         socket_offset = cfg.params.get("socket_insertion_offset", [0.0, 0.0, 0.0])
         self.socket_insertion_offset = torch.tensor(socket_offset, device=env.device, dtype=torch.float32)
 
@@ -858,6 +862,8 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
         anneal_start_iter: float = 0.0,
         anneal_end_iter: float | None = None,
         num_steps_per_env: int | None = None,
+        at_goal_depth_range: list | None = None,
+        approach_depth_range: list | None = None,
     ):
         num_envs = len(env_ids)
 
@@ -884,42 +890,60 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
         plug_offset_batch = self.plug_insertion_offset.unsqueeze(0).expand(num_envs, -1)
         plug_kp_in_world = math_utils.quat_apply(goal_quat_w, plug_offset_batch)
 
-        # Default (normal) reset: small random perturbation around default plug pose
-        pose_range = self.normal_pose_range
-        rand_pos = torch.zeros(num_envs, 3, device=env.device)
-        for i, key in enumerate(["x", "y", "z"]):
-            rng = pose_range.get(key, [0.0, 0.0])
-            rand_pos[:, i] = torch.empty(num_envs, device=env.device).uniform_(rng[0], rng[1])
-
-        default_plug_pos = wp.to_torch(self.plug.data.default_root_state)[env_ids, :3] + env.scene.env_origins[env_ids]
-        normal_plug_pos = default_plug_pos + rand_pos
-        normal_plug_quat = wp.to_torch(self.plug.data.default_root_state)[env_ids, 3:7]
-
-        plug_pos = normal_plug_pos.clone()
-        plug_quat = normal_plug_quat.clone()
-
-        # At-goal curriculum: place fraction of envs along insertion axis.
-        # The probability may be annealed over training iterations.
+        # At-goal probability for the current training progress (may be annealed).
         current_at_goal_prob = self._current_at_goal_prob(env)
-        if current_at_goal_prob > 0.0 and num_envs > 0:
-            # Per-env Bernoulli draw: each resetting env independently has
-            # probability `current_at_goal_prob` of being seeded at goal. This is
-            # robust to the reset batch size, including single-env resets
-            # (manager-based envs reset per-termination, so batches are often
-            # size 1 -- a fixed `int(num_envs * prob)` count would round down to
-            # 0 there).
-            at_goal_mask = torch.rand(num_envs, device=env.device) < current_at_goal_prob
-            at_goal_local = at_goal_mask.nonzero(as_tuple=False).squeeze(-1)
-            num_at_goal = int(at_goal_local.numel())
-            if num_at_goal > 0:
-                depth_rand = torch.rand(num_at_goal, 1, device=env.device)
-                goal_kp_pos = (
-                    kp_origin_w[at_goal_local] + depth_rand * insertion_axis_w[at_goal_local] * self.insertion_length
-                )
 
-                # Convert keypoint position to plug root position
-                plug_pos[at_goal_local] = goal_kp_pos - plug_kp_in_world[at_goal_local]
-                plug_quat[at_goal_local] = goal_quat_w[at_goal_local]
+        if self.approach_depth_range is None:
+            pose_range = self.normal_pose_range
+            rand_pos = torch.zeros(num_envs, 3, device=env.device)
+            for i, key in enumerate(["x", "y", "z"]):
+                rng = pose_range.get(key, [0.0, 0.0])
+                rand_pos[:, i] = torch.empty(num_envs, device=env.device).uniform_(rng[0], rng[1])
+
+            default_plug_pos = wp.to_torch(self.plug.data.default_root_state)[env_ids, :3] + env.scene.env_origins[env_ids]
+            normal_plug_pos = default_plug_pos + rand_pos
+            normal_plug_quat = wp.to_torch(self.plug.data.default_root_state)[env_ids, 3:7]
+
+            plug_pos = normal_plug_pos.clone()
+            plug_quat = normal_plug_quat.clone()
+
+            if current_at_goal_prob > 0.0 and num_envs > 0:
+                at_goal_mask = torch.rand(num_envs, device=env.device) < current_at_goal_prob
+                at_goal_local = at_goal_mask.nonzero(as_tuple=False).squeeze(-1)
+                num_at_goal = int(at_goal_local.numel())
+                if num_at_goal > 0:
+                    depth_rand = torch.rand(num_at_goal, 1, device=env.device)
+                    goal_kp_pos = (
+                        kp_origin_w[at_goal_local]
+                        + depth_rand * insertion_axis_w[at_goal_local] * self.insertion_length
+                    )
+
+                    plug_pos[at_goal_local] = goal_kp_pos - plug_kp_in_world[at_goal_local]
+                    plug_quat[at_goal_local] = goal_quat_w[at_goal_local]
+        else:
+            at_goal_mask = torch.rand(num_envs, device=env.device) < current_at_goal_prob
+
+            at_goal_range = (
+                self.at_goal_depth_range if self.at_goal_depth_range is not None else [0.0, self.insertion_length]
+            )
+            depth_at_goal = torch.empty(num_envs, device=env.device).uniform_(
+                float(at_goal_range[0]), float(at_goal_range[1])
+            )
+            depth_approach = torch.empty(num_envs, device=env.device).uniform_(
+                float(self.approach_depth_range[0]), float(self.approach_depth_range[1])
+            )
+            depth = torch.where(at_goal_mask, depth_at_goal, depth_approach)
+
+            pose_range = self.normal_pose_range
+            rand_pos = torch.zeros(num_envs, 3, device=env.device)
+            for i, key in enumerate(["x", "y", "z"]):
+                rng = pose_range.get(key, [0.0, 0.0])
+                rand_pos[:, i] = torch.empty(num_envs, device=env.device).uniform_(rng[0], rng[1])
+            rand_pos[at_goal_mask] = 0.0
+
+            goal_kp_pos = kp_origin_w + depth.unsqueeze(-1) * insertion_axis_w
+            plug_pos = goal_kp_pos - plug_kp_in_world + rand_pos
+            plug_quat = goal_quat_w.clone()
 
         new_root_pose = torch.cat([plug_pos, plug_quat], dim=-1)
         zero_vel = torch.zeros(num_envs, 6, device=env.device, dtype=torch.float32)

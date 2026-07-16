@@ -63,15 +63,10 @@ def _quat_mul(q1_xyzw, q2_xyzw):
     )
 
 
-# ---------------------------------------------------------------------------
-# USD body-frame offsets (DisplayPort asset geometry)
-# ---------------------------------------------------------------------------
-# Root -> insertion(mate) point in each asset's local frame. Derived from the
-# verified seated pose with the mating reference point chosen at the socket top
-# face. See module docstring; round-trip-verified against the GB300 helpers.
+# Asset geometry offsets expressed in each body's local frame.
 SOCKET_INSERTION_OFFSET = [0.0375, 0.0, 0.0]
 PLUG_INSERTION_OFFSET = [0.0, 0.0, 0.0221]
-# Plug orientation relative to socket at the mated pose, (x, y, z, w).
+# Plug orientation relative to socket at the mated pose (x, y, z, w).
 PLUG_GOAL_ROT = [0.0, -0.70711, 0.0, 0.70711]
 PLUG_GOAL_ROT_INV = [0.0, 0.70711, 0.0, 0.70711]
 
@@ -107,11 +102,8 @@ def compute_plug_pose(geometry_pos, socket_rot, z_clearance=0.0):
     return plug_root, plug_rot
 
 
-# ---------------------------------------------------------------------------
-# Default socket/plug workspace positions (drop-test layout, socket opening up)
-# ---------------------------------------------------------------------------
 _INSERTION_POINT = [0.0, 0.0, 0.1875]
-_DEFAULT_SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)
+_DEFAULT_SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)  # opening faces +Z
 
 _SOCKET_ROOT_POS = compute_socket_root(_INSERTION_POINT, _DEFAULT_SOCKET_ROT)
 _PLUG_ROOT_POS, _DEFAULT_PLUG_ROT = compute_plug_pose(
@@ -137,8 +129,6 @@ class DisplayPortPlug(RigidObjectCfg):
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             kinematic_enabled=False,
-            # Gentle depenetration: high values turn residual mate overlap into
-            # an explosive ejection. 0.5 lets PhysX resolve overlaps smoothly.
             max_depenetration_velocity=0.5,
             linear_damping=0.0,
             angular_damping=0.0,
@@ -147,13 +137,9 @@ class DisplayPortPlug(RigidObjectCfg):
             enable_gyroscopic_forces=True,
             solver_position_iteration_count=128,
             solver_velocity_iteration_count=1,
-            # Leave uncapped at the PhysX default; pairing a cap with a high
-            # depenetration velocity amplified contact blow-ups.
             max_contact_impulse=None,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.03),
-        # Body5 clearance to blade is ~0.27mm. PhysX fires contact at (plug + socket) offsets combined
-        # (0.27mm physical gap). Keep plug offset small so there's real clearance before repulsion starts.
         collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.00001, rest_offset=-0.00005),
     )
     init_state = RigidObjectCfg.InitialStateCfg(pos=_PLUG_ROOT_POS, rot=_DEFAULT_PLUG_ROT)
@@ -182,7 +168,6 @@ class DisplayPortSocket(RigidObjectCfg):
             max_contact_impulse=1e32,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=None),
-        # rest_offset negative on socket too: combined rest = -0.15mm so blade can slide in.
         collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0001, rest_offset=-0.0001),
     )
     init_state = RigidObjectCfg.InitialStateCfg(pos=_SOCKET_ROOT_POS, rot=_DEFAULT_SOCKET_ROT)
@@ -197,7 +182,6 @@ class DisplayPortSocket(RigidObjectCfg):
 class DisplayportInsertionSceneCfg(InteractiveSceneCfg):
     """Configuration for the DisplayPort insertion scene."""
 
-    # replicate_physics = False  # old: required when spawner patched de-instanced geometry at runtime
     replicate_physics = True
 
     ground = AssetBaseCfg(
@@ -240,7 +224,6 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("dp_socket"), "offset": SOCKET_INSERTION_OFFSET},
             noise=ResetSampledConstantNoiseModelCfg(
                 noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
-                # noise_cfg=UniformNoiseCfg(n_min=-0.00, n_max=0.00, operation="add")
             ),
         )
         socket_quat = ObsTerm(
@@ -312,15 +295,13 @@ class RewardsCfg:
             "offset_1": SOCKET_INSERTION_OFFSET,
             "offset_2": PLUG_INSERTION_OFFSET,
             "rot_offset_2": PLUG_GOAL_ROT_INV,
-            "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001), (600, 0.0001)],
+            "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001), (600, 0.0001), (2000, 0.0001)],
             "kp_use_sum_of_exps": False,
             "keypoint_scale": 0.15,
         },
     )
 
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06)
-
-    # action_l2 = RewTerm(func=mdp.action_l2, weight=-5.0e-06)
 
 
 @configclass
@@ -341,18 +322,12 @@ class DisplayportInsertionEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
 
-    # ------------------------------------------------------------------
-    # Task-success logging (consumed by ``insertion_env.DisplayportInsertionEnv``).
-    # ------------------------------------------------------------------
-    # Success = plug mate point within ``success_pos_threshold`` (m) of the socket
-    # mate point, measured from the same keypoint frames as the reward. Purely for
-    # logging; does not affect observations/actions/rewards/terminations.
+    # Task-success logging (consumed by DisplayportInsertionEnv)
     log_success_metrics: bool = True
     success_socket_asset: str = "dp_socket"
     success_plug_asset: str = "dp_plug"
     success_pos_threshold: float = 0.003
     success_keypoint_scale: float = 0.15
-    # Set from the asset-geometry constants in ``__post_init__``.
     success_socket_offset: list = MISSING
     success_plug_offset: list = MISSING
     success_plug_goal_rot_inv: list = MISSING
@@ -383,7 +358,7 @@ class DisplayportInsertionEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.dt = 1.0 / 240.0
 
-        # Success mate-point geometry mirrors the keypoint-tracking reward.
+        # Success mate-point geometry mirrors the keypoint-tracking reward
         self.success_socket_offset = list(SOCKET_INSERTION_OFFSET)
         self.success_plug_offset = list(PLUG_INSERTION_OFFSET)
         self.success_plug_goal_rot_inv = list(PLUG_GOAL_ROT_INV)
