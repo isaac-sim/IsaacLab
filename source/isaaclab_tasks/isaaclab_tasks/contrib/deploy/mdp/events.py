@@ -900,7 +900,9 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
                 rng = pose_range.get(key, [0.0, 0.0])
                 rand_pos[:, i] = torch.empty(num_envs, device=env.device).uniform_(rng[0], rng[1])
 
-            default_plug_pos = wp.to_torch(self.plug.data.default_root_state)[env_ids, :3] + env.scene.env_origins[env_ids]
+            default_plug_pos = (
+                wp.to_torch(self.plug.data.default_root_state)[env_ids, :3] + env.scene.env_origins[env_ids]
+            )
             normal_plug_pos = default_plug_pos + rand_pos
             normal_plug_quat = wp.to_torch(self.plug.data.default_root_state)[env_ids, 3:7]
 
