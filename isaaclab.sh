@@ -76,10 +76,15 @@ if [ -d "$ISAACLAB_PATH/_isaac_sim/extscache" ]; then
     _ov_usd_libs_dir=$("$python_exe" -c "import glob,os,sys; d=sorted(glob.glob(os.path.join(os.environ.get('ISAACLAB_PATH',''),'_isaac_sim','extscache','omni.usd.libs-*'))); print(d[-1] if d else '',end='')")
     if [ -n "$_ov_usd_libs_dir" ]; then
         if [ -d "$_ov_usd_libs_dir/pxr" ] && [ ! -f "$_ov_usd_libs_dir/pxr/__init__.py" ]; then
-            printf '' > "$_ov_usd_libs_dir/pxr/__init__.py" 2>/dev/null || true
+            if ! printf '' > "$_ov_usd_libs_dir/pxr/__init__.py" 2>/dev/null; then
+                echo "[WARNING] Cannot promote omni.usd.libs/pxr to a regular package (read-only cache); skipping USD path setup." >&2
+                unset _ov_usd_libs_dir
+            fi
         fi
-        export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
-        export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
+        if [ -n "$_ov_usd_libs_dir" ]; then
+            export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
+            export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
+        fi
     fi
     unset _ov_usd_libs_dir
 fi

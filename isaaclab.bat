@@ -58,11 +58,17 @@ if exist "%ISAACLAB_PATH%\_isaac_sim\extscache\" (
 if defined _ov_usd_libs_dir (
     if exist "!_ov_usd_libs_dir!\pxr\" (
         if not exist "!_ov_usd_libs_dir!\pxr\__init__.py" (
-            type nul > "!_ov_usd_libs_dir!\pxr\__init__.py" 2>nul
+            type nul > "!_ov_usd_libs_dir!\pxr\__init__.py"
+            if errorlevel 1 (
+                echo [WARNING] Cannot promote omni.usd.libs\pxr to a regular package (read-only cache^); skipping USD path setup. 1>&2
+                set "_ov_usd_libs_dir="
+            )
         )
     )
-    set "PYTHONPATH=!_ov_usd_libs_dir!;!PYTHONPATH!"
-    set "PATH=!_ov_usd_libs_dir!\bin;!PATH!"
+    if defined _ov_usd_libs_dir (
+        set "PYTHONPATH=!_ov_usd_libs_dir!;!PYTHONPATH!"
+        set "PATH=!_ov_usd_libs_dir!\bin;!PATH!"
+    )
 )
 set "_ov_usd_libs_dir="
 
