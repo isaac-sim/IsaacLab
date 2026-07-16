@@ -108,7 +108,8 @@ def _training_argv(request: TrainingRequest) -> list[str]:
     _append_value(argv, "--device", request.device)
     if request.video:
         argv.append("--video")
-    if request.distributed:
+    # SB3 does not support distributed training; skip the flag for that backend.
+    if request.distributed and request.backend != "sb3":
         argv.append("--distributed")
     return argv + list(request.backend_args) + list(request.hydra_args)
 
