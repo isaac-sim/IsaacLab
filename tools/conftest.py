@@ -847,12 +847,289 @@ def _run_one_pass(
     )
 
 
-def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by_file=None):
-    """Run each test file separately, ensuring one finishes before starting the next.
+def _safe_read(path: str) -> str:
+    """Return the text content of ``path``, or ``""`` on any read error."""
+    try:
+        with open(path) as fh:
+            return fh.read()
+    except OSError:
+        return ""
 
-    When ``ISAACLAB_TEST_QUEUE`` names a shared work-queue file, files are claimed
-    from it (work-stealing across sibling shard containers) instead of iterating
-    ``test_files``; each file still runs once, on this container's pinned GPU.
+
+def _make_batches(test_files: list[str], batch_size: int) -> list[list[str]]:
+    """Group consecutive compatible test files into batches for shared Kit sessions.
+
+    Two files are compatible when they agree on ``enable_cameras`` — mixing
+    camera and non-camera files in one subprocess would either waste GPU memory
+    (cameras always enabled) or cause camera tests to fail (cameras never
+    enabled).  Device-split files and visualizer-retry files always run solo
+    because they need two passes or dedicated retry logic.
+
+    Args:
+        test_files: Ordered list of test file paths to group.
+        batch_size: Maximum number of files per batch (>= 2 to enable batching).
+
+    Returns:
+        List of batches; each batch is a non-empty list of file paths.
+    """
+    if batch_size <= 1:
+        return [[f] for f in test_files]
+
+    _SOLO_NAMES = set(PROCESS_FAILURE_RETRIES_BY_FILE.keys())
+
+    batches: list[list[str]] = []
+    current_batch: list[str] = []
+    current_has_cameras: bool | None = None
+
+    for test_file in test_files:
+        file_name = os.path.basename(test_file)
+        try:
+            with open(test_file) as fh:
+                content = fh.read()
+        except OSError:
+            content = ""
+
+        is_solo = file_name in _SOLO_NAMES or is_device_split_file(test_file, source=content)
+        has_cameras = "enable_cameras=True" in content
+
+        if is_solo:
+            if current_batch:
+                batches.append(current_batch)
+                current_batch = []
+                current_has_cameras = None
+            batches.append([test_file])
+            continue
+
+        # Flush and start a new batch when camera compatibility changes or the
+        # current batch is full.
+        if current_batch and (has_cameras != current_has_cameras or len(current_batch) >= batch_size):
+            batches.append(current_batch)
+            current_batch = []
+            current_has_cameras = None
+
+        current_batch.append(test_file)
+        current_has_cameras = has_cameras
+
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches
+
+
+def _run_batch(
+    batch: list[str],
+    *,
+    workspace_root: str,
+    ci_marker: str | None,
+    timeout: int,
+    startup_deadline: int,
+    env: dict,
+    inject_shard_select: bool,
+    global_k_expr: str | None,
+    test_node_ids_by_file: dict,
+) -> tuple[list, dict, list[str]]:
+    """Run a batch of test files in a single subprocess with a shared Kit session.
+
+    The subprocess is launched with ``ISAACLAB_REUSE_KIT_SESSION=1`` so that
+    :class:`~isaaclab.app.AppLauncher` reuses the first test file's Kit session
+    for all subsequent files.  The ``_kit_session_plugin`` pytest plugin writes
+    one JUnit XML per file (same slug format as :func:`_run_one_pass`), so the
+    result-reading logic is identical to the single-file path.
+
+    Args:
+        batch: Ordered list of test file absolute paths to run together.
+        workspace_root: Repository root; used for ``--config-file``.
+        ci_marker: Optional pytest ``-m`` marker expression.
+        timeout: Hard timeout in seconds for the entire batch subprocess.
+        startup_deadline: Startup-hang deadline in seconds.
+        env: Base environment dict for the subprocess.
+        inject_shard_select: Whether to load the multi-GPU shard-select plugin.
+        global_k_expr: Optional global ``-k`` expression applied to every file.
+        test_node_ids_by_file: Maps normalised file path to specific node IDs.
+
+    Returns:
+        ``(xml_reports, file_statuses, failed_files)`` where ``file_statuses``
+        maps each file path to a status dict compatible with
+        :func:`run_individual_tests`.
+    """
+    batch_env = env.copy()
+    batch_env["ISAACLAB_REUSE_KIT_SESSION"] = "1"
+    # Make _kit_session_plugin importable in the subprocess (-p needs it on sys.path).
+    tools_dir = os.path.join(workspace_root, "tools")
+    batch_env["PYTHONPATH"] = tools_dir + os.pathsep + batch_env.get("PYTHONPATH", "")
+
+    # Resolve the pytest targets for each file (specific node IDs or the file itself).
+    targets: list[str] = []
+    for f in batch:
+        targets.extend(test_node_ids_by_file.get(os.path.normpath(f), [str(f)]))
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-s",
+        "-v",
+        "--no-header",
+        f"--config-file={workspace_root}/pyproject.toml",
+        "--tb=short",
+        "-p",
+        "_kit_session_plugin",
+        # No --junitxml: the plugin writes one per-file report.
+    ]
+    if inject_shard_select:
+        cmd += ["-p", "mgpu_shard_select"]
+    if ci_marker:
+        cmd += ["-m", ci_marker]
+    if global_k_expr:
+        cmd += ["-k", global_k_expr]
+    cmd += targets
+
+    print(f"\n\n🚀 Running batch of {len(batch)} files in a shared Kit session...\n")
+    for f in batch:
+        print(f"   {f}")
+
+    returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+        cmd, timeout, batch_env, startup_deadline=startup_deadline
+    )
+
+    # Parse per-file results.  The _kit_session_plugin writes one JUnit XML per
+    # file using the same slug convention as _run_one_pass.
+    xml_reports: list = []
+    file_statuses: dict = {}
+    failed_files: list[str] = []
+
+    for test_file in batch:
+        file_name = os.path.basename(test_file)
+        report_slug = str(test_file).replace("/", "__").replace("\\", "__")
+        report_file = f"tests/test-reports-{report_slug}.xml"
+        has_report = os.path.exists(report_file)
+
+        if not has_report:
+            # Determine why there is no report.
+            if kill_reason == "startup_hang":
+                diag = _get_diagnostics(pre_kill_diag)
+                msg = f"Startup hang after {startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
+                details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+                if stderr_data:
+                    details += "=== STDERR (last 5000 chars) ===\n"
+                    details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+                error_report = _create_error_report("startup_hang", file_name, msg, details)
+                error_report.write(report_file)
+                xml_reports.append(error_report)
+                file_statuses[test_file] = {
+                    "errors": 1,
+                    "failures": 0,
+                    "skipped": 0,
+                    "tests": 1,
+                    "result": "STARTUP_HANG",
+                    "time_elapsed": 0.0,
+                    "wall_time": wall_time,
+                }
+                failed_files.append(test_file)
+                continue
+
+            if kill_reason == "timeout":
+                diag = _get_diagnostics(pre_kill_diag)
+                msg = f"Batch timeout after {timeout}s"
+                details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+                if stdout_data:
+                    details += "=== STDOUT (last 5000 chars) ===\n"
+                    details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+                error_report = _create_error_report("timeout", file_name, msg, details)
+                error_report.write(report_file)
+                xml_reports.append(error_report)
+                file_statuses[test_file] = {
+                    "errors": 1,
+                    "failures": 0,
+                    "skipped": 0,
+                    "tests": 1,
+                    "result": "TIMEOUT",
+                    "time_elapsed": float(timeout),
+                    "wall_time": wall_time,
+                }
+                failed_files.append(test_file)
+                continue
+
+            # Crash or exit without report.
+            reason = (
+                _signal_description(-returncode)
+                if returncode < 0
+                else f"Batch exited with code {returncode} but produced no report for {file_name}"
+            )
+            diag = _get_diagnostics(pre_kill_diag)
+            details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+            if stdout_data:
+                details += "=== STDOUT (last 2000 chars) ===\n"
+                details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+            error_report = _create_error_report("crash", file_name, reason, details)
+            error_report.write(report_file)
+            xml_reports.append(error_report)
+            file_statuses[test_file] = {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 1,
+                "result": "CRASHED",
+                "time_elapsed": 0.0,
+                "wall_time": wall_time,
+            }
+            failed_files.append(test_file)
+            continue
+
+        # Report exists — parse it.
+        try:
+            report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, file_name)
+        except Exception as e:
+            print(f"Error reading batch test report {report_file}: {e}")
+            file_statuses[test_file] = {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 0,
+                "result": "FAILED",
+                "time_elapsed": 0.0,
+                "wall_time": wall_time,
+            }
+            failed_files.append(test_file)
+            continue
+
+        xml_reports.append(report)
+        has_test_failures = errors > 0 or failures > 0
+        if has_test_failures:
+            failed_files.append(test_file)
+        file_statuses[test_file] = {
+            "errors": errors,
+            "failures": failures,
+            "skipped": skipped,
+            "tests": tests,
+            "result": "FAILED" if has_test_failures else "passed",
+            "time_elapsed": time_elapsed,
+            "wall_time": wall_time,
+        }
+
+    return xml_reports, file_statuses, failed_files
+
+
+def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by_file=None):
+    """Run test files, optionally grouping multiple files into shared Kit sessions.
+
+    When ``ISAACLAB_KIT_SESSION_FILES`` is set to a value greater than 1,
+    consecutive compatible test files are batched into a single subprocess so
+    that Kit starts only once per batch instead of once per file.  Compatibility
+    is determined by ``enable_cameras`` usage; device-split files and visualizer
+    retry files always run solo.
+
+    When ``ISAACLAB_TEST_QUEUE`` names a shared work-queue directory, files are
+    claimed from it (work-stealing across sibling shard containers) instead of
+    iterating ``test_files``; batching is disabled in queue mode because files
+    are claimed lazily.
+
+    Args:
+        test_files: Pre-collected ordered list of test file paths for this shard.
+        workspace_root: Repository root directory.
+        ci_marker: Optional pytest marker expression (e.g. ``"isaacsim_ci"``).
+        test_node_ids_by_file: Maps normalised file path to specific pytest node
+            IDs when the caller wants to run a subset of tests within a file.
     """
     failed_tests = []
     test_status = {}
@@ -864,9 +1141,86 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         print(f"Applying global pytest -k expression to every test file: '{global_k_expr}'")
 
     queue_path = os.environ.get("ISAACLAB_TEST_QUEUE", "")
-    file_source = _queued_files(queue_path) if queue_path else test_files
 
-    for test_file in file_source:
+    # Determine batch size.  Queue mode cannot batch (files are claimed lazily).
+    _batch_size_str = os.environ.get("ISAACLAB_KIT_SESSION_FILES", "1").strip()
+    batch_size = int(_batch_size_str) if _batch_size_str.isdigit() and _batch_size_str else 1
+    if batch_size > 1 and queue_path:
+        print(
+            f"⚠️  ISAACLAB_KIT_SESSION_FILES={batch_size} ignored in queue mode"
+            " (files are claimed lazily and cannot be pre-grouped)."
+        )
+        batch_size = 1
+
+    # Build the iteration source: either pre-grouped batches or the lazy queue stream.
+    if queue_path:
+        # Each item is a single-file batch; mark_done is called per file below.
+        def _iter_batches():
+            for f in _queued_files(queue_path):
+                yield [f]
+
+        batches = _iter_batches()
+    else:
+        batches = _make_batches(list(test_files), batch_size)
+
+    _mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
+    _inject_shard_select = _mask[:2] == "00"
+
+    for batch in batches:
+        is_multi_file_batch = len(batch) > 1
+
+        # ----------------------------------------------------------------
+        # MULTI-FILE BATCH: one subprocess, shared Kit session
+        # ----------------------------------------------------------------
+        if is_multi_file_batch:
+            # Compute a combined timeout: sum of per-file timeouts.
+            batch_has_cameras = any("enable_cameras=True" in _safe_read(f) for f in batch)
+            total_timeout = sum(
+                test_settings.PER_TEST_TIMEOUTS.get(os.path.basename(f), test_settings.DEFAULT_TIMEOUT) for f in batch
+            )
+            # Cold-cache buffer applies to the first camera batch.
+            is_first_camera_batch = batch_has_cameras and not cold_cache_applied
+            if is_first_camera_batch:
+                total_timeout += COLD_CACHE_BUFFER
+                cold_cache_applied = True
+                print(
+                    f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer to camera batch (timeout now {total_timeout}s)"
+                )
+            elif batch_has_cameras:
+                cold_cache_applied = True
+
+            extra = COLD_CACHE_BUFFER if is_first_camera_batch else 0
+            startup_deadline = min(total_timeout, STARTUP_DEADLINE + extra)
+
+            env = os.environ.copy()
+            env["PYTHONFAULTHANDLER"] = "1"
+            if _inject_shard_select:
+                _plugin_dir = os.path.join(workspace_root, ".github", "actions", "multi-gpu")
+                env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
+
+            batch_xml_reports, batch_file_statuses, batch_failed = _run_batch(
+                batch,
+                workspace_root=workspace_root,
+                ci_marker=ci_marker,
+                timeout=total_timeout,
+                startup_deadline=startup_deadline,
+                env=env,
+                inject_shard_select=_inject_shard_select,
+                global_k_expr=global_k_expr,
+                test_node_ids_by_file=test_node_ids_by_file,
+            )
+            xml_reports.extend(batch_xml_reports)
+            for test_file, status in batch_file_statuses.items():
+                test_status[test_file] = status
+            for test_file in batch_failed:
+                if test_file not in failed_tests:
+                    failed_tests.append(test_file)
+            continue
+
+        # ----------------------------------------------------------------
+        # SINGLE-FILE: existing per-file subprocess path
+        # ----------------------------------------------------------------
+        test_file = batch[0]
         print(f"\n\n🚀 Running {test_file} independently...\n")
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
@@ -879,8 +1233,6 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         # plugin and test_devices() read. The plugin re-checks this; the cheap
         # prefix test here leaves single-GPU CI's command (mask unset or "11...")
         # unchanged.
-        _mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
-        _inject_shard_select = _mask[:2] == "00"
         if _inject_shard_select:
             _plugin_dir = os.path.join(workspace_root, ".github", "actions", "multi-gpu")
             env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
