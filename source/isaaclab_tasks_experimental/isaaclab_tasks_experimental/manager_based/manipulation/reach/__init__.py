@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Reach experimental task registrations (manager-based)."""
+"""Warp MDP twins for the stable Reach tasks.
+
+There is no separate task registration: run the stable joint-position reach
+tasks (``Isaac-Reach-Franka``, ``Isaac-Reach-UR10``) with ``--frontend warp``
+and ``presets=newton_mjwarp``. The IK and OSC variants require controller
+action twins that do not exist yet.
+"""
 
 from isaaclab_experimental.envs.frontend import register_mdp_route
 

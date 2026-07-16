@@ -3,44 +3,31 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+"""Warp variants of the stable H1 flat velocity task configuration."""
 
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from .rough_env_cfg import H1RoughEnvCfg
+from isaaclab_tasks.core.velocity.config.h1.flat_env_cfg import H1FlatEnvCfg as _StableH1FlatEnvCfg
+from isaaclab_tasks.core.velocity.config.h1.flat_env_cfg import H1FlatEnvCfg_PLAY as _StableH1FlatEnvCfg_PLAY
+
+from isaaclab_tasks_experimental.manager_based.locomotion.velocity import (
+    disable_unsupported_randomization_events,
+)
 
 
 @configclass
-class H1FlatEnvCfg(H1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=65,
-                nconmax=15,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+class H1FlatEnvCfg(_StableH1FlatEnvCfg):
+    """Stable flat cfg with the randomization events lacking warp twins disabled."""
 
     def __post_init__(self):
         super().__post_init__()
-        self.scene.terrain.terrain_type = "plane"
-        self.scene.terrain.terrain_generator = None
-        self.curriculum.terrain_levels = None
-        self.rewards.feet_air_time.weight = 1.0
-        self.rewards.feet_air_time.params["threshold"] = 0.6
+        disable_unsupported_randomization_events(self)
 
 
-class H1FlatEnvCfg_PLAY(H1FlatEnvCfg):
-    def __post_init__(self) -> None:
+@configclass
+class H1FlatEnvCfg_PLAY(_StableH1FlatEnvCfg_PLAY):
+    """Play variant of :class:`H1FlatEnvCfg` for the warp runtime."""
+
+    def __post_init__(self):
         super().__post_init__()
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        self.observations.policy.enable_corruption = False
-        self.events.base_external_force_torque = None
-        self.events.push_robot = None
+        disable_unsupported_randomization_events(self)

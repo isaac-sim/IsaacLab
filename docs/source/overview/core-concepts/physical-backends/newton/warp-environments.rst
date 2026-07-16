@@ -37,32 +37,40 @@ Direct Warp Environments
 - ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
 
 
-Manager-Based Warp Environments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Manager-Based Warp Execution (``--frontend warp``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Classic**
+Manager-based tasks do not need a parallel warp registration: the shared RL
+CLI exposes ``--frontend {torch,warp}``, and ``--frontend warp`` adapts the
+*stable* task configuration onto the warp runtime at build time (swapping each
+MDP term for its warp twin). Select the Newton solver explicitly with
+``presets=newton_mjwarp``. Stable tasks with full twin coverage:
 
-- ``Isaac-Cartpole-Warp-v0``
-- ``Isaac-Ant-Warp-v0``
-- ``Isaac-Humanoid-Warp-v0``
+- ``Isaac-Cartpole``
+- ``Isaac-Ant``
+- ``Isaac-Humanoid``
+- ``Isaac-Reach-Franka``
+- ``Isaac-Reach-UR10``
 
-**Locomotion (Flat)**
+A missing twin is a hard error listing the affected terms, so a partially
+covered task fails at build time rather than silently changing behavior.
+
+**Locomotion (Flat) — registered warp variants**
+
+The velocity tasks still register ``*-Warp-v0`` variants because their stable
+configurations contain randomization events without warp twins yet; the
+variants reuse the stable flat configurations and only disable those events.
+They also require ``presets=newton_mjwarp``.
 
 - ``Isaac-Velocity-Flat-AnymalB-Warp-v0``
 - ``Isaac-Velocity-Flat-AnymalC-Warp-v0``
 - ``Isaac-Velocity-Flat-AnymalD-Warp-v0``
 - ``Isaac-Velocity-Flat-Cassie-Warp-v0``
 - ``Isaac-Velocity-Flat-G1-Warp-v0``
-- ``Isaac-Velocity-Flat-G1-Warp-v1``
 - ``Isaac-Velocity-Flat-H1-Warp-v0``
 - ``Isaac-Velocity-Flat-UnitreeA1-Warp-v0``
 - ``Isaac-Velocity-Flat-UnitreeGo1-Warp-v0``
 - ``Isaac-Velocity-Flat-UnitreeGo2-Warp-v0``
-
-**Manipulation**
-
-- ``Isaac-Reach-Franka-Warp-v0``
-- ``Isaac-Reach-UR10-Warp-v0``
 
 
 Quick Start
@@ -74,9 +82,13 @@ Quick Start
     ./isaaclab.sh train --rl_library rsl_rl \
         --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
 
-    # Manager-based workflow
+    # Manager-based workflow: stable task on the warp runtime
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
+        --task Isaac-Cartpole --frontend warp presets=newton_mjwarp --num_envs 4096
+
+    # Manager-based workflow: registered warp variant
+    ./isaaclab.sh train --rl_library rsl_rl \
+        --task Isaac-Velocity-Flat-AnymalD-Warp-v0 presets=newton_mjwarp --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.

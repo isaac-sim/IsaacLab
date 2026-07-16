@@ -3,44 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+"""Warp variants of the stable Unitree Go1 flat velocity task configuration."""
 
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from .rough_env_cfg import UnitreeGo1RoughEnvCfg
+from isaaclab_tasks.contrib.velocity.config.go1.flat_env_cfg import UnitreeGo1FlatEnvCfg as _StableUnitreeGo1FlatEnvCfg
+from isaaclab_tasks.contrib.velocity.config.go1.flat_env_cfg import (
+    UnitreeGo1FlatEnvCfg_PLAY as _StableUnitreeGo1FlatEnvCfg_PLAY,
+)
+
+from isaaclab_tasks_experimental.manager_based.locomotion.velocity import (
+    disable_unsupported_randomization_events,
+)
 
 
 @configclass
-class UnitreeGo1FlatEnvCfg(UnitreeGo1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=60,
-                nconmax=25,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+class UnitreeGo1FlatEnvCfg(_StableUnitreeGo1FlatEnvCfg):
+    """Stable flat cfg with the randomization events lacking warp twins disabled."""
 
     def __post_init__(self):
         super().__post_init__()
-        self.rewards.flat_orientation_l2.weight = -2.5
-        self.rewards.feet_air_time.weight = 0.25
-        self.scene.terrain.terrain_type = "plane"
-        self.scene.terrain.terrain_generator = None
-        self.curriculum.terrain_levels = None
+        disable_unsupported_randomization_events(self)
 
 
-class UnitreeGo1FlatEnvCfg_PLAY(UnitreeGo1FlatEnvCfg):
-    def __post_init__(self) -> None:
+@configclass
+class UnitreeGo1FlatEnvCfg_PLAY(_StableUnitreeGo1FlatEnvCfg_PLAY):
+    """Play variant of :class:`UnitreeGo1FlatEnvCfg` for the warp runtime."""
+
+    def __post_init__(self):
         super().__post_init__()
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        self.observations.policy.enable_corruption = False
-        self.events.base_external_force_torque = None
-        self.events.push_robot = None
+        disable_unsupported_randomization_events(self)

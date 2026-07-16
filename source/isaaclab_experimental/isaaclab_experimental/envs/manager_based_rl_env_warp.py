@@ -93,6 +93,14 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             render_mode: The render mode for the environment. Defaults to None, which
                 is similar to ``"human"``.
         """
+        # Adapt the cfg for the warp managers (Newton physics check, SceneEntityCfg
+        # promotion, MDP twin swap). Idempotent: a warp-native cfg passes through
+        # unchanged, and a stable-derived cfg (``--frontend=warp`` or a registered
+        # warp task variant subclassing a stable cfg) is adapted in place.
+        from isaaclab_experimental.envs.frontend import adapt_cfg_for_warp
+
+        adapt_cfg_for_warp(cfg)
+
         # -- counter for curriculum
         self.common_step_counter = 0
 

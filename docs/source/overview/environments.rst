@@ -880,11 +880,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Ant-Warp-v0
-      -
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
     * - IsaacContrib-Assemble-Trocar-G129-Dex3
       - IsaacContrib-Assemble-Trocar-G129-Dex3-Eval
       - Manager Based
@@ -940,11 +935,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - **skrl** (PPO, BOX_BOX, BOX_DISCRETE, BOX_MULTIDISCRETE, DICT_BOX, DICT_DISCRETE, DICT_MULTIDISCRETE, DISCRETE_BOX, DISCRETE_DISCRETE, DISCRETE_MULTIDISCRETE, MULTIDISCRETE_BOX, MULTIDISCRETE_DISCRETE, MULTIDISCRETE_MULTIDISCRETE, TUPLE_BOX, TUPLE_DISCRETE, TUPLE_MULTIDISCRETE)
       - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **presets=** ``box_box``, ``box_discrete``, ``box_multidiscrete``, ``dict_box``, ``dict_discrete``, ``dict_multidiscrete``, ``discrete_box``, ``discrete_discrete``, ``discrete_multidiscrete``, ``multidiscrete_box``, ``multidiscrete_discrete``, ``multidiscrete_multidiscrete``, ``tuple_box``, ``tuple_discrete``, ``tuple_multidiscrete``
-    * - Isaac-Cartpole-Warp-v0
-      -
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
     * - IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference
       -
       - Manager Based
@@ -1059,11 +1049,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
-    * - Isaac-Humanoid-Warp-v0
-      -
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
     * - Isaac-Lift-Cloth-Franka
       -
@@ -1231,11 +1216,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Reach-Franka-Warp-v0
-      - Isaac-Reach-Franka-Warp-Play-v0
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - IsaacContrib-Reach-OpenArm
       - IsaacContrib-Reach-OpenArm-Play
       - Manager Based

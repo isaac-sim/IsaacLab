@@ -3,12 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Coverage tests for manager-based Warp task configuration adaptation.
+"""Coverage tests for warp task configuration adaptation.
 
-For each registered manager-based Warp task, load its environment configuration,
-force Newton physics, and run :func:`adapt_cfg_for_warp` — the same adaptation the
-Warp environment runs in its ``__init__``. A dedicated stable Cartpole case also
-guards the stable-to-experimental module routing used by ``--frontend warp``.
+Two sweeps, both running :func:`adapt_cfg_for_warp` — the same adaptation
+:class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` runs in its
+``__init__``:
+
+* Every *stable* task id with declared warp twin coverage: resolve the
+  ``newton_mjwarp`` preset and adapt the stable cfg, exactly what
+  ``--frontend warp`` does.
+* Every registered manager-based ``*-Warp-v0`` variant (velocity deltas whose
+  stable cfgs still contain terms without warp twins): load its env cfg,
+  resolve presets, and adapt.
+
+A dedicated stable Cartpole case also guards the stable-to-experimental
+module routing used by ``--frontend warp``.
 """
 
 from __future__ import annotations
@@ -19,15 +28,31 @@ import gymnasium as gym
 import isaaclab_tasks_experimental  # noqa: F401
 import pytest
 from isaaclab_experimental.envs.frontend import adapt_cfg_for_warp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import NewtonCfg
 
 # Registering the task packages is the whole point — import for side effects.
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils.hydra import resolve_presets
+
+# Stable task ids whose MDP terms are fully twinned: ``--frontend warp`` adapts
+# their cfgs directly, with no parallel ``*-Warp-v0`` registration. Extend this
+# list when a new task family gains full twin coverage.
+_STABLE_TASKS_WITH_WARP_COVERAGE = [
+    "Isaac-Ant",
+    "Isaac-Cartpole",
+    "Isaac-Humanoid",
+    "Isaac-Reach-Franka",
+    "Isaac-Reach-Franka-Play",
+    "Isaac-Reach-UR10",
+    "Isaac-Reach-UR10-Play",
+]
 
 # Manager-based warp tasks are exactly those whose entry point is the shared warp
 # env class; direct ``*-Direct-Warp-v0`` tasks register their own env class and
 # are not cfg-adapted, so they are excluded here.
 _MANAGER_WARP_ENTRY_POINT = "isaaclab_experimental.envs:ManagerBasedRLEnvWarp"
+
+_WARP_ROOTS = ("isaaclab_experimental", "isaaclab_tasks_experimental")
 
 
 def _manager_warp_tasks() -> list[tuple[str, str]]:
@@ -42,36 +67,50 @@ def _manager_warp_tasks() -> list[tuple[str, str]]:
     return sorted(tasks)
 
 
-def _instantiate_cfg(cfg_entry_point: str):
-    """Import ``module:Class`` and instantiate the stable env cfg."""
+def _load_adapted_cfg(cfg_entry_point: str):
+    """Instantiate an env cfg, resolve the Newton preset, and adapt it for warp."""
     module_path, class_name = cfg_entry_point.split(":")
-    return getattr(importlib.import_module(module_path), class_name)()
+    cfg = getattr(importlib.import_module(module_path), class_name)()
+    cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+    assert isinstance(cfg.sim.physics, NewtonCfg), "task does not provide a newton_mjwarp physics preset"
+    # Raises FrontendIncompatibleError if any warp-managed term lacks a warp twin.
+    adapt_cfg_for_warp(cfg)
+    return cfg
+
+
+def _cfg_entry_point(task_id: str) -> str:
+    cfg_entry = (gym.spec(task_id).kwargs or {}).get("env_cfg_entry_point")
+    assert isinstance(cfg_entry, str), f"{task_id}: no env_cfg_entry_point"
+    return cfg_entry
 
 
 _MANAGER_WARP_TASKS = _manager_warp_tasks()
 
 
-def _params():
-    return [pytest.param(task_id, cfg_entry_point, id=task_id) for task_id, cfg_entry_point in _MANAGER_WARP_TASKS]
-
-
 def test_manager_warp_tasks_are_registered():
-    """Sanity: the package actually registered manager-based warp tasks."""
-    assert _MANAGER_WARP_TASKS, "no manager-based '*-Warp-v0' tasks registered"
+    """Sanity: every expected velocity warp task variant is registered."""
+    expected = {
+        f"Isaac-Velocity-Flat-{robot}-Warp{suffix}-v0"
+        for robot in ("AnymalB", "AnymalC", "AnymalD", "Cassie", "G1", "H1", "UnitreeA1", "UnitreeGo1", "UnitreeGo2")
+        for suffix in ("", "-Play")
+    }
+    registered = {task_id for task_id, _ in _MANAGER_WARP_TASKS}
+    assert registered == expected, f"missing: {sorted(expected - registered)}; extra: {sorted(registered - expected)}"
 
 
-_WARP_ROOTS = ("isaaclab_experimental", "isaaclab_tasks_experimental")
+@pytest.mark.parametrize("task_id", _STABLE_TASKS_WITH_WARP_COVERAGE, ids=_STABLE_TASKS_WITH_WARP_COVERAGE)
+def test_stable_task_cfg_adapts_to_warp(task_id: str):
+    """Each covered stable task adapts without a missing twin (the --frontend warp path)."""
+    _load_adapted_cfg(_cfg_entry_point(task_id))
 
 
-@pytest.mark.parametrize("task_id, cfg_entry_point", _params())
-def test_registered_cfg_adapts_to_warp(task_id: str, cfg_entry_point: str):
-    """Each registered manager-based Warp cfg adapts without a missing twin."""
-    cfg = _instantiate_cfg(cfg_entry_point)
-    # The warp env requires Newton physics (normally via ``presets=newton_mjwarp``);
-    # set it directly so the test does not depend on Hydra preset resolution.
-    cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
-    # Raises FrontendIncompatibleError if any warp-managed term lacks a warp twin.
-    adapt_cfg_for_warp(cfg)
+@pytest.mark.parametrize(
+    "task_id, cfg_entry_point",
+    [pytest.param(task_id, cfg_entry, id=task_id) for task_id, cfg_entry in _MANAGER_WARP_TASKS],
+)
+def test_registered_warp_variant_cfg_adapts(task_id: str, cfg_entry_point: str):
+    """Each registered ``*-Warp-v0`` variant cfg adapts without a missing twin."""
+    cfg = _load_adapted_cfg(cfg_entry_point)
 
     # Action terms carry a ``class_type`` (not a ``func``) and live on a base that
     # is not a ManagerTermBaseCfg; guard that the adapter still swaps them to the
@@ -91,12 +130,7 @@ def test_stable_cartpole_cfg_adapts_to_current_warp_module_layout():
     """The stable Cartpole cfg resolves task-specific twins in the current package layout."""
     from isaaclab_experimental.managers.action_manager import ActionTerm
 
-    from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
-
-    cfg = CartpoleEnvCfg()
-    cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
-
-    adapt_cfg_for_warp(cfg)
+    cfg = _load_adapted_cfg(_cfg_entry_point("Isaac-Cartpole"))
 
     assert cfg.rewards.pole_pos.func.__module__.startswith(
         "isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp"

@@ -172,12 +172,11 @@ def build(
         return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
 
     # Imported lazily so that ``--frontend=torch`` callers don't pay the
-    # ``isaaclab_experimental.envs`` import cost. Registered ``*-Warp-v0`` tasks
-    # already provide Warp-native configs; the frontend path adapts stable configs
-    # immediately before constructing the Warp environment.
+    # ``isaaclab_experimental.envs`` import cost. The env adapts the cfg itself
+    # in ``__init__`` (see :func:`adapt_cfg_for_warp`), so stable cfgs and
+    # warp-native cfgs take the same path.
     from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
 
-    adapt_cfg_for_warp(env_cfg)
     return ManagerBasedRLEnvWarp(cfg=env_cfg, **construct_kwargs)
 
 

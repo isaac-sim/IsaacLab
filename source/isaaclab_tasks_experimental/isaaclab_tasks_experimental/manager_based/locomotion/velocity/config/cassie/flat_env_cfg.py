@@ -3,43 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+"""Warp variants of the stable Cassie flat velocity task configuration."""
 
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from .rough_env_cfg import CassieRoughEnvCfg
+from isaaclab_tasks.core.velocity.config.cassie.flat_env_cfg import CassieFlatEnvCfg as _StableCassieFlatEnvCfg
+from isaaclab_tasks.core.velocity.config.cassie.flat_env_cfg import (
+    CassieFlatEnvCfg_PLAY as _StableCassieFlatEnvCfg_PLAY,
+)
+
+from isaaclab_tasks_experimental.manager_based.locomotion.velocity import (
+    disable_unsupported_randomization_events,
+)
 
 
 @configclass
-class CassieFlatEnvCfg(CassieRoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=52,
-                nconmax=15,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+class CassieFlatEnvCfg(_StableCassieFlatEnvCfg):
+    """Stable flat cfg with the randomization events lacking warp twins disabled."""
 
     def __post_init__(self):
         super().__post_init__()
-        self.rewards.flat_orientation_l2.weight = -2.5
-        self.rewards.feet_air_time.weight = 5.0
-        self.rewards.joint_deviation_hip.params["asset_cfg"].joint_names = ["hip_rotation_.*"]
-        self.scene.terrain.terrain_type = "plane"
-        self.scene.terrain.terrain_generator = None
-        self.curriculum.terrain_levels = None
+        disable_unsupported_randomization_events(self)
 
 
-class CassieFlatEnvCfg_PLAY(CassieFlatEnvCfg):
-    def __post_init__(self) -> None:
+@configclass
+class CassieFlatEnvCfg_PLAY(_StableCassieFlatEnvCfg_PLAY):
+    """Play variant of :class:`CassieFlatEnvCfg` for the warp runtime."""
+
+    def __post_init__(self):
         super().__post_init__()
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        self.observations.policy.enable_corruption = False
+        disable_unsupported_randomization_events(self)

@@ -3,56 +3,31 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_experimental.managers import SceneEntityCfg
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+"""Warp variants of the stable G1 flat velocity task configuration."""
 
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from .rough_env_cfg import G1RoughEnvCfg
+from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg as _StableG1FlatEnvCfg
+from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg_PLAY as _StableG1FlatEnvCfg_PLAY
+
+from isaaclab_tasks_experimental.manager_based.locomotion.velocity import (
+    disable_unsupported_randomization_events,
+)
 
 
 @configclass
-class G1FlatEnvCfg(G1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=95,
-                nconmax=10,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+class G1FlatEnvCfg(_StableG1FlatEnvCfg):
+    """Stable flat cfg with the randomization events lacking warp twins disabled."""
 
     def __post_init__(self):
         super().__post_init__()
-        self.scene.terrain.terrain_type = "plane"
-        self.scene.terrain.terrain_generator = None
-        self.curriculum.terrain_levels = None
-        self.rewards.track_ang_vel_z_exp.weight = 1.0
-        self.rewards.lin_vel_z_l2.weight = -0.2
-        self.rewards.action_rate_l2.weight = -0.005
-        self.rewards.dof_acc_l2.weight = -1.0e-7
-        self.rewards.feet_air_time.weight = 0.75
-        self.rewards.feet_air_time.params["threshold"] = 0.4
-        self.rewards.dof_torques_l2.weight = -2.0e-6
-        self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=[".*_hip_.*", ".*_knee_joint"]
-        )
-        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+        disable_unsupported_randomization_events(self)
 
 
-class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
-    def __post_init__(self) -> None:
+@configclass
+class G1FlatEnvCfg_PLAY(_StableG1FlatEnvCfg_PLAY):
+    """Play variant of :class:`G1FlatEnvCfg` for the warp runtime."""
+
+    def __post_init__(self):
         super().__post_init__()
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        self.observations.policy.enable_corruption = False
-        self.events.base_external_force_torque = None
-        self.events.push_robot = None
+        disable_unsupported_randomization_events(self)

@@ -168,28 +168,24 @@ def test_workflow_values():
 # ======================================================================
 
 
-def test_warp_manager_build_adapts_cfg_before_construction():
+def test_warp_manager_build_constructs_warp_env_with_cfg():
+    # Cfg adaptation happens inside ManagerBasedRLEnvWarp.__init__, so build()
+    # only selects the env class and forwards the cfg and construct kwargs.
     import isaaclab_experimental.envs as envs
 
     cfg = object.__new__(ManagerBasedRLEnvCfg)
     expected_env = object()
-    calls: list[tuple[str, Any]] = []
-
-    def fake_adapt(received_cfg: Any) -> None:
-        calls.append(("adapt", received_cfg))
+    calls: list[tuple[Any, Any]] = []
 
     def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
-        calls.append(("construct", cfg))
+        calls.append((cfg, kwargs))
         return expected_env
 
-    with (
-        patch.object(fe, "adapt_cfg_for_warp", fake_adapt),
-        patch.object(envs, "ManagerBasedRLEnvWarp", fake_env),
-    ):
-        env = build("warp", cfg, "Isaac-Test")
+    with patch.object(envs, "ManagerBasedRLEnvWarp", fake_env):
+        env = build("warp", cfg, "Isaac-Test", render_mode="rgb_array")
 
     assert env is expected_env
-    assert calls == [("adapt", cfg), ("construct", cfg)]
+    assert calls == [(cfg, {"render_mode": "rgb_array"})]
 
 
 # ======================================================================

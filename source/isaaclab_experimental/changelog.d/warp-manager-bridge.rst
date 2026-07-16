@@ -8,6 +8,15 @@ Added
   :meth:`isaaclab_experimental.managers.SceneEntityCfg.from_stable` used by
   ``--frontend=warp`` to adapt stable cfgs onto the warp runtime.
 
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` to adapt
+  its configuration in ``__init__`` via
+  :func:`~isaaclab_experimental.envs.frontend.adapt_cfg_for_warp`, so
+  registered warp task variants can derive from stable configurations instead
+  of duplicating them.
+
 Fixed
 ^^^^^
 
