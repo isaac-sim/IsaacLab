@@ -5,7 +5,10 @@
 
 """Shared helpers for rendering correctness tests."""
 
+import logging
 import os
+import re
+import tempfile
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -20,8 +23,13 @@ from isaaclab.utils.warp import ProxyArray
 if TYPE_CHECKING:
     from isaaclab.sensors.camera import CameraData
 
+logger = logging.getLogger(__name__)
+
 # Directory containing golden images.
 _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
+
+# Directory containing golden USD stage files.
+_GOLDEN_STAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_stages")
 
 # Pixel L2 norm difference threshold. L2 norm difference is the Euclidean distance between two pixels:
 #
@@ -192,19 +200,182 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 
-def maybe_save_stage(test_name: str, physics_backend: str, renderer: str, data_type: str) -> None:
-    """If ``ISAAC_LAB_SAVE_STAGES`` is set, dump the current USD stage to that directory."""
+# Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
+# components with translations in metres, so a small absolute floor plus a relative term absorbs
+# per-platform / per-Kit-build float noise while still catching real pose changes.
+_STAGE_TRANSFORM_RTOL = 1e-4
+_STAGE_TRANSFORM_ATOL = 1e-5
+
+# Cap on the number of reported stage differences so a large regression stays readable.
+_MAX_STAGE_DIFF_LINES = 80
+
+
+def extract_stage_structure_and_transforms(usd_path: str) -> tuple[dict[str, str], dict[str, np.ndarray]]:
+    """Open a USD stage and return its prim structure and per-prim world transforms.
+
+    Args:
+        usd_path: Path to a ``.usda``/``.usd`` file to open and compose.
+
+    Returns:
+        A ``(structure, transforms)`` pair. ``structure`` maps every prim path to its type name.
+        ``transforms`` maps each :class:`~pxr.UsdGeom.Xformable` prim path to its 4x4 local-to-world
+        transform as a ``float64`` array.
+    """
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+    stage = Usd.Stage.Open(usd_path)
+    if stage is None:
+        raise RuntimeError(f"Failed to open USD stage at {usd_path}.")
+
+    structure: dict[str, str] = {}
+    transforms: dict[str, np.ndarray] = {}
+    xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+    for prim in stage.Traverse():
+        path = str(prim.GetPath())
+        structure[path] = str(prim.GetTypeName())
+        if UsdGeom.Xformable(prim):
+            matrix = xform_cache.GetLocalToWorldTransform(prim)
+            transforms[path] = np.array([[matrix[row][col] for col in range(4)] for row in range(4)], dtype=np.float64)
+    return structure, transforms
+
+
+def compare_golden_stage(golden_path: str, result_path: str) -> list[str]:
+    """Compare two USD stages by prim structure (exact) and world transforms (``allclose``).
+
+    Prim structure — the set of prim paths and their type names — must match exactly. Transforms of
+    prims present in both stages are compared with :func:`numpy.allclose` so per-platform float noise
+    does not trip the comparison. Returns a list of human-readable difference descriptions (empty
+    when the stages match).
+    """
+    golden_structure, golden_transforms = extract_stage_structure_and_transforms(golden_path)
+    result_structure, result_transforms = extract_stage_structure_and_transforms(result_path)
+
+    problems: list[str] = []
+    golden_paths, result_paths = set(golden_structure), set(result_structure)
+    for path in sorted(result_paths - golden_paths):
+        problems.append(f"+ added prim {path} ({result_structure[path]})")
+    for path in sorted(golden_paths - result_paths):
+        problems.append(f"- removed prim {path} ({golden_structure[path]})")
+    for path in sorted(golden_paths & result_paths):
+        if golden_structure[path] != result_structure[path]:
+            problems.append(f"~ type changed {path}: {golden_structure[path]} -> {result_structure[path]}")
+
+    for path in sorted(set(golden_transforms) & set(result_transforms)):
+        golden_matrix, result_matrix = golden_transforms[path], result_transforms[path]
+        if not np.allclose(golden_matrix, result_matrix, rtol=_STAGE_TRANSFORM_RTOL, atol=_STAGE_TRANSFORM_ATOL):
+            max_diff = float(np.max(np.abs(golden_matrix - result_matrix)))
+            problems.append(f"~ transform {path}: max abs diff {max_diff:.3e} exceeds tolerance")
+
+    return problems
+
+
+def _sanitize_golden_stage_text(text: str) -> str:
+    """Strip machine-specific provenance from a flattened golden so it commits reproducibly.
+
+    Blanks the volatile ``doc`` provenance block (which embeds the generating host's temp path) and
+    masks absolute filesystem asset paths left in material/texture attributes. Neither is consulted
+    by the structure/transform comparison, so masking keeps the committed baseline free of local,
+    host-specific paths without affecting correctness. Portable asset tokens (e.g. ``@OmniPBR.mdl@``)
+    have no leading drive/slash and are left untouched.
+    """
+    text = re.sub(r'doc = """.*?"""', 'doc = """"""', text, flags=re.DOTALL)
+    text = re.sub(r"@(?:[A-Za-z]:)?[\\/][^@\n]*@", "@<MASKED_ASSET_PATH>@", text)
+    # Ensure a single trailing newline so regeneration stays clean under the end-of-file hook.
+    return text.rstrip("\n") + "\n"
+
+
+def maybe_save_stage(
+    test_name: str,
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    *,
+    compare_golden: bool = False,
+) -> None:
+    """Dump the current USD stage and optionally compare it against a golden USDA file.
+
+    When ``ISAAC_LAB_SAVE_STAGES`` is set, the stage is written to that directory. When
+    ``compare_golden`` is True, the exported stage is validated against
+    ``golden_stages/<test_name>/<physics_backend>-<renderer>-<data_type>.usda`` by opening both
+    stages and comparing prim structure exactly and world transforms with :func:`numpy.allclose`
+    (see :func:`compare_golden_stage`). A missing baseline is bootstrapped and the test fails.
+    """
     out_dir = os.environ.get("ISAAC_LAB_SAVE_STAGES")
-    if not out_dir:
+    if not out_dir and not compare_golden:
         return
 
     import isaaclab.sim as sim_utils
 
-    os.makedirs(out_dir, exist_ok=True)
     safe_test_name = test_name.replace("/", "_")
-    stage_path = os.path.join(out_dir, f"{safe_test_name}-{physics_backend}-{renderer}-{data_type}.usda")
-    sim_utils.save_stage(stage_path, save_and_reload_in_place=False)
-    print(f"[ISAAC_LAB_SAVE_STAGES] wrote {stage_path}")
+    stage_basename = f"{safe_test_name}-{physics_backend}-{renderer}-{data_type}.usda"
+
+    with tempfile.NamedTemporaryFile(suffix=".usda", delete=False) as tmp_file:
+        stage_path = tmp_file.name
+
+    try:
+        if not sim_utils.save_stage(stage_path, save_and_reload_in_place=False):
+            pytest.fail(f"save_stage reported failure while writing the USD stage to {stage_path}.")
+        with open(stage_path, encoding="utf-8") as file:
+            stage_text = file.read()
+
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, stage_basename)
+            with open(out_path, "w", encoding="utf-8") as file:
+                file.write(stage_text)
+            logger.info("[ISAAC_LAB_SAVE_STAGES] wrote %s", out_path)
+
+        if compare_golden:
+            golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, safe_test_name)
+            os.makedirs(golden_dir, exist_ok=True)
+            golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
+
+            from pxr import Usd  # noqa: PLC0415
+
+            # Open and flatten the saved stage once. Flattening inlines sublayer references so
+            # the golden carries no external paths and both the bootstrap export and the
+            # comparison work from the same flattened representation — even when save_stage
+            # writes a root layer with sublayer references. Opening the export (not the live Kit
+            # stage) also keeps volatile session render prims (OmniverseKit cameras, Replicator
+            # SDG pipeline, post-process) out of the baseline.
+            opened_stage = Usd.Stage.Open(stage_path)
+            if opened_stage is None:
+                pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
+            flat_layer = opened_stage.Flatten()
+
+            if not os.path.exists(golden_path):
+                if not flat_layer.Export(golden_path):
+                    pytest.fail(f"Failed to export the flattened golden baseline to {golden_path}.")
+                # Strip host-specific provenance/paths so the committed baseline is reproducible.
+                with open(golden_path, encoding="utf-8") as file:
+                    golden_text = file.read()
+                with open(golden_path, "w", encoding="utf-8", newline="\n") as file:
+                    file.write(_sanitize_golden_stage_text(golden_text))
+                pytest.fail(f"Golden stage not found at {golden_path}. A new baseline was written.")
+
+            # Write the flattened result to a temp file so both sides of the comparison use
+            # the same representation as the bootstrap wrote for the golden.
+            with tempfile.NamedTemporaryFile(suffix=".usda", delete=False) as flat_tmp:
+                flat_stage_path = flat_tmp.name
+            try:
+                if not flat_layer.Export(flat_stage_path):
+                    pytest.fail("Failed to write flattened result stage for comparison.")
+                problems = compare_golden_stage(golden_path, flat_stage_path)
+            finally:
+                if os.path.exists(flat_stage_path):
+                    os.unlink(flat_stage_path)
+
+            if problems:
+                diff_summary = "\n".join(problems[:_MAX_STAGE_DIFF_LINES])
+                if len(problems) > _MAX_STAGE_DIFF_LINES:
+                    diff_summary += f"\n... ({len(problems) - _MAX_STAGE_DIFF_LINES} more differences)"
+                pytest.fail(
+                    f"{test_name} (physics={physics_backend}, renderer={renderer}, data_type={data_type}) "
+                    f"USD stage mismatch:\n{diff_summary}"
+                )
+    finally:
+        if os.path.exists(stage_path):
+            os.unlink(stage_path)
 
 
 def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
@@ -1025,6 +1196,8 @@ def rendering_test_cartpole(
     renderer: str,
     data_type: str,
     comparison_scores: list[dict],
+    *,
+    compare_golden: bool = False,
 ) -> None:
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
@@ -1118,7 +1291,13 @@ def rendering_test_cartpole(
                 env.sim.render()
                 env.scene.update(dt=env.physics_dt)
                 camera_outputs = env._tiled_camera.data.output
-        maybe_save_stage("cartpole", physics_backend, renderer, data_type)
+        maybe_save_stage(
+            "cartpole",
+            physics_backend,
+            renderer,
+            data_type,
+            compare_golden=compare_golden and data_type == "rgb",
+        )
         validate_camera_outputs(
             "cartpole",
             physics_backend,
