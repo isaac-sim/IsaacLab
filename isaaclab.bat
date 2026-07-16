@@ -49,15 +49,10 @@ rem omni.usd.libs\pxr\ is a namespace package (no __init__.py), but Python
 rem prefers a regular package (with __init__.py) over a namespace package
 rem regardless of sys.path order.  Write a minimal __init__.py to promote it
 rem to a regular package so the PYTHONPATH prepend actually takes effect.
-set "_ov_usd_libs_dir="
-"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py" > "%TEMP%\ov_usd_libs.tmp" 2>nul
-set /p _ov_usd_libs_dir=<"%TEMP%\ov_usd_libs.tmp"
-del "%TEMP%\ov_usd_libs.tmp" >nul 2>&1
-if defined _ov_usd_libs_dir (
-    set "PYTHONPATH=!_ov_usd_libs_dir!;!PYTHONPATH!"
-    set "PATH=!_ov_usd_libs_dir!\bin;!PATH!"
+for /f "delims=" %%d in ('"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py" 2^>nul') do (
+    set "PYTHONPATH=%%d;!PYTHONPATH!"
+    set "PATH=%%d\bin;!PATH!"
 )
-set "_ov_usd_libs_dir="
 
 rem Execute CLI.
 "%python_exe%" -c "from isaaclab.cli import cli; cli()" %*
