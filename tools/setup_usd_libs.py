@@ -10,6 +10,7 @@ Called by isaaclab.sh / isaaclab.bat before launching the CLI so that the
 shell can prepend the path to PYTHONPATH / LD_LIBRARY_PATH / PATH.
 """
 
+import contextlib
 import glob
 import os
 
@@ -22,8 +23,6 @@ else:
     pxr_dir = os.path.join(usd_libs_dir, "pxr")
     init_py = os.path.join(pxr_dir, "__init__.py")
     if os.path.isdir(pxr_dir) and not os.path.isfile(init_py):
-        try:
+        with contextlib.suppress(OSError):
             open(init_py, "w").close()
-        except OSError:
-            pass
     print(usd_libs_dir, end="")
