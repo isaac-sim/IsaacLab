@@ -1515,8 +1515,6 @@ def rendering_test_franka_soft(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
 
-    env_cfg.scene.num_envs = 4
-
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
