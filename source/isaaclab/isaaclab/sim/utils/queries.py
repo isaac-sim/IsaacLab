@@ -12,7 +12,6 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from isaaclab.cloner.cloner_utils import resolve_clone_plan_source
 from isaaclab.sim.simulation_context import SimulationContext
 
 from .stage import get_current_stage
@@ -418,6 +417,8 @@ def resolve_matching_prims_from_source(
         RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
     plan = SimulationContext.instance().get_clone_plan()
+    from isaaclab.cloner.cloner_utils import resolve_clone_plan_source  # noqa: PLC0415
+
     resolved = resolve_clone_plan_source(path_expr, plan) if plan is not None else None
     if resolved is not None:
         source_path, dest_glob, asset_suffix = resolved
@@ -562,3 +563,20 @@ def find_global_fixed_joint_prim(
                 break
 
     return fixed_joint_prim
+
+
+def has_deformable_body_api(prim: Usd.Prim) -> bool:
+    """Check whether a deformable body API schema is applied on the prim.
+
+    Uses :meth:`Usd.PrimTypeInfo.GetAppliedAPISchemas` so that token-authored schemas
+    (e.g. Newton's unregistered ``PhysicsDeformableBodyAPI``) are detected in addition
+    to registered applied schemas.
+
+    Args:
+        prim: The USD prim to check.
+
+    Returns:
+        True if ``OmniPhysicsDeformableBodyAPI`` or ``PhysicsDeformableBodyAPI`` is applied.
+    """
+    applied_schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+    return "OmniPhysicsDeformableBodyAPI" in applied_schemas or "PhysicsDeformableBodyAPI" in applied_schemas

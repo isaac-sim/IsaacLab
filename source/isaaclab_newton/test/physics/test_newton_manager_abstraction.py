@@ -426,6 +426,70 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     assert NewtonManager._graph_capture_pending is False
 
 
+def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
+    """CUDA graph capture should use the simulation device instead of Warp's default device."""
+    from isaaclab.physics import PhysicsManager
+
+    captured_devices = []
+    captured_graph = object()
+
+    class FakeScopedCapture:
+        def __init__(self, device=None):
+            captured_devices.append(device)
+            self.graph = captured_graph
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
+    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
+    monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
+
+    NewtonManager._capture_or_defer_graph()
+
+    assert captured_devices == ["cuda:1"]
+    assert NewtonManager._graph is captured_graph
+
+
+# ---------------------------------------------------------------------------
+# Manager state-refresh boundaries (no SimulationContext required)
+# ---------------------------------------------------------------------------
+
+
+def test_forward_consumes_existing_reset_masks(monkeypatch):
+    """The existing device masks are the complete input to masked FK and the solver reset hook."""
+    world_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
+    fk_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
+    observed: list[tuple[list[bool], list[bool]]] = []
+    solver_resets: list[list[bool]] = []
+
+    def record_fk(worlds, articulations):
+        observed.append((worlds.numpy().tolist(), articulations.numpy().tolist()))
+
+    class _RecordingSolver:
+        def reset(self, state, world_mask=None, flags=0):
+            solver_resets.append(world_mask.numpy().tolist())
+
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
+
+    NewtonManager.forward()
+
+    assert observed == [([False, True], [True, False])]
+    assert solver_resets == [[False, True]]
+    assert world_mask.numpy().tolist() == [False, False]
+    assert fk_mask.numpy().tolist() == [False, False]
+
+
 # ---------------------------------------------------------------------------
 # Manager class hierarchy and factory contracts
 # ---------------------------------------------------------------------------

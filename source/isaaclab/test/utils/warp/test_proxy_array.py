@@ -11,6 +11,8 @@ import pytest
 import torch
 import warp as wp
 
+pytestmark = pytest.mark.unit
+
 wp.config.quiet = True
 wp.init()
 

@@ -29,6 +29,8 @@ from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def sim():

@@ -148,7 +148,7 @@ The active preset is selected at launch via ``physics=``, ``renderer=``, or ``pr
    python train.py task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
    # Use OVRTX renderer
-   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx
 
    # Use default (Isaac RTX)
    python train.py task=Isaac-Cartpole-Camera-Direct
@@ -224,11 +224,11 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
    * - ``distance_to_camera``
      - ✅
      - ✅
-     - ❌
+     - ✅
    * - ``distance_to_image_plane``
      - ✅
      - ✅
-     - ❌
+     - ✅
    * - ``depth``
      - ✅
      - ✅
@@ -239,7 +239,7 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ✅
    * - ``motion_vectors``
      - ✅
-     - ❌
+     - ✅
      - ❌
    * - ``semantic_segmentation``
      - ✅

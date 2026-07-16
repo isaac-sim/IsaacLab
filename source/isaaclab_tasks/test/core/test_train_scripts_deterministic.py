@@ -43,7 +43,7 @@ def _module_string_constant(tree: ast.AST, name: str) -> str:
 
 
 def _source_skrl_min_version() -> Version:
-    with (REPO_ROOT / "source/isaaclab_rl/pyproject.toml").open("rb") as f:
+    with (REPO_ROOT / "pyproject.toml").open("rb") as f:
         data = tomllib.load(f)
 
     for dependency in data["project"]["optional-dependencies"]["skrl"]:
@@ -58,7 +58,7 @@ def _source_skrl_min_version() -> Version:
         if lower_bounds:
             return max(lower_bounds)
 
-    raise AssertionError("Could not find skrl lower bound in source/isaaclab_rl/pyproject.toml")
+    raise AssertionError("Could not find skrl lower bound in pyproject.toml")
 
 
 def _called_name(call: ast.Call) -> str | None:

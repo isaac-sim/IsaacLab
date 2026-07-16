@@ -14,8 +14,8 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
     # Usage with GUI
     ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --enable_cameras --viz kit
 
-    # Usage with headless
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --headless --enable_cameras
+    # Usage with no visualizer
+    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --enable_cameras
 
 """
 

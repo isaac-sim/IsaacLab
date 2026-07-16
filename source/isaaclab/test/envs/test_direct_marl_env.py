@@ -24,6 +24,8 @@ from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
+pytestmark = pytest.mark.integration
+
 
 @configclass
 class EmptySceneCfg(InteractiveSceneCfg):

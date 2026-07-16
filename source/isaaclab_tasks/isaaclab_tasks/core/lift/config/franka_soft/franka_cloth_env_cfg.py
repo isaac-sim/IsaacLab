@@ -67,7 +67,7 @@ class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
 
     newton_mjwarp_vbd: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="/World/envs/env_.*/Deformable",
+        prim_path="{ENV_REGEX_NS}/Deformable",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
@@ -95,9 +95,7 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
 
     deformable: DeformableCfg = DeformableCfg()
 
-    # static collidable cubes the cloth drops onto (sits on the table top at z = 0).
-    # Modeled as a static asset (no rigid body / no DOFs) so adding it does not
-    # extend the Newton model's joint state.
+    # Static collidable cube the cloth drops onto (sits on the table top at z = 0).
     cube: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.45, 0.0, 0.04)),

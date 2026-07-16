@@ -19,13 +19,16 @@ DEVICE = "cuda:0"
 
 
 def _color_hash(seed: int) -> int:
-    h = seed
+    # MurmurHash3-style 32-bit finalizer with wraparound, matching color_hash in ovrtx_renderer_kernels
+    # and omni.replicator's randomColoursCPU. The 32-bit truncation (0xFFFFFFFF masks) is load-bearing.
+    mask = 0xFFFFFFFF
+    h = seed & mask
     h ^= h >> 16
-    h *= 0x85EBCA6B
+    h = (h * 0x85EBCA6B) & mask
     h ^= h >> 13
-    h *= 0xC2B2AE35
+    h = (h * 0xC2B2AE35) & mask
     h ^= h >> 16
-    return h
+    return h & mask
 
 
 def _random_colours_id(input_id: int) -> tuple[int, int, int, int]:
@@ -156,6 +159,61 @@ def _reference_extract_all_rgb_float_tiles(
                 out[env_idx, y, x, 1] = tiled_np[src_y, src_x, 1]
                 out[env_idx, y, x, 2] = tiled_np[src_y, src_x, 2]
     return out
+
+
+def _reference_extract_all_motion_vector_tiles(
+    tiled_np: np.ndarray,
+    num_envs: int,
+    num_cols: int,
+    tile_width: int,
+    tile_height: int,
+) -> np.ndarray:
+    """NumPy reference for the motion-vector case of ``extract_all_tiles_kernel``."""
+    out = np.zeros((num_envs, tile_height, tile_width, 2), dtype=np.float32)
+    for env_idx in range(num_envs):
+        tile_x = env_idx % num_cols
+        tile_y = env_idx // num_cols
+        for y in range(tile_height):
+            for x in range(tile_width):
+                src_y = tile_y * tile_height + y
+                src_x = tile_x * tile_width + x
+                out[env_idx, y, x, 0] = tiled_np[src_y, src_x, 0]
+                out[env_idx, y, x, 1] = tiled_np[src_y, src_x, 1]
+    return out
+
+
+class TestExtractAllMotionVectorTilesKernel:
+    """Tests for the motion-vector case of ``extract_all_tiles_kernel`` used by OVRTX TargetMotionSD."""
+
+    def test_two_by_two_tile_grid_drops_extra_channels(self):
+        """The kernel reads only the first two channels, even if the source buffer has more (e.g. 4)."""
+        num_cols = 2
+        num_envs = 4
+        tile_width = 2
+        tile_height = 3
+        tiled_h = (num_envs // num_cols) * tile_height
+        tiled_w = num_cols * tile_width
+        tiled_np = np.zeros((tiled_h, tiled_w, 4), dtype=np.float32)
+        for h in range(tiled_h):
+            for w in range(tiled_w):
+                tiled_np[h, w, 0] = float(h * 1000 + w)
+                tiled_np[h, w, 1] = float(h * 1000 + w + 100)
+                tiled_np[h, w, 2] = float(h * 1000 + w + 200)
+                tiled_np[h, w, 3] = float(h * 1000 + w + 300)
+
+        tiled_wp = wp.array(tiled_np, dtype=wp.float32, ndim=3, device=DEVICE)
+        output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 2), dtype=wp.float32, device=DEVICE)
+
+        wp.launch(
+            kernel=extract_all_tiles_kernel,
+            dim=(num_envs, tile_height, tile_width),
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        expected = _reference_extract_all_motion_vector_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
+        np.testing.assert_allclose(output_wp.numpy(), expected, rtol=0, atol=0)
 
 
 class TestExtractAllDepthTilesKernel:

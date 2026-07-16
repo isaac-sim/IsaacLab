@@ -16,17 +16,21 @@ simulation_app = AppLauncher(headless=True).app
 
 from dataclasses import MISSING
 from enum import Enum
+from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 from flaky import flaky
+from isaaclab_physx.sensors.contact_sensor import contact_sensor as contact_sensor_module
+from isaaclab_physx.sensors.contact_sensor.contact_sensor import ContactSensor as PhysxContactSensor
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
+from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
@@ -222,6 +226,146 @@ def setup_simulation():
     devices = ["cuda:0", "cpu"]
     settings = get_settings_manager()
     return sim_dt, durations, terrains, devices, settings
+
+
+def _make_graph_test_sensor(device: str = "cuda:0") -> PhysxContactSensor:
+    """Create a minimal contact sensor for graph unit tests without a USD scene."""
+    sensor = PhysxContactSensor.__new__(PhysxContactSensor)
+    sensor.cfg = SimpleNamespace(prim_path="/World/Sensor")
+    sensor._device = device
+    sensor._use_graph = True
+    sensor._compute_graph = None
+    sensor._initialize_handle = None
+    sensor._invalidate_initialize_handle = None
+    sensor._prim_deletion_handle = None
+    sensor._resolve_indices_and_mask = lambda env_ids, mask: mask
+    sensor._fetch_physx_buffers = lambda: None
+    return sensor
+
+
+def test_cuda_graph_capture_launches_first_update_without_eager_compute():
+    """The initial graph capture should execute the update through one graph launch."""
+    device = "cuda:0"
+    env_mask = wp.ones(1, dtype=wp.bool, device=device)
+    source = wp.ones(1, dtype=wp.int32, device=device)
+    destination = wp.zeros(1, dtype=wp.int32, device=device)
+    sensor = _make_graph_test_sensor()
+
+    compute_call_count = 0
+
+    def compute() -> None:
+        nonlocal compute_call_count
+        compute_call_count += 1
+        wp.copy(destination, source)
+
+    sensor._compute = compute
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(device)
+
+    assert compute_call_count == 1
+    assert destination.numpy().tolist() == [1]
+
+    source.fill_(2)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(device)
+
+    assert compute_call_count == 1
+    assert destination.numpy().tolist() == [2]
+
+
+def test_contact_sensor_refuses_update_inside_outer_graph_capture():
+    """Updating the sensor during an outer capture should raise before touching PhysX."""
+    device = "cuda:0"
+    env_mask = wp.ones(1, dtype=wp.bool, device=device)
+    source = wp.ones(1, dtype=wp.int32, device=device)
+    destination = wp.zeros(1, dtype=wp.int32, device=device)
+    sensor = _make_graph_test_sensor()
+
+    fetch_call_count = 0
+
+    def fetch() -> None:
+        nonlocal fetch_call_count
+        fetch_call_count += 1
+
+    sensor._fetch_physx_buffers = fetch
+
+    with wp.ScopedCapture(device=wp.get_device(device)):
+        with pytest.raises(RuntimeError, match="CUDA graph capture"):
+            sensor._update_buffers_impl(env_mask)
+        # record something so the outer capture does not end empty
+        wp.copy(destination, source)
+
+    assert sensor._compute_graph is None
+    assert fetch_call_count == 0
+
+
+def test_contact_sensor_falls_back_when_graph_capture_fails(monkeypatch):
+    """A capture failure should disable graphs and still produce data eagerly."""
+    device = "cuda:0"
+    env_mask = wp.ones(1, dtype=wp.bool, device=device)
+    source = wp.ones(1, dtype=wp.int32, device=device)
+    destination = wp.zeros(1, dtype=wp.int32, device=device)
+    sensor = _make_graph_test_sensor()
+
+    compute_call_count = 0
+
+    def compute() -> None:
+        nonlocal compute_call_count
+        compute_call_count += 1
+        wp.copy(destination, source)
+
+    sensor._compute = compute
+
+    class _FailingCapture:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            raise RuntimeError("capture unavailable")
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(contact_sensor_module.wp, "ScopedCapture", _FailingCapture)
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(device)
+
+    assert sensor._use_graph is False
+    assert sensor._compute_graph is None
+    assert compute_call_count == 1
+    assert destination.numpy().tolist() == [1]
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(device)
+
+    assert compute_call_count == 2
+
+
+def test_contact_sensor_invalidation_drops_cached_graph_state(monkeypatch):
+    """Invalidation should clear the captured graph and every cached warp view."""
+    sensor = _make_graph_test_sensor()
+    monkeypatch.setattr(BaseContactSensor, "_invalidate_initialize_callback", lambda self, event: None)
+
+    cached_attrs = [
+        "_body_physx_view",
+        "_contact_view",
+        "_compute_graph",
+        "_net_forces_flat",
+        "_force_matrix_flat",
+        "_poses_flat",
+        "_contact_points_flat",
+        "_friction_forces_flat",
+        "_friction_counts",
+        "_friction_start_indices",
+    ]
+    for attr in cached_attrs:
+        setattr(sensor, attr, object())
+
+    sensor._invalidate_initialize_callback(None)
+
+    for attr in cached_attrs:
+        assert getattr(sensor, attr) is None, attr
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
@@ -428,6 +572,60 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
             "Contact sensor returned stale pre-reset data after scene.reset(): "
             f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
         )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize(
+    ("history_length", "update_period_steps", "expected_fetches", "expected_last_update"),
+    [(0, 1, 0, 0.0), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
+)
+def test_contact_history_updates_at_sensor_period(
+    setup_simulation, device, history_length, update_period_steps, expected_fetches, expected_last_update
+):
+    """History-bearing sensors update at their period even when the scene is lazy."""
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", False)
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=True)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            update_period=update_period_steps * sim_dt,
+            track_air_time=True,
+            history_length=history_length,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        contact_sensor: ContactSensor = scene["contact_sensor"]
+        fetch_count = 0
+        original_fetch = contact_sensor._fetch_physx_buffers
+
+        def count_fetches() -> None:
+            nonlocal fetch_count
+            fetch_count += 1
+            original_fetch()
+
+        contact_sensor._fetch_physx_buffers = count_fetches
+
+        for _ in range(4):
+            _perform_sim_step(sim, scene, sim_dt)
+
+        assert fetch_count == expected_fetches
+        last_update = wp.to_torch(contact_sensor._timestamp_last_update).item()
+        assert last_update == pytest.approx(expected_last_update)
+
+        _ = contact_sensor.data
+        expected_fetches_after_read = 1 if history_length == 0 else expected_fetches
+        assert fetch_count == expected_fetches_after_read
+        air_time = contact_sensor.data.current_air_time.torch.item()
+        expected_air_time = 4 * sim_dt if history_length == 0 else expected_last_update
+        assert air_time == pytest.approx(expected_air_time)
+        _ = contact_sensor.data
+        assert fetch_count == expected_fetches_after_read
 
 
 @pytest.mark.isaacsim_ci

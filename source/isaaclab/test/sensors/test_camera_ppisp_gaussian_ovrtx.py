@@ -63,6 +63,8 @@ from generate_synthetic_gaussian_asset import (
 
 from isaaclab.sim import SimulationCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 # OVRTX renderer + Newton physics are required (kit-less + non-PhysX). Use a
 # collection-time skip marker instead of module-level ``importorskip`` so CI's
 # per-file runner does not see pytest's "no tests collected" exit code.

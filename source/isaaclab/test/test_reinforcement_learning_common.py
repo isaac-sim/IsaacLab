@@ -39,6 +39,7 @@ CaptureEnvSensors: Any = getattr(_rl_common, "CaptureEnvSensors")
 add_common_train_args: Any = getattr(_rl_common, "add_common_train_args")
 create_isaaclab_env: Any = getattr(_rl_common, "create_isaaclab_env")
 enable_cameras_for_video: Any = getattr(_rl_common, "enable_cameras_for_video")
+dispatch_library_entrypoint: Any = getattr(_rl_common, "dispatch_library_entrypoint")
 wrap_sensor_capture: Any = getattr(_rl_common, "wrap_sensor_capture")
 
 
@@ -261,3 +262,20 @@ def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.Mon
 
     assert env is expected_env
     assert calls == [("warp", env_cfg, "Isaac-Test", {"render_mode": "rgb_array"})]
+
+
+def test_dispatch_library_entrypoint_shows_help_without_library(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The unified dispatcher shows its help before requiring a library selection."""
+    result = dispatch_library_entrypoint(
+        ["--help"],
+        {"rsl_rl": tmp_path / "bench_rsl_rl.py"},
+        action="bench",
+        description="Benchmark training.",
+        library_help="Training library to benchmark.",
+    )
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert "--rl_library {rsl_rl}" in output
