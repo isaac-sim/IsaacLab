@@ -11,6 +11,8 @@ Added
 Changed
 ^^^^^^^
 
+* :attr:`~isaaclab.visualizers.VisualizerCfg.enable_live_plots` now defaults to ``True`` so
+  live plots are active without requiring explicit opt-in.
 * :meth:`~isaaclab.envs.ManagerBasedEnv.setup_manager_visualizers` now calls
   :meth:`~isaaclab.visualizers.BaseVisualizer.add_live_plots` on all active visualizers and is
   invoked unconditionally (previously only when ``sim.has_gui`` was ``True``), so standalone

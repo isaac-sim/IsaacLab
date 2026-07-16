@@ -122,6 +122,7 @@ class NewtonViewerViser(ViewerViser):
             )
         self._metadata = metadata or {}
         self._isaaclab_plane_grid_cache: dict[str, tuple] = {}
+        self._per_plot_folders: dict[str, Any] = {}
 
     @property
     def share_url(self) -> str | None:
@@ -129,11 +130,17 @@ class NewtonViewerViser(ViewerViser):
         return self._share_url
 
     def clear_model(self) -> None:
-        """Clear cached static plane-grid signatures with the viewer model."""
+        """Clear cached state and remove per-plot GUI folders with the viewer model."""
         cache = getattr(self, "_isaaclab_plane_grid_cache", None)
         if cache is not None:
             cache.clear()
-        return super().clear_model()
+        super().clear_model()
+        per_plot_folders = getattr(self, "_per_plot_folders", None)
+        if per_plot_folders:
+            for folder in list(per_plot_folders.values()):
+                with contextlib.suppress(Exception):
+                    folder.remove()
+            per_plot_folders.clear()
 
     @staticmethod
     def _array_signature(array) -> tuple[tuple[int, ...], bytes] | None:
@@ -200,6 +207,49 @@ class NewtonViewerViser(ViewerViser):
             hidden,
         )
 
+    def _update_scalar_plots(self) -> None:
+        """Create one collapsible folder per scalar signal, named after the term it shows."""
+        # Relies on private ViewerViser attributes (_plot_history_size, _scalar_buffers,
+        # _scalar_dirty, _plot_handles, _plot_folder) to mirror the base implementation
+        # with per-term folders instead of a shared "Plots" folder.  If Newton refactors
+        # these internals, this override should be updated or removed.
+        if not self._scalar_dirty:
+            return
+        try:
+            from viser import uplot
+
+            n = self._plot_history_size
+            x = np.arange(n, dtype=np.float64)
+            for name in list(self._scalar_dirty):
+                buf = self._scalar_buffers.get(name)
+                if buf is None:
+                    continue
+                y = np.full(n, np.nan, dtype=np.float64)
+                y[n - len(buf) :] = np.array(buf, dtype=np.float64)
+                handle = self._plot_handles.get(name)
+                if handle is None:
+                    folder_label = name.rsplit("/", 1)[-1]
+                    folder = self._server.gui.add_folder(folder_label)
+                    self._per_plot_folders[name] = folder
+                    if self._plot_folder is None:
+                        self._plot_folder = folder
+                    with folder:
+                        handle = self._server.gui.add_uplot(
+                            data=(x, y),
+                            series=(
+                                uplot.Series(label="step"),
+                                uplot.Series(label=folder_label, stroke="#3b82f6", width=2),
+                            ),
+                            scales={"x": uplot.Scale(time=False)},
+                            aspect=2.0,
+                        )
+                    self._plot_handles[name] = handle
+                else:
+                    handle.data = (x, y)
+        except Exception:
+            pass
+        self._scalar_dirty.clear()
+
 
 class ViserVisualizer(BaseVisualizer):
     """Viser web-based visualizer backed by Newton's ViewerViser."""
@@ -221,6 +271,7 @@ class ViserVisualizer(BaseVisualizer):
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
         self._warned_marker_render_failure = False
+        self._live_plots_checkboxes: dict[str, Any] = {}  # unused; kept for subclass compatibility
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -342,8 +393,27 @@ class ViserVisualizer(BaseVisualizer):
         """Viser backend supports live plots via :meth:`newton.Viewer.log_scalar` (uPlot sidebar charts)."""
         return True
 
+    def add_live_plots(
+        self,
+        managers: dict,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting.
+
+        Calls the base implementation to populate :attr:`_live_plot_sources`.  Checkboxes are
+        created lazily on the first :meth:`_render_live_plots` call so each checkbox appears
+        immediately above its plot charts in the Viser sidebar.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, term_names=term_names, env_idx=env_idx)
+
     def _render_live_plots(self) -> None:
-        """Push manager-term scalars to the Viser viewer's built-in plot sidebar."""
+        """Push manager-term scalars to the Viser viewer's per-term plot folders."""
         if self._viewer is None or not self._live_plot_sources:
             return
         for source in self._live_plot_sources:

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import os
@@ -370,6 +371,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
+        self._live_plots_manager_visible: dict[str, bool] = {}
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -790,11 +792,51 @@ class NewtonVisualizer(BaseVisualizer):
         """Newton OpenGL viewer supports live plots via :meth:`newton.Viewer.log_scalar`."""
         return True
 
+    def add_live_plots(
+        self,
+        managers: dict,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting and add per-manager sidebar toggles.
+
+        Calls the base implementation to populate :attr:`_live_plot_sources`, then registers
+        one checkbox per manager in the Newton viewer sidebar under a ``Live Plots`` heading.
+        Each manager's plots are shown by default and can be hidden by unchecking the
+        corresponding box.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, term_names=term_names, env_idx=env_idx)
+        if not self._live_plot_sources or self._viewer is None:
+            return
+        self._live_plots_manager_visible = {source.manager_name: True for source in self._live_plot_sources}
+        with contextlib.suppress(AttributeError, TypeError):
+            self._viewer.register_ui_callback(self._live_plots_panel_imgui, position="panel")
+
+    def _live_plots_panel_imgui(self, imgui) -> None:
+        """Render a Live Plots collapsing section with per-manager toggle checkboxes."""
+        if not self._live_plots_manager_visible:
+            return
+        imgui.set_next_item_open(True, imgui.Cond_.appearing)
+        if imgui.collapsing_header("Live Plots"):
+            imgui.separator()
+            for manager_name in list(self._live_plots_manager_visible):
+                visible = self._live_plots_manager_visible[manager_name]
+                changed, new_val = imgui.checkbox(manager_name, visible)
+                if changed:
+                    self._live_plots_manager_visible[manager_name] = new_val
+
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to the Newton viewer's built-in plot panel."""
         if self._viewer is None or not self._live_plot_sources:
             return
         for source in self._live_plot_sources:
+            if not self._live_plots_manager_visible.get(source.manager_name, True):
+                continue
             for term_name, values in source.collect(self._live_plot_env_idx).items():
                 if len(values) == 1:
                     self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])

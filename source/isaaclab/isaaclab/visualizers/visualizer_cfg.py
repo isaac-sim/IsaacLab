@@ -90,7 +90,7 @@ class VisualizerCfg:
     """Enable visualization markers (debug drawing)."""
 
     # Live Plots
-    enable_live_plots: bool = False
+    enable_live_plots: bool = True
     """Enable live plotting of manager terms (actions, observations) in the visualizer.
 
     When ``True``, manager-based environments wire their action and observation managers

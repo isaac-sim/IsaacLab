@@ -133,9 +133,15 @@ class NewtonViewerRerun(ViewerRerun):
         self._paused_rendering = False
 
     def _get_blueprint(self):
-        """Return a per-manager blueprint when live plots are registered, else the default."""
+        """Return a per-manager blueprint when live plots are registered, else the default.
+
+        Each per-manager :class:`~rerun.blueprint.TimeSeriesView` is visible by default.
+        Individual views can be toggled from the Rerun viewer's blueprint panel.
+        """
         if self._live_plot_manager_names:
-            manager_views = [rrb.TimeSeriesView(name=name, origin=f"/{name}") for name in self._live_plot_manager_names]
+            manager_views = [
+                rrb.TimeSeriesView(name=name, origin=f"/{name}", visible=True) for name in self._live_plot_manager_names
+            ]
             return rrb.Blueprint(
                 rrb.Horizontal(
                     rrb.Spatial3DView(),

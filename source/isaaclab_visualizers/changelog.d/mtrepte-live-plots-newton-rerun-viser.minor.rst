@@ -12,3 +12,17 @@ Added
   :class:`~isaaclab_visualizers.kit.KitVisualizer`, which creates
   :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` instances for the omni.ui panel path
   while also populating the general :attr:`_live_plot_sources` list.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonVisualizer` now renders live plots in a dedicated
+  ``Live Plots`` collapsing-header section (previously a sub-label inside ``IsaacLab Options``);
+  plots are visible by default and can be toggled per manager.
+* :class:`~isaaclab_visualizers.rerun.RerunVisualizer` now shows per-manager
+  :class:`~rerun.blueprint.TimeSeriesView` panels as visible by default (was hidden, causing a
+  blank white panel).
+* :class:`~isaaclab_visualizers.viser.ViserVisualizer` now renders each scalar as its own
+  collapsible folder named after the term, replacing the single shared ``Plots`` folder.  The
+  viser server label is now ``Live Plots`` (was ``Isaac Lab Simulation``) and non-functional
+  per-manager checkboxes have been removed.
