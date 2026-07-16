@@ -155,9 +155,9 @@ def sim():
     )
     d_ratio_set = torch.tensor(
         [
-            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-            [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
-            [0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+            [2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+            [2.2, 2.2, 2.2, 2.2, 2.2, 2.2],
+            [1.8, 1.8, 1.8, 1.8, 1.8, 1.8],
         ],
         device=sim.device,
     )
@@ -533,7 +533,6 @@ def test_franka_pose_abs_variable_impedance(sim):
         goal_marker,
         contact_forces,
         frame,
-        position_tolerance=0.13,
     )
 
 
