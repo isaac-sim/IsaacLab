@@ -21,8 +21,9 @@ else:
     usd_libs_dir = candidates[-1]
     pxr_dir = os.path.join(usd_libs_dir, "pxr")
     init_py = os.path.join(pxr_dir, "__init__.py")
-    try:
-        open(init_py, "w").close()
-    except OSError as exc:
-        raise RuntimeError(f"Failed to promote {pxr_dir!r} to a regular pxr package") from exc
+    if os.path.isdir(pxr_dir) and not os.path.isfile(init_py):
+        try:
+            open(init_py, "w").close()
+        except OSError as exc:
+            raise RuntimeError(f"Failed to promote {pxr_dir!r} to a regular pxr package") from exc
     print(usd_libs_dir, end="")

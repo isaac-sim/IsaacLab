@@ -49,7 +49,7 @@ rem omni.usd.libs\pxr\ is a namespace package (no __init__.py), but Python
 rem prefers a regular package (with __init__.py) over a namespace package
 rem regardless of sys.path order.  Write a minimal __init__.py to promote it
 rem to a regular package so the PYTHONPATH prepend actually takes effect.
-for /f "delims=" %%d in ('"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py" 2^>nul') do (
+for /f "delims=" %%d in ('"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py"') do (
     set "PYTHONPATH=%%d;!PYTHONPATH!"
     set "PATH=%%d\bin;!PATH!"
 )
