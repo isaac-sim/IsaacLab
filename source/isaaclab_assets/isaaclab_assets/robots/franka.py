@@ -17,7 +17,7 @@ Reference: https://github.com/frankaemika/franka_ros
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -25,14 +25,14 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=5.0,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            fix_root_link=True,
+            fix_root_link=None,
             enabled_self_collisions=True,
             solver_position_iteration_count=8,
             solver_velocity_iteration_count=0,
@@ -57,14 +57,12 @@ FRANKA_PANDA_CFG = ArticulationCfg(
             effort_limit_sim=87.0,
             stiffness=80.0,
             damping=4.0,
-            armature=1e-3,
         ),
         "panda_forearm": ImplicitActuatorCfg(
             joint_names_expr=["panda_joint[5-7]"],
             effort_limit_sim=12.0,
             stiffness=80.0,
             damping=4.0,
-            armature=1e-3,
         ),
         "panda_hand": ImplicitActuatorCfg(
             joint_names_expr=["panda_finger_joint.*"],

@@ -19,6 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab.utils.math import (  # isort:skip
     compute_pose_error,
@@ -84,6 +85,7 @@ def test_franka_ik_pose_abs(sim):
 
     # Create robot instance
     robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller
@@ -99,7 +101,6 @@ def test_franka_ik_pose_abs(sim):
         sim_context,
         num_envs,
         ee_pose_b_des_set,
-        num_steps_per_goal=300,
     )
 
 
@@ -115,7 +116,6 @@ def test_ur10_ik_pose_abs(sim):
     # Create IK controller
     diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
     diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim_context.device)
-
     # Run the controller and check that it converges to the goal
     _run_ik_controller(robot, diff_ik_controller, "ee_link", [".*"], sim_context, num_envs, ee_pose_b_des_set)
 

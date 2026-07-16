@@ -146,7 +146,15 @@ def sim():
         ],
         device=sim.device,
     )
-    kp_set = torch.tensor(
+    pose_kp_set = torch.tensor(
+        [
+            [500.0, 500.0, 500.0, 500.0, 500.0, 500.0],
+            [600.0, 600.0, 600.0, 600.0, 600.0, 600.0],
+            [400.0, 400.0, 400.0, 400.0, 400.0, 400.0],
+        ],
+        device=sim.device,
+    )
+    hybrid_kp_set = torch.tensor(
         [
             [200.0, 200.0, 200.0, 200.0, 200.0, 200.0],
             [240.0, 240.0, 240.0, 240.0, 240.0, 240.0],
@@ -200,13 +208,13 @@ def sim():
     # Define goals for the arm [force_xyz + torque_xyz]
     target_abs_wrench_set = ee_goal_abs_wrench_set_b.clone()
     # Define goals for the arm [xyz + quat_xyzw] and variable kp [kp_xyz + kp_rot_xyz]
-    target_abs_pose_variable_kp_set = torch.cat([target_abs_pose_set_b, kp_set], dim=-1)
+    target_abs_pose_variable_kp_set = torch.cat([target_abs_pose_set_b, pose_kp_set], dim=-1)
     # Define goals for the arm [xyz + quat_xyzw] and the variable imp. [kp_xyz + kp_rot_xyz + d_xyz + d_rot_xyz]
-    target_abs_pose_variable_set = torch.cat([target_abs_pose_set_b, kp_set, d_ratio_set], dim=-1)
+    target_abs_pose_variable_set = torch.cat([target_abs_pose_set_b, pose_kp_set, d_ratio_set], dim=-1)
     # Define goals for the arm pose [xyz + quat_xyzw] and wrench [force_xyz + torque_xyz]
     target_hybrid_set_b = ee_goal_hybrid_set_b.clone()
     # Define goals for the arm pose, and wrench, and kp
-    target_hybrid_variable_kp_set = torch.cat([target_hybrid_set_b, kp_set], dim=-1)
+    target_hybrid_variable_kp_set = torch.cat([target_hybrid_set_b, hybrid_kp_set], dim=-1)
     # Define goals for the arm pose [xyz + quat_xyzw] in root and and wrench [force_xyz + torque_xyz] in task frame
     target_hybrid_set_tilted = torch.cat([ee_goal_pose_set_tilted_b, ee_goal_wrench_set_tilted_task], dim=-1)
 
@@ -310,7 +318,6 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
         frame,
     ) = sim
 
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -318,7 +325,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=True,
         gravity_compensation=False,
-        motion_stiffness_task=1000.0,
+        motion_stiffness_task=[1000.0, 1000.0, 1000.0, 1100.0, 1100.0, 1100.0],
         motion_damping_ratio_task=1.0,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
@@ -362,7 +369,6 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
     ) = sim
 
     robot_cfg.spawn.rigid_props.disable_gravity = False
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -413,7 +419,6 @@ def test_franka_pose_abs(sim):
         frame,
     ) = sim
 
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -464,7 +469,6 @@ def test_franka_pose_rel(sim):
         frame,
     ) = sim
 
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_rel"],
@@ -472,7 +476,7 @@ def test_franka_pose_rel(sim):
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=False,
         gravity_compensation=False,
-        motion_stiffness_task=500.0,
+        motion_stiffness_task=[500.0, 500.0, 500.0, 2500.0, 2500.0, 2500.0],
         motion_damping_ratio_task=1.0,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
@@ -515,7 +519,6 @@ def test_franka_pose_abs_variable_impedance(sim):
         frame,
     ) = sim
 
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -890,7 +893,6 @@ def test_franka_taskframe_pose_abs(sim):
         frame,
     ) = sim
 
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
     osc_cfg = OperationalSpaceControllerCfg(
@@ -942,7 +944,6 @@ def test_franka_taskframe_pose_rel(sim):
         frame,
     ) = sim
 
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
     osc_cfg = OperationalSpaceControllerCfg(
@@ -951,7 +952,7 @@ def test_franka_taskframe_pose_rel(sim):
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=False,
         gravity_compensation=False,
-        motion_stiffness_task=500.0,
+        motion_stiffness_task=[500.0, 500.0, 500.0, 2500.0, 2500.0, 2500.0],
         motion_damping_ratio_task=1.0,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
@@ -1122,7 +1123,6 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
         frame,
     ) = sim
 
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -1130,8 +1130,9 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=True,
         gravity_compensation=False,
-        motion_stiffness_task=1000.0,
+        motion_stiffness_task=[1000.0, 1000.0, 1000.0, 1100.0, 1100.0, 1100.0],
         motion_damping_ratio_task=1.0,
+        nullspace_stiffness=0.1,
         nullspace_control="position",
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
@@ -1174,7 +1175,6 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         frame,
     ) = sim
 
-    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
