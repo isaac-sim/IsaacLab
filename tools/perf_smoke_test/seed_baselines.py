@@ -40,8 +40,10 @@ records. Samples are pushed with :func:`baseline_manager.update_baselines_git`
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -348,6 +350,36 @@ def _prepare_seed_source(workdir: Path, seed_src_dir: Path, sha: str) -> None:
     subprocess.run(["chmod", "-R", "a+rwX", str(seed_src_dir)], check=False)
 
 
+def _prepare_jit_cache(cache_dir: Path) -> Path:
+    """Create a writable JIT cache directory for one task/backend bucket."""
+    for subdir in (cache_dir / "warp", cache_dir / "nv"):
+        subdir.mkdir(parents=True, exist_ok=True)
+    # Containers can write cache files as a different uid than the runner.
+    _run(["chmod", "-R", "0777", str(cache_dir)], check=False)
+    return cache_dir
+
+
+def _jit_cache_path(cache_root: Path, target_branch: str, commit: str, task_id: str, backend_key: str) -> Path:
+    """Return the cache shared by repeated samples of one task/backend bucket."""
+    return (
+        cache_root
+        / _safe_path_component(target_branch)
+        / commit[:8]
+        / _safe_path_component(task_id)
+        / _safe_path_component(backend_key)
+    )
+
+
+def _cleanup_jit_cache(cache_dir: Path) -> None:
+    """Remove the disposable JIT cache for one seeder invocation."""
+    if not cache_dir.exists():
+        return
+    subprocess.run(["chmod", "-R", "a+rwX", str(cache_dir)], check=False, capture_output=True, text=True)
+    shutil.rmtree(cache_dir, ignore_errors=True)
+    if cache_dir.exists():
+        print(f"::warning::[seed] Could not fully remove JIT cache {cache_dir}")
+
+
 def _docker_run_benchmark(
     *,
     image: str,
@@ -363,6 +395,9 @@ def _docker_run_benchmark(
     seed_token = f"--seed {task.seed}" if task.seed is not None else ""
     inner = (
         "set -e\n"
+        # Warp creates nested cache directories at runtime. A permissive umask
+        # keeps them writable when successive containers use different host uids.
+        "umask 000\n"
         "cd /workspace/isaaclab\n"
         "rm -f _isaac_sim\n"
         "ln -s /isaac-sim _isaac_sim\n"
@@ -589,11 +624,13 @@ def main() -> int:
     seed_src_dir = (
         Path(args.seed_src_dir).resolve() if args.seed_src_dir else Path(tempfile.gettempdir()) / "perf-seed-src"
     )
-    jit_cache = workdir / "jit-cache"
+    run_id = os.environ.get("GITHUB_RUN_ID", f"local-{os.getpid()}")
+    run_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "0")
+    jit_cache_root = workdir / "jit-cache" / "seed" / f"run-{run_id}-attempt-{run_attempt}"
+    atexit.register(_cleanup_jit_cache, jit_cache_root)
     kit_cache = workdir / "kit-cache"
-    for sub in (jit_cache / "warp", jit_cache / "nv", kit_cache):
-        sub.mkdir(parents=True, exist_ok=True)
-    _run(["chmod", "-R", "0777", str(jit_cache), str(kit_cache)], check=False)
+    kit_cache.mkdir(parents=True, exist_ok=True)
+    _run(["chmod", "-R", "0777", str(kit_cache)], check=False)
 
     plan = _build_seed_plan(args)
     plan = _filter_plan_by_ancestry(
@@ -637,6 +674,9 @@ def main() -> int:
                 prep_skips.append(f"{target_branch}/{short}")
                 continue
         for task in tasks:
+            task_jit_cache = _prepare_jit_cache(
+                _jit_cache_path(jit_cache_root, target_branch, commit, task.task_id, task.backend_key)
+            )
             for sample_idx in range(args.samples_per_commit):
                 total += 1
                 artifact_dir = (
@@ -658,7 +698,7 @@ def main() -> int:
                     image=args.image,
                     task=task,
                     artifact_dir=artifact_dir,
-                    jit_cache=jit_cache,
+                    jit_cache=task_jit_cache,
                     kit_cache=kit_cache,
                     seed_src_dir=seed_src_dir if source_mount else None,
                     container_name=container,
