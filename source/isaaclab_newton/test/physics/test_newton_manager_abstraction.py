@@ -42,6 +42,7 @@ from isaaclab_newton.physics import (
     NewtonManager,
     NewtonMJWarpManager,
     NewtonMPMManager,
+    NewtonShapeCfg,
     NewtonSolverCfg,
     NewtonXPBDManager,
     XPBDSolverCfg,
@@ -170,6 +171,22 @@ def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimat
     assert warned is should_warn
     # Cfg field round-trips regardless of warning.
     assert cfg.collision_decimation == collision_decimation
+
+
+def test_newton_shape_cfg_defaults_match_newton_shape_config():
+    """``NewtonShapeCfg`` contact defaults mirror Newton's ``ShapeConfig``.
+
+    Guards the invariant that keeps ``checked_apply`` a no-op for envs that do
+    not override ``ke``/``kd``/``mu``: if Newton's upstream defaults drift, this
+    fails instead of silently clobbering every Newton scene's shape materials.
+    """
+    import newton
+
+    upstream = newton.ModelBuilder().default_shape_cfg
+    shape_cfg = NewtonShapeCfg()
+    assert shape_cfg.ke == upstream.ke
+    assert shape_cfg.kd == upstream.kd
+    assert shape_cfg.mu == upstream.mu
 
 
 def test_mpm_solver_cfg_maps_only_newton_solver_fields():
@@ -504,12 +521,19 @@ def test_subclass_of_newton_manager(manager):
     assert issubclass(manager, NewtonManager)
     # Subclasses must override the abstract factory.
     assert manager._build_solver is not NewtonManager._build_solver
+    assert manager._create_solver is not NewtonManager._create_solver
 
 
 def test_abstract_build_solver_raises():
     """Calling :meth:`_build_solver` on the abstract base raises."""
     with pytest.raises(NotImplementedError):
         NewtonManager._build_solver(model=None, solver_cfg=NewtonSolverCfg())
+
+
+def test_abstract_create_solver_raises():
+    """Calling :meth:`_create_solver` on the base manager raises."""
+    with pytest.raises(NotImplementedError):
+        NewtonManager._create_solver(model=None, solver_cfg=NewtonSolverCfg())
 
 
 @pytest.mark.parametrize(

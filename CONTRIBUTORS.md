@@ -33,6 +33,7 @@ Guidelines for modifications:
 * James Tigue
 * Kelly (Yunrong) Guo
 * Matthew Trepte
+* Maximilian Krause
 * Mayank Mittal
 * Mike Yan Michelis
 * Mikhail Yurasov

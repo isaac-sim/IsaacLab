@@ -279,11 +279,7 @@ def _maybe_disable_instancing_for_current_stage(physics_backend: str, renderer: 
     disable_instancing = False
 
     if renderer == "isaacsim_rtx_renderer":
-        if physics_backend == "physx":
-            if data_type not in ["rgb", "albedo"]:
-                disable_instancing = True
-        elif physics_backend == "newton":
-            disable_instancing = True
+        disable_instancing = True
 
     if disable_instancing:
         from isaaclab.sim.utils.prims import get_current_stage, make_uninstanceable
@@ -320,6 +316,30 @@ def _physics_preset_name(physics_backend: str) -> str:
 def _physics_preset_name_deformable(physics_backend: str) -> str:
     """Map deformable-test physics labels to Hydra preset names."""
     return "newton_mjwarp_vbd" if physics_backend == "newton" else physics_backend
+
+
+def _skip_if_physics_preset_unsupported(env_cfg: Any, physics_preset_name: str) -> None:
+    """Skip the test when the env does not support the given physics preset.
+
+    An env cfg may intentionally support only a subset of the physics presets - newton, physx, ovphysx.
+    Rather than hard-coding the unsupported-backend list per test, this inspects the resolved
+    ``env_cfg.sim.physics`` :class:`~isaaclab_tasks.utils.PresetCfg` and skips any backend whose
+    Hydra preset name is not declared as a field.
+
+    Args:
+        env_cfg: The environment config, exposing its physics presets at ``sim.physics``.
+        physics_preset_name: The physics preset name (e.g. ``"newton_mjwarp"``).
+    """
+    from isaaclab_tasks.utils import PresetCfg
+
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    if not isinstance(physics_cfg, PresetCfg):
+        return
+
+    # Preset variants are declared as annotated fields; aliases such as ``default`` are not.
+    supported_physics_preset_names = set(getattr(type(physics_cfg), "__dataclass_fields__", {}))
+    if physics_preset_name not in supported_physics_preset_names:
+        pytest.skip(f"{type(env_cfg).__name__} does not support '{physics_preset_name}'.")
 
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
@@ -1350,20 +1370,17 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "ovphysx":
-        pytest.skip("FrankaCloth env cfg does not define an ovphysx preset yet.")
-
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
-        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_cloth (OMPE-101520).")
+        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
-    env_cfg = _apply_overrides_to_env_cfg(
-        env_cfg, [f"presets={_physics_preset_name_deformable(physics_backend)},{renderer}"]
-    )
 
-    env_cfg.scene.num_envs = 4
+    physics_preset_name = _physics_preset_name_deformable(physics_backend)
+    _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
+
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
 
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
@@ -1380,10 +1397,11 @@ def rendering_test_franka_cloth(
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
-        # After 15 steps, the cloth should have fallen down on top of the cube and deformed.
+        # We step only once to let the cloth fall uniformly on the gravity but not collide with the cube on the table.
+        # This is to limit the inconsistent nodal poses and pixels from run to run due to solver scheduling and
+        # numerical precision.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-        for _ in range(15):
-            env.step(zero_actions)
+        env.step(zero_actions)
 
         validate_camera_outputs(
             test_name,
@@ -1477,11 +1495,8 @@ def rendering_test_franka_soft(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "ovphysx":
-        pytest.skip("FrankaSoft env cfg does not define an ovphysx preset yet.")
-
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
-        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_soft (OMPE-101520).")
+        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
 
     if physics_backend == "physx" and renderer == "newton_renderer":
         pytest.skip("The test cases will be enabled after Newton Github Issue#3228 is fixed.")
@@ -1494,11 +1509,11 @@ def rendering_test_franka_soft(
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_soft_camera_env_cfg(data_type)
-    env_cfg = _apply_overrides_to_env_cfg(
-        env_cfg, [f"presets={_physics_preset_name_deformable(physics_backend)},{renderer}"]
-    )
 
-    env_cfg.scene.num_envs = 4
+    physics_preset_name = _physics_preset_name_deformable(physics_backend)
+    _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
+
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
 
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
