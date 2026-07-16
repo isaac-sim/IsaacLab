@@ -15,7 +15,7 @@ import warp as wp
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, WarpLaunchCache
 from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -61,18 +61,26 @@ class RigidObjectData(BaseRigidObjectData):
     __backend_name__: str = "newton"
     """The name of the backend for the rigid object data."""
 
-    def __init__(self, root_view: ArticulationView, device: str):
+    def __init__(
+        self,
+        root_view: ArticulationView,
+        device: str,
+        *,
+        warp_launch: WarpLaunchCache | None = None,
+    ):
         """Initializes the rigid object data.
 
         Args:
             root_view: The root rigid body view.
             device: The device used for processing.
+            warp_launch: Optional owner launcher for recorded Warp launches.
         """
         super().__init__(root_view, device)
         # Set the root rigid body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
         self._root_view: ArticulationView = weakref.proxy(root_view)
+        self._warp_launch = warp_launch if warp_launch is not None else WarpLaunchCache(mode="eager", device=device)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
@@ -280,18 +288,17 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             # read the CoM velocity and compute link velocity
-            wp.launch(
+            inputs = [
+                self.root_com_vel_w.warp,
+                self.root_link_pose_w.warp,
+                self.body_com_pos_b.warp,
+            ]
+            outputs = [self._root_link_vel_w.data]
+            self._warp_launch.launch(
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_com_vel_w.warp,
-                    self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
-                ],
-                outputs=[
-                    self._root_link_vel_w.data,
-                ],
-                device=self.device,
+                inputs=inputs,
+                outputs=outputs,
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
 
@@ -308,17 +315,13 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
-            wp.launch(
+            inputs = [self.root_link_pose_w.warp, self.body_com_pos_b.warp]
+            outputs = [self._root_com_pose_w.data]
+            self._warp_launch.launch(
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
-                ],
-                outputs=[
-                    self._root_com_pose_w.data,
-                ],
-                device=self.device,
+                inputs=inputs,
+                outputs=outputs,
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
@@ -486,12 +489,13 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            inputs = [self.GRAVITY_VEC_W.warp, self.root_link_quat_w.warp]
+            outputs = [self._projected_gravity_b.data]
+            self._warp_launch.launch(
                 shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
-                inputs=[self.GRAVITY_VEC_W.warp, self.root_link_quat_w.warp],
-                outputs=[self._projected_gravity_b.data],
-                device=self.device,
+                inputs=inputs,
+                outputs=outputs,
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
         return self._projected_gravity_b_ta
@@ -508,12 +512,13 @@ class RigidObjectData(BaseRigidObjectData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            inputs = [self.FORWARD_VEC_B.warp, self.root_link_quat_w.warp]
+            outputs = [self._heading_w.data]
+            self._warp_launch.launch(
                 shared_kernels.root_heading_w,
                 dim=self._num_instances,
-                inputs=[self.FORWARD_VEC_B.warp, self.root_link_quat_w.warp],
-                outputs=[self._heading_w.data],
-                device=self.device,
+                inputs=inputs,
+                outputs=outputs,
             )
             self._heading_w.timestamp = self._sim_timestamp
         return self._heading_w_ta
@@ -533,12 +538,13 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            inputs = [self.root_link_lin_vel_w.warp, self.root_link_quat_w.warp]
+            outputs = [self._root_link_lin_vel_b.data]
+            self._warp_launch.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_lin_vel_w.warp, self.root_link_quat_w.warp],
-                outputs=[self._root_link_lin_vel_b.data],
-                device=self.device,
+                inputs=inputs,
+                outputs=outputs,
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
         return self._root_link_lin_vel_b_ta
@@ -872,6 +878,11 @@ class RigidObjectData(BaseRigidObjectData):
         .. caution:: This is possible if and only if the properties that we access are strided from newton and not
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
+        # A full simulation reset replaces state/model pointers after the Newton
+        # graph has been destroyed. Drain recorded work, then release commands
+        # and owners recorded against the previous storage.
+        self._warp_launch.reset()
+
         # Short-hand for the number of instances, number of links, and number of joints.
         self._num_instances = self._root_view.count
         self._num_bodies = self._root_view.link_count

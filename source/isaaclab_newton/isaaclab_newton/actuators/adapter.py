@@ -26,6 +26,7 @@ import torch
 import warp as wp
 from newton.actuators import Actuator, Clamping, Delay
 
+from isaaclab.utils.warp import WarpLaunchCache
 from isaaclab.utils.warp.utils import resolve_1d_mask
 
 from .kernels import (
@@ -86,6 +87,8 @@ class NewtonActuatorAdapter:
         num_joints: int,
         dof_offset: int,
         device: str,
+        *,
+        warp_launch: WarpLaunchCache | None = None,
     ):
         self.actuators = actuators
         self.num_joints = num_joints
@@ -93,6 +96,7 @@ class NewtonActuatorAdapter:
         self._num_envs = num_envs
         self._dof_offset = dof_offset
         self._device = device
+        self._warp_launch = warp_launch if warp_launch is not None else WarpLaunchCache(mode="eager", device=device)
 
         # Collect the set of local DOFs covered by some actuator. Only the
         # env-0 slice of each actuator's flat ``indices`` array is needed —
@@ -160,10 +164,11 @@ class NewtonActuatorAdapter:
         # Zero before scatter-add (actuators accumulate into this buffer).
         self._computed_effort.zero_()
         for act in self.actuators:
-            wp.launch(
+            self._warp_launch.launch(
                 zero_at_indices_kernel,
                 dim=act.indices.shape[0],
                 inputs=[sim_control.joint_f, act.indices],
+                site=act,
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
@@ -336,6 +341,15 @@ class NewtonActuatorAdapter:
             articulation_prim_path=articulation_prim_path,
         )
         return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
+
+    def _invalidate_launch_cache(self) -> None:
+        """Release recorded launches after the owning Newton graph is destroyed.
+
+        Callers clear the Newton graph reference before invoking this method. Device
+        synchronization drains any recorded command work before retained argument
+        owners are released. Disabled caches return without synchronizing.
+        """
+        self._warp_launch.reset()
 
 
 # ---------------------------------------------------------------------------

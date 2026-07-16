@@ -36,6 +36,7 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils.warp import WarpLaunchCache
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -133,6 +134,11 @@ class Articulation(BaseArticulation):
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        physics_cfg = self._sim_cfg.physics if self._sim_cfg is not None else None
+        self._warp_launch = WarpLaunchCache(
+            mode=None if getattr(physics_cfg, "use_warp_launch_cache", False) else "eager",
+            device=sim_ctx.device if sim_ctx is not None else None,
+        )
 
     """
     Properties
@@ -366,7 +372,7 @@ class Articulation(BaseArticulation):
             # joint_effort. Under identity ordering ``_joint_backend_to_user_map``
             # returns the identity arange, so this single gather also serves the
             # no-reorder case without a dedicated per-buffer copy.
-            wp.launch(
+            self._warp_launch.launch(
                 ordering_kernels.reorder_joint_targets_user_to_backend,
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
@@ -385,7 +391,7 @@ class Articulation(BaseArticulation):
                     self.data._sim_bind_joint_velocity_target,
                     self.data._sim_bind_joint_act,
                 ],
-                device=self.device,
+                site="newton_joint_targets",
             )
         else:
             # Standard Lab actuator path
@@ -395,7 +401,7 @@ class Articulation(BaseArticulation):
             # write_joint_act is off, so it is never indexed. Under identity
             # ordering ``_joint_backend_to_user_map`` returns the identity arange,
             # so this single gather also serves the no-reorder case.
-            wp.launch(
+            self._warp_launch.launch(
                 ordering_kernels.reorder_joint_targets_user_to_backend,
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
@@ -414,7 +420,7 @@ class Articulation(BaseArticulation):
                     self.data._sim_bind_joint_velocity_target,
                     self.data._sim_bind_joint_effort,
                 ],
-                device=self.device,
+                site="lab_joint_targets",
             )
 
     def update(self, dt: float):
@@ -3418,7 +3424,7 @@ class Articulation(BaseArticulation):
         SimulationManager.get_physics_sim_view().append(self._root_view)
 
         # container for data access
-        self._data = ArticulationData(self.root_view, self.device)
+        self._data = ArticulationData(self.root_view, self.device, warp_launch=self._warp_launch)
 
         # Register callback to rebind simulation data after a full reset (model/state recreation).
         self._physics_ready_handle = SimulationManager.register_callback(
@@ -3564,6 +3570,7 @@ class Articulation(BaseArticulation):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
+        self._warp_launch.invalidate()
         # call parent
         super()._invalidate_initialize_callback(event)
         self._root_view = None
@@ -3918,33 +3925,51 @@ class Articulation(BaseArticulation):
                 joint_vel=self._data.joint_vel.torch[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
-            joint_indices = actuator.joint_indices
-            if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
+            actuator_joint_indices = actuator.joint_indices
+            is_full_joint_group = actuator_joint_indices is None or (
+                isinstance(actuator_joint_indices, slice) and actuator_joint_indices == slice(None)
+            )
+            joint_indices = actuator_joint_indices
+            if is_full_joint_group:
                 joint_indices = self._ALL_JOINT_INDICES
             if hasattr(actuator, "gear_ratio"):
                 gear_ratio = actuator.gear_ratio
             else:
                 gear_ratio = None
-            wp.launch(
-                articulation_kernels.update_targets,
-                dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=[
-                    control_action.joint_positions,
-                    control_action.joint_velocities,
-                    control_action.joint_efforts,
-                    joint_indices,
-                ],
-                outputs=[
-                    self._joint_pos_target_sim,
-                    self._joint_vel_target_sim,
-                    self._joint_effort_target_sim,
-                ],
-                device=self.device,
-            )
+            launch_dim = (self.num_instances, joint_indices.shape[0])
+            target_inputs = [
+                control_action.joint_positions,
+                control_action.joint_velocities,
+                control_action.joint_efforts,
+                joint_indices,
+            ]
+            target_outputs = [
+                self._joint_pos_target_sim,
+                self._joint_vel_target_sim,
+                self._joint_effort_target_sim,
+            ]
+            if getattr(actuator, "is_implicit_model", False) and is_full_joint_group:
+                self._warp_launch.launch(
+                    articulation_kernels.update_targets,
+                    dim=launch_dim,
+                    inputs=target_inputs,
+                    outputs=target_outputs,
+                    site=actuator,
+                )
+            else:
+                # Explicit models may replace target tensors, while partial-group
+                # indexing allocates fresh Torch tensors on every call.
+                wp.launch(
+                    articulation_kernels.update_targets,
+                    dim=launch_dim,
+                    inputs=target_inputs,
+                    outputs=target_outputs,
+                    device=self.device,
+                )
             # update state of the actuator model
             wp.launch(
                 articulation_kernels.update_actuator_state_model,
-                dim=(self.num_instances, joint_indices.shape[0]),
+                dim=launch_dim,
                 inputs=[
                     actuator.computed_effort,
                     actuator.applied_effort,
