@@ -43,7 +43,7 @@ environment class. Stable tasks with a declared warp implementation:
 Warp-native direct task with its own registration and configuration (the cube
 is modeled differently than in the stable task):
 
-- ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
+- ``Isaac-Reorient-Cube-Allegro-Direct-Warp`` — Allegro hand cube reorient
 
 
 Manager-Based Warp Execution (``--frontend warp``)
@@ -58,28 +58,14 @@ MDP term for its warp twin). Select the Newton solver explicitly with
 - ``Isaac-Cartpole``
 - ``Isaac-Ant``
 - ``Isaac-Humanoid``
-- ``Isaac-Reach-Franka``
-- ``Isaac-Reach-UR10``
+- ``Isaac-Reach-Franka``, ``Isaac-Reach-UR10``
+- ``Isaac-Velocity-Flat-AnymalD``, ``-Cassie``, ``-G1``, ``-H1``, ``-UnitreeGo2``
+  (and their ``-Play`` variants)
 
 A missing twin is a hard error listing the affected terms, so a partially
 covered task fails at build time rather than silently changing behavior.
-
-**Locomotion (Flat) — registered warp variants**
-
-The velocity tasks still register ``*-Warp-v0`` variants because their stable
-configurations contain randomization events without warp twins yet; the
-variants reuse the stable flat configurations and only disable those events.
-They also require ``presets=newton_mjwarp``.
-
-- ``Isaac-Velocity-Flat-AnymalB-Warp-v0``
-- ``Isaac-Velocity-Flat-AnymalC-Warp-v0``
-- ``Isaac-Velocity-Flat-AnymalD-Warp-v0``
-- ``Isaac-Velocity-Flat-Cassie-Warp-v0``
-- ``Isaac-Velocity-Flat-G1-Warp-v0``
-- ``Isaac-Velocity-Flat-H1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeA1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeGo1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeGo2-Warp-v0``
+Rough-terrain velocity tasks remain unsupported until
+:class:`~isaaclab.terrains.TerrainImporter` gains Warp APIs.
 
 
 Quick Start
@@ -95,9 +81,9 @@ Quick Start
     ./isaaclab.sh train --rl_library rsl_rl \
         --task Isaac-Cartpole --frontend warp presets=newton_mjwarp --num_envs 4096
 
-    # Manager-based workflow: registered warp variant
+    # Manager-based workflow: velocity task on the warp runtime
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD-Warp-v0 presets=newton_mjwarp --num_envs 4096
+        --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.

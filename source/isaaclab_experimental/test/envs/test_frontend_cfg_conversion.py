@@ -45,6 +45,16 @@ _STABLE_TASKS_WITH_WARP_COVERAGE = [
     "Isaac-Reach-Franka-Play",
     "Isaac-Reach-UR10",
     "Isaac-Reach-UR10-Play",
+    "Isaac-Velocity-Flat-AnymalD",
+    "Isaac-Velocity-Flat-AnymalD-Play",
+    "Isaac-Velocity-Flat-Cassie",
+    "Isaac-Velocity-Flat-Cassie-Play",
+    "Isaac-Velocity-Flat-G1",
+    "Isaac-Velocity-Flat-G1-Play",
+    "Isaac-Velocity-Flat-H1",
+    "Isaac-Velocity-Flat-H1-Play",
+    "Isaac-Velocity-Flat-UnitreeGo2",
+    "Isaac-Velocity-Flat-UnitreeGo2-Play",
 ]
 
 # Manager-based warp tasks are exactly those whose entry point is the shared warp
@@ -84,33 +94,15 @@ def _cfg_entry_point(task_id: str) -> str:
     return cfg_entry
 
 
-_MANAGER_WARP_TASKS = _manager_warp_tasks()
-
-
-def test_manager_warp_tasks_are_registered():
-    """Sanity: every expected velocity warp task variant is registered."""
-    expected = {
-        f"Isaac-Velocity-Flat-{robot}-Warp{suffix}-v0"
-        for robot in ("AnymalB", "AnymalC", "AnymalD", "Cassie", "G1", "H1", "UnitreeA1", "UnitreeGo1", "UnitreeGo2")
-        for suffix in ("", "-Play")
-    }
-    registered = {task_id for task_id, _ in _MANAGER_WARP_TASKS}
-    assert registered == expected, f"missing: {sorted(expected - registered)}; extra: {sorted(registered - expected)}"
+def test_no_manager_warp_variants_remain():
+    """End-state pin: manager-based warp execution needs no parallel registrations."""
+    assert _manager_warp_tasks() == [], "unexpected ManagerBasedRLEnvWarp registrations reappeared"
 
 
 @pytest.mark.parametrize("task_id", _STABLE_TASKS_WITH_WARP_COVERAGE, ids=_STABLE_TASKS_WITH_WARP_COVERAGE)
 def test_stable_task_cfg_adapts_to_warp(task_id: str):
     """Each covered stable task adapts without a missing twin (the --frontend warp path)."""
-    _load_adapted_cfg(_cfg_entry_point(task_id))
-
-
-@pytest.mark.parametrize(
-    "task_id, cfg_entry_point",
-    [pytest.param(task_id, cfg_entry, id=task_id) for task_id, cfg_entry in _MANAGER_WARP_TASKS],
-)
-def test_registered_warp_variant_cfg_adapts(task_id: str, cfg_entry_point: str):
-    """Each registered ``*-Warp-v0`` variant cfg adapts without a missing twin."""
-    cfg = _load_adapted_cfg(cfg_entry_point)
+    cfg = _load_adapted_cfg(_cfg_entry_point(task_id))
 
     # Action terms carry a ``class_type`` (not a ``func``) and live on a base that
     # is not a ManagerTermBaseCfg; guard that the adapter still swaps them to the

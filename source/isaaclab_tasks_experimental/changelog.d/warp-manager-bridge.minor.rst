@@ -1,11 +1,9 @@
 Changed
 ^^^^^^^
 
-* **Breaking:** Changed the manager-based velocity ``*-Warp-v0`` task variants
-  to reuse the stable flat configurations, disabling only the randomization
-  events that have no warp twins yet. The variants now require selecting the
-  Newton solver on the CLI via ``presets=newton_mjwarp`` instead of
-  hard-coding it in the configuration.
+* **Breaking:** Renamed ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` to
+  ``Isaac-Reorient-Cube-Allegro-Direct-Warp`` to follow the stable id plus
+  ``-Warp`` suffix convention.
 * **Breaking:** Changed the package layout to mirror :mod:`isaaclab_tasks.core`
   (``isaaclab_tasks_experimental.core.<task>``), replacing the previous
   ``manager_based``/``direct`` split. Update imports of the old paths to the
@@ -14,12 +12,14 @@ Changed
 Removed
 ^^^^^^^
 
-* **Breaking:** Removed the duplicated manager-based warp task registrations
+* **Breaking:** Removed all manager-based ``*-Warp-v0`` task registrations —
   ``Isaac-Cartpole-Warp-v0``, ``Isaac-Humanoid-Warp-v0``, ``Isaac-Ant-Warp-v0``,
-  ``Isaac-Reach-Franka-Warp-v0``, and ``Isaac-Reach-Franka-Warp-Play-v0``
-  together with their duplicated environment configurations. Run the stable
-  task ids with ``--frontend warp`` and ``presets=newton_mjwarp`` instead,
-  e.g. ``--task Isaac-Cartpole --frontend warp presets=newton_mjwarp``.
+  ``Isaac-Reach-Franka-Warp-v0``, ``Isaac-Reach-Franka-Warp-Play-v0``, and the
+  velocity variants (``Isaac-Velocity-Flat-<Robot>-Warp-v0`` and their
+  ``-Warp-Play-v0`` forms) — together with their environment configurations.
+  Run the stable task ids with ``--frontend warp`` and
+  ``presets=newton_mjwarp`` instead, e.g.
+  ``--task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp``.
 * **Breaking:** Removed the duplicated direct warp task registrations
   ``Isaac-Cartpole-Direct-Warp-v0``, ``Isaac-Ant-Direct-Warp-v0``, and
   ``Isaac-Humanoid-Direct-Warp-v0`` together with their duplicated

@@ -17,7 +17,7 @@ inhand_task_entry = "isaaclab_tasks_experimental.core.reorient"
 stable_agents = "isaaclab_tasks.core.reorient.config.allegro_hand.agents"
 
 gym.register(
-    id="Isaac-Reorient-Cube-Allegro-Direct-Warp-v0",
+    id="Isaac-Reorient-Cube-Allegro-Direct-Warp",
     entry_point=f"{inhand_task_entry}.inhand_manipulation_warp_env:InHandManipulationWarpEnv",
     disable_env_checker=True,
     kwargs={

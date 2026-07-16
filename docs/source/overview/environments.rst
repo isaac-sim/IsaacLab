@@ -1231,7 +1231,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Reorient-Cube-Allegro-Direct-Warp-v0
+    * - Isaac-Reorient-Cube-Allegro-Direct-Warp
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1397,11 +1397,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-AnymalB-Warp-v0
-      - Isaac-Velocity-Flat-AnymalB-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - IsaacContrib-Velocity-Flat-AnymalB
       - IsaacContrib-Velocity-Flat-AnymalB-Play
       - Manager Based
@@ -1410,11 +1405,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
     * - IsaacContrib-Velocity-Flat-AnymalC-Direct
       -
       - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
-    * - Isaac-Velocity-Flat-AnymalC-Warp-v0
-      - Isaac-Velocity-Flat-AnymalC-Warp-Play-v0
-      - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - IsaacContrib-Velocity-Flat-AnymalC
@@ -1432,11 +1422,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO, DISTILLATION, DISTILLATION_RECURRENT, RECURRENT), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Velocity-Flat-AnymalD-Warp-v0
-      - Isaac-Velocity-Flat-AnymalD-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-Cassie
       -
       - Manager Based
@@ -1447,11 +1432,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Cassie-Warp-v0
-      - Isaac-Velocity-Flat-Cassie-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-Digit
       -
       - Manager Based
@@ -1472,11 +1452,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-G1-Warp-v0
-      - Isaac-Velocity-Flat-G1-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-H1
       -
       - Manager Based
@@ -1487,11 +1462,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-H1-Warp-v0
-      - Isaac-Velocity-Flat-H1-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-Spot
       -
       - Manager Based
@@ -1502,21 +1472,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-UnitreeA1-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeA1-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
     * - IsaacContrib-Velocity-Flat-UnitreeA1
       - IsaacContrib-Velocity-Flat-UnitreeA1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-UnitreeGo1-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeGo1-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - IsaacContrib-Velocity-Flat-UnitreeGo1
       - IsaacContrib-Velocity-Flat-UnitreeGo1-Play
       - Manager Based
@@ -1532,11 +1492,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-UnitreeGo2-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeGo2-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - IsaacContrib-Velocity-Rough-AnymalB
       - IsaacContrib-Velocity-Rough-AnymalB-Play
       - Manager Based

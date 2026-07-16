@@ -7,12 +7,19 @@ Added
 * Added :mod:`isaaclab_experimental.envs.frontend` runtime selector and
   :meth:`isaaclab_experimental.managers.SceneEntityCfg.from_stable` used by
   ``--frontend=warp`` to adapt stable cfgs onto the warp runtime.
-* Added :func:`isaaclab_experimental.envs.frontend.register_mdp_route` so task
-  packages declare where their warp MDP twins live; the frontend holds no
-  per-task table.
 * Added ``warp_entry_point`` registration support: a stable direct task may
   declare its warp environment class, which ``--frontend=warp`` constructs
   with the stable configuration.
+* Added warp adapters for the stable
+  :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_material` and
+  :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_mass` startup event
+  terms, so tasks using them run under ``--frontend=warp`` with randomization
+  active.
+* Added deterministic warp twin resolution: a stable symbol's twin is looked
+  up on the mirrored experimental package tree (``isaaclab.* ↔
+  isaaclab_experimental.*``, ``isaaclab_tasks.* ↔
+  isaaclab_tasks_experimental.*``); missing twins are collected and reported
+  in one failure. No registration is needed.
 
 Changed
 ^^^^^^^
