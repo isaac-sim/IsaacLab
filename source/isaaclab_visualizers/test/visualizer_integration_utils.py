@@ -1008,10 +1008,39 @@ def _cleanup_visualizer_test_process(env) -> None:
 
 
 def _reapply_kit_camera_pose(env, kit_visualizer: KitVisualizer) -> None:
-    """Re-apply Kit camera pose after Newton MJWarp stage/render-product setup settles."""
+    """Re-apply Kit camera pose after stage/render-product setup settles."""
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     env.sim.render()
     _update_active_simulation_app()
+
+
+def _capture_kit_viewport_with_pose_reapply(
+    env, kit_visualizer: KitVisualizer, resolution: tuple[int, int] | None = None
+) -> np.ndarray:
+    """Set the configured eye/lookat, warm RTX, then capture.
+
+    Setting the camera view *before* the annotator warmup (not after) fixes two
+    classes of wrong-camera golden images without requiring a second warmup pass:
+
+    * **Newton backend**: Newton stage init resets the viewport camera to a
+      default position.  Calling :meth:`~KitVisualizer.set_camera_view` here
+      corrects it before the warmup, so the entire warmup converges at the
+      right eye/lookat.
+    * **PhysX backend**: ``env.step()`` calls can drift the viewport camera (e.g.
+      the shadow hand test captures the wrist from below).  Setting the camera
+      before warmup corrects the drift without any extra ``env.sim.render()``
+      calls that would otherwise advance physics and change the robot pose.
+    """
+    kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
+    camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
+    assert camera_path, "KitVisualizer did not expose a controlled camera path."
+    annotator, render_product = _build_rgb_annotator_for_camera(camera_path, resolution=resolution)
+    try:
+        _warm_kit_rtx_render_product(env, annotator)
+        return _capture_kit_viewport_rgb(annotator)
+    finally:
+        with contextlib.suppress(Exception):
+            annotator.detach([render_product])
 
 
 def _warm_kit_rtx_render_product(env, annotator) -> None:
@@ -1462,16 +1491,33 @@ _FRANKA_CLOTH_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
 """Vectorized env count for franka cloth + visualizer golden-image tests (tiled mode)."""
 
 _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (0.85, -0.55, 0.42)
-"""Franka cloth golden test camera eye: matches the rendering test camera position."""
+"""Franka cloth golden test camera eye: used for the Newton GL viewer and the tiled camera offset."""
 
 _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.45, 0.0, 0.2)
 """Franka cloth golden test camera lookat: cloth and cube on the table."""
 
-_FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(  # type: ignore[assignment]
-    eye - lookat
-    for eye, lookat in zip(_FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE, _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT)
-)
-"""Target-relative eye offset for franka cloth generated tiled cameras."""
+_FRANKA_CLOTH_KIT_VIEWPORT_EYE: tuple[float, float, float] = (2.5, -2.0, 2.0)
+"""Kit RTX viewport-specific eye for franka cloth.
+
+The Kit viewport uses a narrower FOV (~60°) than the Newton GL viewer, so the
+same (0.85, -0.55, 0.42) eye that works for the Newton viewer clips the upper
+arm joints out of frame.  Pulling the camera back and up lets the RTX viewport
+show the full robot arm, cloth, and table in one frame.
+"""
+
+_FRANKA_CLOTH_KIT_VIEWPORT_LOOKAT: tuple[float, float, float] = (0.3, 0.0, 0.6)
+"""Kit RTX viewport-specific lookat for franka cloth (aimed at mid-arm height)."""
+
+_FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE
+"""Target-relative eye offset for franka cloth generated tiled cameras.
+
+Computed as the raw eye world position rather than ``eye - lookat``.  The
+tiled camera always looks AT the target prim (robot root at z≈0), so using
+the full eye position as offset places the camera higher (z=0.42 m) and
+farther back, giving a wide enough field of view to show both the robot arm
+and the cloth on the floor.  Using ``eye - lookat`` (the cartpole convention)
+would only put the camera at z=0.22 m — too low to see the cloth.
+"""
 
 _FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit render product resolution for franka cloth viewport golden tests."""
@@ -1561,6 +1607,12 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
         if tiled_camera
         else {}
     )
+    # Kit RTX viewport uses a wider/higher camera to capture the full robot arm
+    # (the Newton GL viewer has a wider FOV so the shared eye works there but not for Kit RTX).
+    kit_cam = {
+        "eye": _FRANKA_CLOTH_KIT_VIEWPORT_EYE,
+        "lookat": _FRANKA_CLOTH_KIT_VIEWPORT_LOOKAT,
+    }
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
     visualizer_cfgs = []
     for kind in visualizer_kinds:
@@ -1584,7 +1636,7 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
                     window_height=_FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION[1],
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
-                    **cam,
+                    **kit_cam,
                 )
             )
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs

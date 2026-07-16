@@ -61,9 +61,10 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     # rather than subtle rendering differences.
     "shadow_hand-kit-tiled": 30.0,
     "shadow_hand-kit-viewport": 9.0,
+    # Franka cloth Kit RTX tiled: VBD cloth non-determinism between runs; observed ~4.2% tiled.
+    "franka_cloth-kit-tiled": 5.5,
     # Franka cloth Kit RTX viewport: cloth VBD solver non-determinism combined with
     # RTX warm-up variance produces large inter-run pixel diffs; observed ~41% viewport.
-    # Tiled mode is more stable (passes at the default 2% kit-tiled threshold).
     "franka_cloth-kit-viewport": 45.0,
 }
 
@@ -438,8 +439,6 @@ def run_visualizer_golden_cartpole(
         mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
     """
-    import contextlib
-
     import torch
     import visualizer_integration_utils as _viz_utils
     from isaaclab_visualizers.kit import KitVisualizer
@@ -460,17 +459,7 @@ def run_visualizer_golden_cartpole(
 
         if viz_type == "kit":
             kit_viz = _get_active_visualizer(env, "kit")
-            camera_path = getattr(kit_viz, "_controlled_camera_path", None)
-            assert camera_path, "KitVisualizer did not expose a controlled camera path."
-            annotator, render_product = _viz_utils._build_rgb_annotator_for_camera(camera_path)
-            try:
-                _viz_utils._warm_kit_rtx_render_product(env, annotator)
-                if backend == "newton":
-                    _viz_utils._reapply_kit_camera_pose(env, kit_viz)
-                return _viz_utils._capture_kit_viewport_rgb(annotator)
-            finally:
-                with contextlib.suppress(Exception):
-                    annotator.detach([render_product])
+            return _viz_utils._capture_kit_viewport_with_pose_reapply(env, kit_viz)
 
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -517,8 +506,6 @@ def run_visualizer_golden_shadow_hand(
         mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
     """
-    import contextlib
-
     import torch
     import visualizer_integration_utils as _viz_utils
     from isaaclab_visualizers.kit import KitVisualizer
@@ -539,19 +526,9 @@ def run_visualizer_golden_shadow_hand(
 
         if viz_type == "kit":
             kit_viz = _get_active_visualizer(env, "kit")
-            camera_path = getattr(kit_viz, "_controlled_camera_path", None)
-            assert camera_path, "KitVisualizer did not expose a controlled camera path."
-            annotator, render_product = _viz_utils._build_rgb_annotator_for_camera(
-                camera_path, resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION
+            return _viz_utils._capture_kit_viewport_with_pose_reapply(
+                env, kit_viz, resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION
             )
-            try:
-                _viz_utils._warm_kit_rtx_render_product(env, annotator)
-                if backend == "newton":
-                    _viz_utils._reapply_kit_camera_pose(env, kit_viz)
-                return _viz_utils._capture_kit_viewport_rgb(annotator)
-            finally:
-                with contextlib.suppress(Exception):
-                    annotator.detach([render_product])
 
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -596,8 +573,6 @@ def run_visualizer_golden_anymal_d(
         mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
     """
-    import contextlib
-
     import torch
     import visualizer_integration_utils as _viz_utils
     from isaaclab_visualizers.kit import KitVisualizer
@@ -618,19 +593,9 @@ def run_visualizer_golden_anymal_d(
 
         if viz_type == "kit":
             kit_viz = _get_active_visualizer(env, "kit")
-            camera_path = getattr(kit_viz, "_controlled_camera_path", None)
-            assert camera_path, "KitVisualizer did not expose a controlled camera path."
-            annotator, render_product = _viz_utils._build_rgb_annotator_for_camera(
-                camera_path, resolution=_viz_utils._ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION
+            return _viz_utils._capture_kit_viewport_with_pose_reapply(
+                env, kit_viz, resolution=_viz_utils._ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION
             )
-            try:
-                _viz_utils._warm_kit_rtx_render_product(env, annotator)
-                if backend == "newton":
-                    _viz_utils._reapply_kit_camera_pose(env, kit_viz)
-                return _viz_utils._capture_kit_viewport_rgb(annotator)
-            finally:
-                with contextlib.suppress(Exception):
-                    annotator.detach([render_product])
 
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -680,8 +645,6 @@ def run_visualizer_golden_franka_cloth(
     """
     assert physics_backend == "newton", "FrankaCloth env has no PhysX preset; physics_backend must be 'newton'."
 
-    import contextlib
-
     import torch
     import visualizer_integration_utils as _viz_utils
     from isaaclab_visualizers.kit import KitVisualizer
@@ -702,18 +665,9 @@ def run_visualizer_golden_franka_cloth(
 
         if viz_type == "kit":
             kit_viz = _get_active_visualizer(env, "kit")
-            camera_path = getattr(kit_viz, "_controlled_camera_path", None)
-            assert camera_path, "KitVisualizer did not expose a controlled camera path."
-            annotator, render_product = _viz_utils._build_rgb_annotator_for_camera(
-                camera_path, resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION
+            return _viz_utils._capture_kit_viewport_with_pose_reapply(
+                env, kit_viz, resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION
             )
-            try:
-                _viz_utils._warm_kit_rtx_render_product(env, annotator)
-                _viz_utils._reapply_kit_camera_pose(env, kit_viz)
-                return _viz_utils._capture_kit_viewport_rgb(annotator)
-            finally:
-                with contextlib.suppress(Exception):
-                    annotator.detach([render_product])
 
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
