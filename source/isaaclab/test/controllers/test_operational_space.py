@@ -38,6 +38,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass as lab_configclass
 from isaaclab.utils.math import (
     apply_delta_pose,
@@ -309,6 +310,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -360,6 +362,7 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
     ) = sim
 
     robot_cfg.spawn.rigid_props.disable_gravity = False
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -410,6 +413,7 @@ def test_franka_pose_abs(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -460,6 +464,7 @@ def test_franka_pose_rel(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_rel"],
@@ -510,6 +515,7 @@ def test_franka_pose_abs_variable_impedance(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -728,6 +734,7 @@ def test_franka_hybrid_decoupled_motion(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
@@ -805,6 +812,7 @@ def test_franka_hybrid_variable_kp_impedance(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
@@ -882,6 +890,7 @@ def test_franka_taskframe_pose_abs(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
     osc_cfg = OperationalSpaceControllerCfg(
@@ -933,6 +942,7 @@ def test_franka_taskframe_pose_rel(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
     osc_cfg = OperationalSpaceControllerCfg(
@@ -984,6 +994,7 @@ def test_franka_taskframe_hybrid(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
 
@@ -1111,6 +1122,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -1162,6 +1174,7 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -1213,6 +1226,7 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
 
@@ -1411,6 +1425,11 @@ def test_floating_base_osc_action_term_indexing():
 
     finally:
         env.close()
+
+
+def _set_legacy_franka_asset(robot_cfg: ArticulationCfg):
+    """Use the legacy Franka asset for controllers incompatible with the new mass properties."""
+    robot_cfg.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
 
 
 def _run_op_space_controller(

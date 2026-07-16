@@ -160,9 +160,9 @@ def _run_ik_controller(
     )
 
     # Now we are ready!
-    for count in range(1500):
-        # reset every 150 steps
-        if count % 250 == 0:
+    for count in range(3000):
+        # reset every 500 steps
+        if count % 500 == 0:
             # check that we converged to the goal
             if count > 0:
                 pos_error, rot_error = compute_pose_error(

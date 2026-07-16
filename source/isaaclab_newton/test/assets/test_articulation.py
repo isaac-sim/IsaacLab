@@ -50,7 +50,7 @@ from isaaclab.controllers import (
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, subtract_frame_transforms
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
@@ -438,7 +438,12 @@ def generate_articulation(
 # ---------------------------------------------------------------------------
 
 
-def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
+def _set_legacy_franka_asset(articulation_cfg: ArticulationCfg):
+    """Use the legacy Franka asset for Newton fixed-base compatibility."""
+    articulation_cfg.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
+
+
+def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, use_legacy_asset: bool = False):
     """Build a Franka articulation at its configured home pose.
 
     Constructs :data:`FRANKA_PANDA_HIGH_PD_CFG`, optionally zeroes the
@@ -454,11 +459,14 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
             actuator stiffness and damping to zero. Used by the OSC test
             so OSC's joint-effort output is not opposed by the
             implicit-PD's residual ``kp·(target − q)``.
+        use_legacy_asset: Whether to use the legacy asset for Newton fixed-base compatibility.
 
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
     """
     cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
+    if use_legacy_asset:
+        _set_legacy_franka_asset(cfg)
     if zero_actuator_pd:
         cfg.actuators["panda_shoulder"].stiffness = 0.0
         cfg.actuators["panda_shoulder"].damping = 0.0
@@ -1334,6 +1342,7 @@ def test_initialization_fixed_base(sim, num_articulations, device, articulation_
         device: The device to run the simulation on
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    _set_legacy_franka_asset(articulation_cfg)
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -1395,6 +1404,7 @@ def test_fixed_base_reports_body_velocities(sim, num_articulations, device, arti
         device: The device to run the simulation on
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    _set_legacy_franka_asset(articulation_cfg)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Play sim
@@ -3513,6 +3523,7 @@ def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articula
     scenes.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    _set_legacy_franka_asset(articulation_cfg)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
     assert articulation.is_initialized
@@ -3538,6 +3549,7 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
     sized output, the padded zero rows/cols make the matrix rank-deficient.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    _set_legacy_franka_asset(articulation_cfg)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
     assert articulation.is_initialized
@@ -3738,6 +3750,8 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     which is irrelevant to the contract being tested.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    if articulation_type == "panda":
+        _set_legacy_franka_asset(articulation_cfg)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
     assert articulation.is_initialized
@@ -3815,6 +3829,8 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
     the DoF axis for floating-base assets.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    if articulation_type == "panda":
+        _set_legacy_franka_asset(articulation_cfg)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
     assert articulation.is_initialized
@@ -4024,7 +4040,9 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     M_b → J product. The actuator PD is zeroed at cfg time so OSC's
     joint-effort output is not opposed by ``kp·(target − q)``.
     """
-    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(sim, zero_actuator_pd=True)
+    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(
+        sim, zero_actuator_pd=True, use_legacy_asset=True
+    )
 
     osc = OperationalSpaceController(
         OperationalSpaceControllerCfg(

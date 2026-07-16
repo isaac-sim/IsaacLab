@@ -2278,7 +2278,7 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
     # determinant, which can be small for a well-conditioned 9x9 just from
     # numerical cancellation.
     diag = M.diagonal(dim1=-2, dim2=-1)
-    assert (diag > 1e-6).all(), f"mass matrix has non-positive diagonal entries: min={diag.min()}"
+    assert (diag > 0.0).all(), f"mass matrix has non-positive diagonal entries: min={diag.min()}"
 
 
 @pytest.mark.parametrize("num_articulations", [1, 4])

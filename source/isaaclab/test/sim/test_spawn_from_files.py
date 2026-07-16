@@ -18,7 +18,7 @@ import omni.kit.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
 
@@ -46,7 +46,7 @@ def sim():
 def test_spawn_usd(sim):
     """Test loading prim from Usd file."""
     # Spawn cone
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd")
     prim = cfg.func("/World/Franka", cfg)
     # Check validity
     assert prim.IsValid()
