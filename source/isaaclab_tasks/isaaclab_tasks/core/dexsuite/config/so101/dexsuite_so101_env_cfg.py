@@ -37,7 +37,13 @@ class SO101SceneCfg(dexsuite.SceneCfg):
 
     robot: ArticulationCfg = SO101_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.55, 0.2, 0.255)),
+        # clamped at the table's +x side edge, yawed -90 deg so the arm reaches across the
+        # table along -x (the short axis). The base frame sits ~3 cm above the clamp foot,
+        # hence the -0.03008 drop that plants the foot on the tabletop (top at z=0.255)
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(-0.16, 0.2, 0.22492),
+            rot=(0.0, 0.0, -0.70710678, 0.70710678),
+        ),
     )
 
     def __post_init__(self):
@@ -71,9 +77,9 @@ class SO101SceneCfg(dexsuite.SceneCfg):
         ]
         self.object.spawn.shapes.assets_cfg = graspable_shape_assets_cfg
         self.object.spawn.default.assets_cfg = graspable_shape_assets_cfg
-        # float the spawn region within the SO-101's measured reach envelope (the dense
-        # reachable band sits at base-relative y in (-0.27, -0.13); the base is at y=0.2)
-        self.object.init_state.pos = (-0.55, 0.0, 0.38)
+        # float the spawn region within the SO-101's measured reach envelope: 0.2 m in
+        # front of the base, which with the -90 deg base yaw is along world -x
+        self.object.init_state.pos = (-0.36, 0.2, 0.38)
 
 
 @configclass
@@ -149,16 +155,21 @@ class SO101MixinCfg:
             "z": [-0.12, -0.08],
         }
         # spawn the free-floating object within the measured reach envelope
+        # (x is along the arm's reach direction, y lateral, after the -90 deg base yaw)
         events["reset_object"].params["pose_range"] = {
-            "x": [-0.08, 0.08],
-            "y": [-0.07, 0.07],
+            "x": [-0.07, 0.07],
+            "y": [-0.08, 0.08],
             "z": [0.0, 0.08],
             "roll": [-3.14, 3.14],
             "pitch": [-3.14, 3.14],
             "yaw": [-3.14, 3.14],
         }
-        # table/ground clearance: everything but the table-mounted base
-        self.events.conditional_reset.params["valid_criteria"]["robot_table_clearance"].body_names = "(?!base$).*"
+        # table/ground clearance: everything but the table-mounted base and the shoulder
+        # yoke bolted to it — with the clamp foot planted on the tabletop both live at
+        # table height by construction and would reject every reset draw
+        self.events.conditional_reset.params["valid_criteria"]["robot_table_clearance"].body_names = (
+            "(?!(base|shoulder)$).*"
+        )
         # velocity-limit termination on the arm joints only: the jaw legitimately stalls on objects
         self.terminations.abnormal_robot.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names="(shoulder_pan|shoulder_lift|elbow_flex|wrist_flex|wrist_roll)"
