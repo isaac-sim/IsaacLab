@@ -96,6 +96,25 @@ class PhysxReplicateContext:
             return
 
         physx_queue = tuple(self._queue)
+        self._queue.clear()
+
+        # Fully-heterogeneous 1:1 layouts have every source mapped only to its own
+        # environment (no cross-env replication needed). Calling rep.replicate() once
+        # per source with a single self-target is known to trigger intermittent native
+        # heap corruption (double-free / SIGABRT) under mGPU, likely due to per-call
+        # PhysX-internal allocations summing to a problematic total across processes.
+        # For these layouts the source prims are already in their correct env positions
+        # and PhysX can parse them from the stage without any replicator registration.
+        def _is_self_only(src: str, destination: str, target_envs: tuple[int, ...]) -> bool:
+            if len(target_envs) != 1:
+                return False
+            pre, suf = split_clone_template(destination)
+            env_id = src.removeprefix(pre).removesuffix(suf)
+            return env_id.isdigit() and int(env_id) == target_envs[0]
+
+        if all(_is_self_only(src, dst, envs) for src, dst, envs in physx_queue):
+            return
+
         current_worlds: list[int] = []
         current_template: str = ""
 
@@ -124,7 +143,6 @@ class PhysxReplicateContext:
             rep.unregister_replicator(_stage_id)
 
         get_physx_replicator_interface().register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
-        self._queue.clear()
 
 
 REPLICATION = (UsdReplicateContext, PhysxReplicateContext)
