@@ -50,17 +50,10 @@ rem prefers a regular package (with __init__.py) over a namespace package
 rem regardless of sys.path order.  Write a minimal __init__.py to promote it
 rem to a regular package so the PYTHONPATH prepend actually takes effect.
 set "_ov_usd_libs_dir="
-if exist "%ISAACLAB_PATH%\_isaac_sim\extscache\" (
-    "%python_exe%" -c "import glob,os,sys; d=sorted(glob.glob(os.path.join(os.environ.get('ISAACLAB_PATH',''),'_isaac_sim','extscache','omni.usd.libs-*'))); print(d[-1] if d else '',end='')" > "%TEMP%\ov_usd_libs.tmp" 2>nul
-    set /p _ov_usd_libs_dir=<"%TEMP%\ov_usd_libs.tmp"
-    del "%TEMP%\ov_usd_libs.tmp" >nul 2>&1
-)
+"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py" > "%TEMP%\ov_usd_libs.tmp" 2>nul
+set /p _ov_usd_libs_dir=<"%TEMP%\ov_usd_libs.tmp"
+del "%TEMP%\ov_usd_libs.tmp" >nul 2>&1
 if defined _ov_usd_libs_dir (
-    if exist "!_ov_usd_libs_dir!\pxr\" (
-        if not exist "!_ov_usd_libs_dir!\pxr\__init__.py" (
-            type nul > "!_ov_usd_libs_dir!\pxr\__init__.py" 2>nul
-        )
-    )
     set "PYTHONPATH=!_ov_usd_libs_dir!;!PYTHONPATH!"
     set "PATH=!_ov_usd_libs_dir!\bin;!PATH!"
 )

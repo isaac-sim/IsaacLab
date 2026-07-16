@@ -72,17 +72,12 @@ fi
 # regular pxr package, prepending omni.usd.libs to PYTHONPATH alone does nothing.
 # We write a minimal __init__.py into omni.usd.libs/pxr/ to promote it to a
 # regular package, making the sys.path order actually take effect.
-if [ -d "$ISAACLAB_PATH/_isaac_sim/extscache" ]; then
-    _ov_usd_libs_dir=$(find "$ISAACLAB_PATH/_isaac_sim/extscache" -maxdepth 1 -name "omni.usd.libs-*" -type d 2>/dev/null | sort | tail -1)
-    if [ -n "$_ov_usd_libs_dir" ]; then
-        if [ -d "$_ov_usd_libs_dir/pxr" ] && [ ! -f "$_ov_usd_libs_dir/pxr/__init__.py" ]; then
-            printf '' > "$_ov_usd_libs_dir/pxr/__init__.py" 2>/dev/null || true
-        fi
-        export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
-        export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
-    fi
-    unset _ov_usd_libs_dir
+_ov_usd_libs_dir=$("$python_exe" "$ISAACLAB_PATH/tools/setup_usd_libs.py" 2>/dev/null)
+if [ -n "$_ov_usd_libs_dir" ]; then
+    export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
+    export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
 fi
+unset _ov_usd_libs_dir
 
 # Execute CLI.
 exec "$python_exe" -c "from isaaclab.cli import cli; cli()" "$@"
