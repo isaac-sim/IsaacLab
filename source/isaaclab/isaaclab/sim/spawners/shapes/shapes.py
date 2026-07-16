@@ -5,12 +5,17 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdGeom, UsdShade
 
 from isaaclab.sim import schemas
-from isaaclab.sim.spawners.materials.physics_materials import spawn_cable_material, spawn_physics_material
+from isaaclab.sim.spawners.materials.physics_materials import (
+    _validate_cable_material,
+    spawn_cable_material,
+    spawn_physics_material,
+)
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
 if TYPE_CHECKING:
@@ -256,16 +261,25 @@ def spawn_cable(
 
     Raises:
         TypeError: If the physics material is not a cable material.
-        ValueError: If fewer than three control points are provided or rigid properties are configured.
+        ValueError: If the cable geometry or material is invalid, or unsupported settings are configured.
     """
     from isaaclab.sim.spawners.materials import CableMaterialCfg
 
     if len(cfg.positions) < 3:
         raise ValueError(f"CableCfg.positions must contain at least three points, got {len(cfg.positions)}.")
+    if any(len(point) != 3 or not all(math.isfinite(value) for value in point) for point in cfg.positions):
+        raise ValueError("CableCfg.positions must contain finite 3D points.")
+    if any(math.dist(start, end) <= 1.0e-8 for start, end in zip(cfg.positions, cfg.positions[1:])):
+        raise ValueError("CableCfg.positions must define segments longer than 1e-8 m.")
     if not isinstance(cfg.physics_material, CableMaterialCfg):
         raise TypeError("CableCfg.physics_material must be a CableMaterialCfg.")
     if cfg.rigid_props is not None or cfg.mass_props is not None:
         raise ValueError("CableCfg does not support rigid or mass properties.")
+    if cfg.activate_contact_sensors:
+        raise ValueError("CableCfg does not support activate_contact_sensors.")
+    if cfg.visual_material is not None:
+        raise ValueError("CableCfg does not support visual materials.")
+    _validate_cable_material(cfg.physics_material)
 
     stage = get_current_stage()
     if stage.GetPrimAtPath(prim_path).IsValid():
@@ -294,15 +308,6 @@ def spawn_cable(
             schemas.apply_collision_properties(curve_prim_path, collision_cfgs, stage=stage)
         else:
             schemas.define_collision_properties(curve_prim_path, cfg.collision_props, stage=stage)
-
-    if cfg.visual_material is not None:
-        visual_material_path = (
-            cfg.visual_material_path
-            if cfg.visual_material_path.startswith("/")
-            else f"{geom_prim_path}/{cfg.visual_material_path}"
-        )
-        cfg.visual_material.func(visual_material_path, cfg.visual_material)
-        bind_visual_material(curve_prim_path, visual_material_path, stage=stage)
 
     physics_material_path = (
         cfg.physics_material_path

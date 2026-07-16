@@ -9,7 +9,7 @@ from pxr import UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
-from isaaclab.sim.spawners.materials import CableMaterialCfg
+from isaaclab.sim.spawners.materials import CableMaterialCfg, PreviewSurfaceCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 
 
@@ -75,6 +75,65 @@ def test_spawn_cable_rejects_too_few_points(stage):
     )
 
     with pytest.raises(ValueError, match="at least three"):
+        cfg.func("/World/Cable", cfg)
+
+    assert not stage.GetPrimAtPath("/World/Cable").IsValid()
+
+
+@pytest.mark.parametrize(
+    ("positions", "message"),
+    [
+        ([(0.0, 0.0), (0.0, 0.2, 0.0), (0.0, 0.4, 0.0)], "finite 3D"),
+        ([(0.0, 0.0, 0.0), (0.0, float("nan"), 0.0), (0.0, 0.4, 0.0)], "finite 3D"),
+        ([(0.0, 0.0, 0.0), (0.0, 1.0e-8, 0.0), (0.0, 0.4, 0.0)], "longer than 1e-8"),
+    ],
+)
+def test_spawn_cable_rejects_invalid_points_before_authoring(stage, positions, message):
+    """Test that invalid cable geometry fails atomically."""
+    cfg = CableCfg(positions=positions, physics_material=CableMaterialCfg())
+
+    with pytest.raises(ValueError, match=message):
+        cfg.func("/World/Cable", cfg)
+
+    assert not stage.GetPrimAtPath("/World/Cable").IsValid()
+
+
+def test_spawn_cable_rejects_invalid_material_before_authoring(stage):
+    """Test that invalid cable material values fail atomically."""
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.0, 0.2, 0.0), (0.0, 0.4, 0.0)],
+        physics_material=CableMaterialCfg(density=0.0),
+    )
+
+    with pytest.raises(ValueError, match="density"):
+        cfg.func("/World/Cable", cfg)
+
+    assert not stage.GetPrimAtPath("/World/Cable").IsValid()
+
+
+def test_spawn_cable_rejects_contact_sensor_activation(stage):
+    """Test that rigid-body contact sensor activation fails before authoring."""
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.0, 0.2, 0.0), (0.0, 0.4, 0.0)],
+        physics_material=CableMaterialCfg(),
+        activate_contact_sensors=True,
+    )
+
+    with pytest.raises(ValueError, match="activate_contact_sensors"):
+        cfg.func("/World/Cable", cfg)
+
+    assert not stage.GetPrimAtPath("/World/Cable").IsValid()
+
+
+def test_spawn_cable_rejects_visual_material(stage):
+    """Test that deferred visual material support fails before authoring."""
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.0, 0.2, 0.0), (0.0, 0.4, 0.0)],
+        physics_material=CableMaterialCfg(),
+        visual_material=PreviewSurfaceCfg(),
+    )
+
+    with pytest.raises(ValueError, match="visual materials"):
         cfg.func("/World/Cable", cfg)
 
     assert not stage.GetPrimAtPath("/World/Cable").IsValid()

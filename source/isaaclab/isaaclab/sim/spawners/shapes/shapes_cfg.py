@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import MISSING
 from typing import Literal
 
@@ -137,11 +137,8 @@ class CableCfg(ShapeCfg):
 
     func: Callable | str = "{DIR}.shapes:spawn_cable"
 
-    positions: list[tuple[float, float, float]] = MISSING
+    positions: Sequence[tuple[float, float, float]] = MISSING
     """Control points in the cable-local frame [m]. Must contain at least three points."""
-
-    visual_material_path: str = "visual_material"
-    """Path to the visual material, relative to the cable geometry prim."""
 
     physics_material_path: str = "physics_material"
     """Path to the physics material, relative to the cable geometry prim."""

@@ -28,13 +28,19 @@ def _gather_segment_state(
 class CableData:
     """Current cable segment state."""
 
-    def __init__(self, body_indices: wp.array, device: str):
+    def __init__(self, body_indices: wp.array2d(dtype=wp.int32), device: str):
+        """Initialize the cable data.
+
+        Args:
+            body_indices: Newton body indices with shape ``(num_instances, num_segments)``.
+            device: The device used for processing.
+        """
         self._device = device
         self._bind(body_indices)
 
     @property
     def segment_pose_w(self) -> ProxyArray:
-        """Segment poses in the world frame.
+        """Segment actor-frame poses in the world frame.
 
         Warp shape is ``(num_instances, num_segments)`` with ``wp.transformf`` dtype. The Torch view has
         shape ``(num_instances, num_segments, 7)`` with position [m] and ``(x, y, z, w)`` quaternion.
@@ -54,7 +60,7 @@ class CableData:
         """Gather state from Newton's current state buffer."""
         del dt
         state = SimulationManager.get_state_0()
-        if state.body_q is None or state.body_qd is None:
+        if state is None or state.body_q is None or state.body_qd is None:
             raise RuntimeError("Newton body state is unavailable for the cable.")
         wp.launch(
             _gather_segment_state,
@@ -64,7 +70,7 @@ class CableData:
             device=self._device,
         )
 
-    def _bind(self, body_indices: wp.array) -> None:
+    def _bind(self, body_indices: wp.array2d(dtype=wp.int32)) -> None:
         """Bind a recreated model's cable body indices."""
         self._body_indices = body_indices
         shape = body_indices.shape

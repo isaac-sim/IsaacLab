@@ -29,3 +29,27 @@ def test_spawn_cable_material_authors_canonical_schema():
     assert prim.GetAttribute("physics:density").Get() == pytest.approx(1200.0)
     assert prim.GetAttribute("physics:stretchStiffness").Get() == pytest.approx(3.0e6)
     assert prim.GetAttribute("physics:bendStiffness").Get() == pytest.approx(0.04)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("thickness", 0.0),
+        ("thickness", float("nan")),
+        ("density", -1.0),
+        ("density", float("inf")),
+        ("stretch_stiffness", -1.0),
+        ("stretch_stiffness", float("nan")),
+        ("bend_stiffness", -1.0),
+        ("bend_stiffness", float("inf")),
+    ],
+)
+def test_spawn_cable_material_rejects_invalid_values_before_authoring(field_name, value):
+    """Test invalid cable material values without leaving a prim."""
+    stage = sim_utils.create_new_stage()
+    cfg = CableMaterialCfg(**{field_name: value})
+
+    with pytest.raises(ValueError, match=field_name):
+        cfg.func("/World/Looks/Cable", cfg)
+
+    assert not stage.GetPrimAtPath("/World/Looks/Cable").IsValid()

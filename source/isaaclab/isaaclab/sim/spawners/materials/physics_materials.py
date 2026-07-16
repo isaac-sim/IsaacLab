@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 
 from pxr import Usd, UsdPhysics, UsdShade
 
@@ -15,6 +16,18 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import string_to_callable
 
 from . import physics_materials_cfg
+
+
+def _validate_cable_material(cfg: physics_materials_cfg.CableMaterialCfg) -> None:
+    """Validate cable material values before USD authoring."""
+    for field_name in ("thickness", "density"):
+        value = getattr(cfg, field_name)
+        if not math.isfinite(value) or value <= 0.0:
+            raise ValueError(f"CableMaterialCfg.{field_name} must be finite and greater than zero.")
+    for field_name in ("stretch_stiffness", "bend_stiffness"):
+        value = getattr(cfg, field_name)
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError(f"CableMaterialCfg.{field_name} must be finite and non-negative.")
 
 
 @clone
@@ -29,8 +42,9 @@ def spawn_cable_material(prim_path: str, cfg: physics_materials_cfg.CableMateria
         The spawned cable material prim.
 
     Raises:
-        ValueError: When a prim already exists at the path and is not a material.
+        ValueError: When a material value is invalid or a prim at the path is not a material.
     """
+    _validate_cable_material(cfg)
     stage = get_current_stage()
     if not stage.GetPrimAtPath(prim_path).IsValid():
         UsdShade.Material.Define(stage, prim_path)

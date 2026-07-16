@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Registry-free Newton cable asset."""
+"""Newton cable asset."""
 
 from __future__ import annotations
 
-import fnmatch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -24,7 +23,7 @@ from isaaclab.assets import AssetBase
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import matches_path_expr_prefix, resolve_matching_prims_from_source
 from isaaclab.utils.version import has_kit
 
 from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
@@ -33,22 +32,27 @@ from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 from .cable_object_data import CableData
 
 if TYPE_CHECKING:
-    from isaaclab.assets.asset_base_cfg import AssetBaseCfg
+    from isaaclab.assets import CableObjectCfg
 
 
 class CableObject(AssetBase):
     """One open cable simulated by the uncoupled Newton VBD solver."""
 
-    cfg: AssetBaseCfg
+    cfg: CableObjectCfg
+    """Configuration instance for the cable."""
 
-    def __init__(self, cfg: AssetBaseCfg):
+    def __init__(self, cfg: CableObjectCfg):
+        """Initialize the cable.
+
+        Args:
+            cfg: A configuration instance.
+        """
         self._initialize_handle = None
         self._invalidate_initialize_handle = None
         self._prim_deletion_handle = None
-        self._debug_vis_handle = None
         self._physics_ready_handle = None
         sim = SimulationContext.instance()
-        solver_cfg = sim.cfg.physics.solver_cfg if sim is not None else None
+        solver_cfg = getattr(sim.cfg.physics, "solver_cfg", None) if sim is not None else None
         manager_key = (sim.physics_manager.__module__, sim.physics_manager.__qualname__) if sim is not None else None
         expected_manager_key = (NewtonVBDManager.__module__, NewtonVBDManager.__qualname__)
         if (
@@ -102,8 +106,13 @@ class CableObject(AssetBase):
 
     def _bind_runtime(self) -> None:
         model = SimulationManager.get_model()
-        articulation_pattern = self._curve_path_expr.replace(".*", "*") + "_articulation"
-        self._articulation_view = ArticulationView(model, articulation_pattern, verbose=False)
+        articulation_expr = f"{self._curve_path_expr}_articulation"
+        articulation_ids = [
+            index
+            for index, label in enumerate(model.articulation_label)
+            if matches_path_expr_prefix(articulation_expr, label)
+        ]
+        self._articulation_view = ArticulationView(model, articulation_ids, verbose=False)
         self._validate_articulation(model)
 
         body_indices = self._find_body_indices(model)
@@ -161,12 +170,11 @@ class CableObject(AssetBase):
             raise RuntimeError(self._support_message())
 
     def _find_body_indices(self, model) -> np.ndarray:
-        curve_glob = self._curve_path_expr.replace(".*", "*")
         by_world: dict[int, list[tuple[int, int]]] = {world: [] for world in range(self._articulation_view.world_count)}
         body_world = model.body_world.numpy()
         for body_id, label in enumerate(model.body_label):
             body_root, separator, suffix = label.rpartition("_edge_body_")
-            if not separator or not fnmatch.fnmatchcase(body_root, curve_glob):
+            if not separator or not matches_path_expr_prefix(self._curve_path_expr, body_root):
                 continue
             if not suffix.isdecimal():
                 raise RuntimeError(self._support_message())
