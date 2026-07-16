@@ -61,7 +61,7 @@ _PATCH_CACHE_ROOT = os.path.join(os.path.expanduser("~"), ".cache", "isaaclab", 
 _PATCH_MARKER_KEY = "isaaclabMenageriePatchVersion"
 """``customLayerData`` key stamped on a fully patched entry layer."""
 
-_PATCH_VERSION = 5
+_PATCH_VERSION = 6
 """Bump when the set or content of the fixes below changes, to invalidate stale caches."""
 
 _ASSET_PATCH_RECIPES: dict[str, dict] = {
@@ -158,6 +158,109 @@ def _strip_drive_deletes(mujoco_layer: str) -> None:
         return
     layer.Save()
     _log_applied(f"{fix} ({count} joints)")
+
+
+def _author_drive_actuation(mujoco_layer: str, physics_layer: str) -> None:
+    """Author drive gains and force limits from the converter's ``MjcActuator`` params.
+
+    UPSTREAM(asset): the conversion carries the MJCF actuation spec only on the
+    ``MjcActuator`` prims (position-servo kp in ``mjc:biasPrm``/``mjc:gainPrm``, torque
+    limit in ``mjc:forceRange``) and the joint damping only as ``mjc:damping`` — none of
+    which the PhysX or Newton import paths consume. The shared-layer drives carry the
+    force limits but author no stiffness or damping, so consumers had to restate
+    per-joint gain tables in their configs. Harvest the servo gain onto the drives so
+    the asset is the single actuation source; runs before :func:`_remove_mjc_actuators`
+    discards the source prims. Delete once the converter authors drive gains directly.
+
+    Direct-actuator joints get their gains in the shared physics layer (both variants).
+    Tendon-driven couplings get the tendon actuator's gain authored per coupled joint in
+    the ``mujoco`` layer only: the Newton lane drives those joints directly (standing in
+    for the removed tendon actuator), while the ``physx`` variant couples them through
+    the authored PhysX tendons and must not see additional drives.
+
+    USD angular-drive gains are interpreted per-degree on import (UsdPhysics convention;
+    Newton divides by pi/180), while MJCF servo gains and joint damping are per-radian,
+    so authored values are scaled by pi/180.
+    """
+    import math
+
+    from pxr import Sdf, Usd, UsdPhysics
+
+    fix = "author drive gains from MjcActuator params"
+    per_deg = math.pi / 180.0
+
+    mstage = Usd.Stage.Open(mujoco_layer)
+    pstage = Usd.Stage.Open(physics_layer)
+
+    direct: dict = {}
+    coupled: dict = {}
+    for prim in mstage.TraverseAll():
+        if prim.GetTypeName() != "MjcActuator":
+            continue
+        targets = prim.GetRelationship("mjc:target").GetTargets()
+        if not targets:
+            continue
+        bias = prim.GetAttribute("mjc:biasPrm").Get()
+        gain = prim.GetAttribute("mjc:gainPrm").Get()
+        if bias is not None and len(bias) > 1 and float(bias[1]) != 0.0:
+            kp = -float(bias[1])
+        elif gain:
+            kp = float(gain[0])
+        else:
+            continue
+        force_attr = prim.GetAttribute("mjc:forceRange:max")
+        max_force = float(force_attr.Get()) if force_attr and force_attr.HasAuthoredValue() else None
+        target_prim = mstage.GetPrimAtPath(targets[0])
+        if target_prim and target_prim.GetTypeName() == "MjcTendon":
+            path_rel = target_prim.GetRelationship("mjc:path")
+            for joint_path in path_rel.GetTargets() if path_rel else []:
+                coupled[joint_path] = (kp, max_force)
+        else:
+            direct[targets[0]] = kp
+
+    def _joint_damping(path) -> float:
+        joint = mstage.GetPrimAtPath(path)
+        attr = joint.GetAttribute("mjc:damping") if joint else None
+        return float(attr.Get()) if attr and attr.HasAuthoredValue() else 0.0
+
+    if not direct and not coupled:
+        _log_skipped(fix)
+        return
+    authored_already = [
+        pstage.GetPrimAtPath(p).GetAttribute("drive:angular:physics:stiffness").HasAuthoredValue()
+        for p in direct
+        if pstage.GetPrimAtPath(p)
+    ]
+    if authored_already and all(authored_already):
+        _log_skipped(fix)
+        return
+
+    count = 0
+    for path, kp in direct.items():
+        joint = pstage.GetPrimAtPath(path)
+        if not joint:
+            continue
+        joint.CreateAttribute("drive:angular:physics:stiffness", Sdf.ValueTypeNames.Float).Set(kp * per_deg)
+        joint.CreateAttribute("drive:angular:physics:damping", Sdf.ValueTypeNames.Float).Set(
+            _joint_damping(path) * per_deg
+        )
+        count += 1
+    pstage.GetRootLayer().Save()
+
+    tendon_count = 0
+    for path, (kp, max_force) in coupled.items():
+        joint = mstage.GetPrimAtPath(path)
+        if not joint:
+            continue
+        drive = UsdPhysics.DriveAPI.Apply(joint, "angular")
+        drive.CreateTypeAttr().Set("force")
+        drive.CreateStiffnessAttr().Set(kp * per_deg)
+        drive.CreateDampingAttr().Set(_joint_damping(path) * per_deg)
+        if max_force is not None:
+            drive.CreateMaxForceAttr().Set(max_force)
+        tendon_count += 1
+    mstage.GetRootLayer().Save()
+    _log_applied(f"{fix} ({count} direct, {tendon_count} tendon-coupled joint(s))")
 
 
 def _remove_mjc_actuators(mujoco_layer: str) -> None:
@@ -426,6 +529,7 @@ def patch_menagerie_asset(
     physx_layer = os.path.join(physics_dir, "physx.usda")
 
     _strip_drive_deletes(mujoco_layer)
+    _author_drive_actuation(mujoco_layer, physics_layer)
     _remove_mjc_actuators(mujoco_layer)
     if author_static_friction:
         _author_static_friction(physics_layer)

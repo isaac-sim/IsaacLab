@@ -10,7 +10,10 @@ Added
   so the drives are the single actuation source (Newton otherwise builds a second,
   never-commanded servo per joint that drags it toward zero), unauthored static
   friction, collision pairs manufactured by welded-body splits, ``physx``-layer joint
-  velocity limits, and the Shadow hand's fixed tendons -- and a
+  velocity limits, the Shadow hand's fixed tendons, and drive gains and force limits
+  harvested from the ``MjcActuator`` servo parameters before those prims are removed
+  (the robot configurations deliberately override the harvested gains with their
+  RL-calibrated values) -- and a
   ``isaaclabMenageriePatchVersion`` marker on the
   entry layer short-circuits repeated patching. The fix parameters live in a per-asset
   recipe registry keyed by the asset directory, so every physics variant and robot
