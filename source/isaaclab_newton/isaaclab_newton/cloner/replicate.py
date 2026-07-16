@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import torch
 from newton import ModelBuilder
@@ -15,9 +15,10 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
-from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
+from isaaclab.cloner.usd import UsdReplicateContext
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.utils.version import has_kit
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
@@ -238,15 +239,11 @@ class NewtonReplicateContext:
         return builder, stage_info, site_index_map
 
 
-def queue_newton_physics_replication(cfg: Any) -> None:
-    """Register ``cfg`` for Newton replication when :func:`~isaaclab.cloner.replicate` next runs.
-
-    Appends ``(cfg, NewtonReplicateContext)`` to
-    :data:`~isaaclab.cloner.REPLICATION_QUEUE`. The actual row resolution and dispatch
-    happen inside :func:`~isaaclab.cloner.replicate`, so this helper is safe to call from
-    any asset constructor — no active session is required.
-    """
-    REPLICATION_QUEUE.append((cfg, NewtonReplicateContext))
+# evaluated at import: this module must only be imported after AppLauncher starts Kit
+# (cfg modules reference it by string), otherwise has_kit() locks in the kitless stack
+REPLICATION = (UsdReplicateContext, NewtonReplicateContext) if has_kit() else (NewtonReplicateContext,)
+"""Default replication stack for Newton assets: USD clones accompany physics only under Kit,
+where they are needed for rendering; kitless runs skip the authoring cost."""
 
 
 def newton_physics_replicate(

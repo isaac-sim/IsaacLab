@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 import torch
 
@@ -14,7 +13,7 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab.cloner.cloner_utils import split_clone_template
-from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
+from isaaclab.cloner.usd import UsdReplicateContext
 
 
 def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
@@ -128,15 +127,12 @@ class PhysxReplicateContext:
         self._queue.clear()
 
 
-def queue_physx_replication(cfg: Any) -> None:
-    """Register ``cfg`` for PhysX replication when :func:`~isaaclab.cloner.replicate` next runs.
+REPLICATION = (UsdReplicateContext, PhysxReplicateContext)
+"""Default replication stack for PhysX assets.
 
-    Appends ``(cfg, PhysxReplicateContext)`` to
-    :data:`~isaaclab.cloner.REPLICATION_QUEUE`. The actual row resolution and dispatch
-    happen inside :func:`~isaaclab.cloner.replicate`, so this helper is safe to call from
-    any asset constructor — no active session is required.
-    """
-    REPLICATION_QUEUE.append((cfg, PhysxReplicateContext))
+PhysX always needs the per-env USD prims, not just for rendering: cross-environment collision
+filtering is authored on them as USD collision groups, and PhysX only runs under Kit (there is
+no kitless PhysX, so unlike Newton there is no USD-free mode to gate on)."""
 
 
 def physx_replicate(

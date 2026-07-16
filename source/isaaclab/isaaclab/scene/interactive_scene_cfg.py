@@ -114,6 +114,17 @@ class InteractiveSceneCfg:
     .. note::
         Optimized parsing of certain prim types (such as deformable objects) is not currently supported
         by the physics engine. In these cases, this flag needs to be set to False.
+
+    .. attention::
+        Setting this flag to False is currently not supported on the Newton physics backend:
+        Newton discovers the scene through its replication path, which stage parsing cannot
+        replace for cloned environments.
+
+    .. note::
+        The scene pipes this flag into :attr:`~isaaclab.cloner.CloneCfg.replicate_physics`;
+        the policy is applied by :func:`~isaaclab.cloner.replicate`. Direct workflows that
+        call :func:`~isaaclab.cloner.replicate` themselves pass ``replicate_physics``
+        explicitly.
     """
 
     filter_collisions: bool = True
