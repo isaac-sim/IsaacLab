@@ -367,6 +367,8 @@ runs:
           echo "Docker environment variables: '$docker_env_vars'"
           echo "::endgroup::"
 
+          echo "::group::Run Tests"
+
           # Run tests in a detached container and follow logs.  Running detached
           # means the container lifecycle is independent of the shell - if the
           # runner kills this step on cancellation, the `if: always()` cleanup
@@ -431,7 +433,6 @@ runs:
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
-          echo "::group::Container Test logs"
           # Stream container logs in background.
           docker logs -f "$container_name" &
           logs_pid=$!
