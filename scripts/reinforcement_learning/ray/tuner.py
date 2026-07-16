@@ -358,11 +358,10 @@ class JobCfg:
         """
         Runner args include command line arguments passed to the task.
         For example:
-        cfg["runner_args"]["headless_singleton"] = "--headless"
-        cfg["runner_args"]["enable_cameras_singleton"] = "--enable_cameras"
+        cfg["runner_args"]["video_singleton"] = "--video"
         """
         assert "runner_args" in cfg, "No runner arguments specified."
-        cfg["runner_args"].setdefault("--rl_library", "rl_games")
+        cfg["runner_args"].setdefault("--rl_library", "rsl_rl")
         """
         Task is the desired task to train on. For example:
         cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
