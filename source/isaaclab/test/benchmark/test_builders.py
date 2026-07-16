@@ -10,8 +10,8 @@ import os
 
 import pytest
 
-from isaaclab.test.benchmark import builders
-from isaaclab.test.benchmark.schema import (
+from isaaclab.benchmark import builders
+from isaaclab.benchmark.schema import (
     GpuDeviceInfo,
     Hardware,
     MeanStd,
@@ -21,7 +21,7 @@ from isaaclab.test.benchmark.schema import (
     TrainingBundle,
     Versions,
 )
-from isaaclab.test.benchmark.serialize import write_bundle_file
+from isaaclab.benchmark.serialize import write_bundle_file
 
 
 def _versions():

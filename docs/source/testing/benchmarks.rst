@@ -45,11 +45,11 @@ The benchmarking framework consists of several key components:
 Quick Start
 -----------
 
-Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
+Basic usage with :class:`~isaaclab.benchmark.BaseIsaacLabBenchmark`:
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import (
+   from isaaclab.benchmark import (
        BaseIsaacLabBenchmark,
        SingleMeasurement,
        StatisticalMeasurement,
@@ -91,26 +91,50 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
    )
 
    # Finalize and write output
-   benchmark._finalize_impl()
+   benchmark.finalize()
 
-Running Benchmark Scripts
--------------------------
+Running Benchmark Workflows
+---------------------------
 
-Isaac Lab provides unified ``runtime.py``, ``startup.py``, ``training.py``, and ``play.py``
-entry points under ``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
-emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
-``--benchmark_formatter`` accepts a comma-separated list (e.g.
-``schema,omniperf``) to emit several formats in a single run. Each selected
-formatter writes timestamped output; the Osmo formatter writes one
-phase-suffixed JSON file per phase.
+The canonical runtime, startup, training, and play workflows live in
+:mod:`isaaclab.benchmark`. The ``isaaclab benchmark`` command dispatches to
+these library entrypoints and defaults to ``--benchmark_formatter schema``.
+The compatibility scripts under ``scripts/benchmarks/`` remain available
+during the deprecation period.
 
-The examples below use ``uv run isaaclab benchmark``. From an existing
-Isaac Lab environment, run the same workflows directly instead:
+Programmatic dispatch uses typed requests and returns the result bundle together
+with every formatter output path:
 
-* Runtime: ``./isaaclab.sh -p scripts/benchmarks/runtime.py <arguments>``
-* Startup: ``./isaaclab.sh -p scripts/benchmarks/startup.py <arguments>``
-* Training: ``./isaaclab.sh -p scripts/benchmarks/training.py <arguments>``
-* Play: ``./isaaclab.sh -p scripts/benchmarks/play.py <arguments>``
+.. code-block:: python
+
+   from isaaclab.benchmark import (
+       BenchmarkLauncherConfig,
+       BenchmarkOutputConfig,
+       BenchmarkTrainingRequest,
+       run_benchmark,
+   )
+
+   result = run_benchmark(
+       BenchmarkTrainingRequest(
+           backend="rsl_rl",
+           task="Isaac-Cartpole-Direct",
+           num_envs=4096,
+           max_iterations=500,
+           presets=("newton_mjwarp",),
+           output=BenchmarkOutputConfig(formatters=("schema", "summary")),
+           launcher=BenchmarkLauncherConfig(visualizers=()),
+       )
+   )
+
+   print(result.bundle.runtime.total_fps.mean)
+   print(result.output_paths)
+
+The same workflows are available from an installed Isaac Lab environment:
+
+* Runtime: ``isaaclab benchmark runtime <arguments>``
+* Startup: ``isaaclab benchmark startup <arguments>``
+* Training: ``isaaclab benchmark training <arguments>``
+* Play: ``isaaclab benchmark play <arguments>``
 
 Non-RL / Runtime Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -192,7 +216,7 @@ Environment-Step Timing Semantics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Runtime, training, and play benchmarks report
-:class:`~isaaclab.test.benchmark.EnvironmentStepTiming`. The default
+:class:`~isaaclab.benchmark.EnvironmentStepTiming`. The default
 ``host_return`` measurement mode records wall time until ``env.step()`` returns
 without forcing queued device work to complete. It describes the host-visible
 call boundary, not a device-complete boundary; asynchronously queued work can be
@@ -454,7 +478,7 @@ For single numeric values:
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import SingleMeasurement
+   from isaaclab.benchmark import SingleMeasurement
 
    measurement = SingleMeasurement(
        name="total_frames",
@@ -469,7 +493,7 @@ For statistical summaries:
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import StatisticalMeasurement
+   from isaaclab.benchmark import StatisticalMeasurement
 
    measurement = StatisticalMeasurement(
        name="step_time",
@@ -486,7 +510,7 @@ For pass/fail status:
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import BooleanMeasurement
+   from isaaclab.benchmark import BooleanMeasurement
 
    measurement = BooleanMeasurement(
        name="converged",
@@ -500,7 +524,7 @@ For structured data:
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import DictMeasurement
+   from isaaclab.benchmark import DictMeasurement
 
    measurement = DictMeasurement(
        name="config",
@@ -514,7 +538,7 @@ For sequences of values:
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import ListMeasurement
+   from isaaclab.benchmark import ListMeasurement
 
    measurement = ListMeasurement(
        name="rewards_per_episode",
@@ -524,7 +548,7 @@ For sequences of values:
 Test Phases
 -----------
 
-:class:`~isaaclab.test.benchmark.TestPhase` organizes measurements and metadata
+:class:`~isaaclab.benchmark.TestPhase` organizes measurements and metadata
 into logical groups. Common phases include:
 
 - ``benchmark_info``: Workflow name, timestamp, configuration
@@ -622,7 +646,7 @@ Schema Formatter
 ~~~~~~~~~~~~~~~~
 
 Writes a schema-v1 bundle attached with
-:meth:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark.attach_bundle`. Use it
+:meth:`~isaaclab.benchmark.BaseIsaacLabBenchmark.attach_bundle`. Use it
 with a ``RuntimeBundle``, ``TrainingBundle``, or ``StartupBundle`` when a
 typed, stable output contract is required.
 
@@ -650,12 +674,12 @@ running with Isaac Sim (Kit).
 BenchmarkMonitor
 ----------------
 
-:class:`~isaaclab.test.benchmark.BenchmarkMonitor` enables continuous system
+:class:`~isaaclab.benchmark.BenchmarkMonitor` enables continuous system
 monitoring during blocking operations like RL training loops:
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
+   from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 
    benchmark = BaseIsaacLabBenchmark(
        benchmark_name="TrainingBenchmark",
@@ -667,7 +691,7 @@ monitoring during blocking operations like RL training loops:
    with BenchmarkMonitor(benchmark, interval=1.0):
        runner.learn(num_learning_iterations=1000)  # Blocking call
 
-   benchmark._finalize_impl()
+   benchmark.finalize()
 
 The monitor runs in a background thread and periodically calls
 ``update_manual_recorders()`` to capture CPU, GPU, and memory usage samples.
@@ -712,7 +736,7 @@ Step 1: Initialize Benchmark
 .. code-block:: python
 
    import argparse
-   from isaaclab.test.benchmark import BaseIsaacLabBenchmark
+   from isaaclab.benchmark import BaseIsaacLabBenchmark
 
    parser = argparse.ArgumentParser()
    parser.add_argument("--benchmark_formatter", default="json")
@@ -745,7 +769,7 @@ Step 3: Record Measurements
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import SingleMeasurement, StringMetadata
+   from isaaclab.benchmark import SingleMeasurement, StringMetadata
 
    benchmark.add_measurement(
        phase_name="runtime",
@@ -766,12 +790,12 @@ Step 4: Finalize
 
 .. code-block:: python
 
-   benchmark._finalize_impl()
+   benchmark.finalize()
 
 Integration with CI/CD
 ----------------------
 
-The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD integration:
+The ``isaaclab benchmark`` entrypoints are designed for CI/CD integration:
 
 .. code-block:: bash
 
@@ -834,7 +858,7 @@ Verify ``nvidia-smi`` is available and CUDA is configured:
 Empty Output Files
 ~~~~~~~~~~~~~~~~~~
 
-Ensure ``_finalize_impl()`` is called before the script exits:
+Ensure ``finalize()`` is called before the script exits:
 
 .. code-block:: python
 
@@ -842,7 +866,7 @@ Ensure ``_finalize_impl()`` is called before the script exits:
        # Your benchmark code
        pass
    finally:
-       benchmark._finalize_impl()
+       benchmark.finalize()
 
 Formatter Not Recognized
 ~~~~~~~~~~~~~~~~~~~~~~~~

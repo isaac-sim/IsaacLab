@@ -938,7 +938,7 @@ Here's a complete example showing how to update your code:
 
 
 Quaternion Format
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 **The quaternion format changed from WXYZ to XYZW.**
 
@@ -1856,11 +1856,11 @@ directly in your code, update your configuration:
    )
 
 
-Benchmark Scripts
-~~~~~~~~~~~~~~~~~
+Benchmark Workflows
+~~~~~~~~~~~~~~~~~~~
 
 Isaac Lab 3.0 consolidates the per-backend environment benchmark entry points and their
-wrapper shell runners into a small set of unified, backend-agnostic scripts. The physics
+wrapper shell runners into library-owned, backend-agnostic workflows. The physics
 backend is now selected at launch time through the ``presets=`` system — the same pattern
 used for environment configurations (see "Multi-Backend Support: PresetCfg Pattern" above)
 — rather than by choosing a backend-specific script.
@@ -1868,24 +1868,24 @@ used for environment configurations (see "Multi-Backend Support: PresetCfg Patte
 What Changed
 ------------
 
-The standalone environment benchmark entry-point scripts have been removed and replaced by
-unified scripts:
+The environment benchmark entry points are now exposed through ``isaaclab benchmark`` and
+the typed :mod:`isaaclab.benchmark` Python API:
 
-* ``runtime.py`` — steps an environment with random actions (no policy) and emits a
+* ``isaaclab benchmark runtime`` — steps an environment with random actions (no policy) and emits a
   ``RuntimeBundle``.
-* ``training.py`` — dispatches a real training run for the RL library selected with
+* ``isaaclab benchmark training`` — dispatches a real training run for the RL library selected with
   ``--rl_library`` and emits a ``TrainingBundle``.
-* ``startup.py`` — profiles the five startup phases (``app_launch``, ``python_imports``,
+* ``isaaclab benchmark startup`` — profiles the five startup phases (``app_launch``, ``python_imports``,
   ``task_config``, ``env_creation``, ``first_step``) with ``cProfile`` and emits a
   ``StartupBundle``.
-* ``play.py`` — **new in 3.0** — loads a trained checkpoint and benchmarks policy inference
+* ``isaaclab benchmark play`` — **new in 3.0** — loads a trained checkpoint and benchmarks policy inference
   for the RL library selected with ``--rl_library``, emitting a ``PlayBundle`` (inference
   throughput plus the policy's reward, episode length, and success rate). It consumes the
-  checkpoints produced by ``training.py``; 2.x had no per-backend play benchmark.
+  checkpoints produced by the training workflow; 2.x had no per-backend play benchmark.
 
 The wrapper shell runners that drove these benchmarks — ``run_non_rl_benchmarks.sh`` and
 ``run_training_benchmarks.sh`` — were removed as well; their behavior is now expressed
-directly through script arguments and ``presets=`` tokens.
+directly through command arguments and ``presets=`` tokens.
 
 .. note::
 
@@ -1911,30 +1911,30 @@ Map each old invocation to its replacement:
    * - Isaac Lab 2.x
      - Isaac Lab 3.0
    * - ``benchmark_non_rl.py``
-     - ``runtime.py`` (no ``--rl_library`` dispatch)
+     - ``isaaclab benchmark runtime`` (no ``--rl_library`` dispatch)
    * - ``benchmark_startup.py``
-     - ``startup.py``
+     - ``isaaclab benchmark startup``
    * - ``benchmark_rsl_rl.py``
-     - ``training.py --rl_library rsl_rl``
+     - ``isaaclab benchmark training --rl_library rsl_rl``
    * - ``benchmark_rlgames.py``
-     - ``training.py --rl_library rl_games``
+     - ``isaaclab benchmark training --rl_library rl_games``
    * - *(newly supported)*
-     - ``training.py --rl_library skrl``
+     - ``isaaclab benchmark training --rl_library skrl``
    * - *(newly supported)*
-     - ``training.py --rl_library sb3``
+     - ``isaaclab benchmark training --rl_library sb3``
    * - *(newly supported)*
-     - ``play.py --rl_library {rsl_rl,rl_games,skrl,sb3}``
+     - ``isaaclab benchmark play --rl_library {rsl_rl,rl_games,skrl,sb3}``
 
 SKRL and Stable-Baselines3 had no dedicated benchmark script in 2.x; both are now supported
-through the same ``--rl_library`` dispatch on ``training.py``. ``play.py`` is likewise new in
-3.0: it benchmarks inference of a checkpoint trained by ``training.py`` for any of the four
+through the same ``--rl_library`` dispatch on ``isaaclab benchmark training``. ``isaaclab benchmark play`` is likewise new in
+3.0: it benchmarks inference of a checkpoint trained by the training workflow for any of the four
 RL libraries.
 
 Running Benchmarks
 ------------------
 
 The physics (and rendering) backend is selected with Hydra preset tokens — ``presets=``,
-exactly as for ``train.py``. There is no ``--physics`` or ``--render`` flag; pass
+exactly as for the training workflow. There is no ``--physics`` or ``--render`` flag; pass
 ``presets=physx``, ``presets=newton_mjwarp``, etc. to choose the backend.
 
 **Before (Isaac Lab 2.x):**
@@ -1956,20 +1956,20 @@ exactly as for ``train.py``. There is no ``--physics`` or ``--render`` flag; pas
 .. code-block:: bash
 
    # Non-RL (random-action) runtime benchmark — PhysX (default)
-   ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct
+   ./isaaclab.sh benchmark runtime --task Isaac-Cartpole-Direct
 
    # Same benchmark on Newton/MJWarp — select the backend via presets=
-   ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
+   ./isaaclab.sh benchmark runtime --task Isaac-Cartpole-Direct presets=newton_mjwarp
 
    # Training benchmark — choose the RL library with --rl_library
-   ./isaaclab.sh -p scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library rsl_rl
-   ./isaaclab.sh -p scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
+   ./isaaclab.sh benchmark training --task Isaac-Cartpole-Direct --rl_library rsl_rl
+   ./isaaclab.sh benchmark training --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
 
-   # Play (inference) benchmark — loads a checkpoint produced by training.py
-   ./isaaclab.sh -p scripts/benchmarks/play.py --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
+   # Play (inference) benchmark — loads a checkpoint produced by the training workflow
+   ./isaaclab.sh benchmark play --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
 
    # Startup profiling
-   ./isaaclab.sh -p scripts/benchmarks/startup.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
+   ./isaaclab.sh benchmark startup --task Isaac-Cartpole-Direct presets=newton_mjwarp
 
 Output Format
 -------------
@@ -1983,7 +1983,7 @@ comma-separated list to emit several formats at once. Supported values are ``sch
 .. code-block:: bash
 
    # Emit the typed schema bundle and an OmniPerf KPI file in one run
-   ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct \
+   ./isaaclab.sh benchmark runtime --task Isaac-Cartpole-Direct \
        --benchmark_formatter schema,omniperf
 
 Migration Steps
@@ -1991,9 +1991,9 @@ Migration Steps
 
 If you have custom benchmark scripts or CI based on Isaac Lab 2.x:
 
-1. **Replace the old entry points** — swap ``benchmark_non_rl.py`` for ``runtime.py``,
-   ``benchmark_startup.py`` for ``startup.py``, and the per-library training scripts for
-   ``training.py --rl_library <lib>``.
+1. **Replace the old entry points** — swap ``benchmark_non_rl.py`` for ``isaaclab benchmark runtime``,
+   ``benchmark_startup.py`` for ``isaaclab benchmark startup``, and the per-library training scripts for
+   ``isaaclab benchmark training --rl_library <lib>``.
 
 2. **Drop the wrapper runners** — ``run_non_rl_benchmarks.sh`` and
    ``run_training_benchmarks.sh`` no longer exist; express their behavior with script

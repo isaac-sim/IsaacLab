@@ -14,18 +14,23 @@ import isaaclab.cli as cli
 
 
 @pytest.mark.parametrize("command", ["runtime", "startup", "training", "play"])
-def test_benchmark_dispatches_to_requested_script(command):
-    """The ``isaaclab benchmark`` command forwards arguments to the requested script."""
+def test_benchmark_dispatches_in_process(command):
+    """Test that ``isaaclab benchmark`` forwards arguments to the library dispatcher."""
     args = [command, "--help"]
 
     with (
         mock.patch.object(sys, "argv", ["isaaclab", "benchmark", *args]),
-        mock.patch("isaaclab.cli.run_python_command") as run_python,
+        mock.patch("isaaclab.benchmark.run_benchmark_cli", return_value=0) as run_benchmark,
     ):
         cli.cli()
 
-    run_python.assert_called_once_with(
-        cli.ISAACLAB_ROOT / "scripts" / "benchmarks" / f"{command}.py",
-        args[1:],
-        check=True,
-    )
+    run_benchmark.assert_called_once_with(args)
+
+
+def test_benchmark_propagates_nonzero_dispatch_status():
+    """Test that a benchmark dispatcher failure becomes the CLI exit status."""
+    with mock.patch("isaaclab.benchmark.run_benchmark_cli", return_value=2):
+        with pytest.raises(SystemExit) as exc_info:
+            cli.benchmark(["training"])
+
+    assert exc_info.value.code == 2

@@ -66,7 +66,7 @@ from isaaclab_newton.test.mock_interfaces import (
 )
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.test.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
+from isaaclab.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)

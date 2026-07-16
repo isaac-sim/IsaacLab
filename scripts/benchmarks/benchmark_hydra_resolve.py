@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 import gymnasium
 
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
+from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
@@ -181,7 +181,7 @@ def _log_results(benchmark: BaseIsaacLabBenchmark, results: dict[Case, list[floa
             )
 
     benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
+    benchmark.finalize()
 
 
 def main() -> int:

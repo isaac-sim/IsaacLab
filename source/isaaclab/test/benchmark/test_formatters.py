@@ -11,9 +11,9 @@ import os
 
 import pytest
 
-from isaaclab.test.benchmark import formatters
-from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase
-from isaaclab.test.benchmark.schema import (
+from isaaclab.benchmark import formatters
+from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase
+from isaaclab.benchmark.schema import (
     GpuDeviceInfo,
     Hardware,
     MeanStd,
@@ -107,7 +107,7 @@ def test_schema_bundle_file_serializes_bundle_and_handles_missing_bundle(tmp_pat
     assert data["schema_version"]
     assert "Test FPS" not in json.dumps(data)
 
-    with caplog.at_level(logging.WARNING, logger="isaaclab.test.benchmark.formatters"):
+    with caplog.at_level(logging.WARNING, logger="isaaclab.benchmark.formatters"):
         formatter.finalize(str(tmp_path), "missing", bundle=None)
     assert not os.path.exists(os.path.join(str(tmp_path), "missing.json"))
     assert any("no bundle" in record.message.lower() for record in caplog.records)

@@ -3,14 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "CPUInfoRecorder",
-    "GPUInfoRecorder",
-    "MemoryInfoRecorder",
-    "VersionInfoRecorder",
-]
-
-from .record_cpu_info import CPUInfoRecorder
-from .record_gpu_info import GPUInfoRecorder
-from .record_memory_info import MemoryInfoRecorder
-from .record_version_info import VersionInfoRecorder
+from isaaclab.benchmark.recorders import *

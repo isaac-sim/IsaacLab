@@ -67,7 +67,7 @@ import warp as wp
 from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
 from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp
 
-from isaaclab.test.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
+from isaaclab.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)

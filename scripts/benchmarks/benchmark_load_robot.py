@@ -60,9 +60,9 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.utils.configclass import configclass
 
 ##
@@ -222,7 +222,7 @@ def main():
 
     # Finalize benchmark
     benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
+    benchmark.finalize()
 
 
 if __name__ == "__main__":

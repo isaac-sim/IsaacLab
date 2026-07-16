@@ -67,7 +67,7 @@ from isaaclab_physx.test.benchmark import make_tensor_body_ids, make_tensor_env_
 from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp
 
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-from isaaclab.test.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
+from isaaclab.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
