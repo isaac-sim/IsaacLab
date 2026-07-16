@@ -13,6 +13,7 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -59,32 +60,142 @@ def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:
         return 2.0 * torch.rand(u.num_envs, u.single_action_space.shape[0], device=u.device) - 1.0
 
 
-def run_runtime_loop(env, num_frames: int) -> list[float]:
-    """Step the environment ``num_frames`` times and record per-step wall times [s].
+@dataclass(frozen=True)
+class RuntimeLoopTiming:
+    """Timing samples collected while stepping an environment."""
 
-    Calls ``env.reset()`` once before the loop, then on each frame samples
-    random actions via :func:`sample_random_actions`, steps the environment,
-    and records the elapsed wall-clock time for that step.
+    first_step_s: float
+    """Wall time of the first environment step [s]."""
+
+    step_times_s: list[float]
+    """Environment step wall times collected after the requested warm-up [s]."""
+
+
+def measure_runtime_loop(
+    env,
+    num_frames: int,
+    *,
+    warmup_frames: int = 0,
+    synchronize_steps: bool = False,
+    reuse_action_buffer: bool = False,
+) -> RuntimeLoopTiming:
+    """Step an environment and measure startup and per-step wall times.
+
+    Calls ``env.reset()`` once, runs untimed warm-up frames, then records the
+    requested frames. Action sampling stays outside the timed region. Optional
+    CUDA synchronization measures completed-step latency rather than host
+    submission latency. Optional action-buffer reuse changes values in-place so
+    pointer-sensitive frontends can be measured independently from allocation.
 
     Args:
         env: A Gym-compatible environment.
         num_frames: Number of environment steps to run.
+        warmup_frames: Number of untimed environment steps before measurement.
+        synchronize_steps: Whether to synchronize the environment CUDA device
+            immediately before and after every measured step.
+        reuse_action_buffer: Whether to reuse one action allocation and randomize
+            its contents in-place between steps.
+
+    Returns:
+        The first-step time and a list of length ``num_frames`` containing
+        per-step wall times after the requested warm-up [s]. With no warm-up,
+        the first measured sample is also the reported first step.
+    """
+    if num_frames < 0:
+        raise ValueError(f"num_frames must be non-negative, got {num_frames}.")
+    if warmup_frames < 0:
+        raise ValueError(f"warmup_frames must be non-negative, got {warmup_frames}.")
+
+    env.reset()
+    reusable_actions = sample_random_actions(env) if reuse_action_buffer else None
+    step_times: list[float] = []
+
+    def next_actions():
+        if reusable_actions is None:
+            return sample_random_actions(env)
+        _randomize_actions_in_place(reusable_actions)
+        return reusable_actions
+
+    first_step_s = 0.0
+    for warmup_index in range(warmup_frames):
+        actions = next_actions()
+        if warmup_index == 0:
+            if synchronize_steps:
+                _synchronize_env_device(env)
+            t0 = time.perf_counter_ns()
+            env.step(actions)
+            if synchronize_steps:
+                _synchronize_env_device(env)
+            t1 = time.perf_counter_ns()
+            first_step_s = (t1 - t0) / 1e9
+        else:
+            env.step(actions)
+    if synchronize_steps:
+        _synchronize_env_device(env)
+
+    for _ in range(num_frames):
+        actions = next_actions()
+        if synchronize_steps:
+            _synchronize_env_device(env)
+        t0 = time.perf_counter_ns()
+        env.step(actions)
+        if synchronize_steps:
+            _synchronize_env_device(env)
+        t1 = time.perf_counter_ns()
+        step_times.append((t1 - t0) / 1e9)
+        if first_step_s == 0.0 and len(step_times) == 1:
+            first_step_s = step_times[0]
+
+    return RuntimeLoopTiming(first_step_s=first_step_s, step_times_s=step_times)
+
+
+def run_runtime_loop(
+    env,
+    num_frames: int,
+    *,
+    warmup_frames: int = 0,
+    synchronize_steps: bool = False,
+    reuse_action_buffer: bool = False,
+) -> list[float]:
+    """Step an environment and return per-step wall times after warm-up [s].
+
+    This compatibility wrapper delegates to :func:`measure_runtime_loop`.
+
+    Args:
+        env: A Gym-compatible environment.
+        num_frames: Number of environment steps to measure.
+        warmup_frames: Number of untimed environment steps before measurement.
+        synchronize_steps: Whether to synchronize the environment CUDA device
+            immediately before and after every measured step.
+        reuse_action_buffer: Whether to reuse one action allocation and randomize
+            its contents in-place between steps.
 
     Returns:
         A list of length ``num_frames`` containing per-step wall times [s].
     """
-    env.reset()
+    return measure_runtime_loop(
+        env,
+        num_frames,
+        warmup_frames=warmup_frames,
+        synchronize_steps=synchronize_steps,
+        reuse_action_buffer=reuse_action_buffer,
+    ).step_times_s
 
-    step_times: list[float] = []
 
-    for _ in range(num_frames):
-        actions = sample_random_actions(env)
-        t0 = time.perf_counter_ns()
-        env.step(actions)
-        t1 = time.perf_counter_ns()
-        step_times.append((t1 - t0) / 1e9)
+def _randomize_actions_in_place(actions: torch.Tensor | dict[str, torch.Tensor]) -> None:
+    """Fill reusable single-agent or multi-agent action tensors in-place."""
+    tensors = actions.values() if isinstance(actions, dict) else (actions,)
+    for tensor in tensors:
+        tensor.uniform_(-1.0, 1.0)
 
-    return step_times
+
+def _synchronize_env_device(env) -> None:
+    """Synchronize the environment CUDA device when it uses CUDA."""
+    import torch  # noqa: PLC0415
+
+    device = torch.device(env.unwrapped.device)
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
 
 
 def _extract_success(extras) -> float | None:
