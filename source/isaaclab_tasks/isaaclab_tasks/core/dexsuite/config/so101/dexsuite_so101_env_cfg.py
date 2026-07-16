@@ -31,15 +31,14 @@ FINGER_SENSORS = [THUMB_SENSOR]
 class SO101SceneCfg(dexsuite.SceneCfg):
     """SO-101 scene for the dexsuite lift task.
 
-    The arm is seated on the dexsuite table (top surface at z=0.255) in its default state;
-    at the identity base orientation it reaches along -y over the tabletop.
+    The arm is clamped at the +x side edge of the dexsuite table, yawed -90 deg so it
+    reaches across the table's short axis along world -x.
     """
 
     robot: ArticulationCfg = SO101_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        # clamped at the table's +x side edge, yawed -90 deg so the arm reaches across the
-        # table along -x (the short axis). The base frame sits ~3 cm above the clamp foot,
-        # hence the -0.03008 drop that plants the foot on the tabletop (top at z=0.255)
+        # the asset's root frame is authored 3.008 cm above the bottom of its clamp foot,
+        # so z = 0.255 (tabletop) - 0.03008 plants the foot on the table surface
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(-0.16, 0.2, 0.22492),
             rot=(0.0, 0.0, -0.70710678, 0.70710678),
@@ -65,7 +64,7 @@ class SO101SceneCfg(dexsuite.SceneCfg):
             prim_path="{ENV_REGEX_NS}/Object",
             filter_prim_paths_expr=["{ENV_REGEX_NS}/Robot/moving_jaw_so101_v1"],
         )
-        # objects sized to the SO-101 jaw (~4 cm span at full open, ~0.2 N*m drive)
+        # objects sized to the SO-101 jaw (~4 cm span at full open)
         graspable_shape_assets_cfg = [
             MeshCuboidCfg(size=(0.03, 0.03, 0.03), **dexsuite.OBJECT_PHYSICS),
             MeshCuboidCfg(size=(0.02, 0.03, 0.03), **dexsuite.OBJECT_PHYSICS),
@@ -167,9 +166,9 @@ class SO101MixinCfg:
         # table/ground clearance: everything but the table-mounted base and the shoulder
         # yoke bolted to it — with the clamp foot planted on the tabletop both live at
         # table height by construction and would reject every reset draw
-        self.events.conditional_reset.params["valid_criteria"]["robot_table_clearance"].body_names = (
-            "(?!(base|shoulder)$).*"
-        )
+        self.events.conditional_reset.params["valid_criteria"][
+            "robot_table_clearance"
+        ].body_names = "(?!(base|shoulder)$).*"
         # velocity-limit termination on the arm joints only: the jaw legitimately stalls on objects
         self.terminations.abnormal_robot.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names="(shoulder_pan|shoulder_lift|elbow_flex|wrist_flex|wrist_roll)"
