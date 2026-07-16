@@ -36,7 +36,7 @@ from isaaclab.utils._device import set_cuda_device
 logger = logging.getLogger(__name__)
 
 # Class names of the kitless physics backends (Newton, OvPhysX). Matched by exact
-# name so subclasses with distinct names (e.g. ``DeformableNewtonCfg``) opt out.
+# name so subclasses with distinct names opt out.
 _KITLESS_PHYSICS_CFGS = ("NewtonCfg", "OvPhysxCfg")
 
 
