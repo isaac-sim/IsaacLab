@@ -168,6 +168,7 @@ Guidelines for modifications:
 * Rebecca Zhang
 * Renaud Poncelet
 * René Zurbrügg
+* Richard Lei
 * Richard Schmitt
 * RinZ27
 * Ritvik Singh

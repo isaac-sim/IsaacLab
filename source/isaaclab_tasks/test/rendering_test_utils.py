@@ -132,6 +132,11 @@ _NEWTON_WARP_DATA_TYPES = (
     "normals",
 )
 
+# Data types the OVRTX renderer supports. ``instance_id_segmentation_fast`` is intentionally
+# excluded: it has no real-world sensor equivalent, so the OVRTX integration does not support it.
+# Users should use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
+_OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
+
 
 def _make_sensor_data_type_params(
     physics_backend: str,
@@ -176,8 +181,8 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("ovphysx", "ovrtx"),
-    *_make_sensor_data_type_params("newton", "ovrtx"),
+    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
     *_make_sensor_data_type_params(
         "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
