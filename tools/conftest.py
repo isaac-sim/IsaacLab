@@ -644,7 +644,9 @@ def _run_one_pass(
                 f" (attempt {startup_hang_attempts}/{STARTUP_HANG_RETRIES + 1}), retrying..."
             )
             if stderr_data:
-                logger.info(f"=== STDERR (last 5000 chars) ===\n{stderr_data.decode('utf-8', errors='replace')[-5000:]}")
+                logger.info(
+                    f"=== STDERR (last 5000 chars) ===\n{stderr_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
             diag = pre_kill_diag or _capture_system_diagnostics()
             if len(diag) > 10000:
                 diag = diag[:10000] + "\n... (truncated)"
@@ -658,9 +660,13 @@ def _run_one_pass(
                 f" (attempt {timeout_attempts}/{TIMEOUT_RETRIES + 1}), retrying..."
             )
             if stdout_data:
-                logger.info(f"=== STDOUT (last 5000 chars) ===\n{stdout_data.decode('utf-8', errors='replace')[-5000:]}")
+                logger.info(
+                    f"=== STDOUT (last 5000 chars) ===\n{stdout_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
             if stderr_data:
-                logger.info(f"=== STDERR (last 5000 chars) ===\n{stderr_data.decode('utf-8', errors='replace')[-5000:]}")
+                logger.info(
+                    f"=== STDERR (last 5000 chars) ===\n{stderr_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
             diag = pre_kill_diag or _capture_system_diagnostics()
             if len(diag) > 10000:
                 diag = diag[:10000] + "\n... (truncated)"
@@ -767,7 +773,9 @@ def _run_one_pass(
 
     # -- Report file exists: parse actual test results -----------------
     if kill_reason in ("shutdown_hang", "timeout"):
-        logger.warning(f"⚠️  {ctx.test_file}{suffix}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)")
+        logger.warning(
+            f"⚠️  {ctx.test_file}{suffix}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)"
+        )
 
     try:
         report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, pass_file_label)
