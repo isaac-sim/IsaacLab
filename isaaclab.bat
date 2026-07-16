@@ -41,34 +41,9 @@ if exist "%ISAACLAB_PATH%\_isaac_sim\" (
     )
 )
 
-rem If omni.usd.libs is present, prepend it to PYTHONPATH and its bin\ to PATH
-rem so its patched pxr is found before usd-core's pxr and the native USD shared
-rem libraries are resolvable, resolving TfType::AddAlias conflicts.
-rem
-rem omni.usd.libs\pxr\ is a namespace package (no __init__.py), but Python
-rem prefers a regular package (with __init__.py) over a namespace package
-rem regardless of sys.path order.  Write a minimal __init__.py to promote it
-rem to a regular package so the PYTHONPATH prepend actually takes effect.
-set "_ov_usd_libs_dir="
-if exist "%ISAACLAB_PATH%\_isaac_sim\extscache\" (
-    "%python_exe%" -c "import glob,os,sys; d=sorted(glob.glob(os.path.join(os.environ.get('ISAACLAB_PATH',''),'_isaac_sim','extscache','omni.usd.libs-*'))); print(d[-1] if d else '',end='')" > "%TEMP%\ov_usd_libs.tmp" 2>nul
-    set /p _ov_usd_libs_dir=<"%TEMP%\ov_usd_libs.tmp"
-    del "%TEMP%\ov_usd_libs.tmp" >nul 2>&1
-)
-if defined _ov_usd_libs_dir (
-    if exist "!_ov_usd_libs_dir!\pxr\" (
-        if not exist "!_ov_usd_libs_dir!\pxr\__init__.py" (
-            type nul > "!_ov_usd_libs_dir!\pxr\__init__.py"
-            if errorlevel 1 (
-                echo [WARNING] Cannot promote omni.usd.libs\pxr to a regular package (read-only cache^); skipping USD path setup. 1>&2
-                set "_ov_usd_libs_dir="
-            )
-        )
-    )
-    if defined _ov_usd_libs_dir (
-        set "PYTHONPATH=!_ov_usd_libs_dir!;!PYTHONPATH!"
-        set "PATH=!_ov_usd_libs_dir!\bin;!PATH!"
-    )
+for /f "delims=" %%d in ('"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py"') do (
+    set "PYTHONPATH=%%d;!PYTHONPATH!"
+    set "PATH=%%d\bin;!PATH!"
 )
 set "_ov_usd_libs_dir="
 

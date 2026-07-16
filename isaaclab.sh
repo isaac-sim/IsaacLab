@@ -61,33 +61,16 @@ if [ -d "$ISAACLAB_PATH/_isaac_sim" ]; then
     fi
 fi
 
-# If omni.usd.libs is present, prepend it to PYTHONPATH and its bin/ to
-# LD_LIBRARY_PATH so its patched pxr is found before usd-core's pxr and the
-# native USD shared libraries are resolvable.  This resolves TfType::AddAlias
-# conflicts when omni.usd.schema packages (ovrtx/ovphysx) are also installed.
-#
-# omni.usd.libs/pxr/ is a namespace package (no __init__.py), but Python's
-# import system always prefers a regular package (with __init__.py) over a
-# namespace package, regardless of sys.path order.  Since usd-core installs a
-# regular pxr package, prepending omni.usd.libs to PYTHONPATH alone does nothing.
-# We write a minimal __init__.py into omni.usd.libs/pxr/ to promote it to a
-# regular package, making the sys.path order actually take effect.
-if [ -d "$ISAACLAB_PATH/_isaac_sim/extscache" ]; then
-    _ov_usd_libs_dir=$("$python_exe" -c "import glob,os,sys; d=sorted(glob.glob(os.path.join(os.environ.get('ISAACLAB_PATH',''),'_isaac_sim','extscache','omni.usd.libs-*'))); print(d[-1] if d else '',end='')")
-    if [ -n "$_ov_usd_libs_dir" ]; then
-        if [ -d "$_ov_usd_libs_dir/pxr" ] && [ ! -f "$_ov_usd_libs_dir/pxr/__init__.py" ]; then
-            if ! printf '' > "$_ov_usd_libs_dir/pxr/__init__.py" 2>/dev/null; then
-                echo "[WARNING] Cannot promote omni.usd.libs/pxr to a regular package (read-only cache); skipping USD path setup." >&2
-                unset _ov_usd_libs_dir
-            fi
-        fi
-        if [ -n "$_ov_usd_libs_dir" ]; then
-            export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
-            export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
-        fi
-    fi
-    unset _ov_usd_libs_dir
+# Prefer omni.usd.libs over usd-core for pxr imports to avoid TfType::AddAlias
+# conflicts with ovrtx/ovphysx.  omni.usd.libs/pxr/ is a namespace package, so
+# Python ignores PYTHONPATH order and picks usd-core's regular pxr instead; writing
+# a minimal __init__.py promotes it to a regular package so path order takes effect.
+_ov_usd_libs_dir=$("$python_exe" "$ISAACLAB_PATH/tools/setup_usd_libs.py")
+if [ -n "$_ov_usd_libs_dir" ]; then
+    export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
+    export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
 fi
+unset _ov_usd_libs_dir
 
 # Execute CLI.
 exec "$python_exe" -c "from isaaclab.cli import cli; cli()" "$@"
