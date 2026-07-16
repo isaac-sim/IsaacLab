@@ -72,13 +72,17 @@ fi
 # regular pxr package, prepending omni.usd.libs to PYTHONPATH alone does nothing.
 # We write a minimal __init__.py into omni.usd.libs/pxr/ to promote it to a
 # regular package, making the sys.path order actually take effect.
-if ! usd_libs_dir="$("$python_exe" "$ISAACLAB_PATH/tools/setup_usd_libs.py")"; then
-    echo "[WARNING] Failed to configure omni.usd.libs USD path; continuing without it." >&2
-elif [ -n "$usd_libs_dir" ]; then
-    export PYTHONPATH="$usd_libs_dir:$PYTHONPATH"
-    export LD_LIBRARY_PATH="$usd_libs_dir/bin:$LD_LIBRARY_PATH"
+if [ -d "$ISAACLAB_PATH/_isaac_sim/extscache" ]; then
+    _ov_usd_libs_dir=$("$python_exe" -c "import glob,os,sys; d=sorted(glob.glob(os.path.join(os.environ.get('ISAACLAB_PATH',''),'_isaac_sim','extscache','omni.usd.libs-*'))); print(d[-1] if d else '',end='')")
+    if [ -n "$_ov_usd_libs_dir" ]; then
+        if [ -d "$_ov_usd_libs_dir/pxr" ] && [ ! -f "$_ov_usd_libs_dir/pxr/__init__.py" ]; then
+            printf '' > "$_ov_usd_libs_dir/pxr/__init__.py" 2>/dev/null || true
+        fi
+        export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
+        export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
+    fi
+    unset _ov_usd_libs_dir
 fi
-
 
 # Execute CLI.
 exec "$python_exe" -c "from isaaclab.cli import cli; cli()" "$@"
