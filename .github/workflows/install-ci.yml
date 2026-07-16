@@ -37,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
+      premerge: ${{ steps.detect.outputs.premerge }}
     steps:
       - id: detect
         env:
@@ -53,14 +54,18 @@ jobs:
           # filter (a not-triggered required check would block the PR forever).
           patterns=(
             $'^apps/\tStandalone apps'
+            $'^docker/\tContainer build inputs'
+            $'^scripts/\tStandalone scripts'
             $'^tools/\tBuild tooling'
             $'^source/\tLibrary source code'
             $'^\\.github/actions/run-package-tests/\tTest action'
             $'^\\.github/actions/install-ci-(collect|run)/\tInstall-ci composite actions'
             $'^\\.github/workflows/install-ci\\.yml$\tThis workflow file'
+            $'^\\.gitmodules$\tGit submodule config'
             $'^VERSION$\tVersion file'
             $'(^|/)pyproject\\.toml$\tPython project metadata'
             $'(^|/)environment\\.ya?ml$\tConda environment file'
+            $'^[^/]+\\.(toml|yaml|yml|json|ini|cfg|conf|lock|sh|bat|ps1)$\tRoot configuration and scripts'
           )
 
           render_table() {
@@ -82,21 +87,19 @@ jobs:
             done
           }
 
-          any_match() {
+          matching_files() {
             local files="$1" entry regex
             for entry in "${patterns[@]}"; do
               IFS=$'\t' read -r regex _ <<< "$entry"
-              if grep -qE "$regex" <<< "$files"; then
-                return 0
-              fi
-            done
-            return 1
+              grep -E "$regex" <<< "$files" || true
+            done | grep -vE '\.(md|rst|skip)$' | sort -u || true
           }
 
           decide() {
-            local decision="$1" reason="$2" files="${3:-}"
+            local decision="$1" reason="$2" files="${3:-}" premerge="${4:-false}"
             echo "Decision: run_install_tests=$decision ($reason)"
             echo "run_install_tests=$decision" >> "$GITHUB_OUTPUT"
+            echo "premerge=$premerge" >> "$GITHUB_OUTPUT"
             {
               if [ -n "$files" ]; then
                 render_table "$files"
@@ -118,8 +121,13 @@ jobs:
 
           printf '%s\n' "$changed_files"
 
-          if any_match "$changed_files"; then
-            decide true "relevant paths changed" "$changed_files"
+          relevant_files="$(matching_files "$changed_files")"
+          if [ -n "$relevant_files" ]; then
+            if ! grep -qvE '\.py$' <<< "$relevant_files"; then
+              decide true "relevant Python paths changed" "$changed_files" true
+            else
+              decide true "static paths changed; full suite required" "$changed_files"
+            fi
           else
             decide false "no relevant paths changed" "$changed_files"
           fi
@@ -133,6 +141,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Restore Testmon Data
+        uses: actions/cache@v4
+        with:
+          path: .testmon
+          key: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-${{ github.sha }}
+          restore-keys: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-
       - name: Show Collected Tests
         uses: ./.github/actions/install-ci-collect
         with:
@@ -141,15 +155,9 @@ jobs:
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          premerge: ${{ needs.changes.outputs.premerge }}
+          testmon-data-dir: ${{ github.workspace }}/.testmon/${{ runner.arch }}
           test-filter: ${{ inputs.test_filter }}
-      - name: Upload test results
-        if: always()
-        uses: ./.github/actions/upload-junit-results
-        with:
-          junit-file: ${{ github.workspace }}/results/results.xml
-          artifact-name: install-ci-junit-${{ runner.arch }}
-          artifact-prefix: pytest-results-${{ github.job }}-${{ runner.arch }}
-          test-type: installation-e2e
 
   install-tests-arm:
     name: Installation Tests (ARM)
@@ -160,6 +168,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Restore Testmon Data
+        uses: actions/cache@v4
+        with:
+          path: .testmon
+          key: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-${{ github.sha }}
+          restore-keys: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-
       - name: Show Collected Tests
         uses: ./.github/actions/install-ci-collect
         with:
@@ -168,12 +182,6 @@ jobs:
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          premerge: ${{ needs.changes.outputs.premerge }}
+          testmon-data-dir: ${{ github.workspace }}/.testmon/${{ runner.arch }}
           test-filter: ${{ inputs.test_filter }}
-      - name: Upload test results
-        if: always()
-        uses: ./.github/actions/upload-junit-results
-        with:
-          junit-file: ${{ github.workspace }}/results/results.xml
-          artifact-name: install-ci-junit-${{ runner.arch }}
-          artifact-prefix: pytest-results-${{ github.job }}-${{ runner.arch }}
-          test-type: installation-e2e
