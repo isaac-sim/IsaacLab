@@ -24,7 +24,7 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import AppLauncher, add_launcher_args
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -33,6 +33,7 @@ from isaaclab.utils.io import dump_yaml
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
+logger = logging.getLogger(__name__)
 
 
 class CaptureEnvSensors(gym.Wrapper):
@@ -162,13 +163,18 @@ def dispatch_library_entrypoint(
         run_as_script: Whether to execute the selected implementation as a script.
 
     Returns:
-        Process exit code.
+        Process exit code. Returns ``0`` after printing selector help when
+        ``argv`` requests ``-h`` or ``--help`` without ``--rl_library``;
+        otherwise returns ``2`` when no library is selected.
     """
     if argv is None:
         argv = sys.argv[1:]
+    # the per-library scripts parse this explicit list (not sys.argv), so the sys.argv
+    # fusing in AppLauncher.add_app_launcher_args never reaches it; normalize here too
+    argv = AppLauncher._fuse_kit_args(argv)
 
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--rl_library", choices=sorted(entrypoints), required=True)
+    parser.add_argument("--rl_library", choices=sorted(entrypoints))
     args_cli, library_args = parser.parse_known_args(argv)
 
     if args_cli.rl_library is None:
@@ -194,6 +200,37 @@ def dispatch_library_entrypoint(
     module = import_local_module(f"isaaclab_rl_{action}_{args_cli.rl_library}", module_path)
     module.run(library_args)
     return 0
+
+
+def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -> str:
+    """Resolve an explicit or published checkpoint for a play workflow.
+
+    Args:
+        checkpoint: Local or Nucleus checkpoint path.
+        framework: RL library name.
+        task: Gym task id; namespaces and a trailing ``-Play`` are ignored for published lookups.
+
+    Returns:
+        Local checkpoint path.
+
+    Raises:
+        FileNotFoundError: If no explicit or published checkpoint is available.
+    """
+    if checkpoint:
+        from isaaclab.utils.assets import retrieve_file_path
+
+        return retrieve_file_path(checkpoint)
+
+    from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+
+    logger.warning("No --checkpoint given; using the published checkpoint for %s / %s.", framework, task)
+    published_task = task.split(":")[-1].replace("-Play", "")
+    path = get_published_pretrained_checkpoint(framework, published_task)
+    if path is None:
+        raise FileNotFoundError(
+            f"No checkpoint available for framework {framework!r} and task {task!r}; pass --checkpoint"
+        )
+    return path
 
 
 def add_common_train_args(

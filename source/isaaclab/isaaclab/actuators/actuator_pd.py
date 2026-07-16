@@ -78,28 +78,28 @@ class ImplicitActuator(ActuatorBase):
                 )
 
         # velocity limits
-        if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
-            # throw a warning that previously this was not set
-            # it leads to different simulation behavior so we want to remain backwards compatible
-            logger.warning(
-                "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'."
-                " Previously, although this value was specified, it was not getting used by implicit"
-                " actuators. Since this parameter affects the simulation behavior, we continue to not"
-                " use it. This parameter will be removed in the future."
-                " To set the velocity limit, please use 'velocity_limit_sim' instead."
-            )
-            cfg.velocity_limit = None
-        elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is None:
-            # TODO: Eventually we want to get rid of 'velocity_limit' for implicit actuators.
-            #   We should do this once all parameters have an "_sim" suffix.
+        # 'velocity_limit' is the joint's peak velocity (the actuator's rated speed
+        # reflected at the joint): it feeds the data buffers
+        # (:attr:`ArticulationData.soft_joint_vel_limits`, read by e.g. the
+        # ``joint_vel_out_of_limit`` termination) but is NOT pushed to the physics
+        # solver. 'velocity_limit_sim' is a solver-level hard clamp (PhysX
+        # ``maxJointVelocity``) with no physical counterpart -- a physical actuator
+        # limits joint speed through its torque curve, not a kinematic clamp. The
+        # two are therefore resolved independently: when only the sim clamp is
+        # given, it doubles as the joint velocity limit so the data buffers stay
+        # meaningful; when only 'velocity_limit' is given, the solver keeps the
+        # USD-authored clamp.
+        if cfg.velocity_limit_sim is not None and cfg.velocity_limit is None:
             cfg.velocity_limit = cfg.velocity_limit_sim
-        elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is not None:
-            if cfg.velocity_limit_sim != cfg.velocity_limit:
-                raise ValueError(
-                    "The <ImplicitActuatorCfg> object has set both 'velocity_limit_sim' and 'velocity_limit'"
-                    f" and they have different values {cfg.velocity_limit_sim} != {cfg.velocity_limit}."
-                    " Please only set 'velocity_limit_sim' for implicit actuators."
-                )
+        elif cfg.velocity_limit is not None and cfg.velocity_limit_sim is None:
+            # notify about the behavior change: this value used to be ignored for implicit actuators
+            logger.warning(
+                "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'. Previously, this value"
+                " was ignored for implicit actuators. It now populates the joint velocity-limit data buffers"
+                " (e.g. 'soft_joint_vel_limits' used by velocity-limit terminations and rewards), but it is"
+                " still not pushed to the physics solver. To set a solver-level velocity clamp, please use"
+                " 'velocity_limit_sim'."
+            )
 
         # set implicit actuator model flag
         ImplicitActuator.is_implicit_model = True

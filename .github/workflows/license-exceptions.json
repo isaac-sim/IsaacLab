@@ -289,11 +289,6 @@
       "comment": "OSRB"
   },
   {
-      "package": "quadprog",
-      "license": "GNU General Public License v2 or later (GPLv2+)",
-      "comment": "OSRB"
-  },
-  {
     "package": "Markdown",
     "license": "UNKNOWN",
     "comment": "BSD"

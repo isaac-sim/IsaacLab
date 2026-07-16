@@ -229,6 +229,18 @@ class OvPhysxManager(PhysicsManager):
         return cls.get_physics_dt()
 
     @classmethod
+    def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
+        """Fix and normalize an articulation root for the OVPhysX parser."""
+        root = super().fix_articulation_root(articulation_prim, stage)
+        if root.HasAPI(UsdPhysics.RigidBodyAPI):
+            return cls._relocate_articulation_root(
+                root,
+                companion_schema="PhysxArticulationAPI",
+                companion_namespace="physxArticulation",
+            )
+        return root
+
+    @classmethod
     def register_clone(
         cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:

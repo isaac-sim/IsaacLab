@@ -318,3 +318,27 @@ def test_no_shadowing_prebundled_torch_in_isaac_sim():
         "They must be removed at image build time or repointed to the active environment:\n  "
         + "\n  ".join(str(p) for p in shadowing)
     )
+
+
+# ---------------------------------------------------------------------------
+# Pink IK stack derivation (single-source pins)
+# ---------------------------------------------------------------------------
+
+
+class TestPinkIkStack:
+    """Tests for :func:`~isaaclab.cli.commands.install._pink_ik_stack`.
+
+    The Pink IK pins live only in the root ``pyproject.toml``
+    ``[project.dependencies]``; the install CLI derives its force-install
+    stack from there instead of mirroring the versions.
+    """
+
+    def test_stack_derived_from_root_pyproject_pins(self):
+        """The derived stack covers every stack package, exactly pinned, markers stripped."""
+        from isaaclab.cli.commands import install
+
+        stack = install._pink_ik_stack()
+        assert [install._requirement_name(r) for r in stack] == list(install._PINK_IK_PACKAGES)
+        assert any(r.startswith("pin-pink==") for r in stack), "pin-pink must stay exactly pinned"
+        assert any(r.startswith("daqp==") for r in stack), "daqp must stay exactly pinned"
+        assert all(";" not in r for r in stack), "environment markers must be stripped"

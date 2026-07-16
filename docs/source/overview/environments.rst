@@ -78,8 +78,8 @@ preset names grouped by selector type at the command line, or run
 ``./isaaclab.sh -p scripts/environments/list_envs.py --show_presets``
 to list presets for every registered environment.
 
-See :doc:`/source/features/hydra` for the full preset system documentation,
-including all available backend names and how the typed selectors work.
+See the :doc:`Hydra preset system documentation </source/features/hydra>`
+for all available backend names and how the typed selectors work.
 
 
 Single-agent
@@ -138,16 +138,16 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 .. |ant| image:: ../_static/tasks/classic/ant.jpg
 .. |cartpole| image:: ../_static/tasks/classic/cartpole.jpg
 
-.. |humanoid-link| replace:: `Isaac-Humanoid <../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_manager_env_cfg.py>`__
-.. |ant-link| replace:: `Isaac-Ant <../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py>`__
-.. |cartpole-link| replace:: `Isaac-Cartpole <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py>`__
-.. |cartpole-camera-presets| replace:: `Isaac-Cartpole-Camera-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py>`__
-.. |cartpole-camera-link| replace:: `Isaac-Cartpole-Camera <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_camera_env_cfg.py>`__
+.. |humanoid-link| replace:: :isaaclab-source:`Isaac-Humanoid <source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_manager_env_cfg.py>`
+.. |ant-link| replace:: :isaaclab-source:`Isaac-Ant <source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py>`
+.. |cartpole-link| replace:: :isaaclab-source:`Isaac-Cartpole <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py>`
+.. |cartpole-camera-presets| replace:: :isaaclab-source:`Isaac-Cartpole-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py>`
+.. |cartpole-camera-link| replace:: :isaaclab-source:`Isaac-Cartpole-Camera <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_camera_env_cfg.py>`
 
 
-.. |humanoid-direct-link| replace:: `Isaac-Humanoid-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_direct_env.py>`__
-.. |ant-direct-link| replace:: `Isaac-Ant-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_direct_env.py>`__
-.. |cartpole-direct-link| replace:: `Isaac-Cartpole-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py>`__
+.. |humanoid-direct-link| replace:: :isaaclab-source:`Isaac-Humanoid-Direct <source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_direct_env.py>`
+.. |ant-direct-link| replace:: :isaaclab-source:`Isaac-Ant-Direct <source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_direct_env.py>`
+.. |cartpole-direct-link| replace:: :isaaclab-source:`Isaac-Cartpole-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py>`
 
 Manipulation
 ~~~~~~~~~~~~
@@ -306,42 +306,42 @@ for the lift-cube environment:
 .. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
 .. |g1_assemble_trocar| image:: ../_static/tasks/manipulation/g1_assemble_trocar.jpg
 
-.. |reach-franka-link| replace:: `Isaac-Reach-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/joint_pos_env_cfg.py>`__
-.. |reach-ur10-link| replace:: `Isaac-Reach-UR10 <../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/ur_10/joint_pos_env_cfg.py>`__
-.. |deploy-reach-ur10e-link| replace:: `IsaacContrib-Deploy-Reach-UR10e <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`__
-.. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka/joint_pos_env_cfg.py>`__
-.. |lift-cube-ik-abs-link| replace:: `IsaacContrib-Lift-Cube-Franka-IK-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_abs_env_cfg.py>`__
-.. |lift-cube-ik-rel-link| replace:: `IsaacContrib-Lift-Cube-Franka-IK-Rel <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_rel_env_cfg.py>`__
-.. |lift-soft-franka-link| replace:: `Isaac-Lift-Soft-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`__
-.. |cabi-franka-link| replace:: `Isaac-Open-Drawer-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`__
-.. |franka-direct-link| replace:: `Isaac-Open-Drawer-Franka-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`__
-.. |cube-allegro-link| replace:: `Isaac-Reorient-Cube-Allegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_manager_env_cfg.py>`__
-.. |allegro-direct-link| replace:: `Isaac-Reorient-Cube-Allegro-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_direct_env_cfg.py>`__
-.. |stack-cube-link| replace:: `IsaacContrib-Stack-Cube-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_joint_pos_env_cfg.py>`__
-.. |stack-cube-bp-link| replace:: `IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
-.. |gr1_pick_place-link| replace:: `IsaacContrib-PickPlace-GR1T2-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_env_cfg.py>`__
-.. |g1_pick_place-link| replace:: `IsaacContrib-PickPlace-G1-InspireFTP-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_unitree_g1_inspire_hand_env_cfg.py>`__
-.. |g1_pick_place_fixed-link| replace:: `IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_pick_place/fixed_base_upper_body_ik_g1_env_cfg.py>`__
-.. |g1_pick_place_lm-link| replace:: `IsaacContrib-PickPlace-Locomanipulation-G1-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_pick_place/locomanipulation_g1_env_cfg.py>`__
-.. |long-suction-link| replace:: `IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
-.. |short-suction-link| replace:: `IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
-.. |gr1_pp_waist-link| replace:: `IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
-.. |galbot_stack-link| replace:: `IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/galbot/stack_rmp_rel_env_cfg.py>`__
-.. |kuka-allegro-lift-link| replace:: `Isaac-Lift-KukaAllegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
-.. |kuka-allegro-reorient-link| replace:: `Isaac-Reorient-KukaAllegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
-.. |ka-lift-cam-link| replace:: `Isaac-Lift-KukaAllegro-Camera <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`__
-.. |ka-reorient-cam-link| replace:: `Isaac-Reorient-KukaAllegro-Camera <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`__
-.. |cube-shadow-link| replace:: `Isaac-Reorient-Cube-Shadow-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`__
-.. |cube-shadow-ff-link| replace:: `Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`__
-.. |cube-shadow-lstm-link| replace:: `Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`__
-.. |cube-shadow-vis-link| replace:: `Isaac-Reorient-Cube-Shadow-Camera-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_camera_env.py>`__
-.. |agibot_place_mug-link| replace:: `IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
-.. |agibot_place_toy-link| replace:: `IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
-.. |reach_openarm_bi-link| replace:: `IsaacContrib-Reach-OpenArmBi <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`__
-.. |reach_openarm_uni-link| replace:: `IsaacContrib-Reach-OpenArm <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`__
-.. |lift_openarm_uni-link| replace:: `IsaacContrib-Lift-Cube-OpenArm <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/openarm/joint_pos_env_cfg.py>`__
-.. |cabi_openarm_uni-link| replace:: `IsaacContrib-Open-Drawer-OpenArm <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/cabinet/config/openarm/joint_pos_env_cfg.py>`__
-.. |g1_assemble_trocar-link| replace:: `IsaacContrib-Assemble-Trocar-G129-Dex3 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/g129_dex3_env_cfg.py>`__
+.. |reach-franka-link| replace:: :isaaclab-source:`Isaac-Reach-Franka <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/joint_pos_env_cfg.py>`
+.. |reach-ur10-link| replace:: :isaaclab-source:`Isaac-Reach-UR10 <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/ur_10/joint_pos_env_cfg.py>`
+.. |deploy-reach-ur10e-link| replace:: :isaaclab-source:`IsaacContrib-Deploy-Reach-UR10e <source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`
+.. |lift-cube-link| replace:: :isaaclab-source:`Isaac-Lift-Cube-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka/joint_pos_env_cfg.py>`
+.. |lift-cube-ik-abs-link| replace:: :isaaclab-source:`IsaacContrib-Lift-Cube-Franka-IK-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_abs_env_cfg.py>`
+.. |lift-cube-ik-rel-link| replace:: :isaaclab-source:`IsaacContrib-Lift-Cube-Franka-IK-Rel <source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_rel_env_cfg.py>`
+.. |lift-soft-franka-link| replace:: :isaaclab-source:`Isaac-Lift-Soft-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`
+.. |cabi-franka-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`
+.. |franka-direct-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`
+.. |cube-allegro-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Allegro <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_manager_env_cfg.py>`
+.. |allegro-direct-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Allegro-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_direct_env_cfg.py>`
+.. |stack-cube-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Franka <source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_joint_pos_env_cfg.py>`
+.. |stack-cube-bp-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint <source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`
+.. |gr1_pick_place-link| replace:: :isaaclab-source:`IsaacContrib-PickPlace-GR1T2-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_env_cfg.py>`
+.. |g1_pick_place-link| replace:: :isaaclab-source:`IsaacContrib-PickPlace-G1-InspireFTP-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_unitree_g1_inspire_hand_env_cfg.py>`
+.. |g1_pick_place_fixed-link| replace:: :isaaclab-source:`IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_pick_place/fixed_base_upper_body_ik_g1_env_cfg.py>`
+.. |g1_pick_place_lm-link| replace:: :isaaclab-source:`IsaacContrib-PickPlace-Locomanipulation-G1-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_pick_place/locomanipulation_g1_env_cfg.py>`
+.. |long-suction-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel <source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`
+.. |short-suction-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel <source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`
+.. |gr1_pp_waist-link| replace:: :isaaclab-source:`IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`
+.. |galbot_stack-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/galbot/stack_rmp_rel_env_cfg.py>`
+.. |kuka-allegro-lift-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`
+.. |kuka-allegro-reorient-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`
+.. |ka-lift-cam-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`
+.. |ka-reorient-cam-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`
+.. |cube-shadow-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
+.. |cube-shadow-ff-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
+.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
+.. |cube-shadow-vis-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_camera_env.py>`
+.. |agibot_place_mug-link| replace:: :isaaclab-source:`IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`
+.. |agibot_place_toy-link| replace:: :isaaclab-source:`IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`
+.. |reach_openarm_bi-link| replace:: :isaaclab-source:`IsaacContrib-Reach-OpenArmBi <source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`
+.. |reach_openarm_uni-link| replace:: :isaaclab-source:`IsaacContrib-Reach-OpenArm <source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`
+.. |lift_openarm_uni-link| replace:: :isaaclab-source:`IsaacContrib-Lift-Cube-OpenArm <source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/openarm/joint_pos_env_cfg.py>`
+.. |cabi_openarm_uni-link| replace:: :isaaclab-source:`IsaacContrib-Open-Drawer-OpenArm <source/isaaclab_tasks/isaaclab_tasks/contrib/cabinet/config/openarm/joint_pos_env_cfg.py>`
+.. |g1_assemble_trocar-link| replace:: :isaaclab-source:`IsaacContrib-Assemble-Trocar-G129-Dex3 <source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/g129_dex3_env_cfg.py>`
 
 
 Contact-rich Manipulation
@@ -373,9 +373,9 @@ For example:
 .. |factory-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
 .. |factory-nut| image:: ../_static/tasks/factory/nut_thread.jpg
 
-.. |factory-peg-link| replace:: `Isaac-Factory-PegInsert-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
-.. |factory-gear-link| replace:: `Isaac-Factory-GearMesh-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
-.. |factory-nut-link| replace:: `Isaac-Factory-NutThread-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
+.. |factory-peg-link| replace:: :isaaclab-source:`Isaac-Factory-PegInsert-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`
+.. |factory-gear-link| replace:: :isaaclab-source:`Isaac-Factory-GearMesh-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`
+.. |factory-nut-link| replace:: :isaaclab-source:`Isaac-Factory-NutThread-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`
 
 AutoMate
 ~~~~~~~~
@@ -432,8 +432,8 @@ We provide environments for both disassembly and assembly.
 .. |assembly| image:: ../_static/tasks/automate/00004.jpg
 .. |disassembly| image:: ../_static/tasks/automate/01053_disassembly.jpg
 
-.. |assembly-link| replace:: `Isaac-AutoMate-Assembly-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/automate/assembly_env_cfg.py>`__
-.. |disassembly-link| replace:: `Isaac-AutoMate-Disassembly-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/automate/disassembly_env_cfg.py>`__
+.. |assembly-link| replace:: :isaaclab-source:`Isaac-AutoMate-Assembly-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/automate/assembly_env_cfg.py>`
+.. |disassembly-link| replace:: :isaaclab-source:`Isaac-AutoMate-Disassembly-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/automate/disassembly_env_cfg.py>`
 
 FORGE
 ~~~~~~~~
@@ -468,9 +468,9 @@ These tasks share the same task configurations and control options. You can swit
 .. |forge-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
 .. |forge-nut| image:: ../_static/tasks/factory/nut_thread.jpg
 
-.. |forge-peg-link| replace:: `Isaac-Forge-PegInsert-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
-.. |forge-gear-link| replace:: `Isaac-Forge-GearMesh-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
-.. |forge-nut-link| replace:: `Isaac-Forge-NutThread-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
+.. |forge-peg-link| replace:: :isaaclab-source:`Isaac-Forge-PegInsert-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`
+.. |forge-gear-link| replace:: :isaaclab-source:`Isaac-Forge-GearMesh-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`
+.. |forge-nut-link| replace:: :isaaclab-source:`Isaac-Forge-NutThread-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`
 
 
 Locomotion
@@ -547,38 +547,38 @@ Environments based on legged locomotion tasks.
     | |tracking-loco-manip-digit|  | |tracking-loco-manip-digit-link|             | Track a root velocity and hand pose command with the Agility Digit robot     | **physics=** ``physx``       |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
 
-.. |velocity-flat-anymal-b-link| replace:: `IsaacContrib-Velocity-Flat-AnymalB <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/flat_env_cfg.py>`__
-.. |velocity-rough-anymal-b-link| replace:: `IsaacContrib-Velocity-Rough-AnymalB <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/rough_env_cfg.py>`__
+.. |velocity-flat-anymal-b-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-AnymalB <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/flat_env_cfg.py>`
+.. |velocity-rough-anymal-b-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Rough-AnymalB <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/rough_env_cfg.py>`
 
-.. |velocity-flat-anymal-c-link| replace:: `IsaacContrib-Velocity-Flat-AnymalC <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py>`__
-.. |velocity-rough-anymal-c-link| replace:: `IsaacContrib-Velocity-Rough-AnymalC <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py>`__
+.. |velocity-flat-anymal-c-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-AnymalC <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py>`
+.. |velocity-rough-anymal-c-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Rough-AnymalC <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py>`
 
-.. |velocity-flat-anymal-c-direct-link| replace:: `Isaac-Velocity-Flat-AnymalC-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
-.. |velocity-rough-anymal-c-direct-link| replace:: `Isaac-Velocity-Rough-AnymalC-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
+.. |velocity-flat-anymal-c-direct-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-AnymalC-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`
+.. |velocity-rough-anymal-c-direct-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-AnymalC-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`
 
-.. |velocity-flat-anymal-d-link| replace:: `Isaac-Velocity-Flat-AnymalD <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/flat_env_cfg.py>`__
-.. |velocity-rough-anymal-d-link| replace:: `Isaac-Velocity-Rough-AnymalD <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/rough_env_cfg.py>`__
+.. |velocity-flat-anymal-d-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-AnymalD <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/flat_env_cfg.py>`
+.. |velocity-rough-anymal-d-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-AnymalD <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/rough_env_cfg.py>`
 
-.. |velocity-flat-unitree-a1-link| replace:: `IsaacContrib-Velocity-Flat-UnitreeA1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-a1-link| replace:: `IsaacContrib-Velocity-Rough-UnitreeA1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-a1-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-UnitreeA1 <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/flat_env_cfg.py>`
+.. |velocity-rough-unitree-a1-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Rough-UnitreeA1 <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/rough_env_cfg.py>`
 
-.. |velocity-flat-unitree-go1-link| replace:: `IsaacContrib-Velocity-Flat-UnitreeGo1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-go1-link| replace:: `IsaacContrib-Velocity-Rough-UnitreeGo1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-go1-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-UnitreeGo1 <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/flat_env_cfg.py>`
+.. |velocity-rough-unitree-go1-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Rough-UnitreeGo1 <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/rough_env_cfg.py>`
 
-.. |velocity-flat-unitree-go2-link| replace:: `Isaac-Velocity-Flat-UnitreeGo2 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-go2-link| replace:: `Isaac-Velocity-Rough-UnitreeGo2 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-go2-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-UnitreeGo2 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py>`
+.. |velocity-rough-unitree-go2-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-UnitreeGo2 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py>`
 
-.. |velocity-flat-spot-link| replace:: `Isaac-Velocity-Flat-Spot <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/spot/flat_env_cfg.py>`__
+.. |velocity-flat-spot-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-Spot <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/spot/flat_env_cfg.py>`
 
-.. |velocity-flat-h1-link| replace:: `Isaac-Velocity-Flat-H1 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/flat_env_cfg.py>`__
-.. |velocity-rough-h1-link| replace:: `Isaac-Velocity-Rough-H1 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/rough_env_cfg.py>`__
+.. |velocity-flat-h1-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-H1 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/flat_env_cfg.py>`
+.. |velocity-rough-h1-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-H1 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/rough_env_cfg.py>`
 
-.. |velocity-flat-g1-link| replace:: `Isaac-Velocity-Flat-G1 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/g1/flat_env_cfg.py>`__
-.. |velocity-rough-g1-link| replace:: `Isaac-Velocity-Rough-G1 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/g1/rough_env_cfg.py>`__
+.. |velocity-flat-g1-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-G1 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/g1/flat_env_cfg.py>`
+.. |velocity-rough-g1-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-G1 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/g1/rough_env_cfg.py>`
 
-.. |velocity-flat-digit-link| replace:: `Isaac-Velocity-Flat-Digit <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/flat_env_cfg.py>`__
-.. |velocity-rough-digit-link| replace:: `Isaac-Velocity-Rough-Digit <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/rough_env_cfg.py>`__
-.. |tracking-loco-manip-digit-link| replace:: `IsaacContrib-Tracking-LocoManip-Digit <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_tracking/config/digit/loco_manip_env_cfg.py>`__
+.. |velocity-flat-digit-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-Digit <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/flat_env_cfg.py>`
+.. |velocity-rough-digit-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-Digit <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/rough_env_cfg.py>`
+.. |tracking-loco-manip-digit-link| replace:: :isaaclab-source:`IsaacContrib-Tracking-LocoManip-Digit <source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_tracking/config/digit/loco_manip_env_cfg.py>`
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
 .. |velocity-rough-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_rough.jpg
@@ -620,7 +620,7 @@ Navigation
     |                |                     |                                                                             | ``newton_mjwarp``            |
     +----------------+---------------------+-----------------------------------------------------------------------------+------------------------------+
 
-.. |anymal_c_nav-link| replace:: `IsaacContrib-Navigation-Flat-AnymalC <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/config/anymal_c/navigation_env_cfg.py>`__
+.. |anymal_c_nav-link| replace:: :isaaclab-source:`IsaacContrib-Navigation-Flat-AnymalC <source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/config/anymal_c/navigation_env_cfg.py>`
 
 .. |anymal_c_nav| image:: ../_static/tasks/navigation/anymal_c_nav.jpg
 
@@ -633,11 +633,11 @@ Multirotor
     See the `drone_arl` folder and the ARL robot config
     (`ARL_ROBOT_1_CFG`) in the codebase for details.
 
-.. |arl_robot_track_position_state_based-link| replace:: `IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/track_position_state_based/config/arl_robot_1/track_position_state_based_env_cfg.py>`__
+.. |arl_robot_track_position_state_based-link| replace:: :isaaclab-source:`IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1 <source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/track_position_state_based/config/arl_robot_1/track_position_state_based_env_cfg.py>`
 
 .. |arl_robot_track_position_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_track_position_state_based.jpg
 
-.. |arl_robot_navigation-link| replace:: `IsaacContrib-Navigation-3DObstacles-ARL-Robot-1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
+.. |arl_robot_navigation-link| replace:: :isaaclab-source:`IsaacContrib-Navigation-3DObstacles-ARL-Robot-1 <source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`
 
 .. |arl_robot_navigation| image:: ../_static/tasks/drone_arl/arl_robot_1_navigation.jpg
 
@@ -678,9 +678,9 @@ Others
     |                | |humanoid_amp_walk-link|  |                                                                             |                              |
     +----------------+---------------------------+-----------------------------------------------------------------------------+------------------------------+
 
-.. |humanoid_amp_dance-link| replace:: `Isaac-Humanoid-AMP-Dance-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
-.. |humanoid_amp_run-link| replace:: `Isaac-Humanoid-AMP-Run-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
-.. |humanoid_amp_walk-link| replace:: `Isaac-Humanoid-AMP-Walk-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
+.. |humanoid_amp_dance-link| replace:: :isaaclab-source:`Isaac-Humanoid-AMP-Dance-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
+.. |humanoid_amp_run-link| replace:: :isaaclab-source:`Isaac-Humanoid-AMP-Run-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
+.. |humanoid_amp_walk-link| replace:: :isaaclab-source:`Isaac-Humanoid-AMP-Walk-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
 
 .. |humanoid_amp| image:: ../_static/tasks/others/humanoid_amp.jpg
 
@@ -690,7 +690,7 @@ Spaces showcase
 The |cartpole_showcase| folder contains showcase tasks (based on the *Cartpole* and *Cartpole-Camera* Direct tasks)
 for the definition/use of the various Gymnasium observation and action spaces supported in Isaac Lab.
 
-.. |cartpole_showcase| replace:: `cartpole_showcase <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/cartpole_showcase>`__
+.. |cartpole_showcase| replace:: :isaaclab-source:`cartpole_showcase <source/isaaclab_tasks/isaaclab_tasks/contrib/cartpole_showcase>`
 
 .. note::
 
@@ -824,7 +824,7 @@ Classic
 
 .. |cart-double-pendulum| image:: ../_static/tasks/classic/cart_double_pendulum.jpg
 
-.. |cart-double-pendulum-direct-link| replace:: `Isaac-Pendulum-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/pendulum/pendulum_env.py>`__
+.. |cart-double-pendulum-direct-link| replace:: :isaaclab-source:`Isaac-Pendulum-Direct <source/isaaclab_tasks/isaaclab_tasks/core/pendulum/pendulum_env.py>`
 
 Manipulation
 ~~~~~~~~~~~~
@@ -842,7 +842,7 @@ Environments based on fixed-arm manipulation tasks.
 
 .. |shadow-hand-over| image:: ../_static/tasks/manipulation/shadow_hand_over.jpg
 
-.. |shadow-hand-over-direct-link| replace:: `Isaac-Shadow-Handover-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/handover/handover_env.py>`__
+.. |shadow-hand-over-direct-link| replace:: :isaaclab-source:`Isaac-Shadow-Handover-Direct <source/isaaclab_tasks/isaaclab_tasks/core/handover/handover_env.py>`
 
 |
 

@@ -226,11 +226,11 @@ parser.add_argument(
 
 # Benchmark arguments
 parser.add_argument(
-    "--benchmark_backend",
+    "--benchmark_formatter",
     type=str,
     default="omniperf",
     choices=["json", "osmo", "omniperf", "summary"],
-    help="Benchmarking backend options, defaults omniperf",
+    help="Benchmark output formatter, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
 
@@ -777,13 +777,13 @@ def main():
         num_cameras = args_cli.num_ray_caster_cameras
 
     # Create the benchmark
-    backend_type = args_cli.benchmark_backend
+    formatter_type = args_cli.benchmark_formatter
     benchmark = BaseIsaacLabBenchmark(
         benchmark_name="benchmark_cameras",
-        backend_type=backend_type,
+        formatter_type=formatter_type,
         output_path=args_cli.output_path,
         use_recorders=True,
-        frametime_recorders=backend_type in ("summary", "omniperf"),
+        frametime_recorders=formatter_type in ("summary", "omniperf"),
         output_prefix="benchmark_cameras",
         workflow_metadata={
             "metadata": [

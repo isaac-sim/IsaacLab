@@ -150,7 +150,15 @@ class ForgeEnv(FactoryEnv):
         return {"policy": obs_tensors, "critic": state_tensors}
 
     def _apply_action(self):
-        """FORGE actions are defined as targets relative to the fixed asset."""
+        """Apply absolute FORGE pose targets relative to the fixed asset.
+
+        ``pos_action_bounds`` [m] maps translational actions onto the workspace and
+        ``rot_action_bounds`` [rad] maps rotational actions onto their allowable target range.
+        ``pos_action_threshold`` [m] and ``rot_action_threshold`` [rad] then clip per-step
+        target motion relative to the current end-effector pose. See :class:`ForgeCtrlCfg` for
+        the randomized action-scale semantics.
+        """
+
         if self.last_update_timestamp < self._robot._data._sim_timestamp:
             self._compute_intermediate_values(dt=self.physics_dt)
 
