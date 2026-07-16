@@ -486,22 +486,48 @@ class FabricFrameView(BaseFrameView):
                 self._rebuild_ro_arrays()
 
     def _rebuild_ro_arrays(self) -> None:
-        """Rebuild the four ``_sel_ro``-keyed indexed arrays (children + parents)."""
-        self._ro_fabric_indices = self._compute_fabric_indices(self._sel_ro)
+        """Rebuild the four ``_sel_ro``-keyed indexed arrays (children + parents).
+
+        The view->fabric index maps change only when the selection's prim set
+        changes, but resolving them costs a ``str(Sdf.Path)`` over every prim in
+        the selection (the whole env hierarchy, ~1.1M prims at 8192 envs).  So the
+        (small) resolved index arrays are recomputed only when the selection size
+        changes; the indexed-fabric-array wrappers below are always rebuilt since
+        the underlying buckets may have moved.
+        """
+        n = len(self._sel_ro.GetPaths())
+        if getattr(self, "_ro_cached_n", None) != n:
+            # Cache only the tiny resolved indices on the host (a few KB), NOT the
+            # giant per-selection path->index dict.
+            self._ro_child_idx_host = self._compute_fabric_indices(self._sel_ro).numpy()
+            self._ro_parent_idx_host = self._compute_parent_fabric_indices(self._sel_ro).numpy()
+            self._ro_cached_n = n
+        # Fresh device arrays each rebuild (do not alias one cached wp.array across
+        # the churning per-reset wrappers).
+        self._ro_fabric_indices = wp.array(self._ro_child_idx_host, dtype=wp.int32, device=self._device)
+        self._ro_parent_fabric_indices = wp.array(self._ro_parent_idx_host, dtype=wp.int32, device=self._device)
         self._world_ifa_ro = self._build_indexed_array(self._sel_ro, self._WORLD_MATRIX_NAME, self._ro_fabric_indices)
         self._local_ifa_ro = self._build_indexed_array(self._sel_ro, self._LOCAL_MATRIX_NAME, self._ro_fabric_indices)
-        self._ro_parent_fabric_indices = self._compute_parent_fabric_indices(self._sel_ro)
         self._parent_world_ifa_ro = wp.indexedfabricarray(
             fa=wp.fabricarray(self._sel_ro, self._WORLD_MATRIX_NAME),
             indices=self._ro_parent_fabric_indices,
         )
 
     def _rebuild_rw_arrays(self) -> None:
-        """Rebuild the four ``_sel_rw``-keyed indexed arrays (children + parents)."""
-        self._rw_fabric_indices = self._compute_fabric_indices(self._sel_rw)
+        """Rebuild the four ``_sel_rw``-keyed indexed arrays (children + parents).
+
+        See :meth:`_rebuild_ro_arrays`: the resolved index arrays are recomputed
+        only when the selection size changes; the wrappers are always rebuilt.
+        """
+        n = len(self._sel_rw.GetPaths())
+        if getattr(self, "_rw_cached_n", None) != n:
+            self._rw_child_idx_host = self._compute_fabric_indices(self._sel_rw).numpy()
+            self._rw_parent_idx_host = self._compute_parent_fabric_indices(self._sel_rw).numpy()
+            self._rw_cached_n = n
+        self._rw_fabric_indices = wp.array(self._rw_child_idx_host, dtype=wp.int32, device=self._device)
+        self._rw_parent_fabric_indices = wp.array(self._rw_parent_idx_host, dtype=wp.int32, device=self._device)
         self._world_ifa_rw = self._build_indexed_array(self._sel_rw, self._WORLD_MATRIX_NAME, self._rw_fabric_indices)
         self._local_ifa_rw = self._build_indexed_array(self._sel_rw, self._LOCAL_MATRIX_NAME, self._rw_fabric_indices)
-        self._rw_parent_fabric_indices = self._compute_parent_fabric_indices(self._sel_rw)
         self._parent_world_ifa_rw = wp.indexedfabricarray(
             fa=wp.fabricarray(self._sel_rw, self._WORLD_MATRIX_NAME),
             indices=self._rw_parent_fabric_indices,

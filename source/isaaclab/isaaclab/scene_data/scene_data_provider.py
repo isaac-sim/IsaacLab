@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import re
 from collections import deque
 from typing import TYPE_CHECKING, Any
@@ -210,10 +209,15 @@ class SceneDataProvider:
             paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
-            mapping = [-1] * len(input_paths)
-            for i, path in enumerate(input_paths):
-                with contextlib.suppress(ValueError):
-                    mapping[i] = paths.index(path)
+            # Build a path -> output-index map once (first occurrence wins, to match
+            # ``list.index`` semantics), then resolve each input path in O(1).  This
+            # was an O(N^2) ``paths.index(path)`` linear scan per input path -- minutes
+            # at the ~200k rigid bodies of an 8192-env scene.
+            path_to_out: dict[str | None, int] = {}
+            for out_idx, out_path in enumerate(paths):
+                if out_path not in path_to_out:
+                    path_to_out[out_path] = out_idx
+            mapping = [path_to_out.get(path, -1) for path in input_paths]
             if not np.array_equal(mapping, np.arange(len(input_paths))):
                 return wp.array(mapping, dtype=wp.int32)
         return None
