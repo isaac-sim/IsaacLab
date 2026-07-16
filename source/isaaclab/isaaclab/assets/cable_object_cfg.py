@@ -5,7 +5,7 @@
 
 from isaaclab.utils.configclass import configclass
 
-from ..asset_base_cfg import AssetBaseCfg
+from .asset_base_cfg import AssetBaseCfg
 
 
 @configclass

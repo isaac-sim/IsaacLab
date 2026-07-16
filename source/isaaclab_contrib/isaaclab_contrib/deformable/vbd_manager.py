@@ -243,6 +243,8 @@ class NewtonVBDManager(NewtonManager):
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
         """Ensure every VBD system has the coloring required by Newton."""
         super()._prepare_builder_for_finalize(builder)
+        # The replication path finalizes without coloring, so color cable rigid bodies here.
+        # The particle branch keeps parity for other VBD systems sharing this manager.
         needs_body_coloring = builder.body_count > 0 and not builder.body_color_groups
         needs_particle_coloring = builder.particle_count > 0 and not builder.particle_color_groups
         if needs_body_coloring or needs_particle_coloring:

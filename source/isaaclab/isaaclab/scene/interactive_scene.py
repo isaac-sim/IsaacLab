@@ -629,6 +629,7 @@ class InteractiveScene:
         for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]
             surface_gripper.set_grippers_command(asset_state)
+        # cables carry read-only state only; cable serialization is intentionally deferred
 
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation
@@ -719,6 +720,7 @@ class InteractiveScene:
         state["gripper"] = dict()
         for asset_name, gripper in self._surface_grippers.items():
             state["gripper"][asset_name] = wp.to_torch(gripper.state).clone()
+        # cables carry read-only state only; cable serialization is intentionally deferred
         return state
 
     """

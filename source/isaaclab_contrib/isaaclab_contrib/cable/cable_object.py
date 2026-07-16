@@ -196,7 +196,7 @@ class CableObject(AssetBase):
 
     @staticmethod
     def _support_message() -> str:
-        return "CableObject supports exactly one open, linear, non-welded curve with at least two segments."
+        return "CableObject supports exactly one open, linear, non-periodic curve with at least two segments."
 
     def _clear_callbacks(self) -> None:
         super()._clear_callbacks()

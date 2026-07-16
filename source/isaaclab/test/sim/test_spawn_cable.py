@@ -12,6 +12,8 @@ from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
 from isaaclab.sim.spawners.materials import CableMaterialCfg, PreviewSurfaceCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def stage():

@@ -10,6 +10,8 @@ from pxr import UsdPhysics, UsdShade
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 
+pytestmark = pytest.mark.unit
+
 
 def test_spawn_cable_material_authors_canonical_schema():
     sim_utils.create_new_stage()

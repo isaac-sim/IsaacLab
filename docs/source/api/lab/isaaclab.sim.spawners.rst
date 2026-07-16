@@ -65,7 +65,6 @@ Shapes
 
 .. autoclass:: CableCfg
     :members:
-    :show-inheritance:
     :exclude-members: __init__, func
 
 .. autofunction:: spawn_capsule
@@ -319,7 +318,6 @@ Physical Materials
 
 .. autoclass:: CableMaterialCfg
     :members:
-    :show-inheritance:
     :exclude-members: __init__, func
 
 .. autofunction:: spawn_physics_material
