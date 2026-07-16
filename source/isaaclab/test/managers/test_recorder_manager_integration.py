@@ -83,12 +83,10 @@ def test_manager_based_env_close_exports_buffered_recorder_data(device: str, tmp
             env.step(torch.randn_like(env.action_manager.action))
 
         assert get_dataset_shapes(file_path) == {}
-
-        env.close()
-
-        dataset_shapes = get_dataset_shapes(file_path)
-        assert len(dataset_shapes) == 2 * env_cfg.scene.num_envs
-        assert list(dataset_shapes.values()).count((num_steps, 4)) == env_cfg.scene.num_envs
-        assert list(dataset_shapes.values()).count((num_steps, 5)) == env_cfg.scene.num_envs
     finally:
         env.close()
+
+    dataset_shapes = get_dataset_shapes(file_path)
+    assert len(dataset_shapes) == 2 * env_cfg.scene.num_envs
+    assert list(dataset_shapes.values()).count((num_steps, 4)) == env_cfg.scene.num_envs
+    assert list(dataset_shapes.values()).count((num_steps, 5)) == env_cfg.scene.num_envs
