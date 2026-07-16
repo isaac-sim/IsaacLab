@@ -12,7 +12,7 @@ import inspect
 import logging
 import re
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ParamSpec, overload
 
 import torch
 
@@ -557,8 +557,20 @@ def export_prim_to_file(
 Decorators
 """
 
+# defined to help with type hinting: preserves the wrapped function's signature through decorators
+P = ParamSpec("P")
 
-def apply_nested(func: Callable | None = None, *, stop_on_success: bool = True) -> Callable:
+
+# typing overloads for the two decorator forms: bare ``@apply_nested`` and ``@apply_nested(stop_on_success=...)``
+@overload
+def apply_nested(func: Callable[P, bool]) -> Callable[P, None]: ...
+
+
+@overload
+def apply_nested(*, stop_on_success: bool = ...) -> Callable[[Callable[P, bool]], Callable[P, None]]: ...
+
+
+def apply_nested(func: Callable[..., bool] | None = None, *, stop_on_success: bool = True) -> Callable:
     """Decorator to apply a function to all prims under a specified prim-path.
 
     The function iterates over the provided prim path and all its children to apply input function
@@ -588,15 +600,17 @@ def apply_nested(func: Callable | None = None, *, stop_on_success: bool = True) 
             visited.
 
     Returns:
-        The wrapped function that applies the function to all prims under a specified prim-path.
+        The wrapped function that applies the function to all prims under a specified prim-path and
+        returns None. When called without :paramref:`func`, returns a decorator producing such a
+        wrapped function.
 
     Raises:
         ValueError: If the prim-path does not exist on the stage.
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., bool]) -> Callable[..., None]:
         @functools.wraps(func)
-        def wrapper(prim_path: str | Sdf.Path, *args, **kwargs):
+        def wrapper(prim_path: str | Sdf.Path, *args, **kwargs) -> None:
             # map args and kwargs to function signature so we can get the stage
             # note: we do this to check if stage is given in arg or kwarg
             sig = inspect.signature(func)
@@ -788,7 +802,7 @@ def bind_visual_material(
         ValueError: If the provided prim paths do not exist on stage.
     """
     if not has_kit():
-        return None
+        return False
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -817,7 +831,7 @@ def bind_visual_material(
         stage=stage,
     )
     # return success
-    return success
+    return bool(success)
 
 
 @apply_nested
