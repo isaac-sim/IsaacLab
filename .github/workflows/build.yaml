@@ -412,6 +412,30 @@ jobs:
         shard-count: "3"
         container-name: isaac-lab-tasks-3-test
 
+  test-dvrk-needle-pass-teleop:
+    name: dVRK needle-pass teleop
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_tasks"
+        include-files: "test_dvrk_needle_pass_teleop_pipeline.py"
+        install-isaacteleop-pr769: "true"
+        container-name: isaac-lab-dvrk-needle-pass-teleop-test
+
   test-isaaclab-core:
     name: isaaclab (core) [1/3]
     runs-on: [self-hosted, gpu]
