@@ -19,6 +19,7 @@ __all__ = [
     "CART_DOUBLE_PENDULUM_CFG",
     "CARTPOLE_CFG",
     "CASSIE_CFG",
+    "DVRK_PSM_CFG",
     "GR1T2_CFG",
     "GR1T2_HIGH_PD_CFG",
     "FRANKA_PANDA_CFG",
@@ -76,6 +77,7 @@ from .anymal import (
 from .cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
 from .cartpole import CARTPOLE_CFG
 from .cassie import CASSIE_CFG
+from .dvrk import DVRK_PSM_CFG
 from .fourier import GR1T2_CFG, GR1T2_HIGH_PD_CFG
 from .franka import FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG, FRANKA_ROBOTIQ_GRIPPER_CFG
 from .fourbar_pole import FOURBAR_POLE_CFG
