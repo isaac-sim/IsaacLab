@@ -113,6 +113,7 @@ class NewtonViewerRerun(ViewerRerun):
     def __init__(self, *args, open_browser: bool = False, **kwargs):
         """Initialize viewer wrapper and Isaac Lab pause state."""
         self._live_plot_manager_names = []
+        self._camera_pose: tuple | None = None
         if open_browser:
             super().__init__(*args, **kwargs)
         else:
@@ -137,15 +138,22 @@ class NewtonViewerRerun(ViewerRerun):
 
         Each per-manager :class:`~rerun.blueprint.TimeSeriesView` is visible by default.
         Individual views can be toggled from the Rerun viewer's blueprint panel.
+        The stored :attr:`_camera_pose` is forwarded to :class:`~rerun.blueprint.EyeControls3D`
+        so the camera position is preserved when the live-plot blueprint replaces the initial one.
         """
         if self._live_plot_manager_names:
             manager_views = [
                 rrb.TimeSeriesView(name=name, origin=f"/{name}", visible=True) for name in self._live_plot_manager_names
             ]
+            eye_controls = None
+            if self._camera_pose is not None:
+                cam_pos, cam_target = self._camera_pose
+                eye_controls = rrb.EyeControls3D(position=cam_pos, look_target=cam_target)
             return rrb.Blueprint(
                 rrb.Horizontal(
-                    rrb.Spatial3DView(),
+                    rrb.Spatial3DView(eye_controls=eye_controls),
                     rrb.Vertical(*manager_views),
+                    column_shares=[3, 1],
                 ),
                 rrb.TimePanel(timeline="time", state="collapsed"),
                 collapse_panels=True,
@@ -384,6 +392,7 @@ class RerunVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
+        self._viewer._camera_pose = pose
         rr.send_blueprint(
             rrb.Blueprint(
                 rrb.Vertical(

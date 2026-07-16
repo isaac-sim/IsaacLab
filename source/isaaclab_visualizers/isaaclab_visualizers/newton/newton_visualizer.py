@@ -96,11 +96,74 @@ class NewtonViewerGL(ViewerGL):
         backend = FactoryBase._get_backend()
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
 
+        with contextlib.suppress(AttributeError):
+            self._patch_scalar_plot_width()
+
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
             self.register_ui_callback(self._render_physics_panel, position="panel")
         except AttributeError:
             self._fallback_draw_controls = True
+
+    def _patch_scalar_plot_width(self) -> None:
+        """Replace Newton's floating Plots window with a renamed, repositioned version.
+
+        Newton's ``_render_scalar_plots`` (in ``viewer_gui.py``) hardcodes the title ``"Plots"``,
+        a width of ``400 * dpi_scale``, and positions with ``Cond_.first_use_ever`` (so a stale
+        ``imgui.ini`` overrides the intended bottom-right placement).  We replace the method on
+        the GUI instance to:
+
+        * Title it ``"Live Plots"`` instead of ``"Plots"``.
+        * Cap the width to 360 logical pixels (90% of Newton's default).
+        * Use ``Cond_.appearing`` for position so it always opens at the bottom-right corner of
+          the viewport regardless of any cached ``imgui.ini`` entry, while still letting the user
+          drag it within a session.
+
+        This replicates Newton's rendering logic and must be kept in sync if Newton refactors
+        ``_render_scalar_plots``.
+        """
+        gui = self.gui
+
+        def _live_plots(_g=gui):
+            viewer = _g._viewer
+            scalar_buffers = getattr(viewer, "_scalar_buffers", None)
+            array_buffers = getattr(viewer, "_array_buffers", None)
+            if not scalar_buffers and not array_buffers:
+                return
+            imgui = _g.ui.imgui
+            io = _g.ui.io
+            s = _g.ui.dpi_scale
+            scalar_arrays = getattr(viewer, "_scalar_arrays", {})
+            plot_history_size = getattr(viewer, "_plot_history_size", 250)
+            window_width = 360 * s
+            item_height = len(scalar_buffers or {}) * 140 * s + len(array_buffers or {}) * 260 * s
+            window_height = min(io.display_size[1] - 20 * s, item_height + 60 * s)
+            imgui.set_next_window_pos(
+                imgui.ImVec2(io.display_size[0] - window_width - 10 * s, io.display_size[1] - window_height - 10 * s),
+                imgui.Cond_.appearing,
+            )
+            imgui.set_next_window_size(imgui.ImVec2(window_width, window_height), imgui.Cond_.appearing)
+            n = plot_history_size
+            expanded = imgui.begin("Live Plots")
+            if expanded:
+                graph_size = imgui.ImVec2(-1, 100 * s)
+                for name, buf in (scalar_buffers or {}).items():
+                    arr = scalar_arrays.get(name)
+                    if arr is None:
+                        arr = np.full(n, np.nan, dtype=np.float32)
+                        arr[n - len(buf) :] = np.array(buf, dtype=np.float32)
+                        scalar_arrays[name] = arr
+                    overlay = f"{buf[-1]:.4g}" if buf else ""
+                    if imgui.collapsing_header(name, imgui.TreeNodeFlags_.default_open.value):
+                        imgui.plot_lines(f"##{name}", arr, graph_size=graph_size, overlay_text=overlay)
+                render_heatmap = getattr(viewer, "_render_array_heatmap", None)
+                if render_heatmap is not None:
+                    for name, array in (array_buffers or {}).items():
+                        if imgui.collapsing_header(name, imgui.TreeNodeFlags_.default_open.value):
+                            render_heatmap(name, array, window_width - 40.0 * s, dpi_scale=s)
+            imgui.end()
+
+        gui._render_scalar_plots = _live_plots
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
