@@ -47,7 +47,6 @@ for /f "delims=" %%d in ('"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.p
     set "PYTHONPATH=%%d;!PYTHONPATH!"
     set "PATH=%%d\bin;!PATH!"
 )
-set "_ov_usd_libs_dir="
 
 rem Execute CLI.
 "%python_exe%" -c "from isaaclab.cli import cli; cli()" %*
