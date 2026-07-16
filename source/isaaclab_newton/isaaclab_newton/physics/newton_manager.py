@@ -74,6 +74,7 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
@@ -399,7 +400,7 @@ class NewtonManager(PhysicsManager):
             from isaaclab.app.settings_manager import get_settings_manager
 
             cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))
-            cls._clone_physics_only = "kit" not in requested and not cameras_enabled
+            cls._clone_physics_only = not has_kit() or ("kit" not in requested and not cameras_enabled)
 
         cls._scene_data_backend = NewtonSceneDataBackend()
 

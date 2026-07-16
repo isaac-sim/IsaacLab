@@ -13,8 +13,6 @@ from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialC
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -468,6 +466,3 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, 0.0)
         self.sim.physics = PhysicsCfg()
-
-        viewer_cfg = dict(eye=(1.25, -1.5, 0.75), lookat=(0.0, 0.0, 0.0), window_width=1920, window_height=1080)
-        self.sim.visualizer_cfgs = [KitVisualizerCfg(**viewer_cfg), NewtonVisualizerCfg(**viewer_cfg)]
