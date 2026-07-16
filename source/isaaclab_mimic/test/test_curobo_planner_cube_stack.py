@@ -115,6 +115,7 @@ def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
     planner_cfg.retreat_distance = 0.05
     planner_cfg.approach_distance = 0.05
     planner_cfg.time_dilation_factor = 1.0
+    planner_cfg.n_repeat = 5
 
     planner = CuroboPlanner(
         env=env,

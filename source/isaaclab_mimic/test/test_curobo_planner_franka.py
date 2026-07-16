@@ -43,7 +43,7 @@ predefined_ee_goals_and_ids = [
     ({"pos": [0.70, -0.25, 0.25], "quat": [0.707, 0.0, 0.707, 0.0]}, "Behind wall, left"),
     ({"pos": [0.70, 0.25, 0.25], "quat": [0.707, 0.0, 0.707, 0.0]}, "Behind wall, right"),
     ({"pos": [0.65, 0.0, 0.45], "quat": [1.0, 0.0, 0.0, 0.0]}, "Behind wall, center, high"),
-    ({"pos": [0.80, -0.15, 0.35], "quat": [0.5, 0.0, 0.866, 0.0]}, "Behind wall, far left"),
+    ({"pos": [0.78, -0.15, 0.35], "quat": [0.5, 0.0, 0.866, 0.0]}, "Behind wall, far left"),
     ({"pos": [0.80, 0.15, 0.35], "quat": [0.5, 0.0, 0.866, 0.0]}, "Behind wall, far right"),
 ]
 
