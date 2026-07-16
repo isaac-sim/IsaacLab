@@ -16,16 +16,15 @@ import shutil
 import tempfile
 import uuid
 
-import gymnasium as gym
 import pytest
 import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
+from isaaclab.test.integration_scene_cfgs import ArticulationRigidObjectSceneCfg
 
 pytestmark = pytest.mark.integration
 
@@ -72,44 +71,44 @@ def compare_states(compared_state, ground_truth_state, ground_truth_env_id) -> t
     return True, ""
 
 
-def check_initial_state_recorder_term(env):
+def check_initial_state_recorder_term(env: ManagerBasedEnv):
     """Check values recorded by the initial state recorder terms.
 
     Args:
         env: Environment instance.
     """
-    current_state = env.unwrapped.scene.get_state(is_relative=True)
-    for env_id in range(env.unwrapped.num_envs):
-        recorded_initial_state = env.unwrapped.recorder_manager.get_episode(env_id).get_initial_state()
+    current_state = env.scene.get_state(is_relative=True)
+    for env_id in range(env.num_envs):
+        recorded_initial_state = env.recorder_manager.get_episode(env_id).get_initial_state()
         are_states_equal, output_log = compare_states(recorded_initial_state, current_state, env_id)
         assert are_states_equal, output_log
 
 
-@pytest.mark.parametrize("task_name", ["Isaac-Lift-Cube-Franka"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 2])
-def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
+def test_action_state_recorder_terms(device, num_envs, temp_dir):
     """Check action state recorder terms."""
     sim_utils.create_new_stage()
 
     dummy_dataset_filename = f"{uuid.uuid4()}.hdf5"
 
-    # parse configuration
-    env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+    # create a core-only environment with articulation and rigid-object state
+    env_cfg = make_empty_manager_based_env_cfg(device=device, num_envs=num_envs)
+    env_cfg.scene = ArticulationRigidObjectSceneCfg(num_envs=num_envs, env_spacing=2.5)
     # set recorder configurations for this test
     env_cfg.recorders = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = temp_dir
     env_cfg.recorders.dataset_filename = dummy_dataset_filename
 
     # create environment
-    env = gym.make(task_name, cfg=env_cfg)
+    env = ManagerBasedEnv(cfg=env_cfg)
 
     # reset all environment instances to trigger post-reset recorder callbacks
     env.reset()
     check_initial_state_recorder_term(env)
 
     # reset only one environment that is not the first one
-    env.unwrapped.reset(env_ids=torch.tensor([num_envs - 1], device=env.unwrapped.device))
+    env.reset(env_ids=torch.tensor([num_envs - 1], device=env.device))
     check_initial_state_recorder_term(env)
 
     # close the environment

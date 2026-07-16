@@ -57,11 +57,11 @@ class NewtonSolverCfg:
 class NewtonShapeCfg:
     """Default per-shape collision properties applied to all shapes in a Newton scene.
 
-    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Only fields Isaac
-    Lab actually overrides are declared here; unspecified fields keep Newton's
-    upstream default. The struct is forwarded onto Newton's upstream
-    ``ShapeConfig`` via :func:`~isaaclab.utils.checked_apply` at builder
-    construction.
+    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Fields that Isaac
+    Lab overrides or exposes for user overrides are declared here; fields not
+    represented keep Newton's upstream defaults. The struct is forwarded onto
+    Newton's upstream ``ShapeConfig`` via
+    :func:`~isaaclab.utils.checked_apply` at builder construction.
     """
 
     margin: float = 0.0
@@ -74,6 +74,28 @@ class NewtonShapeCfg:
 
     gap: float = 0.01
     """Default per-shape contact gap [m]. Newton's upstream default is ``None``."""
+
+    # Defaults mirror Newton's ShapeConfig defaults so an unspecified field is a no-op.
+    ke: float = 2.5e3
+    """Default per-shape normal contact stiffness [N/m].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.ke`` default.
+    """
+
+    kd: float = 100.0
+    """Default per-shape normal contact damping [N*s/m].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.kd`` default.
+    """
+
+    mu: float = 1.0
+    """Default per-shape friction coefficient [dimensionless].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.mu`` default.
+    """
 
 
 @configclass

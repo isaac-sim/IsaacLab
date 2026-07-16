@@ -16,7 +16,15 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["kit", "robotics", "assets", "isaaclab"]
 requires-python = ">=3.12"
-dependencies = []
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+    "isaaclab_contrib",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
+isaaclab_contrib = { path = "../isaaclab_contrib", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

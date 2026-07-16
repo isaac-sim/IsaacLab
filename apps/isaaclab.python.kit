@@ -96,19 +96,6 @@ keywords = ["experience", "app", "usd"]
 "omni.usd.metrics.assembler.ui" = {}
 "omni.usd.schema.metrics.assembler" = {}
 
-########################
-# Isaac Lab Extensions #
-########################
-
-# Load Isaac Lab extensions last
-"isaaclab" = {order = 1000}
-"isaaclab_physx" = {order = 1000}
-"isaaclab_newton" = {order = 1000}
-"isaaclab_assets" = {order = 1000}
-"isaaclab_tasks" = {order = 1000}
-"isaaclab_mimic" = {order = 1000}
-"isaaclab_rl" = {order = 1000}
-
 [settings]
 exts."omni.kit.material.library".ui_show_list = [
     "OmniPBR",
@@ -289,7 +276,6 @@ folders = [
     "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
     "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
     "${app}", # needed to find other app files
-    "${app}/../source", # needed to find extensions in Isaac Lab
 ]
 
 [settings.physics]
