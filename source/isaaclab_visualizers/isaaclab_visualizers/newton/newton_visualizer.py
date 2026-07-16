@@ -39,6 +39,12 @@ from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
+_BACKEND_DISPLAY_NAMES = {
+    "physx": "PhysX",
+    "ovphysx": "OVPhysX",
+    "newton": "Newton MJWarp",
+}
+
 CONTACT_ARROW_PATH = "/contacts"
 """Viewer path used for native and synthesized contact arrows."""
 
@@ -84,8 +90,14 @@ class NewtonViewerGL(ViewerGL):
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
 
+        from isaaclab.utils.backend_utils import FactoryBase
+
+        backend = FactoryBase._get_backend()
+        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
+            self.register_ui_callback(self._render_physics_panel, position="panel")
         except AttributeError:
             self._fallback_draw_controls = True
 
@@ -124,6 +136,13 @@ class NewtonViewerGL(ViewerGL):
                 "Controls visualizer update frequency\nlower values -> more responsive visualizer but slower"
                 " training\nhigher values -> less responsive visualizer but faster training"
             )
+
+    def _render_physics_panel(self, imgui):
+        """Render Simulation collapsing section at the top of the Newton viewer panel."""
+        imgui.set_next_item_open(True, imgui.Cond_.appearing)
+        if imgui.collapsing_header("Simulation"):
+            imgui.separator()
+            imgui.text(f"Physics: {self._backend_display}")
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
@@ -263,116 +282,6 @@ class NewtonViewerGL(ViewerGL):
         except Exception as exc:
             logger.debug("[NewtonVisualizer] color_edit3 failed for '%s': %s", label, exc)
             return False, color_tuple
-
-    def _render_left_panel(self):
-        """Override the left panel to remove the base pause checkbox."""
-        import newton as nt
-
-        imgui = self.ui.imgui
-
-        io = self.ui.io
-        imgui.set_next_window_pos(imgui.ImVec2(10, 10))
-        imgui.set_next_window_size(imgui.ImVec2(300, io.display_size[1] - 20))
-
-        flags = imgui.WindowFlags_.no_resize.value
-
-        if imgui.begin(f"Newton Viewer v{nt.__version__}", flags=flags):
-            imgui.separator()
-
-            header_flags = 0
-
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("IsaacLab Options"):
-                for callback in self._ui_callbacks["side"]:
-                    callback(self.ui.imgui)
-
-            if self.model is not None:
-                imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Model Information", flags=header_flags):
-                    imgui.separator()
-                    num_envs = self._metadata.get("num_envs", 0)
-                    imgui.text(f"Environments: {num_envs}")
-                    axis_names = ["X", "Y", "Z"]
-                    imgui.text(f"Up Axis: {axis_names[self.model.up_axis]}")
-                    gravity = wp.to_torch(self.model.gravity)[0]
-                    gravity_text = f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
-                    imgui.text(gravity_text)
-
-                imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Visualization", flags=header_flags):
-                    imgui.separator()
-
-                    show_joints = self.show_joints
-                    changed, self.show_joints = imgui.checkbox("Show Joints", show_joints)
-
-                    show_contacts = self.show_contacts
-                    changed, self.show_contacts = imgui.checkbox("Show Contacts", show_contacts)
-
-                    show_collision = self.show_collision
-                    changed, self.show_collision = imgui.checkbox("Show Collision", show_collision)
-
-                    show_springs = self.show_springs
-                    changed, self.show_springs = imgui.checkbox("Show Springs", show_springs)
-
-                    show_inertia_boxes = self.show_inertia_boxes
-                    changed, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", show_inertia_boxes)
-
-                    show_com = self.show_com
-                    changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
-
-                    show_particles = self.show_particles
-                    changed, self.show_particles = imgui.checkbox("Show Particles", show_particles)
-
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Rendering Options"):
-                imgui.separator()
-
-                changed, self.renderer.draw_sky = imgui.checkbox("Sky", self.renderer.draw_sky)
-                changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
-                changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
-
-                try:
-                    changed, self.renderer._light_color = self._color_edit3_compat(
-                        imgui, "Light Color", self.renderer._light_color
-                    )
-                    changed, self.renderer.sky_upper = self._color_edit3_compat(
-                        imgui, "Upper Sky Color", self.renderer.sky_upper
-                    )
-                    changed, self.renderer.sky_lower = self._color_edit3_compat(
-                        imgui, "Lower Sky Color", self.renderer.sky_lower
-                    )
-                except Exception as exc:
-                    logger.debug("[NewtonVisualizer] Rendering color controls failed: %s", exc)
-
-            # Newton's ImageLogger owns camera-output image windows. Since Isaac Lab overrides
-            # ViewerGL's left panel, explicitly keep the logged-image selector and draw path.
-            if self._image_logger is not None:
-                self._draw_tiled_camera_view_controls()
-
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Camera"):
-                imgui.separator()
-
-                pos = self.camera.pos
-                pos_text = f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})"
-                imgui.text(pos_text)
-                imgui.text(f"FOV: {self.camera.fov:.1f}°")
-                imgui.text(f"Yaw: {self.camera.yaw:.1f}°")
-                imgui.text(f"Pitch: {self.camera.pitch:.1f}°")
-
-                imgui.separator()
-                imgui.text("WASD - Forward/Left/Back/Right")
-                imgui.text("QE - Down/Up")
-                imgui.text("Left Click - Look around")
-                imgui.text("Scroll - Zoom")
-                imgui.text("H - Toggle UI")
-                imgui.text("ESC - Exit")
-
-        imgui.end()
-        if self._image_logger is not None:
-            self._prime_image_logger_window_layout()
-            self._image_logger.draw()
-        return
 
     def _draw_tiled_camera_view_controls(self) -> None:
         """Render Newton ImageLogger controls with Isaac Lab-specific naming."""
