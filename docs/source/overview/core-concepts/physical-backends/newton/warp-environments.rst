@@ -227,11 +227,12 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
 
 **Physics backend**
 
-- **Newton only.** PhysX is not supported under the warp env path. Asset and sensor
+- **Newton or OVPhysX.** The warp env path requires a warp-capable physics backend:
+  configure the cfg with a Newton block (``presets=newton_mjwarp``) or an OVPhysX block
+  (``presets=ovphysx``). Classic PhysX is not supported — its asset and sensor
   ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
-  ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
-  warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
-  the cfg with a Newton physics block (or ``physics=newton_mjwarp``).
+  ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise) and lack
+  the warp APIs (env-mask reset, CUDA graph capture) the warp managers require.
 
 **MDP coverage**
 

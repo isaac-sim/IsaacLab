@@ -144,7 +144,7 @@ class WarpFrontend:
             cls._assert_direct_warp_registration(task_id)
             return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
         # Declared warp class + stable cfg: swap only the env class.
-        cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
+        cls._require_warp_capable_physics(env_cfg, type(env_cfg).__name__)
         return env_class(cfg=env_cfg, **construct_kwargs)
 
     # ------------------------------------------------------------------
@@ -160,10 +160,10 @@ class WarpFrontend:
 
         Three steps, each independently testable:
 
-        1. :meth:`_require_newton_physics` — hard check that ``cfg.sim.physics``
-           is :class:`~isaaclab_newton.physics.NewtonCfg`. The user is
-           responsible for selecting the Newton variant of the task's
-           :class:`PresetCfg` via ``presets=newton_mjwarp``; we don't auto-inject.
+        1. :meth:`_require_warp_capable_physics` — hard check that ``cfg.sim.physics``
+           selects a warp-capable backend (Newton or OVPhysX). The user is
+           responsible for selecting the variant of the task's :class:`PresetCfg`
+           via ``presets=newton_mjwarp`` or ``presets=ovphysx``; we don't auto-inject.
         2. :meth:`_promote_scene_entity_cfgs` — replace stable
            :class:`~isaaclab.managers.SceneEntityCfg` instances under each
            term's ``params`` with the warp variant (which adds warp-cached
@@ -176,29 +176,39 @@ class WarpFrontend:
            unsafe under the warp managers' kernel-only signature.
         """
         label = type(cfg).__name__
-        cls._require_newton_physics(cfg, label)
+        cls._require_warp_capable_physics(cfg, label)
         cls._promote_scene_entity_cfgs(cfg)
         cls._swap_mdp(cfg, label)
 
     @staticmethod
-    def _require_newton_physics(cfg: Any, label: str) -> None:
-        """Block unless ``cfg.sim.physics`` is :class:`NewtonCfg`.
+    def _require_warp_capable_physics(cfg: Any, label: str) -> None:
+        """Block unless ``cfg.sim.physics`` selects a warp-capable backend.
 
-        The warp managers' assets read state through :class:`NewtonManager`;
-        a :class:`PhysxCfg` (or unresolved :class:`PresetCfg`) is a hard
-        incompatibility. The fix is to pass ``presets=newton_mjwarp`` on the CLI
-        so Hydra resolves the task's :class:`PresetCfg` wrapper to the Newton
-        field before construction.
+        The warp managers read state through warp views and reset assets with
+        persistent boolean masks; the Newton and OVPhysX backends implement
+        that contract. A :class:`PhysxCfg` (or unresolved :class:`PresetCfg`)
+        is a hard incompatibility. The fix is to pass ``presets=newton_mjwarp``
+        (or ``presets=ovphysx``) on the CLI so Hydra resolves the task's
+        :class:`PresetCfg` wrapper to a warp-capable variant before construction.
         """
         from isaaclab_newton.physics import NewtonCfg
 
+        capable: tuple[type, ...] = (NewtonCfg,)
+        try:
+            from isaaclab_ovphysx.physics import OvPhysxCfg
+        except ImportError:
+            pass
+        else:
+            capable = (*capable, OvPhysxCfg)
+
         physics = getattr(getattr(cfg, "sim", None), "physics", None)
-        if isinstance(physics, NewtonCfg):
+        if isinstance(physics, capable):
             return
         raise FrontendIncompatibleError(
-            f"warp env {label!r}: expected cfg.sim.physics to be NewtonCfg,"
-            f" got {type(physics).__name__!r}. Pass `presets=newton_mjwarp` on the CLI so"
-            f" Hydra resolves the task's PresetCfg wrapper to the Newton variant."
+            f"warp env {label!r}: expected cfg.sim.physics to be one of"
+            f" {[c.__name__ for c in capable]}, got {type(physics).__name__!r}. Pass"
+            f" `presets=newton_mjwarp` (or `presets=ovphysx`) on the CLI so Hydra"
+            f" resolves the task's PresetCfg wrapper to a warp-capable variant."
         )
 
     @classmethod

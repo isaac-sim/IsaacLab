@@ -9,7 +9,7 @@ Pure-Python unit tests; no app launch. Covers:
 
 * :class:`Workflow` enum surface.
 * :func:`SceneEntityCfg.from_stable` field copy.
-* :func:`_require_newton_physics` hard-check.
+* :func:`_require_warp_capable_physics` hard-check.
 * :func:`_walk_terms` recursive ManagerTermBaseCfg discovery over instance
   attributes (nested class objects are not descended into).
 * :meth:`_mirror_module` / :meth:`_nearest_mdp_module` deterministic mirror
@@ -211,7 +211,7 @@ def test_from_stable_copies_all_selection_fields():
 
 
 # ======================================================================
-# _require_newton_physics
+# _require_warp_capable_physics
 # ======================================================================
 
 
@@ -221,20 +221,26 @@ def _cfg_with_physics(physics: Any) -> Any:
     return cfg
 
 
-def test_require_newton_passes_for_newton():
-    fe.WarpFrontend._require_newton_physics(_cfg_with_physics(NewtonCfg()), "Isaac-Test-v0")  # no raise
+def test_require_warp_capable_passes_for_newton():
+    fe.WarpFrontend._require_warp_capable_physics(_cfg_with_physics(NewtonCfg()), "Isaac-Test-v0")  # no raise
 
 
-def test_require_newton_rejects_physx():
+def test_require_warp_capable_passes_for_ovphysx():
+    from isaaclab_ovphysx.physics import OvPhysxCfg
+
+    fe.WarpFrontend._require_warp_capable_physics(_cfg_with_physics(OvPhysxCfg()), "Isaac-Test-v0")  # no raise
+
+
+def test_require_warp_capable_rejects_physx():
     with pytest.raises(FrontendIncompatibleError) as exc:
-        fe.WarpFrontend._require_newton_physics(_cfg_with_physics(PhysxCfg()), "Isaac-Test-v0")
+        fe.WarpFrontend._require_warp_capable_physics(_cfg_with_physics(PhysxCfg()), "Isaac-Test-v0")
     assert "presets=newton_mjwarp" in str(exc.value)
     assert "PhysxCfg" in str(exc.value)
 
 
-def test_require_newton_rejects_none():
+def test_require_warp_capable_rejects_none():
     with pytest.raises(FrontendIncompatibleError):
-        fe.WarpFrontend._require_newton_physics(_cfg_with_physics(None), "Isaac-Test-v0")
+        fe.WarpFrontend._require_warp_capable_physics(_cfg_with_physics(None), "Isaac-Test-v0")
 
 
 # ======================================================================

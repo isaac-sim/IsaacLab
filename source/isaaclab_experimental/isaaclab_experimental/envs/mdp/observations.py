@@ -21,7 +21,8 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from isaaclab_newton.kernels.state_kernels import (
+
+from isaaclab.utils.warp.state_math import (
     body_ang_vel_from_root,
     body_lin_vel_from_root,
     rotate_vec_to_body_frame,

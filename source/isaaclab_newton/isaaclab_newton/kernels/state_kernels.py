@@ -3,28 +3,24 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp helper functions for body-frame state computations.
+"""Deprecated location of the body-frame state helpers.
 
-These ``@wp.func`` helpers are used by warp-first MDP terms (observations,
-rewards) that need to project root-frame quantities into body frames.
+The helpers are pure frame math with no Newton dependency and have moved to
+:mod:`isaaclab.utils.warp.state_math`. This forwarding shim will be removed in
+a future release.
 """
 
-import warp as wp
+import warnings
 
+from isaaclab.utils.warp.state_math import (  # noqa: F401
+    body_ang_vel_from_root,
+    body_lin_vel_from_root,
+    rotate_vec_to_body_frame,
+)
 
-@wp.func
-def rotate_vec_to_body_frame(vec_w: wp.vec3f, pose_w: wp.transformf) -> wp.vec3f:
-    """Rotate a world-frame vector into the body frame defined by pose_w."""
-    return wp.quat_rotate_inv(wp.transform_get_rotation(pose_w), vec_w)
-
-
-@wp.func
-def body_lin_vel_from_root(pose_w: wp.transformf, vel_w: wp.spatial_vectorf) -> wp.vec3f:
-    """Extract body-frame linear velocity from root pose and spatial velocity."""
-    return wp.quat_rotate_inv(wp.transform_get_rotation(pose_w), wp.spatial_top(vel_w))
-
-
-@wp.func
-def body_ang_vel_from_root(pose_w: wp.transformf, vel_w: wp.spatial_vectorf) -> wp.vec3f:
-    """Extract body-frame angular velocity from root pose and spatial velocity."""
-    return wp.quat_rotate_inv(wp.transform_get_rotation(pose_w), wp.spatial_bottom(vel_w))
+warnings.warn(
+    "'isaaclab_newton.kernels.state_kernels' has moved to 'isaaclab.utils.warp.state_math'."
+    " Update your imports; this forwarding shim will be removed in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)

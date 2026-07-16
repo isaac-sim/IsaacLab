@@ -1,0 +1,2 @@
+Internal: updated locomotion MDP imports to the relocated
+``isaaclab.utils.warp.state_math`` helpers; no user-facing behavior change.
