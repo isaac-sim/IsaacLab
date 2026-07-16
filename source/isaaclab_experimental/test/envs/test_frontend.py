@@ -12,8 +12,8 @@ Pure-Python unit tests; no app launch. Covers:
 * :func:`_require_newton_physics` hard-check.
 * :func:`_walk_terms` recursive ManagerTermBaseCfg discovery over instance
   attributes (nested class objects are not descended into).
-* :func:`register_mdp_route` / :func:`_match_route` route registry.
-* :func:`_cfg_route_modules` cfg-hierarchy route resolution.
+* :meth:`_mirror_module` / :meth:`_nearest_mdp_module` deterministic mirror
+  resolution and :meth:`_cfg_route_modules` cfg-hierarchy resolution.
 * :func:`_promote_scene_entity_cfgs` walks ``term.params`` dicts.
 * :func:`_swap_mdp` swaps ``func`` *and* ``class_type``; raises with a path
   list when twins are missing.
@@ -25,7 +25,6 @@ Pure-Python unit tests; no app launch. Covers:
 from __future__ import annotations
 
 import contextlib
-import importlib
 import types
 from typing import Any
 from unittest.mock import patch
@@ -37,7 +36,6 @@ from isaaclab_experimental.envs.frontend import (
     FrontendIncompatibleError,
     WarpFrontend,
     Workflow,
-    register_mdp_route,
 )
 from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
 from isaaclab_newton.physics import NewtonCfg
@@ -130,14 +128,6 @@ class _CfgFixture:
 def _term(func=None, params: dict | None = None) -> RewardTermCfg:
     """Cheap RewardTermCfg builder for tests; the cfg class is irrelevant for swap/walk logic."""
     return RewardTermCfg(func=func or _stable_func, weight=1.0, params=params or {})
-
-
-@pytest.fixture
-def fake_routes(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
-    """Isolate the WarpFrontend route registry for a test."""
-    routes: dict[str, str] = {}
-    monkeypatch.setattr(fe.WarpFrontend, "_mdp_routes", routes)
-    return routes
 
 
 # ======================================================================
@@ -316,46 +306,52 @@ def test_walk_terms_ignores_nested_class_objects():
 
 
 # ======================================================================
-# Route registry
+# Mirror resolution
 # ======================================================================
 
 
-def test_register_mdp_route_and_longest_prefix_match(fake_routes: dict[str, str]):
-    register_mdp_route("isaaclab_tasks.core.locomotion", "warp.locomotion.mdp")
-    register_mdp_route("isaaclab_tasks.core.locomotion.humanoid", "warp.humanoid.mdp")
-
-    # Longest registered prefix wins.
-    assert fe.WarpFrontend._match_route("isaaclab_tasks.core.locomotion.humanoid.mdp.rewards") == "warp.humanoid.mdp"
-    assert fe.WarpFrontend._match_route("isaaclab_tasks.core.locomotion.ant.mdp") == "warp.locomotion.mdp"
-    # Exact package match works too.
-    assert fe.WarpFrontend._match_route("isaaclab_tasks.core.locomotion.humanoid") == "warp.humanoid.mdp"
-    # Prefix matching is per package segment, not per character.
-    assert fe.WarpFrontend._match_route("isaaclab_tasks.core.locomotion_extras.mdp") is None
-    assert fe.WarpFrontend._match_route("isaaclab.envs.mdp.rewards") is None
+def test_mirror_module_maps_stable_roots():
+    assert (
+        fe.WarpFrontend._mirror_module("isaaclab_tasks.core.velocity.mdp.rewards")
+        == "isaaclab_tasks_experimental.core.velocity.mdp.rewards"
+    )
+    assert fe.WarpFrontend._mirror_module("isaaclab.envs.mdp.events") == "isaaclab_experimental.envs.mdp.events"
+    assert fe.WarpFrontend._mirror_module("isaaclab_tasks") == "isaaclab_tasks_experimental"
+    # Unmirrored roots are not resolvable.
+    assert fe.WarpFrontend._mirror_module("torch.nn.functional") is None
+    assert fe.WarpFrontend._mirror_module("") is None
 
 
-def test_register_mdp_route_is_idempotent(fake_routes: dict[str, str]):
-    register_mdp_route("isaaclab_tasks.core.cartpole", "warp.cartpole.mdp")
-    register_mdp_route("isaaclab_tasks.core.cartpole", "warp.cartpole.mdp")  # no raise
-    assert fake_routes == {"isaaclab_tasks.core.cartpole": "warp.cartpole.mdp"}
+def test_nearest_mdp_module_truncates_at_mdp_boundary():
+    # A symbol module resolves to its own mdp package on the mirrored path.
+    assert (
+        fe.WarpFrontend._nearest_mdp_module("isaaclab_tasks_experimental.core.locomotion.mdp.rewards")
+        == "isaaclab_tasks_experimental.core.locomotion.mdp"
+    )
+    assert fe.WarpFrontend._nearest_mdp_module("isaaclab_experimental.envs.mdp.events") == (
+        "isaaclab_experimental.envs.mdp"
+    )
 
 
-def test_register_mdp_route_rejects_conflicts(fake_routes: dict[str, str]):
-    register_mdp_route("isaaclab_tasks.core.cartpole", "warp.cartpole.mdp")
-    with pytest.raises(ValueError):
-        register_mdp_route("isaaclab_tasks.core.cartpole", "warp.other.mdp")
+def test_nearest_mdp_module_walks_up_cfg_paths():
+    # A cfg module path walks up to the task family's mdp package.
+    assert (
+        fe.WarpFrontend._nearest_mdp_module("isaaclab_tasks_experimental.core.velocity.config.anymal_d.flat_env_cfg")
+        == "isaaclab_tasks_experimental.core.velocity.mdp"
+    )
+    # Nothing on the path provides an mdp package.
+    assert fe.WarpFrontend._nearest_mdp_module("isaaclab_tasks_experimental.nonexistent.task_pkg") is None
 
 
-def test_cfg_route_modules_resolves_cfg_class_module(fake_routes: dict[str, str]):
-    # Route this test module's own name so the fixture cfg class matches.
-    register_mdp_route(__name__, "math")
-    assert fe.WarpFrontend._cfg_route_modules(_CfgFixture()) == [importlib.import_module("math")]
+def test_cfg_route_modules_resolves_mirrored_hierarchy():
+    # A class whose module mirrors into the experimental tree resolves to the
+    # task family's mdp package; unmirrored classes contribute nothing.
+    fixture_cls = type("FakeVelocityCfg", (), {})
+    fixture_cls.__module__ = "isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg"
+    modules = fe.WarpFrontend._cfg_route_modules(fixture_cls())
+    assert [m.__name__ for m in modules] == ["isaaclab_tasks_experimental.core.velocity.mdp"]
 
-
-def test_cfg_route_modules_raises_on_broken_target(fake_routes: dict[str, str]):
-    register_mdp_route(__name__, "definitely_not_an_importable_module")
-    with pytest.raises(FrontendIncompatibleError):
-        fe.WarpFrontend._cfg_route_modules(_CfgFixture())
+    assert fe.WarpFrontend._cfg_route_modules(_CfgFixture()) == []
 
 
 # ======================================================================
@@ -378,7 +374,6 @@ def _fake_mdp_module(name_to_symbol: dict[str, Any]) -> _FakeMdpModule:
 
 def _patch_twin_modules(monkeypatch: pytest.MonkeyPatch, modules: list[Any]) -> None:
     """Pin twin resolution to ``modules`` and keep unit tests hermetic."""
-    monkeypatch.setattr(fe.WarpFrontend, "_ensure_twin_providers_imported", classmethod(lambda cls: None))
     monkeypatch.setattr(fe.WarpFrontend, "_cfg_route_modules", classmethod(lambda cls, cfg: []))
     monkeypatch.setattr(
         fe.WarpFrontend, "_twin_modules", classmethod(lambda cls, symbol_module, cfg_route_modules: modules)

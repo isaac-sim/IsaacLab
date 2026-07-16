@@ -3,16 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp implementations for the stable Humanoid tasks.
+"""Warp implementation of the stable direct Humanoid task.
 
-Holds the MDP twins for the manager-based ``Isaac-Humanoid`` task (also
-serving the Ant task, which borrows them) and the direct
+The manager-based MDP twins live in the shared
+:mod:`isaaclab_tasks_experimental.core.locomotion.mdp` package (mirroring the
+stable layout). The stable ``Isaac-Humanoid-Direct`` registration declares
 :class:`~isaaclab_tasks_experimental.core.locomotion.humanoid.humanoid_warp_env.HumanoidWarpEnv`
-declared by ``Isaac-Humanoid-Direct``. There is no separate task registration:
-run the stable ids with ``--frontend warp`` and ``presets=newton_mjwarp``.
+as its ``warp_entry_point``; run the stable ids with ``--frontend warp`` and
+``presets=newton_mjwarp``.
 """
-
-from isaaclab_experimental.envs.frontend import register_mdp_route
-
-# Warp twins for the stable humanoid MDP terms live in this package's ``mdp``.
-register_mdp_route("isaaclab_tasks.core.locomotion.humanoid", f"{__name__}.mdp")

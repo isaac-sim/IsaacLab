@@ -10,8 +10,3 @@ tasks (``Isaac-Reach-Franka``, ``Isaac-Reach-UR10``) with ``--frontend warp``
 and ``presets=newton_mjwarp``. The IK and OSC variants require controller
 action twins that do not exist yet.
 """
-
-from isaaclab_experimental.envs.frontend import register_mdp_route
-
-# Warp twins for the stable reach MDP terms live in this package's ``mdp``.
-register_mdp_route("isaaclab_tasks.core.reach", f"{__name__}.mdp")

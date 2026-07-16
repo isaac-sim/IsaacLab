@@ -16,14 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab_experimental.envs.frontend import register_mdp_route
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnvCfg
-
-# Warp twins for the stable velocity MDP terms live in this package's ``mdp``.
-register_mdp_route("isaaclab_tasks.core.velocity", f"{__name__}.mdp")
-
 
 def disable_unsupported_randomization_events(cfg: ManagerBasedRLEnvCfg) -> None:
     """Disable stable randomization events that have no warp twins yet.
