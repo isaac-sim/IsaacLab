@@ -1,0 +1,134 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: uv Lockfile Install
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "pyproject.toml"
+      - "uv.lock"
+      - "source/**"
+      - ".github/workflows/uv-lock-ci.yml"
+  push:
+    branches:
+      - main
+      - develop
+      - "release/**"
+    paths:
+      - "pyproject.toml"
+      - "uv.lock"
+      - "source/**"
+      - ".github/workflows/uv-lock-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  locked-sync-train:
+    name: uv sync --locked + Newton cartpole training
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 60
+    env:
+      CUDA_VISIBLE_DEVICES: all
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+      CUDA_HOME: /usr/local/cuda
+      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      # ``--locked`` fails if uv.lock is out of date with pyproject.toml, so this both
+      # validates the committed lockfile and installs the base environment from it.
+      - name: uv sync from committed lockfile
+        run: uv sync --locked
+
+      - name: Verify core packages import
+        run: |
+          uv run python - <<'PY'
+          import isaaclab
+          import isaaclab_assets
+          import isaaclab_tasks
+          import isaaclab_rl
+          import isaaclab_newton
+          print("core imports ok")
+          PY
+
+      - name: Train Cartpole on Newton (MJWarp) backend
+        run: |
+          set -o pipefail
+          uv run isaaclab train \
+            --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct \
+            --num_envs 16 \
+            --max_iterations 5 \
+            physics=newton_mjwarp 2>&1 | tee train.log
+          grep -q "Training time:" train.log
+
+  fresh-resolve-train:
+    name: uv fresh resolve + Newton cartpole training
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 60
+    env:
+      CUDA_VISIBLE_DEVICES: all
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+      CUDA_HOME: /usr/local/cuda
+      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      # Re-resolve the whole dependency graph from scratch against the live indexes
+      - name: Re-resolve lockfile from scratch
+        run: uv lock --upgrade
+
+      - name: uv sync from freshly-resolved lockfile
+        run: uv sync
+
+      - name: Verify core packages import
+        run: |
+          uv run python - <<'PY'
+          import isaaclab
+          import isaaclab_assets
+          import isaaclab_tasks
+          import isaaclab_rl
+          import isaaclab_newton
+          print("core imports ok")
+          PY
+
+      - name: Train Cartpole on Newton (MJWarp) backend
+        run: |
+          set -o pipefail
+          uv run isaaclab train \
+            --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct \
+            --num_envs 16 \
+            --max_iterations 5 \
+            physics=newton_mjwarp 2>&1 | tee train.log
+          grep -q "Training time:" train.log
