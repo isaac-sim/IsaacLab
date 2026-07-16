@@ -1,0 +1,188 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Multi-GPU unit-test workflow
+#
+# Runs the non-default-GPU subset of unit tests across the multi-GPU runner
+# pool's GPUs in parallel. Uses the same ECR-pulled isaac-lab image as the
+# single-GPU CI; only diffs are the runner label and the env vars that pin
+# Kit and the test parametrize to the shard's non-default GPU.
+#
+# Adding a new test to multi-GPU coverage: give its device parametrize a
+# non-default-capable scope — argless ``isaaclab.test.utils.test_devices()``
+# (cpu + cuda:0 + non-default GPUs) or any ``"..X"`` mask. The workflow
+# auto-discovers it.
+
+name: Multi-GPU pytest
+
+on:
+  pull_request:
+    paths:
+      - "source/isaaclab/isaaclab/test/utils/**"
+      - "source/isaaclab/isaaclab/app/app_launcher.py"
+      - "source/**/test/**/test_*.py"
+      - ".github/workflows/test-multi-gpu-pytest.yaml"
+      - ".github/actions/run-package-tests/**"
+      - ".github/actions/run-tests/**"
+      - ".github/actions/ecr-build-push-pull/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+
+jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: .github/workflows/config.yaml
+          sparse-checkout-cone-mode: false
+      - id: load
+        run: |
+          set -euo pipefail
+          f=.github/workflows/config.yaml
+          echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+          echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build / cache image
+    needs: [config]
+    # Must run on the SAME pool as the test job. The ECR cache repo is resolved
+    # per runner pool (single-GPU `gpu` runners -> gitci-docker-cache; multi-GPU
+    # runners -> multigpu-docker-cache). If this built on `[self-hosted, gpu]`
+    # the image would land in gitci-docker-cache, which the multi-GPU test job
+    # cannot see, so it would rebuild from scratch on the scarce multi-GPU
+    # runner. Building here populates multigpu-docker-cache so the test job's
+    # pull hits.
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      # Pre-populates the ECR exact-commit tag from deps-cache (registry-side
+      # alias). Without this prior step, run-package-tests' internal
+      # ecr-build-push-pull hits exact-cache-miss + deps-cache-hit and leaves
+      # no local image, causing `docker run` to fail with `pull access
+      # denied`. Mirrors the build → test split in build.yaml.
+      - uses: ./.github/actions/ecr-build-push-pull
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+
+  test-multi-gpu-pytest:
+    name: Multi-GPU unit tests
+    needs: [config, build]
+    if: needs.build.result == 'success'
+    # The ``multi-gpu`` label is the multi-GPU pool. Do NOT add ``gpu`` here:
+    # in this fleet ``gpu`` tags single-GPU runners, so requiring it routes the
+    # job onto a 1-GPU box and the shard runner aborts with "Need at least 2
+    # visible devices; found 1".
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Discover opt-in test files
+        # Auto-discovery: any test_*.py with a non-default-capable scope — an
+        # argless ``test_devices()``, a named scope containing non-default GPUs,
+        # or a string mask with a trailing ``X`` — is in scope. Adding a test to
+        # multi-GPU CI needs no workflow edit; opting a file out is just narrowing
+        # its scope to ``DeviceScope.CPU_AND_DEFAULT_CUDA`` (or mask ``"110"``).
+        #
+        # Within a discovered file, tests that are NOT parametrized over the
+        # ``device`` argument are deselected at collection time by the
+        # ``mgpu_shard_select`` plugin (injected per shard by ``tools/conftest.py``):
+        # single-GPU CI already covers them on ``cuda:0`` and re-running on every
+        # non-default shard adds wall-time without surfacing any new failure mode.
+        id: discover
+        run: |
+          # File-level opt-out: a test file can exclude itself from multi-GPU CI
+          # by declaring a module-level ``MULTI_GPU_SKIP_REASON = "..."`` line.
+          # Used for files with known Kit/Isaac-Sim concurrency issues; the file
+          # still runs in single-GPU CI. Excluded files are reported as a notice
+          # below for visibility. No workflow edit needed to add/remove a file.
+          device_scope_pattern='test_devices\(\)|test_devices\([^)]*DeviceScope\.(ALL|CUDA|NON_DEFAULT_CUDA)|test_devices\("[^"]*X"\)'
+          mapfile -t candidates < <(grep -rlE "$device_scope_pattern" source/ --include='test_*.py' | sort -u)
+          discovered=()
+          skipped=()
+          for f in "${candidates[@]}"; do
+            if grep -q '^MULTI_GPU_SKIP_REASON' "$f"; then
+              skipped+=("$f")
+            else
+              discovered+=("$f")
+            fi
+          done
+          for f in "${skipped[@]}"; do
+            reason=$(grep -m1 '^MULTI_GPU_SKIP_REASON' "$f" | sed -E 's/^MULTI_GPU_SKIP_REASON[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//')
+            echo "::notice::multi-GPU skipped: $f — $reason"
+          done
+          if [ ${#discovered[@]} -eq 0 ]; then
+            echo "::error::No tests with a non-default-capable device scope were discovered"
+            exit 1
+          fi
+          basenames=$(printf '%s\n' "${discovered[@]}" | xargs -n1 basename | sort -u | paste -sd,)
+          echo "include=$basenames" >> "$GITHUB_OUTPUT"
+          # Full relative paths too, to seed the shared work queue (the run step
+          # needs runnable paths, not just basenames).
+          echo "paths=$(printf '%s,' "${discovered[@]}")" >> "$GITHUB_OUTPUT"
+          echo "::notice::Discovered ${#discovered[@]} opt-in test files"
+          printf '  %s\n' "${discovered[@]}"
+
+      - name: Pull image from ECR
+        # Pulls the per-commit image the build job pushed. ecr-build-push-pull
+        # handles ECR auth via the EC2 IAM role, and on exact-cache-hit (which
+        # the build job's deps-cache-hit registry-tag created for this SHA)
+        # it pulls the image locally and tags it as ``$CI_IMAGE_TAG`` for our
+        # parallel ``docker run`` block below.
+        uses: ./.github/actions/ecr-build-push-pull
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+
+      - name: Run shards in parallel on local GPUs (1-docker N-shard)
+        # ONE container hosts all N pytest shards as parallel subshells, each
+        # pinned to its own non-default cuda:N and pulling from a shared work
+        # queue; the host reconciles the queue afterward and exports
+        # MGPU_RUNTIME_DIR for the summary step. Full rationale + the
+        # 1-docker-N-shard tradeoffs live in the script header.
+        env:
+          IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
+          INCLUDE_FILES: ${{ steps.discover.outputs.include }}
+          PATHS: ${{ steps.discover.outputs.paths }}
+        run: bash .github/actions/multi-gpu/multi_gpu_host_launcher.sh
+
+      - name: Aggregated test summary
+        # Per-shard + per-file pass/total/walltime, plus a combined table, also
+        # written to $GITHUB_STEP_SUMMARY. Runs on success or failure.
+        if: always()
+        env:
+          RUNTIME_DIR: ${{ env.MGPU_RUNTIME_DIR }}
+        run: python3 .github/actions/multi-gpu/aggregate_test_summary.py

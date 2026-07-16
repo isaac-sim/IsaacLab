@@ -29,8 +29,11 @@ _VIS_LABEL_SUFFIXES = {
     "shape_label": "Shape",
     "articulation_label": "Articulation",
     "constraint_mimic_label": "ConstraintMimic",
+    "equality_constraint_label": "EqualityConstraint",
 }
-_VIS_LABEL_ATTRS = tuple(_VIS_LABEL_SUFFIXES)
+# Equality constraints live in custom attributes (like real newton), not plain builder lists.
+_VIS_BUILTIN_LABEL_ATTRS = tuple(attr for attr in _VIS_LABEL_SUFFIXES if attr != "equality_constraint_label")
+_VIS_EQ_FREQ = "mujoco:equality_constraint"
 
 _TENDON_FREQ = "mujoco:tendon"
 _SRC = "/Sources/protoA"
@@ -40,10 +43,22 @@ _DST = "/World/envs/env_{}"
 class _FakeVisualizationModelBuilder:
     def __init__(self, up_axis=None):
         self.up_axis = up_axis
-        for attr in _VIS_LABEL_ATTRS:
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
             setattr(self, attr, [])
             setattr(self, attr.replace("_label", "_world"), [])
-        self.custom_attributes = {}
+        self.custom_attributes = {
+            "mujoco:equality_constraint_label": newton.ModelBuilder.CustomAttribute(
+                name="equality_constraint_label", frequency=_VIS_EQ_FREQ, dtype=str, default="", namespace="mujoco"
+            ),
+            "mujoco:equality_constraint_world": newton.ModelBuilder.CustomAttribute(
+                name="equality_constraint_world",
+                frequency=_VIS_EQ_FREQ,
+                dtype=int,
+                default=0,
+                namespace="mujoco",
+                references="world",
+            ),
+        }
         self.geometry_sources = []
         self.world_slices = []
         self._current_world = None
@@ -65,9 +80,13 @@ class _FakeVisualizationModelBuilder:
             return
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
-        for attr, suffix in _VIS_LABEL_SUFFIXES.items():
-            getattr(self, attr).append(f"{root_path}/{suffix}")
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
+            getattr(self, attr).append(f"{root_path}/{_VIS_LABEL_SUFFIXES[attr]}")
             getattr(self, attr.replace("_label", "_world")).append(self._current_world or 0)
+        self.custom_attributes["mujoco:equality_constraint_label"].values.append(
+            f"{root_path}/{_VIS_LABEL_SUFFIXES['equality_constraint_label']}"
+        )
+        self.custom_attributes["mujoco:equality_constraint_world"].values.append(self._current_world or 0)
         self.geometry_sources.append(root_path)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
 
@@ -75,15 +94,21 @@ class _FakeVisualizationModelBuilder:
         del xform
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
-        for attr in _VIS_LABEL_ATTRS:
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
             labels = getattr(builder, attr)
             getattr(self, attr).extend(labels)
             getattr(self, attr.replace("_label", "_world")).extend([self._current_world] * len(labels))
+        eq_labels = builder.custom_attributes["mujoco:equality_constraint_label"].values
+        self.custom_attributes["mujoco:equality_constraint_label"].values.extend(eq_labels)
+        self.custom_attributes["mujoco:equality_constraint_world"].values.extend([self._current_world] * len(eq_labels))
         self.geometry_sources.extend(builder.geometry_sources)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
 
     def labels_for_world(self, world_id, attr):
-        labels = getattr(self, attr)
+        if attr == "equality_constraint_label":
+            labels = self.custom_attributes["mujoco:equality_constraint_label"].values
+        else:
+            labels = getattr(self, attr)
         return [label for start, end, _, _ in self.world_slices[world_id] for label in labels[start:end]]
 
     def geometry_sources_for_world(self, world_id):

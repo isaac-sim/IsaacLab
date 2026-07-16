@@ -8,11 +8,8 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 from typing import Any
-
-import tomllib
 
 import omni.usd
 
@@ -68,38 +65,20 @@ def _setting_path_from_key(key: str) -> str:
     return key
 
 
-def _apply_nested_preset(settings: SettingsManager, data: dict[str, Any], path: str = "") -> None:
-    """Apply nested preset dictionaries loaded from a .kit file."""
-    for key, value in data.items():
-        key_path = f"{path}/{key}" if path else f"/{key}"
-        if isinstance(value, dict):
-            _apply_nested_preset(settings, value, key_path)
-        else:
-            settings.set(key_path.replace(".", "/"), value)
+def apply_isaac_rtx_determinism_settings(settings: SettingsManager | None = None) -> None:
+    """Apply Isaac RTX settings for reproducible rendering.
 
+    Selects RealTimePathTracing and disables the RTPT color and light caches.
 
-def _apply_rendering_mode_preset(settings: SettingsManager, rendering_mode: str) -> None:
-    """Apply an Isaac Lab rendering-mode preset."""
-    supported_rendering_modes = {"performance", "balanced", "quality"}
-    if rendering_mode not in supported_rendering_modes:
-        raise ValueError(
-            f"IsaacRtxRendererCfg rendering mode '{rendering_mode}' not in "
-            "supported modes "
-            f"{sorted(supported_rendering_modes)}."
-        )
-
-    isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-    from isaaclab.utils.version import get_isaac_sim_version
-
-    if get_isaac_sim_version().major < 6:
-        isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
-
-    preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-    if os.path.exists(preset_filename):
-        with open(preset_filename, "rb") as file:
-            _apply_nested_preset(settings, tomllib.load(file))
-    else:
-        logger.warning("[isaac_rtx] Render preset file not found: %s", preset_filename)
+    Args:
+        settings: Settings manager to apply settings through. If None, the global settings manager is used.
+    """
+    if settings is None:
+        settings = get_settings_manager()
+    settings.set("/rtx/rendermode", "RealTimePathTracing")
+    settings.set("/rtx/rtpt/cached/enabled", False)
+    settings.set("/rtx/rtpt/lightcache/cached/enabled", False)
+    logger.info("Applied Isaac RTX settings for deterministic rendering.")
 
 
 def apply_isaac_rtx_global_settings(
@@ -123,10 +102,6 @@ def _apply_isaac_rtx_global_settings(
 ) -> None:
     """Apply global Isaac RTX settings to the provided settings manager."""
 
-    rendering_mode = getattr(global_settings, "rendering_mode", None)
-    if rendering_mode:
-        _apply_rendering_mode_preset(settings, rendering_mode)
-
     for field_name, setting_path in _RTX_FIELD_TO_SETTING.items():
         value = getattr(global_settings, field_name, None)
         if value is not None:
@@ -139,12 +114,9 @@ def _apply_isaac_rtx_global_settings(
 
     antialiasing_mode = getattr(global_settings, "antialiasing_mode", None)
     if antialiasing_mode is not None:
-        try:
-            import omni.replicator.core as rep
+        import omni.replicator.core as rep
 
-            rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
-        except Exception:
-            pass
+        rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
 
 
 def _get_stage_streaming_busy() -> bool:
@@ -211,11 +183,17 @@ def ensure_rtx_hydra_engine_attached() -> None:
         logger.error("RTX Hydra engine attach failed: %s", e)
 
 
-def ensure_isaac_rtx_render_update() -> None:
+def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     """Ensure the Isaac RTX renderer has been pumped for the current sim step.
 
     This keeps the Kit-specific ``app.update()`` logic inside the renderers
     package rather than in the backend-agnostic ``SimulationContext``.
+
+    Args:
+        force: Pump even when continuous rendering is inactive
+            (:attr:`~isaaclab.sim.SimulationContext.is_rendering` is ``False``). Used by the
+            on-demand headless offscreen video path to produce a frame only when one is
+            requested. Defaults to ``False``.
 
     Safe to call from multiple ``Camera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
@@ -234,7 +212,7 @@ def ensure_isaac_rtx_render_update() -> None:
     No-op conditions:
         * Already called this step (dedup across camera instances).
         * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
-        * Rendering is not active.
+        * Rendering is not active and ``force`` is ``False``.
     """
     global _last_render_update_key
 
@@ -256,7 +234,12 @@ def ensure_isaac_rtx_render_update() -> None:
         _last_render_update_key = key
         return
 
-    if not sim.is_rendering:
+    # Pump when continuous rendering is active (GUI/RTX sensors/visualizers/XR). ``is_rendering``
+    # excludes headless offscreen rendering so the per-step loop does not pump between frames.
+    # Offscreen frames are produced on demand: the ``--video`` / ``rgb_array`` path calls this with
+    # ``force=True`` (see :func:`pump_kit_app_for_headless_video_render_if_needed`) to pump exactly
+    # when a frame is requested, without making every step pump.
+    if not force and not sim.is_rendering:
         return
 
     # Sync physics results → Fabric so RTX sees updated positions.
@@ -292,7 +275,9 @@ def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
     if any(viz.pumps_app_update() for viz in sim.visualizers):
         return
     try:
-        ensure_isaac_rtx_render_update()
+        # Explicit on-demand frame request: pump even though headless offscreen rendering
+        # is excluded from ``is_rendering`` (so the per-step loop stays quiet between frames).
+        ensure_isaac_rtx_render_update(force=True)
     except (ImportError, AttributeError, ModuleNotFoundError) as exc:
         logger.debug("[isaac_rtx] Skipping Kit app-loop pump in render() (non-Kit env): %s", exc)
     except Exception as exc:

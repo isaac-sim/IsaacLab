@@ -1,6 +1,51 @@
 Changelog
 ---------
 
+8.1.9 (2026-07-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed gripper-object penetration in the SO-101 stack tasks: the moving jaw tunneled into
+  grasped objects because the articulation position drive was resolved after the contacts.
+  Added :class:`~isaaclab_tasks.contrib.stack.config.so101.stack_joint_pos_env_cfg.SO101StackPhysicsCfg`
+  enabling ``solve_articulation_contact_last`` for these tasks.
+
+
+8.1.8 (2026-07-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed preset-enabled command-line tools rejecting ``--help`` when required
+  arguments were omitted.
+* Fixed Cartpole camera ``newton_renderer`` presets to use tile dimensions
+  compatible with the 100x100 camera resolution.
+
+
+8.1.7 (2026-07-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the renderer presets ``ovrtx_renderer`` -> ``ovrtx`` and
+  ``isaacsim_rtx_renderer`` -> ``isaacsim_rtx`` to drop the redundant
+  ``_renderer`` suffix (the ``renderer=`` selector already names the category).
+  The old ``ovrtx_renderer`` / ``isaacsim_rtx_renderer`` spellings still resolve
+  as deprecated aliases and emit a :class:`FutureWarning`; migrate to the
+  suffix-less names, which will become the only accepted form in a future
+  release.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the renderer preset names ``ovrtx_renderer`` and
+  ``isaacsim_rtx_renderer`` in favor of ``ovrtx`` and ``isaacsim_rtx``.
+
+
 8.1.6 (2026-07-07)
 ~~~~~~~~~~~~~~~~~~
 

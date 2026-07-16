@@ -213,13 +213,12 @@ class ContactSensor(BaseContactSensor):
         self._body_names = body_names
         self._num_sensors = len(body_names)
 
-        # Build glob patterns: one per (env, sensor body).
-        # IsaacLab path forms map to ovphysx fnmatch globs the same way Articulation does.
-        _, body_path_expr = body_matches[0]
-        body_parent = body_path_expr.rsplit("/", 1)[0]
-        base_glob = re.sub(r"\{ENV_REGEX_NS\}", "*", body_parent)
-        base_glob = re.sub(r"\.\*", "*", base_glob)
-        sensor_patterns = [f"{base_glob}/{name}" for name in body_names]
+        # Build glob patterns: one per (env, sensor body), each from that body's own resolved
+        # expression. Building from a shared parent plus leaf names breaks on nested rigid-body
+        # hierarchies (child links authored under their parent link prim), where the bodies do
+        # not share a parent. IsaacLab path forms map to ovphysx fnmatch globs the same way
+        # Articulation does.
+        sensor_patterns = [re.sub(r"\.\*", "*", re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
 
         # Build filter patterns (flat: len = n_sensors * filters_per_sensor).
         filter_globs = [
@@ -252,6 +251,7 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError(
                 "Failed to initialize contact binding for specified bodies."
                 f"\n\tInput prim path     : {self.cfg.prim_path}"
+                f"\n\tSensor patterns     : {sensor_patterns}"
                 f"\n\tNum sensor bodies   : {self._num_sensors}"
                 f"\n\tBound sensors       : {self._contact_binding.sensor_count}"
             )
@@ -284,7 +284,7 @@ class ContactSensor(BaseContactSensor):
                     f"under '{self.cfg.prim_path}').  Workaround: create one ContactSensor "
                     "per body."
                 )
-            single_pose_pattern = f"{base_glob}/{body_names[0]}"
+            single_pose_pattern = sensor_patterns[0]
             self._root_view = OvPhysxView(physx_instance, pattern=single_pose_pattern, device=self._device)
             self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
             if self._pose_binding.count != self._contact_binding.sensor_count:
