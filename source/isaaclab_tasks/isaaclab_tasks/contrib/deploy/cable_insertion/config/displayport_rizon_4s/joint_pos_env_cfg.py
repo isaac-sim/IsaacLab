@@ -242,9 +242,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
         super().__post_init__()
 
         # Match exponential keypoint reward weight to the linear term (1:1 weighting)
-        self.rewards.plug_socket_keypoint_tracking_exp.weight = abs(
-            self.rewards.plug_socket_keypoint_tracking.weight
-        )
+        self.rewards.plug_socket_keypoint_tracking_exp.weight = abs(self.rewards.plug_socket_keypoint_tracking.weight)
 
         # Robot-specific parameters for Flexiv Rizon 4s with Grav gripper
         self.end_effector_body_name = "flange"  # End effector body name for IK
