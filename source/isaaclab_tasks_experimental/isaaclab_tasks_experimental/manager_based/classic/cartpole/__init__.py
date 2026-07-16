@@ -9,6 +9,11 @@ Cartpole balancing environment (experimental manager-based entry point).
 
 import gymnasium as gym
 
+from isaaclab_experimental.envs.frontend import register_mdp_route
+
+# Warp twins for the stable cartpole MDP terms live in this package's ``mdp``.
+register_mdp_route("isaaclab_tasks.core.cartpole", f"{__name__}.mdp")
+
 # Reuse agent configs from the stable task package.
 from isaaclab_tasks.core.cartpole import agents
 

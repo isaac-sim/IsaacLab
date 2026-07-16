@@ -9,6 +9,15 @@ Ant locomotion environment (experimental manager-based entry point).
 
 import gymnasium as gym
 
+from isaaclab_experimental.envs.frontend import register_mdp_route
+
+# The stable Ant task borrows Humanoid MDP terms, so its warp twins live in the
+# experimental humanoid package.
+register_mdp_route(
+    "isaaclab_tasks.core.locomotion.ant",
+    "isaaclab_tasks_experimental.manager_based.classic.humanoid.mdp",
+)
+
 # Reuse agent configs from the stable task package.
 from isaaclab_tasks.core.locomotion.ant import agents
 

@@ -41,6 +41,7 @@ __all__ = [
     "Workflow",
     "adapt_cfg_for_warp",
     "build",
+    "register_mdp_route",
 ]
 
 
@@ -76,29 +77,54 @@ class FrontendIncompatibleError(RuntimeError):
 # the warp packages. Used by the direct-workflow guard.
 _WARP_ROOT_PREFIXES: tuple[str, ...] = ("isaaclab_experimental", "isaaclab_tasks_experimental")
 
-# Stable task MDP packages and their Warp-first counterparts. The stable task
-# package is organized by public task domain while the experimental package
-# separates manager-based workflows by family, so the module trees are not
-# one-to-one. Keep the routing at the package boundary and preserve any
-# submodule suffix (for example, ``.rewards``).
-_WARP_MDP_MODULE_ROUTES: tuple[tuple[str, str], ...] = (
-    (
-        "isaaclab_tasks.core.cartpole.mdp",
-        "isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp",
-    ),
-    (
-        "isaaclab_tasks.core.locomotion.humanoid.mdp",
-        "isaaclab_tasks_experimental.manager_based.classic.humanoid.mdp",
-    ),
-    (
-        "isaaclab_tasks.core.velocity.mdp",
-        "isaaclab_tasks_experimental.manager_based.locomotion.velocity.mdp",
-    ),
-    (
-        "isaaclab_tasks.core.reach.mdp",
-        "isaaclab_tasks_experimental.manager_based.manipulation.reach.mdp",
-    ),
-)
+# Stable package prefixes mapped to the warp MDP module that twins their terms.
+# The stable task package is organized by public task domain while the
+# experimental package separates manager-based workflows by family, so the
+# module trees are not one-to-one. The registry is populated by the experimental
+# task packages themselves via :func:`register_mdp_route` at import time, so
+# adding a new task family never requires editing this module.
+_WARP_MDP_MODULE_ROUTES: dict[str, str] = {}
+
+# Root package that provides task-specific warp MDP twins. Imported (lazily, at
+# swap time) so its task packages run their register_mdp_route() calls even when
+# the caller only imported the stable task package.
+_TWIN_PROVIDER_PACKAGE = "isaaclab_tasks_experimental"
+
+
+def register_mdp_route(stable_package: str, warp_mdp_module: str) -> None:
+    """Register the warp MDP module that twins a stable package's terms.
+
+    Experimental task packages call this at import time to declare where the
+    warp twins of a stable task's MDP terms live. :func:`_swap_mdp` consults
+    the registry to resolve task-specific twins for ``--frontend=warp``. Twin
+    lookup is by symbol name on ``warp_mdp_module`` itself, mirroring how a
+    stable cfg consumes its ``mdp`` namespace — so the module should re-export
+    everything the task needs (task-specific twins plus the generic forwards).
+
+    Two kinds of keys are useful:
+
+    * A *task package* (e.g. ``"isaaclab_tasks.core.reach"``) routes every cfg
+      class defined under it. This also covers terms whose stable functions are
+      defined in core/shared packages but overridden by task-specific twins.
+    * An *MDP package* (e.g. ``"isaaclab_tasks.core.locomotion.humanoid.mdp"``)
+      routes symbols *defined* under it, which serves other tasks that borrow
+      those terms.
+
+    Args:
+        stable_package: Stable package prefix to route (longest match wins).
+        warp_mdp_module: Warp MDP module providing the twins, e.g.
+            ``"isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp"``.
+
+    Raises:
+        ValueError: If ``stable_package`` is already routed to a different module.
+    """
+    existing = _WARP_MDP_MODULE_ROUTES.get(stable_package)
+    if existing is not None and existing != warp_mdp_module:
+        raise ValueError(
+            f"MDP route conflict for {stable_package!r}: already routed to {existing!r}, got {warp_mdp_module!r}."
+        )
+    _WARP_MDP_MODULE_ROUTES[stable_package] = warp_mdp_module
+
 
 # Top-level cfg groups whose managers run warp-first. Only terms under these are
 # adapted (SceneEntityCfg promotion + MDP twin swap). The event manager is
@@ -248,23 +274,26 @@ def _swap_mdp(cfg: Any, label: str) -> None:
 
     Iterates every term cfg in the tree (via :func:`_walk_terms`) and on each
     term swaps whichever of ``func`` / ``class_type`` is a stable-origin
-    callable. Twin lookup is name-based against the warp mirror of the *stable
-    symbol's own module* (:func:`_warp_mdp_modules`) plus the
-    :mod:`isaaclab_experimental.envs.mdp` fallback. Keying off the symbol's
-    module — not the cfg's — means a task that borrows another task's MDP (e.g.
-    ``manager_ant`` reuses ``manager_humanoid.mdp``) resolves to the right warp
-    twins without a per-task shim, mirroring the stable ``core/`` layout. Any
-    missing twin raises :class:`FrontendIncompatibleError` listing every
-    affected term — partial swaps would leave torch-style callables in the cfg
-    and the warp managers would call them with the wrong signature.
+    callable. Twin lookup is name-based, in the order given by
+    :func:`_twin_modules`: the warp mirror of the cfg's own task MDP namespace
+    first (task twins win, even for symbols defined in core packages), then the
+    mirror of the symbol's defining package (covers terms borrowed from another
+    task family, e.g. the Ant task reusing Humanoid MDP terms), then the shared
+    :mod:`isaaclab_experimental.envs.mdp` fallback. Any missing twin raises
+    :class:`FrontendIncompatibleError` listing every affected term — partial
+    swaps would leave torch-style callables in the cfg and the warp managers
+    would call them with the wrong signature.
 
-    The warp-side side declarations (``out_dim``, ``axes``, ``observation_type``)
+    The warp-side declarations (``out_dim``, ``axes``, ``observation_type``)
     that the warp managers need at init are *not* supplied by this swap; they
     travel with the warp twin function itself via its own
     ``@generic_io_descriptor_warp(out_dim=…)`` decorator. This function only
     substitutes the callable; the manager reads the new func's annotations
     when it parses the term cfg.
     """
+    _ensure_twin_providers_imported()
+
+    cfg_route_modules = _cfg_route_modules(cfg)
     module_cache: dict[str, list[ModuleType]] = {}
     searched: set[str] = set()
 
@@ -280,7 +309,7 @@ def _swap_mdp(cfg: Any, label: str) -> None:
                 continue
             origin = getattr(stable, "__module__", "") or ""
             if origin not in module_cache:
-                module_cache[origin] = _warp_mdp_modules(origin)
+                module_cache[origin] = _twin_modules(origin, cfg_route_modules)
                 searched.update(m.__name__ for m in module_cache[origin])
             twin = _resolve_warp_twin(stable.__name__, module_cache[origin])
             if twin is None:
@@ -337,62 +366,94 @@ def _assert_direct_warp_registration(task_id: str) -> None:
         )
 
 
-def _warp_mdp_modules(symbol_module: str) -> list[ModuleType]:
-    """Locate warp MDP modules to consult for a stable symbol's twin.
+def _match_route(module: str) -> str | None:
+    """Return the routed warp MDP module for ``module``, longest prefix wins."""
+    if not isinstance(module, str) or not module:
+        return None
+    best_key: str | None = None
+    for stable_prefix in _WARP_MDP_MODULE_ROUTES:
+        if module == stable_prefix or module.startswith(f"{stable_prefix}."):
+            if best_key is None or len(stable_prefix) > len(best_key):
+                best_key = stable_prefix
+    return _WARP_MDP_MODULE_ROUTES[best_key] if best_key is not None else None
 
-    The lookup is keyed off the *stable symbol's own module*
-    (``func.__module__`` / ``class_type.__module__``), e.g.
-    ``isaaclab_tasks.core.locomotion.humanoid.mdp.rewards``. The stable module
-    is routed to its manager-based experimental counterpart, then walked up to
-    the nearest importable module. Keying off the symbol's module — not the
-    cfg's — resolves the right twins even when a task borrows another task's
-    MDP (the Ant task reuses Humanoid MDP terms).
 
-    Order of preference:
+def _import_routed_module(target: str) -> ModuleType:
+    """Import a registered route target; a broken registration is a hard error."""
+    try:
+        return importlib.import_module(target)
+    except ImportError as exc:
+        raise FrontendIncompatibleError(f"registered warp MDP route target {target!r} failed to import: {exc}") from exc
 
-    1. The routed Warp counterpart of ``symbol_module`` (or its nearest importable ancestor,
-       e.g. the ``...mdp`` package when the exact submodule isn't mirrored).
-    2. The shared :mod:`isaaclab_experimental.envs.mdp` fallback (where
-       generic warp twins live).
+
+def _cfg_route_modules(cfg: Any) -> list[ModuleType]:
+    """Warp MDP modules routed from the cfg's class hierarchy, subclass first.
+
+    A stable cfg consumes terms through its task's ``mdp`` namespace, which
+    re-exports symbols that may be *defined* in core or shared packages. The
+    warp mirror of that namespace is therefore the primary place to resolve
+    twins, and it is found by routing the modules of ``type(cfg).__mro__`` —
+    the subclass module first (robot-specific cfgs), then base-cfg modules
+    (task-family bases).
     """
     modules: list[ModuleType] = []
-    warp_mod = _warp_mdp_module_name(symbol_module)
-    if warp_mod is not None:
-        parts = warp_mod.split(".")
-        for depth in range(len(parts), 0, -1):
-            target = ".".join(parts[:depth])
-            try:
-                modules.append(importlib.import_module(target))
-                break
-            except ModuleNotFoundError as exc:
-                # Keep walking up while the missing module is part of the path
-                # we're probing; a genuine import error inside an existing
-                # module (missing third-party dep, etc.) must surface.
-                if exc.name and warp_mod.startswith(exc.name):
-                    continue
-                raise
-    # Generic fallback.
-    fallback = "isaaclab_experimental.envs.mdp"
-    try:
-        modules.append(importlib.import_module(fallback))
-    except ModuleNotFoundError as exc:
-        if exc.name == fallback:
-            logger.warning("frontend.warp: fallback mdp module %r not importable", fallback)
-        else:
-            raise
+    for klass in type(cfg).__mro__:
+        target = _match_route(getattr(klass, "__module__", "") or "")
+        if target is None:
+            continue
+        module = _import_routed_module(target)
+        if module not in modules:
+            modules.append(module)
     return modules
 
 
-def _warp_mdp_module_name(symbol_module: str) -> str | None:
-    """Return the routed experimental MDP module for a stable task symbol."""
-    if not isinstance(symbol_module, str):
-        return None
-    for stable_prefix, warp_prefix in _WARP_MDP_MODULE_ROUTES:
-        if symbol_module == stable_prefix:
-            return warp_prefix
-        if symbol_module.startswith(f"{stable_prefix}."):
-            return f"{warp_prefix}{symbol_module[len(stable_prefix) :]}"
-    return None
+def _twin_modules(symbol_module: str, cfg_route_modules: list[ModuleType]) -> list[ModuleType]:
+    """Warp modules to consult for a stable symbol's twin, in preference order.
+
+    1. The warp mirrors of the cfg's own task MDP namespace
+       (:func:`_cfg_route_modules`) — task-specific twins win, including twins
+       for symbols defined in core/shared packages.
+    2. The warp mirror routed from the symbol's defining package — covers terms
+       borrowed from another task family's MDP package.
+    3. The shared :mod:`isaaclab_experimental.envs.mdp` fallback (where generic
+       warp twins live).
+    """
+    modules = list(cfg_route_modules)
+    target = _match_route(symbol_module)
+    if target is not None:
+        module = _import_routed_module(target)
+        if module not in modules:
+            modules.append(module)
+    fallback = "isaaclab_experimental.envs.mdp"
+    try:
+        fallback_module = importlib.import_module(fallback)
+    except ModuleNotFoundError as exc:
+        if exc.name != fallback:
+            raise
+        logger.warning("frontend.warp: fallback mdp module %r not importable", fallback)
+    else:
+        if fallback_module not in modules:
+            modules.append(fallback_module)
+    return modules
+
+
+def _ensure_twin_providers_imported() -> None:
+    """Import the twin-provider package so its MDP routes are registered.
+
+    Route registration happens as an import side effect of the experimental
+    task packages. A caller running ``--frontend=warp`` on a stable task id
+    has no other reason to import :mod:`isaaclab_tasks_experimental`, so the
+    swap triggers it here. A missing provider package is not an error by
+    itself — the swap then fails with the explicit missing-twin report.
+    """
+    try:
+        importlib.import_module(_TWIN_PROVIDER_PACKAGE)
+    except ModuleNotFoundError as exc:
+        # Only swallow "the provider package is not installed"; a genuine import
+        # error inside an existing package must surface.
+        if exc.name != _TWIN_PROVIDER_PACKAGE:
+            raise
+        logger.warning("frontend.warp: twin provider package %r is not installed", _TWIN_PROVIDER_PACKAGE)
 
 
 def _resolve_warp_twin(name: str, modules: Iterable[ModuleType]) -> Any | None:
@@ -429,12 +490,19 @@ def _walk_terms(node: Any, path: tuple[str, ...] = ()) -> Iterator[tuple[tuple[s
 
     * Match (a term cfg instance): yield ``(path, node)`` and stop — do not
       descend into ``term.params`` / ``term.func`` / ``term.class_type``.
-    * Configclass: don't yield; recurse into every non-underscore attribute,
-      extending the path. ``observations``, ``rewards``, ``events``, ``actions``,
-      sub-groups like ``observations.policy`` / ``observations.perception``, and
-      anything nested deeper are reached transparently.
+    * Configclass: don't yield; recurse into every non-underscore *instance*
+      attribute (``vars(node)``), extending the path. ``observations``,
+      ``rewards``, ``events``, ``actions``, sub-groups like
+      ``observations.policy`` / ``observations.perception``, and anything
+      nested deeper are reached transparently.
     * Anything else (plain Python data, callables, non-configclass objects):
       stop. No yield, no recursion.
+
+    Iterating the instance ``__dict__`` mirrors how the warp managers consume
+    group cfgs (they iterate ``cfg.__dict__.items()``), so the walker sees
+    exactly the terms the managers will see — including terms assigned in
+    ``__post_init__`` — while never descending into methods or nested class
+    objects, which live on the class rather than the instance.
 
     Driven entirely by type — no attribute names are hardcoded — so future
     cfg layouts (extra observation groups, new nesting, etc.) are picked up
@@ -447,13 +515,7 @@ def _walk_terms(node: Any, path: tuple[str, ...] = ()) -> Iterator[tuple[tuple[s
         return
     if not hasattr(node, "__dataclass_fields__"):
         return
-    for name in dir(node):
-        if name.startswith("_"):
-            continue
-        try:
-            value = getattr(node, name, None)
-        except Exception:  # noqa: BLE001 — defensive; some descriptors can raise on attribute access
-            continue
-        if value is None:
+    for name, value in vars(node).items():
+        if name.startswith("_") or value is None:
             continue
         yield from _walk_terms(value, path + (name,))
