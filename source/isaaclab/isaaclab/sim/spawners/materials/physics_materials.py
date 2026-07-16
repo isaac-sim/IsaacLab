@@ -17,6 +17,34 @@ from isaaclab.utils.string import string_to_callable
 from . import physics_materials_cfg
 
 
+@clone
+def spawn_cable_material(prim_path: str, cfg: physics_materials_cfg.CableMaterialCfg) -> Usd.Prim:
+    """Create a physics material for deformable curves.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the material at.
+        cfg: The cable material configuration.
+
+    Returns:
+        The spawned cable material prim.
+
+    Raises:
+        ValueError: When a prim already exists at the path and is not a material.
+    """
+    stage = get_current_stage()
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        UsdShade.Material.Define(stage, prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsA(UsdShade.Material):
+        raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
+
+    if not UsdPhysics.MaterialAPI(prim):
+        UsdPhysics.MaterialAPI.Apply(prim)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg) if f.name != "func"}
+    _apply_namespaced_schemas(prim, cfg, cfg_dict)
+    return prim
+
+
 def spawn_rigid_body_material_from_fragments(
     prim_path: str,
     fragments: physics_materials_cfg.RigidBodyMaterialFragment

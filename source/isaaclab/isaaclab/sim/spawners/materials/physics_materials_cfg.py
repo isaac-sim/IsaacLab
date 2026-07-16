@@ -58,6 +58,28 @@ class PhysicsMaterialCfg:
 
 
 @configclass
+class CableMaterialCfg(PhysicsMaterialCfg):
+    """Physics material parameters for deformable curves."""
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = "PhysicsCurvesDeformableMaterialAPI"
+
+    func: Callable | str = "{DIR}.physics_materials:spawn_cable_material"
+
+    thickness: float = 0.01
+    """The cable thickness [m]. Defaults to 0.01 m."""
+
+    density: float = 1500.0
+    """The cable density [kg/m^3]. Defaults to 1500 kg/m^3."""
+
+    stretch_stiffness: float = 1.0e9
+    """The cable stretch elastic modulus [Pa]. Defaults to 1e9 Pa."""
+
+    bend_stiffness: float = 0.0
+    """The cable bend elastic modulus [Pa]. Defaults to 0.0 Pa."""
+
+
+@configclass
 class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     """Solver-common physics-material parameters for rigid bodies.
 
