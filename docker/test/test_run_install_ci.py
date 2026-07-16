@@ -32,7 +32,7 @@ def _docker_args(**overrides):
         "no_cache": False,
         "no_pip_cache": True,
         "no_uv_cache": True,
-        "pytest_args": ["--tb=short", "--show-capture=all", "-m", "uv"],
+        "pytest_args": ["--tb=short", "-sv", "-m", "uv"],
         "results_dir": None,
         "shell": False,
         "wheel": None,
