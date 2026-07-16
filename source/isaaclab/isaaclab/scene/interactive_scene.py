@@ -192,9 +192,9 @@ class InteractiveScene:
             stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
             valid_set=self._clone_valid_set,
-        ):
+        ) as replicate_session:
             if self._is_scene_setup_from_cfg():
-                self._add_entities_from_cfg()
+                self._add_entities_from_cfg(replicate_session.plan)
 
         self._aggregate_scene_data_requirements(requested_viz_types)
 
@@ -774,11 +774,27 @@ class InteractiveScene:
             for asset_name, asset_cfg in self.cfg.__dict__.items()
         )
 
-    def _add_entities_from_cfg(self):  # noqa: C901
-        """Add scene entities from the config."""
+    def _add_entities_from_cfg(self, clone_plan: cloner.ClonePlan | None = None):  # noqa: C901
+        """Add scene entities from the config.
+
+        Args:
+            clone_plan: Clone plan produced for this scene's asset cfgs. Used to
+                recognize assets the plan deliberately assigns to zero environments
+                (e.g. clone combinations that never activate a claimed asset), which
+                are skipped instead of constructed.
+        """
         from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
 
         from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
+
+        def is_planned_inactive(cfg: Any) -> bool:
+            """Whether clone planning deliberately assigned *cfg* to zero environments."""
+            if clone_plan is None:
+                return False
+            rows = clone_plan.cfg_rows.get(id(cfg))
+            if rows is None:
+                return False
+            return not bool(clone_plan.clone_mask[list(rows)].any())
 
         # store paths that are in global collision filter
         self._global_prim_paths = list()
@@ -804,6 +820,11 @@ class InteractiveScene:
                 )
                 if self.env_ns not in asset_cfg.prim_path:
                     asset_cfg.spawn.spawn_path = asset_cfg.prim_path
+                elif is_planned_inactive(asset_cfg):
+                    # The plan claims this asset but activates it in no environment
+                    # (e.g. no sampled clone combination mentions it): nothing to spawn.
+                    logger.info(f"Skipping scene entity '{asset_name}': clone plan assigns it to no environment.")
+                    continue
                 elif is_multi_spawner and not asset_cfg.spawn.spawn_paths:
                     raise RuntimeError(f"Clone planning did not assign spawn_paths for '{asset_cfg.prim_path}'.")
                 elif not is_multi_spawner and asset_cfg.spawn.spawn_path is None:

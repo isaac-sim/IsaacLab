@@ -160,6 +160,51 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
     assert stage is scene.stage
 
 
+def test_scene_skips_assets_planned_inactive_everywhere():
+    """Assets claimed by clone combinations but active in zero environments are skipped.
+
+    Mirrors heterogeneous demos (e.g. bin packing) where a zero-weight
+    :class:`~isaaclab.cloner.InclusionSet` claims every slot and the sampled
+    combinations leave some slots inactive in every environment. Clone planning
+    deliberately assigns those no spawn path; the scene must skip them instead of
+    raising ``RuntimeError: Clone planning did not assign spawn_path``.
+    """
+    from isaaclab.cloner import InclusionSet
+
+    def cuboid(prim_path: str) -> RigidObjectCfg:
+        return RigidObjectCfg(
+            prim_path=prim_path,
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+        )
+
+    @configclass
+    class SkipSceneCfg(InteractiveSceneCfg):
+        active_obj = cuboid("/World/envs/env_.*/ActiveObj")
+        inactive_obj = cuboid("/World/envs/env_.*/InactiveObj")
+
+    clone_cfg = CloneCfg(
+        clone_combinations=[
+            InclusionSet(assets=["active_obj"]),
+            # The zero-weight row claims the inactive asset so it does not default
+            # to active in every environment (mirrors the bin-packing demo).
+            InclusionSet(assets=["active_obj", "inactive_obj"], weight=0),
+        ]
+    )
+
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(SkipSceneCfg(num_envs=2, env_spacing=1.0, clone_cfg=clone_cfg))
+
+        assert "active_obj" in scene.rigid_objects
+        assert "inactive_obj" not in scene.rigid_objects
+        assert len(sim_utils.find_matching_prims("/World/envs/env_.*/ActiveObj")) == 2
+        assert len(sim_utils.find_matching_prims("/World/envs/env_.*/InactiveObj")) == 0
+
+
 def test_collect_asset_cfgs_resolves_env_regex_macros():
     """_collect_asset_cfgs rewrites {ENV_REGEX_NS} macros and expands collections."""
     scene = object.__new__(InteractiveScene)
