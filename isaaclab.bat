@@ -41,6 +41,8 @@ if exist "%ISAACLAB_PATH%\_isaac_sim\" (
     )
 )
 
+rem Prefer omni.usd.libs over usd-core for pxr imports to avoid TfType::AddAlias
+rem conflicts with ovrtx/ovphysx (see tools/setup_usd_libs.py for details).
 for /f "delims=" %%d in ('"%python_exe%" "%ISAACLAB_PATH%\tools\setup_usd_libs.py"') do (
     set "PYTHONPATH=%%d;!PYTHONPATH!"
     set "PATH=%%d\bin;!PATH!"

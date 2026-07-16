@@ -22,6 +22,9 @@ if candidates:
         try:
             open(init_py, "w").close()
         except OSError as exc:
-            print(f"[WARNING] Cannot promote omni.usd.libs/pxr to a regular package; skipping USD path setup: {exc}", file=sys.stderr)
+            print(
+                f"[WARNING] Cannot promote omni.usd.libs/pxr to a regular package; skipping USD path setup: {exc}",
+                file=sys.stderr,
+            )
             sys.exit(0)
     print(usd_libs_dir, end="")
