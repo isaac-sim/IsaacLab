@@ -92,7 +92,14 @@ def test_franka_ik_pose_abs(sim):
 
     # Run the controller and check that it converges to the goal
     _run_ik_controller(
-        robot, diff_ik_controller, "panda_hand", ["panda_joint.*"], sim_context, num_envs, ee_pose_b_des_set
+        robot,
+        diff_ik_controller,
+        "panda_hand",
+        ["panda_joint.*"],
+        sim_context,
+        num_envs,
+        ee_pose_b_des_set,
+        num_steps_per_goal=300,
     )
 
 
@@ -121,6 +128,7 @@ def _run_ik_controller(
     sim: sim_utils.SimulationContext,
     num_envs: int,
     ee_pose_b_des_set: torch.Tensor,
+    num_steps_per_goal: int = 250,
 ):
     """Run the IK controller with the given parameters.
 
@@ -132,6 +140,7 @@ def _run_ik_controller(
         sim (sim_utils.SimulationContext): The simulation context.
         num_envs (int): The number of environments.
         ee_pose_b_des_set (torch.Tensor): The set of desired end-effector poses.
+        num_steps_per_goal: The maximum number of simulation steps for reaching each goal.
     """
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -160,9 +169,9 @@ def _run_ik_controller(
     )
 
     # Now we are ready!
-    for count in range(3000):
-        # reset every 500 steps
-        if count % 500 == 0:
+    for count in range(2 * len(ee_pose_b_des_set) * num_steps_per_goal):
+        # reset after each goal
+        if count % num_steps_per_goal == 0:
             # check that we converged to the goal
             if count > 0:
                 pos_error, rot_error = compute_pose_error(
