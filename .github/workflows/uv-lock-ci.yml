@@ -82,6 +82,80 @@ jobs:
             physics=newton_mjwarp 2>&1 | tee train.log
           grep -q "Training time:" train.log
 
+  isaacsim-extra-train:
+    name: uv --extra isaacsim + PhysX cartpole training
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 90
+    env:
+      CUDA_VISIBLE_DEVICES: all
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+      CUDA_HOME: /usr/local/cuda
+      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+      # Isaac Sim wheels refuse to import without EULA acceptance.
+      OMNI_KIT_ACCEPT_EULA: "yes"
+      ACCEPT_EULA: "Y"
+      ISAACSIM_ACCEPT_EULA: "YES"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      # ``--extra isaacsim`` pulls the Isaac Sim (PhysX) backend on the fly, resolved from
+      # the committed lock (``--locked``). The PhysX backend requires Isaac Sim/Kit.
+      - name: Train Cartpole on PhysX backend (Isaac Sim)
+        run: |
+          set -o pipefail
+          uv run --locked --extra isaacsim isaaclab train \
+            --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct \
+            --num_envs 16 \
+            --max_iterations 5 \
+            physics=physx 2>&1 | tee train.log
+          grep -q "Training time:" train.log
+
+  ov-extra-train:
+    name: uv --extra ov + OVPhysX cartpole training
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 60
+    env:
+      CUDA_VISIBLE_DEVICES: all
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+      CUDA_HOME: /usr/local/cuda
+      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      # ``--extra ov`` pulls the kit-less OVPhysX backend on the fly, resolved from the
+      # committed lock (``--locked``).
+      - name: Train Cartpole on OVPhysX backend
+        run: |
+          set -o pipefail
+          uv run --locked --extra ov isaaclab train \
+            --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct \
+            --num_envs 16 \
+            --max_iterations 5 \
+            physics=ovphysx 2>&1 | tee train.log
+          grep -q "Training time:" train.log
+
   fresh-resolve-train:
     name: uv fresh resolve + Newton cartpole training
     runs-on: [self-hosted, gpu]
