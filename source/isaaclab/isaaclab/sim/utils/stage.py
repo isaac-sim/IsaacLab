@@ -147,11 +147,11 @@ def _sync_isaacsim_stage_context() -> None:
         return
 
     try:
-        from isaaclab.sim.utils.extensions import enable_extension  # noqa: PLC0415
-
-        enable_extension("isaacsim.core.experimental.utils")
+        # Do not enable ``isaacsim.core.experimental.utils`` here. Stage creation is used by
+        # Newton tests before Newton imports Warp, and enabling Isaac Sim experimental utils can
+        # make Kit's importer expose the bundled ``omni.warp.core`` package ahead of pip Warp.
         from isaacsim.core.experimental.utils import stage as sim_stage  # noqa: PLC0415
-    except (ImportError, RuntimeError):
+    except ImportError:
         return
 
     # Isaac Sim stage helpers read this singleton context.
