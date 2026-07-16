@@ -120,6 +120,38 @@ def test_environment_step_timer_measures_only_step_calls():
     assert "step" not in vars(env.unwrapped.sim)
 
 
+def test_environment_step_timer_excludes_warmup_steps_host_return():
+    env = _Env()
+
+    with EnvironmentStepTimingRecorder(env, warmup_steps=2) as timer:
+        run_runtime_loop(env, num_frames=5, reset=False)
+
+    # All five steps run, but the first two are excluded from the recorded timings.
+    assert env.steps == 5
+    assert len(timer.step_times_s) == 3
+
+
+def test_environment_step_timer_warmup_keeps_simulation_accounting_consistent():
+    env = _Env()
+    recorder = EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True, warmup_steps=1)
+
+    with recorder:
+        run_runtime_loop(env, num_frames=3, reset=False)
+
+    # The first env step is warmup; each _Env.step calls sim.step twice, so only the two
+    # recorded steps' four simulation-step calls are counted (not the warmup step's two).
+    assert len(recorder.step_times_s) == 2
+    assert len(recorder.simulation_step_times_s) == 2
+    assert recorder.simulation_step_calls == 4
+
+    # Reusing the same recorder resets the warmup counter and the recorded series.
+    with recorder:
+        run_runtime_loop(env, num_frames=4, reset=False)
+
+    assert len(recorder.step_times_s) == 3
+    assert recorder.simulation_step_calls == 6
+
+
 def test_environment_step_timer_synchronizes_before_environment_and_simulation_steps(monkeypatch):
     import warp as wp
 

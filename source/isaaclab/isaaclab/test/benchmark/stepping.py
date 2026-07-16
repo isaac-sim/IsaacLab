@@ -78,11 +78,16 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         env: Environment interface whose ``step`` method is called by the workload.
         measure_synchronized_step_breakdown: Whether to collect the serialized
             synchronized simulation and outside-simulation breakdown.
+        warmup_steps: Number of initial ``env.step()`` calls to exclude from the
+            recorded timings. Drops one-time cold-start costs (e.g. CUDA graph
+            capture and lazy kernel compilation) so the aggregate reflects
+            steady-state stepping. Defaults to ``0`` (record every step).
     """
 
-    def __init__(self, env, *, measure_synchronized_step_breakdown: bool = False):
+    def __init__(self, env, *, measure_synchronized_step_breakdown: bool = False, warmup_steps: int = 0):
         self._env = env
         self._measure_synchronized_step_breakdown = measure_synchronized_step_breakdown
+        self._warmup_steps = warmup_steps
         self._simulation_context = env.unwrapped.sim if measure_synchronized_step_breakdown else None
         self._had_env_instance_step = "step" in vars(env)
         self._env_instance_step = vars(env).get("step")
@@ -95,6 +100,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         self._simulation_total_time_s = 0.0
         self._simulation_step_calls = 0
         self._inside_environment_step = False
+        self._environment_step_index = 0
         self.step_times_s: list[float] = []
         self.simulation_step_times_s: list[float] | None = [] if measure_synchronized_step_breakdown else None
 
@@ -109,6 +115,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             raise RuntimeError("EnvironmentStepTimingRecorder is already active")
 
         self.step_times_s.clear()
+        self._environment_step_index = 0
         self._original_env_step = self._env.step
 
         if self._measure_synchronized_step_breakdown:
@@ -139,7 +146,10 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             self._simulation_context.step = timed_simulation_step
 
             def timed_environment_step(*args, **kwargs):
+                recording = self._environment_step_index >= self._warmup_steps
+                self._environment_step_index += 1
                 simulation_start_time_s = self._simulation_total_time_s
+                simulation_start_calls = self._simulation_step_calls
                 wp.synchronize()
                 timer = Timer()
                 self._inside_environment_step = True
@@ -148,17 +158,25 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
                         return self._original_env_step(*args, **kwargs)
                 finally:
                     self._inside_environment_step = False
-                    self.step_times_s.append(timer.total_run_time)
-                    self.simulation_step_times_s.append(self._simulation_total_time_s - simulation_start_time_s)
+                    if recording:
+                        self.step_times_s.append(timer.total_run_time)
+                        self.simulation_step_times_s.append(self._simulation_total_time_s - simulation_start_time_s)
+                    else:
+                        # Discard warmup-step accounting so recorded calls and times stay consistent.
+                        self._simulation_total_time_s = simulation_start_time_s
+                        self._simulation_step_calls = simulation_start_calls
 
         else:
 
             def timed_environment_step(*args, **kwargs):
+                recording = self._environment_step_index >= self._warmup_steps
+                self._environment_step_index += 1
                 start_time_ns = time.perf_counter_ns()
                 try:
                     return self._original_env_step(*args, **kwargs)
                 finally:
-                    self.step_times_s.append((time.perf_counter_ns() - start_time_ns) / 1e9)
+                    if recording:
+                        self.step_times_s.append((time.perf_counter_ns() - start_time_ns) / 1e9)
 
         self._env.step = timed_environment_step
         return self

@@ -58,6 +58,18 @@ def test_adapters_reject_non_positive_workloads(library: str, workflow: str, arg
     assert exc_info.value.code == 2
 
 
+@pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
+@pytest.mark.parametrize("workflow", ["play", "train"])
+def test_adapters_reject_negative_warmup_steps(library: str, workflow: str):
+    """Benchmark adapters reject a negative --warmup_steps (the cold-start exclusion is opt-in, N >= 0)."""
+    module = _load_adapter(library, workflow)
+
+    with pytest.raises(SystemExit) as exc_info:
+        module._parse_args(["--task", _TASK, "--warmup_steps", "-1", "--headless"])
+
+    assert exc_info.value.code == 2
+
+
 @pytest.mark.parametrize(
     (
         "library",
