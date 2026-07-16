@@ -155,7 +155,7 @@ runs:
                 if [ -n \"\$wait_pid\" ]; then kill \"\$wait_pid\" 2>/dev/null || true; fi; \
                 exit 130" HUP INT TERM
 
-          echo "::group::Configuration"
+          echo "::group::Configuration / Setup"
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
             echo "With pytest options: $pytest_options"
@@ -191,8 +191,6 @@ runs:
             echo "Shard: $shard_index of $shard_count"
           fi
 
-          echo "::endgroup::"
-
           if [ -n "$test_node_ids_file" ] || [ -n "$test_node_ids_key" ]; then
             if [ -z "$test_node_ids_file" ] || [ -z "$test_node_ids_key" ]; then
               echo "Both test-node-ids-file and test-node-ids-key must be set together"
@@ -208,7 +206,6 @@ runs:
           # Clean up any existing container
           docker rm -f $container_name 2>/dev/null || true
 
-          echo "::group::Docker environment setup"
           # Build Docker environment variables
           docker_env_vars="\
             -e OMNI_KIT_ACCEPT_EULA=yes \
@@ -434,7 +431,7 @@ runs:
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
-          echo "::group::Container logs"
+          echo "::group::Container Test logs"
           # Stream container logs in background.
           docker logs -f "$container_name" &
           logs_pid=$!
