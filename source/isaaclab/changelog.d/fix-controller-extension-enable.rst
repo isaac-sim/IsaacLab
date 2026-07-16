@@ -1,8 +1,8 @@
 Added
 ^^^^^
 
-* Added :func:`isaaclab.sim.enable_extension` and :func:`isaaclab.sim.get_extension_path`
-  for interacting with Kit extensions without Isaac Sim utility dependencies.
+* Added :func:`isaaclab.sim.enable_extension`, :func:`isaaclab.sim.disable_extension`, and
+  :func:`isaaclab.sim.get_extension_path` for interacting with Kit extensions without Isaac Sim utility dependencies.
 
 Fixed
 ^^^^^
@@ -13,3 +13,5 @@ Fixed
 * Fixed GUI camera and XR applications missing the Replicator extension required by camera sensors.
 * Fixed the GUI application failing to resolve its window icon path during startup.
 * Fixed the documented wheel installation command missing the resolver overrides required by Isaac Sim.
+* Fixed benchmark runs requesting OmniPerf output when using a Kit-less simulation preset.
+* Fixed remaining scripts and deprecated XR utilities importing removed Isaac Sim extension helpers.

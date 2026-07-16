@@ -147,8 +147,11 @@ def _sync_isaacsim_stage_context() -> None:
         return
 
     try:
+        from isaaclab.sim.utils.extensions import enable_extension  # noqa: PLC0415
+
+        enable_extension("isaacsim.core.experimental.utils")
         from isaacsim.core.experimental.utils import stage as sim_stage  # noqa: PLC0415
-    except ImportError:
+    except (ImportError, RuntimeError):
         return
 
     # Isaac Sim stage helpers read this singleton context.

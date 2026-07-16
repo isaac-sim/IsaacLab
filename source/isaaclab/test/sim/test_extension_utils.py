@@ -9,7 +9,9 @@ import sys
 import types
 from unittest.mock import MagicMock
 
-from isaaclab.sim.utils.extensions import enable_extension, get_extension_path
+import pytest
+
+from isaaclab.sim.utils.extensions import disable_extension, enable_extension, get_extension_path
 
 
 def _install_kit_app_module(monkeypatch, extension_manager):
@@ -25,6 +27,7 @@ def _install_kit_app_module(monkeypatch, extension_manager):
     monkeypatch.setitem(sys.modules, "omni", omni_module)
     monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
     monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
+    return app_module
 
 
 def test_enable_extension_enables_only_when_needed(monkeypatch):
@@ -37,6 +40,31 @@ def test_enable_extension_enables_only_when_needed(monkeypatch):
     enable_extension("example.extension")
 
     extension_manager.set_extension_enabled_immediate.assert_called_once_with("example.extension", True)
+
+
+def test_disable_extension_disables_only_when_needed(monkeypatch):
+    """Disable an enabled extension and leave a disabled extension unchanged."""
+    extension_manager = MagicMock()
+    extension_manager.is_extension_enabled.side_effect = [True, False]
+    _install_kit_app_module(monkeypatch, extension_manager)
+
+    disable_extension("example.extension")
+    disable_extension("example.extension")
+
+    extension_manager.set_extension_enabled_immediate.assert_called_once_with("example.extension", False)
+
+
+def test_extension_helpers_require_running_kit_app(monkeypatch):
+    """Report a clear error when Kit modules exist without a running application."""
+    app_module = _install_kit_app_module(monkeypatch, MagicMock())
+    app_module.get_app.return_value = None
+
+    with pytest.raises(RuntimeError, match="no Kit application is running"):
+        enable_extension("example.extension")
+
+    app_module.get_app.side_effect = RuntimeError("Failed to acquire interface: omni::kit::IApp")
+    with pytest.raises(RuntimeError, match="no Kit application is running"):
+        get_extension_path("example.extension")
 
 
 def test_get_extension_path_resolves_enabled_extension_id(monkeypatch):

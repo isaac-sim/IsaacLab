@@ -22,8 +22,11 @@ import warp as wp  # noqa: E402
 from pxr import Gf, UsdGeom  # noqa: E402
 
 try:
+    from isaaclab.sim.utils import enable_extension  # noqa: E402
+
+    enable_extension("isaacsim.core.experimental.prims")
     from isaacsim.core.experimental.prims import XformPrim as _IsaacSimXformPrimView
-except (ModuleNotFoundError, ImportError):
+except (ModuleNotFoundError, ImportError, RuntimeError):
     _IsaacSimXformPrimView = None
 
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
