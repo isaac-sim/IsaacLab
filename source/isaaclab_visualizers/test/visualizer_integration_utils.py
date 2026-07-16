@@ -46,6 +46,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpolePhysicsCfg
+from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
@@ -977,15 +978,15 @@ def _prepare_visualizer_test_process() -> None:
     """Reset Python-side sim state and let Kit settle before a flaky retry starts."""
     with contextlib.suppress(Exception):
         SimulationContext.clear_instance()
-    # Clear Newton Manager shadow model so the next test rebuilds from the new USD stage.
-    # On PhysX backend, PhysicsManager.close() does not call NewtonManager.clear(), so the
-    # shadow _model and _state_0 built from the previous test's stage persist.  Clearing
-    # them here forces _ensure_visualization_model() to rebuild from the new stage.
+    # Fully reset Newton Manager so the next test rebuilds from the new USD stage.
+    # PhysicsManager.close() does not call NewtonManager.clear(), so stale state
+    # (_model, _state_0, _views, _scene_data_mapping, etc.) from the previous test
+    # persists and prevents subsequent ManagerBasedRLEnv environments from
+    # initializing the PhysX tensor API (create_rigid_body_view crash).
     with contextlib.suppress(Exception):
         from isaaclab_newton.physics import NewtonManager
 
-        NewtonManager._model = None
-        NewtonManager._state_0 = None
+        NewtonManager.clear()
     _drain_kit_app_updates(_VISUALIZER_STARTUP_DRAIN_UPDATES)
 
 
@@ -1334,7 +1335,8 @@ def _make_shadow_hand_env(
     env_cfg.scene = getattr(env_cfg.scene, preset_key)
     env_cfg.robot_cfg = getattr(env_cfg.robot_cfg, preset_key)
     env_cfg.object_cfg = getattr(env_cfg.object_cfg, preset_key)
-    env_cfg.events = getattr(env_cfg.events, preset_key)
+    if env_cfg.events is not None:
+        env_cfg.events = getattr(env_cfg.events, preset_key)
     env_cfg.scene.num_envs = (
         _SHADOW_HAND_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _SHADOW_HAND_INTEGRATION_NUM_ENVS
     )
@@ -1434,6 +1436,126 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
                 KitVisualizerCfg(
                     window_width=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[0],
                     window_height=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    randomly_sample_visible_envs=False,
+                    **tiled_cam,
+                    **cam,
+                )
+            )
+    env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
+
+    # AnymalD uses PhysX contact sensors (contact_forces, feet_air_time, undesired_contacts,
+    # base_contact) that require the PhysX tensor API.  Newton backend does not initialize that
+    # API, so these sensors and the terms that reference them must be disabled.
+    if backend_kind == "newton":
+        env_cfg.scene.contact_forces = None
+        env_cfg.rewards.feet_air_time = None
+        env_cfg.rewards.undesired_contacts = None
+        env_cfg.terminations.base_contact = None
+
+    return ManagerBasedRLEnv(env_cfg)
+
+
+_FRANKA_CLOTH_INTEGRATION_NUM_ENVS = 1
+"""Vectorized env count for franka cloth + visualizer golden-image tests (viewport mode)."""
+
+_FRANKA_CLOTH_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
+"""Vectorized env count for franka cloth + visualizer golden-image tests (tiled mode)."""
+
+_FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (0.85, -0.55, 0.42)
+"""Franka cloth golden test camera eye: matches the rendering test camera position."""
+
+_FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.45, 0.0, 0.2)
+"""Franka cloth golden test camera lookat: cloth and cube on the table."""
+
+_FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(  # type: ignore[assignment]
+    eye - lookat
+    for eye, lookat in zip(_FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE, _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT)
+)
+"""Target-relative eye offset for franka cloth generated tiled cameras."""
+
+_FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
+"""Kit render product resolution for franka cloth viewport golden tests."""
+
+_FRANKA_CLOTH_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
+"""Newton viewer framebuffer size for franka cloth golden tests."""
+
+_FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
+"""Number of generated tiled camera tiles for franka cloth golden tests."""
+
+_FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
+"""Franka robot prim followed by generated tiled cameras (stable reference near the cloth)."""
+
+_FRANKA_CLOTH_WARMUP_STEPS = 20
+"""Steps after reset to let the cloth fall and drape over the cube before capturing."""
+
+
+def _apply_env_cfg_preset(env_cfg, preset_name: str):
+    """Apply a named preset to all :class:`~isaaclab_tasks.utils.PresetCfg` fields in *env_cfg*.
+
+    Uses the same Hydra resolver path as :func:`rendering_test_utils._apply_overrides_to_env_cfg`
+    so nested presets (e.g. ``scene.deformable``) are resolved correctly.
+    """
+    from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets, parse_overrides
+
+    presets = {"env": collect_presets(env_cfg)}
+    global_presets, preset_sel, preset_scalar, _ = parse_overrides([f"presets={preset_name}"], presets)
+    hydra_cfg = {"env": env_cfg.to_dict()}
+    env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
+    return env_cfg
+
+
+def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_camera: bool = False):
+    """Create a franka cloth env configured with the selected visualizer on the Newton backend.
+
+    Franka cloth uses Newton VBD cloth physics exclusively; there is no PhysX preset.
+    All nested :class:`~isaaclab_tasks.utils.PresetCfg` fields (including
+    ``scene.deformable``) are resolved via the Hydra preset resolver.
+    """
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env_cfg = copy.deepcopy(FrankaClothEnvCfg())
+    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp_vbd")
+    env_cfg.scene.num_envs = (
+        _FRANKA_CLOTH_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _FRANKA_CLOTH_INTEGRATION_NUM_ENVS
+    )
+    # Override from the default "asset_root" origin so absolute eye/lookat work correctly.
+    env_cfg.viewer.origin_type = "world"
+    env_cfg.viewer.eye = _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE
+    env_cfg.viewer.lookat = _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT
+    env_cfg.seed = None
+    cam = {"eye": _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE, "lookat": _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT}
+    tiled_cam = (
+        {
+            "tiled_cam_view": True,
+            "tiled_cam_num": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "tiled_cam_prim_path": None,
+            "tiled_cam_eye": _FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "tiled_cam_target_prim_path": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+        }
+        if tiled_camera
+        else {}
+    )
+    visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
+    visualizer_cfgs = []
+    for kind in visualizer_kinds:
+        if kind == "newton":
+            __import__("newton")
+            nw, nh = _FRANKA_CLOTH_NEWTON_INTEGRATION_WINDOW_SIZE
+            visualizer_cfgs.append(
+                NewtonVisualizerCfg(
+                    headless=True,
+                    window_width=nw,
+                    window_height=nh,
+                    randomly_sample_visible_envs=False,
+                    **tiled_cam,
+                    **cam,
+                )
+            )
+        else:
+            visualizer_cfgs.append(
+                KitVisualizerCfg(
+                    window_width=_FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION[0],
+                    window_height=_FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION[1],
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,

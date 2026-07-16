@@ -44,13 +44,31 @@ _SSIM_THRESHOLD_BY_VISUALIZER: dict[str, float] = {
 # Tiled rendering composites N camera views; RTX anti-aliasing noise accumulates
 # across tiles so the effective per-frame variance is higher than single-viewport.
 # Override only the combinations that need extra headroom.
+# Keys may be "visualizer-mode" (scene-agnostic) or "scene-visualizer-mode" (scene-specific).
+# Scene-specific keys take precedence over scene-agnostic ones.
 _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     "kit-tiled": 2.0,
+    # AnymalD Kit (RTX) produces higher inter-run variance than cartpole due to
+    # complex geometry and materials; observed ~5.5% tiled, ~3.7% viewport on CI.
+    "anymal_d-kit-tiled": 6.5,
+    "anymal_d-kit-viewport": 4.5,
+    # Shadow hand Kit (RTX) variance is higher still — many thin finger surfaces
+    # amplify RTX anti-aliasing noise; observed ~24% tiled, ~7.5% viewport on CI.
+    # Thresholds are set to catch catastrophic failures (black frames, wrong geometry)
+    # rather than subtle rendering differences.
+    "shadow_hand-kit-tiled": 30.0,
+    "shadow_hand-kit-viewport": 9.0,
 }
 
 _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     # Observed ~0.9650 on CI; 0.960 gives headroom without masking real regressions.
     "kit-tiled": 0.960,
+    # Observed 0.9539 (tiled) and 0.9678 (viewport) for AnymalD Kit on CI.
+    "anymal_d-kit-tiled": 0.945,
+    "anymal_d-kit-viewport": 0.960,
+    # Observed 0.8391 (tiled) and 0.9214 (viewport) for shadow hand Kit on CI.
+    "shadow_hand-kit-tiled": 0.80,
+    "shadow_hand-kit-viewport": 0.90,
 }
 
 _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
@@ -195,12 +213,16 @@ def validate_visualizer_frame(
     rgb = np.clip(frame[..., :3], 0, 255).astype(np.uint8)
     result_image = Image.fromarray(rgb)
 
+    def _lookup_threshold(overrides: dict, scene: str, viz: str, m: str, fallback: dict, default: float) -> float:
+        return overrides.get(f"{scene}-{viz}-{m}", overrides.get(f"{viz}-{m}", fallback.get(viz, default)))
+
     if not golden_path.exists():
         result_image.save(golden_path)
-        _combo_key = f"{visualizer_type}-{mode}"
-        _thresh = _MAX_DIFF_PCT_OVERRIDES.get(_combo_key, MAX_DIFF_PCT_BY_VISUALIZER.get(visualizer_type, 1.0))
-        _ssim_thresh = _SSIM_THRESHOLD_OVERRIDES.get(
-            _combo_key, _SSIM_THRESHOLD_BY_VISUALIZER.get(visualizer_type, 0.985)
+        _thresh = _lookup_threshold(
+            _MAX_DIFF_PCT_OVERRIDES, test_name, visualizer_type, mode, MAX_DIFF_PCT_BY_VISUALIZER, 1.0
+        )
+        _ssim_thresh = _lookup_threshold(
+            _SSIM_THRESHOLD_OVERRIDES, test_name, visualizer_type, mode, _SSIM_THRESHOLD_BY_VISUALIZER, 0.985
         )
         comparison_scores.append(
             {
@@ -234,11 +256,11 @@ def validate_visualizer_frame(
                 "mode": mode,
                 "diff_pct": 0.0,
                 "ssim": 0.0,
-                "threshold": _MAX_DIFF_PCT_OVERRIDES.get(
-                    f"{visualizer_type}-{mode}", MAX_DIFF_PCT_BY_VISUALIZER.get(visualizer_type, 1.0)
+                "threshold": _lookup_threshold(
+                    _MAX_DIFF_PCT_OVERRIDES, test_name, visualizer_type, mode, MAX_DIFF_PCT_BY_VISUALIZER, 1.0
                 ),
-                "ssim_threshold": _SSIM_THRESHOLD_OVERRIDES.get(
-                    f"{visualizer_type}-{mode}", _SSIM_THRESHOLD_BY_VISUALIZER.get(visualizer_type, 0.985)
+                "ssim_threshold": _lookup_threshold(
+                    _SSIM_THRESHOLD_OVERRIDES, test_name, visualizer_type, mode, _SSIM_THRESHOLD_BY_VISUALIZER, 0.985
                 ),
                 "passed": False,
                 "img_result_path": None,
@@ -247,9 +269,12 @@ def validate_visualizer_frame(
         )
         pytest.fail(f"Failed to open golden image at {golden_path}: {exc}")
 
-    _combo = f"{visualizer_type}-{mode}"
-    max_diff_pct = _MAX_DIFF_PCT_OVERRIDES.get(_combo, MAX_DIFF_PCT_BY_VISUALIZER.get(visualizer_type, 1.0))
-    ssim_threshold = _SSIM_THRESHOLD_OVERRIDES.get(_combo, _SSIM_THRESHOLD_BY_VISUALIZER.get(visualizer_type, 0.985))
+    max_diff_pct = _lookup_threshold(
+        _MAX_DIFF_PCT_OVERRIDES, test_name, visualizer_type, mode, MAX_DIFF_PCT_BY_VISUALIZER, 1.0
+    )
+    ssim_threshold = _lookup_threshold(
+        _SSIM_THRESHOLD_OVERRIDES, test_name, visualizer_type, mode, _SSIM_THRESHOLD_BY_VISUALIZER, 0.985
+    )
     result_image_rgb = result_image.convert("RGB")
 
     succeeded, error_message, diff_pct, ssim_score = _compare_images(
@@ -621,6 +646,87 @@ def run_visualizer_golden_anymal_d(
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
 
         validate_visualizer_frame("anymal_d", physics_backend, visualizer_type, mode, frame, comparison_scores)
+    finally:
+        _viz_utils._cleanup_visualizer_test_process(env)
+
+
+def run_visualizer_golden_franka_cloth(
+    visualizer_type: str,
+    mode: str,
+    comparison_scores: list[dict],
+) -> None:
+    """Run a golden-image test for franka cloth + one ``(visualizer_type, mode)`` combination.
+
+    Franka cloth uses Newton VBD cloth physics exclusively; this function always
+    runs the Newton physics backend.
+
+    Args:
+        visualizer_type: ``"kit"`` (RTX viewport) or ``"newton"`` (OpenGL).
+        mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
+        comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
+    """
+    import contextlib
+
+    import torch
+    import visualizer_integration_utils as _viz_utils
+    from isaaclab_visualizers.kit import KitVisualizer
+    from isaaclab_visualizers.newton import NewtonVisualizer
+
+    import isaaclab.sim as sim_utils
+
+    physics_backend = "newton"
+
+    def _get_active_visualizer(env, viz_type: str):
+        cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
+        matches = [v for v in env.sim.visualizers if isinstance(v, cls)]
+        assert matches, f"Expected a {viz_type} visualizer in env.sim.visualizers."
+        return matches[0]
+
+    def _capture_frame(env, viz_type: str, capture_mode: str, actions: torch.Tensor):
+        if capture_mode == "tiled":
+            viz = _get_active_visualizer(env, viz_type)
+            return _viz_utils._capture_visualizer_tiled_camera_rgb(viz)
+
+        if viz_type == "kit":
+            kit_viz = _get_active_visualizer(env, "kit")
+            camera_path = getattr(kit_viz, "_controlled_camera_path", None)
+            assert camera_path, "KitVisualizer did not expose a controlled camera path."
+            annotator, render_product = _viz_utils._build_rgb_annotator_for_camera(
+                camera_path, resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION
+            )
+            try:
+                _viz_utils._warm_kit_rtx_render_product(env, annotator)
+                _viz_utils._reapply_kit_camera_pose(env, kit_viz)
+                return _viz_utils._capture_kit_viewport_rgb(annotator)
+            finally:
+                with contextlib.suppress(Exception):
+                    annotator.detach([render_product])
+
+        newton_viz = _get_active_visualizer(env, "newton")
+        viewer = getattr(newton_viz, "_viewer", None)
+        assert viewer is not None, "NewtonVisualizer did not create a viewer."
+        _viz_utils._warm_newton_viewer(newton_viz, viewer)
+        return _viz_utils._frame_to_numpy(viewer.get_frame())
+
+    env = None
+    try:
+        _viz_utils._prepare_visualizer_test_process()
+        sim_utils.create_new_stage()
+        tiled = mode == "tiled"
+        env = _viz_utils._make_franka_cloth_env(visualizer_type, tiled_camera=tiled)
+        _viz_utils._configure_sim_for_visualizer_test(env)  # type: ignore[arg-type]
+        actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+        from isaaclab.utils.seed import configure_seed
+
+        configure_seed(42, torch_deterministic=True)
+        env.reset()
+
+        for _ in range(_viz_utils._FRANKA_CLOTH_WARMUP_STEPS):
+            env.step(action=actions)
+
+        frame = _capture_frame(env, visualizer_type, mode, actions)
+
+        validate_visualizer_frame("franka_cloth", physics_backend, visualizer_type, mode, frame, comparison_scores)
     finally:
         _viz_utils._cleanup_visualizer_test_process(env)
 
