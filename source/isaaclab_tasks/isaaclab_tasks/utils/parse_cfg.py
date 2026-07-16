@@ -162,6 +162,7 @@ def parse_env_cfg(
     Raises:
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
+        ValueError: If the task requires CUDA and a non-CUDA simulation device is requested.
     """
     # load the default configuration
     cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
@@ -178,8 +179,18 @@ def parse_env_cfg(
     # is replaced by its .default.
     cfg = resolve_presets(cfg)
 
+    # Some contact-rich tasks are qualified only against CUDA PhysX. Reject an
+    # unsupported override instead of silently changing their physical contract.
+    if getattr(cfg, "requires_cuda", False) and not device.startswith("cuda"):
+        raise ValueError(f"Task '{task_name}' requires a CUDA simulation device, got {device!r}")
+
     # simulation device
     cfg.sim.device = device
+    # Keep unified IsaacTeleop output tensors on the same device as the
+    # environment when a caller overrides the configuration default.
+    isaac_teleop_cfg = getattr(cfg, "isaac_teleop", None)
+    if isaac_teleop_cfg is not None:
+        isaac_teleop_cfg.sim_device = device
     # disable fabric to read/write through USD
     if use_fabric is not None:
         cfg.sim.use_fabric = use_fabric
