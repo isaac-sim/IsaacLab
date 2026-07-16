@@ -166,10 +166,16 @@ def build(
 
     workflow = _detect_workflow(env_cfg)
     if workflow is Workflow.DIRECT:
-        # Direct workflows aren't adapted — they must already be registered
-        # under the warp packages (e.g. ``Isaac-Cartpole-Direct-Warp``).
-        _assert_direct_warp_registration(task_id)
-        return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
+        # Direct workflows aren't cfg-adapted: a hand-written warp env class
+        # implements the task. Preferred path: the stable registration declares
+        # it via ``warp_entry_point`` and shares the stable cfg. Fallback: the
+        # task itself is registered under the warp packages (warp-native cfg).
+        env_class = _resolve_direct_warp_class(task_id)
+        if env_class is None:
+            _assert_direct_warp_registration(task_id)
+            return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
+        _require_newton_physics(env_cfg, type(env_cfg).__name__)
+        return env_class(cfg=env_cfg, **construct_kwargs)
 
     # Imported lazily so that ``--frontend=torch`` callers don't pay the
     # ``isaaclab_experimental.envs`` import cost. The env adapts the cfg itself
@@ -349,19 +355,49 @@ def _detect_workflow(cfg: Any) -> Workflow:
     )
 
 
-def _assert_direct_warp_registration(task_id: str) -> None:
-    """For direct workflows, the task must be pre-registered under the warp packages."""
+def _resolve_direct_warp_class(task_id: str) -> type | None:
+    """Return the warp env class a stable direct task declares, if any.
+
+    Stable direct registrations may carry a ``warp_entry_point`` kwarg of the
+    form ``"module.path:ClassName"`` (mirroring ``env_cfg_entry_point``) naming
+    the warp implementation of the same task. The class is constructed with the
+    *stable* cfg, so the task needs no parallel warp registration or duplicated
+    configuration.
+    """
     try:
         spec = gym.spec(task_id)
     except gym.error.NameNotFound as exc:
         raise FrontendIncompatibleError(f"--frontend=warp: task {task_id!r} is not registered with gymnasium.") from exc
+    target = (spec.kwargs or {}).get("warp_entry_point")
+    if not isinstance(target, str):
+        return None
+    module_name, _, class_name = target.partition(":")
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError as exc:
+        raise FrontendIncompatibleError(
+            f"--frontend=warp: task {task_id!r} declares warp_entry_point {target!r}, but it failed to import: {exc}"
+        ) from exc
+    env_class = getattr(module, class_name, None)
+    if env_class is None:
+        raise FrontendIncompatibleError(
+            f"--frontend=warp: task {task_id!r} declares warp_entry_point {target!r},"
+            f" but {class_name!r} is not defined in {module_name!r}."
+        )
+    return env_class
+
+
+def _assert_direct_warp_registration(task_id: str) -> None:
+    """For direct workflows without a ``warp_entry_point``, the task must be warp-registered."""
+    spec = gym.spec(task_id)
     ep = spec.entry_point
     module = ep if isinstance(ep, str) else (getattr(ep, "__module__", "") or "")
     if not module.startswith(_WARP_ROOT_PREFIXES):
         raise FrontendIncompatibleError(
             f"--frontend=warp on direct task {task_id!r}: entry_point {ep!r}"
-            f" is not under {list(_WARP_ROOT_PREFIXES)}. Direct tasks must be"
-            f" registered as a warp env class (e.g. *-Direct-Warp-v0)."
+            f" is not under {list(_WARP_ROOT_PREFIXES)}. Direct tasks must either"
+            f" declare a `warp_entry_point` in their stable registration or be"
+            f" registered as a warp env class."
         )
 
 

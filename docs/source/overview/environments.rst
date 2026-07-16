@@ -875,11 +875,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Ant-Direct-Warp-v0
-      -
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - IsaacContrib-Assemble-Trocar-G129-Dex3
       - IsaacContrib-Assemble-Trocar-G129-Dex3-Eval
       - Manager Based
@@ -924,11 +919,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Cartpole-Direct-Warp-v0
-      -
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
     * - IsaacContrib-Cartpole-Showcase-Direct
       -
       - Direct
@@ -1045,11 +1035,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Humanoid-Direct-Warp-v0
-      -
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Lift-Cloth-Franka
       -
       - Manager Based

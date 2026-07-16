@@ -48,8 +48,8 @@ _STABLE_TASKS_WITH_WARP_COVERAGE = [
 ]
 
 # Manager-based warp tasks are exactly those whose entry point is the shared warp
-# env class; direct ``*-Direct-Warp-v0`` tasks register their own env class and
-# are not cfg-adapted, so they are excluded here.
+# env class; direct tasks provide their own env class (via ``warp_entry_point``
+# or a warp-native registration) and are not cfg-adapted, so they are excluded here.
 _MANAGER_WARP_ENTRY_POINT = "isaaclab_experimental.envs:ManagerBasedRLEnvWarp"
 
 _WARP_ROOTS = ("isaaclab_experimental", "isaaclab_tasks_experimental")
@@ -124,6 +124,37 @@ def test_registered_warp_variant_cfg_adapts(task_id: str, cfg_entry_point: str):
                     f"{task_id}: action term '{name}' class_type was not swapped to a warp twin"
                     f" (got {class_type.__module__}.{class_type.__name__})"
                 )
+
+
+def _direct_tasks_with_warp_entry_point() -> list[tuple[str, str]]:
+    """Return ``(task_id, warp_entry_point)`` for stable direct tasks declaring a warp env."""
+    tasks: list[tuple[str, str]] = []
+    for task_id, spec in gym.registry.items():
+        target = (spec.kwargs or {}).get("warp_entry_point")
+        if isinstance(target, str):
+            tasks.append((task_id, target))
+    return sorted(tasks)
+
+
+_DIRECT_WARP_TASKS = _direct_tasks_with_warp_entry_point()
+
+
+def test_direct_tasks_declare_expected_warp_entry_points():
+    """Sanity: the stable direct tasks with warp implementations declare them."""
+    declared = {task_id for task_id, _ in _DIRECT_WARP_TASKS}
+    assert {"Isaac-Cartpole-Direct", "Isaac-Ant-Direct", "Isaac-Humanoid-Direct"} <= declared
+
+
+@pytest.mark.parametrize(
+    "task_id, warp_entry_point",
+    [pytest.param(task_id, target, id=task_id) for task_id, target in _DIRECT_WARP_TASKS],
+)
+def test_declared_direct_warp_entry_point_resolves(task_id: str, warp_entry_point: str):
+    """Each declared ``warp_entry_point`` imports and names a warp-rooted class."""
+    module_path, class_name = warp_entry_point.split(":")
+    env_class = getattr(importlib.import_module(module_path), class_name)
+    assert isinstance(env_class, type), f"{task_id}: {warp_entry_point} is not a class"
+    assert env_class.__module__.startswith(_WARP_ROOTS)
 
 
 def test_stable_cartpole_cfg_adapts_to_current_warp_module_layout():

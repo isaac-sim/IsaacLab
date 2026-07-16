@@ -31,9 +31,18 @@ Available Environments
 Direct Warp Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``Isaac-Cartpole-Direct-Warp-v0`` — Cartpole balance
-- ``Isaac-Ant-Direct-Warp-v0`` — Ant locomotion
-- ``Isaac-Humanoid-Direct-Warp-v0`` — Humanoid locomotion
+Direct tasks share the stable task configuration: the stable registration
+declares its warp implementation through the ``warp_entry_point`` kwarg
+(mirroring ``env_cfg_entry_point``), and ``--frontend warp`` swaps only the
+environment class. Stable tasks with a declared warp implementation:
+
+- ``Isaac-Cartpole-Direct`` — Cartpole balance
+- ``Isaac-Ant-Direct`` — Ant locomotion
+- ``Isaac-Humanoid-Direct`` — Humanoid locomotion
+
+Warp-native direct task with its own registration and configuration (the cube
+is modeled differently than in the stable task):
+
 - ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
 
 
@@ -78,9 +87,9 @@ Quick Start
 
 .. code-block:: bash
 
-    # Direct workflow
+    # Direct workflow: stable task, warp env implementation
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
+        --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
 
     # Manager-based workflow: stable task on the warp runtime
     ./isaaclab.sh train --rl_library rsl_rl \

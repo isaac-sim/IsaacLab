@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
-from isaaclab_tasks_experimental.direct.locomotion.locomotion_env_warp import LocomotionWarpEnv
+from isaaclab_tasks.core.locomotion.ant.ant_direct_env_cfg import AntEnvCfg
 
-from .ant_env_warp_cfg import AntWarpEnvCfg
+from isaaclab_tasks_experimental.direct.locomotion.locomotion_env_warp import LocomotionWarpEnv
 
 
 class AntWarpEnv(LocomotionWarpEnv):
-    cfg: AntWarpEnvCfg
+    cfg: AntEnvCfg
 
-    def __init__(self, cfg: AntWarpEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: AntEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)

@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
-from isaaclab_tasks_experimental.direct.locomotion.locomotion_env_warp import LocomotionWarpEnv
+from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env_cfg import HumanoidEnvCfg
 
-from .humanoid_warp_env_cfg import HumanoidWarpEnvCfg
+from isaaclab_tasks_experimental.direct.locomotion.locomotion_env_warp import LocomotionWarpEnv
 
 
 class HumanoidWarpEnv(LocomotionWarpEnv):
-    cfg: HumanoidWarpEnvCfg
+    cfg: HumanoidEnvCfg
 
-    def __init__(self, cfg: HumanoidWarpEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: HumanoidEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)

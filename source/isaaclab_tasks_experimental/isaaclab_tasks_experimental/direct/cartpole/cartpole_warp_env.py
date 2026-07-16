@@ -17,7 +17,7 @@ from isaaclab.assets import Articulation
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 
 if TYPE_CHECKING:
-    from .cartpole_warp_env_cfg import CartpoleWarpEnvCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
 
 @wp.kernel
@@ -184,9 +184,9 @@ def initialize_state(
 
 
 class CartpoleWarpEnv(DirectRLEnvWarp):
-    cfg: CartpoleWarpEnvCfg
+    cfg: CartpoleEnvCfg
 
-    def __init__(self, cfg: CartpoleWarpEnvCfg, render_mode: str | None = None, **kwargs) -> None:
+    def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs) -> None:
         super().__init__(cfg, render_mode, **kwargs)
 
         # Get the indices (develop API: find_joints returns (indices, names))

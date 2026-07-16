@@ -533,8 +533,11 @@ def test_is_swap_candidate_rejects_non_callables():
 
 
 _DIRECT_TEST_TASKS = {
-    "_Frontend-Test-Warp-Direct-v0": "isaaclab_tasks_experimental.fake:DirectEnv",
-    "_Frontend-Test-Stable-Direct-v0": "isaaclab_tasks.fake:DirectEnv",
+    "_Frontend-Test-Warp-Direct-v0": ("isaaclab_tasks_experimental.fake:DirectEnv", None),
+    "_Frontend-Test-Stable-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", None),
+    "_Frontend-Test-Declared-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", "types:SimpleNamespace"),
+    "_Frontend-Test-Broken-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", "definitely_not_a_module:Env"),
+    "_Frontend-Test-Missing-Class-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", "types:NoSuchClass"),
 }
 
 
@@ -542,10 +545,12 @@ _DIRECT_TEST_TASKS = {
 def _register_direct_stub_tasks():
     # Register stub tasks so ``gym.spec`` resolves them. Entry-point strings
     # are never invoked (the guard only inspects them), so a fake import
-    # path is fine.
-    for task_id, entry_point in _DIRECT_TEST_TASKS.items():
+    # path is fine. ``warp_entry_point`` targets are imported, so the valid
+    # stub points at a real stdlib symbol.
+    for task_id, (entry_point, warp_entry_point) in _DIRECT_TEST_TASKS.items():
+        kwargs = {"warp_entry_point": warp_entry_point} if warp_entry_point else {}
         with contextlib.suppress(gym.error.Error):
-            gym.register(id=task_id, entry_point=entry_point, disable_env_checker=True)
+            gym.register(id=task_id, entry_point=entry_point, disable_env_checker=True, kwargs=kwargs)
     yield
 
 
@@ -559,6 +564,26 @@ def test_direct_guard_rejects_stable_rooted():
     assert "isaaclab_experimental" in str(exc.value)
 
 
-def test_direct_guard_rejects_unknown_task():
+def test_resolve_direct_warp_class_returns_declared_class():
+    import types as types_module
+
+    assert fe._resolve_direct_warp_class("_Frontend-Test-Declared-Direct-v0") is types_module.SimpleNamespace
+
+
+def test_resolve_direct_warp_class_returns_none_without_declaration():
+    assert fe._resolve_direct_warp_class("_Frontend-Test-Stable-Direct-v0") is None
+
+
+def test_resolve_direct_warp_class_rejects_broken_module():
     with pytest.raises(FrontendIncompatibleError):
-        fe._assert_direct_warp_registration("Frontend-Test-NotRegistered-v0")
+        fe._resolve_direct_warp_class("_Frontend-Test-Broken-Direct-v0")
+
+
+def test_resolve_direct_warp_class_rejects_missing_class():
+    with pytest.raises(FrontendIncompatibleError):
+        fe._resolve_direct_warp_class("_Frontend-Test-Missing-Class-Direct-v0")
+
+
+def test_resolve_direct_warp_class_rejects_unknown_task():
+    with pytest.raises(FrontendIncompatibleError):
+        fe._resolve_direct_warp_class("Frontend-Test-NotRegistered-v0")
