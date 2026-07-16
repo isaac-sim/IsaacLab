@@ -135,9 +135,9 @@ def _term(func=None, params: dict | None = None) -> RewardTermCfg:
 
 @pytest.fixture
 def fake_routes(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
-    """Isolate the module-level route registry for a test."""
+    """Isolate the WarpFrontend route registry for a test."""
     routes: dict[str, str] = {}
-    monkeypatch.setattr(fe, "_WARP_MDP_MODULE_ROUTES", routes)
+    monkeypatch.setattr(fe.WarpFrontend, "_mdp_routes", routes)
     return routes
 
 
@@ -245,19 +245,19 @@ def _cfg_with_physics(physics: Any) -> Any:
 
 
 def test_require_newton_passes_for_newton():
-    fe._require_newton_physics(_cfg_with_physics(NewtonCfg()), "Isaac-Test-v0")  # no raise
+    fe.WarpFrontend._require_newton_physics(_cfg_with_physics(NewtonCfg()), "Isaac-Test-v0")  # no raise
 
 
 def test_require_newton_rejects_physx():
     with pytest.raises(FrontendIncompatibleError) as exc:
-        fe._require_newton_physics(_cfg_with_physics(PhysxCfg()), "Isaac-Test-v0")
+        fe.WarpFrontend._require_newton_physics(_cfg_with_physics(PhysxCfg()), "Isaac-Test-v0")
     assert "presets=newton_mjwarp" in str(exc.value)
     assert "PhysxCfg" in str(exc.value)
 
 
 def test_require_newton_rejects_none():
     with pytest.raises(FrontendIncompatibleError):
-        fe._require_newton_physics(_cfg_with_physics(None), "Isaac-Test-v0")
+        fe.WarpFrontend._require_newton_physics(_cfg_with_physics(None), "Isaac-Test-v0")
 
 
 # ======================================================================
@@ -271,7 +271,7 @@ def test_walk_terms_yields_each_term_with_its_path():
         events=_EventsCfg(e1=EventTermCfg(func=_stable_func, mode="reset")),
     )
     # Configclass instances aren't hashable, so collect paths only.
-    paths = {".".join(p) for p, _ in fe._walk_terms(cfg)}
+    paths = {".".join(p) for p, _ in fe.WarpFrontend._walk_terms(cfg)}
     assert paths == {"rewards.r1", "rewards.r2", "events.e1"}
 
 
@@ -282,7 +282,7 @@ def test_walk_terms_descends_into_obs_subgroups():
             perception=_ExtraObsGroup(o3=ObservationTermCfg(func=_stable_func)),
         ),
     )
-    paths = {".".join(p) for p, _ in fe._walk_terms(cfg)}
+    paths = {".".join(p) for p, _ in fe.WarpFrontend._walk_terms(cfg)}
     # Discovery is purely type-driven; no obs group name is hardcoded.
     assert paths == {"observations.policy.o1", "observations.perception.o3"}
 
@@ -291,7 +291,7 @@ def test_walk_terms_stops_at_terms():
     # The walker must not descend into term.params / term.func — yields the term itself.
     nested_se_cfg = StableSceneEntityCfg(name="robot")
     cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(params={"asset_cfg": nested_se_cfg})))
-    terms = list(fe._walk_terms(cfg))
+    terms = list(fe.WarpFrontend._walk_terms(cfg))
     assert len(terms) == 1
     _, term = terms[0]
     assert isinstance(term, RewardTermCfg)
@@ -300,12 +300,12 @@ def test_walk_terms_stops_at_terms():
 def test_walk_terms_skips_non_configclass_attrs():
     # A namespace without __dataclass_fields__ is not descended into.
     cfg = types.SimpleNamespace(some_plain_attr="hello")
-    assert list(fe._walk_terms(cfg)) == []
+    assert list(fe.WarpFrontend._walk_terms(cfg)) == []
 
 
 def test_walk_terms_skips_none_subtrees():
     cfg = _CfgFixture(rewards=None, events=None)
-    assert list(fe._walk_terms(cfg)) == []
+    assert list(fe.WarpFrontend._walk_terms(cfg)) == []
 
 
 @configclass
@@ -324,7 +324,7 @@ def test_walk_terms_ignores_nested_class_objects():
     # ``cfg.__dict__`` consumption), so a nested class object — reachable as an
     # attribute on the instance — must never contribute paths.
     cfg = _GroupWithNestedClass(o1=ObservationTermCfg(func=_stable_func))
-    paths = {".".join(p) for p, _ in fe._walk_terms(cfg)}
+    paths = {".".join(p) for p, _ in fe.WarpFrontend._walk_terms(cfg)}
     assert paths == {"o1"}
 
 
@@ -338,13 +338,13 @@ def test_register_mdp_route_and_longest_prefix_match(fake_routes: dict[str, str]
     register_mdp_route("isaaclab_tasks.core.locomotion.humanoid", "warp.humanoid.mdp")
 
     # Longest registered prefix wins.
-    assert fe._match_route("isaaclab_tasks.core.locomotion.humanoid.mdp.rewards") == "warp.humanoid.mdp"
-    assert fe._match_route("isaaclab_tasks.core.locomotion.ant.mdp") == "warp.locomotion.mdp"
+    assert fe.WarpFrontend._match_route("isaaclab_tasks.core.locomotion.humanoid.mdp.rewards") == "warp.humanoid.mdp"
+    assert fe.WarpFrontend._match_route("isaaclab_tasks.core.locomotion.ant.mdp") == "warp.locomotion.mdp"
     # Exact package match works too.
-    assert fe._match_route("isaaclab_tasks.core.locomotion.humanoid") == "warp.humanoid.mdp"
+    assert fe.WarpFrontend._match_route("isaaclab_tasks.core.locomotion.humanoid") == "warp.humanoid.mdp"
     # Prefix matching is per package segment, not per character.
-    assert fe._match_route("isaaclab_tasks.core.locomotion_extras.mdp") is None
-    assert fe._match_route("isaaclab.envs.mdp.rewards") is None
+    assert fe.WarpFrontend._match_route("isaaclab_tasks.core.locomotion_extras.mdp") is None
+    assert fe.WarpFrontend._match_route("isaaclab.envs.mdp.rewards") is None
 
 
 def test_register_mdp_route_is_idempotent(fake_routes: dict[str, str]):
@@ -362,13 +362,13 @@ def test_register_mdp_route_rejects_conflicts(fake_routes: dict[str, str]):
 def test_cfg_route_modules_resolves_cfg_class_module(fake_routes: dict[str, str]):
     # Route this test module's own name so the fixture cfg class matches.
     register_mdp_route(__name__, "math")
-    assert fe._cfg_route_modules(_CfgFixture()) == [importlib.import_module("math")]
+    assert fe.WarpFrontend._cfg_route_modules(_CfgFixture()) == [importlib.import_module("math")]
 
 
 def test_cfg_route_modules_raises_on_broken_target(fake_routes: dict[str, str]):
     register_mdp_route(__name__, "definitely_not_an_importable_module")
     with pytest.raises(FrontendIncompatibleError):
-        fe._cfg_route_modules(_CfgFixture())
+        fe.WarpFrontend._cfg_route_modules(_CfgFixture())
 
 
 # ======================================================================
@@ -391,9 +391,11 @@ def _fake_mdp_module(name_to_symbol: dict[str, Any]) -> _FakeMdpModule:
 
 def _patch_twin_modules(monkeypatch: pytest.MonkeyPatch, modules: list[Any]) -> None:
     """Pin twin resolution to ``modules`` and keep unit tests hermetic."""
-    monkeypatch.setattr(fe, "_ensure_twin_providers_imported", lambda: None)
-    monkeypatch.setattr(fe, "_cfg_route_modules", lambda cfg: [])
-    monkeypatch.setattr(fe, "_twin_modules", lambda symbol_module, cfg_route_modules: modules)
+    monkeypatch.setattr(fe.WarpFrontend, "_ensure_twin_providers_imported", classmethod(lambda cls: None))
+    monkeypatch.setattr(fe.WarpFrontend, "_cfg_route_modules", classmethod(lambda cls, cfg: []))
+    monkeypatch.setattr(
+        fe.WarpFrontend, "_twin_modules", classmethod(lambda cls, symbol_module, cfg_route_modules: modules)
+    )
 
 
 def test_swap_mdp_swaps_func_and_class_type(monkeypatch: pytest.MonkeyPatch):
@@ -403,7 +405,7 @@ def test_swap_mdp_swaps_func_and_class_type(monkeypatch: pytest.MonkeyPatch):
     term_action = _term()
     term_action.class_type = _StableActionCls  # set attr to exercise class_type swap
     cfg = _CfgFixture(rewards=_RewardsCfg(r1=term_reward, r2=term_action))
-    fe._swap_mdp(cfg, "Isaac-Test-v0")
+    fe.WarpFrontend._swap_mdp(cfg, "Isaac-Test-v0")
     assert cfg.rewards.r1.func is _warp_twin_func
     assert cfg.rewards.r2.class_type is _WarpActionCls
 
@@ -412,7 +414,7 @@ def test_swap_mdp_missing_twin_raises_with_path_list(monkeypatch: pytest.MonkeyP
     _patch_twin_modules(monkeypatch, [_fake_mdp_module({})])
     cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(func=_stable_func)))
     with pytest.raises(FrontendIncompatibleError) as exc:
-        fe._swap_mdp(cfg, "Isaac-Test-v0")
+        fe.WarpFrontend._swap_mdp(cfg, "Isaac-Test-v0")
     msg = str(exc.value)
     assert "rewards.r1.func" in msg
     assert "_stable_func" in msg
@@ -423,7 +425,7 @@ def test_swap_mdp_missing_twin_raises_with_path_list(monkeypatch: pytest.MonkeyP
 def test_swap_mdp_skips_already_warp(monkeypatch: pytest.MonkeyPatch):
     _patch_twin_modules(monkeypatch, [_fake_mdp_module({})])
     cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(func=_warp_twin_func)))
-    fe._swap_mdp(cfg, "Isaac-Test-v0")  # no raise
+    fe.WarpFrontend._swap_mdp(cfg, "Isaac-Test-v0")  # no raise
     assert cfg.rewards.r1.func is _warp_twin_func
 
 
@@ -438,7 +440,7 @@ def test_promote_scene_entity_cfgs_promotes_in_params():
             r1=_term(params={"asset_cfg": StableSceneEntityCfg(name="robot", joint_names=["lf_hip"]), "scale": 1.0})
         )
     )
-    fe._promote_scene_entity_cfgs(cfg)
+    fe.WarpFrontend._promote_scene_entity_cfgs(cfg)
     promoted = cfg.rewards.r1.params["asset_cfg"]
     assert isinstance(promoted, WarpSceneEntityCfg)
     assert promoted.name == "robot"
@@ -455,7 +457,7 @@ def test_promote_scene_entity_cfgs_skips_already_warp():
     warp = WarpSceneEntityCfg(name="robot", joint_names=["lf_hip"])
     cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(params={"asset_cfg": warp})))
     before = cfg.rewards.r1.params["asset_cfg"]
-    fe._promote_scene_entity_cfgs(cfg)
+    fe.WarpFrontend._promote_scene_entity_cfgs(cfg)
     after = cfg.rewards.r1.params["asset_cfg"]
     assert isinstance(after, WarpSceneEntityCfg)
     # The asset_cfg object was not replaced by another from_stable call.
@@ -480,7 +482,7 @@ def test_promote_scene_entity_cfgs_walks_all_term_groups():
             c1=EventTermCfg(func=_stable_func, mode="reset", params={"asset_cfg": StableSceneEntityCfg(name="c")})
         ),
     )
-    fe._promote_scene_entity_cfgs(cfg)
+    fe.WarpFrontend._promote_scene_entity_cfgs(cfg)
     # Warp-managed groups (rewards, observations incl. sub-groups, events) are promoted.
     assert isinstance(cfg.rewards.r1.params["asset_cfg"], WarpSceneEntityCfg)
     assert isinstance(cfg.observations.policy.o1.params["asset_cfg"], WarpSceneEntityCfg)
@@ -502,29 +504,29 @@ def test_promote_scene_entity_cfgs_walks_all_term_groups():
 
 def test_resolve_warp_twin_accepts_warp_origin():
     module = types.SimpleNamespace(foo=_warp_twin_func)
-    assert fe._resolve_warp_twin("foo", [module]) is _warp_twin_func
+    assert fe.WarpFrontend._resolve_warp_twin("foo", [module]) is _warp_twin_func
 
 
 def test_resolve_warp_twin_rejects_stable_origin():
     module = types.SimpleNamespace(foo=_stable_func)  # same name, stable origin
-    assert fe._resolve_warp_twin("foo", [module]) is None
+    assert fe.WarpFrontend._resolve_warp_twin("foo", [module]) is None
 
 
 def test_resolve_warp_twin_returns_none_when_absent():
-    assert fe._resolve_warp_twin("missing", [types.SimpleNamespace()]) is None
+    assert fe.WarpFrontend._resolve_warp_twin("missing", [types.SimpleNamespace()]) is None
 
 
 def test_is_swap_candidate_stable_callable():
-    assert fe._is_swap_candidate(_stable_func)
+    assert fe.WarpFrontend._is_swap_candidate(_stable_func)
 
 
 def test_is_swap_candidate_rejects_warp_callable():
-    assert not fe._is_swap_candidate(_warp_twin_func)
+    assert not fe.WarpFrontend._is_swap_candidate(_warp_twin_func)
 
 
 def test_is_swap_candidate_rejects_non_callables():
-    assert not fe._is_swap_candidate(42)
-    assert not fe._is_swap_candidate("string")
+    assert not fe.WarpFrontend._is_swap_candidate(42)
+    assert not fe.WarpFrontend._is_swap_candidate("string")
 
 
 # ======================================================================
@@ -555,35 +557,36 @@ def _register_direct_stub_tasks():
 
 
 def test_direct_guard_accepts_warp_rooted():
-    fe._assert_direct_warp_registration("_Frontend-Test-Warp-Direct-v0")  # no raise
+    fe.WarpFrontend._assert_direct_warp_registration("_Frontend-Test-Warp-Direct-v0")  # no raise
 
 
 def test_direct_guard_rejects_stable_rooted():
     with pytest.raises(FrontendIncompatibleError) as exc:
-        fe._assert_direct_warp_registration("_Frontend-Test-Stable-Direct-v0")
+        fe.WarpFrontend._assert_direct_warp_registration("_Frontend-Test-Stable-Direct-v0")
     assert "isaaclab_experimental" in str(exc.value)
 
 
 def test_resolve_direct_warp_class_returns_declared_class():
     import types as types_module
 
-    assert fe._resolve_direct_warp_class("_Frontend-Test-Declared-Direct-v0") is types_module.SimpleNamespace
+    env_class = fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Declared-Direct-v0")
+    assert env_class is types_module.SimpleNamespace
 
 
 def test_resolve_direct_warp_class_returns_none_without_declaration():
-    assert fe._resolve_direct_warp_class("_Frontend-Test-Stable-Direct-v0") is None
+    assert fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Stable-Direct-v0") is None
 
 
 def test_resolve_direct_warp_class_rejects_broken_module():
     with pytest.raises(FrontendIncompatibleError):
-        fe._resolve_direct_warp_class("_Frontend-Test-Broken-Direct-v0")
+        fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Broken-Direct-v0")
 
 
 def test_resolve_direct_warp_class_rejects_missing_class():
     with pytest.raises(FrontendIncompatibleError):
-        fe._resolve_direct_warp_class("_Frontend-Test-Missing-Class-Direct-v0")
+        fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Missing-Class-Direct-v0")
 
 
 def test_resolve_direct_warp_class_rejects_unknown_task():
     with pytest.raises(FrontendIncompatibleError):
-        fe._resolve_direct_warp_class("Frontend-Test-NotRegistered-v0")
+        fe.WarpFrontend._resolve_direct_warp_class("Frontend-Test-NotRegistered-v0")
