@@ -88,20 +88,24 @@ SHADOW_HAND_CFG = ArticulationCfg(
 """Configuration of Shadow Hand robot."""
 
 
-SHADOW_HAND_MENAGERIE_CFG = ArticulationCfg(
+_SHADOW_MENAGERIE_USD_PATH = f"{MENAGERIE_ASSET_ROOT}/shadow_hand/right_hand/right_hand.usda"
+"""Entry layer of the Mujoco Menagerie Shadow Hand conversion (both physics variants)."""
+
+
+SHADOW_HAND_MENAGERIE_CFG = SHADOW_HAND_CFG.replace(
     spawn=MenageriePatchedUsdFileCfg(
-        usd_path=f"{MENAGERIE_ASSET_ROOT}/shadow_hand/right_hand/right_hand.usda",
+        usd_path=_SHADOW_MENAGERIE_USD_PATH,
         # The Menagerie exports default to the "physx" variant; Newton/MJWarp needs the
         # "mujoco" variant, which composes the MjcTendon distal couplings.
         variants={"Physics": "mujoco"},
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            retain_accelerations=True,
-            max_depenetration_velocity=1000.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
+        # Same solver-facing properties as the legacy hand.
+        rigid_props=SHADOW_HAND_CFG.spawn.rigid_props.replace(),
+        articulation_props=SHADOW_HAND_CFG.spawn.articulation_props.replace(),
+        # The mujoco variant authors no UsdPhysics drives (actuation is declared as
+        # MjcActuator prims); IsaacLab's implicit actuators require the drive APIs to exist.
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
+        # MjcTendon couplings take damping only (no PhysX limit-stiffness semantics).
         fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -146,7 +150,6 @@ SHADOW_HAND_MENAGERIE_CFG = ArticulationCfg(
             armature=2e-3,
         ),
     },
-    soft_joint_pos_limit_factor=1.0,
 )
 """Configuration of the Mujoco Menagerie Shadow Hand (right), MuJoCo physics variant.
 
@@ -156,29 +159,19 @@ only the joint/body naming differs.
 """
 
 
-SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
+SHADOW_HAND_MENAGERIE_PHYSX_CFG = SHADOW_HAND_CFG.replace(
     spawn=MenageriePatchedUsdFileCfg(
-        usd_path=f"{MENAGERIE_ASSET_ROOT}/shadow_hand/right_hand/right_hand.usda",
+        usd_path=_SHADOW_MENAGERIE_USD_PATH,
         # The patched asset authors the distal-finger tendon couplings and the legacy
         # 5729.6 deg/s joint velocity limit into the ``physx`` layer (the converter
         # translates neither); see ``menagerie._ASSET_PATCH_RECIPES``.
         variants={"Physics": "physx"},
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            retain_accelerations=True,
-            max_depenetration_velocity=1000.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0005,
-        ),
+        # Same solver-facing properties and tendon tuning as the legacy hand.
+        rigid_props=SHADOW_HAND_CFG.spawn.rigid_props.replace(),
+        articulation_props=SHADOW_HAND_CFG.spawn.articulation_props.replace(),
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force"),
-        # Tunes the tendons authored by the spawner, matching the legacy asset's runtime values.
-        fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(limit_stiffness=30.0, damping=0.1),
+        fixed_tendons_props=SHADOW_HAND_CFG.spawn.fixed_tendons_props.replace(),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
@@ -220,7 +213,6 @@ SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
             },
         ),
     },
-    soft_joint_pos_limit_factor=1.0,
 )
 """Configuration of the Mujoco Menagerie Shadow Hand (right), PhysX physics variant.
 
