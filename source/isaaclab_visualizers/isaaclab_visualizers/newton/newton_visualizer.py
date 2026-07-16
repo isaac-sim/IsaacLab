@@ -627,7 +627,9 @@ class NewtonVisualizer(BaseVisualizer):
             pose = body_physx_view.get_transforms()
         except RuntimeError:
             return None
-        return wp.to_torch(pose).view(*net_forces.shape[:-1], 7)[..., :3]
+        # the flat view data is body-major (one view pattern per body); net_forces is (N, B, 3)
+        num_envs, num_bodies = net_forces.shape[0], net_forces.shape[1]
+        return wp.to_torch(pose).view(num_bodies, num_envs, 7).transpose(0, 1)[..., :3]
 
     def _filter_visible_env_tensor(self, tensor: torch.Tensor, num_envs: int) -> torch.Tensor:
         """Apply Newton visualizer visible-world filtering to a sensor tensor."""

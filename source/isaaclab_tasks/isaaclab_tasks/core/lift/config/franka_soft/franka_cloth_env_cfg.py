@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 
@@ -17,18 +18,17 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import (
+    CoupledMJWarpVBDSolverCfg,
+    NewtonModelCfg,
+    VBDSolverCfg,
+)
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 
-from .franka_soft_env_cfg import (
-    DeformableNewtonCfg,
-    FrankaSoftEnvCfg,
-    _FrankaSoftSceneCfg,
-    coupled_mjwarp_vbd_solver_cfg,
-)
 from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
+from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
 
 ##
 # Scene definition
@@ -45,16 +45,31 @@ ROBOT_SHAPE_MATERIAL_BODY_NAMES = ".*"
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, two-way coupled
     # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vbd: DeformableNewtonCfg = DeformableNewtonCfg(
-        solver_cfg=coupled_mjwarp_vbd_solver_cfg(),
-        model_cfg=NewtonModelCfg(
-            soft_contact_ke=1e3,
-            soft_contact_kd=1e-5,
-            soft_contact_mu=0.5,
-            shape_material_ke=1e3,
-            shape_material_kd=1e-5,
-            shape_material_mu=1e-4,
+    newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
+        solver_cfg=CoupledMJWarpVBDSolverCfg(
+            rigid_solver_cfg=MJWarpSolverCfg(
+                njmax=40,
+                nconmax=20,
+                ls_iterations=20,
+                cone="pyramidal",
+                impratio=1,
+                integrator="implicitfast",
+                ccd_iterations=100,
+            ),
+            soft_solver_cfg=VBDSolverCfg(
+                iterations=10,
+                integrate_with_external_rigid_solver=True,
+                particle_enable_self_contact=False,
+                particle_collision_detection_interval=-1,
+            ),
+            coupling_mode="two_way",
+            model_cfg=NewtonModelCfg(
+                soft_contact_ke=1e3,
+                soft_contact_kd=1e-5,
+                soft_contact_mu=0.5,
+            ),
         ),
+        default_shape_cfg=NewtonShapeCfg(ke=1e3, kd=1e-5, mu=1e-4),
         num_substeps=10,
         use_cuda_graph=True,
     )
@@ -164,12 +179,6 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.dt = 1 / 60.0
         self.sim.render_interval = self.decimation
 
-        # viewer settings
-        self.viewer.origin_type = "asset_root"
-        self.viewer.asset_name = "robot"
-        self.viewer.env_index = 0
-        self.viewer.eye = (1.25, -1.5, 0.6)
-        self.viewer.resolution = (1920, 1080)
         self.sim.physics = PhysicsCfg()
 
         # increase franka gripper stiffness
