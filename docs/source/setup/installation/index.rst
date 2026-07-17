@@ -106,10 +106,6 @@ Other notable limitations with respect to Isaac Lab include...
 
 #. :ref:`Running Cosmos Transfer1 <running-cosmos>` is not currently supported on the DGX Spark.
 
-#. Newton VBD deformable support is limited on DGX Spark because no pre-built
-   ``pytetwild`` wheel is available for ARM (aarch64). ``pytetwild`` is required for
-   automatic tetrahedral mesh generation of volume deformables.
-
 #. RLinf support has not been verified on DGX Spark.
 
 .. note::
