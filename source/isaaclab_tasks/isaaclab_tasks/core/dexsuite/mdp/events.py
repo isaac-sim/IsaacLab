@@ -133,8 +133,12 @@ class conditional_reset(ManagerTermBase):
 
     On the first reset, the wrapped terms are re-rolled and the states satisfying
     :paramref:`valid_criteria` are harvested into a buffer of :paramref:`buffer_size_per_group`
-    samples per group (rejection sampling, amortized once). Every subsequent reset restores a
-    random banked sample — the wrapped terms and criteria never run again.
+    samples per group (rejection sampling, amortized once). The prefill ignores ``env_ids``
+    and rolls every environment — a partial first reset could otherwise never fill the groups
+    it does not cover — and since the rolls perturb all environments, the first reset then
+    restores a banked sample to every environment. Every subsequent reset restores a random
+    banked sample to the requested environments only — the wrapped terms and criteria never
+    run again.
 
     The captured state is the reset surface of the scene (see :func:`get_reset_state`):
     root pose/velocity plus joint positions/velocities of every articulation, and the root
@@ -170,7 +174,9 @@ class conditional_reset(ManagerTermBase):
 
         Args:
             env: The environment.
-            env_ids: Environments being reset.
+            env_ids: Environments being reset. The prefill phase ignores this and rolls all
+                environments so every asset-combination group can bank states; the first
+                reset therefore restores a banked state to every environment.
             terms: Reset event terms to wrap, applied in insertion order during prefill.
                 Resolved by the event manager before the first call.
             valid_criteria: Criteria as term configs (e.g. :class:`SlabClearanceCfg`,
@@ -184,14 +190,14 @@ class conditional_reset(ManagerTermBase):
                 prefill continues until every group reaches :paramref:`buffer_size_per_group`.
         """
 
-        def roll_once() -> torch.Tensor:
+        def roll_once(roll_ids: torch.Tensor) -> torch.Tensor:
             for term in terms.values():
-                term.func(env, env_ids, **term.params)
+                term.func(env, roll_ids, **term.params)
             # no explicit refresh needed: state writes invalidate the FK timestamps and the
             # criteria's kinematic reads recompute on demand
-            ok = torch.ones(len(env_ids), dtype=torch.bool, device=env_ids.device)
+            ok = torch.ones(len(roll_ids), dtype=torch.bool, device=roll_ids.device)
             for criterion in valid_criteria.values():
-                ok &= criterion.func(env, env_ids, **criterion.params)
+                ok &= criterion.func(env, roll_ids, **criterion.params)
             return ok
 
         if not self._prefilled:
@@ -201,6 +207,10 @@ class conditional_reset(ManagerTermBase):
             num_groups = int(self._group.max().item()) + 1
             self._fill = torch.zeros(num_groups, dtype=torch.long, device=env.device)
             iteration = 0
+
+            # prefill ignores env_ids and rolls every environment: a partial first reset may
+            # not cover all groups, and a group with no rolled envs could never fill
+            all_ids = torch.arange(env.num_envs, device=env.device)
 
             with tqdm(
                 total=num_groups * buffer_size_per_group,
@@ -218,7 +228,7 @@ class conditional_reset(ManagerTermBase):
                             f"{max_prefill_iters} prefill iterations."
                         )
                     iteration += 1
-                    valid_ids = env_ids[roll_once()]
+                    valid_ids = all_ids[roll_once(all_ids)]
                     for group in torch.unique(self._group[valid_ids]).tolist():
                         filled = int(self._fill[group])
                         remaining = buffer_size_per_group - filled
@@ -241,6 +251,9 @@ class conditional_reset(ManagerTermBase):
             # drop the prefill-only terms/criteria so their device memory is freed
             terms.clear()
             valid_criteria.clear()
+            # the rolls above perturbed every environment, so the first reset restores a
+            # banked state to all of them, not just the requested subset
+            env_ids = all_ids
 
         # ``rand * fill`` floors to a uniform draw in ``[0, fill)``.
         groups = self._group[env_ids]

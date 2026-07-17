@@ -20,11 +20,6 @@ if TYPE_CHECKING:
     from isaaclab.sensors import ContactSensor
 
 
-def mechanical_energy(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Penalize the mechanical energy using L2 squared kernel."""
-    return torch.sum(torch.square(env.action_manager.action), dim=1).clamp(-1000, 1000)
-
-
 def object_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,

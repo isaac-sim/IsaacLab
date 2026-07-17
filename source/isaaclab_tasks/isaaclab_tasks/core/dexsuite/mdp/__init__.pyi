@@ -29,7 +29,6 @@ __all__ = [
     "success_reward",
     "abnormal_robot_state",
     "out_of_bound",
-    "mechanical_energy",
 ]
 
 from .commands import ObjectUniformPoseCommandCfg
@@ -51,7 +50,6 @@ from .rewards import (
     orientation_command_error_tanh,
     position_command_error_tanh,
     success_reward,
-    mechanical_energy,
 )
 from .terminations import abnormal_robot_state, out_of_bound
 from isaaclab.envs.mdp import *
