@@ -241,7 +241,9 @@ Use It When
 ~~~~~~~~~~~
 
 Use ``startup`` when launch or cold initialization is the subject of the
-investigation. It separates five cold phases:
+investigation. Startup latency is paid in edit-run-debug cycles, so reducing
+it shortens developer iteration and matters for quick prototyping. It
+separates five cold phases:
 
 * ``app_launch`` enters the simulation launcher and initializes its runtime.
 * ``python_imports`` imports launcher, task-registration, and runtime libraries.
