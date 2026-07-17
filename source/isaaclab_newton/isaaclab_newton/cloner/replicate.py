@@ -20,6 +20,7 @@ from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
+    add_global_stage_to_builder,
     build_source_builders,
     rename_builder_labels,
     replicate_builder_mapping,
@@ -61,10 +62,11 @@ def _build_newton_builder_from_mapping(
     manager_cls = PhysicsManager._sim.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
-    stage_info = builder.add_usd(
+    stage_info = add_global_stage_to_builder(
+        builder,
         stage,
-        ignore_paths=["/World/envs", *sources],
-        schema_resolvers=schema_resolvers,
+        ["/World/envs", *sources],
+        schema_resolvers,
     )
     replace_newton_builder_shape_colors(builder, stage)
 
