@@ -3,8 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import glob
 import os
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
@@ -12,6 +15,12 @@ import torchvision
 
 from isaaclab.sensors import save_images_to_file
 from isaaclab.utils.configclass import configclass
+
+# re-exported for backward compatibility; the shared implementation lives in the family math root
+from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints  # noqa: F401
+
+if TYPE_CHECKING:
+    pass
 
 # Number of output channels for each supported camera data type.
 _DATA_TYPE_CHANNELS: dict[str, int] = {
