@@ -1,1 +1,0 @@
-.. Test-only change in this package (uv-run CLI test guarding the [tool.uv] override wiring); no changelog entry, no version bump.
