@@ -5,6 +5,8 @@
 
 """Test texture randomization in the cartpole scene using pytest."""
 
+from types import SimpleNamespace
+
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -30,6 +32,37 @@ def replace_value(env, env_id, data, value, num_steps):
         return value
     # use the sentinel to indicate “no change”
     return mdp.modify_env_param.NO_CHANGE
+
+
+def test_modify_term_cfg_invalidates_warp_caches_on_change():
+    """Ensure changed term parameters invalidate cached Warp work exactly once."""
+
+    class DummyEnv:
+        def __init__(self):
+            term_cfg = SimpleNamespace(params={"scale": 1.0})
+            self.reward_manager = SimpleNamespace(cfg=SimpleNamespace(term=term_cfg))
+            self.invalidations = 0
+
+        def invalidate_wp_graphs(self):
+            self.invalidations += 1
+
+    env = DummyEnv()
+    cfg = CurrTerm(
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "rewards.term.params.scale",
+            "modify_fn": lambda env, env_ids, data: 2.0,
+        },
+    )
+    term = mdp.modify_term_cfg(cfg, env)
+
+    term(env, [], **cfg.params)
+    assert env.reward_manager.cfg.term.params["scale"] == 2.0
+    assert env.invalidations == 1
+
+    cfg.params["modify_fn"] = lambda env, env_ids, data: mdp.modify_term_cfg.NO_CHANGE
+    term(env, [], **cfg.params)
+    assert env.invalidations == 1
 
 
 @configclass

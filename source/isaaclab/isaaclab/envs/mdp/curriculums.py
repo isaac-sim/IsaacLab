@@ -294,3 +294,16 @@ class modify_term_cfg(modify_env_param):
         super().__init__(cfg, env)
         # overwrite the simplified address with the full manager path
         self._address = self._address.replace("s.", "_manager.cfg.", 1)
+
+    def _process_accessors(self, root: ManagerBasedRLEnv, path: str) -> tuple[callable, callable]:
+        """Build accessors that invalidate cached Warp work after a term changes."""
+        get_value, set_value = super()._process_accessors(root, path)
+        invalidate_wp_graphs = getattr(root, "invalidate_wp_graphs", None)
+        if not callable(invalidate_wp_graphs):
+            return get_value, set_value
+
+        def set_value_and_invalidate(value):
+            set_value(value)
+            invalidate_wp_graphs()
+
+        return get_value, set_value_and_invalidate
