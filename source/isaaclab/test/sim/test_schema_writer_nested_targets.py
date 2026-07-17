@@ -23,6 +23,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.schemas import MassCfg
 
+pytestmark = pytest.mark.integration
+
 
 def _author_robot_usd(path: str) -> None:
     """Author a minimal articulated-robot USD layout.
@@ -170,8 +172,9 @@ def test_rigid_body_fragments_define_fresh_on_bare_prim():
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     UsdGeom.Xform.Define(stage, "/World/Bare")
-    apply_rigid_body_properties("/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], stage)
+    result = apply_rigid_body_properties("/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], stage)
     prim = stage.GetPrimAtPath("/World/Bare")
+    assert result is True
     assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
     assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0)
 
@@ -190,8 +193,52 @@ def test_rigid_body_fragments_do_not_descend_past_existing_body():
     UsdPhysics.RigidBodyAPI.Apply(outer)
     UsdPhysics.RigidBodyAPI.Apply(inner)  # ill-formed nesting in the source asset
 
-    apply_rigid_body_properties("/World/Top", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage)
+    result = apply_rigid_body_properties("/World/Top", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage)
 
+    assert result is True
     assert outer.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(7.0)
     # the nested body is not modified: legacy stops descending once a prim succeeds
     assert not inner.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+
+
+def test_rigid_body_fragments_skip_instanced_carriers(caplog):
+    """A carrier inside an instance is a read-only proxy: skipped with a warning and a False return.
+
+    The hidden carrier also suppresses the define-fresh fallback, so the input prim gains no
+    rigid-body anchor.
+    """
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    source = UsdGeom.Xform.Define(stage, "/World/Source").GetPrim()
+    source_body = UsdGeom.Xform.Define(stage, "/World/Source/body").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(source_body)
+    instance = UsdGeom.Xform.Define(stage, "/World/Asset").GetPrim()
+    instance.GetReferences().AddInternalReference(source.GetPath())
+    instance.SetInstanceable(True)
+    proxy_body = stage.GetPrimAtPath("/World/Asset/body")
+    assert proxy_body.IsInstanceProxy() and proxy_body.HasAPI(UsdPhysics.RigidBodyAPI)
+
+    with caplog.at_level("WARNING"):
+        result = apply_rigid_body_properties("/World/Asset", [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)], stage)
+
+    assert result is False
+    assert not instance.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert not proxy_body.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+    assert "/World/Asset/body" in caplog.text
+
+
+def test_rigid_body_fragments_empty_list_authors_nothing():
+    """An empty fragment list is a no-op: no anchor API is authored and the writer reports success."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Bare")
+    result = apply_rigid_body_properties("/World/Bare", [], stage)
+    prim = stage.GetPrimAtPath("/World/Bare")
+    assert result is True
+    assert not prim.HasAPI(UsdPhysics.RigidBodyAPI)
