@@ -9,7 +9,6 @@ from typing import Any
 
 import torch
 
-
 _ORDERING_TRACE_FIELDS = (
     "joint_pos",
     "joint_vel",
@@ -90,9 +89,7 @@ def assert_articulation_ordering_trace_matches(
             )
 
 
-def _canonicalize_ordering_result(
-    result: dict[str, Any], canonical_joint_names: tuple[str, ...]
-) -> dict[str, Any]:
+def _canonicalize_ordering_result(result: dict[str, Any], canonical_joint_names: tuple[str, ...]) -> dict[str, Any]:
     """Gather public and adapter traces into one physical joint-name order."""
     canonical_result = dict(result)
     for field_name in _ORDERING_TRACE_FIELDS:

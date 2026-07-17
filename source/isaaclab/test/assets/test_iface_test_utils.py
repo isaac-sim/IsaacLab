@@ -4,10 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-from pathlib import Path
 import subprocess
 import sys
-
+from pathlib import Path
 
 _ASSET_TEST_DIR = Path(__file__).parent
 _IFACE_UTIL_MODULES = (
