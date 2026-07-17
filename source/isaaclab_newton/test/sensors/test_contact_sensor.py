@@ -202,7 +202,8 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
     if use_mujoco_contacts and shape_type == ShapeType.MESH_CAPSULE:
         pytest.xfail(
             "Newton >= 1.4 (mujoco-warp 3.10 margin/gap semantics) loses mesh-mesh collision response in the"
-            " MuJoCo contacts pipeline: objects tunnel with zero contact forces. Tracked upstream."
+            " MuJoCo contacts pipeline: objects tunnel with zero contact forces."
+            " Tracked upstream: https://github.com/newton-physics/newton/issues/3559"
         )
     """Test horizontal collision detection with varied velocities and separations.
 
