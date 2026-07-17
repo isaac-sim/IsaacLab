@@ -31,38 +31,37 @@ Available Environments
 Direct Warp Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``Isaac-Cartpole-Direct-Warp-v0`` — Cartpole balance
-- ``Isaac-Ant-Direct-Warp-v0`` — Ant locomotion
-- ``Isaac-Humanoid-Direct-Warp-v0`` — Humanoid locomotion
-- ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
+Direct tasks share the stable task configuration: the stable registration
+declares its warp implementation through the ``warp_entry_point`` kwarg
+(mirroring ``env_cfg_entry_point``), and ``--frontend warp`` swaps only the
+environment class. Stable tasks with a declared warp implementation:
+
+- ``Isaac-Cartpole-Direct`` — Cartpole balance
+- ``Isaac-Ant-Direct`` — Ant locomotion
+- ``Isaac-Humanoid-Direct`` — Humanoid locomotion
+- ``Isaac-Reorient-Cube-Allegro-Direct`` — Allegro hand cube reorient
 
 
-Manager-Based Warp Environments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Manager-Based Warp Execution (``--frontend warp``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Classic**
+Manager-based tasks do not need a parallel warp registration: the shared RL
+CLI exposes ``--frontend {torch,warp}``, and ``--frontend warp`` adapts the
+*stable* task configuration onto the warp runtime at build time (swapping each
+MDP term for its warp twin). Select the Newton solver explicitly with
+``presets=newton_mjwarp``. Stable tasks with full twin coverage:
 
-- ``Isaac-Cartpole-Warp-v0``
-- ``Isaac-Ant-Warp-v0``
-- ``Isaac-Humanoid-Warp-v0``
+- ``Isaac-Cartpole``
+- ``Isaac-Ant``
+- ``Isaac-Humanoid``
+- ``Isaac-Reach-Franka``, ``Isaac-Reach-UR10``
+- ``Isaac-Velocity-Flat-AnymalD``, ``-Cassie``, ``-G1``, ``-H1``, ``-UnitreeGo2``
+  (and their ``-Play`` variants)
 
-**Locomotion (Flat)**
-
-- ``Isaac-Velocity-Flat-AnymalB-Warp-v0``
-- ``Isaac-Velocity-Flat-AnymalC-Warp-v0``
-- ``Isaac-Velocity-Flat-AnymalD-Warp-v0``
-- ``Isaac-Velocity-Flat-Cassie-Warp-v0``
-- ``Isaac-Velocity-Flat-G1-Warp-v0``
-- ``Isaac-Velocity-Flat-G1-Warp-v1``
-- ``Isaac-Velocity-Flat-H1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeA1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeGo1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeGo2-Warp-v0``
-
-**Manipulation**
-
-- ``Isaac-Reach-Franka-Warp-v0``
-- ``Isaac-Reach-UR10-Warp-v0``
+A missing twin is a hard error listing the affected terms, so a partially
+covered task fails at build time rather than silently changing behavior.
+Rough-terrain velocity tasks remain unsupported until
+:class:`~isaaclab.terrains.TerrainImporter` gains Warp APIs.
 
 
 Quick Start
@@ -70,13 +69,17 @@ Quick Start
 
 .. code-block:: bash
 
-    # Direct workflow
+    # Direct workflow: stable task, warp env implementation
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
+        --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
 
-    # Manager-based workflow
+    # Manager-based workflow: stable task on the warp runtime
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
+        --task Isaac-Cartpole --frontend warp presets=newton_mjwarp --num_envs 4096
+
+    # Manager-based workflow: velocity task on the warp runtime
+    ./isaaclab.sh train --rl_library rsl_rl \
+        --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
@@ -224,11 +227,12 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
 
 **Physics backend**
 
-- **Newton only.** PhysX is not supported under the warp env path. Asset and sensor
+- **Newton or OVPhysX.** The warp env path requires a warp-capable physics backend:
+  configure the cfg with a Newton block (``presets=newton_mjwarp``) or an OVPhysX block
+  (``presets=ovphysx``). Classic PhysX is not supported — its asset and sensor
   ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
-  ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
-  warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
-  the cfg with a Newton physics block (or ``physics=newton_mjwarp``).
+  ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise) and lack
+  the warp APIs (env-mask reset, CUDA graph capture) the warp managers require.
 
 **MDP coverage**
 
@@ -266,25 +270,32 @@ to estimate the gain for your own task before committing to a migration.
 
 **Single-task A/B**
 
+Run the same stable task id twice, differing only in ``--frontend``. Pass
+``presets=newton_mjwarp`` to *both* runs so the physics backend is identical and the
+measured difference isolates the frontend (manager pipeline + CUDA graph capture):
+
 .. code-block:: bash
 
-    # Stable variant
+    # Torch frontend (stable managers)
     uv run isaaclab benchmark training \
         --rl_library rsl_rl \
-        --task <Task-Name>-v0 \
+        --task <Task-Name> \
         --num_envs 4096 \
         --max_iterations 500 \
         --benchmark_formatter summary \
-        --output_path benchmarks/stable
+        --output_path benchmarks/torch \
+        presets=newton_mjwarp
 
-    # Warp variant — same task with -Warp- suffix
+    # Warp frontend (warp managers, CUDA-graph captured) — same task id
     uv run isaaclab benchmark training \
         --rl_library rsl_rl \
-        --task <Task-Name>-Warp-v0 \
+        --task <Task-Name> \
+        --frontend warp \
         --num_envs 4096 \
         --max_iterations 500 \
         --benchmark_formatter summary \
-        --output_path benchmarks/warp
+        --output_path benchmarks/warp \
+        presets=newton_mjwarp
 
 The ``summary`` formatter prints step time (min / mean / max) and total throughput. Compare
 "step time" between the two runs to estimate the gain per env step.
@@ -292,7 +303,7 @@ The ``summary`` formatter prints step time (min / mean / max) and total throughp
 **Sweep across all available tasks**
 
 Run ``isaaclab benchmark training`` for each task in the stable set (cartpole, ant, humanoid,
-locomotion, manipulation) and again with the ``-Warp-`` suffixed task ids, then diff the two output
+locomotion, manipulation) and again with ``--frontend warp``, then diff the two output
 directories.
 
 **What to look at in the output**

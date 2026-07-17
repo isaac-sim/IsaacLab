@@ -37,6 +37,7 @@ def _load_rl_common_module() -> ModuleType:
 _rl_common = _load_rl_common_module()
 CaptureEnvSensors: Any = getattr(_rl_common, "CaptureEnvSensors")
 add_common_train_args: Any = getattr(_rl_common, "add_common_train_args")
+create_isaaclab_env: Any = getattr(_rl_common, "create_isaaclab_env")
 enable_cameras_for_video: Any = getattr(_rl_common, "enable_cameras_for_video")
 dispatch_library_entrypoint: Any = getattr(_rl_common, "dispatch_library_entrypoint")
 wrap_sensor_capture: Any = getattr(_rl_common, "wrap_sensor_capture")
@@ -218,6 +219,60 @@ def test_enable_cameras_for_video_enables_cameras_for_sensor_capture() -> None:
     enable_cameras_for_video(args_cli)
 
     assert args_cli.enable_cameras
+
+
+def test_common_train_args_register_frontend_with_torch_default() -> None:
+    """Every RL library CLI exposes ``--frontend`` and defaults to the torch runtime."""
+    parser = argparse.ArgumentParser()
+    add_common_train_args(parser, agent_default=None, agent_help="", include_agent=False)
+
+    assert parser.parse_args([]).frontend == "torch"
+    assert parser.parse_args(["--frontend", "warp"]).frontend == "warp"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--frontend", "tensorflow"])
+
+
+def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shared factory preserves the existing Gym path when no frontend is selected."""
+    expected_env = object()
+    env_cfg = object()
+    calls: list[tuple[Any, ...]] = []
+
+    def fake_make(task: str, **kwargs: Any) -> Any:
+        calls.append((task, kwargs))
+        return expected_env
+
+    monkeypatch.setattr(_rl_common.gym, "make", fake_make)
+    args_cli = argparse.Namespace(video=False, frontend="torch")
+
+    env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
+
+    assert env is expected_env
+    assert len(calls) == 1
+    assert calls[0][0] == "Isaac-Test"
+    assert calls[0][1]["cfg"] is env_cfg
+    assert calls[0][1]["render_mode"] is None
+
+
+def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shared factory delegates Warp selection to the experimental frontend."""
+    import isaaclab_experimental.envs.frontend as frontend_module
+
+    expected_env = object()
+    env_cfg = object()
+    calls: list[tuple[Any, ...]] = []
+
+    def fake_build_env(cfg: Any, task: str, **kwargs: Any) -> Any:
+        calls.append((cfg, task, kwargs))
+        return expected_env
+
+    monkeypatch.setattr(frontend_module.WarpFrontend, "build_env", fake_build_env)
+    args_cli = argparse.Namespace(video=True, frontend="warp")
+
+    env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
+
+    assert env is expected_env
+    assert calls == [(env_cfg, "Isaac-Test", {"render_mode": "rgb_array"})]
 
 
 def test_dispatch_library_entrypoint_shows_help_without_library(

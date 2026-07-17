@@ -55,6 +55,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import class_to_dict
 
 from isaaclab_experimental.utils import modifiers, noise
@@ -62,7 +63,6 @@ from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -922,11 +922,12 @@ class ObservationManager(ManagerBase):
 
         if isinstance(out_dim, str) and out_dim.startswith("body:"):
             per_body = int(out_dim.split(":")[1])
-            asset_cfg = term_cfg.params.get("asset_cfg")
-            body_ids = getattr(asset_cfg, "body_ids", None)
+            # Body selection may live on an asset (articulation) or a sensor entity.
+            entity_cfg = term_cfg.params.get("asset_cfg") or term_cfg.params.get("sensor_cfg")
+            body_ids = getattr(entity_cfg, "body_ids", None)
             if body_ids is None or body_ids == slice(None):
-                asset = self._env.scene[asset_cfg.name]
-                return per_body * len(asset.body_names)
+                entity = self._env.scene[entity_cfg.name]
+                return per_body * len(entity.body_names)
             return per_body * len(body_ids)
 
         if out_dim == "command":
