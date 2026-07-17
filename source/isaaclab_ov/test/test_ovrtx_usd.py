@@ -59,14 +59,16 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
     return stage
 
 
-def _assert_export_contains_env_roots_and_children(exported: str, env_indices: range | list[int]) -> None:
+def _assert_export_contains_env_roots_and_children(
+    exported: str, env_indices: range | list[int], camera_count: int | None = None
+) -> None:
     """Listed environment roots appear in the stage export."""
     for env_idx in env_indices:
         assert f'def Xform "env_{env_idx}"' in exported
         assert f'def Xform "Object_env{env_idx}_only"' in exported
 
     assert exported.count('def Xform "Robot"') == len(env_indices)
-    assert exported.count('def Camera "Camera"') == len(env_indices)
+    assert exported.count('def Camera "Camera"') == (len(env_indices) if camera_count is None else camera_count)
 
 
 def _assert_export_omits_env_children(exported: str, env_indices: range | list[int]) -> None:
@@ -226,8 +228,8 @@ def test_export_stage_full_when_single_env():
     _assert_export_contains_env_roots_and_children(exported, range(num_envs))
 
 
-def test_export_stage_homogeneous_keeps_only_env0_prototype():
-    """Homogeneous cloning exports only the env_0 prototype subtree."""
+def test_export_stage_homogeneous_keeps_env0_prototype_and_all_cameras():
+    """Homogeneous cloning exports the env_0 prototype subtree and every camera."""
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
 
@@ -237,8 +239,30 @@ def test_export_stage_homogeneous_keeps_only_env0_prototype():
         source_paths=("/World/envs/env_0",),
     )
 
-    _assert_export_contains_env_roots_and_children(exported, [0])
+    _assert_export_contains_env_roots_and_children(exported, [0], camera_count=num_envs)
     _assert_export_omits_env_children(exported, range(1, num_envs))
+
+
+def test_export_stage_preserves_nested_camera_ancestor_chains():
+    """Trimming keeps nested cameras and their ancestors while omitting unrelated siblings."""
+    num_envs = 4
+    stage = _make_multi_env_stage(num_envs)
+    for env_idx in range(num_envs):
+        robot_path = f"/World/envs/env_{env_idx}/Robot"
+        UsdGeom.Xform.Define(stage, f"{robot_path}/Sensors")
+        UsdGeom.Camera.Define(stage, f"{robot_path}/Sensors/HeadCamera")
+        UsdGeom.Xform.Define(stage, f"{robot_path}/UnrelatedVisual")
+
+    exported = export_stage_to_string(
+        stage,
+        num_envs,
+        source_paths=("/World/envs/env_0",),
+    )
+
+    assert exported.count('def Xform "Robot"') == num_envs
+    assert exported.count('def Xform "Sensors"') == num_envs
+    assert exported.count('def Camera "HeadCamera"') == num_envs
+    assert exported.count('def Xform "UnrelatedVisual"') == 1
 
 
 def test_export_stage_heterogeneous_keeps_multiple_sources():
@@ -261,7 +285,7 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
     # Other env roots remain, but their prototype children are omitted.
     _assert_export_omits_env_children(exported, [1, 2])
     assert 'def Xform "Robot"' not in exported
-    assert 'def Camera "Camera"' not in exported
+    assert exported.count('def Camera "Camera"') == num_envs
 
 
 def test_export_stage_restores_active_state():

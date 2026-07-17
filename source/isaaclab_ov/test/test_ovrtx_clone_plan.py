@@ -70,14 +70,16 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
     return stage
 
 
-def _assert_export_contains_env_roots_and_children(exported: str, env_indices: range | list[int]) -> None:
+def _assert_export_contains_env_roots_and_children(
+    exported: str, env_indices: range | list[int], camera_count: int | None = None
+) -> None:
     """Listed environment roots appear in the stage export."""
     for env_idx in env_indices:
         assert f'def Xform "env_{env_idx}"' in exported
         assert f'def Xform "Object_env{env_idx}_only"' in exported
 
     assert exported.count('def Xform "Robot"') == len(env_indices)
-    assert exported.count('def Camera "Camera"') == len(env_indices)
+    assert exported.count('def Camera "Camera"') == (len(env_indices) if camera_count is None else camera_count)
 
 
 def _assert_export_contains_env_roots_but_omits_children(exported: str, env_indices: range | list[int]) -> None:
@@ -437,6 +439,6 @@ def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyP
     assert renderer._clone_plan is not None
     assert renderer._clone_plan.sources == published.sources
 
-    # Only the env_0 prototype subtree is exported.
-    _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0])
+    # Only the env_0 prototype geometry is exported, while all cameras remain discoverable.
+    _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0], camera_count=num_envs)
     _assert_export_contains_env_roots_but_omits_children(renderer._exported_usd_string, [1, 2, 3])
