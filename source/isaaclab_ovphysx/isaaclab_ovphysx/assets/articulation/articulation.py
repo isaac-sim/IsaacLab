@@ -3976,6 +3976,10 @@ class Articulation(BaseArticulation):
             if not joint_ids:
                 logger.warning("Actuator '%s': no joints matched '%s'", name, act_cfg.joint_names_expr)
                 continue
+            if len(joint_names) == self.num_joints:
+                actuator_joint_ids = slice(None)
+            else:
+                actuator_joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
             act_cfg_copy = act_cfg.copy()
             # seed the actuator with the simulation's already-correct DOF defaults
             # (USD-authored ``physxJoint:maxJointVelocity`` etc. parsed at scene-load).
@@ -3985,17 +3989,17 @@ class Articulation(BaseArticulation):
             act = act_cfg_copy.class_type(
                 act_cfg_copy,
                 joint_names=joint_names,
-                joint_ids=joint_ids,
+                joint_ids=actuator_joint_ids,
                 num_envs=self._num_instances,
                 device=self._device,
-                stiffness=self._data.joint_stiffness.torch[:, joint_ids],
-                damping=self._data.joint_damping.torch[:, joint_ids],
-                armature=self._data.joint_armature.torch[:, joint_ids],
-                friction=self._data.joint_friction_coeff.torch[:, joint_ids],
-                dynamic_friction=self._data.joint_dynamic_friction_coeff.torch[:, joint_ids],
-                viscous_friction=self._data.joint_viscous_friction_coeff.torch[:, joint_ids],
-                effort_limit=self._data.joint_effort_limits.torch[:, joint_ids].clone(),
-                velocity_limit=self._data.joint_vel_limits.torch[:, joint_ids],
+                stiffness=self._data.joint_stiffness.torch[:, actuator_joint_ids],
+                damping=self._data.joint_damping.torch[:, actuator_joint_ids],
+                armature=self._data.joint_armature.torch[:, actuator_joint_ids],
+                friction=self._data.joint_friction_coeff.torch[:, actuator_joint_ids],
+                dynamic_friction=self._data.joint_dynamic_friction_coeff.torch[:, actuator_joint_ids],
+                viscous_friction=self._data.joint_viscous_friction_coeff.torch[:, actuator_joint_ids],
+                effort_limit=self._data.joint_effort_limits.torch[:, actuator_joint_ids].clone(),
+                velocity_limit=self._data.joint_vel_limits.torch[:, actuator_joint_ids],
             )
             self.actuators[name] = act
             self._joint_ids_per_actuator[name] = joint_ids
@@ -4030,10 +4034,7 @@ class Articulation(BaseArticulation):
         from isaaclab.utils.types import ArticulationActions
 
         for name, act in self.actuators.items():
-            jids = act.joint_indices
-            if jids is None:
-                continue
-            jids_t = jids if isinstance(jids, list) else list(jids)
+            jids_t = self._joint_ids_per_actuator[name]
             all_joints = len(jids_t) == self._num_joints
 
             # Warp -> torch (zero-copy on same device via DLPack).

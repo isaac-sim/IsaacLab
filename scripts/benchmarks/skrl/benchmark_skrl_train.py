@@ -9,16 +9,8 @@ from __future__ import annotations
 
 import sys
 import time
-from pathlib import Path
 
-_BENCH_DIR = Path(__file__).resolve().parents[1]
-_RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
-
-# Shared training utilities remain script-local, so their directory must be on sys.path.
-if str(_RL_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_RL_SCRIPTS))
-
-import common as _common  # noqa: E402
+from isaaclab_rl.entrypoints import common as _common
 
 
 def _build_benchmark_trainer_class():
@@ -130,10 +122,11 @@ def _parse_args(argv: list[str]):
     """
     import argparse
 
+    from isaaclab.app import add_launcher_args
+
     from isaaclab_tasks.utils import setup_preset_cli
 
     add_common_train_args = _common.add_common_train_args
-    add_isaaclab_launcher_args = _common.add_isaaclab_launcher_args
     enable_cameras_for_video = _common.enable_cameras_for_video
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with SKRL.")
@@ -187,7 +180,7 @@ def _parse_args(argv: list[str]):
     from scripts.benchmarks.early_stop import add_success_cli_args
 
     add_success_cli_args(parser, include_check_success=False)
-    add_isaaclab_launcher_args(parser)
+    add_launcher_args(parser)
 
     if "--distributed" in argv:
         parser.error("Distributed training benchmarks are not supported.")
