@@ -31,8 +31,8 @@ pytestmark = pytest.mark.integration
 
 
 def dummy_observation(env: ManagerBasedEnv) -> torch.Tensor:
-    """Return a deterministic dummy observation."""
-    return torch.zeros((env.num_envs, 1), device=env.device)
+    """Return a dummy observation."""
+    return torch.randn((env.num_envs, 1), device=env.device)
 
 
 @configclass
