@@ -3,483 +3,506 @@
 Micro-Benchmarks for Performance Testing
 ========================================
 
-Isaac Lab provides micro-benchmarking tools to measure the performance of asset
-setter/writer methods and data property accessors without requiring Isaac Sim.
+Micro-benchmarks measure a narrow Isaac Lab operation while excluding as much
+unrelated work as possible. They answer questions such as:
 
-.. seealso::
+* Did an asset API change make a property read or state write slower?
+* How much host conversion or backend-binding overhead does an API call add?
+* How expensive is a production sensor update after physics has completed?
+* Is a regression in Isaac Lab code, a backend read, or the workload around it?
 
-   For full-simulation benchmarks (environment stepping, RL training), see
-   :ref:`testing_benchmarks`. This page covers method-level micro-benchmarks
-   that use mock interfaces.
+Isolation makes these benchmarks quick to repeat and easier to diagnose than a
+full training run. It also limits what they prove: micro-benchmarks do **not**
+predict end-to-end environment or training throughput. Use
+:ref:`testing_benchmarks` when the question includes environment logic, policy
+inference, learning, or application startup.
 
-Overview
---------
-
-The benchmarks use **mock interfaces** to simulate PhysX views, allowing performance
-measurement of Python-level overhead in isolation. This is useful for:
-
-- Comparing list vs tensor index performance
-- Identifying bottlenecks in hot code paths
-- Tracking performance regressions
-- Optimizing custom methods
-
-Quick Start
------------
-
-Run benchmarks using the Isaac Lab launcher:
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         # Run Articulation method benchmarks
-         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
-         uv run python source/isaaclab_newton/benchmark/assets/benchmark_articulation.py
-         uv run python source/isaaclab_ovphysx/benchmark/assets/benchmark_articulation.py
-
-         # With custom parameters
-         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
-             --num_iterations 1000 \
-             --num_instances 64 \
-             --num_bodies 5 \
-             --num_joints 4
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Run Articulation method benchmarks
-         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
-         ./isaaclab.sh -p source/isaaclab_newton/benchmark/assets/benchmark_articulation.py
-         ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/assets/benchmark_articulation.py
-
-         # With custom parameters
-         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
-             --num_iterations 1000 \
-             --num_instances 64 \
-             --num_bodies 5 \
-             --num_joints 4
-
-Available Benchmarks
+Choosing a Benchmark
 --------------------
 
-Asset Method Benchmarks
-~~~~~~~~~~~~~~~~~~~~~~~
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
 
-These benchmark setter and writer methods on asset classes:
+   * - Question
+     - Use
+     - Deliberately excluded
+   * - How fast is one asset method or data property?
+     - Asset method/data micro-benchmark
+     - Scene creation, simulation, sensors, and environment logic
+   * - How fast is one production sensor update?
+     - Sensor update micro-benchmark
+     - Timed physics stepping, environment logic, and learning
+   * - How fast does an environment step or policy train?
+     - Runtime, play, or training benchmark
+     - Nothing required by that workflow
+
+Benchmark Families
+------------------
+
+Asset Method and Data Benchmarks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Asset benchmarks instantiate Isaac Lab asset classes against backend-specific
+**mock views**. The mocks reproduce relevant data shapes and binding behavior
+without running physics. Measurements isolate Python input handling,
+tensor/index conversion, Isaac Lab method logic, backend binding calls, and
+data-property computation.
+
+Equivalent sets exist under:
+
+* ``source/isaaclab_physx/benchmark/assets/``
+* ``source/isaaclab_newton/benchmark/assets/``
+* ``source/isaaclab_ovphysx/benchmark/assets/``
 
 .. list-table::
    :header-rows: 1
-   :widths: 35 25 40
+   :widths: 34 22 22 22
 
-   * - Benchmark File
-     - Asset Class
-     - Methods Covered
+   * - Benchmark file
+     - PhysX
+     - Newton
+     - OVPhysX
    * - ``benchmark_articulation.py``
-     - ``Articulation``
-     - 24 methods (root/joint state, mass props, forces)
-   * - ``benchmark_rigid_object.py``
-     - ``RigidObject``
-     - 13 methods (root state, mass props, forces)
-   * - ``benchmark_rigid_object_collection.py``
-     - ``RigidObjectCollection``
-     - 13 methods (body state, mass props, forces)
-
-Data Property Benchmarks
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-These benchmark property accessors on data classes:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 40 30 30
-
-   * - Benchmark File
-     - Data Class
-     - Properties
+     - Yes
+     - Yes
+     - Yes
    * - ``benchmark_articulation_data.py``
-     - ``ArticulationData``
-     - 59 properties
+     - Yes
+     - Yes
+     - Yes
+   * - ``benchmark_rigid_object.py``
+     - Yes
+     - Yes
+     - Yes
    * - ``benchmark_rigid_object_data.py``
-     - ``RigidObjectData``
-     - 40 properties
+     - Yes
+     - Yes
+     - Yes
+   * - ``benchmark_rigid_object_collection.py``
+     - Yes
+     - Yes
+     - Yes
    * - ``benchmark_rigid_object_collection_data.py``
-     - ``RigidObjectCollectionData``
-     - 40 properties
+     - Yes
+     - Yes
+     - Yes
 
-All benchmarks are located in ``source/isaaclab_physx/benchmark/assets/``.
+Method benchmarks cover state writes, targets, forces, and material or mass
+properties supported by the asset. Data benchmarks time backend-supported
+cached and derived properties. Use the same file, dimensions, and mode when
+comparing backends or commits.
 
 Sensor Update Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The PhysX and OVPhysX sensor benchmarks build simulation scenes and measure sensor
-updates separately from physics stepping:
+Sensor benchmarks build **live simulation scenes** and exercise production
+sensor implementations. They step the selected backend so fresh source data
+exists, but place ``sim.step()`` outside the timed region. Reported latency
+therefore measures sensor update work rather than the solver.
+
+Equivalent workloads exist under each backend ``benchmark/sensors`` directory:
 
 .. list-table::
    :header-rows: 1
-   :widths: 40 60
+   :widths: 34 22 22 22
 
-   * - Benchmark File
-     - Sensor Path
+   * - Benchmark file
+     - PhysX
+     - Newton
+     - OVPhysX
    * - ``benchmark_contact_sensor.py``
-     - Contact force collection
+     - Yes
+     - Yes
+     - Yes
    * - ``benchmark_frame_transformer.py``
-     - Source and target frame transforms
+     - Yes
+     - Yes
+     - Yes
    * - ``benchmark_imu_pva.py``
-     - IMU or PVA state estimation
+     - IMU and PVA
+     - IMU and PVA
+     - IMU and PVA
    * - ``benchmark_joint_wrench.py``
-     - Incoming joint wrench transforms
+     - Yes
+     - Yes
+     - Yes
    * - ``benchmark_ray_caster.py``
-     - Rigid-body tracking and ray casting
+     - Yes
+     - Yes
+     - Yes
 
-They are located in the ``benchmark/sensors/`` directories of ``isaaclab_physx``
-and ``isaaclab_ovphysx``. Each script reports synchronized completion latency,
-host submission latency, and a synchronized no-op observer floor. OVPhysX scripts
-also isolate supported native reads and report the full-update-minus-read result
-as an estimate. Physics ``sim.step()`` calls occur outside all timed regions.
+Every sensor benchmark validates output after timing. A fast run with missing
+contacts, non-finite transforms, zero wrenches, or invalid ray hits fails instead
+of reporting a misleading performance result.
 
-The default ``summary`` formatter prints the aggregate results and writes a JSON
-file containing the mean, sample standard deviation, sample count, p50, and p95.
-The observer floor is reported but is not subtracted from the measurements.
+Prerequisites
+-------------
 
-For example:
+Run commands from the repository root through ``./isaaclab.sh -p``. The active
+Python environment must contain the backend being measured.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 41 41
+
+   * - Backend
+     - Asset benchmarks
+     - Sensor benchmarks
+   * - PhysX
+     - Launch Isaac Sim and use mocked PhysX views
+     - Launch Isaac Sim and build a live PhysX scene
+   * - Newton
+     - Launch Isaac Sim and use mocked Newton views
+     - Run kitless with the installed Newton runtime
+   * - OVPhysX
+     - Run kitless; require the optional ``ovphysx`` runtime wheel
+     - Run kitless; require the optional ``ovphysx`` runtime wheel
+
+Use a CUDA device for representative GPU numbers. CPU execution is useful for
+correctness or profiling, but is a different workload and must not be mixed with
+CUDA results.
+
+Running Asset Benchmarks
+------------------------
+
+Choose a backend by changing the package directory:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/sensors/benchmark_contact_sensor.py \
+   ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+       --num_instances 4096 \
+       --num_bodies 12 \
+       --num_joints 11 \
+       --warmup_steps 10 \
+       --num_iterations 1000 \
+       --mode all \
+       --backend json \
+       --output_dir results/physx_articulation
+
+   ./isaaclab.sh -p source/isaaclab_newton/benchmark/assets/benchmark_articulation.py \
+       --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+
+   ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/assets/benchmark_articulation.py \
+       --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+
+Replace ``benchmark_articulation.py`` with the corresponding rigid-object,
+collection, or ``*_data.py`` file to measure another API surface.
+
+Asset Arguments
+~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 18 57
+
+   * - Argument
+     - Default
+     - Meaning
+   * - ``--num_iterations``
+     - 1000
+     - Timed calls per method or property
+   * - ``--warmup_steps``
+     - 10
+     - Untimed calls used to compile and warm caches
+   * - ``--num_instances``
+     - 4096
+     - Asset instances represented by the mock view
+   * - ``--mode``
+     - ``all``
+     - Input/index modes to run; method benchmarks only
+   * - ``--backend``
+     - ``json``
+     - Output formatter: ``json``, ``osmo``, or ``omniperf``
+   * - ``--output_dir``
+     - current directory
+     - Directory for the timestamped result file
+   * - ``--no_shape_checks``
+     - false
+     - Disable method input shape checks when supported
+
+Asset-specific dimensions include ``--num_bodies`` and ``--num_joints``.
+Defaults differ by file; use ``--help`` before creating a comparison command.
+
+Asset Input Modes
+~~~~~~~~~~~~~~~~~
+
+``torch_list``
+   Pass selection IDs as Python lists. This includes list-to-tensor conversion
+   and represents common convenience-API usage.
+
+``torch_tensor``
+   Pass pre-allocated Torch tensors. This removes repeated list conversion and
+   represents the optimized Torch path.
+
+``warp_mask``
+   Pass pre-allocated Warp boolean masks. This mode is available for supported
+   Newton and OVPhysX mask APIs.
+
+Not every backend or method supports every mode. Compare a mode only when it has
+the same meaning on both sides.
+
+Running Sensor Benchmarks
+-------------------------
+
+Common sensor defaults are substantial enough to amortize timing noise: 4096
+environments, 50 warm-up updates, and 500 timed updates. Override them for a
+quick smoke test or scaling study.
+
+Contact examples are backend-specific because PhysX and Newton expose a cadence
+workload with decimation and history controls:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py \
        --num_envs 4096 --warmup_steps 50 --num_steps 500 \
-       --benchmark_formatter summary --output_path artifacts/micro_benchmarks
-
-Newton Sensor Update Benchmarks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The Newton sensor benchmarks measure sensor updates separately from physics
-stepping:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 40 60
-
-   * - Benchmark File
-     - Sensor Path
-   * - ``benchmark_contact_sensor.py``
-     - Contact force collection
-   * - ``benchmark_frame_transformer.py``
-     - Source and target frame transforms
-   * - ``benchmark_imu_pva.py``
-     - IMU or PVA state estimation
-   * - ``benchmark_joint_wrench.py``
-     - Incoming joint wrench transforms
-   * - ``benchmark_ray_caster.py``
-     - Rigid-body tracking and ray casting
-
-They are located in ``source/isaaclab_newton/benchmark/sensors/``. Each script
-reports synchronized completion latency, host submission latency, and a synchronized
-no-op observer floor. Physics ``sim.step()`` calls use the normal Newton configuration
-but occur outside all timed regions.
-
-For example:
-
-.. code-block:: bash
+       --decimation 4 --history_length 0
 
    ./isaaclab.sh -p source/isaaclab_newton/benchmark/sensors/benchmark_contact_sensor.py \
        --num_envs 4096 --warmup_steps 50 --num_steps 500 \
-       --benchmark_formatter summary --output_path artifacts/micro_benchmarks
+       --decimation 4 --history_length 0
 
-Command Line Arguments
-----------------------
+   ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/sensors/benchmark_contact_sensor.py \
+       --num_envs 4096 --warmup_steps 50 --num_steps 500
 
-Common Arguments
+For other sensors, set ``BACKEND`` to ``physx``, ``newton``, or ``ovphysx``:
+
+.. code-block:: bash
+
+   BACKEND=newton
+
+   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_frame_transformer.py \
+       --num_envs 4096 --num_target_frames 4 --warmup_steps 50 --num_steps 500
+
+   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_imu_pva.py \
+       --sensor imu --num_envs 4096 --warmup_steps 50 --num_steps 500
+
+   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_imu_pva.py \
+       --sensor pva --num_envs 4096 --warmup_steps 50 --num_steps 500
+
+   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_joint_wrench.py \
+       --num_envs 4096 --warmup_steps 50 --num_steps 500
+
+   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_ray_caster.py \
+       --num_envs 4096 --grid_size 1.0 --grid_resolution 0.25 \
+       --warmup_steps 50 --num_steps 500
+
+Sensor Arguments
 ~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
-   :widths: 20 15 65
+   :widths: 27 18 55
 
    * - Argument
      - Default
-     - Description
-   * - ``--num_iterations``
-     - 1000
-     - Number of timed iterations
-   * - ``--warmup_steps``
-     - 10
-     - Warmup iterations (not timed)
-   * - ``--num_instances``
+     - Meaning
+   * - ``--num_envs``
      - 4096
-     - Number of asset instances
+     - Number of live sensor instances
+   * - ``--num_steps``
+     - 500
+     - Timed sensor updates or contact cadences
+   * - ``--warmup_steps``
+     - 50
+     - Untimed simulation and sensor updates before measurement
    * - ``--device``
      - ``cuda:0``
-     - Device for tensors
-   * - ``--mode``
-     - ``all``
-     - ``all``, ``torch_list``, or ``torch_tensor``
-   * - ``--output``
-     - auto
-     - Output JSON filename
-   * - ``--no_csv``
-     - false
-     - Disable CSV output
+     - Simulation and sensor device
+   * - ``--label``
+     - ``current``
+     - Label printed by scripts that support it
+   * - ``--sensor``
+     - required
+     - Select ``imu`` or ``pva`` in ``benchmark_imu_pva.py``
+   * - ``--num_target_frames``
+     - 4
+     - Target frames per environment in the frame-transformer workload
+   * - ``--grid_size``
+     - 1.0
+     - Ray-grid width and length [m]
+   * - ``--grid_resolution``
+     - 0.25
+     - Ray-grid spacing [m]
 
-Asset-Specific Arguments
-~~~~~~~~~~~~~~~~~~~~~~~~
+PhysX scripts also expose ``--disable_graph`` or
+``--disable_recorded_launch`` where applicable. These are diagnostic controls
+for comparing production cached/graph paths with eager launches; leave them
+disabled when measuring default production behavior.
 
-**Articulation benchmarks:**
+Understanding the Outputs
+-------------------------
 
-- ``--num_bodies``: Number of links (default: 13)
-- ``--num_joints``: Number of DOFs (default: 12)
-
-**RigidObjectCollection benchmarks:**
-
-- ``--num_bodies``: Number of bodies in collection (default: 5)
-
-Benchmark Modes
----------------
-
-Each method is benchmarked under two input scenarios:
-
-**torch_list**
-   Environment/body IDs passed as Python lists. Measures the overhead of
-   list-to-tensor conversion, which is common in user code.
-
-**torch_tensor**
-   Environment/body IDs passed as pre-allocated tensors. Represents the
-   optimal baseline with minimal overhead.
-
-Example output:
-
-.. code-block:: text
-
-   [1/24] [TORCH_LIST] write_root_state_to_sim... 132.02 ± 6.79 µs
-   [1/24] [TORCH_TENSOR] write_root_state_to_sim... 65.44 ± 3.06 µs
-
-The comparison shows tensor indices are ~2x faster than list indices.
-
-Output Format
--------------
-
-Console Output
-~~~~~~~~~~~~~~
-
-.. code-block:: text
-
-   Benchmarking Articulation (PhysX) with 64 instances, 5 bodies, 4 joints...
-   Device: cuda:0
-   Iterations: 100, Warmup: 10
-
-   Benchmarking 24 methods...
-   [1/24] [TORCH_LIST] write_root_state_to_sim... 132.02 ± 6.79 µs
-   [1/24] [TORCH_TENSOR] write_root_state_to_sim... 65.44 ± 3.06 µs
-   ...
-
-   ================================================================================
-   COMPARISON: Torch_list vs Torch_tensor
-   ================================================================================
-   Method Name                         Torch_list   Torch_tensor   Speedup
-   ------------------------------------------------------------------------
-   write_root_state_to_sim               132.02        65.44        2.02x
-
-Export Files
+Asset Output
 ~~~~~~~~~~~~
 
-Results are automatically exported to:
+Asset scripts print mean and standard deviation for every method/mode pair in
+microseconds, followed by mode comparisons when applicable:
 
-- ``{benchmark_name}_{timestamp}.json`` - Full results with hardware info
-- ``{benchmark_name}_{timestamp}.csv`` - Tabular results for analysis
+.. code-block:: text
 
-JSON Structure
-~~~~~~~~~~~~~~
+   [1/24] [TORCH_LIST] write_root_state_to_sim... 132.02 +/- 6.79 us
+   [1/24] [TORCH_TENSOR] write_root_state_to_sim... 65.44 +/- 3.06 us
 
-.. code-block:: json
+They also write a timestamped JSON file to ``--output_dir`` by default. It
+contains benchmark configuration, hardware/software metadata, phase names, and
+recorded measurements. Select ``--backend osmo`` or ``--backend omniperf`` for
+those ingestion formats. The script prints the exact output path at completion.
 
-   {
-     "config": {
-       "num_iterations": 100,
-       "num_instances": 64,
-       "device": "cuda:0"
-     },
-     "hardware": {
-       "cpu": "Intel Core i9-13950HX",
-       "gpu": "NVIDIA RTX 5000",
-       "pytorch": "2.7.0",
-       "cuda": "12.8"
-     },
-     "results": [
-       {
-         "name": "write_root_state_to_sim",
-         "mode": "torch_list",
-         "mean_us": 132.02,
-         "std_us": 6.79,
-         "iterations": 100
-       }
-     ]
-   }
+Sensor Output
+~~~~~~~~~~~~~
+
+Sensor scripts currently report human-readable statistics to standard output:
+
+.. code-block:: text
+
+   synchronized mean      : 0.041 ms
+   synchronized p50       : 0.040 ms
+   synchronized p95       : 0.043 ms
+   submission mean        : 0.037 ms
+   finite target frames   : 16384 / 16384
+
+``synchronized`` latency
+   Wall-clock latency from immediately before ``sensor.update()`` until all
+   submitted device work completes. A device synchronization before the timer
+   prevents earlier simulation or policy kernels from being charged to the
+   sensor.
+
+``submission`` latency
+   Host time spent issuing ``sensor.update()`` before post-update device
+   synchronization. This is enqueue/dispatch cost, not pure GPU execution time.
+
+``p50`` and ``p95``
+   Median and 95th-percentile latency within one process. They expose jitter
+   that a mean can hide.
+   Most workloads report both; the PhysX/Newton contact cadence reports p50 and
+   minimum instead.
+
+``read-only`` latency
+   OVPhysX scripts also time the blocking backend fetch without sensor Warp
+   processing. Newton sensor inputs are already Warp arrays, and PhysX scripts
+   do not consistently expose an equivalent phase.
+
+``implied kernel tail``
+   OVPhysX reports ``synchronized mean - read-only mean`` as an estimate of
+   remaining processing. It derives from separately measured phases, so treat
+   small differences as noise rather than direct kernel timing.
+
+Validation counts
+   Final lines prove that the workload produced expected contacts, finite
+   frames, sensor outputs, nonzero wrenches, or ray hits. Never use a result
+   whose validation failed.
+
+Sensor scripts do not currently write a structured result file. Redirect stdout
+to retain raw runs:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p source/isaaclab_newton/benchmark/sensors/benchmark_ray_caster.py \
+       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
+       > results/newton_ray_caster_run_1.log 2>&1
+
+Making Fair Comparisons
+-----------------------
+
+For a performance claim:
+
+1. Use the same workstation, GPU conditions, environment, device, benchmark
+   file, dimensions, warm-up count, and timed count.
+2. Run baseline and candidate configurations from separate clean processes.
+3. Use at least three repetitions per configuration and report the mean plus
+   between-run standard deviation.
+4. Check validation output and retain raw logs or JSON files.
+5. Compare the same metric. Do not compare asset microseconds with sensor
+   milliseconds, submission with synchronized latency, or sensor latency with
+   environment FPS.
+6. Treat startup separately. Compilation, scene creation, physics initialization,
+   and CUDA graph construction occur outside reported sensor update latency but
+   still affect total command duration.
+
+.. important::
+
+   Contact workloads are not yet identical across all backends. PhysX and
+   Newton measure a configurable cadence of ``--decimation`` physics steps plus
+   a data read. OVPhysX measures one forced update after each physics step. Use
+   contact results for within-backend regressions unless protocols are aligned.
 
 Architecture
 ------------
 
-The benchmarks use mock interfaces to simulate PhysX views without Isaac Sim:
+Asset benchmarks isolate method/data code with mocks:
 
 .. code-block:: text
 
-   ┌─────────────────────┐     ┌──────────────────────┐
-   │   Asset Class       │────>│   MockArticulationView│
-   │   (Articulation)    │     │   (mock_interfaces)   │
-   └─────────────────────┘     └──────────────────────┘
-            │
-            v
-   ┌───────────────────────────┐
-   │   MethodBenchmarkRunner   │
-   │   (extends BaseIsaacLab-  │
-   │    Benchmark)             │
-   └───────────────────────────┘
-            │
-            v
-   ┌───────────────────────────┐
-   │   Output Backends         │
-   │   (json, osmo, omniperf)  │
-   └───────────────────────────┘
+   generated inputs -> Isaac Lab asset method/property -> backend mock view
+                    -> MethodBenchmarkRunner -> console + metrics formatter
 
-Key Components
-~~~~~~~~~~~~~~
+Sensor benchmarks isolate a live sensor update from simulation:
 
-1. **Mock Views** (``isaaclab_physx/test/mock_interfaces/``)
+.. code-block:: text
 
-   - ``MockArticulationView`` - Mimics PhysX ArticulationView
-   - ``MockRigidBodyView`` - Mimics PhysX RigidBodyView
+   sim.step() [untimed]
+       -> synchronize [timing boundary]
+       -> sensor.update() [timed]
+       -> synchronize [timing boundary]
+       -> validate output [untimed]
 
-2. **Benchmark Framework** (``isaaclab/benchmark/``)
-
-   - :class:`~isaaclab.benchmark.MethodBenchmarkRunner` - Runner extending
-     :class:`~isaaclab.benchmark.BaseIsaacLabBenchmark` for method-level benchmarks
-   - :class:`~isaaclab.benchmark.MethodBenchmarkRunnerConfig` - Configuration dataclass
-   - :class:`~isaaclab.benchmark.MethodBenchmarkDefinition` - Benchmark definition
-   - Multiple output backends (JSON, Osmo, OmniPerf)
-
-3. **Module Mocking**
-
-   Each benchmark file mocks Isaac Sim dependencies (``isaacsim``, ``omni``, ``pxr``)
-   to allow the asset classes to be instantiated without simulation.
+The pre-boundary synchronization is intentional. GPU work is asynchronous; if
+the timer started while earlier work was pending, synchronized sensor latency
+could incorrectly include that work.
 
 Adding New Benchmarks
 ---------------------
 
-Adding a Method Benchmark
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Adding an Asset Method or Property
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. Create input generator functions:
+Add input generators and a
+:class:`~isaaclab.test.benchmark.MethodBenchmarkDefinition` to the corresponding
+backend script. Allocate inputs before the timed call. For a data property, list
+prerequisite properties through ``derived_from`` so dependencies are populated
+before timing.
 
-.. code-block:: python
+Keep equivalent backends aligned where the API is shared, but do not register a
+mode or property that a backend cannot implement meaningfully.
 
-   from isaaclab.benchmark import MethodBenchmarkRunnerConfig
+Adding a Sensor Workload
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-   def gen_my_method_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
-       return {
-           "param1": torch.rand(config.num_instances, 3, device=config.device),
-           "env_ids": list(range(config.num_instances)),
-       }
-
-   def gen_my_method_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
-       return {
-           "param1": torch.rand(config.num_instances, 3, device=config.device),
-           "env_ids": torch.arange(config.num_instances, device=config.device),
-       }
-
-2. Add to the ``BENCHMARKS`` list:
-
-.. code-block:: python
-
-   from isaaclab.benchmark import MethodBenchmarkDefinition
-
-   MethodBenchmarkDefinition(
-       name="my_method",
-       method_name="my_method",
-       input_generators={
-           "torch_list": gen_my_method_torch_list,
-           "torch_tensor": gen_my_method_torch_tensor,
-       },
-       category="my_category",
-   ),
-
-Adding a Property Benchmark
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For data class properties, add to the ``PROPERTIES`` list:
-
-.. code-block:: python
-
-   ("my_property", {"derived_from": ["dependency1", "dependency2"]}),
-
-The ``derived_from`` key indicates dependencies that should be pre-computed
-before timing the property access.
-
-Performance Tips
-----------------
-
-Based on benchmark results:
-
-1. **Use tensor indices** instead of lists for 30-50% speedup
-2. **Pre-allocate index tensors** and reuse them across calls
-3. **Batch operations** where possible (e.g., set all joint positions at once)
-4. **Mass properties are CPU-bound** - PhysX requires CPU tensors for these
-
-Example optimization:
-
-.. code-block:: python
-
-   # Slow: Create new list each call
-   for _ in range(1000):
-       robot.write_joint_state_to_sim(state, env_ids=list(range(64)))
-
-   # Fast: Pre-allocate tensor and reuse
-   env_ids = torch.arange(64, device="cuda:0")
-   for _ in range(1000):
-       robot.write_joint_state_to_sim(state, env_ids=env_ids)
+1. Build the smallest live scene that exercises the production sensor path.
+2. Warm simulation and sensor updates before collecting samples.
+3. Keep ``sim.step()`` and validation outside the timed region.
+4. Synchronize the device immediately before and after ``sensor.update()``.
+5. Report synchronized and submission distributions with clear units.
+6. Fail when output shapes, finite values, or physical signals are invalid.
+7. Document every backend-specific timing phase or protocol difference.
 
 Troubleshooting
 ---------------
 
-Import Errors
-~~~~~~~~~~~~~
+Import or Backend Errors
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Ensure you're running through ``isaaclab.sh``:
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
+Confirm the backend is installed in the Python environment selected by
+``./isaaclab.sh -p``. OVPhysX requires its optional runtime wheel. PhysX
+benchmarks require Isaac Sim.
 
 CUDA Out of Memory
 ~~~~~~~~~~~~~~~~~~
 
-Reduce ``--num_instances``:
+Reduce ``--num_instances`` for assets or ``--num_envs`` for sensors. Record the
+reduced size because latency scaling changes with workload size.
 
-.. tab-set::
+Slow First Process
+~~~~~~~~~~~~~~~~~~
 
-   .. tab-item:: uv (Recommended)
+The command may compile Warp kernels, build a scene, initialize physics, or
+capture CUDA graphs before measurement. Warm-up excludes this work from reported
+operation latency, but not from total command duration.
 
-      .. code-block:: bash
+Noisy Results
+~~~~~~~~~~~~~
 
-         uv run python ... --num_instances 1024
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p ... --num_instances 1024
-
-Slow First Run
-~~~~~~~~~~~~~~
-
-The first run compiles Warp kernels. Subsequent runs will be faster.
+Ensure no other GPU workload is active. Increase timed iterations, repeat the
+command in independent processes, and report between-run variation. A difference
+smaller than normal variation is not evidence of a regression or improvement.
