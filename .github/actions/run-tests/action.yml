@@ -431,7 +431,6 @@ runs:
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
-          echo "::group::Following Docker container logs"
           # Stream container logs in background.
           docker logs -f "$container_name" &
           logs_pid=$!
@@ -456,7 +455,6 @@ runs:
           kill $logs_pid 2>/dev/null || true
           wait $logs_pid 2>/dev/null || true
           logs_pid=""
-          echo "::endgroup::"
 
           if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
