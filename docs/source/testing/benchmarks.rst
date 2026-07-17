@@ -94,6 +94,91 @@ environment-step rate. Runtime samples random actions before starting the
 runtime run, ``runtime.collection_fps`` and ``runtime.total_fps`` describe the
 same random-action stepping workload.
 
+.. dropdown:: Example workstation output
+
+   Headless runtime summary (output abbreviated):
+
+   .. code-block:: text
+
+      |                                   Summary Report                                   |
+      | workflow_name: benchmark_runtime                                                   |
+      | task: Isaac-Cartpole-Direct                                                        |
+      | num_envs: 4096                                                                     |
+      |   Collection FPS (mean/std/max): 857289.11 / 88395.50 / 983383.55 FPS              |
+      |   Total FPS (mean/std/max): 857289.11 / 88395.50 / 983383.55 FPS                   |
+      |   Environment Step Host-Return FPS (mean/std/max): 857648.65 / 88448.67 /          |
+      | 983822.18 FPS                                                                      |
+      [... output abbreviated ...]
+
+   Headless typed-schema excerpt:
+
+   .. code-block:: json
+
+      {
+        "schema_version": "1.2",
+        "run": {
+          "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": ["physx"]},
+          "task": "Isaac-Cartpole-Direct", "seed": 42, "status": "completed", "num_envs": 4096
+        },
+        "runtime": {
+          "iterations_completed": 1000,
+          "collection_fps": {"mean": 857289.1054855952},
+          "total_fps": {"mean": 857289.1054855952},
+          "environment_step_timing": {
+            "environment_step_fps": {"mean": 857648.6464583826},
+            "environment_step_calls": 1000, "measurement_mode": "host_return"
+          }
+        }
+      }
+
+   Rendered runtime summary (output abbreviated):
+
+   .. code-block:: text
+
+      |                                   Summary Report                                   |
+      | workflow_name: benchmark_runtime                                                   |
+      | task: Isaac-Cartpole-Camera-Direct                                                 |
+      | num_envs: 1024                                                                     |
+      |   Collection FPS (mean/std/max): 31587.33 / 2203.25 / 36188.75 FPS                 |
+      |   Total FPS (mean/std/max): 31587.33 / 2203.25 / 36188.75 FPS                      |
+      |   Environment Step Host-Return FPS (mean/std/max): 31590.46 / 2203.47 / 36192.00   |
+      | FPS                                                                                |
+      [... output abbreviated ...]
+
+   Rendered typed-schema excerpt:
+
+   .. code-block:: json
+
+      {
+        "schema_version": "1.2",
+        "run": {
+          "config": {
+            "physics_backend": "physx", "rendering_backend": "isaacsim_rtx",
+            "presets": ["physx", "isaacsim_rtx", "rgb"]
+          },
+          "task": "Isaac-Cartpole-Camera-Direct", "seed": 42,
+          "status": "completed", "num_envs": 1024
+        },
+        "runtime": {
+          "iterations_completed": 1000,
+          "collection_fps": {"mean": 31587.33014449644},
+          "total_fps": {"mean": 31587.33014449644},
+          "environment_step_timing": {
+            "environment_step_fps": {"mean": 31590.455581417973},
+            "environment_step_calls": 1000, "measurement_mode": "host_return"
+          }
+        }
+      }
+
+Capture provenance: Intel(R) Core(TM) i9-14900K CPU, NVIDIA GeForce RTX 5090
+GPU, Ubuntu 24.04.3, revision
+f02ca894a91f9db3a9ab0d42fcf23a5bc5eae22d. Both runs used PhysX, seed 42,
+50 warm-up frames, and a 1000-frame measured window. The headless run used
+Isaac-Cartpole-Direct with 4096 environments; the rendered run used
+Isaac-Cartpole-Camera-Direct with 1024 environments, RTX rendering, and the RGB
+preset. The approved balanced power profile used intel_pstate with powersave
+governors and balance_performance energy preferences.
+
 Do Not Infer
 ~~~~~~~~~~~~
 
@@ -176,6 +261,58 @@ plus rollout; they describe the same scope in play. Use
 computed only from completed episodes and can be ``null`` when the measured
 window completes no episodes or the task reports no success value.
 
+.. dropdown:: Example workstation output
+
+   Summary output (abbreviated):
+
+   .. code-block:: text
+
+      |                                   Summary Report                                   |
+      | workflow_name: benchmark_play                                                      |
+      | task: Isaac-Cartpole-Direct                                                        |
+      | num_envs: 4096                                                                     |
+      |   Collection FPS (mean/std/max): 747386.15 / 108072.33 / 920137.01 FPS             |
+      |   Total FPS (mean/std/max): 747386.15 / 108072.33 / 920137.01 FPS                  |
+      |   Environment Step Host-Return FPS (mean/std/max): 754751.94 / 108428.11 /         |
+      | 946978.02 FPS                                                                      |
+      | Mean Reward: -5.13 float                                                           |
+      | Mean Episode Length: 288.76 steps                                                  |
+      | success_rate: 0.96 float                                                           |
+      [... output abbreviated ...]
+
+   Typed-schema excerpt; the checkpoint directory is redacted:
+
+   .. code-block:: json
+
+      {
+        "schema_version": "1.2",
+        "run": {
+          "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": ["physx"]},
+          "task": "Isaac-Cartpole-Direct", "seed": 42, "status": "completed", "num_envs": 4096
+        },
+        "runtime": {
+          "iterations_completed": 1000,
+          "collection_fps": {"mean": 747386.1496822796},
+          "total_fps": {"mean": 747386.1496822796},
+          "environment_step_timing": {
+            "environment_step_fps": {"mean": 754751.9370684606},
+            "environment_step_calls": 950, "measurement_mode": "host_return"
+          }
+        },
+        "reward": {"mean": -5.128808731346916, "std": 3.278822814849722, "peak": 4.941566467285156},
+        "ep_length": {"mean": 288.7585855417908, "std": 54.14795104705392, "peak": 300.0},
+        "success_rate": 0.9584,
+        "checkpoint_path": "[...]/model_99.pt"
+      }
+
+Capture provenance: Intel(R) Core(TM) i9-14900K CPU, NVIDIA GeForce RTX 5090
+GPU, Ubuntu 24.04.3, revision
+f02ca894a91f9db3a9ab0d42fcf23a5bc5eae22d. This rsl_rl play run used
+Isaac-Cartpole-Direct, PhysX, 4096 environments, seed 42, 50 excluded
+environment steps, and a 1000-frame rollout. The approved balanced power
+profile used intel_pstate with powersave governors and balance_performance
+energy preferences.
+
 Do Not Infer
 ~~~~~~~~~~~~
 
@@ -226,6 +363,63 @@ Use ``runtime.collection_fps`` for rollout collection without policy update,
 ``runtime.environment_step_timing.environment_step_fps`` for environment-only
 stepping. Inspect ``learning.reward`` and ``learning.ep_length`` for learning
 behavior instead of reducing training to one throughput value.
+
+.. dropdown:: Example workstation output
+
+   Summary output (abbreviated):
+
+   .. code-block:: text
+
+      |                                   Summary Report                                   |
+      | workflow_name: benchmark_training                                                  |
+      | task: Isaac-Cartpole-Direct                                                        |
+      | seed: 42                                                                           |
+      | num_envs: 4096                                                                     |
+      | max_iterations: 100                                                                |
+      |   Collection FPS (mean/std/max): 590868.09 / 43510.99 / 639335.70 FPS              |
+      |   Total FPS (mean/std/max): 424261.02 / 32892.44 / 453761.00 FPS                   |
+      |   Environment Step Host-Return FPS (mean/std/max): 665822.74 / 54347.55 /          |
+      | 764534.41 FPS                                                                      |
+      | Last Reward: -5.39 float                                                           |
+      | Last Episode Length: 283.04 float                                                  |
+      [... output abbreviated ...]
+
+   Typed-schema excerpt; the checkpoint directory is redacted:
+
+   .. code-block:: json
+
+      {
+        "schema_version": "1.2",
+        "run": {
+          "framework": "rsl_rl",
+          "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": ["physx"]},
+          "task": "Isaac-Cartpole-Direct", "seed": 42, "status": "completed",
+          "num_envs": 4096, "max_iterations": 100
+        },
+        "runtime": {
+          "iterations_completed": 100,
+          "collection_fps": {"mean": 590868.0896530583},
+          "total_fps": {"mean": 424261.02},
+          "environment_step_timing": {
+            "environment_step_fps": {"mean": 665822.7414457421},
+            "environment_step_calls": 1550, "measurement_mode": "host_return"
+          }
+        },
+        "learning": {
+          "reward": {"final_raw": -5.390698432922363, "final_ema": -5.430264377288901},
+          "ep_length": {"final_raw": 283.0400085449219, "final_ema": 292.0792780879381}
+        },
+        "success_rate": 0.9733,
+        "checkpoint_path": "[...]/model_99.pt"
+      }
+
+Capture provenance: Intel(R) Core(TM) i9-14900K CPU, NVIDIA GeForce RTX 5090
+GPU, Ubuntu 24.04.3, revision
+f02ca894a91f9db3a9ab0d42fcf23a5bc5eae22d. This rsl_rl training run used
+Isaac-Cartpole-Direct, PhysX, 4096 environments, seed 42, 50 excluded
+environment steps, and 100 training iterations. The approved balanced power
+profile used intel_pstate with powersave governors and balance_performance
+energy preferences.
 
 Do Not Infer
 ~~~~~~~~~~~~
@@ -281,6 +475,49 @@ stable ``fnmatch`` patterns for specific phases. Whitelist mode ignores
 ``--top_n`` for listed phases. A pattern that matches no profiled function is
 still emitted with zero own time, cumulative time, and calls, which preserves
 stable dashboard keys.
+
+.. dropdown:: Example workstation output
+
+   Summary output (abbreviated):
+
+   .. code-block:: text
+
+      |                                   Summary Report                                   |
+      | workflow_name: benchmark_startup                                                   |
+      | task: Isaac-Cartpole-Direct                                                        |
+      | seed: 42                                                                           |
+      | num_envs: 4096                                                                     |
+      | Phase: app_launch                                                                  |
+      | Wall Clock Time: 0.72 s                                                            |
+      [... output abbreviated ...]
+
+   Typed-schema excerpt:
+
+   .. code-block:: json
+
+      {
+        "schema_version": "1.2",
+        "run": {
+          "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": ["physx"]},
+          "task": "Isaac-Cartpole-Direct", "seed": 42, "status": "completed", "num_envs": 4096
+        },
+        "config": {"top_n": 30, "whitelist": null},
+        "phases": {
+          "app_launch": {"total_time_s": 0.7205749180000001},
+          "python_imports": {"total_time_s": 1.675180392},
+          "task_config": {"total_time_s": 0.034445608999999995},
+          "env_creation": {"total_time_s": 4.544706618},
+          "first_step": {"total_time_s": 0.038090685}
+        }
+      }
+
+Capture provenance: Intel(R) Core(TM) i9-14900K CPU, NVIDIA GeForce RTX 5090
+GPU, Ubuntu 24.04.3, revision
+f02ca894a91f9db3a9ab0d42fcf23a5bc5eae22d. This cold-process startup profile
+used Isaac-Cartpole-Direct, PhysX, 4096 environments, seed 42, no warm-up, and
+top_n=30 for each of the five phases. The approved balanced power profile used
+intel_pstate with powersave governors and balance_performance energy
+preferences.
 
 Do Not Infer
 ~~~~~~~~~~~~
