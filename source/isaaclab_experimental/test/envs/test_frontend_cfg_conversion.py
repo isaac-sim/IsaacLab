@@ -99,6 +99,12 @@ def test_no_manager_warp_variants_remain():
     assert _manager_warp_tasks() == [], "unexpected ManagerBasedRLEnvWarp registrations reappeared"
 
 
+def test_no_warp_task_registrations_remain():
+    """End-state pin: warp execution needs no parallel ``-Warp`` task ids at all."""
+    warp_ids = sorted(task_id for task_id in gym.registry if "-Warp" in task_id)
+    assert warp_ids == [], f"unexpected warp task registrations: {warp_ids}"
+
+
 @pytest.mark.parametrize("task_id", _STABLE_TASKS_WITH_WARP_COVERAGE, ids=_STABLE_TASKS_WITH_WARP_COVERAGE)
 def test_stable_task_cfg_adapts_to_warp(task_id: str):
     """Each covered stable task adapts without a missing twin (the --frontend warp path)."""
@@ -134,7 +140,12 @@ _DIRECT_WARP_TASKS = _direct_tasks_with_warp_entry_point()
 def test_direct_tasks_declare_expected_warp_entry_points():
     """Sanity: the stable direct tasks with warp implementations declare them."""
     declared = {task_id for task_id, _ in _DIRECT_WARP_TASKS}
-    assert {"Isaac-Cartpole-Direct", "Isaac-Ant-Direct", "Isaac-Humanoid-Direct"} <= declared
+    assert {
+        "Isaac-Cartpole-Direct",
+        "Isaac-Ant-Direct",
+        "Isaac-Humanoid-Direct",
+        "Isaac-Reorient-Cube-Allegro-Direct",
+    } <= declared
 
 
 @pytest.mark.parametrize(

@@ -20,9 +20,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 
 if TYPE_CHECKING:
-    from isaaclab_tasks_experimental.core.reorient.config.allegro_hand.allegro_hand_warp_env_cfg import (
-        AllegroHandWarpEnvCfg,
-    )
+    from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
 
 
 @wp.kernel
@@ -540,10 +538,10 @@ def rotation_distance(object_rot: wp.quatf, target_rot: wp.quatf) -> wp.float32:
 
 
 class InHandManipulationWarpEnv(DirectRLEnvWarp):
-    cfg: AllegroHandWarpEnvCfg  # | ShadowHandWarpEnvCfg
+    cfg: AllegroHandEnvCfg  # | ShadowHandEnvCfg
 
-    # def __init__(self, cfg: AllegroHandWarpEnvCfg | ShadowHandWarpEnvCfg, render_mode: str | None = None, **kwargs):
-    def __init__(self, cfg: AllegroHandWarpEnvCfg, render_mode: str | None = None, **kwargs):
+    # def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: AllegroHandEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
         # ---------------------------------------------------------------------

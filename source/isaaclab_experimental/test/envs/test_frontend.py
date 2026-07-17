@@ -531,11 +531,16 @@ def _register_direct_stub_tasks():
     # are never invoked (the guard only inspects them), so a fake import
     # path is fine. ``warp_entry_point`` targets are imported, so the valid
     # stub points at a real stdlib symbol.
+    registered = []
     for task_id, (entry_point, warp_entry_point) in _DIRECT_TEST_TASKS.items():
         kwargs = {"warp_entry_point": warp_entry_point} if warp_entry_point else {}
         with contextlib.suppress(gym.error.Error):
             gym.register(id=task_id, entry_point=entry_point, disable_env_checker=True, kwargs=kwargs)
+            registered.append(task_id)
     yield
+    # Unregister so later test modules see the real, stub-free registry.
+    for task_id in registered:
+        gym.registry.pop(task_id, None)
 
 
 def test_direct_guard_accepts_warp_rooted():

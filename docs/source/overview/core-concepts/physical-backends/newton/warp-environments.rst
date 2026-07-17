@@ -39,11 +39,7 @@ environment class. Stable tasks with a declared warp implementation:
 - ``Isaac-Cartpole-Direct`` — Cartpole balance
 - ``Isaac-Ant-Direct`` — Ant locomotion
 - ``Isaac-Humanoid-Direct`` — Humanoid locomotion
-
-Warp-native direct task with its own registration and configuration (the cube
-is modeled differently than in the stable task):
-
-- ``Isaac-Reorient-Cube-Allegro-Direct-Warp`` — Allegro hand cube reorient
+- ``Isaac-Reorient-Cube-Allegro-Direct`` — Allegro hand cube reorient
 
 
 Manager-Based Warp Execution (``--frontend warp``)

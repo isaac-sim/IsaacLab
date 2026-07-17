@@ -1231,11 +1231,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Reorient-Cube-Allegro-Direct-Warp
-      -
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Reorient-Cube-Allegro-Play
       -
       - Manager Based
