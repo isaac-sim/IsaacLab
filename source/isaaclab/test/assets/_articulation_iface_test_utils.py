@@ -6,40 +6,9 @@
 """Shared mocked articulation backend factories for interface tests."""
 
 import importlib.util
-import os
-import sys
 from unittest.mock import MagicMock
 
-# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
-# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
-# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
-# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
-# set (bare Python, no Kit at all).
-_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
-    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
-)
-
-if not _kitless:
-    from isaaclab.app import AppLauncher
-
-    simulation_app = AppLauncher(headless=True).app
-else:
-    simulation_app = None
-    # Stub out the Kit/Omniverse modules that are not present under
-    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
-    # ``omni`` is a real namespace package, so missing submodules also need
-    # to be installed as attributes on it -- ``sys.modules`` alone is not
-    # enough because attribute access on the real ``omni`` won't fall
-    # through to ``sys.modules``.
-    import omni as _omni
-
-    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
-        _stub = MagicMock()
-        sys.modules[f"omni.{_mod}"] = _stub
-        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
-        setattr(_omni, _mod.split(".", 1)[0], _stub)
-    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
-        sys.modules.setdefault(_mod, MagicMock())
+from _iface_test_boot import simulation_app
 
 import numpy as np
 import warp as wp
@@ -47,27 +16,21 @@ import warp as wp
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
-# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity.
-# This is needed because the PhysX Data classes call
-# SimulationManager.get_physics_sim_view().get_gravity() but there's no actual
-# physics scene when running unit tests.
-_mock_physics_sim_view = MagicMock()
-_mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
-SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
-
-"""
-Check which backends are available.
-"""
-
+# ---------------------------------------------------------------------------
+# Check which backends are available.
+# ---------------------------------------------------------------------------
 BACKENDS = ["mock"]  # Mock backend is always available.
 
 if importlib.util.find_spec("isaaclab_physx") is not None:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
+    from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
+
+    # PhysX data classes need gravity even though interface tests do not create a physics scene.
+    _mock_physics_sim_view = MagicMock()
+    _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+    SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
     BACKENDS.append("physx")
 
@@ -483,13 +446,20 @@ def create_mock_articulation(
     num_fixed_tendons: int = 0,
     num_spatial_tendons: int = 0,
     device: str = "cuda:0",
+    is_fixed_base: bool = False,
+    joint_ordering: tuple[str, ...] | None = None,
+    body_ordering: tuple[str, ...] | None = None,
 ):
     from isaaclab.test.mock_interfaces.assets.mock_articulation import MockArticulation
+
+    if joint_ordering is not None or body_ordering is not None:
+        raise ValueError("The mock backend does not support explicit joint or body ordering.")
 
     art = MockArticulation(
         num_instances=num_instances,
         num_joints=num_joints,
         num_bodies=num_bodies,
+        is_fixed_base=is_fixed_base,
         num_fixed_tendons=num_fixed_tendons,
         num_spatial_tendons=num_spatial_tendons,
         device=device,
@@ -545,7 +515,15 @@ def get_articulation(
         )
     elif backend.lower() == "mock":
         return create_mock_articulation(
-            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+            num_instances,
+            num_joints,
+            num_bodies,
+            num_fixed_tendons,
+            num_spatial_tendons,
+            device,
+            is_fixed_base=is_fixed_base,
+            joint_ordering=joint_ordering,
+            body_ordering=body_ordering,
         )
     else:
         raise ValueError(f"Invalid backend: {backend}")
