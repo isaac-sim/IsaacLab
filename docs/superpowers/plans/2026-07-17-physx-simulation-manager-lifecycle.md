@@ -164,4 +164,3 @@ git commit -m "Fix PhysX simulation lifecycle ownership" -m \
 ```
 
 - [ ] **Step 9: Prepare and open the pull request**
-
