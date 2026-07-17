@@ -13,8 +13,6 @@ from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
-from isaaclab.cloner.usd import UsdReplicateContext
-
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
 from isaaclab_contrib.deformable.deformable_object import (
     DeformableRegistryEntry,
@@ -135,14 +133,16 @@ def test_builder_hook_resets_entry_offsets_on_first_environment():
     assert entry.particles_per_body == 3
 
 
-def test_newton_replication_stack_matches_kit_mode():
-    """Test that Newton's stack always replicates physics and adds USD clones only under Kit."""
-    from isaaclab_newton.cloner import REPLICATION
+def test_newton_physics_context_is_replicate_context():
+    """Test that Newton registers its replicate context as the backend physics context.
 
-    from isaaclab.utils.version import has_kit
+    USD clones are no longer part of a backend stack: :func:`isaaclab.cloner.replicate`
+    adds ``UsdReplicateContext`` per spawned cfg only when Kit is available, which is
+    covered by the replicate-session tests in ``test_cloner.py``.
+    """
+    from isaaclab_newton.cloner import PHYSICS_CONTEXT
 
-    assert REPLICATION[-1] is NewtonReplicateContext
-    assert (UsdReplicateContext in REPLICATION) == has_kit()
+    assert PHYSICS_CONTEXT is NewtonReplicateContext
 
 
 def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
