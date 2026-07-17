@@ -35,8 +35,7 @@ def _usda_with_robot(translate: tuple[float, float, float] = (0.0, 0.0, 0.0), *,
 def _usda_with_volatile_viewport_render_product() -> str:
     """Build a stage with scene content plus a volatile Kit viewport render product."""
     return (
-        _usda_with_robot((1.0, 2.0, 3.0))
-        + '\ndef Scope "Render"\n'
+        _usda_with_robot((1.0, 2.0, 3.0)) + '\ndef Scope "Render"\n'
         "{\n"
         '    def Scope "OmniverseKit"\n'
         "    {\n"
@@ -53,10 +52,7 @@ def _usda_with_volatile_viewport_render_product() -> str:
 
 def _usda_with_render_scope_content() -> str:
     """Build a stage with non-volatile content under ``/Render``."""
-    return (
-        _usda_with_robot((1.0, 2.0, 3.0))
-        + '\ndef Scope "Render"\n{\n    def Scope "TaskOwned"\n    {\n    }\n}\n'
-    )
+    return _usda_with_robot((1.0, 2.0, 3.0)) + '\ndef Scope "Render"\n{\n    def Scope "TaskOwned"\n    {\n    }\n}\n'
 
 
 def _mock_export(stage_text: str | dict[str, str]):

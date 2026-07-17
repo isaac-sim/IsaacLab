@@ -209,12 +209,8 @@ _STAGE_TRANSFORM_ATOL = 1e-5
 # Cap on the number of reported stage differences so a large regression stays readable.
 _MAX_STAGE_DIFF_LINES = 80
 
-_VOLATILE_STAGE_PRIM_PATH_PREFIXES = (
-    "/Render/OmniverseKit",
-)
-_VOLATILE_STAGE_PRIM_ANCESTOR_PATHS = (
-    "/Render",
-)
+_VOLATILE_STAGE_PRIM_PATH_PREFIXES = ("/Render/OmniverseKit",)
+_VOLATILE_STAGE_PRIM_ANCESTOR_PATHS = ("/Render",)
 
 
 def _is_volatile_stage_prim_path(path: str) -> bool:
