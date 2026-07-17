@@ -3,6 +3,27 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Pure-``uv`` install path. Exercises the lockfile-driven workflow a fresh user runs:
+# ``uv sync`` then ``uv run isaaclab train ...`` (see
+# docs/source/setup/installation/uv_run.rst). This is the basic installation that must
+# always work for everyone, so on every change to the dependency graph it checks a matrix
+# of resolve modes and physics backends:
+#
+#   - locked   Newton MJWarp  -- committed uv.lock replays and trains (``--locked``).
+#   - fresh    Newton MJWarp  -- from-scratch re-resolution (``uv lock --upgrade``) against
+#                                the live indexes still resolves, installs, and trains.
+#   - isaacsim PhysX          -- ``--extra isaacsim`` pulls the Isaac Sim (PhysX) backend.
+#   - ov       OVPhysX        -- ``--extra ov`` pulls the kit-less OVPhysX backend.
+#
+# GPU access: like every other GPU job in this repo (see .github/actions/run-tests and
+# tools/run_install_ci.py), the work runs inside a container launched with ``--gpus all``.
+# Bare steps on the self-hosted host do NOT see the GPU. Do NOT set ``CUDA_VISIBLE_DEVICES``
+# (``all`` is not a valid value and hides every device); ``--gpus all`` handles exposure.
+#
+# NOTE: A ``paths:`` filter keeps this off unrelated PRs. Do NOT mark this workflow a
+# required status check while the filter is in place: a required check that never
+# triggers blocks the PR forever (same reasoning as install-ci.yml).
+
 name: uv Lockfile Install
 
 on:
@@ -32,71 +53,56 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  locked-sync-train:
-    name: uv sync --locked + Newton cartpole training
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 60
-    env:
-      CUDA_VISIBLE_DEVICES: all
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: all
-      CUDA_HOME: /usr/local/cuda
-      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-          lfs: true
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-
-      # ``--locked`` fails if uv.lock is out of date with pyproject.toml, so this both
-      # validates the committed lockfile and installs the base environment from it.
-      - name: uv sync from committed lockfile
-        run: uv sync --locked
-
-      - name: Verify core packages import
-        run: |
-          uv run python - <<'PY'
-          import isaaclab
-          import isaaclab_assets
-          import isaaclab_tasks
-          import isaaclab_rl
-          import isaaclab_newton
-          print("core imports ok")
-          PY
-
-      - name: Train Cartpole on Newton (MJWarp) backend
-        run: |
-          set -o pipefail
-          uv run isaaclab train \
-            --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct \
-            --num_envs 16 \
-            --max_iterations 5 \
-            physics=newton_mjwarp 2>&1 | tee train.log
-          grep -q "Training time:" train.log
-
-  isaacsim-extra-train:
-    name: uv --extra isaacsim + PhysX cartpole training
+  uv-train:
+    name: ${{ matrix.name }}
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
+    container:
+      image: ubuntu:24.04
+      # --gpus all exposes the GPUs (the repo-wide pattern); NVIDIA_DRIVER_CAPABILITIES=all
+      # is set at create time so graphics/compute driver libs are injected for the backends.
+      options: --gpus all -e NVIDIA_DRIVER_CAPABILITIES=all
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: locked sync + Newton MJWarp training
+            prepare: uv sync --locked
+            run_flags: "--locked"
+            physics: newton_mjwarp
+          - name: fresh resolve + Newton MJWarp training
+            prepare: uv lock --upgrade && uv sync
+            run_flags: ""
+            physics: newton_mjwarp
+          - name: --extra isaacsim + PhysX training
+            prepare: uv sync --locked --extra isaacsim
+            run_flags: "--locked --extra isaacsim"
+            physics: physx
+          - name: --extra ov + OVPhysX training
+            prepare: uv sync --locked --extra ov
+            run_flags: "--locked --extra ov"
+            physics: ovphysx
     env:
-      CUDA_VISIBLE_DEVICES: all
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: all
-      CUDA_HOME: /usr/local/cuda
-      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-      # Isaac Sim wheels refuse to import without EULA acceptance.
+      # Isaac Sim wheels refuse to import without EULA acceptance (harmless for other backends).
       OMNI_KIT_ACCEPT_EULA: "yes"
       ACCEPT_EULA: "Y"
       ISAACSIM_ACCEPT_EULA: "YES"
+      DEBIAN_FRONTEND: noninteractive
     steps:
+      # The bare ubuntu:24.04 image needs git (for checkout + lfs) and the build toolchain
+      # a couple of dependencies compile from sdist. Mirrors Dockerfile.installci's set.
+      - name: Install system prerequisites
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git git-lfs curl cmake python3 python3-dev python3-venv \
+            build-essential libglib2.0-0 ca-certificates
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -108,86 +114,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      # ``--extra isaacsim`` pulls the Isaac Sim (PhysX) backend on the fly, resolved from
-      # the committed lock (``--locked``). The PhysX backend requires Isaac Sim/Kit.
-      - name: Train Cartpole on PhysX backend (Isaac Sim)
+      # ``--locked`` (base + extras) fails if uv.lock drifted from pyproject.toml; the fresh
+      # variant re-resolves the whole graph from scratch against the live indexes instead.
+      - name: Prepare environment
+        run: ${{ matrix.prepare }}
+
+      - name: Verify CUDA GPU and core imports
         run: |
-          set -o pipefail
-          uv run --locked --extra isaacsim isaaclab train \
-            --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct \
-            --num_envs 16 \
-            --max_iterations 5 \
-            physics=physx 2>&1 | tee train.log
-          grep -q "Training time:" train.log
-
-  ov-extra-train:
-    name: uv --extra ov + OVPhysX cartpole training
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 60
-    env:
-      CUDA_VISIBLE_DEVICES: all
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: all
-      CUDA_HOME: /usr/local/cuda
-      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-          lfs: true
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-
-      # ``--extra ov`` pulls the kit-less OVPhysX backend on the fly, resolved from the
-      # committed lock (``--locked``).
-      - name: Train Cartpole on OVPhysX backend
-        run: |
-          set -o pipefail
-          uv run --locked --extra ov isaaclab train \
-            --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct \
-            --num_envs 16 \
-            --max_iterations 5 \
-            physics=ovphysx 2>&1 | tee train.log
-          grep -q "Training time:" train.log
-
-  fresh-resolve-train:
-    name: uv fresh resolve + Newton cartpole training
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 60
-    env:
-      CUDA_VISIBLE_DEVICES: all
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: all
-      CUDA_HOME: /usr/local/cuda
-      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-          lfs: true
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-
-      # Re-resolve the whole dependency graph from scratch against the live indexes
-      - name: Re-resolve lockfile from scratch
-        run: uv lock --upgrade
-
-      - name: uv sync from freshly-resolved lockfile
-        run: uv sync
-
-      - name: Verify core packages import
-        run: |
-          uv run python - <<'PY'
+          uv run ${{ matrix.run_flags }} python - <<'PY'
+          import torch
+          assert torch.cuda.is_available(), "no CUDA GPU available inside the container"
+          print("CUDA GPUs:", torch.cuda.device_count())
           import isaaclab
           import isaaclab_assets
           import isaaclab_tasks
@@ -196,13 +133,15 @@ jobs:
           print("core imports ok")
           PY
 
-      - name: Train Cartpole on Newton (MJWarp) backend
+      # Runs headless (no --visualizer/--viz). ``Training time:`` in the output confirms
+      # training ran to completion rather than exiting early with a zero return code.
+      - name: Train Cartpole (${{ matrix.physics }})
         run: |
           set -o pipefail
-          uv run isaaclab train \
+          uv run ${{ matrix.run_flags }} isaaclab train \
             --rl_library rsl_rl \
             --task Isaac-Cartpole-Direct \
             --num_envs 16 \
             --max_iterations 5 \
-            physics=newton_mjwarp 2>&1 | tee train.log
+            physics=${{ matrix.physics }} 2>&1 | tee train.log
           grep -q "Training time:" train.log
