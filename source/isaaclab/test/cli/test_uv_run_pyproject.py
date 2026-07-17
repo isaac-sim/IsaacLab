@@ -101,10 +101,6 @@ def test_version_single_source_matches_literal_pins():
     assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
     assert f"warp-lang=={versions['warp']}" in dependencies
 
-    # MuJoCo-stack overrides mirror the table (they outrank isaacsim-core's exact pins).
-    assert f"mujoco-warp{versions['mujoco_warp']}" in overrides
-    assert f"mujoco{versions['mujoco']}" in overrides
-
 
 def test_uv_run_isaacsim_extra_is_conflict_forked():
     """Isaac Sim is an opt-in uv workspace extra, forked away from clashing extras.

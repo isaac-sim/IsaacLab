@@ -168,11 +168,8 @@ torchaudio = "2.11.0"
 ovphysx = "0.5.2+head.f62c22207c"
 ovrtx = ">=0.3.0,<0.4.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
-newton = "9af5a9f418156ff1f280711b884868df7b4ead37"
+newton = "d1b718ea0b762aec06255808a67a855e2f9342f8"
 warp = "1.15.0.dev20260626"
-# MuJoCo stack required by the Newton pin; overrides isaacsim-core's exact 3.8 pin.
-mujoco_warp = ">=3.10.0.1,<3.11"
-mujoco = "~=3.10.0"
 
 [tool.ruff]
 line-length = 120
@@ -338,14 +335,9 @@ prerelease = "allow"
 # the CUDA indexes via [tool.uv.sources]. Values mirror [tool.isaaclab.versions] above.
 override-dependencies = [
     "numpy>=2",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@9af5a9f418156ff1f280711b884868df7b4ead37",
-    # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin
-    # (newton main's [importers] extra declares >=0.4.0).
-    "newton-usd-schemas>=0.4.0",
-    # The Newton pin requires the MuJoCo 3.10 stack; isaacsim-core pins
-    # mujoco-warp==3.8.0.3 exactly, so force the newer stack for every requester.
-    "mujoco-warp>=3.10.0.1,<3.11",
-    "mujoco~=3.10.0",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@d1b718ea0b762aec06255808a67a855e2f9342f8",
+    # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
+    "newton-usd-schemas>=0.3.1",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
