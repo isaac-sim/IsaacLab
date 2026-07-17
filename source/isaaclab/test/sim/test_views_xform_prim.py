@@ -324,6 +324,13 @@ def test_compare_get_world_poses_with_isaacsim():
     pattern = "/World/Env_.*/Object"
     isaacsim_paths = [f"/World/Env_{i}/Object" for i in range(num_prims)]
     isaaclab_view = FrameView(pattern, device="cpu")
+
+    import omni.usd  # noqa: PLC0415
+
+    context = omni.usd.get_context()
+    context.attach_stage_with_callback(sim_utils.get_current_stage_id())
+    sim_utils.update_stage()
+
     for kwargs in ({"reset_xform_properties": False}, {"reset_xform_op_properties": False}, {}):
         try:
             isaacsim_view = _IsaacSimXformPrimView(isaacsim_paths, **kwargs)
