@@ -275,8 +275,8 @@ def test_franka_pose_abs_without_inertial_decoupling(sim):
         impedance_mode="fixed",
         inertial_dynamics_decoupling=False,
         gravity_compensation=False,
-        motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
-        motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
+        motion_stiffness_task=[1500.0, 1500.0, 1500.0, 250.0, 250.0, 250.0],
+        motion_damping_ratio_task=[1.0, 1.0, 1.0, 0.001, 0.001, 0.001],
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -567,6 +567,7 @@ def test_franka_wrench_abs_open_loop(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
@@ -648,6 +649,7 @@ def test_franka_wrench_abs_closed_loop(sim):
         frame,
     ) = sim
 
+    _set_legacy_franka_asset(robot_cfg)
     robot = Articulation(cfg=robot_cfg)
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
@@ -1079,8 +1081,8 @@ def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(si
         impedance_mode="fixed",
         inertial_dynamics_decoupling=False,
         gravity_compensation=False,
-        motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
-        motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
+        motion_stiffness_task=[1500.0, 1500.0, 1500.0, 250.0, 250.0, 250.0],
+        motion_damping_ratio_task=[1.0, 1.0, 1.0, 0.001, 0.001, 0.001],
         nullspace_control="position",
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
