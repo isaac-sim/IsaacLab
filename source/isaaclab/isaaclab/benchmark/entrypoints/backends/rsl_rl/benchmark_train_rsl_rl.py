@@ -118,6 +118,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     import contextlib
     import importlib.metadata as metadata
     import os
+    import re
     from datetime import datetime
 
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
@@ -316,7 +317,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 max_iterations=agent_cfg.max_iterations,
             )
 
-            checkpoint_path = None
+            checkpoint_path = get_checkpoint_path(log_root_path, re.escape(os.path.basename(log_dir)), r"model_.*\.pt")
             video_path = os.path.join(log_dir, "videos") if getattr(args_cli, "video", False) else None
 
             bundle = builders.build_training_bundle(

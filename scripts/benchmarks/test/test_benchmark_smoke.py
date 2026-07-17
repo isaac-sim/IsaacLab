@@ -125,7 +125,7 @@ def test_play_adapters_accept_warmup_larger_than_measured_workload(library: str,
     ),
     [
         ("rl_games", 512, 20, "schema", True, False, False),
-        ("rsl_rl", 16, 20, "schema,omniperf", True, False, False),
+        ("rsl_rl", 16, 20, "schema,omniperf", True, False, True),
         ("sb3", 16, 70, "schema", False, True, True),
         ("skrl", 16, 20, "schema", True, True, False),
     ],
