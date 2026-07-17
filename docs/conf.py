@@ -266,7 +266,6 @@ autodoc_mock_imports = [
     "pink",
     "pinocchio",
     "qpsolvers",
-    "flatdict",
     "filelock",
     "IPython",
     "cv2",
