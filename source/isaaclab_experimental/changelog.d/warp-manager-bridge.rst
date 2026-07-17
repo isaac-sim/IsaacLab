@@ -29,6 +29,10 @@ Changed
   :meth:`~isaaclab_experimental.envs.frontend.WarpFrontend.adapt_cfg`, so
   registered warp task variants can derive from stable configurations instead
   of duplicating them.
+* Changed the experimental warp ``RewardManager`` to merge dictionaries
+  returned by class-based reward term ``reset()`` into its episode-log extras
+  (persistent Warp buffer views, CUDA-graph safe); used to report
+  ``Metrics/success_rate`` under ``--frontend warp``.
 
 Fixed
 ^^^^^

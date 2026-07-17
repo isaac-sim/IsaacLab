@@ -140,8 +140,10 @@ class WarpFrontend:
         """
         env_class = cls._resolve_direct_warp_class(task_id)
         if env_class is None:
+            # No warp_entry_point: the task itself must be a warp-native registration.
             cls._assert_direct_warp_registration(task_id)
             return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
+        # Declared warp class + stable cfg: swap only the env class.
         cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
         return env_class(cfg=env_cfg, **construct_kwargs)
 
@@ -215,11 +217,12 @@ class WarpFrontend:
         promoted: list[str] = []
         for path, term in cls._walk_terms(cfg):
             if not path or path[0] not in cls.WARP_MANAGED_GROUPS:
-                continue
+                continue  # term runs on a stable manager; keep the stable entity
             params = getattr(term, "params", None)
             if not isinstance(params, dict):
                 continue
             for key, value in list(params.items()):
+                # Skip non-entities and already-promoted values (idempotence).
                 if isinstance(value, _WarpSceneEntityCfg) or not isinstance(value, _StableSceneEntityCfg):
                     continue
                 params[key] = _WarpSceneEntityCfg.from_stable(value)
@@ -254,17 +257,18 @@ class WarpFrontend:
         substitutes the callable; the manager reads the new func's annotations
         when it parses the term cfg.
         """
+        # Highest-priority twin source: warp mirrors of the cfg's own task namespace.
         cfg_route_modules = cls._cfg_route_modules(cfg)
-        module_cache: dict[str, list[ModuleType]] = {}
-        searched: set[str] = set()
+        module_cache: dict[str, list[ModuleType]] = {}  # defining module -> modules to search
+        searched: set[str] = set()  # module names, for the error message
 
         swapped = 0
         missing: list[tuple[str, str, str]] = []  # (location, attr, symbol)
         for path, term in cls._walk_terms(cfg):
             if not path or path[0] not in cls.WARP_MANAGED_GROUPS:
-                continue
+                continue  # term runs on a stable manager; leave it stable
             location = ".".join(path)
-            for attr in ("func", "class_type"):
+            for attr in ("func", "class_type"):  # a term implements via either attr
                 stable = getattr(term, attr, None)
                 if stable is None or not cls._is_swap_candidate(stable):
                     continue
@@ -274,7 +278,7 @@ class WarpFrontend:
                     searched.update(m.__name__ for m in module_cache[origin])
                 twin = cls._resolve_warp_twin(stable.__name__, module_cache[origin])
                 if twin is None:
-                    missing.append((location, attr, stable.__name__))
+                    missing.append((location, attr, stable.__name__))  # collect every miss; report once below
                     continue
                 setattr(term, attr, twin)
                 swapped += 1
@@ -367,7 +371,7 @@ class WarpFrontend:
         """Mechanical mirror of a stable module path, or ``None`` if not mirrored."""
         if not isinstance(module, str) or not module:
             return None
-        root, _, rest = module.partition(".")
+        root, _, rest = module.partition(".")  # only the top-level package root is swapped
         mirror_root = cls.MIRROR_ROOTS.get(root)
         if mirror_root is None:
             return None
@@ -387,8 +391,8 @@ class WarpFrontend:
         """
         parts = mirrored.split(".")
         if "mdp" in parts:
-            parts = parts[: parts.index("mdp")]
-        for depth in range(len(parts), 0, -1):
+            parts = parts[: parts.index("mdp")]  # start the walk at the .mdp boundary
+        for depth in range(len(parts), 0, -1):  # deepest prefix first
             candidate = ".".join([*parts[:depth], "mdp"])
             try:
                 if importlib.util.find_spec(candidate) is not None:
@@ -417,7 +421,7 @@ class WarpFrontend:
         (task-family bases).
         """
         modules: list[ModuleType] = []
-        for klass in type(cfg).__mro__:
+        for klass in type(cfg).__mro__:  # subclass first: robot cfg wins over task-family base
             mirrored = cls._mirror_module(getattr(klass, "__module__", "") or "")
             if mirrored is None:
                 continue
@@ -442,6 +446,7 @@ class WarpFrontend:
            :mod:`isaaclab.envs.mdp`).
         """
         modules = list(cfg_route_modules)
+        # Fallback: the mirror of the package that defines the symbol.
         mirrored = cls._mirror_module(symbol_module)
         if mirrored is not None:
             target = cls._nearest_mdp_module(mirrored)
@@ -459,7 +464,7 @@ class WarpFrontend:
             if candidate is None:
                 continue
             origin = getattr(candidate, "__module__", "") or ""
-            if origin.startswith(cls.WARP_ROOT_PREFIXES):
+            if origin.startswith(cls.WARP_ROOT_PREFIXES):  # re-exported stable symbols don't count
                 return candidate
         return None
 
@@ -508,11 +513,11 @@ class WarpFrontend:
         from isaaclab.managers.manager_term_cfg import ActionTermCfg, ManagerTermBaseCfg
 
         if isinstance(node, (ManagerTermBaseCfg, ActionTermCfg)):
-            yield path, node
+            yield path, node  # a term: yield and stop; never descend into params/func
             return
         if not hasattr(node, "__dataclass_fields__"):
-            return
-        for name, value in vars(node).items():
+            return  # plain data / callables: not a cfg subtree
+        for name, value in vars(node).items():  # instance attrs — the same view the managers iterate
             if name.startswith("_") or value is None:
                 continue
             yield from WarpFrontend._walk_terms(value, path + (name,))

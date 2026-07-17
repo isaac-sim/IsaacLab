@@ -273,25 +273,32 @@ to estimate the gain for your own task before committing to a migration.
 
 **Single-task A/B**
 
+Run the same stable task id twice, differing only in ``--frontend``. Pass
+``presets=newton_mjwarp`` to *both* runs so the physics backend is identical and the
+measured difference isolates the frontend (manager pipeline + CUDA graph capture):
+
 .. code-block:: bash
 
-    # Stable variant
+    # Torch frontend (stable managers)
     uv run isaaclab benchmark training \
         --rl_library rsl_rl \
-        --task <Task-Name>-v0 \
+        --task <Task-Name> \
         --num_envs 4096 \
         --max_iterations 500 \
         --benchmark_formatter summary \
-        --output_path benchmarks/stable
+        --output_path benchmarks/torch \
+        presets=newton_mjwarp
 
-    # Warp variant — same task with -Warp- suffix
+    # Warp frontend (warp managers, CUDA-graph captured) — same task id
     uv run isaaclab benchmark training \
         --rl_library rsl_rl \
-        --task <Task-Name>-Warp-v0 \
+        --task <Task-Name> \
+        --frontend warp \
         --num_envs 4096 \
         --max_iterations 500 \
         --benchmark_formatter summary \
-        --output_path benchmarks/warp
+        --output_path benchmarks/warp \
+        presets=newton_mjwarp
 
 The ``summary`` formatter prints step time (min / mean / max) and total throughput. Compare
 "step time" between the two runs to estimate the gain per env step.
@@ -299,7 +306,7 @@ The ``summary`` formatter prints step time (min / mean / max) and total throughp
 **Sweep across all available tasks**
 
 Run ``isaaclab benchmark training`` for each task in the stable set (cartpole, ant, humanoid,
-locomotion, manipulation) and again with the ``-Warp-`` suffixed task ids, then diff the two output
+locomotion, manipulation) and again with ``--frontend warp``, then diff the two output
 directories.
 
 **What to look at in the output**
