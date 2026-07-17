@@ -112,6 +112,16 @@ class RenderData:
         clipping_range = getattr(spawn, "clipping_range", None)
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
+
+        # ARGB clear color packed as uint32. Default is 93% gray (0xFFEEEEEE), matching the
+        # RTX renderer background and improving visibility of dark objects.
+        background_color = getattr(spec.cfg, "background_color", None)
+        if background_color is not None:
+            r, g, b = (max(0, min(255, round(c * 255))) for c in background_color)
+            self.clear_color: int = (0xFF << 24) | (r << 16) | (g << 8) | b
+        else:
+            self.clear_color = 0xFFEEEEEE
+
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -471,9 +481,8 @@ class NewtonWarpRenderer(BaseRenderer):
             depth_image=render_data.outputs.depth_image,
             normal_image=render_data.outputs.normals_image,
             shape_index_image=render_data.outputs.instance_segmentation_image,
-            # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
             clear_data=newton.sensors.SensorTiledCamera.ClearData(
-                clear_color=0xFFEEEEEE,
+                clear_color=render_data.clear_color,
                 **({"clear_depth": render_data.far_clip} if _use_depth_clear else {}),
             ),
             kernel_block_dim=self.cfg.kernel_block_dim,

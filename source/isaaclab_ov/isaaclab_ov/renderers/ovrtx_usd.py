@@ -105,6 +105,7 @@ def build_render_scope_usd(
     tiled_height: int,
     minimal_mode: int | None = None,
     render_var_configs: list[tuple[str, str, str]] | None = None,
+    background_color: tuple[float, float, float] | None = None,
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
 
@@ -118,6 +119,9 @@ def build_render_scope_usd(
         tiled_height: Height of the tiled image.
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
         render_var_configs: Render variables to author. Uses the single render var arguments if not provided.
+        background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
+            When set, the render product uses ``"color"`` as the background source type.
+            When ``None``, the default ``"domeLight"`` background is used.
 
     Returns:
         The USD string for the render scope.
@@ -144,6 +148,16 @@ def build_render_scope_usd(
         for _, name, source in render_var_configs
     )
 
+    if background_color is not None:
+        r, g, b = background_color
+        background_lines = (
+            f'token omni:rtx:background:source:type = "color"\n'
+            f"        float3 omni:rtx:background:source:color = ({r}, {g}, {b})"
+        )
+    else:
+        # Do not set background source type
+        background_lines = ""
+
     return f'''
 def Scope "Render"
 {{
@@ -151,7 +165,7 @@ def Scope "Render"
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
         rel camera = [{camera_rel_list}]
-        token omni:rtx:background:source:type = "domeLight"
+        {background_lines}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
@@ -181,6 +195,7 @@ def build_render_product_as_string(
     data_types: list[str],
     minimal_mode: int | None = None,
     camera_rel_path: str = "Camera",
+    background_color: tuple[float, float, float] | None = None,
 ) -> tuple[str, str]:
     """Build the render product USD snippet as a string.
 
@@ -193,6 +208,9 @@ def build_render_product_as_string(
         data_types: Data types from sensor config.
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
         camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"`` or ``"Robot/head_cam"``).
+        background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
+            When set, the render product uses a solid color background instead of the dome light.
+            When ``None``, the default dome-light background is used.
 
     Returns:
         Tuple of (render product USD snippet as a string, absolute render product prim path).
@@ -217,6 +235,7 @@ def build_render_product_as_string(
         tiled_height,
         minimal_mode,
         render_var_configs,
+        background_color,
     )
     return camera_content, render_product_path
 

@@ -142,7 +142,18 @@ class IsaacRtxRenderer(BaseRenderer):
         ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
         RTX's physical-camera exposure model does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
+
+        When :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is set,
+        applies the two RTX carb settings that switch the background to a solid color:
+        ``/rtx/background/source/type = 2`` and ``/rtx/background/source/color``.
         """
+        background_color = getattr(spec.cfg, "background_color", None)
+        if background_color is not None:
+            settings = get_settings_manager()
+            r, g, b = background_color
+            settings.set("/rtx/background/source/type", 2)
+            settings.set("/rtx/background/source/color", (r, g, b))
+
         if spec.cfg.isp_cfg is None:
             return
         try:
