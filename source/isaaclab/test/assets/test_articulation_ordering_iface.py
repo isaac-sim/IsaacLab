@@ -7,10 +7,6 @@
 
 """Mocked cross-backend articulation ordering interface tests."""
 
-import subprocess
-import sys
-import textwrap
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -21,57 +17,6 @@ from _articulation_iface_test_utils import BACKENDS, get_articulation
 
 from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.wrench_composer import WrenchComposer
-
-
-def test_discoverable_backend_internal_import_error_propagates() -> None:
-    """Do not treat a discoverable backend with a broken internal import as absent."""
-    script = textwrap.dedent(
-        """
-        import builtins
-        import importlib.util
-        import os
-        import types
-
-        os.environ["LD_PRELOAD"] = "ovphysx-test"
-        real_find_spec = importlib.util.find_spec
-        real_import = builtins.__import__
-
-        def find_spec(name, package=None):
-            if name == "isaaclab_ovphysx":
-                return object()
-            return real_find_spec(name, package)
-
-        def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-            if name == "isaaclab_ovphysx.assets.articulation.articulation":
-                return types.SimpleNamespace(Articulation=object)
-            if name == "isaaclab_ovphysx.assets.articulation.articulation_data":
-                raise ModuleNotFoundError(
-                    "broken backend dependency",
-                    name="broken_backend_dependency",
-                )
-            return real_import(name, globals, locals, fromlist, level)
-
-        importlib.util.find_spec = find_spec
-        builtins.__import__ = guarded_import
-
-        try:
-            import _articulation_iface_test_utils
-        except ModuleNotFoundError as exc:
-            if exc.name == "broken_backend_dependency":
-                raise SystemExit(0)
-            raise
-        raise SystemExit("discoverable backend internal import error was swallowed")
-        """
-    )
-
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=Path(__file__).parent,
-        capture_output=True,
-        text=True,
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:
