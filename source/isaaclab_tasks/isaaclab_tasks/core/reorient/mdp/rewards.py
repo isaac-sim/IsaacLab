@@ -98,3 +98,114 @@ def track_orientation_inv_l2(
     dtheta = math_utils.quat_error_magnitude(asset.data.root_quat_w.torch, goal_quat_w)
 
     return 1.0 / (dtheta + rot_eps)
+
+
+@torch.jit.script
+def direct_reorient_rotation_distance(object_quat: torch.Tensor, target_quat: torch.Tensor) -> torch.Tensor:
+    """Compute the Direct reorientation orientation distance [rad].
+
+    Args:
+        object_quat: Object ``(x, y, z, w)`` orientations.
+        target_quat: Target ``(x, y, z, w)`` orientations.
+
+    Returns:
+        Per-environment orientation distances [rad], in ``[0, pi]``.
+    """
+    quat_diff = math_utils.quat_mul(object_quat, math_utils.quat_conjugate(target_quat))
+    return 2.0 * torch.asin(torch.clamp(torch.linalg.norm(quat_diff[:, 0:3], ord=2, dim=-1), max=1.0))
+
+
+@torch.jit.script
+def evaluate_reorient_success(
+    object_quat: torch.Tensor, target_quat: torch.Tensor, success_tolerance: float
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Evaluate reorientation success while exposing its physical error.
+
+    This is the single per-step success evaluation: callers reuse the returned
+    flags and errors for the reward, the episode bookkeeping, and the
+    episode-minimum error tracking instead of recomputing the quaternion math.
+
+    Args:
+        object_quat: Object ``(x, y, z, w)`` orientations.
+        target_quat: Target ``(x, y, z, w)`` orientations.
+        success_tolerance: Maximum successful orientation error [rad].
+
+    Returns:
+        Per-environment success flags and orientation errors [rad].
+    """
+    orientation_error = direct_reorient_rotation_distance(object_quat, target_quat)
+    return orientation_error <= success_tolerance, orientation_error
+
+
+@torch.jit.script
+def direct_reorient_reward(
+    reset_buf: torch.Tensor,
+    reset_goal_buf: torch.Tensor,
+    successes: torch.Tensor,
+    consecutive_successes: torch.Tensor,
+    object_pos: torch.Tensor,
+    target_pos: torch.Tensor,
+    goal_reached: torch.Tensor,
+    rotation_distance: torch.Tensor,
+    actions: torch.Tensor,
+    distance_scale: float,
+    rotation_scale: float,
+    rotation_epsilon: float,
+    action_penalty_scale: float,
+    success_bonus: float,
+    fall_distance: float,
+    fall_penalty: float,
+    averaging_factor: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute the Direct reorientation reward and success state transition.
+
+    The success evaluation is not recomputed here: callers pass the flags and
+    orientation errors from :func:`evaluate_reorient_success`, computed once
+    per step.
+
+    Args:
+        reset_buf: Current episode-reset flags.
+        reset_goal_buf: Current goal-reset flags.
+        successes: Goals reached in each episode.
+        consecutive_successes: Moving-average success count.
+        object_pos: Object positions in the environment frame [m].
+        target_pos: Goal positions in the environment frame [m].
+        goal_reached: Per-environment success flags for this step.
+        rotation_distance: Per-environment orientation errors [rad].
+        actions: Normalized joint actions.
+        distance_scale: Position-distance reward scale [1/m].
+        rotation_scale: Orientation reward scale [rad].
+        rotation_epsilon: Orientation reward regularizer [rad].
+        action_penalty_scale: Squared-action reward scale.
+        success_bonus: Reward added when a goal is reached.
+        fall_distance: Object-to-goal termination distance [m].
+        fall_penalty: Reward added when the object is out of reach.
+        averaging_factor: Consecutive-success moving-average factor.
+
+    Returns:
+        Reward, goal-reset flags, episode success counts, and moving-average
+        consecutive successes.
+    """
+    goal_distance = torch.linalg.norm(object_pos - target_pos, ord=2, dim=-1)
+    goal_resets = torch.where(
+        goal_reached,
+        torch.ones_like(reset_goal_buf),
+        reset_goal_buf,
+    )
+    successes = successes + goal_resets
+    reward = (
+        goal_distance * distance_scale
+        + rotation_scale / (rotation_distance + rotation_epsilon)
+        + torch.sum(actions**2, dim=-1) * action_penalty_scale
+    )
+    reward = torch.where(goal_resets == 1, reward + success_bonus, reward)
+    reward = torch.where(goal_distance >= fall_distance, reward + fall_penalty, reward)
+    resets = torch.where(goal_distance >= fall_distance, torch.ones_like(reset_buf), reset_buf)
+    num_resets = torch.sum(resets)
+    finished_successes = torch.sum(successes * resets.float())
+    consecutive_successes = torch.where(
+        num_resets > 0,
+        averaging_factor * finished_successes / num_resets + (1.0 - averaging_factor) * consecutive_successes,
+        consecutive_successes,
+    )
+    return reward, goal_resets, successes, consecutive_successes

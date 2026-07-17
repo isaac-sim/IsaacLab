@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -16,11 +17,15 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
+from isaaclab_tasks.core.reorient.reorient_task_base import (
+    SHADOW_ACTUATED_JOINT_NAMES,
+    SHADOW_FINGERTIP_BODY_NAMES,
+)
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
@@ -207,6 +212,16 @@ class ShadowHandRobotCfg(PresetCfg):
         },
         soft_joint_pos_limit_factor=1.0,
     )
+    ovphysx = SHADOW_HAND_CFG.replace(
+        prim_path="/World/envs/env_.*/Robot",
+        # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
+        spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.5),
+            rot=(0.0, 0.0, 0.0, 1.0),
+            joint_pos={".*": 0.0},
+        ),
+    )
     default = physx
     newton_kamino = newton_mjwarp
 
@@ -260,10 +275,16 @@ class ShadowHandSceneCfg(PresetCfg):
     """
 
     physx: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+        num_envs=8192,
+        env_spacing=0.75,
+        replicate_physics=True,
+        clone_in_fabric=True,
     )
     newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
+        num_envs=8192,
+        env_spacing=0.75,
+        replicate_physics=True,
+        clone_in_fabric=False,
     )
     default: InteractiveSceneCfg = physx
     newton_kamino = newton_mjwarp
@@ -290,8 +311,39 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    ovphysx = OvPhysxCfg()
     default = physx
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128))
+
+
+# Scene pieces shared verbatim by the manager-based variants.
+ROBOT_CFG = ShadowHandRobotCfg()
+OBJECT_CFG = ObjectCfg()
+GOAL_OBJECT_CFG = VisualizationMarkersCfg(
+    prim_path="/Visuals/goal_marker",
+    markers={
+        "goal": sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(1.0, 1.0, 1.0),
+        )
+    },
+)
+# Simulation settings shared by the Direct and manager variants (configclass
+# deep-copies these defaults per cfg instance). The solver-common base material
+# is sufficient: only friction values are set, so no PhysX-specific
+# ``physxMaterial`` attributes are authored.
+SHADOW_SIM_CFG = SimulationCfg(
+    dt=1 / 120,
+    render_interval=2,
+    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+    physics=PhysicsCfg(),
+)
+OPENAI_SIM_CFG = SimulationCfg(
+    dt=1 / 60,
+    render_interval=3,
+    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+    physics=PhysicsCfg(),
+)
 
 
 @configclass
@@ -306,56 +358,16 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     obs_type = "full"
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
+    sim: SimulationCfg = SHADOW_SIM_CFG
     # robot
-    robot_cfg: ShadowHandRobotCfg = ShadowHandRobotCfg()
-    actuated_joint_names = [
-        "robot0_WRJ1",
-        "robot0_WRJ0",
-        "robot0_FFJ3",
-        "robot0_FFJ2",
-        "robot0_FFJ1",
-        "robot0_MFJ3",
-        "robot0_MFJ2",
-        "robot0_MFJ1",
-        "robot0_RFJ3",
-        "robot0_RFJ2",
-        "robot0_RFJ1",
-        "robot0_LFJ4",
-        "robot0_LFJ3",
-        "robot0_LFJ2",
-        "robot0_LFJ1",
-        "robot0_THJ4",
-        "robot0_THJ3",
-        "robot0_THJ2",
-        "robot0_THJ1",
-        "robot0_THJ0",
-    ]
-    fingertip_body_names = [
-        "robot0_ffdistal",
-        "robot0_mfdistal",
-        "robot0_rfdistal",
-        "robot0_lfdistal",
-        "robot0_thdistal",
-    ]
+    robot_cfg: ShadowHandRobotCfg = ROBOT_CFG
+    actuated_joint_names = SHADOW_ACTUATED_JOINT_NAMES
+    fingertip_body_names = SHADOW_FINGERTIP_BODY_NAMES
 
     # in-hand object
-    object_cfg: ObjectCfg = ObjectCfg()
+    object_cfg: ObjectCfg = OBJECT_CFG
     # goal object
-    goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
-        prim_path="/Visuals/goal_marker",
-        markers={
-            "goal": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(1.0, 1.0, 1.0),
-            )
-        },
-    )
+    goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
     # scene — use ShadowHandSceneCfg so that presets=newton_mjwarp disables clone_in_fabric automatically
     scene: ShadowHandSceneCfg = ShadowHandSceneCfg()
 
@@ -368,8 +380,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     rot_reward_scale = 1.0
     rot_eps = 0.1
     action_penalty_scale = -0.0002
-    reach_goal_bonus = 250
-    fall_penalty = 0
+    reach_goal_bonus = 250.0
+    fall_penalty = 0.0
     fall_dist = 0.24
     vel_obs_scale = 0.2
     success_tolerance = 0.1
@@ -379,6 +391,17 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     av_factor = 0.1
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0
+
+
+# Per-step gaussian noise + reset-sampled bias, shared verbatim by the manager-based variant.
+OPENAI_ACTION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
+    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),
+    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.015, operation="abs"),
+)
+OPENAI_OBSERVATION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
+    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
+    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
+)
 
 
 @configclass
@@ -392,12 +415,7 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     asymmetric_obs = True
     obs_type = "openai"
     # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
+    sim: SimulationCfg = OPENAI_SIM_CFG
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset
@@ -407,8 +425,8 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     rot_reward_scale = 1.0
     rot_eps = 0.1
     action_penalty_scale = -0.0002
-    reach_goal_bonus = 250
-    fall_penalty = -50
+    reach_goal_bonus = 250.0
+    fall_penalty = -50.0
     vel_obs_scale = 0.2
     success_tolerance = 0.4
     max_consecutive_success = 50
@@ -418,12 +436,6 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     # domain randomization config
     events: ShadowHandEventCfg = ShadowHandEventCfg()
     # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
-    action_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
-        noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),
-        bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.015, operation="abs"),
-    )
+    action_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_ACTION_NOISE_CFG
     # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
-    observation_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
-        noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
-        bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
-    )
+    observation_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_OBSERVATION_NOISE_CFG

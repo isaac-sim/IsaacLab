@@ -14,10 +14,14 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.core.reorient.reorient_task_base import (
+    ALLEGRO_ACTUATED_JOINT_NAMES,
+    ALLEGRO_FINGERTIP_BODY_NAMES,
+)
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
@@ -103,6 +107,30 @@ class PhysicsCfg(PresetCfg):
     default = physx
 
 
+# Scene pieces shared verbatim by the manager-based variant.
+ROBOT_CFG = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+OBJECT_CFG = ObjectCfg()
+GOAL_OBJECT_CFG = VisualizationMarkersCfg(
+    prim_path="/Visuals/goal_marker",
+    markers={
+        "goal": sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(1.2, 1.2, 1.2),
+        )
+    },
+)
+# Simulation settings shared by the Direct and manager variants (configclass
+# deep-copies these defaults per cfg instance). The solver-common base material
+# is sufficient: only friction values are set, so no PhysX-specific
+# ``physxMaterial`` attributes are authored.
+ALLEGRO_SIM_CFG = SimulationCfg(
+    dt=1 / 120,
+    render_interval=4,
+    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+    physics=PhysicsCfg(),
+)
+
+
 @configclass
 class AllegroHandEnvCfg(DirectRLEnvCfg):
     # env
@@ -114,58 +142,23 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
     # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        physics=PhysicsCfg(),
-    )
+    sim: SimulationCfg = ALLEGRO_SIM_CFG
     # robot
-    robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = ROBOT_CFG
 
-    actuated_joint_names = [
-        "index_joint_0",
-        "middle_joint_0",
-        "ring_joint_0",
-        "thumb_joint_0",
-        "index_joint_1",
-        "index_joint_2",
-        "index_joint_3",
-        "middle_joint_1",
-        "middle_joint_2",
-        "middle_joint_3",
-        "ring_joint_1",
-        "ring_joint_2",
-        "ring_joint_3",
-        "thumb_joint_1",
-        "thumb_joint_2",
-        "thumb_joint_3",
-    ]
-    fingertip_body_names = [
-        "index_link_3",
-        "middle_link_3",
-        "ring_link_3",
-        "thumb_link_3",
-    ]
+    actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
+    fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
 
     # in-hand object
-    object_cfg: ObjectCfg = ObjectCfg()
+    object_cfg: ObjectCfg = OBJECT_CFG
     # goal object
-    goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
-        prim_path="/Visuals/goal_marker",
-        markers={
-            "goal": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(1.2, 1.2, 1.2),
-            )
-        },
-    )
+    goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+        num_envs=8192,
+        env_spacing=0.75,
+        replicate_physics=True,
+        clone_in_fabric=True,
     )
     # reset
     reset_position_noise = 0.01  # range of position at reset
@@ -176,8 +169,8 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     rot_reward_scale = 1.0
     rot_eps = 0.1
     action_penalty_scale = -0.0002
-    reach_goal_bonus = 250
-    fall_penalty = 0
+    reach_goal_bonus = 250.0
+    fall_penalty = 0.0
     fall_dist = 0.24
     vel_obs_scale = 0.2
     success_tolerance = 0.2
