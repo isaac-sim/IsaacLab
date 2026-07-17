@@ -164,12 +164,8 @@ class TeleopSessionLifecycle:
                 *mcap_record_path*.
             enable_debug_visualization: Whether the tracking debug outputs
                 (hand joints, controller poses) are chained into the session
-                outputs at :meth:`start` time.  When ``False`` (the
-                default), the pipeline carries no visualization overhead;
-                the outputs can still be chained later at runtime via
-                :meth:`enable_debug_viz` (typically triggered by a
-                ``toggle_debug_visualization`` control message), except
-                while recording to or replaying from MCAP.
+                outputs when enabled at :meth:`start` time.  When ``False``
+                (the default), the pipeline carries no visualization overhead.
 
         Raises:
             ValueError: If both *mcap_record_path* and *mcap_replay_path*
@@ -193,13 +189,11 @@ class TeleopSessionLifecycle:
         # Session state (populated during start)
         self._session: TeleopSession | None = None
         self._pipeline = None
-        self._user_pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor: TeleopMessageProcessor | None = None
         self._last_right_controller = None
         self._last_left_controller = None
         self._last_step_result: dict | None = None
-        self._debug_viz_chained = False
         self._session_start_deferred_logged = False
         # Monotonic deadline gating session re-creation after a step failure
         self._restart_holdoff_until = 0.0
@@ -289,9 +283,8 @@ class TeleopSessionLifecycle:
     def last_left_controller(self):
         """Left controller ``TensorGroup`` from the most recent step, or ``None``.
 
-        Only populated when the debug outputs are chained (see
-        :attr:`debug_viz_chained`); the left controller is not part of the
-        default pipeline outputs.
+        Only populated when debug visualization was enabled at session start;
+        the left controller is not part of the default pipeline outputs.
         """
         return self._last_left_controller
 
@@ -300,35 +293,15 @@ class TeleopSessionLifecycle:
         """Full pipeline output from the most recent :meth:`step`, or ``None``.
 
         Contains at least ``"action"`` and the right-controller entry.  When
-        the hand debug outputs are chained (see :attr:`hand_debug_chained`),
-        :attr:`HAND_LEFT_KEY` and :attr:`HAND_RIGHT_KEY` are included as well.
+        debug visualization was enabled at session start, :attr:`HAND_LEFT_KEY`
+        and :attr:`HAND_RIGHT_KEY` are included when a ``HandsSource`` exists.
         """
         return self._last_step_result
-
-    @property
-    def debug_viz_chained(self) -> bool:
-        """Whether the debug visualization outputs are chained into the pipeline.
-
-        When ``True``, the left controller output is chained, and the hand
-        outputs are chained as well if the pipeline contains a ``HandsSource``.
-        """
-        return self._debug_viz_chained
 
     @property
     def has_control_channel(self) -> bool:
         """Whether a message-channel-based control pipeline is configured."""
         return self._message_processor is not None
-
-    def consume_visualization_toggle(self) -> bool:
-        """Return whether a ``toggle_debug_visualization`` control command arrived since the last call.
-
-        Delegates to
-        :meth:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor.consume_visualization_toggle`;
-        returns ``False`` when no control channel is configured.
-        """
-        if self._message_processor is None:
-            return False
-        return self._message_processor.consume_visualization_toggle()
 
     @property
     def last_control_events(self) -> ControlEvents:
@@ -396,13 +369,13 @@ class TeleopSessionLifecycle:
         if self._cloudxr_env_file is not None:
             self._ensure_cloudxr_runtime()
 
-        self._user_pipeline = self._cfg.pipeline_builder()
+        user_pipeline = self._cfg.pipeline_builder()
         self._session_start_deferred_logged = False
         self._last_right_controller = None
         self._last_left_controller = None
         self._last_step_result = None
 
-        self._pipeline = self._build_combined_pipeline(chain_debug_viz=self._enable_debug_visualization)
+        self._pipeline = self._build_combined_pipeline(user_pipeline)
 
         # Build the optional teleop_control_pipeline for message-channel control.
         # Live and replay both build it: in replay mode the underlying
@@ -461,12 +434,10 @@ class TeleopSessionLifecycle:
         # Always clear pipeline state (session may never have been created if
         # OpenXR handles were never available).
         self._pipeline = None
-        self._user_pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor = None
         self._last_step_result = None
         self._last_left_controller = None
-        self._debug_viz_chained = False
 
         if self._cloudxr_launcher is not None:
             try:
@@ -483,7 +454,7 @@ class TeleopSessionLifecycle:
     # Pipeline construction and hand debug outputs
     # ------------------------------------------------------------------
 
-    def _build_combined_pipeline(self, chain_debug_viz: bool):
+    def _build_combined_pipeline(self, user_pipeline):
         """Wrap the user pipeline with the session-internal outputs.
 
         Combines the user pipeline's ``action`` output with a parallel
@@ -493,8 +464,8 @@ class TeleopSessionLifecycle:
         ``HandsSource``, the hand outputs.
 
         Args:
-            chain_debug_viz: Whether to chain the debug visualization
-                outputs.  :attr:`debug_viz_chained` is updated accordingly.
+            user_pipeline: The pipeline returned by the configured
+                ``pipeline_builder()``.
 
         Returns:
             An ``OutputCombiner`` ready for ``TeleopSessionConfig``.
@@ -504,17 +475,16 @@ class TeleopSessionLifecycle:
 
         button_controllers = ControllersSource("_button_controllers")
         pipeline_outputs: dict[str, Any] = {
-            "action": self._user_pipeline.output("action"),
+            "action": user_pipeline.output("action"),
             self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
         }
-        self._debug_viz_chained = chain_debug_viz
-        if chain_debug_viz:
+        if self._enable_debug_visualization:
             pipeline_outputs[self._CONTROLLER_LEFT_KEY] = button_controllers.output(ControllersSource.LEFT)
-            self._chain_hand_debug_outputs(self._user_pipeline, pipeline_outputs)
+            self._chain_hand_debug_outputs(user_pipeline, pipeline_outputs)
         return OutputCombiner(pipeline_outputs)
 
     @staticmethod
-    def _chain_hand_debug_outputs(user_pipeline, pipeline_outputs: dict) -> bool:
+    def _chain_hand_debug_outputs(user_pipeline, pipeline_outputs: dict) -> None:
         """Auto-discover a ``HandsSource`` and chain its raw outputs.
 
         Walks the leaf nodes of *user_pipeline*; if a ``HandsSource`` is
@@ -528,82 +498,18 @@ class TeleopSessionLifecycle:
             user_pipeline: The pipeline returned by ``pipeline_builder()``.
             pipeline_outputs: Mutable mapping of output name to
                 ``OutputSelector`` being assembled for the ``OutputCombiner``.
-
-        Returns:
-            ``True`` if a ``HandsSource`` was found and chained.
         """
         from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
 
+        # HandsSource owns its HandTracker; the tracker API has no reverse
+        # source-node lookup, so use the graph's public leaf discovery API.
         for leaf in user_pipeline.get_leaf_nodes():
             if isinstance(leaf, HandsSource):
                 pipeline_outputs[TeleopSessionLifecycle.HAND_LEFT_KEY] = leaf.output(HandsSource.LEFT)
                 pipeline_outputs[TeleopSessionLifecycle.HAND_RIGHT_KEY] = leaf.output(HandsSource.RIGHT)
                 logger.debug(f"Auto-discovered HandsSource '{leaf.name}'; chained hand debug outputs")
-                return True
+                return
         logger.info("No HandsSource found in the teleop pipeline; hand joint visualization unavailable")
-        return False
-
-    def enable_debug_viz(self) -> bool:
-        """Chain the debug visualization outputs at runtime by restarting the session in place.
-
-        Rebuilds the combined pipeline with the debug outputs (left
-        controller, plus hands when a ``HandsSource`` exists) and recreates
-        the ``TeleopSession`` around it.  The OpenXR session and CloudXR
-        connection are owned by Kit's XR bridge and are not disturbed; the
-        control pipeline (and thus the teleop RUNNING/PAUSED state and
-        message-processor shadow state) is reused as-is.  Expect a brief
-        tracking gap while DeviceIO re-initializes.
-
-        No-op when already chained.  Refused (returns ``False``) when the
-        lifecycle has not been started or when recording to / replaying from
-        MCAP (restarting would truncate the recording or rewind playback).
-
-        Returns:
-            ``True`` when the debug outputs are chained (either already, or
-            after the restart).
-        """
-        if self._debug_viz_chained:
-            return True
-        if self._pipeline is None:
-            logger.warning("Cannot enable debug visualization before start()")
-            return False
-        if self._mcap_record_path is not None:
-            logger.warning(
-                "Cannot enable debug visualization at runtime while recording to MCAP; "
-                "start the session with enable_debug_visualization=True instead"
-            )
-            return False
-        if self._is_replay:
-            logger.warning(
-                "Cannot enable debug visualization at runtime during MCAP replay (the restart would rewind"
-                " playback); start the session with enable_debug_visualization=True instead"
-            )
-            return False
-
-        new_pipeline = self._build_combined_pipeline(chain_debug_viz=True)
-
-        # Exit the current TeleopSession (the external OXR handles survive) and
-        # re-enter with the rebuilt pipeline via the deferred-start machinery.
-        if self._session is not None:
-            try:
-                self._session.__exit__(None, None, None)
-            except Exception as e:
-                logger.debug(f"Suppressed error tearing down session for debug viz restart: {e}")
-            self._session = None
-
-        self._pipeline = new_pipeline
-        self._last_step_result = None
-        self._last_right_controller = None
-        self._last_left_controller = None
-        self._session_start_deferred_logged = False
-
-        if self._try_start_session():
-            logger.info("Debug visualization outputs chained; TeleopSession restarted in place")
-        else:
-            logger.info(
-                "Debug visualization outputs chained; TeleopSession restart deferred until XR handles are available"
-            )
-        return True
 
     # ------------------------------------------------------------------
     # Control pipeline construction

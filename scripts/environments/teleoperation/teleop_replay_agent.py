@@ -359,10 +359,7 @@ parser.add_argument(
     "--enable_debug_visualization",
     action="store_true",
     default=False,
-    help=(
-        "Enable hand joint debug visualization. Must be set at start; runtime enabling via the"
-        " 'toggle_debug_visualization' teleop control message is unavailable during MCAP replay."
-    ),
+    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()

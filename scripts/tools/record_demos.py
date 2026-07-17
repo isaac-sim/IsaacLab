@@ -97,11 +97,7 @@ parser.add_argument(
     "--enable_debug_visualization",
     action="store_true",
     default=False,
-    help=(
-        "Enable hand joint debug visualization at session start (IsaacTeleop pipeline only)."
-        " Can also be enabled or toggled at runtime with the 'toggle_debug_visualization' teleop control message"
-        " (runtime enabling is unavailable while recording to MCAP)."
-    ),
+    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
 )
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 # append AppLauncher cli args

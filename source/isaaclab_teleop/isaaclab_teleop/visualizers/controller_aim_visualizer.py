@@ -58,8 +58,8 @@ class ControllerAimVisualizer:
     more intuitive to read than the grip pose.
 
     Created lazily by :class:`~isaaclab_teleop.IsaacTeleopDevice` on the
-    first visible frame with controller data.  Call :meth:`update` each frame
-    with the controller ``TensorGroup`` pair and the current anchor-to-world
+    first frame with controller data.  Call :meth:`update` each frame with
+    the controller ``TensorGroup`` pair and the current anchor-to-world
     transform.
     """
 
@@ -80,14 +80,6 @@ class ControllerAimVisualizer:
         self._markers = VisualizationMarkers(marker_cfg)
         self._markers.set_visibility(True)
         self._logged_error = False
-
-    def set_visible(self, visible: bool) -> None:
-        """Show or hide the aim axis markers.
-
-        While hidden, :meth:`update` calls are cheap no-ops on the marker
-        side, so hiding is the intended runtime toggle-off mechanism.
-        """
-        self._markers.set_visibility(visible)
 
     def update(self, left_controller, right_controller, world_T_anchor: np.ndarray) -> None:
         """Update the axis markers from the latest controller data.

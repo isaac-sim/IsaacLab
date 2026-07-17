@@ -8,10 +8,10 @@
 """Tests for hand joint debug visualization plumbing.
 
 Covers :meth:`TeleopSessionLifecycle._chain_hand_debug_outputs` (HandsSource
-auto-discovery), :meth:`TeleopSessionLifecycle.enable_hand_debug` (runtime
-lazy-enable guards and in-place restart), and
-:func:`~isaaclab_teleop.visualizers.hand_joint_visualizer._extract_world_joint_positions`
-(anchor-to-world transform math, including the regression for markers staying
+auto-discovery),
+:func:`~isaaclab_teleop.visualizers.hand_joint_visualizer._extract_world_joint_positions`,
+and :func:`~isaaclab_teleop.visualizers.controller_aim_visualizer._aim_world_pose`
+(anchor-to-world transform math, including regressions for markers staying
 world-frame correct under a ``target_T_world`` rebase).
 
 All heavy dependencies (isaacteleop, carb, omni.kit, isaacsim) are stubbed
@@ -214,14 +214,6 @@ class _FakeTensorGroup:
         return self._positions
 
 
-def _make_lifecycle(**kwargs) -> TeleopSessionLifecycle:
-    """Build a lifecycle with a minimal config and no control channel."""
-    cfg = IsaacTeleopCfg(pipeline_builder=lambda: None, control_channel_uuid=None)
-    for key, value in kwargs.pop("cfg_overrides", {}).items():
-        setattr(cfg, key, value)
-    return TeleopSessionLifecycle(cfg, **kwargs)
-
-
 # ===========================================================================
 # _chain_hand_debug_outputs: HandsSource auto-discovery
 # ===========================================================================
@@ -231,16 +223,14 @@ class TestChainHandDebugOutputs:
     def test_chains_when_hands_source_present(self):
         pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeHandsSource("hands")])
         mapping: dict = {}
-        chained = TeleopSessionLifecycle._chain_hand_debug_outputs(pipeline, mapping)
-        assert chained is True
+        TeleopSessionLifecycle._chain_hand_debug_outputs(pipeline, mapping)
         assert mapping[TeleopSessionLifecycle.HAND_LEFT_KEY] == "selector:hands:hand_left"
         assert mapping[TeleopSessionLifecycle.HAND_RIGHT_KEY] == "selector:hands:hand_right"
 
     def test_mapping_untouched_without_hands_source(self):
         pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeLeaf("head")])
         mapping: dict = {"action": "selector:user_pipeline:action"}
-        chained = TeleopSessionLifecycle._chain_hand_debug_outputs(pipeline, mapping)
-        assert chained is False
+        TeleopSessionLifecycle._chain_hand_debug_outputs(pipeline, mapping)
         assert mapping == {"action": "selector:user_pipeline:action"}
 
 
@@ -260,101 +250,17 @@ class TestStartChaining:
 
     def test_start_chains_when_enabled(self):
         lifecycle = self._start(enable_debug_visualization=True)
-        assert lifecycle.debug_viz_chained is True
         assert TeleopSessionLifecycle.HAND_LEFT_KEY in lifecycle.pipeline.output_mapping
         assert TeleopSessionLifecycle.HAND_RIGHT_KEY in lifecycle.pipeline.output_mapping
         assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY in lifecycle.pipeline.output_mapping
 
     def test_start_does_not_chain_when_disabled(self):
         lifecycle = self._start(enable_debug_visualization=False)
-        assert lifecycle.debug_viz_chained is False
         assert TeleopSessionLifecycle.HAND_LEFT_KEY not in lifecycle.pipeline.output_mapping
         assert TeleopSessionLifecycle.HAND_RIGHT_KEY not in lifecycle.pipeline.output_mapping
         assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY not in lifecycle.pipeline.output_mapping
         # The right controller is always chained for button polling.
         assert TeleopSessionLifecycle._CONTROLLER_RIGHT_KEY in lifecycle.pipeline.output_mapping
-
-
-# ===========================================================================
-# enable_debug_viz: guards and in-place restart
-# ===========================================================================
-
-
-class TestEnableDebugViz:
-    def test_refused_before_start(self):
-        lifecycle = _make_lifecycle()
-        assert lifecycle.enable_debug_viz() is False
-
-    def test_noop_when_already_chained(self):
-        lifecycle = _make_lifecycle()
-        lifecycle._debug_viz_chained = True
-        assert lifecycle.enable_debug_viz() is True
-
-    def test_refused_while_recording(self):
-        lifecycle = _make_lifecycle(mcap_record_path="session.mcap")
-        lifecycle._pipeline = object()
-        assert lifecycle.enable_debug_viz() is False
-
-    def test_refused_during_replay(self):
-        lifecycle = _make_lifecycle(mcap_replay_path="session.mcap")
-        lifecycle._pipeline = object()
-        assert lifecycle.enable_debug_viz() is False
-
-    def test_enables_without_hands_source(self):
-        """Controller aim viz works without a HandsSource; only hand keys are absent."""
-        lifecycle = _make_lifecycle()
-        lifecycle._pipeline = _FakeOutputCombiner({})
-        lifecycle._user_pipeline = _FakePipeline([_FakeLeaf("head")])
-        with patch.object(lifecycle, "_try_start_session", return_value=True):
-            assert lifecycle.enable_debug_viz() is True
-        assert lifecycle.debug_viz_chained is True
-        assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY in lifecycle.pipeline.output_mapping
-        assert TeleopSessionLifecycle.HAND_LEFT_KEY not in lifecycle.pipeline.output_mapping
-
-    def test_restarts_session_with_chained_pipeline(self):
-        lifecycle = _make_lifecycle()
-        old_pipeline = _FakeOutputCombiner({})
-        old_session = MagicMock()
-        lifecycle._pipeline = old_pipeline
-        lifecycle._user_pipeline = _FakePipeline([_FakeHandsSource("hands")])
-        lifecycle._session = old_session
-        lifecycle._last_step_result = {"action": "stale"}
-        with patch.object(lifecycle, "_try_start_session", return_value=True) as try_start:
-            assert lifecycle.enable_debug_viz() is True
-        old_session.__exit__.assert_called_once()
-        try_start.assert_called_once()
-        assert lifecycle.debug_viz_chained is True
-        assert lifecycle.pipeline is not old_pipeline
-        assert TeleopSessionLifecycle.HAND_LEFT_KEY in lifecycle.pipeline.output_mapping
-        assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY in lifecycle.pipeline.output_mapping
-        assert lifecycle.last_step_result is None
-
-    def test_chained_even_when_restart_deferred(self):
-        lifecycle = _make_lifecycle()
-        lifecycle._pipeline = _FakeOutputCombiner({})
-        lifecycle._user_pipeline = _FakePipeline([_FakeHandsSource("hands")])
-        with patch.object(lifecycle, "_try_start_session", return_value=False):
-            assert lifecycle.enable_debug_viz() is True
-        assert lifecycle.debug_viz_chained is True
-
-
-# ===========================================================================
-# consume_visualization_toggle delegation
-# ===========================================================================
-
-
-class TestConsumeVisualizationToggle:
-    def test_false_without_control_channel(self):
-        lifecycle = _make_lifecycle()
-        assert lifecycle.consume_visualization_toggle() is False
-
-    def test_delegates_to_message_processor(self):
-        lifecycle = _make_lifecycle()
-        processor = MagicMock()
-        processor.consume_visualization_toggle.return_value = True
-        lifecycle._message_processor = processor
-        assert lifecycle.consume_visualization_toggle() is True
-        processor.consume_visualization_toggle.assert_called_once()
 
 
 # ===========================================================================

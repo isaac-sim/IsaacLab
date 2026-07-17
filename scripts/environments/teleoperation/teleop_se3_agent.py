@@ -58,10 +58,7 @@ parser.add_argument(
     "--enable_debug_visualization",
     action="store_true",
     default=False,
-    help=(
-        "Enable hand joint debug visualization at session start (IsaacTeleop pipeline only)."
-        " Can also be enabled or toggled at runtime with the 'toggle_debug_visualization' teleop control message."
-    ),
+    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
 )
 parser.add_argument(
     "--external_callback",

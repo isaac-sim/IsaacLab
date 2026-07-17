@@ -26,14 +26,12 @@ _COMMAND_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\breset\b", re.IGNORECASE), "reset"),
     (re.compile(r"\bstop\b", re.IGNORECASE), "stop"),
     (re.compile(r"\bstart\b", re.IGNORECASE), "start"),
-    (re.compile(r"\btoggle_debug_visualization\b", re.IGNORECASE), "toggle_debug_visualization"),
 ]
 """Ordered patterns for classifying a command string.
 
 ``reset`` is checked first so that a hypothetical payload containing
 both "reset" and "start" is treated as a reset (the more destructive
 operation wins).  ``stop`` precedes ``start`` for the same reason.
-``toggle_debug_visualization`` is last as the least destructive operation.
 """
 
 # Shadow states mirroring DefaultTeleopStateManager's ExecutionState.
@@ -94,17 +92,12 @@ class TeleopMessageProcessor(BaseRetargeter):
     Host-initiated resets (e.g. environment success) are injected via
     :meth:`inject_reset`, which sets the ``reset`` output ``True`` on the
     next compute call without requiring a message-channel payload.
-
-    A ``toggle_debug_visualization`` command does not drive any pipeline output; it sets a
-    host-side pending flag read via :meth:`consume_visualization_toggle`
-    (the reverse direction of the :meth:`inject_reset` side channel).
     """
 
     INPUT_MESSAGES = "messages_tracked"
 
     def __init__(self, name: str) -> None:
         self._inject_reset_pending = False
-        self._viz_toggle_pending = False
         self._shadow_state = _STOPPED
         self._run_toggle_queue: list[bool] = []
         self._prev_toggle_output = False
@@ -117,19 +110,6 @@ class TeleopMessageProcessor(BaseRetargeter):
         automatically cleared.
         """
         self._inject_reset_pending = True
-
-    def consume_visualization_toggle(self) -> bool:
-        """Return whether a ``toggle_debug_visualization`` command arrived since the last call.
-
-        The pending flag is cleared on read.  The flag is set from
-        :meth:`_compute_fn`, which may run on the retargeting worker thread
-        in pipelined execution mode; single attribute reads/writes are atomic
-        under the GIL.  A toggle landing between the read and the clear can
-        be dropped, which is acceptable for human-scale toggle presses.
-        """
-        pending = self._viz_toggle_pending
-        self._viz_toggle_pending = False
-        return pending
 
     def _make_toggle_sequence(self, base_sequence: list[bool]) -> list[bool]:
         """Prepend a ``False`` frame if needed to guarantee a clean rising edge.
@@ -197,8 +177,6 @@ class TeleopMessageProcessor(BaseRetargeter):
                     self._run_toggle_queue = self._make_toggle_sequence(_STOP_TOGGLE_SEQUENCES[self._shadow_state])
                 elif kind == "reset":
                     reset = True
-                elif kind == "toggle_debug_visualization":
-                    self._viz_toggle_pending = True
 
         # Drain the toggle queue (one value per frame).
         if self._run_toggle_queue:

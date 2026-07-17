@@ -59,9 +59,9 @@ class HandJointVisualizer:
     """Red sphere markers at each OpenXR hand joint (26 per hand).
 
     Created lazily by :class:`~isaaclab_teleop.IsaacTeleopDevice` on the
-    first frame where the step result contains chained hand debug outputs
-    and visualization is visible.  Call :meth:`update` each frame with the
-    step result dict and the current anchor-to-world transform.
+    first frame where the step result contains chained hand debug outputs.
+    Call :meth:`update` each frame with the step result dict and the current
+    anchor-to-world transform.
     """
 
     def __init__(self):
@@ -80,14 +80,6 @@ class HandJointVisualizer:
         self._markers = VisualizationMarkers(marker_cfg)
         self._markers.set_visibility(True)
         self._logged_error = False
-
-    def set_visible(self, visible: bool) -> None:
-        """Show or hide the joint markers.
-
-        While hidden, :meth:`update` calls are cheap no-ops on the marker
-        side, so hiding is the intended runtime toggle-off mechanism.
-        """
-        self._markers.set_visibility(visible)
 
     def update(self, result: dict, world_T_anchor: np.ndarray) -> None:
         """Update marker positions from a pipeline step result.
