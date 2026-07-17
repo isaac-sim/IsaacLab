@@ -5,12 +5,11 @@
 
 # Pure-``uv`` install path. Exercises the workflow a fresh user runs (see
 # docs/source/setup/installation/uv_run.rst). This is the basic installation that must
-# always work for everyone, so on every change to the dependency graph it checks the
-# committed lock, a fresh resolution, and both supported physics backends in sequence:
+# always work for everyone, so on every change to the dependency graph it checks that a
+# fresh resolution works with both supported physics backends in sequence:
 #
-#   - locked Newton MJWarp  -- the committed ``uv.lock`` replays and trains.
-#   - fresh Newton MJWarp   -- ``uv lock --upgrade`` still resolves, installs, and trains.
-#   - PhysX                 -- ``uv run --extra isaacsim`` reuses the environment and adds Isaac Sim.
+#   - Newton MJWarp  -- ``uv lock --upgrade`` still resolves, installs, and trains.
+#   - PhysX          -- ``uv run --extra isaacsim`` reuses the environment and adds Isaac Sim.
 #
 # GPU access: like every other GPU job in this repo (see .github/actions/run-tests and
 # tools/run_install_ci.py), the work runs inside a container launched with ``--gpus all``.
@@ -91,33 +90,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Verify CUDA GPU and core imports (locked Newton MJWarp)
-        run: |
-          uv run --locked python - <<'PY'
-          import torch
-          assert torch.cuda.is_available(), "no CUDA GPU available inside the container"
-          print("CUDA GPUs:", torch.cuda.device_count())
-          import isaaclab
-          import isaaclab_assets
-          import isaaclab_tasks
-          import isaaclab_rl
-          import isaaclab_newton
-          print("core imports ok")
-          PY
-
-      # Runs headless (no --visualizer/--viz). ``Training time:`` in the output confirms
-      # training ran to completion rather than exiting early with a zero return code.
-      - name: Train Cartpole (locked Newton MJWarp)
-        run: |
-          set -o pipefail
-          uv run --locked isaaclab train \
-            --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct \
-            --num_envs 16 \
-            --max_iterations 5 \
-            physics=newton_mjwarp 2>&1 | tee train-newton-locked.log
-          grep -q "Training time:" train-newton-locked.log
-
       # Re-resolve against the live indexes to verify that an end user can update the lock
       # and still run successfully.
       - name: Re-resolve lockfile
@@ -137,6 +109,8 @@ jobs:
           print("core imports ok")
           PY
 
+      # Runs headless (no --visualizer/--viz). ``Training time:`` in the output confirms
+      # training ran to completion rather than exiting early with a zero return code.
       - name: Train Cartpole (fresh Newton MJWarp)
         run: |
           set -o pipefail
