@@ -55,9 +55,9 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
     """An env reset clears the flagged world's MuJoCo warm-start history and keeps the others.
 
     Regression test for NaN values persisting across env reset: MJWarp warm-starts each solve
-    from ``qacc_warmstart``, so solver-internal buffers must be cleared for reset worlds at both
-    boundaries that consume the accumulated reset masks (``forward()`` and ``step()``), while the
-    authored joint state and the untouched worlds' history are preserved.
+    from ``qacc_warmstart``, so solver-internal buffers must be cleared for reset worlds when
+    ``forward()`` consumes the accumulated reset masks, while the authored joint state and the
+    untouched worlds' history are preserved.
     """
     sim_cfg = SimulationCfg(
         dt=1 / 120,
@@ -107,7 +107,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         assert torch.count_nonzero(warm_start[0]).item() == 0
         torch.testing.assert_close(warm_start[1], torch.full_like(warm_start[1], 17.0))
 
-        # The physics-step boundary also resets when no forward boundary consumed the mask first.
+        # sim.step() reaches forward internally when no explicit forward call consumed the mask first.
         articulation.write_joint_state_to_sim_index(
             position=joint_pos,
             velocity=joint_vel,

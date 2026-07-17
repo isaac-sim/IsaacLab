@@ -233,6 +233,11 @@ def _eval_fk_unbound(world_reset_mask: wp.array | None, fk_mask: wp.array | None
     )
 
 
+def _reset_solver_unbound(world_mask: wp.array | None) -> None:
+    """Default reset hook before a solver is initialized."""
+    raise RuntimeError("Solver reset hook is not bound. NewtonManager.initialize_solver() must run first.")
+
+
 class NewtonManager(PhysicsManager):
     """Abstract Newton physics manager for Isaac Lab.
 
@@ -299,9 +304,11 @@ class NewtonManager(PhysicsManager):
     _report_contacts: bool = False
     _supports_contact_sensors: bool = True
 
-    # Per-world reset masks (allocated in start_simulation, consumed in step/forward).
+    # Per-world reset masks (allocated in start_simulation, consumed in forward).
     _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
+    _solver_reset_pending: bool = False
+    _reset_solver: Callable[[wp.array | None], None] = _reset_solver_unbound
     # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
     _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
 
@@ -473,7 +480,9 @@ class NewtonManager(PhysicsManager):
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
-        cls._reset_solver_internals(cls._world_reset_mask)
+        if cls._solver_reset_pending:
+            cls._reset_solver(cls._world_reset_mask)
+            NewtonManager._solver_reset_pending = False
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
@@ -753,8 +762,6 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
-        cls._reset_solver_internals(cls._world_reset_mask)
-
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -873,6 +880,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._control = None
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
+        NewtonManager._reset_solver = _reset_solver_unbound
+        NewtonManager._solver_reset_pending = False
         NewtonManager._eval_fk = _eval_fk_unbound
         NewtonManager._collision_pipeline = None
         NewtonManager._collision_cfg = None
@@ -1190,6 +1199,9 @@ class NewtonManager(PhysicsManager):
         """
         cls._mark_transforms_dirty()
 
+        if env_mask is None and env_ids is not None and env_ids.shape[0] == 0:
+            return
+
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
 
@@ -1213,6 +1225,7 @@ class NewtonManager(PhysicsManager):
             # Fallback: no topology info — mark everything dirty
             NewtonManager._world_reset_mask.fill_(True)
             NewtonManager._fk_reset_mask.fill_(True)
+        NewtonManager._solver_reset_pending = True
 
     @classmethod
     def _drain_stale_cuda_error(cls) -> None:
@@ -1325,6 +1338,7 @@ class NewtonManager(PhysicsManager):
         # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset).
         NewtonManager._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.bool, device=device)
         NewtonManager._fk_reset_mask = wp.zeros(cls._model.articulation_count, dtype=wp.bool, device=device)
+        NewtonManager._solver_reset_pending = False
 
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -1591,8 +1605,8 @@ class NewtonManager(PhysicsManager):
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
         """Clear solver-internal state for environments reset since the last boundary.
 
-        The hook runs immediately before reset masks are consumed by :meth:`step`
-        and :meth:`forward`. The base implementation delegates to
+        The hook runs immediately before :meth:`forward` consumes the reset
+        masks. The base implementation delegates to
         :meth:`SolverBase.reset` with ``flags=0``, preserving the joint state
         authored by Isaac Lab while clearing solver-owned buffers. Solvers with
         no reset implementation are unaffected.
@@ -1647,6 +1661,7 @@ class NewtonManager(PhysicsManager):
         # that forward()/step() dispatch correctly even when forward() is invoked through the
         # base class (the data layer imports NewtonManager directly). ``cls`` is the concrete
         # subclass here, since initialize_solver is reached via sim.physics_manager.reset().
+        NewtonManager._reset_solver = cls._reset_solver_internals
         NewtonManager._eval_fk = cls._eval_fk_impl
 
         # Establish the initial kinematically-consistent body state through the

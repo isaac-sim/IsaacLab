@@ -26,6 +26,7 @@ Covers:
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -480,8 +481,8 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_forward_consumes_existing_reset_masks(monkeypatch):
-    """The existing device masks are the complete input to masked FK and the solver reset hook."""
+def test_forward_consumes_pending_reset_once(monkeypatch):
+    """Consume one pending reset through the concrete delegate."""
     world_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
     fk_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     observed: list[tuple[list[bool], list[bool]]] = []
@@ -490,21 +491,56 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
     def record_fk(worlds, articulations):
         observed.append((worlds.numpy().tolist(), articulations.numpy().tolist()))
 
-    class _RecordingSolver:
-        def reset(self, state, world_mask=None, flags=0):
-            solver_resets.append(world_mask.numpy().tolist())
+    def record_reset(worlds):
+        solver_resets.append(worlds.numpy().tolist())
 
     monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "_reset_solver", record_reset, raising=False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
 
     NewtonManager.forward()
+    NewtonManager.forward()
 
-    assert observed == [([False, True], [True, False])]
+    assert observed == [([False, True], [True, False]), ([False, False], [False, False])]
     assert solver_resets == [[False, True]]
-    assert world_mask.numpy().tolist() == [False, False]
-    assert fk_mask.numpy().tolist() == [False, False]
+    assert NewtonManager._solver_reset_pending is False
+
+
+def test_invalidate_fk_marks_solver_reset_pending(monkeypatch):
+    """Mark a solver reset whenever simulation state is invalidated."""
+    world_mask = MagicMock()
+    fk_mask = MagicMock()
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", False, raising=False)
+    monkeypatch.setattr(NewtonManager, "_mark_transforms_dirty", classmethod(lambda cls: None))
+
+    NewtonManager.invalidate_fk()
+
+    world_mask.fill_.assert_called_once_with(True)
+    fk_mask.fill_.assert_called_once_with(True)
+    assert NewtonManager._solver_reset_pending is True
+
+
+def test_invalidate_fk_ignores_empty_env_ids(monkeypatch):
+    """Keep solver state unchanged for an empty indexed write."""
+    world_mask = MagicMock()
+    fk_mask = MagicMock()
+    mark_dirty = MagicMock()
+    env_ids = wp.array([], dtype=wp.int32, device="cpu")
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", False, raising=False)
+    monkeypatch.setattr(NewtonManager, "_mark_transforms_dirty", classmethod(lambda cls: mark_dirty()))
+
+    NewtonManager.invalidate_fk(env_ids=env_ids)
+
+    mark_dirty.assert_called_once_with()
+    world_mask.fill_.assert_not_called()
+    fk_mask.fill_.assert_not_called()
+    assert NewtonManager._solver_reset_pending is False
 
 
 # ---------------------------------------------------------------------------

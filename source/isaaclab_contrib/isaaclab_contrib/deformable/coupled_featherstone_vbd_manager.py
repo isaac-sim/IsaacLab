@@ -23,10 +23,15 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonVBDManager):
     custom rigid/soft coupling step.
 
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
+
+    .. deprecated:: 0.5.0
+        Replace Featherstone with MJWarp and migrate to
+        :class:`isaaclab_contrib.coupling.CouplerProxyCfg`, or retain this
+        deprecated path.
     """
 
-    _rigid_solver: SolverFeatherstone
-    _soft_solver: SolverVBD
+    _rigid_solver: SolverFeatherstone | None = None
+    _soft_solver: SolverVBD | None = None
     _coupling_mode: str | None = None
 
     @classmethod
@@ -48,6 +53,14 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonVBDManager):
         super().step()
 
     @classmethod
+    def _solver_specific_clear(cls) -> None:
+        """Clear deprecated coupling state."""
+        super()._solver_specific_clear()
+        cls._rigid_solver = None
+        cls._soft_solver = None
+        cls._coupling_mode = None
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: CoupledFeatherstoneVBDSolverCfg) -> None:
         """Construct a custom coupling between two solvers and populate the
         base-class slots.
@@ -60,6 +73,10 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonVBDManager):
                 f"Unknown coupling_mode={solver_cfg.coupling_mode!r}; "
                 "expected one of {'kinematic', 'one_way', 'two_way'}."
             )
+        if not solver_cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
+            raise ValueError("The coupled manager requires VBD external rigid-body integration.")
+        if NewtonManager._report_contacts:
+            raise NotImplementedError("Newton contact sensors are not supported by the coupled manager.")
 
         cls._coupling_mode = solver_cfg.coupling_mode
 
@@ -82,6 +99,14 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonVBDManager):
             cls._kd_saved = wp.clone(model.joint_target_kd)
             cls._ke_zero = wp.zeros_like(model.joint_target_ke)
             cls._kd_zero = wp.zeros_like(model.joint_target_kd)
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Reset both sub-solvers."""
+        if world_mask is None:
+            return
+        cls._rigid_solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+        cls._soft_solver.reset(cls._state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _step_solver(
@@ -116,110 +141,61 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonVBDManager):
 
     @classmethod
     def _step_kinematic(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:
-        """Kinematic coupling: mirrors some Newton examples (e.g. softbody_franka) exactly.
-
-        1. Clear forces.
-        2. Assign joint_qd from control targets (velocity = (target - current) / frame_dt).
-        3. Disable gravity and rigid contacts for the rigid solver step.
-        4. Step rigid solver as kinematic integrator (q += qd * dt).
-        5. Restore gravity, collision detect, VBD step.
-        """
+        """Advance rigid bodies kinematically, then solve VBD."""
         model = cls._model
-
-        # 1. Clear forces
-        state_in.clear_forces()
         state_out.clear_forces()
 
-        # 2. Kinematic rigid step: assign qd, disable gravity/contacts/PD gains
-        saved_particle_count = model.particle_count
-        saved_shape_contact_pair_count = model.shape_contact_pair_count
-        model.particle_count = 0
+        shape_contact_pair_count = model.shape_contact_pair_count
         model.gravity.assign(cls._gravity_zero)
         model.shape_contact_pair_count = 0
-
-        # Zero out PD gains so rigid solver (Featherstone) acts as a pure kinematic integrator
         model.joint_target_ke.assign(cls._ke_zero)
         model.joint_target_kd.assign(cls._kd_zero)
-
-        # Assign joint velocities from control targets
         state_in.joint_qd.assign(control.joint_target_vel)
 
-        cls._rigid_solver.step(state_in, state_out, control, None, dt)
+        cls._rigid_step(state_in, state_out, control, dt)
 
-        # 3. Restore everything
-        state_in.particle_f.zero_()
-        model.particle_count = saved_particle_count
         model.gravity.assign(cls._gravity_saved)
-        model.shape_contact_pair_count = saved_shape_contact_pair_count
+        model.shape_contact_pair_count = shape_contact_pair_count
         model.joint_target_ke.assign(cls._ke_saved)
         model.joint_target_kd.assign(cls._kd_saved)
-
-        # 4. Collision detection
         cls._collision_pipeline.collide(state_in, cls._contacts)
-
-        # 5. VBD step
         cls._soft_solver.step(state_in, state_out, control, cls._contacts, dt)
 
     @classmethod
     def _step_one_way(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:
-        """One-way coupling: collide, then rigid step, then VBD."""
-        # 1. Clear forces
-        state_in.clear_forces()
+        """Advance Featherstone before VBD without reaction forces."""
         state_out.clear_forces()
-
-        # 2. Collision detection (cloth-body contacts)
         cls._collision_pipeline.collide(state_in, cls._contacts)
-
-        # 3. Rigid-body step (does not read soft-contact reactions)
         cls._rigid_step(state_in, state_out, control, dt)
-
-        # 4. Clear spurious particle forces from rigid step
-        state_in.particle_f.zero_()
-
-        # 5. VBD step -- particles only, reads updated rigid poses
         cls._soft_solver.step(state_in, state_out, control, cls._contacts, dt)
 
     @classmethod
     def _step_two_way(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:
-        """Two-way coupling: collide, inject reactions into body_f, rigid step, VBD step."""
-        # 1. Clear forces
-        state_in.clear_forces()
+        """Advance Featherstone and VBD with deformable reaction forces."""
         state_out.clear_forces()
-
-        # 2. Collision detection BEFORE rigid step
         cls._collision_pipeline.collide(state_in, cls._contacts)
-
-        # 3. Inject contact reaction forces into body_f.
-        #    state_out holds the previous substep's body_q (states swap each
-        #    substep), used for finite-difference body velocity in friction.
-        #    particle_q_prev is reconstructed from particle_qd inside the
-        #    kernel because VBD mutates particle_q in place, so the swapped
-        #    state's particle_q is not a clean prior-substep snapshot.
         if state_in.body_f is not None:
             cls._apply_reactions(state_in, state_out, dt)
-
-        # 4. Rigid-body step (reads body_f for soft-contact reactions)
         cls._rigid_step(state_in, state_out, control, dt)
-
-        # 5. Clear spurious particle forces from rigid step
-        state_in.particle_f.zero_()
-
-        # 6. VBD step -- uses same contacts detected in step 2
         cls._soft_solver.step(state_in, state_out, control, cls._contacts, dt)
 
     @classmethod
     def _rigid_step(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:
-        """Advance rigid bodies with the configured sub-solver."""
+        """Advance rigid bodies without integrating VBD particles."""
         model = cls._model
+        particle_count = model.particle_count
+        if particle_count == 0:
+            cls._rigid_solver.step(state_in, state_out, control, None, dt)
+            return
 
-        # set particle_count = 0 to disable particle simulation in robot solver
-        saved_particle_count = model.particle_count
+        particle_f = state_in.particle_f
         model.particle_count = 0
-
-        cls._rigid_solver.step(state_in, state_out, control, None, dt)
-
-        # restore original settings
-        model.particle_count = saved_particle_count
+        state_in.particle_f = state_out.particle_f
+        try:
+            cls._rigid_solver.step(state_in, state_out, control, None, dt)
+        finally:
+            state_in.particle_f = particle_f
+            model.particle_count = particle_count
 
     @classmethod
     def _apply_reactions(cls, state: State, state_prev: State, dt: float) -> None:

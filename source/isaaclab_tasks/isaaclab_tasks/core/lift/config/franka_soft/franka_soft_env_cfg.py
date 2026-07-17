@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
@@ -65,6 +67,45 @@ YOUNGS_MODULUS = 8e4
 POISSONS_RATIO = 0.25
 
 
+def _coupled_mjwarp_vbd_solver_cfg(model_cfg: NewtonModelCfg) -> CouplerProxyCfg:
+    """Create the MJWarp and VBD proxy solver shared by both lift tasks."""
+    return CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(
+                name="rigid",
+                solver_cfg=MJWarpSolverCfg(
+                    njmax=40,
+                    nconmax=20,
+                    cone="elliptic",
+                    ls_iterations=20,
+                    integrator="implicitfast",
+                    ccd_iterations=100,
+                ),
+                bodies=[r"/World/envs/env_.*/Robot"],
+            ),
+            CouplerEntryCfg(
+                name="soft",
+                solver_cfg=VBDSolverCfg(iterations=10),
+                all_particles=True,
+                include_static_shapes=True,
+            ),
+        ],
+        proxies=[
+            CouplerProxyMappingCfg(
+                source="rigid",
+                destination="soft",
+                bodies=[
+                    r"/World/envs/env_.*/Robot/panda_hand",
+                    r"/World/envs/env_.*/Robot/panda_(left|right)finger",
+                ],
+                collide_interval=1,
+            )
+        ],
+        iterations=1,
+        model_cfg=model_cfg,
+    )
+
+
 @configclass
 class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
@@ -111,70 +152,42 @@ class DeformableCfg(PresetCfg):
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, two-way coupled
     # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
-        solver_cfg=CoupledMJWarpVBDSolverCfg(
-            rigid_solver_cfg=MJWarpSolverCfg(
-                njmax=40,
-                nconmax=20,
-                ls_iterations=20,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-                ccd_iterations=100,
+    with warnings.catch_warnings(action="ignore", category=DeprecationWarning):
+        newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
+            solver_cfg=CoupledMJWarpVBDSolverCfg(
+                rigid_solver_cfg=MJWarpSolverCfg(
+                    njmax=40,
+                    nconmax=20,
+                    ls_iterations=20,
+                    cone="pyramidal",
+                    impratio=1,
+                    integrator="implicitfast",
+                    ccd_iterations=100,
+                ),
+                soft_solver_cfg=VBDSolverCfg(
+                    iterations=10,
+                    integrate_with_external_rigid_solver=True,
+                    particle_enable_self_contact=False,
+                    particle_collision_detection_interval=-1,
+                ),
+                coupling_mode="two_way",
+                model_cfg=NewtonModelCfg(
+                    soft_contact_ke=1e4,
+                    soft_contact_kd=1e-5,
+                    soft_contact_mu=5.0,
+                ),
             ),
-            soft_solver_cfg=VBDSolverCfg(
-                iterations=10,
-                integrate_with_external_rigid_solver=True,
-                particle_enable_self_contact=False,
-                particle_collision_detection_interval=-1,
-            ),
-            coupling_mode="two_way",
-            model_cfg=NewtonModelCfg(
-                soft_contact_ke=1e4,
-                soft_contact_kd=1e-5,
-                soft_contact_mu=5.0,
-            ),
-        ),
-        default_shape_cfg=NewtonShapeCfg(ke=4e4, kd=1e-5, mu=5.0),
-        num_substeps=10,
-    )
+            default_shape_cfg=NewtonShapeCfg(ke=4e4, kd=1e-5, mu=5.0),
+            num_substeps=10,
+        )
 
     newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
-        solver_cfg=CouplerProxyCfg(
-            entries=[
-                CouplerEntryCfg(
-                    name="rigid",
-                    solver_cfg=MJWarpSolverCfg(
-                        cone="elliptic",
-                        ls_iterations=20,
-                        integrator="implicitfast",
-                    ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
-                ),
-                CouplerEntryCfg(
-                    name="soft",
-                    solver_cfg=VBDSolverCfg(iterations=10),
-                    all_particles=True,
-                    include_static_shapes=True,
-                ),
-            ],
-            proxies=[
-                CouplerProxyMappingCfg(
-                    source="rigid",
-                    destination="soft",
-                    bodies=[
-                        r"/World/envs/env_.*/Robot/panda_hand",
-                        r"/World/envs/env_.*/Robot/panda_(left|right)finger",
-                    ],
-                    collide_interval=5,
-                )
-            ],
-            iterations=1,
-            model_cfg=NewtonModelCfg(
+        solver_cfg=_coupled_mjwarp_vbd_solver_cfg(
+            NewtonModelCfg(
                 soft_contact_ke=1e4,
                 soft_contact_kd=1e-5,
                 soft_contact_mu=5.0,
-            ),
+            )
         ),
         default_shape_cfg=NewtonShapeCfg(ke=4e4, kd=1e-5, mu=5.0),
         num_substeps=10,

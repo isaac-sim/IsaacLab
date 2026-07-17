@@ -45,7 +45,7 @@ isaaclab_contrib
 
 * Experimental Newton deformable objects
 * VBD deformable solver (see :doc:`using-vbd-solver`)
-* Coupled MJWarp + VBD and Featherstone + VBD solver managers
+* MJWarp and VBD proxy coupling
 
 The following sensors are backend-agnostic (implemented in ``isaaclab`` core)
 and work transparently with Newton:
@@ -80,7 +80,7 @@ Manager-based workflows:
 * Locomotion velocity, rough terrain: AnymalC, Cassie, Go1, Go2
 * Manipulation: reach (Franka, UR10), cabinet, dexsuite
 * Manipulation lift with deformable objects: Franka soft-body lift, Franka cloth
-  lift (via coupled MJWarp + VBD)
+  lift (via MJWarp and VBD proxy coupling)
 
 
 Solver Coverage
@@ -91,8 +91,8 @@ Solver Coverage
   ``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. See
   :doc:`kamino-solver`.
 * **VBD solver**: experimental, exposed through :mod:`isaaclab_contrib.deformable`
-  for cloth and soft-body simulation. Most often used inside the coupled
-  MJWarp + VBD or Featherstone + VBD managers so one solver advances rigid
+  for cloth and soft-body simulation. Rigid and deformable scenes can use
+  proxy coupling from :mod:`isaaclab_contrib.coupling` so MJWarp advances rigid
   bodies and VBD advances deformable particles. See :doc:`using-vbd-solver`
   and :doc:`newton-manager-abstraction`.
 

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonSolverCfg
@@ -124,6 +125,11 @@ class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
 
     Alternates a rigid-body solver (:class:`MJWarpSolverCfg`) and VBD per substep.
     The coupling direction is controlled by :attr:`coupling_mode`.
+
+    .. deprecated:: 0.5.0
+        Use :class:`isaaclab_contrib.coupling.CouplerProxyCfg`, or use
+        :class:`isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg`
+        for the manual coupling example.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
@@ -142,6 +148,15 @@ class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
     - ``"two_way"``: Same-substep two-way coupling with normal + Coulomb friction.
     """
 
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg is deprecated; use "
+            "isaaclab_contrib.coupling.CouplerProxyCfg or "
+            "isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
 
 @configclass
 class CoupledFeatherstoneVBDSolverCfg(NewtonModelSolverCfg):
@@ -149,6 +164,11 @@ class CoupledFeatherstoneVBDSolverCfg(NewtonModelSolverCfg):
 
     Alternates a rigid-body solver (:class:`FeatherstoneSolverCfg`) and VBD per
     substep. The coupling direction is controlled by :attr:`coupling_mode`.
+
+    .. deprecated:: 0.5.0
+        Replace Featherstone with MJWarp and migrate to
+        :class:`isaaclab_contrib.coupling.CouplerProxyCfg`, or retain this
+        deprecated path.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.coupled_featherstone_vbd_manager:NewtonCoupledFeatherstoneVBDManager"
@@ -166,3 +186,11 @@ class CoupledFeatherstoneVBDSolverCfg(NewtonModelSolverCfg):
     Accepts the same values as :attr:`CoupledMJWarpVBDSolverCfg.coupling_mode`,
     plus ``"kinematic"`` (rigid -> soft only, rigid bodies kinematically updated).
     """
+
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg is deprecated; replace Featherstone "
+            "with MJWarp and migrate to isaaclab_contrib.coupling.CouplerProxyCfg, or retain the deprecated path.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
