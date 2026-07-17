@@ -58,7 +58,8 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Profile Isaac Lab startup phases.")
-    parser.add_argument("--task", type=str, required=True, help="Gym task id to profile.")
+    help_requested = "-h" in argv or "--help" in argv
+    parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to profile.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument(

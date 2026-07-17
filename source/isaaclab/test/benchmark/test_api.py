@@ -123,6 +123,18 @@ def test_runtime_request_uses_runtime_defaults() -> None:
     ]
 
 
+@pytest.mark.parametrize("workflow", ["runtime", "startup"])
+def test_task_workflow_help_does_not_require_task(workflow: str, monkeypatch, capsys) -> None:
+    entrypoint = importlib.import_module(f"isaaclab.benchmark.entrypoints.{workflow}")
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "benchmark", workflow, "--help"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        entrypoint._parse_args(["--help"])
+
+    assert exc_info.value.code == 0
+    assert "--task" in capsys.readouterr().out
+
+
 def test_request_dispatches_to_library_module(monkeypatch) -> None:
     request = BenchmarkRuntimeRequest(task="Isaac-Cartpole-Direct", num_frames=1, warmup_frames=0)
     expected = BenchmarkResult(bundle=object(), output_paths=(Path("result.json"),))

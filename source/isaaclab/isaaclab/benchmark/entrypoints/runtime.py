@@ -44,7 +44,8 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark environment runtime (random actions, no policy).")
-    parser.add_argument("--task", type=str, required=True, help="Gym task id to benchmark.")
+    help_requested = "-h" in argv or "--help" in argv
+    parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument("--num_frames", type=int, default=1000, help="Number of environment steps to benchmark.")
     parser.add_argument(
