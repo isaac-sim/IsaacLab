@@ -433,13 +433,13 @@ The ``isaaclab benchmark`` entrypoints are designed for CI/CD integration:
      run: |
        uv run isaaclab benchmark runtime \
            --task Isaac-Cartpole --num_envs 4096 --num_frames 1000 \
-           --benchmark_formatter json --output_path ./benchmark_results
+           --benchmark_formatter schema,summary --output_path ./benchmark_results
 
    - name: Run Training Benchmark
      run: |
        uv run isaaclab benchmark training \
            --rl_library rsl_rl --task Isaac-Cartpole --num_envs 4096 \
-           --max_iterations 500 --benchmark_formatter json \
+           --max_iterations 500 --benchmark_formatter schema,summary \
            --output_path ./benchmark_results
 
    - name: Upload Results
