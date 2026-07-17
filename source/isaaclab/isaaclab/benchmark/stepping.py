@@ -60,6 +60,35 @@ def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:
         return 2.0 * torch.rand(u.num_envs, u.single_action_space.shape[0], device=u.device) - 1.0
 
 
+def _find_cuda_devices(value) -> set[str]:
+    """Collect CUDA device names from nested tensor-like values."""
+    import torch  # noqa: PLC0415
+
+    devices: set[str] = set()
+
+    def collect(item) -> None:
+        if isinstance(item, dict):
+            for nested in item.values():
+                collect(nested)
+            return
+        if isinstance(item, (list, tuple)):
+            for nested in item:
+                collect(nested)
+            return
+        device = item if isinstance(item, (str, torch.device)) else getattr(item, "device", None)
+        if device is None:
+            return
+        try:
+            device = torch.device(device)
+        except (RuntimeError, TypeError):
+            return
+        if device.type == "cuda":
+            devices.add(str(device))
+
+    collect(value)
+    return devices
+
+
 class EnvironmentStepTimingRecorder(AbstractContextManager):
     """Record host-return step time or an optional synchronized step breakdown.
 
@@ -78,11 +107,16 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         env: Environment interface whose ``step`` method is called by the workload.
         measure_synchronized_step_breakdown: Whether to collect the serialized
             synchronized simulation and outside-simulation breakdown.
+        warmup_steps: Number of initial ``env.step()`` calls to exclude from the
+            recorded timings. Drops one-time cold-start costs (e.g. CUDA graph
+            capture and lazy kernel compilation) so the aggregate reflects
+            steady-state stepping. Defaults to ``0`` (record every step).
     """
 
-    def __init__(self, env, *, measure_synchronized_step_breakdown: bool = False):
+    def __init__(self, env, *, measure_synchronized_step_breakdown: bool = False, warmup_steps: int = 0):
         self._env = env
         self._measure_synchronized_step_breakdown = measure_synchronized_step_breakdown
+        self._warmup_steps = warmup_steps
         self._simulation_context = env.unwrapped.sim if measure_synchronized_step_breakdown else None
         self._had_env_instance_step = "step" in vars(env)
         self._env_instance_step = vars(env).get("step")
@@ -95,6 +129,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         self._simulation_total_time_s = 0.0
         self._simulation_step_calls = 0
         self._inside_environment_step = False
+        self._environment_step_index = 0
         self.step_times_s: list[float] = []
         self.simulation_step_times_s: list[float] | None = [] if measure_synchronized_step_breakdown else None
 
@@ -109,9 +144,11 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             raise RuntimeError("EnvironmentStepTimingRecorder is already active")
 
         self.step_times_s.clear()
+        self._environment_step_index = 0
         self._original_env_step = self._env.step
 
         if self._measure_synchronized_step_breakdown:
+            import torch  # noqa: PLC0415
             import warp as wp  # noqa: PLC0415
 
             from isaaclab.utils.timer import Timer  # noqa: PLC0415
@@ -123,42 +160,69 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             self._simulation_step_calls = 0
             assert self._simulation_context is not None
             self._original_sim_step = self._simulation_context.step
+            environment_cuda_devices = _find_cuda_devices(getattr(self._env.unwrapped, "device", None))
+            active_cuda_devices = environment_cuda_devices
+
+            def synchronize_torch(devices: set[str]) -> None:
+                for device in sorted(devices):
+                    torch.cuda.synchronize(device)
 
             def timed_simulation_step(*args, **kwargs):
                 if not self._inside_environment_step:
                     return self._original_sim_step(*args, **kwargs)
+                synchronize_torch(active_cuda_devices)
                 wp.synchronize()
                 timer = Timer()
+                timer.start()
                 try:
-                    with timer:
-                        return self._original_sim_step(*args, **kwargs)
+                    return self._original_sim_step(*args, **kwargs)
                 finally:
+                    synchronize_torch(active_cuda_devices)
+                    timer.stop()
                     self._simulation_total_time_s += timer.total_run_time
                     self._simulation_step_calls += 1
 
             self._simulation_context.step = timed_simulation_step
 
             def timed_environment_step(*args, **kwargs):
+                nonlocal active_cuda_devices
+                recording = self._environment_step_index >= self._warmup_steps
+                self._environment_step_index += 1
                 simulation_start_time_s = self._simulation_total_time_s
+                simulation_start_calls = self._simulation_step_calls
+                previous_cuda_devices = active_cuda_devices
+                active_cuda_devices = environment_cuda_devices | _find_cuda_devices(args) | _find_cuda_devices(kwargs)
+                synchronize_torch(active_cuda_devices)
                 wp.synchronize()
                 timer = Timer()
+                timer.start()
                 self._inside_environment_step = True
                 try:
-                    with timer:
-                        return self._original_env_step(*args, **kwargs)
+                    return self._original_env_step(*args, **kwargs)
                 finally:
                     self._inside_environment_step = False
-                    self.step_times_s.append(timer.total_run_time)
-                    self.simulation_step_times_s.append(self._simulation_total_time_s - simulation_start_time_s)
+                    synchronize_torch(active_cuda_devices)
+                    timer.stop()
+                    active_cuda_devices = previous_cuda_devices
+                    if recording:
+                        self.step_times_s.append(timer.total_run_time)
+                        self.simulation_step_times_s.append(self._simulation_total_time_s - simulation_start_time_s)
+                    else:
+                        # Discard warmup-step accounting so recorded calls and times stay consistent.
+                        self._simulation_total_time_s = simulation_start_time_s
+                        self._simulation_step_calls = simulation_start_calls
 
         else:
 
             def timed_environment_step(*args, **kwargs):
+                recording = self._environment_step_index >= self._warmup_steps
+                self._environment_step_index += 1
                 start_time_ns = time.perf_counter_ns()
                 try:
                     return self._original_env_step(*args, **kwargs)
                 finally:
-                    self.step_times_s.append((time.perf_counter_ns() - start_time_ns) / 1e9)
+                    if recording:
+                        self.step_times_s.append((time.perf_counter_ns() - start_time_ns) / 1e9)
 
         self._env.step = timed_environment_step
         return self

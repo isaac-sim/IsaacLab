@@ -172,6 +172,23 @@ def test_environment_step_timing_rejects_incomplete_measurement_modes():
         dataclasses.replace(timing, simulation_step_time_s=None)
 
 
+@pytest.mark.parametrize("field", ["environment_step_time_s", "environment_step_fps"])
+def test_environment_step_timing_rejects_non_positive_environment_metrics(field):
+    timing = EnvironmentStepTiming(
+        environment_step_time_s=MeanStd(mean=0.1, std=0.01),
+        environment_step_fps=MeanStd(mean=100.0, std=1.0),
+        simulation_step_time_s=None,
+        outside_simulation_step_time_s=None,
+        outside_simulation_step_fraction=None,
+        environment_step_calls=1,
+        simulation_step_calls=None,
+        measurement_mode="host_return",
+    )
+
+    with pytest.raises(ValueError, match="environment step time and FPS must be greater than zero"):
+        dataclasses.replace(timing, **{field: MeanStd(mean=-1.0, std=0.0)})
+
+
 def test_environment_step_timing_rejects_inconsistent_partition():
     timing = _runtime().environment_step_timing
     assert timing is not None
