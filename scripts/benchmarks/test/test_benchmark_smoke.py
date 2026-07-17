@@ -5,7 +5,7 @@
 
 """End-to-end smoke tests for training and playing benchmarked policies."""
 
-import importlib.util
+import importlib
 import json
 import subprocess
 from pathlib import Path
@@ -38,12 +38,7 @@ def _run(command: list[str]) -> None:
 
 
 def _load_adapter(library: str, workflow: str):
-    path = ROOT / "scripts" / "benchmarks" / library / f"benchmark_{library}_{workflow}.py"
-    spec = importlib.util.spec_from_file_location(f"benchmark_{library}_{workflow}_validation", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return importlib.import_module(f"isaaclab.benchmark.entrypoints.backends.{library}.{workflow}")
 
 
 @pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
