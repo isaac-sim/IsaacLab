@@ -16,6 +16,7 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -145,16 +146,29 @@ def test_prepare_jit_cache_opens_task_cache(tmp_path: Path) -> None:
     assert cache_dir.stat().st_mode & 0o777 == 0o777
 
 
+def test_seed_source_directories_are_unique_and_disposable() -> None:
+    """Independent seeder invocations do not reuse source-clone residue."""
+    first = seed_baselines._create_seed_source_dir()
+    second = seed_baselines._create_seed_source_dir()
+    try:
+        assert first != second
+        assert first.is_dir()
+        assert second.is_dir()
+    finally:
+        seed_baselines._cleanup_run_dir(first)
+        seed_baselines._cleanup_run_dir(second)
+
+
 def test_jit_cache_reuses_samples_and_isolates_backends(tmp_path: Path) -> None:
     """Repeated samples share compiled kernels, but different backends do not."""
     cache_root = tmp_path / "jit-cache" / "seed" / "run-1-attempt-1"
-    newton_cache = seed_baselines._jit_cache_path(
+    newton_cache = seed_baselines._cache_bucket_path(
         cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Cartpole-Direct", "newton"
     )
-    repeated_newton_cache = seed_baselines._jit_cache_path(
+    repeated_newton_cache = seed_baselines._cache_bucket_path(
         cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Cartpole-Direct", "newton"
     )
-    physx_cache = seed_baselines._jit_cache_path(
+    physx_cache = seed_baselines._cache_bucket_path(
         cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Cartpole-Direct", "physx"
     )
 
@@ -169,14 +183,81 @@ def test_jit_cache_reuses_samples_and_isolates_backends(tmp_path: Path) -> None:
     assert not physx_cache.exists()
 
 
-def test_cleanup_jit_cache_removes_run_tree(tmp_path: Path) -> None:
-    """Seeder exit cleanup removes compiled kernels from its run directory."""
+def test_kit_cache_reuses_samples_and_isolates_backends(tmp_path: Path) -> None:
+    """Repeated samples share Kit data, but different backends do not."""
+    cache_root = tmp_path / "kit-cache" / "seed" / "run-1-attempt-1"
+    newton_cache = seed_baselines._cache_bucket_path(
+        cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Camera-Direct", "newton"
+    )
+    repeated_newton_cache = seed_baselines._cache_bucket_path(
+        cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Camera-Direct", "newton"
+    )
+    physx_cache = seed_baselines._cache_bucket_path(
+        cache_root, "perf-smoke/develop-staging", "abcdef123456", "Isaac-Camera-Direct", "physx"
+    )
+
+    _ = seed_baselines._prepare_kit_cache(newton_cache)
+    shader_cache = newton_cache / "shader-cache.bin"
+    shader_cache.write_bytes(b"compiled")
+    _ = seed_baselines._prepare_kit_cache(repeated_newton_cache)
+
+    assert repeated_newton_cache == newton_cache
+    assert shader_cache.read_bytes() == b"compiled"
+    assert newton_cache.stat().st_mode & 0o777 == 0o777
+    assert physx_cache != newton_cache
+    assert not physx_cache.exists()
+
+
+def test_cleanup_run_dir_removes_run_tree(tmp_path: Path) -> None:
+    """Seeder exit cleanup removes generated files from its run directory."""
     cache_dir = tmp_path / "jit-cache" / "seed" / "run-1-attempt-1"
     compiled_dir = cache_dir / "warp" / "version" / "module"
     compiled_dir.mkdir(parents=True)
     (compiled_dir / "kernel.so").write_bytes(b"compiled")
     compiled_dir.chmod(0o500)
 
-    seed_baselines._cleanup_jit_cache(cache_dir)
+    seed_baselines._cleanup_run_dir(cache_dir)
 
     assert not cache_dir.exists()
+
+
+def test_docker_benchmark_copies_internal_output_after_exit(tmp_path: Path, monkeypatch) -> None:
+    """Benchmark output is copied from the container instead of bind-mounted."""
+    calls: list[list[str]] = []
+
+    def _run(cmd: list[str], **_kwargs) -> SimpleNamespace:
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0)
+
+    task = SimpleNamespace(
+        task_id="Isaac-Cartpole-Direct",
+        num_envs=16,
+        num_frames=10,
+        warmup_frames=2,
+        seed=42,
+    )
+    artifact_dir = tmp_path / "artifacts"
+    monkeypatch.setattr(seed_baselines, "hydra_args_for_task", lambda _task: [])
+    monkeypatch.setattr(seed_baselines.subprocess, "run", _run)
+
+    exit_code = seed_baselines._docker_run_benchmark(
+        image="isaac-lab:test",
+        task=task,
+        artifact_dir=artifact_dir,
+        jit_cache=tmp_path / "jit-cache",
+        kit_cache=tmp_path / "kit-cache",
+        seed_src_dir=tmp_path / "source",
+        container_name="perf-seed-test",
+    )
+
+    docker_run = calls[0]
+    assert exit_code == 0
+    assert "--rm" not in docker_run
+    assert f"{artifact_dir}:/tmp/bench_out" not in docker_run
+    assert f"{tmp_path / 'jit-cache'}:/tmp/jit-cache" in docker_run
+    assert f"{tmp_path / 'kit-cache'}:/isaac-sim/kit/cache" in docker_run
+    assert "umask 000" in docker_run[-1]
+    assert "mkdir -p /tmp/bench_out" in docker_run[-1]
+    assert calls[1] == ["docker", "cp", "perf-seed-test:/tmp/bench_out/.", str(artifact_dir)]
+    assert calls[2] == ["chmod", "-R", "a+rwX", str(artifact_dir)]
+    assert calls[3] == ["docker", "rm", "-f", "perf-seed-test"]
