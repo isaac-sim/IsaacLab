@@ -41,8 +41,8 @@ dependencies = [
     # pytetwild: keep the behavior-stable 0.2.3 pin on x86_64. 0.3.0 added manylinux
     # aarch64 wheels; it imports pyvista at import time but only declares it in its
     # [all] extra, so depend on that extra there.
-    "pytetwild==0.2.3 ; platform_machine in 'x86_64 AMD64'",
-    "pytetwild[all]>=0.3.0,<0.4 ; platform_machine in 'aarch64 arm64'",
+    "pytetwild==0.2.3 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
+    "pytetwild[all]>=0.3.0,<0.4 ; platform_machine == 'aarch64' or platform_machine == 'arm64'",
     "transformers==4.57.6",
     "einops",
     "warp-lang==1.15.0.dev20260626",

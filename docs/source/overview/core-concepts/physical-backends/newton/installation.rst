@@ -57,7 +57,7 @@ Install the correct version of torch and torchvision:
 
 .. isaaclab-torch-install:: cu128
 
-Install Isaac Lab extensions and dependencies (this includes Newton 1.0):
+Install Isaac Lab extensions and dependencies (this includes the pinned Newton development commit):
 
 .. code-block:: bash
 
