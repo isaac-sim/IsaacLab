@@ -18,10 +18,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from common import (
+from isaaclab.app import add_launcher_args
+
+from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
-    add_isaaclab_launcher_args,
     apply_env_overrides,
     configure_io_descriptors,
     create_isaaclab_env,
@@ -55,6 +56,8 @@ def _cleanup_pbar(*args):
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse Stable-Baselines3 training arguments."""
+    from isaaclab_tasks.utils import setup_preset_cli
+
     parser = argparse.ArgumentParser(description="Train an RL agent with Stable-Baselines3.")
     add_common_train_args(
         parser,
@@ -70,11 +73,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
-    from isaaclab_tasks.utils import setup_preset_cli
-
-    add_isaaclab_launcher_args(parser)
-    # setup_preset_cli registers preset-selection help text + runs parse_known_args; the
-    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later.
+    add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     set_hydra_args(hydra_args)
@@ -90,6 +89,7 @@ def run(argv: list[str]) -> None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
+    from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
@@ -177,6 +177,10 @@ def run(argv: list[str]) -> None:
             agent = agent.load(checkpoint_path, env, print_system_info=True)
         elif args_cli.checkpoint is not None:
             agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
+
+        # configure_seed must run after PPO construction/load so torch determinism does not disturb SB3's initialization
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, torch_deterministic=True)
 
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
         callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]

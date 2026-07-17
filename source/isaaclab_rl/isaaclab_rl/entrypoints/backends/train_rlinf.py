@@ -13,13 +13,9 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from common import import_local_module
+from isaaclab_rl.entrypoints.backends import cli_args_rlinf as cli_args
 
 logger = logging.getLogger(__name__)
-
-RL_ROOT = Path(__file__).resolve().parents[1]
-RLINF_DIR = RL_ROOT / "rlinf"
-CLI_ARGS = import_local_module("isaaclab_rlinf_cli_args", RLINF_DIR / "cli_args.py")
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -36,7 +32,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--max_epochs", type=int, default=None, help="RL Policy training iterations.")
     parser.add_argument("--list_tasks", action="store_true", default=False, help="List all available tasks and exit.")
     parser.add_argument("--model_path", type=str, default=None, help="Path to pretrained model checkpoint (required).")
-    CLI_ARGS.add_rlinf_args(parser)
+    cli_args.add_rlinf_args(parser)
     args_cli = parser.parse_args(argv)
     if not args_cli.list_tasks and not args_cli.config_name:
         parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
@@ -71,7 +67,7 @@ def run(argv: list[str]) -> None:
         return
 
     config_name = args_cli.config_name
-    config_dir = CLI_ARGS.resolve_config_dir(config_name, args_cli.config_path)
+    config_dir = cli_args.resolve_config_dir(config_name, args_cli.config_path)
     os.environ["RLINF_CONFIG_FILE"] = str(Path(config_dir) / f"{config_name}.yaml")
 
     if config_dir not in os.environ.get("PYTHONPATH", ""):
@@ -103,7 +99,7 @@ def run(argv: list[str]) -> None:
 
     # Use hyphens instead of colons in time — colons are invalid in Windows paths.
     timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
-    log_dir = RLINF_DIR / "logs" / "rlinf" / f"{timestamp}-{task_id.replace('/', '_')}"
+    log_dir = Path("logs") / "rlinf" / f"{timestamp}-{task_id.replace('/', '_')}"
     log_dir.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] Logging to: {log_dir}")
 

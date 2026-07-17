@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unified playback executable for Isaac Lab reinforcement learning workflows."""
+"""Unified playback executable for '{{ name }}' reinforcement learning tasks."""
+
+import {{ name }}.tasks  # noqa: F401
 
 from isaaclab_rl.entrypoints import run_play_cli
 

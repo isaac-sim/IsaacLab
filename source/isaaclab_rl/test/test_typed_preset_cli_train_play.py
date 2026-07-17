@@ -7,7 +7,8 @@
 unified train/play entrypoint.
 
 The four supported RL libraries (rl_games, rsl_rl, sb3, skrl) each have a
-``train_<library>.py`` / ``play_<library>.py`` script that the unified
+``train_<library>`` / ``play_<library>`` backend module under
+``isaaclab_rl.entrypoints.backends`` that the unified
 ``scripts/reinforcement_learning/{train,play}.py`` dispatchers route to via
 ``--rl_library``. Each entrypoint must wire :func:`setup_preset_cli` and pass
 its remainder through to Hydra so that user-typed ``physics=NAME`` /

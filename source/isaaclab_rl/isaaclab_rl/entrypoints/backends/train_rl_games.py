@@ -18,10 +18,11 @@ import time
 from datetime import datetime
 from distutils.util import strtobool
 
-from common import (
+from isaaclab.app import add_launcher_args
+
+from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
-    add_isaaclab_launcher_args,
     apply_env_overrides,
     configure_io_descriptors,
     create_isaaclab_env,
@@ -45,6 +46,8 @@ with contextlib.suppress(ImportError):
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse RL-Games training arguments."""
+    from isaaclab_tasks.utils import setup_preset_cli
+
     parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
     add_common_train_args(
         parser,
@@ -64,11 +67,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         const=True,
         help="if toggled, this experiment will be tracked with Weights and Biases",
     )
-    from isaaclab_tasks.utils import setup_preset_cli
-
-    add_isaaclab_launcher_args(parser)
-    # setup_preset_cli registers preset-selection help text + runs parse_known_args; the
-    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later.
+    add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     set_hydra_args(hydra_args)
@@ -84,6 +83,7 @@ def run(argv: list[str]) -> None:
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.assets import retrieve_file_path
+    from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
@@ -193,6 +193,10 @@ def run(argv: list[str]) -> None:
             runner = Runner(observers)
         else:
             runner = Runner(IsaacAlgoObserver())
+
+        # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, torch_deterministic=True)
 
         runner.load(agent_cfg)
         runner.reset()
