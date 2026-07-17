@@ -19,7 +19,8 @@ on:
     paths:
       - "source/isaaclab/isaaclab/app/app_launcher.py"
       - "source/isaaclab_tasks/isaaclab_tasks/utils/sim_launcher.py"
-      - "scripts/reinforcement_learning/**/train.py"
+      - "scripts/reinforcement_learning/train.py"
+      - "source/isaaclab_rl/isaaclab_rl/entrypoints/**"
       - ".github/workflows/test-multi-gpu.yaml"
   workflow_dispatch:
 
@@ -120,7 +121,8 @@ jobs:
 
           # Run 2-GPU distributed training for 3 iterations
           ./isaaclab.sh -p -m torch.distributed.run --nproc_per_node=2 \
-            scripts/reinforcement_learning/${TRAINER}/train.py \
+            scripts/reinforcement_learning/train.py \
+            --rl_library ${TRAINER} \
             --task=${{ matrix.task }} \
             --headless \
             --distributed \

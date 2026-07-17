@@ -9,17 +9,9 @@ from __future__ import annotations
 
 import sys
 import time
-from pathlib import Path
 from typing import Any
 
-_BENCH_DIR = Path(__file__).resolve().parents[1]
-_RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
-
-# Shared training utilities remain script-local, so their directory must be on sys.path.
-if str(_RL_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_RL_SCRIPTS))
-
-import common as _common  # noqa: E402
+from isaaclab_rl.entrypoints import common as _common
 
 
 def _disable_code_state_capture(runner: Any) -> None:
@@ -40,14 +32,13 @@ def _parse_args(argv: list[str]):
     """
     import argparse
 
+    from isaaclab.app import add_launcher_args
+
     from isaaclab_tasks.utils import setup_preset_cli
 
     add_common_train_args = _common.add_common_train_args
-    add_isaaclab_launcher_args = _common.add_isaaclab_launcher_args
     enable_cameras_for_video = _common.enable_cameras_for_video
-    import_local_module = _common.import_local_module
-
-    CLI_ARGS = import_local_module("isaaclab_rsl_rl_cli_args", _RL_SCRIPTS / "rsl_rl" / "cli_args.py")
+    from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with RSL-RL.")
     add_common_train_args(
@@ -56,8 +47,8 @@ def _parse_args(argv: list[str]):
         agent_help="Name of the RL agent configuration entry point.",
         include_distributed=False,
     )
-    CLI_ARGS.add_rsl_rl_args(parser)
-    add_isaaclab_launcher_args(parser)
+    cli_args.add_rsl_rl_args(parser)
+    add_launcher_args(parser)
 
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -94,7 +85,7 @@ def _parse_args(argv: list[str]):
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
-    return args_cli, remaining_args, CLI_ARGS
+    return args_cli, remaining_args, cli_args
 
 
 def run(argv: list[str]) -> None:
@@ -143,7 +134,7 @@ def run(argv: list[str]) -> None:
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = False
 
-    args_cli, remaining_args, CLI_ARGS = _parse_args(argv)
+    args_cli, remaining_args, cli_args = _parse_args(argv)
 
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
@@ -156,7 +147,7 @@ def run(argv: list[str]) -> None:
         app_t1 = time.perf_counter_ns()
 
         apply_env_overrides(args_cli, env_cfg)
-        agent_cfg = CLI_ARGS.update_rsl_rl_cfg(agent_cfg, args_cli)
+        agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
         agent_cfg.max_iterations = (
             args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
         )

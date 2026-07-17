@@ -3,17 +3,135 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for OvPhysxSceneDataBackend (new SceneDataBackend interface, post-#5128)."""
+"""Unit tests for OvPhysxSceneDataBackend (new SceneDataBackend interface, post-#5128) and OvPhysxManager."""
 
 from __future__ import annotations
 
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
+
+def test_manager_supports_declared_legacy_runtime_api():
+    """The declared public OVPhysX wheel keeps its constructor, step, and reset API."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class LegacyPhysX:
+        def __init__(self, *, device, active_cuda_gpus=None, config=None):
+            self.constructor = {"device": device, "active_cuda_gpus": active_cuda_gpus, "config": config}
+            self.calls = []
+
+        def set_config_int32(self, key, value):
+            self.calls.append(("set_config_int32", key, value))
+
+        def step_sync(self, *, dt, sim_time):
+            self.calls.append(("step_sync", dt, sim_time))
+
+        def reset(self):
+            self.calls.append(("reset",))
+            return 17
+
+        def wait_op(self, operation):
+            self.calls.append(("wait_op", operation))
+
+    runtime = SimpleNamespace(
+        PhysX=LegacyPhysX,
+        PhysXConfig=lambda **kwargs: SimpleNamespace(**kwargs),
+        ConfigInt32=SimpleNamespace(NUM_THREADS="num_threads"),
+    )
+
+    physx = OvPhysxManager._create_physx_instance(runtime, "gpu", 2)
+    OvPhysxManager._step_physx(physx, dt=0.01, sim_time=1.5)
+    OvPhysxManager._reset_physx_stage(physx)
+
+    assert physx.constructor["device"] == "gpu"
+    assert physx.constructor["active_cuda_gpus"] == "2"
+    assert physx.calls == [
+        ("set_config_int32", "num_threads", 8),
+        ("step_sync", 0.01, 1.5),
+        ("reset",),
+        ("wait_op", 17),
+    ]
+
+
+def test_manager_supports_current_runtime_api():
+    """The trusted current OVPhysX wheel keeps its class-mode, step, and reset API."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class CurrentPhysX:
+        cpu_mode = None
+
+        @classmethod
+        def set_cpu_mode(cls, enabled):
+            cls.cpu_mode = enabled
+
+        def __init__(self, *, active_cuda_gpus=None, config=None):
+            self.constructor = {"active_cuda_gpus": active_cuda_gpus, "config": config}
+            self.calls = []
+
+        def step_sync(self, *, dt):
+            self.calls.append(("step_sync", dt))
+
+        def reset_stage(self):
+            self.calls.append(("reset_stage",))
+            return 23
+
+        def wait_op(self, operation):
+            self.calls.append(("wait_op", operation))
+
+    runtime = SimpleNamespace(
+        PhysX=CurrentPhysX,
+        PhysXConfig=lambda **kwargs: SimpleNamespace(**kwargs),
+    )
+
+    physx = OvPhysxManager._create_physx_instance(runtime, "cpu", 0)
+    OvPhysxManager._step_physx(physx, dt=0.02, sim_time=3.0)
+    OvPhysxManager._reset_physx_stage(physx)
+
+    assert CurrentPhysX.cpu_mode is True
+    assert physx.constructor["active_cuda_gpus"] is None
+    assert physx.constructor["config"].num_threads == 8
+    assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
+
+
+def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path):
+    """Kit's registered ``physxSchema`` provider prevents duplicate wheel registration."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class FakeRegistry:
+        def __init__(self):
+            self.get_all_calls = 0
+            self.registered_paths = []
+
+        def GetAllPlugins(self):
+            self.get_all_calls += 1
+            return [SimpleNamespace(name="physxSchema")]
+
+        def RegisterPlugins(self, path):
+            self.registered_paths.append(path)
+
+    registry = FakeRegistry()
+    fake_pxr = ModuleType("pxr")
+    fake_pxr.Plug = SimpleNamespace(Registry=lambda: registry)
+    fake_ovphysx = ModuleType("ovphysx")
+    fake_ovphysx.__file__ = str(tmp_path / "ovphysx" / "__init__.py")
+    monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
+    monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
+
+    previous = OvPhysxManager._physx_schemas_registered
+    OvPhysxManager._physx_schemas_registered = False
+    try:
+        OvPhysxManager._ensure_physx_schemas_registered()
+    finally:
+        OvPhysxManager._physx_schemas_registered = previous
+
+    assert registry.get_all_calls == 1
+    assert registry.registered_paths == []
 
 
 def _make_stub_binding(prim_paths: list[str]) -> SimpleNamespace:

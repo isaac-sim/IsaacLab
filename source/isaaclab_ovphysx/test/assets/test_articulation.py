@@ -380,6 +380,7 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
         assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert actuator.joint_indices == slice(None)
 
     # Simulate physics
     for _ in range(10):
@@ -509,6 +510,9 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
         assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert isinstance(actuator.joint_indices, torch.Tensor)
+        assert actuator.joint_indices.dtype == torch.int32
+        assert actuator.joint_indices.device == torch.device(device)
 
     # Simulate physics
     for _ in range(10):

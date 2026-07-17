@@ -715,7 +715,9 @@ def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseC
     modify_rigid_body_properties(prim_path, cfg, stage)
 
 
-@apply_nested
+# rigid bodies nest when child links are authored under their parent link prim (URDF importer
+# in Isaac Sim 6.0+), so keep descending after a success to reach every link
+@apply_nested(stop_on_success=False)
 def modify_rigid_body_properties(
     prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
@@ -960,7 +962,9 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     modify_mass_properties(prim_path, cfg, stage)
 
 
-@apply_nested
+# mass is authored on the same link prims as the rigid-body schema, which may nest (see
+# modify_rigid_body_properties above), so keep descending after a success
+@apply_nested(stop_on_success=False)
 def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None) -> bool:
     """Set properties for the mass of a rigid body prim.
 

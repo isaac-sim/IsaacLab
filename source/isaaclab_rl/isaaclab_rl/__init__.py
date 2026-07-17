@@ -16,11 +16,28 @@ All wrappers work similar to the :class:`gymnasium.Wrapper` class. Using a wrapp
 the initialized environment instance to the wrapper constructor. However, since learning frameworks
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.
+
+The package also provides the unified training and playback entrypoints used by the
+``scripts/reinforcement_learning`` executables. See :mod:`isaaclab_rl.entrypoints` for details.
 """
 
 import importlib.metadata
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .entrypoints import PlaybackRequest, TrainingRequest
 
 try:
     __version__ = importlib.metadata.version("isaaclab_rl")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0"
+__all__ = ["PlaybackRequest", "TrainingRequest", "play", "run_play_cli", "run_train_cli", "train"]
+
+
+def __getattr__(name: str):
+    """Lazily expose unified reinforcement learning entrypoint APIs."""
+    if name in __all__:
+        from . import entrypoints
+
+        return getattr(entrypoints, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

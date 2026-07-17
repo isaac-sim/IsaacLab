@@ -11,7 +11,10 @@ Tests:
     - ./isaaclab.sh -i visualizer[viser] -> verify viser importable
     - ./isaaclab.sh -i visualizer -> verify all backends (rerun, viser) importable
     - ./isaaclab.sh -i visualizer -> verify newton[sim] also pulled in
-    - ./isaaclab.sh -i newton,rl[rsl-rl],visualizer[rerun] -> verify cartpole training works
+    - ./isaaclab.sh -i newton,rl[rsl-rl],visualizer[rerun] then ./isaaclab.sh -p
+      scripts/reinforcement_learning/train.py --rl_library rsl_rl --task Isaac-Cartpole-Direct
+      --num_envs 64 presets=newton_mjwarp --max_iterations 5 --headless
+      -> verify cartpole training works
 """
 
 from __future__ import annotations
@@ -138,7 +141,9 @@ class Test_Cli_Install_Visualizer_In_Uvenv_Runs_Training(UV_Mixin):
                 [
                     str(self.cli_script),
                     "-p",
-                    "scripts/reinforcement_learning/rsl_rl/train.py",
+                    "scripts/reinforcement_learning/train.py",
+                    "--rl_library",
+                    "rsl_rl",
                     "--task",
                     "Isaac-Cartpole-Direct",
                     "--num_envs",
