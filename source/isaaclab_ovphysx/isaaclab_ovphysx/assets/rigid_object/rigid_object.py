@@ -26,6 +26,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
+from isaaclab_ovphysx.cloner import OvPhysxReplicateContext
 from isaaclab_ovphysx.physics import OvPhysxManager
 from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
@@ -51,6 +52,8 @@ class RigidObject(BaseRigidObject):
 
     cfg: RigidObjectCfg
     """Configuration instance for the rigid object."""
+
+    _PHYSICS_CLONING_CONTEXT = OvPhysxReplicateContext
 
     __backend_name__: str = "ovphysx"
     """The name of the backend for the rigid object."""

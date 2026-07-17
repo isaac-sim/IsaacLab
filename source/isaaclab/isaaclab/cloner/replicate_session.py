@@ -7,12 +7,11 @@
 
 from __future__ import annotations
 
-import importlib
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.string import string_to_callable
+from isaaclab.utils.version import has_kit
 
 from .cloner_strategies import sequential
 from .usd import UsdReplicateContext
@@ -46,13 +45,12 @@ def queue_replication(cfg: Any) -> None:
 def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = True) -> None:
     """Drain :data:`REPLICATION_QUEUE` against ``plan``, dispatch each backend, publish the plan.
 
-    Each cfg's cloning contexts come from
-    :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when set, otherwise from the
-    active backend's default stack (``isaaclab_<backend>.cloner.REPLICATION``); entries may
-    be ``"module:ContextClass"`` references or classes. With ``replicate_physics=False``
-    cloning is USD-only: contexts other than
-    :class:`~isaaclab.cloner.UsdReplicateContext` are dropped, and the physics engine
-    parses the per-env USD prims directly.
+    Each cfg's physics cloning contexts come from
+    :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`; entries may be
+    ``"module:ContextClass"`` references or classes.
+    :class:`~isaaclab.cloner.UsdReplicateContext` is auto-added when the cfg has a
+    non-None ``spawn`` attribute and Kit is available. With ``replicate_physics=False``
+    physics contexts are dropped; USD is still auto-added if ``spawn`` and Kit apply.
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
@@ -78,13 +76,13 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         rows = plan.cfg_rows.get(id(cfg))
         if rows is None:
             continue
-        contexts = cfg.cloning_contexts
-        if contexts is None:
-            contexts = getattr(importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "REPLICATION")
-        contexts = [string_to_callable(c) if isinstance(c, str) else c for c in contexts]
+        contexts = [string_to_callable(c) if isinstance(c, str) else c for c in cfg.cloning_contexts or ()]
         if not replicate_physics:
-            contexts = [c for c in contexts if c is UsdReplicateContext]
-        for BackendCtxCls in contexts:
+            contexts = []
+        ctx_set = dict.fromkeys(contexts)
+        if getattr(cfg, "spawn", None) is not None and has_kit():
+            ctx_set.setdefault(UsdReplicateContext, None)
+        for BackendCtxCls in ctx_set:
             backend_rows.setdefault(BackendCtxCls, set()).update(rows)
 
     backend_ctxs: dict[type, Any] = {}

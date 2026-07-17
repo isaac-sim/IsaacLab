@@ -39,6 +39,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .articulation_data import ArticulationData
@@ -101,6 +102,8 @@ class Articulation(BaseArticulation):
 
     cfg: ArticulationCfg
     """Configuration instance for the articulations."""
+
+    _PHYSICS_CLONING_CONTEXT = NewtonReplicateContext
 
     __backend_name__: str = "newton"
     """The name of the backend for the articulation."""

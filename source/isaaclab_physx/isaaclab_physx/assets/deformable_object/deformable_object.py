@@ -22,6 +22,7 @@ from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
 
+from isaaclab_physx.cloner import PhysxReplicateContext
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .deformable_object_data import DeformableObjectData
@@ -72,6 +73,8 @@ class DeformableObject(AssetBase):
 
     cfg: DeformableObjectCfg
     """Configuration instance for the deformable object."""
+
+    _PHYSICS_CLONING_CONTEXT = PhysxReplicateContext
 
     def __init__(self, cfg: DeformableObjectCfg):
         """Initialize the deformable object.

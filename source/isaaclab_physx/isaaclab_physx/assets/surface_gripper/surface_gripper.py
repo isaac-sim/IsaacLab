@@ -19,6 +19,8 @@ from isaaclab.assets import AssetBase
 from isaaclab.cloner import queue_replication
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
+from isaaclab_physx.cloner import PhysxReplicateContext
+
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
 
@@ -86,6 +88,8 @@ class SurfaceGripper(AssetBase):
         """
         # copy the configuration
         # this class does not run AssetBase.__init__, so it registers its cfg itself
+        if cfg.cloning_contexts is None:
+            cfg.cloning_contexts = (PhysxReplicateContext,)
         queue_replication(cfg)
         self._cfg = cfg.copy()
 

@@ -25,6 +25,7 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -90,7 +91,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
-            queue_replication(source_rigid_object_cfgs[rigid_body_name])
+            sub_cfg = source_rigid_object_cfgs[rigid_body_name]
+            if sub_cfg.cloning_contexts is None:
+                sub_cfg.cloning_contexts = (NewtonReplicateContext,)
+            queue_replication(sub_cfg)
         # stores object names
         self._body_names_list = []
 

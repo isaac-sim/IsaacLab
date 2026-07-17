@@ -21,6 +21,7 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
+from isaaclab_physx.cloner import PhysxReplicateContext
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
@@ -54,6 +55,8 @@ class RigidObject(BaseRigidObject):
 
     cfg: RigidObjectCfg
     """Configuration instance for the rigid object."""
+
+    _PHYSICS_CLONING_CONTEXT = PhysxReplicateContext
 
     __backend_name__: str = "physx"
     """The name of the backend for the rigid object."""

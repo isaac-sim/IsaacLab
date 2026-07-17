@@ -22,10 +22,12 @@ class SensorBaseCfg:
     The class should inherit from :class:`isaaclab.sensors.sensor_base.SensorBase`.
     """
 
-    cloning_contexts: tuple[str | type, ...] | None = ("isaaclab.cloner:UsdReplicateContext",)
-    """Cloning contexts for this sensor. Defaults to USD-only cloning.
+    cloning_contexts: tuple[str | type, ...] | None = None
+    """Cloning contexts for this sensor. Defaults to None.
 
-    Sensors carry no physics of their own; see :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`.
+    Sensors carry no physics of their own. :func:`~isaaclab.cloner.replicate` auto-adds
+    :class:`~isaaclab.cloner.UsdReplicateContext` when the sensor has a ``spawn`` field
+    and Kit is available.
     """
 
     prim_path: str = MISSING

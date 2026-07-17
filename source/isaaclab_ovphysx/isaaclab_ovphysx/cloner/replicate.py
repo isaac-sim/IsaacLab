@@ -120,8 +120,8 @@ class OvPhysxReplicateContext:
         self._queue.clear()
 
 
-REPLICATION = (OvPhysxReplicateContext,)
-"""Default replication stack for OvPhysX assets: the clone replay authors USD itself."""
+# TODO: decompose OvPhysxReplicateContext into separate physics and USD contexts, following
+# the same split as physx/newton, so USD can be auto-added by replicate() instead.
 
 
 def ovphysx_replicate(

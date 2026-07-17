@@ -15,10 +15,8 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
-from isaaclab.cloner.usd import UsdReplicateContext
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.utils.version import has_kit
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
@@ -237,13 +235,6 @@ class NewtonReplicateContext:
             NewtonManager._num_envs = mapping.size(1)
         self._queue.clear()
         return builder, stage_info, site_index_map
-
-
-# evaluated at import: this module must only be imported after AppLauncher starts Kit
-# (cfg modules reference it by string), otherwise has_kit() locks in the kitless stack
-REPLICATION = (UsdReplicateContext, NewtonReplicateContext) if has_kit() else (NewtonReplicateContext,)
-"""Default replication stack for Newton assets: USD clones accompany physics only under Kit,
-where they are needed for rendering; kitless runs skip the authoring cost."""
 
 
 def newton_physics_replicate(

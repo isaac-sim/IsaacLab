@@ -24,6 +24,7 @@ from isaaclab.cloner import queue_replication
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
+from isaaclab_physx.cloner import PhysxReplicateContext
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .kernels import resolve_view_ids
@@ -92,7 +93,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
-            queue_replication(cfg.rigid_objects[rigid_body_name])
+            sub_cfg = cfg.rigid_objects[rigid_body_name]
+            if sub_cfg.cloning_contexts is None:
+                sub_cfg.cloning_contexts = (PhysxReplicateContext,)
+            queue_replication(sub_cfg)
         # stores object names
         self._body_names_list = []
 
