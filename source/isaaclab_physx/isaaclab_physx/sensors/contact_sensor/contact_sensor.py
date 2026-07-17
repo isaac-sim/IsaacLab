@@ -340,7 +340,14 @@ class ContactSensor(BaseContactSensor):
         # note: with a list of patterns, the views order bodies pattern-major:
         #   view_id = body_id * num_envs + env_id
         body_path_globs = [expr.replace(".*", "*") for _, expr in body_matches]
-        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+        # Wrap the leaf segment of each filter expression in PhysX alternation syntax before
+        # the standard .* -> * conversion. PhysX's glob engine prefix-matches bare leaf
+        # patterns, so env_*/Object also matches env_0/Object/Object (a geometry child
+        # sharing the same name -- a common URDF-to-USD artifact). Wrapping in (leaf)
+        # anchors the match to that exact path depth.
+        filter_prim_paths_glob = [
+            re.sub(r"([^/]+)$", r"(\1)", expr).replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr
+        ]
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
