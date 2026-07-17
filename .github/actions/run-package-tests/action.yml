@@ -83,6 +83,10 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  install-isaacteleop-pr769:
+    description: 'Build and install the immutable NVIDIA/IsaacTeleop PR 769 test pin before pytest'
+    default: 'false'
+    required: false
   wheelhouse-resource:
     description: 'Optional NGC resource containing wheelhouse/ and manifest.json for offline pip installs'
     default: ''
@@ -302,6 +306,7 @@ runs:
         test-node-ids-key: ${{ inputs.test-node-ids-key }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
+        install-isaacteleop-pr769: ${{ inputs.install-isaacteleop-pr769 }}
         wheelhouse-host-dir: ${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}

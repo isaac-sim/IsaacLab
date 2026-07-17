@@ -206,6 +206,63 @@ variant of the task (``IsaacContrib-Stack-Cube-Franka-IK-Abs``):
    and :ref:`isaac-teleop-new-device` for information on adding new devices.
 
 
+dVRK needle-pass demonstration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The bimanual dVRK needle-pass task uses paired motion controllers through the unified Isaac
+Teleop pipeline. It references the dVRK PSM, SDF suture needle, and suture pad from the Isaac for
+Healthcare ``0.6.0`` asset catalogue at content revision ``c189487``; Isaac Lab does not
+redistribute those remote assets. Verify the downloaded bytes before launching the task:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/tools/preflight_dvrk_needle_pass_assets.py
+
+Each reset starts with the free dynamic needle physically held between the donor jaws and the
+receiver jaws open. Preserve the donor hold, acquire the receiver grasp, and then release the
+donor. First check manual control with:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+      --task IsaacContrib-NeedlePass-dVRK-IK-Abs \
+      --device cuda:0 --visualizer kit --xr
+
+Then record and replay one successful demonstration:
+
+.. code:: bash
+
+   # Record one successful demonstration.
+   ./isaaclab.sh -p scripts/tools/record_demos.py \
+      --task IsaacContrib-NeedlePass-dVRK-IK-Abs \
+      --dataset_file ./datasets/dvrk_needle_pass.hdf5 \
+      --num_demos 1 --num_success_steps 10 --step_hz 30 \
+      --device cuda:0 --visualizer kit --xr
+
+   # Replay the recorded demonstration.
+   ./isaaclab.sh -p scripts/tools/replay_demos.py \
+      --task IsaacContrib-NeedlePass-dVRK-IK-Abs \
+      --dataset_file ./datasets/dvrk_needle_pass.hdf5 \
+      --num_envs 1 --device cuda:0 --validate_success_rate
+
+The needle remains a free dynamic rigid body throughout the episode. Reset is the only operation
+that writes its pose or velocity; the task advances donor hold, co-hold, receiver-only hold, and
+retained lift from bilateral jaw contact and simulated needle motion. The task requires CUDA
+PhysX because its contact-qualified grasp and hand-off contracts are validated only on that path.
+
+To retain a reviewable video of the qualified one-environment hand-off trace, set an output
+directory before running the focused physics test:
+
+.. code-block:: bash
+
+   ISAACLAB_DVRK_NEEDLE_PASS_VIDEO_DIR=$PWD/output/dvrk-needle-pass \
+     ./isaaclab.sh -p -m pytest \
+       source/isaaclab_tasks/test/contrib/needle_pass/test_dvrk_needle_pass_physics.py \
+       -k native_grasp_generator_handoff_video -q
+
+The test fails if Gymnasium's ``RecordVideo`` wrapper does not write an MP4 file.
+
+
 
 Collect a Dataset of Human Demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
