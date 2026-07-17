@@ -42,6 +42,21 @@ NUM_ENVS = 2
 NUM_STEPS = 10
 DT = 1.0 / 120.0
 TARGET_OFFSET = 0.1  # [rad] added to initial joint positions
+_ANYMAL_C_PHYSX_JOINT_NAMES = (
+    "LF_HAA",
+    "LH_HAA",
+    "RF_HAA",
+    "RH_HAA",
+    "LF_HFE",
+    "LH_HFE",
+    "RF_HFE",
+    "RH_HFE",
+    "LF_KFE",
+    "LH_KFE",
+    "RF_KFE",
+    "RH_KFE",
+)
+
 
 # ---------------------------------------------------------------------------
 # Actuator configurations under test
@@ -177,7 +192,6 @@ def _run_simulation(
                 "backend_names": backend_joint_names,
                 "user_to_backend_indices": installed_ordering.user_to_backend_indices,
                 "backend_to_user_indices": installed_ordering.backend_to_user_indices,
-                "is_identity": False,
             }
         )
         init_pos = wp.to_torch(articulation.data.joint_pos).clone()
@@ -302,7 +316,6 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
 
     installed_ordering = reversed_result["joint_ordering"]
     assert installed_ordering is not None
-    assert not installed_ordering["is_identity"]
     assert installed_ordering["user_names"] == requested_joint_names
     assert installed_ordering["backend_names"] == identity_result["backend_joint_names"]
     expected_user_to_backend = tuple(
@@ -445,8 +458,7 @@ def test_newton_actuator_reversed_ordering_uses_current_joint_state() -> None:
     silently compute torques from one-physics-step-stale joint state whenever nothing else in that step
     happens to read ``data.joint_pos``/``data.joint_vel`` first.
     """
-    probe = _run_simulation(IDEAL_PD_ACTUATORS, use_newton_actuators=True, num_steps=0)
-    reversed_joint_names = tuple(reversed(probe["joint_names"]))
+    reversed_joint_names = tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES))
     _assert_newton_actuator_uses_current_joint_state(reversed_joint_names)
 
 

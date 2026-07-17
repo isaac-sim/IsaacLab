@@ -52,10 +52,9 @@ class ArticulationData(BaseArticulationData):
     .. note::
         **Pull-to-refresh model.** PhysX state properties are *not* automatically updated each
         simulation step. Each property getter pulls fresh data from the PhysX tensor API on first
-        access per timestamp, then caches the result until the next step. Newton's solver-owned,
-        backend-order buffers are refreshed automatically by the simulation; when Newton uses a
-        nonidentity public ordering, its public-order shadows are also refreshed lazily on first
-        access.
+        access per timestamp, then caches the result until the next step. This differs from Newton,
+        where solver-owned buffers and nonidentity public-order shadows are refreshed automatically
+        by the simulation.
 
     .. note::
         **ProxyArray pointer stability.** Each :class:`ProxyArray` wrapper is created once on the
@@ -737,7 +736,7 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            body_com_pose_b = self._backend_body_com_pose_b if self.body_ordering is not None else self.body_com_pose_b
+            body_com_pose_b = self._backend_body_com_pose_b
             wp.launch(
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
@@ -766,7 +765,7 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
-            body_com_pose_b = self._backend_body_com_pose_b if self.body_ordering is not None else self.body_com_pose_b
+            body_com_pose_b = self._backend_body_com_pose_b
             wp.launch(
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
@@ -820,17 +819,16 @@ class ArticulationData(BaseArticulationData):
     def _refresh_reordered_body_buffer(
         self,
         buf: TimestampedBuffer,
-        backend_buffer: wp.array,
+        backend_buffer: wp.array | None,
         view_getter: Callable[[], wp.array],
         *,
         component_count: int | None = None,
     ) -> None:
         """Refresh a timestamp-lazy static body buffer from a CPU-only tensor view.
 
-        When stale for the current step, aliases the view directly (identity body
-        ordering) or stages it in backend order and gathers it into the owned
-        public-order buffer. The CPU-only view is copied host-to-device on GPU
-        pipelines, matching the per-property refresh contract.
+        When stale for the current step, copies the view into the public buffer under
+        identity ordering or into backend-order staging before gathering into public
+        order. The CPU-only view is copied host-to-device on GPU pipelines.
 
         Args:
             buf: Owned public-order buffer to refresh in place.
@@ -841,7 +839,7 @@ class ArticulationData(BaseArticulationData):
         """
         if buf.timestamp >= self._sim_timestamp:
             return
-        if self.body_ordering is None:
+        if not self.has_body_ordering:
             buf.data.assign(view_getter())
         else:
             # Stage the backend-order view on-device, then gather it into public order.
@@ -864,18 +862,41 @@ class ArticulationData(BaseArticulationData):
                 )
         buf.timestamp = self._sim_timestamp
 
+    def _refresh_body_state_user(
+        self,
+        buf: TimestampedBuffer,
+        view_getter: Callable[[], wp.array],
+    ) -> None:
+        """Refresh a public-order body-state buffer from its backend view.
+
+        Args:
+            buf: Public-order body-state buffer to refresh in place.
+            view_getter: Zero-argument callable returning the typed backend-order view.
+        """
+        if buf.timestamp >= self._sim_timestamp:
+            return
+        backend_source = view_getter()
+        if self.has_body_ordering:
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[backend_source, self.body_ordering.user_to_backend],
+                outputs=[buf.data],
+                device=self.device,
+            )
+        else:
+            buf.data = backend_source
+        buf.timestamp = self._sim_timestamp
+
     @property
     def body_mass(self) -> ProxyArray:
         """Body mass [kg].
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
 
-        Refresh is timestamp-lazy: the buffer is refreshed from the tensor view at most once per
-        simulation step, on the first read of the step. ``get_masses()`` is CPU-only, so on GPU
-        pipelines this refresh performs a host-to-device copy; this is acceptable because consumers
-        are init or episodic. Values written directly through the tensor view (``root_view.set_masses``)
-        become visible at the first read after the next simulation update; same-step view-write
-        visibility is not guaranteed.
+        The buffer refreshes from the tensor view at most once per simulation timestamp. Direct tensor-view writes
+        after that refresh become visible after the next update; use
+        :meth:`isaaclab.assets.Articulation.set_masses_index` for immediate coherence.
         """
         self._refresh_reordered_body_buffer(self._body_mass, self._body_mass_backend, self._root_view.get_masses)
         if self._body_mass_ta is None:
@@ -889,12 +910,9 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
 
-        Refresh is timestamp-lazy: the buffer is refreshed from the tensor view at most once per
-        simulation step, on the first read of the step. ``get_inertias()`` is CPU-only, so on GPU
-        pipelines this refresh performs a host-to-device copy; this is acceptable because consumers
-        are init or episodic. Values written directly through the tensor view (``root_view.set_inertias``)
-        become visible at the first read after the next simulation update; same-step view-write
-        visibility is not guaranteed.
+        The buffer refreshes from the tensor view at most once per simulation timestamp. Direct tensor-view writes
+        after that refresh become visible after the next update; use
+        :meth:`isaaclab.assets.Articulation.set_inertias_index` for immediate coherence.
         """
         self._refresh_reordered_body_buffer(
             self._body_inertia, self._body_inertia_backend, self._root_view.get_inertias, component_count=9
@@ -914,19 +932,9 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
             self._ensure_fk_fresh()
-            # set the buffer data and timestamp
-            backend_pose = self._root_view.get_link_transforms().view(wp.transformf)
-            if self.body_ordering is not None:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_bodies),
-                    inputs=[backend_pose, self.body_ordering.user_to_backend],
-                    outputs=[self._body_link_pose_w.data],
-                    device=self.device,
-                )
-            else:
-                self._body_link_pose_w.data = backend_pose
-            self._body_link_pose_w.timestamp = self._sim_timestamp
+        self._refresh_body_state_user(
+            self._body_link_pose_w, lambda: self._root_view.get_link_transforms().view(wp.transformf)
+        )
 
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
@@ -1000,18 +1008,9 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
             self._ensure_fk_fresh()
-            backend_velocity = self._root_view.get_link_velocities().view(wp.spatial_vectorf)
-            if self.body_ordering is not None:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_bodies),
-                    inputs=[backend_velocity, self.body_ordering.user_to_backend],
-                    outputs=[self._body_com_vel_w.data],
-                    device=self.device,
-                )
-            else:
-                self._body_com_vel_w.data = backend_velocity
-            self._body_com_vel_w.timestamp = self._sim_timestamp
+        self._refresh_body_state_user(
+            self._body_com_vel_w, lambda: self._root_view.get_link_velocities().view(wp.spatial_vectorf)
+        )
 
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
@@ -1025,19 +1024,9 @@ class ArticulationData(BaseArticulationData):
 
         All values are relative to the world.
         """
-        if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            backend_acceleration = self._root_view.get_link_accelerations().view(wp.spatial_vectorf)
-            if self.body_ordering is not None:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_bodies),
-                    inputs=[backend_acceleration, self.body_ordering.user_to_backend],
-                    outputs=[self._body_com_acc_w.data],
-                    device=self.device,
-                )
-            else:
-                self._body_com_acc_w.data = backend_acceleration
-            self._body_com_acc_w.timestamp = self._sim_timestamp
+        self._refresh_body_state_user(
+            self._body_com_acc_w, lambda: self._root_view.get_link_accelerations().view(wp.spatial_vectorf)
+        )
 
         if self._body_com_acc_w_ta is None:
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
@@ -1066,21 +1055,15 @@ class ArticulationData(BaseArticulationData):
     def body_com_jacobian_w(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`.
 
-        PhysX provides a natively center-of-mass-referenced Jacobian. With default or
-        identity ordering, this property aliases the buffer returned by
-        ``_root_view.get_jacobians()``. With nonidentity body or joint ordering, it gathers
-        the corresponding axes into an owned public-order buffer. Refresh is gated by
-        ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``; the ``ProxyArray``
-        wrapper is initialized lazily and then reused.
-
-        Unlike the world-frame pose buffers, this does not need an explicit
-        :meth:`_ensure_fk_fresh`: PhysX recomputes the Jacobian from the current joint
-        state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
+        PhysX provides a natively center-of-mass-referenced Jacobian. The view refreshes
+        once per simulation timestamp and gathers body or joint axes when ordering is
+        active. No explicit :meth:`_ensure_fk_fresh` call is needed because PhysX
+        recomputes the Jacobian from the current joint state on query.
         """
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
             backend_jacobian = self._root_view.get_jacobians()
-            has_body_ordering = self.body_ordering is not None
-            has_joint_ordering = self.joint_ordering is not None
+            has_body_ordering = self.has_body_ordering
+            has_joint_ordering = self.has_joint_ordering
             if has_body_ordering or has_joint_ordering:
                 wp.launch(
                     ordering_kernels.reorder_jacobian_backend_to_user,
@@ -1148,7 +1131,7 @@ class ArticulationData(BaseArticulationData):
         if buf.timestamp >= self._sim_timestamp:
             return
         backend_source = view_getter()
-        has_joint_ordering = self.joint_ordering is not None
+        has_joint_ordering = self.has_joint_ordering
         if has_joint_ordering:
             wp.launch(
                 reorder_kernel,
@@ -1165,15 +1148,8 @@ class ArticulationData(BaseArticulationData):
     def mass_matrix(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
 
-        With default or identity ordering, this property aliases the buffer returned by
-        ``_root_view.get_generalized_mass_matrices()``. With nonidentity joint ordering,
-        it gathers both joint axes into an owned public-order buffer. Refresh is gated by
-        ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``; the ``ProxyArray``
-        wrapper is initialized lazily and then reused.
-
-        Unlike the world-frame pose buffers, this does not need an explicit
-        :meth:`_ensure_fk_fresh`: PhysX recomputes the mass matrix from the current joint
-        state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
+        Uses :meth:`_refresh_generalized_joint_buffer` for timestamped refresh and
+        joint-axis reordering.
         """
         self._refresh_generalized_joint_buffer(
             self._mass_matrix,
@@ -1188,15 +1164,8 @@ class ArticulationData(BaseArticulationData):
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
 
-        With default or identity ordering, this property aliases the buffer returned by
-        ``_root_view.get_gravity_compensation_forces()``. With nonidentity joint ordering,
-        it gathers the joint axis into an owned public-order buffer. Refresh is gated by
-        ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``; the ``ProxyArray``
-        wrapper is initialized lazily and then reused.
-
-        Unlike the world-frame pose buffers, this does not need an explicit
-        :meth:`_ensure_fk_fresh`: PhysX recomputes these forces from the current joint
-        state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
+        Uses :meth:`_refresh_generalized_joint_buffer` for timestamped refresh and
+        joint-axis reordering.
         """
         self._refresh_generalized_joint_buffer(
             self._gravity_compensation_forces,
@@ -1225,7 +1194,7 @@ class ArticulationData(BaseArticulationData):
         """
         if user_buffer.timestamp >= self._sim_timestamp:
             return
-        if self.joint_ordering is None:
+        if not self.has_joint_ordering:
             user_buffer.data = view_getter()
         else:
             wp.launch(
@@ -1263,12 +1232,10 @@ class ArticulationData(BaseArticulationData):
         Returns:
             The backend-order buffer that setters scatter into and push to PhysX.
         """
-        if self.joint_ordering is None:
+        if not self.has_joint_ordering:
             if require_current:
                 self._refresh_joint_state_user(user_buffer, view_getter)
             return user_buffer.data
-        if backend_buffer is None:
-            raise RuntimeError("PhysX joint state ordering staging was not initialized.")
         if require_current and backend_buffer.timestamp < self._sim_timestamp:
             backend_buffer.data.assign(view_getter())
             backend_buffer.timestamp = self._sim_timestamp
@@ -1801,17 +1768,11 @@ class ArticulationData(BaseArticulationData):
         self._root_com_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
 
         # -- dynamics quantities for task-space controllers
-        # PhysX's Jacobian rows include the root body for floating-base and exclude only the
-        # fixed root for fixed-base (``_jacobian_link_offset`` handles the body axis). PhysX's
-        # raw Jacobian / mass matrix / gravity-comp prepend 6 base-DoF columns on floating-
-        # base (the engine's natural form), matching the industry-standard convention used by
-        # Pinocchio, Drake, MuJoCo, RBDL, OCS2, and iDynTree. We pass through the full DoF
-        # axis: shape ``(N, num_jacobi_bodies, 6, num_joints + num_base_dofs)``. Newton wraps
-        # ``eval_jacobian`` to match the same column layout. With default or identity ordering,
-        # ``body_com_jacobian_w`` / ``mass_matrix`` / ``gravity_compensation_forces`` alias the
-        # engine buffers. With nonidentity ordering, their timestamped buffers remain owned and
-        # receive backend-to-public gathers. The link-origin Jacobian always uses an owned buffer
-        # because it is the output of the COM-to-origin shift kernel.
+        # PhysX Jacobians exclude only the fixed root body and prepend six base-DoF columns
+        # for floating-base articulations. Preserve that engine-native layout, including in
+        # Newton's matching ``eval_jacobian`` wrapper. Default ordering returns engine views;
+        # nonidentity ordering gathers into owned public buffers. The link-origin Jacobian
+        # always remains owned because it is the COM-to-origin shift-kernel output.
         is_fixed_base = self._root_view.shared_metatype.fixed_base
         self._jacobian_link_offset = 1 if is_fixed_base else 0
         num_jacobi_bodies = self._num_bodies - self._jacobian_link_offset
@@ -1966,9 +1927,9 @@ class ArticulationData(BaseArticulationData):
         # Initialize ProxyArray wrappers
         self._pin_proxy_arrays()
 
-    def _configure_ordering_buffers(self, had_joint_ordering: bool, had_body_ordering: bool) -> None:
-        """Allocate, reorder, or release buffers owned only by nonidentity ordering."""
-        if self.joint_ordering is not None:
+    def _configure_ordering_buffers(self) -> None:
+        """Allocate and seed buffers owned only by nonidentity ordering."""
+        if self.has_joint_ordering:
             if self._joint_pos_backend is None:
                 self._joint_pos_backend = TimestampedBuffer(
                     (self._num_instances, self._num_joints), self.device, wp.float32
@@ -2003,8 +1964,6 @@ class ArticulationData(BaseArticulationData):
             self._joint_vel.data = wp.zeros(
                 (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
             )
-            self._joint_pos_ta = None
-            self._joint_vel_ta = None
             reset_timestamps(
                 [self._joint_pos, self._joint_vel, self._joint_acc, self._joint_pos_backend, self._joint_vel_backend]
             )
@@ -2043,46 +2002,7 @@ class ArticulationData(BaseArticulationData):
                 ],
                 device=self.device,
             )
-        else:
-            if had_joint_ordering:
-                for backend_buffer, user_buffer in (
-                    (self._joint_stiffness_backend, self._joint_stiffness),
-                    (self._joint_damping_backend, self._joint_damping),
-                    (self._joint_armature_backend, self._joint_armature),
-                    (self._joint_pos_limits_backend, self._joint_pos_limits),
-                    (self._joint_vel_limits_backend, self._joint_vel_limits),
-                    (self._joint_effort_limits_backend, self._joint_effort_limits),
-                ):
-                    if backend_buffer is not None:
-                        user_buffer.assign(backend_buffer)
-                if self._joint_friction_props_backend is not None:
-                    wp.launch(
-                        articulation_kernels.extract_friction_properties,
-                        dim=(self._num_instances, self._num_joints),
-                        inputs=[self._joint_friction_props_backend],
-                        outputs=[
-                            self._joint_friction_coeff,
-                            self._joint_dynamic_friction_coeff,
-                            self._joint_viscous_friction_coeff,
-                        ],
-                        device=self.device,
-                    )
-                self._previous_joint_vel.assign(self._root_view.get_dof_velocities())
-            self._joint_pos_backend = None
-            self._joint_vel_backend = None
-            self._joint_stiffness_backend = None
-            self._joint_damping_backend = None
-            self._joint_armature_backend = None
-            self._joint_pos_limits_backend = None
-            self._joint_vel_limits_backend = None
-            self._joint_effort_limits_backend = None
-            self._joint_friction_props_user = None
-            self._joint_friction_props_backend = None
-            self._joint_pos_ta = None
-            self._joint_vel_ta = None
-            reset_timestamps([self._joint_pos, self._joint_vel, self._joint_acc])
-
-        if self.body_ordering is not None:
+        if self.has_body_ordering:
             # Invariant: from seeding onward, each backend staging must stay the backend-order
             # image of its public buffer. Partial body-property setters scatter only the
             # selected cells into both buffers and push full backend rows to the simulation,
@@ -2100,43 +2020,23 @@ class ArticulationData(BaseArticulationData):
             reset_timestamps(
                 [self._body_com_pose_b, self._body_com_pose_b_backend, self._body_mass, self._body_inertia]
             )
-        else:
-            if had_body_ordering:
-                if self._body_mass_backend is not None:
-                    self._body_mass.data.assign(self._body_mass_backend)
-                if self._body_inertia_backend is not None:
-                    self._body_inertia.data.assign(self._body_inertia_backend)
-            self._body_com_pose_b_backend = None
-            self._body_mass_backend = None
-            self._body_inertia_backend = None
-            self._body_com_pose_b.timestamp = -1.0
 
     def _apply_ordering_maps_after_resolve(self) -> None:
-        """Refresh owned public-order buffers after articulation ordering maps are installed.
-
-        Ordering state lives only on :attr:`joint_ordering` / :attr:`body_ordering`; a
-        non-``None`` map denotes an active permutation. The previous per-axis ordering is
-        recovered from the backend staging buffers, which exist only while their axis
-        carries an ordering, so a cleared ordering releases its buffers on rebind.
-        """
-        had_joint_ordering = self._joint_pos_backend is not None
-        had_body_ordering = self._body_com_pose_b_backend is not None
+        """Configure public-order buffers after articulation ordering maps are installed."""
         joint_ordering = self.joint_ordering
         body_ordering = self.body_ordering
-        self._configure_ordering_buffers(had_joint_ordering, had_body_ordering)
+        self._configure_ordering_buffers()
 
         if body_ordering is not None:
             self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
-        elif joint_ordering is not None:
-            self._jacobian_body_user_to_backend = joint_ordering.user_to_backend
         else:
             self._jacobian_body_user_to_backend = None
         if joint_ordering is not None:
             self._jacobian_joint_user_to_backend = joint_ordering.user_to_backend
         else:
-            self._jacobian_joint_user_to_backend = self._jacobian_body_user_to_backend
+            self._jacobian_joint_user_to_backend = None
 
-        if body_ordering is not None:
+        if self.has_body_ordering:
             self._body_link_pose_w.data = wp.zeros(
                 (self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device
             )
@@ -2146,15 +2046,6 @@ class ArticulationData(BaseArticulationData):
             self._body_com_acc_w.data = wp.zeros(
                 (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
             )
-        self._body_link_pose_w_ta = None
-        self._body_link_pos_w_ta = None
-        self._body_link_quat_w_ta = None
-        self._body_com_vel_w_ta = None
-        self._body_com_lin_vel_w_ta = None
-        self._body_com_ang_vel_w_ta = None
-        self._body_com_acc_w_ta = None
-        self._body_com_lin_acc_w_ta = None
-        self._body_com_ang_acc_w_ta = None
         reset_timestamps(
             [
                 self._body_link_pose_w,
@@ -2169,26 +2060,24 @@ class ArticulationData(BaseArticulationData):
             ]
         )
 
-        if body_ordering is not None or joint_ordering is not None:
+        if self.has_body_ordering or self.has_joint_ordering:
             self._body_com_jacobian_w.data = wp.zeros(
                 self._body_com_jacobian_w.data.shape, dtype=wp.float32, device=self.device
             )
-        if joint_ordering is not None:
+        if self.has_joint_ordering:
             self._mass_matrix.data = wp.zeros(self._mass_matrix.data.shape, dtype=wp.float32, device=self.device)
             self._gravity_compensation_forces.data = wp.zeros(
                 self._gravity_compensation_forces.data.shape, dtype=wp.float32, device=self.device
             )
-        self._body_com_jacobian_w_ta = None
-        self._mass_matrix_ta = None
-        self._gravity_compensation_forces_ta = None
         reset_timestamps([self._body_com_jacobian_w, self._mass_matrix, self._gravity_compensation_forces])
+        self._pin_proxy_arrays()
 
     def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.
 
-        This is called once from :meth:`_create_buffers` during initialization.
-        PhysX tensor API buffers have stable GPU pointers across simulation steps,
-        so no rebinding is needed (unlike Newton).
+        This is called from :meth:`_create_buffers` and after ordering maps install owned
+        public-order buffers. PhysX tensor API buffers have stable GPU pointers across
+        simulation steps, so no per-step rebinding is needed.
         """
         # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
         # Defaults

@@ -516,11 +516,10 @@ def test_live_floating_root_writers_match_identity_after_body_reordering(sim, de
 def test_live_direct_view_mass_inertia_writes_become_visible(sim, device, gravity_enabled, body_ordering):
     """Direct tensor-view writes to body masses/inertias become visible on the lazy read.
 
-    Regression for the timestamp-lazy body-property buffers. Shipped Factory/Forge envs write
-    masses/inertias straight through ``root_view.set_masses`` / ``set_inertias`` (bypassing the
-    asset setters). With the previous init-clone-only getters those writes were never seen. The
-    getters must now refresh from the tensor view, so a direct view write is reflected by
-    ``data.body_mass`` / ``data.body_inertia``:
+    Develop reads these properties directly from the tensor view on every access. The timestamp-lazy
+    implementation could instead hide direct ``root_view.set_masses`` / ``set_inertias`` writes after
+    its first read. This regression requires those writes to become visible through ``data.body_mass`` /
+    ``data.body_inertia`` when the lazy buffer is next eligible to refresh:
 
     - Case A: after a primed read and a subsequent simulation update (the lazy gate opens once per
       step).
@@ -601,6 +600,36 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
     assert tuple(articulation.body_names) == expected_mjwarp_body_names
     assert articulation.joint_ordering is not None
     assert articulation.body_ordering is not None
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("ordering_axis", ["joint", "body"])
+def test_unused_jacobian_ordering_map_is_none(sim, device, gravity_enabled, ordering_axis):
+    """Keep the inactive Jacobian-axis map unset under single-axis ordering."""
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
+            actuators={},
+            joint_ordering="mjwarp" if ordering_axis == "joint" else None,
+            body_ordering="mjwarp" if ordering_axis == "body" else None,
+        )
+    )
+    sim.reset()
+    assert articulation.is_initialized
+
+    if ordering_axis == "joint":
+        assert articulation.joint_ordering is not None
+        assert articulation.body_ordering is None
+        assert articulation.data._jacobian_joint_user_to_backend is not None
+        assert articulation.data._jacobian_body_user_to_backend is None
+    else:
+        assert articulation.joint_ordering is None
+        assert articulation.body_ordering is not None
+        assert articulation.data._jacobian_joint_user_to_backend is None
+        assert articulation.data._jacobian_body_user_to_backend is not None
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
