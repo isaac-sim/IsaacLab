@@ -28,7 +28,7 @@ def setup_environment():
     # Acquire all Isaac environments names
     registered_task_specs = []
     for task_spec in gym.registry.values():
-        if "Isaac" in task_spec.id and not task_spec.id.endswith("Play-v0"):
+        if "Isaac" in task_spec.id and utils._is_training_task(task_spec.id):
             registered_task_specs.append(task_spec)
 
     # Sort environments by name

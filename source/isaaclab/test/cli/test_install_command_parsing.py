@@ -106,6 +106,11 @@ class TestInstallConstants:
             "isaaclab must be first so dependents resolve against the local copy"
         )
 
+    def test_core_submodules_install_contrib_before_tasks(self):
+        assert CORE_ISAACLAB_SUBMODULES.index("isaaclab_contrib") < CORE_ISAACLAB_SUBMODULES.index("isaaclab_tasks"), (
+            "isaaclab_contrib must be installed before isaaclab_tasks so its declared local dependency resolves"
+        )
+
     def test_core_submodules_contains_expected_packages(self):
         expected = {
             "isaaclab",

@@ -235,11 +235,18 @@ full:
   Isaac-Reorient-Cube-Allegro*:
     max_iterations: 500
     lower_thresholds:
-      reward: 15
-      episode_length: 300
+      reward: 200
+      episode_length: 150
     upper_thresholds:
       duration: 1500
   # Dexterous manipulation - Shadow hand
+  Isaac-Reorient-Cube-Shadow:
+    max_iterations: 3000
+    lower_thresholds:
+      reward: 1000
+      episode_length: 300
+    upper_thresholds:
+      duration: 10000
   Isaac-Reorient-Cube-Shadow-Direct:
     max_iterations: 3000
     lower_thresholds:
@@ -254,7 +261,21 @@ full:
       episode_length: 50
     upper_thresholds:
       duration: 15000
+  Isaac-Reorient-Cube-Shadow-OpenAI-FF:
+    max_iterations: 3000
+    lower_thresholds:
+      reward: 1000
+      episode_length: 50
+    upper_thresholds:
+      duration: 15000
   Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct:
+    max_iterations: 3000
+    lower_thresholds:
+      reward: 1000
+      episode_length: 100
+    upper_thresholds:
+      duration: 30000
+  Isaac-Reorient-Cube-Shadow-OpenAI-LSTM:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
@@ -264,7 +285,23 @@ full:
   Isaac-Reorient-Cube-Shadow-Camera-Direct:
     max_iterations: 3000
     lower_thresholds:
+      # evidence-calibrated: full-budget Newton run crosses 1000 at iter ~2300
+      # (PhysX at iter ~1000); tail success rate 0.83 at the 0.1 rad tolerance
       reward: 1000
+      episode_length: 400
+      success_rate:
+        value: 0.3
+        consecutive_samples: 20
+    upper_thresholds:
+      duration: 40000
+  Isaac-Reorient-Cube-Shadow-Camera:
+    max_iterations: 3000
+    lower_thresholds:
+      # interim reward gate: catches pipeline breakage well below the truncated
+      # manager plateau (~174-290); tighten toward the Direct row's 1000 once a
+      # full-budget manager run calibrates it (success gates stay off until then
+      # — success is near-binary below convergence)
+      reward: 150
       episode_length: 400
     upper_thresholds:
       duration: 40000
@@ -273,6 +310,19 @@ full:
     lower_thresholds:
       reward: 1000
       episode_length: 150
+    upper_thresholds:
+      duration: 10000
+  Isaac-Shadow-Handover:
+    max_iterations: 3000
+    lower_thresholds:
+      # evidence-calibrated: the manager variant plateaus near 785 on PhysX
+      # (the Direct rows keep the shared 1000 gate)
+      reward: 500
+      episode_length: 150
+      # provisional gate matching the validation campaign's controller
+      success_rate:
+        value: 0.3
+        consecutive_samples: 20
     upper_thresholds:
       duration: 10000
   # Dexterous manipulation - KukaAllegro
