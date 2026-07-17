@@ -543,7 +543,7 @@ def modify_articulation_root_properties(
 
 
 """
-Rigid body properties.
+Fragment-writer helpers.
 """
 
 
@@ -579,30 +579,26 @@ def _resolve_fragment_targets(
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # collect every carrier in the subtree, then keep only the outermost ones: nested
-    # applications of the same physics schema are not allowed, and the legacy nested writers
-    # stop descending at the first carrier on each branch. The pruning is a second pass over
-    # the full result so it does not depend on the traversal order of the query.
-    candidates = get_all_matching_child_prims(
-        prim_path,
-        lambda p: p.HasAPI(api_type),
-        stage=stage,
-        traverse_instance_prims=True,
-    )
-    candidate_paths = [candidate.GetPath() for candidate in candidates]
-    matches = [
-        candidate
-        for candidate, path in zip(candidates, candidate_paths)
-        if not any(path != other and path.HasPrefix(other) for other in candidate_paths)
-    ]
+    # breadth-first search that stops descending at the first carrier on each branch, like the
+    # legacy nested writers: nested applications of the same physics schema are not allowed, so
+    # nothing below a carrier is ever a target. This keeps the search linear in the subtree size
+    # instead of collecting every carrier and pruning afterwards. Carriers on instanced prims are
+    # read-only and collected separately so they can be reported.
     targets = []
     skipped = []
-    for match in matches:
-        if match.IsInstance() or match.IsInstanceProxy():
-            skipped.append(match)
-        else:
-            targets.append(match)
-    if not matches and apply_fresh:
+    prims_queue = [prim]
+    index = 0
+    while index < len(prims_queue):
+        candidate = prims_queue[index]
+        index += 1
+        if candidate.HasAPI(api_type):
+            if candidate.IsInstance() or candidate.IsInstanceProxy():
+                skipped.append(candidate)
+            else:
+                targets.append(candidate)
+            continue
+        prims_queue += candidate.GetFilteredChildren(Usd.TraverseInstanceProxies())
+    if not targets and not skipped and apply_fresh:
         if prim.IsInstance() or prim.IsInstanceProxy():
             skipped.append(prim)
         else:
@@ -615,6 +611,11 @@ def _resolve_fragment_targets(
             [p.GetPath().pathString for p in skipped],
         )
     return targets, bool(skipped)
+
+
+"""
+Rigid body properties.
+"""
 
 
 def apply_rigid_body_properties(
@@ -654,8 +655,7 @@ def apply_rigid_body_properties(
     for target in targets:
         target_path = target.GetPath().pathString
         for cfg in fragments:
-            func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-            success = bool(func(cfg, target_path, stage)) and success
+            success = bool(cfg.func(cfg, target_path, stage)) and success
     return success
 
 
@@ -854,7 +854,7 @@ Collision properties.
 def apply_collision_properties(
     prim_path: str, fragments: Iterable[schemas_cfg.CollisionFragment], stage: Usd.Stage | None = None
 ) -> bool:
-    """Apply a list of collision fragments to a prim.
+    """Apply a list of collision fragments to the colliders under a prim.
 
     Existing colliders in the subtree are modified in place, matching the legacy nested writer.
     Real assets author ``UsdPhysics.CollisionAPI`` on their collider prims, so anchoring a fresh
@@ -887,8 +887,7 @@ def apply_collision_properties(
     for target in targets:
         target_path = target.GetPath().pathString
         for cfg in fragments:
-            func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-            success = bool(func(cfg, target_path, stage)) and success
+            success = bool(cfg.func(cfg, target_path, stage)) and success
     return success
 
 
@@ -989,7 +988,7 @@ Mass properties.
 def apply_mass_properties(
     prim_path: str, fragments: Iterable[schemas_cfg.MassFragment], stage: Usd.Stage | None = None
 ) -> bool:
-    """Apply a list of mass fragments to a prim.
+    """Apply a list of mass fragments to the mass-bearing prims under a prim.
 
     Existing mass-bearing prims in the subtree are modified in place, matching the legacy nested
     writer, since real assets author ``UsdPhysics.MassAPI`` on their link prims. Only when the
@@ -1018,8 +1017,7 @@ def apply_mass_properties(
     for target in targets:
         target_path = target.GetPath().pathString
         for cfg in fragments:
-            func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-            success = bool(func(cfg, target_path, stage)) and success
+            success = bool(cfg.func(cfg, target_path, stage)) and success
     return success
 
 
