@@ -155,8 +155,8 @@ def build_render_scope_usd(
             f"        float3 omni:rtx:background:source:color = ({r}, {g}, {b})"
         )
     else:
-        # Do not set background source type
-        background_lines = ""
+        # Do not set background source type, so that the default dome light is used.
+        background_lines = 'token omni:rtx:background:source:type = "domeLight"'
 
     return f'''
 def Scope "Render"
