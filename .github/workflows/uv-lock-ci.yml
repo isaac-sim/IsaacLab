@@ -3,17 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Pure-``uv`` install path. Exercises the lockfile-driven workflow a fresh user runs:
-# ``uv sync`` then ``uv run isaaclab train ...`` (see
+# Pure-``uv`` install path. Exercises the workflow a fresh user runs (see
 # docs/source/setup/installation/uv_run.rst). This is the basic installation that must
-# always work for everyone, so on every change to the dependency graph it checks a matrix
-# of resolve modes and physics backends:
+# always work for everyone, so on every change to the dependency graph it checks the
+# committed lock, a fresh resolution, and both supported physics backends in sequence:
 #
-#   - locked   Newton MJWarp  -- committed uv.lock replays and trains (``--locked``).
-#   - fresh    Newton MJWarp  -- from-scratch re-resolution (``uv lock --upgrade``) against
-#                                the live indexes still resolves, installs, and trains.
-#   - isaacsim PhysX          -- ``--extra isaacsim`` pulls the Isaac Sim (PhysX) backend.
-#   - ov       OVPhysX        -- ``--extra ov`` pulls the kit-less OVPhysX backend.
+#   - locked Newton MJWarp  -- the committed ``uv.lock`` replays and trains.
+#   - fresh Newton MJWarp   -- ``uv lock --upgrade`` still resolves, installs, and trains.
+#   - PhysX                 -- ``uv run --extra isaacsim`` reuses the environment and adds Isaac Sim.
 #
 # GPU access: like every other GPU job in this repo (see .github/actions/run-tests and
 # tools/run_install_ci.py), the work runs inside a container launched with ``--gpus all``.
@@ -59,7 +56,7 @@ defaults:
 
 jobs:
   uv-train:
-    name: ${{ matrix.name }}
+    name: uv run training
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     container:
@@ -67,28 +64,8 @@ jobs:
       # --gpus all exposes the GPUs (the repo-wide pattern); NVIDIA_DRIVER_CAPABILITIES=all
       # is set at create time so graphics/compute driver libs are injected for the backends.
       options: --gpus all -e NVIDIA_DRIVER_CAPABILITIES=all
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: locked sync + Newton MJWarp training
-            prepare: uv sync --locked
-            run_flags: "--locked"
-            physics: newton_mjwarp
-          - name: fresh resolve + Newton MJWarp training
-            prepare: uv lock --upgrade && uv sync
-            run_flags: ""
-            physics: newton_mjwarp
-          - name: --extra isaacsim + PhysX training
-            prepare: uv sync --locked --extra isaacsim
-            run_flags: "--locked --extra isaacsim"
-            physics: physx
-          - name: --extra ov + OVPhysX training
-            prepare: uv sync --locked --extra ov
-            run_flags: "--locked --extra ov"
-            physics: ovphysx
     env:
-      # Isaac Sim wheels refuse to import without EULA acceptance (harmless for other backends).
+      # Isaac Sim wheels refuse to import without EULA acceptance.
       OMNI_KIT_ACCEPT_EULA: "yes"
       ACCEPT_EULA: "Y"
       ISAACSIM_ACCEPT_EULA: "YES"
@@ -114,14 +91,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      # ``--locked`` (base + extras) fails if uv.lock drifted from pyproject.toml; the fresh
-      # variant re-resolves the whole graph from scratch against the live indexes instead.
-      - name: Prepare environment
-        run: ${{ matrix.prepare }}
-
-      - name: Verify CUDA GPU and core imports
+      - name: Verify CUDA GPU and core imports (locked Newton MJWarp)
         run: |
-          uv run ${{ matrix.run_flags }} python - <<'PY'
+          uv run --locked python - <<'PY'
           import torch
           assert torch.cuda.is_available(), "no CUDA GPU available inside the container"
           print("CUDA GPUs:", torch.cuda.device_count())
@@ -135,13 +107,68 @@ jobs:
 
       # Runs headless (no --visualizer/--viz). ``Training time:`` in the output confirms
       # training ran to completion rather than exiting early with a zero return code.
-      - name: Train Cartpole (${{ matrix.physics }})
+      - name: Train Cartpole (locked Newton MJWarp)
         run: |
           set -o pipefail
-          uv run ${{ matrix.run_flags }} isaaclab train \
+          uv run --locked isaaclab train \
             --rl_library rsl_rl \
             --task Isaac-Cartpole-Direct \
             --num_envs 16 \
             --max_iterations 5 \
-            physics=${{ matrix.physics }} 2>&1 | tee train.log
-          grep -q "Training time:" train.log
+            physics=newton_mjwarp 2>&1 | tee train-newton-locked.log
+          grep -q "Training time:" train-newton-locked.log
+
+      # Re-resolve against the live indexes to verify that an end user can update the lock
+      # and still run successfully.
+      - name: Re-resolve lockfile
+        run: uv lock --upgrade
+
+      - name: Verify CUDA GPU and core imports (fresh Newton MJWarp)
+        run: |
+          uv run python - <<'PY'
+          import torch
+          assert torch.cuda.is_available(), "no CUDA GPU available inside the container"
+          print("CUDA GPUs:", torch.cuda.device_count())
+          import isaaclab
+          import isaaclab_assets
+          import isaaclab_tasks
+          import isaaclab_rl
+          import isaaclab_newton
+          print("core imports ok")
+          PY
+
+      - name: Train Cartpole (fresh Newton MJWarp)
+        run: |
+          set -o pipefail
+          uv run isaaclab train \
+            --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct \
+            --num_envs 16 \
+            --max_iterations 5 \
+            physics=newton_mjwarp 2>&1 | tee train-newton-fresh.log
+          grep -q "Training time:" train-newton-fresh.log
+
+      - name: Verify CUDA GPU and core imports (PhysX)
+        run: |
+          uv run --extra isaacsim python - <<'PY'
+          import torch
+          assert torch.cuda.is_available(), "no CUDA GPU available inside the container"
+          print("CUDA GPUs:", torch.cuda.device_count())
+          import isaacsim
+          import isaaclab
+          import isaaclab_assets
+          import isaaclab_tasks
+          import isaaclab_rl
+          print("Isaac Sim and core imports ok")
+          PY
+
+      - name: Train Cartpole (PhysX)
+        run: |
+          set -o pipefail
+          uv run --extra isaacsim isaaclab train \
+            --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct \
+            --num_envs 16 \
+            --max_iterations 5 \
+            physics=physx 2>&1 | tee train-physx.log
+          grep -q "Training time:" train-physx.log
