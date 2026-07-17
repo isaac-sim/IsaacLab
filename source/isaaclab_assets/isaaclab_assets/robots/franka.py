@@ -8,7 +8,7 @@
 The following configurations are available:
 
 * :obj:`FRANKA_PANDA_CFG`: Franka Emika Panda robot with Panda hand
-* :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Franka Emika Panda robot with Panda hand with stiffer PD control
+* :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Franka Emika Panda robot with Panda hand with more damped PD control
 * :obj:`FRANKA_ROBOTIQ_GRIPPER_CFG`: Franka robot with Robotiq_2f_85 gripper
 
 Reference: https://github.com/frankaemika/franka_ros
@@ -52,17 +52,26 @@ FRANKA_PANDA_CFG = ArticulationCfg(
         },
     ),
     actuators={
+        # Gains based on libfranka joint impedance control and calibrated for the Menagerie-derived asset.
         "panda_shoulder": ImplicitActuatorCfg(
             joint_names_expr=["panda_joint[1-4]"],
             effort_limit_sim=87.0,
-            stiffness=80.0,
-            damping=4.0,
+            stiffness=600.0,
+            damping=50.0,
         ),
         "panda_forearm": ImplicitActuatorCfg(
             joint_names_expr=["panda_joint[5-7]"],
             effort_limit_sim=12.0,
-            stiffness=80.0,
-            damping=4.0,
+            stiffness={
+                "panda_joint5": 250.0,
+                "panda_joint6": 150.0,
+                "panda_joint7": 50.0,
+            },
+            damping={
+                "panda_joint5": 30.0,
+                "panda_joint6": 25.0,
+                "panda_joint7": 15.0,
+            },
         ),
         "panda_hand": ImplicitActuatorCfg(
             joint_names_expr=["panda_finger_joint.*"],
@@ -82,9 +91,13 @@ FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].stiffness = 400.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].damping = 80.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_forearm"].stiffness = 400.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_forearm"].damping = 80.0
-"""Configuration of Franka Emika Panda robot with stiffer PD control.
+"""Configuration of Franka Emika Panda robot with more damped PD control.
 
 This configuration is useful for task-space control using differential IK.
+
+.. deprecated::
+    Use :data:`FRANKA_PANDA_CFG` instead. Its default gains are calibrated for
+    the current Franka asset.
 """
 
 
