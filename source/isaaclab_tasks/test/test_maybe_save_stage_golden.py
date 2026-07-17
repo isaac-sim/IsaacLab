@@ -32,6 +32,33 @@ def _usda_with_robot(translate: tuple[float, float, float] = (0.0, 0.0, 0.0), *,
     return f'#usda 1.0\ndef Xform "World"\n{{\n{robot}{extra}}}\n'
 
 
+def _usda_with_volatile_viewport_render_product() -> str:
+    """Build a stage with scene content plus a volatile Kit viewport render product."""
+    return (
+        _usda_with_robot((1.0, 2.0, 3.0))
+        + '\ndef Scope "Render"\n'
+        "{\n"
+        '    def Scope "OmniverseKit"\n'
+        "    {\n"
+        '        def Scope "HydraTextures"\n'
+        "        {\n"
+        '            def RenderProduct "omni_kit_widget_viewport_ViewportTexture_0"\n'
+        "            {\n"
+        "            }\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+    )
+
+
+def _usda_with_render_scope_content() -> str:
+    """Build a stage with non-volatile content under ``/Render``."""
+    return (
+        _usda_with_robot((1.0, 2.0, 3.0))
+        + '\ndef Scope "Render"\n{\n    def Scope "TaskOwned"\n    {\n    }\n}\n'
+    )
+
+
 def _mock_export(stage_text: str | dict[str, str]):
     """Return a ``save_stage`` side effect that writes ``stage_text`` (or ``stage_text['text']``)."""
 
@@ -124,6 +151,29 @@ def test_compare_golden_stage_reports_structure_and_transform_diffs(tmp_path: Pa
     result.write_text(_usda_with_robot((1.0, 2.0, 9.0)), encoding="utf-8")
     problems = compare_golden_stage(str(golden), str(result))
     assert any("transform" in problem and "/World/Robot" in problem for problem in problems)
+
+
+def test_compare_golden_stage_ignores_volatile_viewport_render_products(tmp_path: Path):
+    """Kit viewport render products are session state and should not affect stage goldens."""
+    golden = tmp_path / "golden.usda"
+    result = tmp_path / "result.usda"
+
+    golden.write_text(_usda_with_volatile_viewport_render_product(), encoding="utf-8")
+    result.write_text(_usda_with_robot((1.0, 2.0, 3.0)), encoding="utf-8")
+
+    assert compare_golden_stage(str(golden), str(result)) == []
+
+
+def test_compare_golden_stage_preserves_nonvolatile_render_content(tmp_path: Path):
+    """Task-authored render content still participates in the golden stage comparison."""
+    golden = tmp_path / "golden.usda"
+    result = tmp_path / "result.usda"
+
+    golden.write_text(_usda_with_render_scope_content(), encoding="utf-8")
+    result.write_text(_usda_with_robot((1.0, 2.0, 3.0)), encoding="utf-8")
+
+    problems = compare_golden_stage(str(golden), str(result))
+    assert any("removed prim" in problem and "/Render/TaskOwned" in problem for problem in problems)
 
 
 def test_maybe_save_stage_matches_golden_with_sublayer_result(golden_stage_dir: Path, tmp_path: Path):

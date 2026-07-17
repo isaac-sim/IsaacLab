@@ -209,6 +209,29 @@ _STAGE_TRANSFORM_ATOL = 1e-5
 # Cap on the number of reported stage differences so a large regression stays readable.
 _MAX_STAGE_DIFF_LINES = 80
 
+_VOLATILE_STAGE_PRIM_PATH_PREFIXES = (
+    "/Render/OmniverseKit",
+)
+_VOLATILE_STAGE_PRIM_ANCESTOR_PATHS = (
+    "/Render",
+)
+
+
+def _is_volatile_stage_prim_path(path: str) -> bool:
+    """Return whether a prim path is session/UI render state excluded from golden stage comparison."""
+    return any(path == prefix or path.startswith(f"{prefix}/") for prefix in _VOLATILE_STAGE_PRIM_PATH_PREFIXES)
+
+
+def _prune_empty_volatile_stage_ancestors(structure: dict[str, str], transforms: dict[str, np.ndarray]) -> None:
+    """Remove volatile parent scopes when all their children were session/UI render state."""
+    for path in _VOLATILE_STAGE_PRIM_ANCESTOR_PATHS:
+        if path not in structure:
+            continue
+        has_kept_child = any(child_path != path and child_path.startswith(f"{path}/") for child_path in structure)
+        if not has_kept_child:
+            structure.pop(path)
+            transforms.pop(path, None)
+
 
 def extract_stage_structure_and_transforms(usd_path: str) -> tuple[dict[str, str], dict[str, np.ndarray]]:
     """Open a USD stage and return its prim structure and per-prim world transforms.
@@ -232,10 +255,13 @@ def extract_stage_structure_and_transforms(usd_path: str) -> tuple[dict[str, str
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     for prim in stage.Traverse():
         path = str(prim.GetPath())
+        if _is_volatile_stage_prim_path(path):
+            continue
         structure[path] = str(prim.GetTypeName())
         if UsdGeom.Xformable(prim):
             matrix = xform_cache.GetLocalToWorldTransform(prim)
             transforms[path] = np.array([[matrix[row][col] for col in range(4)] for row in range(4)], dtype=np.float64)
+    _prune_empty_volatile_stage_ancestors(structure, transforms)
     return structure, transforms
 
 
