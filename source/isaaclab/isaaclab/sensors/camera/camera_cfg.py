@@ -199,6 +199,11 @@ class CameraCfg(SensorBaseCfg):
 
     The value is specified as ``(red, green, blue)`` with each component in ``[0, 1]``.
     For example, ``(0.0, 0.0, 0.0)`` is black and ``(1.0, 1.0, 1.0)`` is white.
+
+    Both RTX backends (Isaac RTX and OVRTX) apply this as a per-render-product USD
+    attribute (``omni:rtx:background:source:type`` / ``omni:rtx:background:source:color``)
+    so each camera is configured independently and cameras with ``background_color=None``
+    use the dome-light default without affecting other cameras.
     """
 
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)

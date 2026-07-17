@@ -149,7 +149,7 @@ def build_render_scope_usd(
     )
 
     if background_color is not None:
-        r, g, b = background_color
+        r, g, b = (max(0.0, min(1.0, c)) for c in background_color)
         background_lines = (
             f'token omni:rtx:background:source:type = "color"\n'
             f"        float3 omni:rtx:background:source:color = ({r}, {g}, {b})"
