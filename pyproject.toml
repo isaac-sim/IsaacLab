@@ -52,7 +52,7 @@ dependencies = [
     "pillow>=12.1.1",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.0
-    "omniverseclient==2.71.1.7015",
+    "omniverseclient==2.72.1",
     "filelock",
     "lazy_loader>=0.4",
     # Pink IK stack; the install CLI derives its force-install list from these entries.
