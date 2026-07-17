@@ -350,6 +350,11 @@ def _prepare_seed_source(workdir: Path, seed_src_dir: Path, sha: str) -> None:
     subprocess.run(["chmod", "-R", "a+rwX", str(seed_src_dir)], check=False)
 
 
+def _create_seed_source_dir() -> Path:
+    """Create a unique disposable source-clone directory."""
+    return Path(tempfile.mkdtemp(prefix="perf-seed-src-"))
+
+
 def _prepare_jit_cache(cache_dir: Path) -> Path:
     """Create a writable JIT cache directory for one task/backend bucket."""
     for subdir in (cache_dir / "warp", cache_dir / "nv"):
@@ -359,7 +364,15 @@ def _prepare_jit_cache(cache_dir: Path) -> Path:
     return cache_dir
 
 
-def _jit_cache_path(cache_root: Path, target_branch: str, commit: str, task_id: str, backend_key: str) -> Path:
+def _prepare_kit_cache(cache_dir: Path) -> Path:
+    """Create a writable Kit cache directory for one task/backend bucket."""
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    # Kit writes shader and generated-node caches from the in-container user.
+    _run(["chmod", "-R", "0777", str(cache_dir)], check=False)
+    return cache_dir
+
+
+def _cache_bucket_path(cache_root: Path, target_branch: str, commit: str, task_id: str, backend_key: str) -> Path:
     """Return the cache shared by repeated samples of one task/backend bucket."""
     return (
         cache_root
@@ -370,14 +383,14 @@ def _jit_cache_path(cache_root: Path, target_branch: str, commit: str, task_id: 
     )
 
 
-def _cleanup_jit_cache(cache_dir: Path) -> None:
-    """Remove the disposable JIT cache for one seeder invocation."""
-    if not cache_dir.exists():
+def _cleanup_run_dir(run_dir: Path) -> None:
+    """Remove a disposable directory for one seeder invocation."""
+    if not run_dir.exists():
         return
-    subprocess.run(["chmod", "-R", "a+rwX", str(cache_dir)], check=False, capture_output=True, text=True)
-    shutil.rmtree(cache_dir, ignore_errors=True)
-    if cache_dir.exists():
-        print(f"::warning::[seed] Could not fully remove JIT cache {cache_dir}")
+    subprocess.run(["chmod", "-R", "a+rwX", str(run_dir)], check=False, capture_output=True, text=True)
+    shutil.rmtree(run_dir, ignore_errors=True)
+    if run_dir.exists():
+        print(f"::warning::[seed] Could not fully remove run directory {run_dir}")
 
 
 def _docker_run_benchmark(
@@ -395,9 +408,10 @@ def _docker_run_benchmark(
     seed_token = f"--seed {task.seed}" if task.seed is not None else ""
     inner = (
         "set -e\n"
-        # Warp creates nested cache directories at runtime. A permissive umask
-        # keeps them writable when successive containers use different host uids.
+        # Warp and Kit create nested cache directories at runtime. A permissive
+        # umask keeps them writable for successive containers.
         "umask 000\n"
+        "mkdir -p /tmp/bench_out\n"
         "cd /workspace/isaaclab\n"
         "rm -f _isaac_sim\n"
         "ln -s /isaac-sim _isaac_sim\n"
@@ -414,7 +428,6 @@ def _docker_run_benchmark(
     cmd = [
         "docker",
         "run",
-        "--rm",
         "--name",
         container_name,
         "--init",
@@ -449,8 +462,6 @@ def _docker_run_benchmark(
         "-e",
         "CUDA_CACHE_PATH=/tmp/jit-cache/nv",
         "-v",
-        f"{artifact_dir}:/tmp/bench_out",
-        "-v",
         f"{jit_cache}:/tmp/jit-cache",
         "-v",
         f"{kit_cache}:/isaac-sim/kit/cache",
@@ -462,7 +473,20 @@ def _docker_run_benchmark(
     cmd += [image, "-c", inner]
 
     result = subprocess.run(cmd, text=True)
-    return result.returncode
+    permissions_returncode = 0
+    try:
+        copy_result = subprocess.run(
+            ["docker", "cp", f"{container_name}:/tmp/bench_out/.", str(artifact_dir)],
+            text=True,
+        )
+        if copy_result.returncode == 0:
+            permissions_returncode = subprocess.run(
+                ["chmod", "-R", "a+rwX", str(artifact_dir)],
+                text=True,
+            ).returncode
+    finally:
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+    return result.returncode or copy_result.returncode or permissions_returncode
 
 
 def _build_bench_result(task: TaskConfig, artifact_dir: Path, exit_code: int, wall_time_s: int) -> None:
@@ -621,16 +645,18 @@ def main() -> int:
     artifacts_root = (workdir / args.artifacts_root).resolve()
     artifacts_root.mkdir(parents=True, exist_ok=True)
 
-    seed_src_dir = (
-        Path(args.seed_src_dir).resolve() if args.seed_src_dir else Path(tempfile.gettempdir()) / "perf-seed-src"
-    )
+    if args.seed_src_dir:
+        seed_src_dir = Path(args.seed_src_dir).resolve()
+    else:
+        seed_src_dir = _create_seed_source_dir()
+        atexit.register(_cleanup_run_dir, seed_src_dir)
     run_id = os.environ.get("GITHUB_RUN_ID", f"local-{os.getpid()}")
     run_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "0")
-    jit_cache_root = workdir / "jit-cache" / "seed" / f"run-{run_id}-attempt-{run_attempt}"
-    atexit.register(_cleanup_jit_cache, jit_cache_root)
-    kit_cache = workdir / "kit-cache"
-    kit_cache.mkdir(parents=True, exist_ok=True)
-    _run(["chmod", "-R", "0777", str(kit_cache)], check=False)
+    cache_run = f"run-{run_id}-attempt-{run_attempt}"
+    jit_cache_root = workdir / "jit-cache" / "seed" / cache_run
+    kit_cache_root = workdir / "kit-cache" / "seed" / cache_run
+    atexit.register(_cleanup_run_dir, jit_cache_root)
+    atexit.register(_cleanup_run_dir, kit_cache_root)
 
     plan = _build_seed_plan(args)
     plan = _filter_plan_by_ancestry(
@@ -675,7 +701,10 @@ def main() -> int:
                 continue
         for task in tasks:
             task_jit_cache = _prepare_jit_cache(
-                _jit_cache_path(jit_cache_root, target_branch, commit, task.task_id, task.backend_key)
+                _cache_bucket_path(jit_cache_root, target_branch, commit, task.task_id, task.backend_key)
+            )
+            task_kit_cache = _prepare_kit_cache(
+                _cache_bucket_path(kit_cache_root, target_branch, commit, task.task_id, task.backend_key)
             )
             for sample_idx in range(args.samples_per_commit):
                 total += 1
@@ -699,7 +728,7 @@ def main() -> int:
                     task=task,
                     artifact_dir=artifact_dir,
                     jit_cache=task_jit_cache,
-                    kit_cache=kit_cache,
+                    kit_cache=task_kit_cache,
                     seed_src_dir=seed_src_dir if source_mount else None,
                     container_name=container,
                 )
