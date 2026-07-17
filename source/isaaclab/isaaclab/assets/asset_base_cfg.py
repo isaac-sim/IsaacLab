@@ -47,13 +47,12 @@ class AssetBaseCfg:
     """
 
     cloning_contexts: tuple[str | type, ...] | None = None
-    """Physics cloning contexts for this asset. Defaults to None.
+    """Cloning contexts for this asset. Defaults to None.
 
-    Entries are classes (or ``"module:ContextClass"`` strings) that handle physics
-    replication across environments. Set by the backend asset class via
-    ``_PHYSICS_CLONING_CONTEXT``; :func:`~isaaclab.cloner.replicate` auto-adds
-    :class:`~isaaclab.cloner.UsdReplicateContext` when ``spawn`` is not None and Kit is
-    available. ``None`` means no explicit physics cloning; ``()`` suppresses all cloning.
+    Entries are ``"module:ContextClass"`` references (or classes) that clone this asset
+    across environments. If None, :func:`~isaaclab.cloner.replicate` uses the active
+    physics backend's default stack (``isaaclab_<backend>.cloner.REPLICATION``); an empty
+    tuple means the asset is not cloned.
     """
 
     prim_path: str = MISSING

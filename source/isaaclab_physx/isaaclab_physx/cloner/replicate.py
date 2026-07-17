@@ -13,6 +13,7 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab.cloner.cloner_utils import split_clone_template
+from isaaclab.cloner.usd import UsdReplicateContext
 
 
 def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
@@ -142,6 +143,14 @@ class PhysxReplicateContext:
             rep.unregister_replicator(_stage_id)
 
         get_physx_replicator_interface().register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
+
+
+REPLICATION = (UsdReplicateContext, PhysxReplicateContext)
+"""Default replication stack for PhysX assets.
+
+PhysX always needs the per-env USD prims, not just for rendering: cross-environment collision
+filtering is authored on them as USD collision groups, and PhysX only runs under Kit (there is
+no kitless PhysX, so unlike Newton there is no USD-free mode to gate on)."""
 
 
 def physx_replicate(

@@ -69,8 +69,6 @@ class AssetBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
-        if cfg.cloning_contexts is None and getattr(self, "_PHYSICS_CLONING_CONTEXT", None) is not None:
-            cfg.cloning_contexts = (self._PHYSICS_CLONING_CONTEXT,)
         # register the original cfg object for cloning: the clone plan keys rows by the
         # cfg identity the scene collected; contexts and policy resolve at replication time
         queue_replication(cfg)

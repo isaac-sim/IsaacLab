@@ -35,7 +35,6 @@ _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
-from isaaclab_physx.cloner import PhysxReplicateContext
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .articulation_data import ArticulationData
@@ -101,8 +100,6 @@ class Articulation(BaseArticulation):
 
     cfg: ArticulationCfg
     """Configuration instance for the articulations."""
-
-    _PHYSICS_CLONING_CONTEXT = PhysxReplicateContext
 
     __backend_name__: str = "physx"
     """The name of the backend for the articulation."""
