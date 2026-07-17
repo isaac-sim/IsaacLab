@@ -113,12 +113,13 @@ class RenderData:
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
 
-        # ARGB clear color packed as uint32. Default is 93% gray (0xFFEEEEEE), matching the
-        # RTX renderer background and improving visibility of dark objects.
+        # ABGR clear color packed as uint32 — Newton's SensorTiledCamera reads the low byte as R,
+        # next as G, next as B, high byte as A (little-endian RGBA in memory). Default is 93% gray
+        # (0xFFEEEEEE), matching the RTX renderer background and improving visibility of dark objects.
         background_color = getattr(spec.cfg, "background_color", None)
         if background_color is not None:
             r, g, b = (max(0, min(255, round(c * 255))) for c in background_color)
-            self.clear_color: int = (0xFF << 24) | (r << 16) | (g << 8) | b
+            self.clear_color: int = (0xFF << 24) | (b << 16) | (g << 8) | r
         else:
             self.clear_color = 0xFFEEEEEE
 
