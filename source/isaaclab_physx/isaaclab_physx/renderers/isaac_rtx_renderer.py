@@ -314,12 +314,10 @@ class IsaacRtxRenderer(BaseRenderer):
             rp_prim = stage.GetPrimAtPath(rp.path)
             if rp_prim is not None and rp_prim.IsValid():
                 with Sdf.ChangeBlock():
-                    rp_prim.CreateAttribute(
-                        "omni:rtx:background:source:type", Sdf.ValueTypeNames.Token
-                    ).Set("color")
-                    rp_prim.CreateAttribute(
-                        "omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3
-                    ).Set((r, g, b))
+                    rp_prim.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+                    rp_prim.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
+                        (r, g, b)
+                    )
             else:
                 logger.warning(
                     "create_render_data: render product prim at '%s' not found; background_color will not be applied.",
