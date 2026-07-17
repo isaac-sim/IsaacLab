@@ -24,6 +24,7 @@ from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereC
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -552,6 +553,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45))
 
     def play_mode(self):
         # play-mode overrides of parent

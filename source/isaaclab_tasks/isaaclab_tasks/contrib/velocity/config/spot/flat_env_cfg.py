@@ -26,6 +26,7 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -410,3 +411,4 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # no height scan
         self.scene.height_scanner = None
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3))

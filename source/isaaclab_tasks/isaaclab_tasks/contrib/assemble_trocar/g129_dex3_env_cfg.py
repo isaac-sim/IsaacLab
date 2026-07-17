@@ -17,6 +17,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.assemble_trocar import mdp
 
@@ -391,6 +392,7 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 200
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.01)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
         for camera_cfg in (
             self.scene.front_camera,
             self.scene.left_wrist_camera,

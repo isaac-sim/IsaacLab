@@ -16,6 +16,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -82,6 +83,9 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     rew_scale_pole_pos = -1.0
     rew_scale_cart_vel = -0.01
     rew_scale_pole_vel = -0.005
+
+    def __post_init__(self):
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
 
 ###

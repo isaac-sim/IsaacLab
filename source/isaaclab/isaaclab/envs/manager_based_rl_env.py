@@ -76,13 +76,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
-        # Forward render_mode and viewer camera to VideoRecorderCfg before super().__init__()
-        # creates the VideoRecorder, so fallback cameras are only spawned when --video is active
-        # (env_render_mode="rgb_array") and the perspective view matches the task viewport.
+        # Forward render_mode to VideoRecorderCfg before super().__init__() creates the VideoRecorder,
+        # so fallback cameras are only spawned when --video is active (env_render_mode="rgb_array").
         if cfg.video_recorder is not None:
             cfg.video_recorder.env_render_mode = render_mode
-            cfg.video_recorder.eye = tuple(float(x) for x in cfg.viewer.eye)
-            cfg.video_recorder.lookat = tuple(float(x) for x in cfg.viewer.lookat)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
