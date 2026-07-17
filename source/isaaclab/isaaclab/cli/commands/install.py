@@ -578,28 +578,21 @@ for requirement in dist.requires or []:
 
 
 def _get_extension_pip_upgrade_dependencies(extension_dir: Path) -> list[str]:
-    """Read dependency names opted into targeted pip upgrades from ``extension.toml``."""
-    extension_toml = extension_dir / "config" / "extension.toml"
-    if not extension_toml.is_file():
+    """Read dependency names opted into targeted pip upgrades from ``[tool.isaaclab]`` in ``pyproject.toml``."""
+    pyproject_toml = extension_dir / "pyproject.toml"
+    if not pyproject_toml.is_file():
         return []
 
     try:
-        with extension_toml.open("rb") as fd:
-            extension_data = tomllib.load(fd)
+        with pyproject_toml.open("rb") as fd:
+            project_data = tomllib.load(fd)
     except tomllib.TOMLDecodeError as exc:
-        print_warning(f"Could not parse {extension_toml}: {exc}; skipping targeted dependency upgrades.")
+        print_warning(f"Could not parse {pyproject_toml}: {exc}; skipping targeted dependency upgrades.")
         return []
 
-    isaac_lab_settings = extension_data.get("isaac_lab_settings", {})
-    if not isinstance(isaac_lab_settings, dict):
-        print_warning(
-            f"Ignoring invalid isaac_lab_settings in {extension_toml}; expected a table with pip_upgrade_dependencies."
-        )
-        return []
-
-    upgrade_dependencies = isaac_lab_settings.get("pip_upgrade_dependencies", [])
+    upgrade_dependencies = project_data.get("tool", {}).get("isaaclab", {}).get("pip_upgrade_dependencies", [])
     if not isinstance(upgrade_dependencies, list) or not all(isinstance(item, str) for item in upgrade_dependencies):
-        print_warning(f"Ignoring invalid pip_upgrade_dependencies in {extension_toml}; expected a list of strings.")
+        print_warning(f"Ignoring invalid pip_upgrade_dependencies in {pyproject_toml}; expected a list of strings.")
         return []
 
     return upgrade_dependencies
@@ -684,22 +677,23 @@ def _install_isaacsim() -> None:
 
 
 # Source directories installed on every ./isaaclab.sh -i invocation (even "core").
-# Order matters: isaaclab must be first so dependents resolve against the local copy,
-# and isaaclab_ppisp should precede renderer backends (newton/ov/physx) so local
-# camera ISP support is available when CameraCfg.isp_cfg is used.
+# Order must respect inter-package dependencies (topological sort):
+#   isaaclab first, then ppisp (no inter-package deps, precedes renderer backends),
+#   then contrib (needed by assets), then assets, then tasks (needed by rl),
+#   then rl. Packages with only an isaaclab dep can go anywhere after isaaclab.
 CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab",
     "isaaclab_ppisp",
-    "isaaclab_assets",
     "isaaclab_contrib",
+    "isaaclab_assets",
     "isaaclab_experimental",
     "isaaclab_newton",
     "isaaclab_ov",
     "isaaclab_ovphysx",
     "isaaclab_physx",
-    "isaaclab_rl",
     "isaaclab_tasks",
     "isaaclab_tasks_experimental",
+    "isaaclab_rl",
     "isaaclab_visualizers",
 ]
 

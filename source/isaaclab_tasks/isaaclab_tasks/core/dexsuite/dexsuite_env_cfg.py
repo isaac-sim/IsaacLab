@@ -103,7 +103,7 @@ class SceneCfg(InteractiveSceneCfg):
 
     # table
     table: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/table",
+        prim_path="{ENV_REGEX_NS}/table",
         spawn=TABLE_SPAWN_CFG,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
     )

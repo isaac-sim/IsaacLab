@@ -155,6 +155,7 @@ runs:
                 if [ -n \"\$wait_pid\" ]; then kill \"\$wait_pid\" 2>/dev/null || true; fi; \
                 exit 130" HUP INT TERM
 
+          echo "::group::Configuration / Setup"
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
             echo "With pytest options: $pytest_options"
@@ -364,6 +365,7 @@ runs:
           fi
 
           echo "Docker environment variables: '$docker_env_vars'"
+          echo "::endgroup::"
 
           # Run tests in a detached container and follow logs.  Running detached
           # means the container lifecycle is independent of the shell - if the
@@ -429,6 +431,7 @@ runs:
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
+          echo "::group::Following Docker container logs"
           # Stream container logs in background.
           docker logs -f "$container_name" &
           logs_pid=$!
@@ -453,6 +456,7 @@ runs:
           kill $logs_pid 2>/dev/null || true
           wait $logs_pid 2>/dev/null || true
           logs_pid=""
+          echo "::endgroup::"
 
           if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
@@ -460,6 +464,7 @@ runs:
             echo "🟠 Docker container failed (exit $DOCKER_EXIT), but continuing to copy results..."
           fi
 
+          echo "::group::Copy results"
           # Copy test results with error handling.
           # When volume-mounted, test output lands on the host filesystem directly
           # (docker cp cannot see bind-mounted paths after the container stops).
@@ -511,13 +516,16 @@ runs:
           elif docker cp "$container_name:/workspace/isaaclab/tests/comparison-images" "$img_dir" 2>/dev/null; then
             echo "🟢 Comparison images copied from container to $img_dir"
           fi
+          echo "::endgroup::"
 
+          echo "::group::Cleanup"
           # Clean up container
           echo "🔵 Cleaning up Docker container..."
           docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
           if [ -n "$docker_runtime_dir" ]; then
             rm -rf "$docker_runtime_dir" || echo "🟠 Docker runtime storage cleanup failed, but continuing..."
           fi
+          echo "::endgroup::"
 
           return $DOCKER_EXIT
         }

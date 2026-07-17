@@ -4379,6 +4379,8 @@ class Articulation(BaseArticulation):
                 self._implicit_dof_mask,
                 w.joint_f_2d,
                 self._data._sim_bind_joint_computed_effort,
+                self._ALL_JOINT_INDICES,
+                False,
             ],
             outputs=[
                 self._data._computed_torque,
