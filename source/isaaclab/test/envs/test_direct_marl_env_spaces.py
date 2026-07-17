@@ -15,19 +15,25 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 
-from isaaclab.envs import DirectMARLEnv
+from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
 from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
 
 pytestmark = pytest.mark.unit
 
 
+class _StubMARLEnv(DirectMARLEnv):
+    """Direct MARL environment stub that skips simulator initialization."""
+
+    def __init__(self, cfg: DirectMARLEnvCfg) -> None:
+        self._is_closed = True
+        self.cfg = cfg
+        self.scene = SimpleNamespace(num_envs=cfg.scene.num_envs)
+        self.sim = SimpleNamespace(device=cfg.sim.device)
+
+
 def test_agent_and_space_configuration():
     """Agent counts and spaces are configured without initializing the simulator."""
-    env = object.__new__(DirectMARLEnv)
-    env._is_closed = True
-    env.cfg = make_empty_direct_marl_env_cfg(device="cpu")
-    env.scene = SimpleNamespace(num_envs=env.cfg.scene.num_envs)
-    env.sim = SimpleNamespace(device=env.cfg.sim.device)
+    env = _StubMARLEnv(make_empty_direct_marl_env_cfg(device="cpu"))
 
     env._configure_env_spaces()
 
