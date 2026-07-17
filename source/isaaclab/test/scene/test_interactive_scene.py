@@ -272,6 +272,7 @@ def test_collect_asset_cfgs_orders_sensors_last():
     body = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot")
     scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor, body=body)
     scene.cloner_cfg = CloneCfg()
+    scene._env_ns = scene.cloner_cfg.clone_regex.rsplit("/", 1)[0]
 
     cfgs = scene._collect_asset_cfgs()
 
