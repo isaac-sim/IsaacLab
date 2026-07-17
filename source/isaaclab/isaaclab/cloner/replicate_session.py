@@ -85,7 +85,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         else:
             contexts = [string_to_callable(c) if isinstance(c, str) else c for c in cfg.cloning_contexts]
         if not replicate_physics:
-            contexts = []
+            contexts = [c for c in contexts if c is UsdReplicateContext]
         ctx_set = dict.fromkeys(contexts)
         if getattr(cfg, "spawn", None) is not None and has_kit():
             ctx_set.setdefault(UsdReplicateContext, None)
