@@ -199,6 +199,11 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 @pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
 def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
+    if use_mujoco_contacts and shape_type == ShapeType.MESH_CAPSULE:
+        pytest.xfail(
+            "Newton >= 1.4 (mujoco-warp 3.10 margin/gap semantics) loses mesh-mesh collision response in the"
+            " MuJoCo contacts pipeline: objects tunnel with zero contact forces. Tracked upstream."
+        )
     """Test horizontal collision detection with varied velocities and separations.
 
     8 environments (2 groups x 4 envs) with different collision speeds.
