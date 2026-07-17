@@ -133,7 +133,7 @@ class DummyTerminationManager:
 class DummyEnv:
     """Minimal environment double used by recorder terms and metadata export."""
 
-    def __init__(self, device: str = "cpu", num_envs: int = 2) -> None:
+    def __init__(self, device: str = "cpu", num_envs: int = 20) -> None:
         self.num_envs = num_envs
         self.device = device
         self.sim = DummySimulation()
@@ -142,7 +142,7 @@ class DummyEnv:
         self.termination_manager = DummyTerminationManager()
 
 
-def create_dummy_env(device: str = "cpu", num_envs: int = 2) -> ManagerBasedEnv:
+def create_dummy_env(device: str = "cpu", num_envs: int = 20) -> ManagerBasedEnv:
     """Create a minimal environment double."""
 
     return cast("ManagerBasedEnv", DummyEnv(device=device, num_envs=num_envs))
@@ -224,7 +224,7 @@ def test_record(device, dataset_dir):
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_close(device, dataset_dir):
     """Test whether close exports buffered data when ``export_in_close`` is enabled."""
-    env = create_dummy_env(device=device)
+    env = create_dummy_env(device=device, num_envs=2)
     cfg = DummyRecorderManagerCfg()
     cfg.export_in_close = True
     cfg.dataset_export_dir_path = dataset_dir
