@@ -601,17 +601,31 @@ def _run_one_pass(
     report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
-        "--no-header",
-        "--show-capture=all",
-        f"--config-file={ctx.workspace_root}/pyproject.toml",
-        f"--junitxml={report_file}",
-        "--tb=short",
-    ]
+    # Temporary debug: show full stdout/stderr for Franka Soft test.
+    if ctx.test_file.endswith("test_rendering_franka_soft.py"):
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
+            "-s",
+            "-vv",
+            "--show-capture=all",
+            f"--config-file={ctx.workspace_root}/pyproject.toml",
+            f"--junitxml={report_file}",
+        ]
+    else:
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
+            "--no-header",
+            "--show-capture=all",
+            f"--config-file={ctx.workspace_root}/pyproject.toml",
+            f"--junitxml={report_file}",
+            "--tb=short",
+        ]
     if ctx.inject_shard_select:
         # multi-GPU lane test-selection plugin (importable via the PYTHONPATH set in
         # run_individual_tests); deselects out-of-scope device variants on a shard.
