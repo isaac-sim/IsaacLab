@@ -48,7 +48,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     """Drain :data:`REPLICATION_QUEUE` against ``plan``, dispatch each backend, publish the plan.
 
     Physics contexts come from :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when
-    set, otherwise from the backend's ``_PHYSICS_CONTEXT`` class.
+    set, otherwise from the backend's ``PHYSICS_CONTEXT`` class.
     :class:`~isaaclab.cloner.UsdReplicateContext` is added automatically when the cfg has a
     spawner and Kit is available. With ``replicate_physics=False`` physics contexts are
     dropped; USD replication still fires when the spawner+Kit condition is met.
@@ -79,7 +79,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
             continue
         if cfg.cloning_contexts is None:
             physics_ctx = getattr(
-                importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "_PHYSICS_CONTEXT", None
+                importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "PHYSICS_CONTEXT", None
             )
             contexts = [physics_ctx] if physics_ctx else []
         else:

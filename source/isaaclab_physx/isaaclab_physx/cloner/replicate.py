@@ -144,7 +144,7 @@ class PhysxReplicateContext:
         get_physx_replicator_interface().register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
 
 
-_PHYSICS_CONTEXT = PhysxReplicateContext
+PHYSICS_CONTEXT = PhysxReplicateContext
 """Physics-only replication context for PhysX assets.  USD replication is added automatically
 by :func:`~isaaclab.cloner.replicate` when the asset has a spawner and Kit is available."""
 

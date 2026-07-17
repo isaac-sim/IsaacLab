@@ -237,7 +237,7 @@ class NewtonReplicateContext:
         return builder, stage_info, site_index_map
 
 
-_PHYSICS_CONTEXT = NewtonReplicateContext
+PHYSICS_CONTEXT = NewtonReplicateContext
 """Physics-only replication context for Newton assets.  USD replication is added automatically
 by :func:`~isaaclab.cloner.replicate` when the asset has a spawner and Kit is available."""
 
