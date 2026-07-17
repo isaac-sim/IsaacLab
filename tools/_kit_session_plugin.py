@@ -106,6 +106,13 @@ def _patch_app_launcher() -> None:
             return
         original_init(self, launcher_args, **kwargs)
         _shared_launcher = self
+        # Guard: prevent test files from closing the shared SimulationApp.
+        # Any call to simulation_app.close() in a batch file's teardown would
+        # shut down Kit for all remaining files in the batch, causing cryptic
+        # import/startup errors instead of a clear failure message.
+        app = getattr(self, "app", None)
+        if app is not None:
+            app.close = lambda *a, **kw: None
 
     AppLauncher.__init__ = _shared_init
 
@@ -214,7 +221,20 @@ class _KitSessionPlugin:
     # -- hook: safety-net flush -------------------------------------------
 
     def pytest_sessionfinish(self, session, exitstatus) -> None:
-        """Flush any per-file report not yet written (e.g. fixture teardown skipped)."""
+        """Flush any per-file report not yet written (e.g. fixture teardown skipped).
+
+        Also drains ``_pending``: tests whose setup passed but whose call phase
+        was never recorded (e.g. session aborted via ``--maxfail`` or
+        ``KeyboardInterrupt``) are written as ``Error`` entries so they appear
+        in the JUnit output instead of silently vanishing.
+        """
+        # Drain orphaned setup-passed cases before flushing suites.
+        for nodeid, case in list(self._pending.items()):
+            filepath = nodeid.split("::")[0]
+            case.result = Error(message="Test interrupted: call phase never executed")
+            self._suite(filepath).add_testcase(case)
+        self._pending.clear()
+
         for filepath in list(self._suites):
             self._write_report(filepath)
 

@@ -953,7 +953,6 @@ def _run_batch(
         :func:`run_individual_tests`.
     """
     batch_env = env.copy()
-    batch_env["ISAACLAB_REUSE_KIT_SESSION"] = "1"
     # Make _kit_session_plugin importable in the subprocess (-p needs it on sys.path).
     tools_dir = os.path.join(workspace_root, "tools")
     batch_env["PYTHONPATH"] = tools_dir + os.pathsep + batch_env.get("PYTHONPATH", "")
