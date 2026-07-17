@@ -1,0 +1,4 @@
+Test-only: added ``maybe_validate_instance_segmentation_fast`` and a ``stringify_keys`` option on
+``maybe_validate_semantic_segmentation`` in ``test/rendering_test_utils.py`` to validate the segmentation
+``idToLabels`` / ``idToSemantics`` contract (RGBA-tuple keys for instance segmentation, stringified keys for
+the Isaac RTX ``semantic_segmentation`` annotator). No user-facing API change.

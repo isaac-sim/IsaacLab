@@ -270,7 +270,8 @@ class Articulation(BaseArticulation):
                 indices=self._ALL_INDICES,
                 is_global=False,
             )
-        self._instantaneous_wrench_composer.reset()
+        if self._instantaneous_wrench_composer.active:
+            self._instantaneous_wrench_composer.reset()
 
         if getattr(self, "_has_newton_actuators", False):
             # Newton fast path: pos/vel targets pass straight through; the
@@ -4378,6 +4379,8 @@ class Articulation(BaseArticulation):
                 self._implicit_dof_mask,
                 w.joint_f_2d,
                 self._data._sim_bind_joint_computed_effort,
+                self._ALL_JOINT_INDICES,
+                False,
             ],
             outputs=[
                 self._data._computed_torque,
