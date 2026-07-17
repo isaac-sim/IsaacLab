@@ -3,6 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .replicate import REPLICATION, OvPhysxReplicateContext, ovphysx_replicate
+from .replicate import OvPhysxReplicateContext, ovphysx_replicate
 
-__all__ = ["REPLICATION", "OvPhysxReplicateContext", "ovphysx_replicate"]
+__all__ = ["OvPhysxReplicateContext", "ovphysx_replicate"]

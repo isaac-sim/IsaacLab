@@ -5,12 +5,10 @@
 
 __all__ = [
     "NewtonReplicateContext",
-    "REPLICATION",
     "newton_physics_replicate",
 ]
 
 from .replicate import (
-    REPLICATION,
     NewtonReplicateContext,
     newton_physics_replicate,
 )
