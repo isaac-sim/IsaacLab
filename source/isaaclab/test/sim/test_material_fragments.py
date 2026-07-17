@@ -448,9 +448,8 @@ def test_legacy_base_cfg_authors_density():
 
 def test_public_default_material_types_remain_core_importable():
     """Default rigid materials must not require importing a physics-backend package."""
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-
     from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
     from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
 
     defaults = (
