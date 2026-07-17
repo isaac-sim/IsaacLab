@@ -235,7 +235,7 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
         scene_cfg.object_b = create_shape_cfg(
             shape_type,
             "{ENV_REGEX_NS}/ObjectB",
-            pos=(max_separation / 2, 0.0, 0.5),
+            pos=(max_separation / 2, 0.01, 0.5),
             disable_gravity=True,
             activate_contact_sensors=True,
         )
