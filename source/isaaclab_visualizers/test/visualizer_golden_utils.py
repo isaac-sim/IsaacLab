@@ -475,8 +475,15 @@ def run_visualizer_golden_cartpole(
         env = _viz_utils._make_cartpole_camera_env(visualizer_type, physics_backend, tiled_camera=tiled)
         _viz_utils._configure_sim_for_visualizer_test(env)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        # Reseed immediately before reset so the initial pole angle is reproducible
-        # regardless of how many CUDA RNG samples prior tests consumed.
+        # Pin the initial pole angle to a fixed value so the golden image shows a clearly
+        # visible displaced pole regardless of physics backend or random seed.  A uniform
+        # range [lo, hi] with lo == hi collapses to a single deterministic angle.
+        import math
+
+        env.cfg.initial_pole_angle_range = (math.pi / 4, math.pi / 4)  # exactly 45°
+        # Reseed immediately before reset so other stochastic env parameters (cart pos,
+        # velocity noise) remain reproducible regardless of how many CUDA RNG samples
+        # prior tests consumed.
         from isaaclab.utils.seed import configure_seed
 
         configure_seed(42, torch_deterministic=True)
