@@ -8,8 +8,8 @@ Setup:
     - (none: the test resolves dependencies only and does not install anything)
 Tests:
     - uv lock --upgrade --dry-run -> verify the full dependency graph (all extras, all
-      platforms) re-resolves from the live public indexes, i.e. ``uv run`` works from
-      a bare machine
+      platforms) re-resolves from the live public indexes, so the lockfile can be
+      regenerated after any pyproject.toml change
 """
 
 from __future__ import annotations
@@ -26,11 +26,13 @@ class Test_Uv_Fresh_Resolution_Smoke:
     """A fresh, full-graph resolution must succeed from the public indexes.
 
     ``uv lock --upgrade --dry-run`` re-resolves every dependency, extra, and platform
-    fork from scratch without writing the lockfile or installing anything - exactly
-    what ``uv run`` does on a bare machine before the first lock exists. This is the
-    check that catches a pin that only resolves against internal infrastructure
-    (e.g. an unpublished ``ovphysx==0.5.2+head...`` build) or a marker split uv
-    cannot satisfy.
+    fork from scratch, ignoring the committed lockfile and without writing or
+    installing anything. The committed lock shields ``uv run`` users from resolution,
+    but a fresh resolve still happens whenever the lock must be regenerated: any
+    contributor changing ``pyproject.toml`` runs ``uv lock``, and ``uv run`` silently
+    re-resolves when the lock is stale. This is the check that catches a pin that
+    only resolves against internal infrastructure (e.g. an unpublished
+    ``ovphysx==0.5.2+head...`` build) or a marker split uv cannot satisfy.
 
     Complements the neighbouring checks: ``test_uv_lock_check_smoke`` validates the
     committed lock is current, the ``uv_run/`` tests validate the committed lock
@@ -48,7 +50,8 @@ class Test_Uv_Fresh_Resolution_Smoke:
         """Verify ``uv lock --upgrade --dry-run`` resolves the full graph fresh."""
         result = run_cmd(["uv", "lock", "--upgrade", "--dry-run"], cwd=isaaclab_root, timeout=880)
         assert result.returncode == 0, (
-            "Fresh full-graph resolution failed, so `uv run` is broken on a bare machine."
-            " A dependency (often in an optional extra) no longer resolves from the public"
-            f" indexes, or a marker split is unsatisfiable:\n{result.stdout}\n{result.stderr}"
+            "Fresh full-graph resolution failed: the lockfile can no longer be regenerated"
+            " (`uv lock` after a pyproject.toml change will fail, and `uv run` will fail on"
+            " a stale lock). A dependency, often in an optional extra, no longer resolves"
+            f" from the public indexes, or a marker split is unsatisfiable:\n{result.stdout}\n{result.stderr}"
         )
