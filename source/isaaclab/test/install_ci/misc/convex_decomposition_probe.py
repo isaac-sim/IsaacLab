@@ -67,9 +67,7 @@ def _collision_shape_count(builder) -> int:
     return sum(
         1
         for i, shape_type in enumerate(builder.shape_type)
-        if shape_type in (GeoType.MESH, GeoType.CONVEX_MESH)
-        and builder.shape_flags[i] & ShapeFlags.COLLIDE_SHAPES
-        and builder.shape_source[i] is not None
+        if shape_type in (GeoType.MESH, GeoType.CONVEX_MESH) and builder.shape_flags[i] & ShapeFlags.COLLIDE_SHAPES
     )
 
 

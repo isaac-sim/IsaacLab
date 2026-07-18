@@ -84,6 +84,21 @@ class TestClonerCollisionApproximation:
         shapes = _collision_shapes(_build(_make_stage("boundingSphere")))
         assert shapes == [GeoType.SPHERE]
 
+    def test_authored_bounding_cube_produces_box(self):
+        """boundingCube becomes a BOX collision shape, not a convex hull."""
+        shapes = _collision_shapes(_build(_make_stage("boundingCube")))
+        assert shapes == [GeoType.BOX]
+
+    def test_authored_mesh_simplification_keeps_mesh(self):
+        """meshSimplification stays a MESH; the hull pass must not overwrite it."""
+        shapes = _collision_shapes(_build(_make_stage("meshSimplification")))
+        assert shapes == [GeoType.MESH]
+
+    def test_authored_none_keeps_raw_mesh(self):
+        """An explicit approximation of "none" keeps the raw trimesh collision."""
+        shapes = _collision_shapes(_build(_make_stage("none")))
+        assert shapes == [GeoType.MESH]
+
     def test_unauthored_mesh_still_simplifies_to_single_hull(self):
         """Meshes with no authored approximation keep the default convex-hull treatment."""
         shapes = _collision_shapes(_build(_make_stage(None)))

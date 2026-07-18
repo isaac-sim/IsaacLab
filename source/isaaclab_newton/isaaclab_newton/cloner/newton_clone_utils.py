@@ -18,7 +18,17 @@ from isaaclab.cloner.cloner_utils import replace_path_prefix
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 
-def _unauthored_collision_mesh_shapes(builder: ModelBuilder, stage: Usd.Stage) -> list[int]:
+def _authored_approximation_prim_paths(stage: Usd.Stage) -> set[str]:
+    """Paths of prims that author ``physics:approximation`` on their mesh collision."""
+    authored: set[str] = set()
+    for prim in stage.Traverse():
+        attr = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr()
+        if attr and attr.HasAuthoredValue():
+            authored.add(prim.GetPath().pathString)
+    return authored
+
+
+def _unauthored_collision_mesh_shapes(builder: ModelBuilder, authored_prim_paths: set[str]) -> list[int]:
     """Indices of colliding mesh shapes whose prim does not author ``physics:approximation``.
 
     ``add_usd`` already remeshed the shapes with an authored approximation (spheres,
@@ -27,18 +37,12 @@ def _unauthored_collision_mesh_shapes(builder: ModelBuilder, stage: Usd.Stage) -
     simplify pass must leave those alone, otherwise it would override the authored
     intent; only meshes with no authored approximation get the default hull treatment.
     """
-    authored: set[str] = set()
-    for prim in stage.Traverse():
-        attr = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr()
-        if attr and attr.HasAuthoredValue():
-            authored.add(prim.GetPath().pathString)
-
     return [
         index
         for index, shape_type in enumerate(builder.shape_type)
         if shape_type == GeoType.MESH
         and (builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES)
-        and builder.shape_label[index] not in authored
+        and builder.shape_label[index] not in authored_prim_paths
     ]
 
 
@@ -53,6 +57,7 @@ def build_source_builders(
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path."""
     builders: dict[str, ModelBuilder] = {}
+    authored_prim_paths = _authored_approximation_prim_paths(stage)
     for source in sources:
         builder = create_builder()
         solvers.SolverMuJoCo.register_custom_attributes(builder)
@@ -71,7 +76,7 @@ def build_source_builders(
         if simplify_meshes:
             builder.approximate_meshes(
                 "convex_hull",
-                shape_indices=_unauthored_collision_mesh_shapes(builder, stage),
+                shape_indices=_unauthored_collision_mesh_shapes(builder, authored_prim_paths),
                 keep_visual_shapes=True,
             )
         replace_newton_builder_shape_colors(builder, stage)
