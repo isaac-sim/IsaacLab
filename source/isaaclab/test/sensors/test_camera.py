@@ -30,7 +30,7 @@ from pxr import Gf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
+pytestmark = pytest.mark.isaacsim_ci
 
 # sample camera poses
 POSITION = (2.5, 2.5, 2.5)
@@ -1122,9 +1122,6 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
             pass
 
         def update_transforms(self):
-            pass
-
-        def update_geometries(self):
             pass
 
         def update_camera(self, render_data, positions, orientations, intrinsics):

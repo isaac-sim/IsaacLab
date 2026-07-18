@@ -90,6 +90,15 @@ def test_ovrtx_instance_segmentation_fast_uses_non_stable_instance_segmentation_
     )
 
 
+def test_ovrtx_instance_id_segmentation_fast_uses_instance_segmentation_sd_render_var():
+    """Requesting instance_id_segmentation_fast from OVRTX selects the InstanceSegmentationSD render variable."""
+    assert get_render_var_config(["instance_id_segmentation_fast"]) == (
+        "/Render/Vars/InstanceSegmentationSD",
+        "InstanceSegmentationSD",
+        "InstanceSegmentationSD",
+    )
+
+
 def test_ovrtx_motion_vectors_uses_target_motion_render_var():
     """Requesting motion vectors from OVRTX selects the TargetMotionSD render variable."""
     assert get_render_var_config(["motion_vectors"]) == (
@@ -129,75 +138,6 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():
     assert 'def RenderVar "HdrColor"' in render_scope
 
 
-def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars():
-    """Requesting semantic segmentation authors both SemanticSegmentation and SemanticIdMap render vars."""
-    render_var_configs = get_render_var_configs(["semantic_segmentation"])
-
-    assert render_var_configs == [
-        ("/Render/Vars/semantic", "semantic", "SemanticSegmentation"),
-        ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
-    ]
-
-    render_scope = build_render_scope_usd(
-        camera_paths=["/World/envs/env_0/Camera"],
-        render_product_name="RenderProduct",
-        render_var_path=render_var_configs[0][0],
-        render_var_name=render_var_configs[0][1],
-        source_name=render_var_configs[0][2],
-        tiled_width=16,
-        tiled_height=8,
-        render_var_configs=render_var_configs,
-    )
-
-    assert "rel orderedVars = [</Render/Vars/semantic>, </Render/Vars/SemanticIdMap>]" in render_scope
-    assert 'uniform string sourceName = "SemanticSegmentation"' in render_scope
-    assert 'uniform string sourceName = "SemanticIdMap"' in render_scope
-
-
-def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars():
-    """Requesting instance segmentation authors the pixel AOV plus the three ID/label map render vars."""
-    render_var_configs = get_render_var_configs(["instance_segmentation_fast"])
-
-    assert render_var_configs == [
-        (
-            "/Render/Vars/NonStableInstanceSegmentation",
-            "NonStableInstanceSegmentation",
-            "NonStableInstanceSegmentation",
-        ),
-        ("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"),
-        ("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"),
-        ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
-    ]
-
-    render_scope = build_render_scope_usd(
-        camera_paths=["/World/envs/env_0/Camera"],
-        render_product_name="RenderProduct",
-        render_var_path=render_var_configs[0][0],
-        render_var_name=render_var_configs[0][1],
-        source_name=render_var_configs[0][2],
-        tiled_width=16,
-        tiled_height=8,
-        render_var_configs=render_var_configs,
-    )
-
-    assert (
-        "rel orderedVars = [</Render/Vars/NonStableInstanceSegmentation>, </Render/Vars/StableIdSemanticIdMap>,"
-        " </Render/Vars/StableIdMap>, </Render/Vars/SemanticIdMap>]" in render_scope
-    )
-    assert 'uniform string sourceName = "StableIdSemanticIdMap"' in render_scope
-    assert 'uniform string sourceName = "StableIdMap"' in render_scope
-
-
-def test_ovrtx_semantic_and_instance_segmentation_share_a_single_semantic_id_map():
-    """Requesting both segmentation outputs authors ``SemanticIdMap`` exactly once (it is shared)."""
-    render_var_configs = get_render_var_configs(["semantic_segmentation", "instance_segmentation_fast"])
-
-    sources = [source for _, _, source in render_var_configs]
-    assert sources.count("SemanticIdMap") == 1
-    # Both segmentations' map render vars are authored regardless of which AOV get_render_var_config resolves.
-    assert {"SemanticIdMap", "StableIdSemanticIdMap", "StableIdMap"} <= set(sources)
-
-
 def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
     """Listing every env root as a source preserves the full stage content."""
     num_envs = 4
@@ -205,7 +145,7 @@ def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        num_envs=num_envs,
         source_paths=tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
     )
 
@@ -219,7 +159,7 @@ def test_export_stage_full_when_single_env():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        num_envs=num_envs,
         source_paths=("/World/envs/env_0",),
     )
 
@@ -233,7 +173,7 @@ def test_export_stage_homogeneous_keeps_only_env0_prototype():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        num_envs=num_envs,
         source_paths=("/World/envs/env_0",),
     )
 
@@ -248,7 +188,7 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        num_envs=num_envs,
         source_paths=("/World/envs/env_0/Object_env0_only", "/World/envs/env_3/Object_env3_only"),
     )
 
@@ -276,7 +216,7 @@ def test_export_stage_restores_active_state():
 
     export_stage_to_string(
         stage,
-        num_envs,
+        num_envs=num_envs,
         source_paths=("/World/envs/env_0",),
     )
 

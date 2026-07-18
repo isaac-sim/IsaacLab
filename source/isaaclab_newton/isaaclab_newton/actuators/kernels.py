@@ -63,7 +63,6 @@ def scatter_gain_kernel(
     indices: wp.array(dtype=wp.uint32),
     dof_offset: int,
     num_joints: int,
-    env_stride: int,
 ):
     """Scatter per-actuator ``src`` values into a flat per-env-per-DOF ``dst``.
 
@@ -72,30 +71,11 @@ def scatter_gain_kernel(
     that ``randomize_actuator_gains`` reads as
     ``actuator.stiffness`` / ``.damping`` for its
     ``default_joint_stiffness`` / ``default_joint_damping`` baseline.
-
-    The actuator's ``indices`` are global DOF ids laid out env-major with a
-    per-env stride of ``env_stride`` — the *whole model's* per-env DOF count,
-    which on a floating-base articulation exceeds ``num_joints`` (the
-    articulation-local, actuated joint count) by the free-root DOFs. The env
-    index must therefore be decoded with ``env_stride``, not ``num_joints``;
-    the articulation-local joint offset is what remains after removing the
-    env's block and lands in ``[0, num_joints)`` because ``indices`` only ever
-    holds this articulation's joints.
-
-    Args:
-        src: Per-actuator parameter values (e.g. ``controller.kp``).
-        dst: Flat ``(num_envs * num_joints)`` articulation-local snapshot buffer.
-        indices: Actuator's flat env-major global DOF indices.
-        dof_offset: Offset of this articulation's DOFs in the env-major
-            global index space (``0`` on PhysX, view-dependent on Newton).
-        num_joints: Articulation-local joint count (``dst``'s inner stride).
-        env_stride: Whole-model per-env DOF count (the stride used to build
-            ``indices``).
     """
     i = wp.tid()
     global_dof = int(indices[i]) - dof_offset
-    env = global_dof // env_stride
-    local_dof = global_dof - env * env_stride
+    env = global_dof // num_joints
+    local_dof = global_dof % num_joints
     dst[env * num_joints + local_dof] = src[i]
 
 
@@ -116,16 +96,6 @@ def patch_actuator_param_kernel(
     arrays, and — when both axes are in the DR sub-grid — overwrite
     ``dst[i]`` (the controller parameter) with ``values[e_pos, j_pos]``.
     Cells outside the sub-grid are left untouched.
-
-    Note:
-        This kernel is PhysX-only (the Newton backend patches gains via
-        :meth:`ArticulationView.set_actuator_parameter`). On PhysX every
-        joint's coordinate count equals its DOF count, so the per-env stride
-        used to build ``indices`` equals ``num_joints`` and the ``env`` /
-        ``joint`` split below is exact. Do not reuse this kernel on a layout
-        whose per-env DOF stride exceeds ``num_joints`` (e.g. a floating-base
-        Newton model) without threading the true stride, or the ``joint``
-        split will alias across envs — see :func:`scatter_gain_kernel`.
 
     Args:
         indices: Actuator's flat indices into the (env-major) DOF layout.
@@ -157,8 +127,8 @@ def patch_actuator_param_kernel(
 
 @wp.kernel(enable_backward=False)
 def sync_torque_telemetry(
-    joint_pos_backend: wp.array2d(dtype=wp.float32),
-    joint_vel_backend: wp.array2d(dtype=wp.float32),
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
     joint_pos_target: wp.array2d(dtype=wp.float32),
     joint_vel_target: wp.array2d(dtype=wp.float32),
     joint_stiffness: wp.array2d(dtype=wp.float32),
@@ -167,8 +137,6 @@ def sync_torque_telemetry(
     joint_modes: wp.array(dtype=wp.int32),
     sim_bind_joint_effort: wp.array2d(dtype=wp.float32),
     actuator_computed_effort: wp.array2d(dtype=wp.float32),
-    user_to_backend: wp.array(dtype=wp.int32),
-    sim_buffers_are_backend_order: bool,
     computed: wp.array2d(dtype=wp.float32),
     applied: wp.array2d(dtype=wp.float32),
 ):
@@ -178,31 +146,23 @@ def sync_torque_telemetry(
     runs on these); for explicit DOFs we read the pre-clamp effort the
     actuators just scatter-added into ``actuator_computed_effort`` and the
     post-clamp effort already in ``sim_bind_joint_effort`` (= ``joint_f``).
-    When the sim-bound buffers are backend-order, the live joint state
-    (``joint_pos_backend`` / ``joint_vel_backend``) and both effort buffers are
-    gathered through ``user_to_backend`` so every read resolves to public joint
-    ``j``; the user-facing targets, gains, limits, and telemetry outputs are
-    already user-order and are indexed at ``[i, j]`` directly.
 
     Note: ``effort_limit`` clamps only the PD shadow used for implicit-DOF
     telemetry; the FF written into ``joint_f`` is not bounded by it.
     """
     i, j = wp.tid()
-    backend_j = j
-    if sim_buffers_are_backend_order:
-        backend_j = user_to_backend[j]
     if joint_modes[j] == 1:
-        err_p = joint_pos_target[i, j] - joint_pos_backend[i, backend_j]
-        err_v = joint_vel_target[i, j] - joint_vel_backend[i, backend_j]
+        err_p = joint_pos_target[i, j] - joint_pos[i, j]
+        err_v = joint_vel_target[i, j] - joint_vel[i, j]
         pd = joint_stiffness[i, j] * err_p + joint_damping[i, j] * err_v
         limit = effort_limit[i, j]
         pd_clipped = wp.clamp(pd, -limit, limit)
-        total = pd_clipped + sim_bind_joint_effort[i, backend_j]
+        total = pd_clipped + sim_bind_joint_effort[i, j]
         computed[i, j] = total
         applied[i, j] = total
     else:
-        computed[i, j] = actuator_computed_effort[i, backend_j]
-        applied[i, j] = sim_bind_joint_effort[i, backend_j]
+        computed[i, j] = actuator_computed_effort[i, j]
+        applied[i, j] = sim_bind_joint_effort[i, j]
 
 
 def build_implicit_dof_mask(

@@ -29,9 +29,9 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.envs.mdp.observations import stacked_image
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = pytest.mark.isaacsim_ci
 
 NUM_ENVS = 4
 HEIGHT = 8

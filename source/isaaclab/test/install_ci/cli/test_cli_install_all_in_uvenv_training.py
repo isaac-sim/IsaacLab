@@ -7,17 +7,8 @@
 Setup:
     - ./isaaclab.sh -u
 Tests:
-    - ./isaaclab.sh -i core
-        -> verify core submodules are importable
-    - ./isaaclab.sh -i all
-        -> verify the full installation succeeds
-    - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
-        --num_envs 16 presets=newton_mjwarp --max_iterations 5
-        -> verify state training completes
-    - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Camera-Direct
-        --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
-        --headless --enable_cameras
-        -> verify camera rendering is valid and camera training completes
+    - ./isaaclab.sh -i core -> verify core submodules importable
+    - ./isaaclab.sh -i all -> verify cartpole training works
 """
 
 from __future__ import annotations
@@ -26,6 +17,36 @@ import shutil
 
 import pytest
 from utils import UV_Mixin
+
+# ---------------------------------------------------------------------------
+# Shared training helper
+# ---------------------------------------------------------------------------
+
+_TRAIN_CMD = [
+    "train",
+    "--rl_library",
+    "rsl_rl",
+    "--task",
+    "Isaac-Cartpole-Direct",
+    "--num_envs",
+    "16",
+    "presets=newton_mjwarp",
+    "--max_iterations",
+    "5",
+    "--headless",
+]
+
+
+def _assert_training_passed(result) -> None:
+    output = result.stdout + (result.stderr or "")
+    assert result.returncode == 0, f"Training failed (rc={result.returncode}):\n{output}"
+    assert "Traceback (most recent call last):" not in output, f"Training produced a traceback:\n{output}"
+    assert "Training time:" in output, f"Training did not report completion:\n{output}"
+
+
+# ---------------------------------------------------------------------------
+# uv-based tests
+# ---------------------------------------------------------------------------
 
 
 class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
@@ -72,9 +93,9 @@ class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu
-    @pytest.mark.timeout(3600)
-    def test_install_all_trains_cartpole(self, isaaclab_root, cartpole_smoke_script):
-        """``-i all`` supports state training, camera rendering, and camera training."""
+    @pytest.mark.timeout(1800)
+    def test_install_all_trains_cartpole(self, isaaclab_root):
+        """``./isaaclab.sh -i all`` (full install) + training completes successfully."""
         try:
             self.create_uv_env(isaaclab_root)
             result = self.run_in_uv_env(
@@ -84,10 +105,10 @@ class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
             )
             assert result.returncode == 0, f"isaaclab -i all failed:\n{result.stdout}\n{result.stderr}"
             result = self.run_in_uv_env(
-                [str(self.python), str(cartpole_smoke_script)],
+                [str(self.cli_script)] + _TRAIN_CMD,
                 cwd=isaaclab_root,
-                timeout=3000,
+                timeout=600,
             )
-            assert result.returncode == 0, f"Cartpole smoke failed:\n{result.stdout}\n{result.stderr}"
+            _assert_training_passed(result)
         finally:
             self.destroy_uv_env()

@@ -26,8 +26,6 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
-
 
 @configclass
 class SensorsSceneCfg(InteractiveSceneCfg):

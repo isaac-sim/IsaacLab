@@ -45,7 +45,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     # Table
     table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
+        prim_path="/World/envs/env_.*/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/table.usd",
@@ -86,7 +86,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     # Humanoid robot w/ arms higher
     robot: ArticulationCfg = GR1T2_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
+        prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
             rot=(0.0, 0.0, 0.7071, 0.7071),

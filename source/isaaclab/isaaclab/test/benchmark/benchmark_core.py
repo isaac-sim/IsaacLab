@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from isaaclab.test.benchmark.schema import (
         LearningCurve,
         MeanStd,
-        PlayBundle,
         Runtime,
         RuntimeBundle,
         StartupBundle,
@@ -122,10 +121,10 @@ def _curve_measurements(label: str, curve: "LearningCurve", ema_alpha: float) ->
 
 
 def _measurements_from_bundle(
-    bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle",
+    bundle: "RuntimeBundle | TrainingBundle | StartupBundle",
 ) -> dict[str, list[Measurement]]:
     """Project a typed bundle into flat phases for non-schema formatters."""
-    from isaaclab.test.benchmark.schema import PlayBundle, StartupBundle, TrainingBundle
+    from isaaclab.test.benchmark.schema import StartupBundle, TrainingBundle
 
     if isinstance(bundle, StartupBundle):
         projected: dict[str, list[Measurement]] = {}
@@ -151,16 +150,6 @@ def _measurements_from_bundle(
         if bundle.success_rate is not None:
             train.append(SingleMeasurement(name="success_rate", value=bundle.success_rate, unit="float"))
         projected["train"] = train
-    elif isinstance(bundle, PlayBundle):
-        play: list[Measurement] = []
-        if bundle.reward is not None:
-            play.extend(_stat_measurements("Reward", bundle.reward, "float"))
-        if bundle.ep_length is not None:
-            play.extend(_stat_measurements("Episode Length", bundle.ep_length, "steps"))
-        if bundle.success_rate is not None:
-            play.append(SingleMeasurement(name="success_rate", value=bundle.success_rate, unit="float"))
-        if play:
-            projected["play"] = play
     return projected
 
 
@@ -352,11 +341,11 @@ class BaseIsaacLabBenchmark:
                     metadata.append(curr_meta)
         return metadata
 
-    def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle | None") -> None:
+    def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | None") -> None:
         """Attach a typed bundle for schema serialization and flat-formatter projection.
 
         Args:
-            bundle: Runtime, training, startup, or play benchmark bundle.
+            bundle: Runtime, training, or startup benchmark bundle.
         """
         self._bundle = bundle
         if bundle is not None:

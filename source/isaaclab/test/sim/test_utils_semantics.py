@@ -17,8 +17,6 @@ import pytest
 
 import isaaclab.sim as sim_utils
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():

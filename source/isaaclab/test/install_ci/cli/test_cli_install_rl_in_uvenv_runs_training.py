@@ -10,15 +10,9 @@ Tests:
     - ./isaaclab.sh -i rl[rsl-rl] -> verify rsl_rl importable
     - ./isaaclab.sh -i rl[skrl] -> verify skrl importable
     - ./isaaclab.sh -i rl[sb3] -> verify stable_baselines3 importable
-    - ./isaaclab.sh -i newton,rl[rsl-rl] then ./isaaclab.sh -p scripts/reinforcement_learning/train.py
-      --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 64 presets=newton_mjwarp
-      --max_iterations 5 --headless -> verify cartpole training with rsl_rl works
-    - ./isaaclab.sh -i newton,rl[skrl] then ./isaaclab.sh -p scripts/reinforcement_learning/train.py
-      --rl_library skrl --task Isaac-Cartpole-Direct --num_envs 64 presets=newton_mjwarp
-      --max_iterations 5 --headless -> verify cartpole training with skrl works
-    - ./isaaclab.sh -i newton,rl[sb3] then ./isaaclab.sh -p scripts/reinforcement_learning/train.py
-      --rl_library sb3 --task Isaac-Cartpole-Direct --num_envs 64 presets=newton_mjwarp
-      --max_iterations 5 --headless -> verify cartpole training with sb3 works
+    - ./isaaclab.sh -i newton,rl[rsl-rl] -> verify cartpole training with rsl_rl works
+    - ./isaaclab.sh -i newton,rl[skrl] -> verify cartpole training with skrl works
+    - ./isaaclab.sh -i newton,rl[sb3] -> verify cartpole training with sb3 works
     - ./isaaclab.sh -i rl -> verify all RL frameworks installed
 """
 
@@ -29,11 +23,13 @@ import shutil
 import pytest
 from utils import UV_Mixin, find_isaaclab_root
 
-# (selector, importable_package)
+_TRAIN_SCRIPT = "scripts/reinforcement_learning/{framework}/train.py"
+
+# (selector, importable_package, train_script_dir, train_extra_args)
 _RL_CONFIGS = [
-    ("rsl-rl", "rsl_rl"),
-    ("skrl", "skrl"),
-    ("sb3", "stable_baselines3"),
+    ("rsl-rl", "rsl_rl", "rsl_rl", ["presets=newton_mjwarp"]),
+    ("skrl", "skrl", "skrl", []),
+    ("sb3", "stable_baselines3", "sb3", []),
 ]
 
 
@@ -55,8 +51,8 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    @pytest.mark.parametrize("selector,import_pkg", _RL_CONFIGS)
-    def test_install_rl_makes_framework_importable(self, isaaclab_root, selector, import_pkg):
+    @pytest.mark.parametrize("selector,import_pkg,_train_dir,_train_args", _RL_CONFIGS)
+    def test_install_rl_makes_framework_importable(self, isaaclab_root, selector, import_pkg, _train_dir, _train_args):
         """./isaaclab.sh -i 'rl[<selector>]' makes the framework importable."""
 
         try:
@@ -91,9 +87,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                 [
                     str(self.cli_script),
                     "-p",
-                    "scripts/reinforcement_learning/train.py",
-                    "--rl_library",
-                    "rsl_rl",
+                    "scripts/reinforcement_learning/rsl_rl/train.py",
                     "--task",
                     "Isaac-Cartpole-Direct",
                     "--num_envs",
@@ -130,9 +124,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                 [
                     str(self.cli_script),
                     "-p",
-                    "scripts/reinforcement_learning/train.py",
-                    "--rl_library",
-                    "skrl",
+                    "scripts/reinforcement_learning/skrl/train.py",
                     "--task",
                     "Isaac-Cartpole-Direct",
                     "--num_envs",
@@ -169,9 +161,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                 [
                     str(self.cli_script),
                     "-p",
-                    "scripts/reinforcement_learning/train.py",
-                    "--rl_library",
-                    "sb3",
+                    "scripts/reinforcement_learning/sb3/train.py",
                     "--task",
                     "Isaac-Cartpole-Direct",
                     "--num_envs",

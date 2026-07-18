@@ -77,8 +77,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
-        if not self.cfg.position_only:
-            self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
         from isaaclab.markers import VisualizationMarkers
 
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
@@ -128,10 +127,10 @@ class ObjectUniformPoseCommand(CommandTerm):
             object_root_pose_w[:, 3:7],
         )
         self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
+        self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
 
         success_id = self.metrics["position_error"] < 0.05
         if not self.cfg.position_only:
-            self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
             success_id &= self.metrics["orientation_error"] < 0.5
         if self.success_vis_asset is not None:
             self.success_visualizer.visualize(

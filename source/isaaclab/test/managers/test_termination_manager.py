@@ -18,8 +18,6 @@ import torch
 from isaaclab.managers import TerminationManager, TerminationTermCfg
 from isaaclab.sim import SimulationContext
 
-pytestmark = pytest.mark.integration
-
 
 class DummyEnv:
     """Minimal mutable env stub for the termination manager tests."""

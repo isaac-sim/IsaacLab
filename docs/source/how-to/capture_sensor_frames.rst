@@ -48,7 +48,7 @@ Overview
 --------
 
 The sensor capture feature wraps the training environment through ``wrap_training_capture`` in
-``isaaclab_rl.entrypoints.common`` and saves frames on reset and step when the current
+``scripts/reinforcement_learning/common.py`` and saves frames on reset and step when the current
 **per-episode** step falls inside a capture window. For each image-like scene sensor, the wrapper:
 
 * reads ``sensor.data.output`` and skips sensors whose output is not a dictionary of tensors
@@ -70,9 +70,9 @@ Command-line options
 
 The training entrypoints register the capture flags in ``add_common_train_args``:
 
-.. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/common.py
+.. literalinclude:: ../../../scripts/reinforcement_learning/common.py
    :language: python
-   :lines: 277-300
+   :lines: 240-263
 
 
 Capture schedule

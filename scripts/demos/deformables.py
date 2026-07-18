@@ -10,8 +10,8 @@
     # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/deformables.py
 
-    # Usage with Newton VBD backend and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/deformables.py --physics newton_vbd
+    # Usage with Newton MJWarp backend and default kit visualizer.
+    ./isaaclab.sh -p scripts/demos/deformables.py --physics newton_mjwarp
 
 """
 
@@ -28,16 +28,12 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates how to spawn deformable prims into the scene.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_vbd"], help="Physics backend.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+# Newton visualizer not supported for deformables
+parser.add_argument("--visualizer", default="kit", choices=["kit"], help="Visualizer backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
-
-if args_cli.visualizer and "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":
-    raise ValueError(
-        "Newton visualizer is only compatible with newton physics backend for deformables. "
-        "Please use --physics newton_vbd."
-    )
 
 import random
 
@@ -50,6 +46,7 @@ import isaaclab.sim as sim_utils
 ##
 # Pre-defined configs
 ##
+from isaaclab_newton.physics import NewtonCfg  # isort:skip
 from isaaclab.assets import DeformableObjectCfg  # isort:skip
 from isaaclab.physics import PhysicsCfg  # isort:skip
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
@@ -57,8 +54,8 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
 
-if args_cli.physics == "newton_vbd":
-    from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg  # isort:skip
+if args_cli.physics == "newton_mjwarp":
+    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg  # isort:skip
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
         NewtonDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
@@ -179,13 +176,13 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         obj_name = random.choice(list(objects_cfg.keys()))
         obj_cfg = objects_cfg[obj_name]
         # randomize the deformable material stiffness
-        if args_cli.physics == "newton_vbd" and obj_name == "cloth":
+        if args_cli.physics == "newton_mjwarp" and obj_name == "cloth":
             obj_cfg.physics_material.tri_ke = random.uniform(5e3, 5e4)
             obj_cfg.physics_material.tri_ka = random.uniform(5e3, 5e4)
         else:
             youngs_modulus = random.uniform(5e5, 1e8)
             poissons_ratio = random.uniform(0.25, 0.45)
-            if args_cli.physics == "newton_vbd":
+            if args_cli.physics == "newton_mjwarp":
                 obj_cfg.physics_material.k_mu = youngs_modulus / (2.0 * (1.0 + poissons_ratio))
                 obj_cfg.physics_material.k_lambda = (
                     youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio))
@@ -251,17 +248,15 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Defor
 def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        # tune the CLI-selected backend for this demo
-        if args_cli.physics == "newton_vbd":
-            physics_cfg.solver_cfg.iterations = 5
-            physics_cfg.solver_cfg.particle_enable_self_contact = True
-            physics_cfg.solver_cfg.particle_self_contact_radius = 0.0001
-            physics_cfg.solver_cfg.particle_self_contact_margin = 0.1
-            physics_cfg.num_substeps = 4
-            physics_cfg.model_cfg = NewtonModelCfg(
-                soft_contact_ke=1.0e5,
-                soft_contact_kd=1.0e0,
-                soft_contact_mu=0.01,
+        if args_cli.physics == "newton_mjwarp":
+            physics_cfg = NewtonCfg(
+                solver_cfg=VBDSolverCfg(
+                    iterations=5,
+                    particle_enable_self_contact=True,
+                    particle_self_contact_radius=0.0001,
+                    particle_self_contact_margin=0.1,
+                ),
+                num_substeps=4,
             )
         # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)

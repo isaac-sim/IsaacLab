@@ -9,24 +9,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_physx"
-version = "2.9.1"
+version = "2.7.0"
 description = "Extension providing IsaacLab with PhysX specific abstractions."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "physx"]
 requires-python = ">=3.12"
-# Only interpackage dependencies should go here.
-dependencies = [
-    "isaaclab",
-]
-
-[tool.uv.sources]
-isaaclab = { path = "../isaaclab", editable = true }
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[project.optional-dependencies]
+newton = [
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee",
+]
 
 [tool.setuptools]
 include-package-data = true

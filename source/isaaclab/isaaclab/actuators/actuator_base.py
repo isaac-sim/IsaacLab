@@ -74,19 +74,15 @@ class ActuatorBase(ABC):
     """
 
     velocity_limit: torch.Tensor
-    """The joint velocity limit for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
+    """The velocity limit for the actuator group. Shape is (num_envs, num_joints).
 
-    The peak velocity of the actuated joint (the actuator's rated speed reflected at the joint,
-    after any gearbox). Feeds the articulation data buffers (e.g. soft joint velocity limits) and
-    explicit-model effort clipping; it is not pushed to the physics solver. Defaults to
-    :attr:`velocity_limit_sim` when only the solver clamp is configured.
+    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
     """
 
     velocity_limit_sim: torch.Tensor
-    """The solver-level velocity clamp for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
+    """The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
 
-    Written to the simulation (PhysX ``maxJointVelocity``); resolved independently of
-    :attr:`velocity_limit`.
+    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
     """
 
     stiffness: torch.Tensor

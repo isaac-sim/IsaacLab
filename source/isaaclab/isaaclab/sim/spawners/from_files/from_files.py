@@ -26,7 +26,6 @@ from isaaclab.sim.utils import (
     create_prim,
     get_current_stage,
     get_first_matching_child_prim,
-    has_deformable_body_api,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -370,36 +369,8 @@ def _spawn_from_usd_file(
             schemas.modify_mass_properties(prim_path, cfg.mass_props)
 
     # modify articulation root properties
-    # ``fix_root_link`` is a spawner-level topology flag (not a schema property); it is honored on the
-    # fragment path independently of whether any articulation schema properties were supplied.
-    articulation_props = cfg.articulation_props
-    articulation_fix_root_link = cfg.fix_root_link
-    # transition shim, remove later: route a legacy single cfg (a dataclass, not a fragment) to the
-    # legacy writer -- it owns its own ``fix_root_link`` field; everything else goes to the fragment
-    # writer, routing by type so an empty list is still a valid (topology-only) fragment collection
-    # rather than being mis-sent to the legacy writer.
-    if (
-        articulation_props is not None
-        and not isinstance(articulation_props, (list, tuple))
-        and not isinstance(articulation_props, schemas.SchemaFragment)
-    ):
-        if articulation_fix_root_link is not None:
-            logger.warning(
-                f"Ignoring the spawner-level 'fix_root_link={articulation_fix_root_link}' because"
-                " 'articulation_props' is a legacy cfg, which owns its own 'fix_root_link' field. Set"
-                " it on that cfg instead."
-            )
-        schemas.modify_articulation_root_properties(prim_path, articulation_props)
-    else:
-        articulation_frags = (
-            list(articulation_props)
-            if isinstance(articulation_props, (list, tuple))
-            else ([articulation_props] if isinstance(articulation_props, schemas.SchemaFragment) else [])
-        )
-        if articulation_frags or articulation_fix_root_link is not None:
-            schemas.apply_articulation_root_properties(
-                prim_path, articulation_frags, fix_root_link=articulation_fix_root_link
-            )
+    if cfg.articulation_props is not None:
+        schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
         # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> modify_*
@@ -478,7 +449,7 @@ def _spawn_from_usd_file(
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
-        if has_deformable_body_api(prim):
+        if "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas():
             schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props, stage)
         else:
             schemas.define_deformable_body_properties(prim_path, cfg.deformable_props, stage, deformable_type)
@@ -492,15 +463,15 @@ def _spawn_from_usd_file(
     if cfg.visual_material is not None:
         if not has_kit():
             logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
+            return stage.GetPrimAtPath(prim_path)
+        if not cfg.visual_material_path.startswith("/"):
+            material_path = f"{prim_path}/{cfg.visual_material_path}"
         else:
-            if not cfg.visual_material_path.startswith("/"):
-                material_path = f"{prim_path}/{cfg.visual_material_path}"
-            else:
-                material_path = cfg.visual_material_path
-            # create material
-            cfg.visual_material.func(material_path, cfg.visual_material)
-            # apply material
-            bind_visual_material(prim_path, material_path, stage=stage)
+            material_path = cfg.visual_material_path
+        # create material
+        cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material
+        bind_visual_material(prim_path, material_path, stage=stage)
 
     # apply physics material
     if cfg.physics_material is not None:

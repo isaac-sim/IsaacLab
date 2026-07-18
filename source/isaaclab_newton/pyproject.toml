@@ -9,24 +9,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_newton"
-version = "1.9.1"
+version = "1.6.0"
 description = "Extension providing IsaacLab with Newton specific abstractions."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "newton"]
 requires-python = ">=3.12"
-# Only interpackage dependencies should go here.
-dependencies = [
-    "isaaclab",
-]
-
-[tool.uv.sources]
-isaaclab = { path = "../isaaclab", editable = true }
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[project.optional-dependencies]
+all = [
+    "prettytable>=3.3.0",
+    "PyOpenGL-accelerate>=3.1.0",
+    "pyglet>=2.1.6,<3",
+    "newton[sim] @ git+https://github.com/dylanturpin/newton-collab.git@3674b45e00cbe7b1e0d0b8f613af087298dcc110",
+]
 
 [tool.setuptools]
 include-package-data = true

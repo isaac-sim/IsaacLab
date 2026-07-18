@@ -6,10 +6,9 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
-from isaaclab.test.utils import resolve_test_sim_device, test_devices
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
@@ -23,8 +22,6 @@ import omni.timeline
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-
-pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +43,7 @@ Basic Configuration Tests
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_init(device):
     """Test the simulation context initialization."""
     from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg

@@ -37,12 +37,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_BACKEND_DISPLAY_NAMES = {
-    "physx": "PhysX",
-    "ovphysx": "OVPhysX",
-    "newton": "Newton MJWarp",
-}
-
 
 def _is_port_free(port: int, host: str = "127.0.0.1") -> bool:
     """Return whether a TCP port can be bound on host."""
@@ -181,7 +175,6 @@ class RerunVisualizer(BaseVisualizer):
         super().__init__(cfg)
         self.cfg: RerunVisualizerCfg = cfg
         self._viewer: NewtonViewerRerun | None = None
-        self._backend_display: str | None = None
         self._sim_time = 0.0
         self._step_counter = 0
         self._model = None
@@ -247,8 +240,6 @@ class RerunVisualizer(BaseVisualizer):
         )
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-        backend = self.physics_backend or "unknown"
-        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
         initial_pose = self._resolve_initial_camera_pose()
         self._apply_camera_pose(initial_pose)
         self._viewer.up_axis = 2
@@ -275,8 +266,6 @@ class RerunVisualizer(BaseVisualizer):
                 ("record_to_rrd", self.cfg.record_to_rrd or "<none>"),
             ],
         )
-
-        rr.log("info/physics_backend", rr.TextDocument(""), static=True)
 
         self._is_initialized = True
         atexit.register(self.close)
@@ -359,20 +348,13 @@ class RerunVisualizer(BaseVisualizer):
         cam_pos, cam_target = pose
         rr.send_blueprint(
             rrb.Blueprint(
-                rrb.Vertical(
-                    rrb.Spatial3DView(
-                        name="3D View",
-                        origin="/",
-                        eye_controls=rrb.EyeControls3D(
-                            position=cam_pos,
-                            look_target=cam_target,
-                        ),
+                rrb.Spatial3DView(
+                    name="3D View",
+                    origin="/",
+                    eye_controls=rrb.EyeControls3D(
+                        position=cam_pos,
+                        look_target=cam_target,
                     ),
-                    rrb.TextDocumentView(
-                        name=f"Physics: {self._backend_display or 'unknown'}",
-                        origin="info/physics_backend",
-                    ),
-                    row_shares=[20, 1],
                 ),
                 collapse_panels=True,
             )

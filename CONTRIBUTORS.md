@@ -33,7 +33,6 @@ Guidelines for modifications:
 * James Tigue
 * Kelly (Yunrong) Guo
 * Matthew Trepte
-* Maximilian Krause
 * Mayank Mittal
 * Mike Yan Michelis
 * Mikhail Yurasov
@@ -45,7 +44,6 @@ Guidelines for modifications:
 
 ## Contributors
 
-* Advait Jayant
 * Agon Serifi
 * Alessandro Assirelli
 * Alex Omar
@@ -59,7 +57,6 @@ Guidelines for modifications:
 * Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
-* Asier Arranz
 * Bikram Pandit
 * Bingjie Tang
 * Bocheng Zou
@@ -77,7 +74,6 @@ Guidelines for modifications:
 * CY (Chien-Ying) Chen
 * David Leon
 * David Yang
-* Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Dongxuan Fan
@@ -123,7 +119,6 @@ Guidelines for modifications:
 * Kousheek Chakraborty
 * Kris Wilson
 * Krishna Lakhi
-* Lin He
 * Lionel Gulich
 * Lorenz Wellhausen
 * Lotus Li
@@ -169,7 +164,6 @@ Guidelines for modifications:
 * Rebecca Zhang
 * Renaud Poncelet
 * René Zurbrügg
-* Richard Lei
 * Richard Schmitt
 * RinZ27
 * Ritvik Singh

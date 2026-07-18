@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 import torch
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
 
@@ -20,8 +19,6 @@ from isaaclab.envs.utils.spaces import (
     serialize_space,
     spec_to_gym_space,
 )
-
-pytestmark = pytest.mark.unit
 
 
 def test_spec_to_gym_space():

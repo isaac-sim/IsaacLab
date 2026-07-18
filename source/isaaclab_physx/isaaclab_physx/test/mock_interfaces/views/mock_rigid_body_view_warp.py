@@ -58,8 +58,6 @@ class MockRigidBodyViewWarp:
         self._masses: wp.array | None = None
         self._coms: wp.array | None = None
         self._inertias: wp.array | None = None
-        # Persistent getter output buffers (see _refresh_output_buffer).
-        self._output_buffers: dict[str, wp.array] = {}
 
     # -- Helper Methods --
 
@@ -73,21 +71,6 @@ class MockRigidBodyViewWarp:
                 f"Expected CPU array for {name}, but got array on {arr.device}. "
                 "Body properties must be set with CPU arrays."
             )
-
-    def _refresh_output_buffer(self, name: str, source: wp.array) -> wp.array:
-        """Return a persistent output buffer refreshed in place from ``source``.
-
-        Real PhysX tensor getters lazily allocate their output buffer once and refresh the same
-        memory in place on every call, returning a pointer-stable array. Sensors and assets cache
-        typed views (and record launches / capture graphs) over these buffers, so the mock mirrors
-        that contract instead of returning a fresh clone per call.
-        """
-        out = self._output_buffers.get(name)
-        if out is None:
-            out = wp.zeros_like(source)
-            self._output_buffers[name] = out
-        wp.copy(out, source)
-        return out
 
     def _create_identity_transforms(self, count: int, device: str | None = None) -> wp.array:
         """Create array of identity transforms as (count, 7) float32."""
@@ -119,7 +102,7 @@ class MockRigidBodyViewWarp:
         """
         if self._transforms is None:
             self._transforms = self._create_identity_transforms(self._count)
-        return self._refresh_output_buffer("transforms", self._transforms)
+        return wp.clone(self._transforms)
 
     def get_velocities(self) -> wp.array:
         """Get velocities of all rigid bodies.
@@ -130,7 +113,7 @@ class MockRigidBodyViewWarp:
         """
         if self._velocities is None:
             self._velocities = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
-        return self._refresh_output_buffer("velocities", self._velocities)
+        return wp.clone(self._velocities)
 
     def get_accelerations(self) -> wp.array:
         """Get accelerations of all rigid bodies.
@@ -141,7 +124,7 @@ class MockRigidBodyViewWarp:
         """
         if self._accelerations is None:
             self._accelerations = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
-        return self._refresh_output_buffer("accelerations", self._accelerations)
+        return wp.clone(self._accelerations)
 
     def get_masses(self) -> wp.array:
         """Get masses of all rigid bodies.
@@ -151,7 +134,7 @@ class MockRigidBodyViewWarp:
         """
         if self._masses is None:
             self._masses = wp.ones((self._count, 1), dtype=wp.float32, device="cpu")
-        return self._refresh_output_buffer("masses", self._masses)
+        return wp.clone(self._masses)
 
     def get_coms(self) -> wp.array:
         """Get centers of mass of all rigid bodies.
@@ -162,7 +145,7 @@ class MockRigidBodyViewWarp:
         """
         if self._coms is None:
             self._coms = self._create_identity_transforms(self._count, device="cpu")
-        return self._refresh_output_buffer("coms", self._coms)
+        return wp.clone(self._coms)
 
     def get_inertias(self) -> wp.array:
         """Get inertia tensors of all rigid bodies.
@@ -174,7 +157,7 @@ class MockRigidBodyViewWarp:
         if self._inertias is None:
             self._inertias = wp.zeros((self._count, 9), dtype=wp.float32, device="cpu")
             wp.launch(init_identity_inertias_1d, dim=self._count, inputs=[self._inertias], device="cpu")
-        return self._refresh_output_buffer("inertias", self._inertias)
+        return wp.clone(self._inertias)
 
     # -- Setters (simulation interface) --
 

@@ -32,8 +32,6 @@ from isaaclab.managers import (
 from isaaclab.utils import modifiers
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 

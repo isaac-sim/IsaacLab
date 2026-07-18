@@ -37,8 +37,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
-
 ##
 # Custom action term
 ##

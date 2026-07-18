@@ -39,9 +39,9 @@ Installing dependencies
 
 .. note::
 
-   On aarch64 (e.g., DGX Spark), some Python packages, notably ``imgui-bundle``, must be compiled
-   from source because no pre-built wheel is available. Install the required Python, OpenGL, and X11
-   development packages **before** installing Isaac Lab:
+   On aarch64 (e.g., DGX Spark), ``imgui-bundle`` and ``quadprog`` must be compiled from source because no
+   pre-built wheel is available. Install the required Python, OpenGL, and X11 development packages
+   **before** installing Isaac Lab:
 
     .. code-block:: bash
 
@@ -49,7 +49,9 @@ Installing dependencies
 
 -  Install Isaac Sim pip packages:
 
-   .. isaaclab-isaacsim-install::
+   .. code-block:: bash
+
+      uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 
@@ -59,17 +61,23 @@ Installing dependencies
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
          :sync: linux-x86_64
 
-         .. isaaclab-torch-install:: cu128
+         .. code-block:: bash
+
+            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
-         .. isaaclab-torch-install:: cu128
+         .. code-block:: bash
+
+            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
 
-         .. isaaclab-torch-install:: cu130
+         .. code-block:: bash
+
+            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
 
          .. note::
 
@@ -111,17 +119,6 @@ Installing dependencies
             When using ``./isaaclab.sh -p``, this is handled automatically.
             When using a conda environment,
             the preload is set up via the conda activation hook.
-
-.. note::
-
-   The first launch of Isaac Sim asks to accept the NVIDIA Omniverse EULA interactively.
-   In a non-interactive shell (CI, remote scripts), the prompt cannot be answered and the
-   launch fails with ``Unable to bootstrap inner kit kernel: EOF when reading a line``.
-   Accept the EULA through the environment instead:
-
-   .. code-block:: bash
-
-      export OMNI_KIT_ACCEPT_EULA=yes
 
 .. include:: include/pip_verify_isaacsim.rst
 

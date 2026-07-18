@@ -96,30 +96,20 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
 Running Benchmark Scripts
 -------------------------
 
-Isaac Lab provides unified ``runtime.py``, ``startup.py``, ``training.py``, and ``play.py``
-entry points under ``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
-emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
-``--benchmark_formatter`` accepts a comma-separated list (e.g.
-``schema,omniperf``) to emit several formats in a single run. Each selected
-formatter writes timestamped output; the Osmo formatter writes one
-phase-suffixed JSON file per phase.
+Isaac Lab provides shell scripts for running benchmark suites:
 
-The examples below use ``uv run isaaclab benchmark``. From an existing
-Isaac Lab environment, run the same workflows directly instead:
+Non-RL Benchmarks
+~~~~~~~~~~~~~~~~~
 
-* Runtime: ``./isaaclab.sh -p scripts/benchmarks/runtime.py <arguments>``
-* Startup: ``./isaaclab.sh -p scripts/benchmarks/startup.py <arguments>``
-* Training: ``./isaaclab.sh -p scripts/benchmarks/training.py <arguments>``
-* Play: ``./isaaclab.sh -p scripts/benchmarks/play.py <arguments>``
-
-Non-RL / Runtime Benchmarks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Measure environment stepping performance without any RL library:
+Measure environment stepping performance without training:
 
 .. code-block:: bash
 
-   uv run isaaclab benchmark runtime \
+   # Run all non-RL benchmarks
+   ./scripts/benchmarks/run_non_rl_benchmarks.sh ./output_dir
+
+   # Run a single benchmark manually
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --num_frames 100 \
@@ -129,63 +119,20 @@ Measure environment stepping performance without any RL library:
 RL Training Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Measure training performance.  Use ``--rl_library`` to select the RL library
-(``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``):
+Measure training performance with RSL-RL:
 
 .. code-block:: bash
 
-   # Benchmark with RSL-RL
-   uv run isaaclab benchmark training \
-       --rl_library rsl_rl \
+   # Run training benchmarks
+   ./scripts/benchmarks/run_training_benchmarks.sh ./output_dir
+
+   # Run manually with RSL-RL
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
        --benchmark_formatter json \
        --output_path ./results
-
-   # Benchmark with RL Games
-   uv run isaaclab benchmark training \
-       --rl_library rl_games \
-       --task Isaac-Cartpole \
-       --num_envs 4096 \
-       --max_iterations 500 \
-       --benchmark_formatter json \
-       --output_path ./results
-
-RL Play Benchmarks
-~~~~~~~~~~~~~~~~~~
-
-Load a trained checkpoint and benchmark policy inference (the *play* workflow).
-The same ``--rl_library`` dispatch selects the RL library (``rsl_rl``, ``rl_games``,
-``skrl``, or ``sb3``).  In addition to the inference throughput, the emitted
-``PlayBundle`` reports the rolled-out policy's reward, episode length, and success
-rate.  The checkpoints consumed here are produced by ``training.py``.
-
-.. code-block:: bash
-
-   # Benchmark inference of a trained RSL-RL policy
-   uv run isaaclab benchmark play \
-       --rl_library rsl_rl \
-       --task Isaac-Cartpole \
-       --num_envs 4096 \
-       --num_frames 1000 \
-       --checkpoint /path/to/model.pt \
-       --benchmark_formatter json \
-       --output_path ./results
-
-The checkpoint is resolved in the following order:
-
-#. ``--checkpoint`` — a local filesystem path or a Nucleus URI.
-#. Otherwise, the published Nucleus checkpoint for the task is downloaded
-   (a warning is logged).
-#. If neither is available, an error is raised.
-
-.. note::
-
-   ``reward``, ``ep_length``, and ``success_rate`` aggregate only **completed**
-   episodes.  Set ``--num_frames`` larger than the task's episode length so at
-   least one episode finishes during the rollout; otherwise these fields remain
-   ``null`` (the inference throughput is still reported).
 
 PhysX Micro-Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -194,7 +141,10 @@ Measure asset method and property performance using mock interfaces:
 
 .. code-block:: bash
 
-   # Run articulation benchmarks
+   # Run PhysX micro-benchmarks
+   ./scripts/benchmarks/run_physx_benchmarks.sh ./output_dir
+
+   # Run articulation benchmarks manually
    ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
        --num_iterations 1000 \
        --num_instances 4096
@@ -213,23 +163,23 @@ understanding where time is spent during initialization.
 .. code-block:: bash
 
    # Basic usage — reports top 30 functions per phase
-   uv run isaaclab benchmark startup \
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
        --task Isaac-Ant \
        --num_envs 4096 \
        --benchmark_formatter summary
 
 The script profiles five phases independently:
 
-- **app_launch**: ``launch_simulation()`` context entry (simulation runtime initialization)
+- **app_launch**: ``launch_simulation()`` context entry (Kit/USD/PhysX init)
 - **python_imports**: importing gymnasium, torch, isaaclab_tasks, etc.
 - **task_config**: ``resolve_task_config()`` (Hydra config resolution)
 - **env_creation**: ``gym.make()`` + ``env.reset()`` (scene creation, sim start)
 - **first_step**: a single ``env.step()`` call
 
-Schema output records each phase wall-clock time and per-function own-time,
-cumulative time, and call count. Flat formatters project the same data into
-measurements. Only Isaac Lab functions and first-level calls into external
-libraries are included (deep internals of torch, USD, etc. are filtered out).
+Each phase records a wall-clock time plus per-function own-time and cumulative
+time as ``SingleMeasurement`` entries. Only IsaacLab functions and first-level
+calls into external libraries are included (deep internals of torch, USD, etc.
+are filtered out).
 
 **Whitelist mode** — For dashboard time-series comparisons across runs, use a
 YAML whitelist config to report a fixed set of functions instead of top-N.
@@ -251,7 +201,7 @@ Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
 
 .. code-block:: bash
 
-   uv run isaaclab benchmark startup \
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
        --task Isaac-Ant \
        --num_envs 4096 \
        --benchmark_formatter omniperf \
@@ -284,8 +234,8 @@ A default whitelist is provided at ``scripts/benchmarks/startup_whitelist.yaml``
      - None
      - Path to YAML whitelist file
    * - ``--benchmark_formatter``
-     - ``schema``
-     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
+     - ``omniperf``
+     - Output formatter (``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``)
    * - ``--output_path``
      - ``.``
      - Directory for output files
@@ -304,14 +254,14 @@ Common Arguments
      - Default
      - Description
    * - ``--benchmark_formatter``
-     - ``schema``
-     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
+     - ``json``
+     - Output formatter: ``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``
    * - ``--output_path``
      - ``./``
      - Directory for output files
 
-Non-RL / Runtime Benchmark Arguments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Non-RL Benchmark Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -324,7 +274,7 @@ Non-RL / Runtime Benchmark Arguments
      - required
      - Environment task name (e.g., ``Isaac-Cartpole``)
    * - ``--num_envs``
-     - ``None`` (task config)
+     - ``4096``
      - Number of parallel environments
    * - ``--num_frames``
      - ``100``
@@ -343,47 +293,15 @@ RL Training Arguments
    * - Argument
      - Default
      - Description
-   * - ``--rl_library``
-     - required
-     - RL library: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
    * - ``--task``
      - required
      - Environment task name
    * - ``--num_envs``
-     - ``None`` (task config)
+     - ``4096``
      - Number of parallel environments
    * - ``--max_iterations``
-     - ``None`` (task config)
+     - ``500``
      - Number of training iterations
-
-RL Play Arguments
-~~~~~~~~~~~~~~~~~
-
-.. list-table::
-   :header-rows: 1
-   :widths: 25 15 60
-
-   * - Argument
-     - Default
-     - Description
-   * - ``--task``
-     - required
-     - Environment task name
-   * - ``--rl_library``
-     - required
-     - RL library that produced the checkpoint: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
-   * - ``--num_envs``
-     - ``None`` (task config)
-     - Number of parallel environments
-   * - ``--num_frames``
-     - ``100``
-     - Number of inference steps to roll out
-   * - ``--checkpoint``
-     - ``None`` (published Nucleus checkpoint)
-     - Local path or Nucleus URI of the checkpoint to roll out
-   * - ``--benchmark_formatter``
-     - ``schema``
-     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
 
 Measurement Types
 -----------------
@@ -714,23 +632,14 @@ Step 4: Finalize
 Integration with CI/CD
 ----------------------
 
-The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD integration:
+The shell scripts in ``scripts/benchmarks/`` are designed for CI/CD integration:
 
 .. code-block:: bash
 
    # GitHub Actions / GitLab CI example
-   - name: Run Runtime Benchmark
+   - name: Run Benchmarks
      run: |
-       uv run isaaclab benchmark runtime \
-           --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
-           --benchmark_formatter json --output_path ./benchmark_results
-
-   - name: Run Training Benchmark
-     run: |
-       uv run isaaclab benchmark training \
-           --rl_library rsl_rl --task Isaac-Cartpole --num_envs 4096 \
-           --max_iterations 500 --benchmark_formatter json \
-           --output_path ./benchmark_results
+       ./scripts/benchmarks/run_non_rl_benchmarks.sh ./benchmark_results
 
    - name: Upload Results
      uses: actions/upload-artifact@v3
@@ -742,9 +651,7 @@ For Osmo integration, use the ``osmo`` formatter:
 
 .. code-block:: bash
 
-   uv run isaaclab benchmark runtime \
-       --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
-       --benchmark_formatter osmo --output_path ./results
+   ./scripts/benchmarks/run_non_rl_benchmarks.sh ./results
    # Results are in Osmo-compatible JSON format
 
 Troubleshooting
@@ -790,7 +697,7 @@ Ensure ``_finalize_impl()`` is called before the script exits:
 Formatter Not Recognized
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Valid formatter types are: ``schema``, ``json``, ``osmo``, ``omniperf``, or ``summary``
+Valid formatter types are: ``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``
 
 .. code-block:: bash
 

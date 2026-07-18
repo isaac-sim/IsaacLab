@@ -28,10 +28,11 @@ only the dependencies needed for the features you use:
 
 .. code-block:: bash
 
-   # The base contrib package is installed with the core Isaac Lab packages.
-   # Install optional dependencies (e.g., for RLinf VLA post-training) via the
-   # matching root extra. --inexact keeps the existing environment untouched.
-   uv sync --inexact --extra rlinf
+   # Install the base contrib package
+   uv pip install -e "source/isaaclab_contrib"
+
+   # Install with optional extras (e.g., for RLinf VLA post-training)
+   uv pip install -e "source/isaaclab_contrib[rlinf]"
 
 Current Contributions
 ---------------------

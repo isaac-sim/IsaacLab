@@ -20,8 +20,6 @@ from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_fr
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
 
-pytestmark = pytest.mark.unit
-
 """
 Mock classes and functions.
 """
@@ -173,27 +171,6 @@ class InheritedNonTypeAnnotationOrderingDemoCfg(NonTypeAnnotationOrderingDemoCfg
     """Inherited config class without type annotations."""
 
     pass
-
-
-@configclass
-class MixedAnnotationOrderingDemoCfg:
-    """Config class with type annotations on only some attributes."""
-
-    plane = RobotDefaultStateCfg()
-    robot = RobotDefaultStateCfg()
-    peg: RobotDefaultStateCfg = RobotDefaultStateCfg()
-    hole: RobotDefaultStateCfg = RobotDefaultStateCfg()
-    camera = RobotDefaultStateCfg()
-    light = RobotDefaultStateCfg()
-
-
-@configclass
-class InheritedMixedAnnotationOrderingDemoCfg(MixedAnnotationOrderingDemoCfg):
-    """Inherited config class with type annotations on only some attributes."""
-
-    table = RobotDefaultStateCfg()
-    sensor: RobotDefaultStateCfg = RobotDefaultStateCfg()
-    marker = RobotDefaultStateCfg()
 
 
 """
@@ -839,26 +816,6 @@ def test_configclass_type_ordering():
     assert list(cfg_1.__dict__.keys()) == list(cfg_2.__dict__.keys())
     assert list(cfg_3.__dict__.keys()) == list(cfg_2.__dict__.keys())
     assert list(cfg_1.__dict__.keys()) == list(cfg_3.__dict__.keys())
-
-
-def test_configclass_mixed_type_annotations_ordering():
-    """Checks that declaration order is preserved when only some attributes have type annotations.
-
-    Reference: https://github.com/isaac-sim/IsaacLab/issues/1949
-    """
-    cfg = MixedAnnotationOrderingDemoCfg()
-    expected_order = ["plane", "robot", "peg", "hole", "camera", "light"]
-
-    # check ordering of attributes and dictionary conversion
-    assert list(cfg.__dict__.keys()) == expected_order
-    assert list(cfg.to_dict().keys()) == expected_order
-
-    # check ordering with inheritance: parent fields first, then child fields in declaration order
-    cfg_inherited = InheritedMixedAnnotationOrderingDemoCfg()
-    expected_inherited_order = expected_order + ["table", "sensor", "marker"]
-
-    assert list(cfg_inherited.__dict__.keys()) == expected_inherited_order
-    assert list(cfg_inherited.to_dict().keys()) == expected_inherited_order
 
 
 def test_functions_config():

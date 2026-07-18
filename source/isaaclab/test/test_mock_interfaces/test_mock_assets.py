@@ -20,8 +20,6 @@ from isaaclab.test.mock_interfaces.assets import (
 )
 from isaaclab.test.mock_interfaces.utils import MockArticulationBuilder
 
-pytestmark = pytest.mark.unit
-
 # ==============================================================================
 # MockArticulation Tests
 # ==============================================================================

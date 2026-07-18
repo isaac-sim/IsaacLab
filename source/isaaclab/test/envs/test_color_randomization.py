@@ -29,11 +29,10 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.version import get_isaac_sim_version
 
-pytestmark = pytest.mark.integration
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleSceneCfg
 
 
 @configclass
@@ -115,7 +114,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
     # Scene settings
-    scene = CartpoleTestSceneCfg(env_spacing=2.5)
+    scene = CartpoleSceneCfg(env_spacing=2.5)
 
     # Basic settings
     actions = ActionsCfg()

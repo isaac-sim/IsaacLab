@@ -23,8 +23,6 @@ from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.math import quat_from_euler_xyz
 
-pytestmark = pytest.mark.integration
-
 # -------------------------------------------------------------------
 # Helpers
 # -------------------------------------------------------------------

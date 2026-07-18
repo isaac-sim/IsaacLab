@@ -9,22 +9,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_assets"
-version = "0.4.2"
+version = "0.4.1"
 description = "Extension containing configuration instances of different assets and sensors."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["kit", "robotics", "assets", "isaaclab"]
 requires-python = ">=3.12"
-# Only interpackage dependencies should go here.
-dependencies = [
-    "isaaclab",
-    "isaaclab_contrib",
-]
-
-[tool.uv.sources]
-isaaclab = { path = "../isaaclab", editable = true }
-isaaclab_contrib = { path = "../isaaclab_contrib", editable = true }
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

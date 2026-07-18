@@ -9,7 +9,6 @@ __all__ = [
     "DeformableObject",
     "DeformableObjectData",
     "NewtonModelCfg",
-    "NewtonModelSolverCfg",
     "VBDSolverCfg",
 ]
 
@@ -19,6 +18,5 @@ from .newton_manager_cfg import (
     CoupledFeatherstoneVBDSolverCfg,
     CoupledMJWarpVBDSolverCfg,
     NewtonModelCfg,
-    NewtonModelSolverCfg,
     VBDSolverCfg,
 )

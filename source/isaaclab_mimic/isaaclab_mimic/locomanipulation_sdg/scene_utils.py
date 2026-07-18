@@ -126,8 +126,7 @@ class SceneAsset(HasPose):
         xform_prim = self._get_xform_view()
         position = pose[..., :3]
         orientation = pose[..., 3:]
-        with xform_prim.xform_world_space_writer() as writer:
-            writer.set_poses(wp.from_torch(position.contiguous()), wp.from_torch(orientation.contiguous()), None)
+        xform_prim.set_world_poses(wp.from_torch(position.contiguous()), wp.from_torch(orientation.contiguous()), None)
 
 
 class RelativePose(HasPose):

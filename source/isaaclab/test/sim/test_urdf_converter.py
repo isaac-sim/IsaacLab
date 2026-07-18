@@ -26,8 +26,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
-pytestmark = pytest.mark.integration
-
 
 # Create a fixture for setup and teardown
 @pytest.fixture

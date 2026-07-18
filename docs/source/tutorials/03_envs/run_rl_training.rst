@@ -35,12 +35,12 @@ The Code
 --------
 
 For this tutorial, we use the training implementation from `Stable-Baselines3`_ workflow in the
-``isaaclab_rl.entrypoints.backends.train_sb3`` module.
+``scripts/reinforcement_learning/sb3`` directory.
 
 .. dropdown:: Code for train_sb3.py
     :icon: code
 
-    .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_sb3.py
+    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train_sb3.py
       :language: python
       :linenos:
       :emphasize-lines: 97-100, 104-109, 121-137, 145-157, 164-170

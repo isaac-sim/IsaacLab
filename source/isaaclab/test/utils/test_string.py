@@ -11,8 +11,6 @@ import pytest
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.string import _resolve_matching_names_impl
 
-pytestmark = pytest.mark.unit
-
 
 def test_resolvable_string_metadata_is_non_eager():
     """Test metadata access on ResolvableString without triggering import/resolve."""

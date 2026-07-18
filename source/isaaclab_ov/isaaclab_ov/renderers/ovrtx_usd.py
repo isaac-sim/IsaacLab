@@ -24,34 +24,67 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
     use_albedo = "albedo" in data_types
     use_semantic = "semantic_segmentation" in data_types
     use_instance_seg = "instance_segmentation_fast" in data_types
+    use_instance_id_seg = "instance_id_segmentation_fast" in data_types
     use_normals = "normals" in data_types
     use_motion_vectors = "motion_vectors" in data_types
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
     use_hdr = "rgb_hdr" in data_types
 
     if use_depth and not (
-        use_rgb or use_albedo or use_semantic or use_instance_seg or use_normals or use_motion_vectors
+        use_rgb
+        or use_albedo
+        or use_semantic
+        or use_instance_seg
+        or use_instance_id_seg
+        or use_normals
+        or use_motion_vectors
     ):
         source = "DistanceToCameraSD" if use_distance_to_camera else "DistanceToImagePlaneSD"
         return "/Render/Vars/depth", "depth", source
-    if use_albedo and not (use_rgb or use_semantic or use_instance_seg or use_normals or use_motion_vectors):
+    if use_albedo and not (
+        use_rgb or use_semantic or use_instance_seg or use_instance_id_seg or use_normals or use_motion_vectors
+    ):
         return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
     if use_semantic and not (use_rgb or use_albedo or use_normals or use_motion_vectors):
         return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
     if use_instance_seg and not (
-        use_rgb or use_albedo or use_semantic or use_normals or use_depth or use_hdr or use_motion_vectors
+        use_rgb
+        or use_albedo
+        or use_semantic
+        or use_instance_id_seg
+        or use_normals
+        or use_depth
+        or use_hdr
+        or use_motion_vectors
     ):
         return (
             "/Render/Vars/NonStableInstanceSegmentation",
             "NonStableInstanceSegmentation",
             "NonStableInstanceSegmentation",
         )
+    if use_instance_id_seg and not (
+        use_rgb
+        or use_albedo
+        or use_semantic
+        or use_instance_seg
+        or use_normals
+        or use_depth
+        or use_hdr
+        or use_motion_vectors
+    ):
+        return "/Render/Vars/InstanceSegmentationSD", "InstanceSegmentationSD", "InstanceSegmentationSD"
     if use_normals and not (
-        use_rgb or use_albedo or use_semantic or use_instance_seg or use_depth or use_motion_vectors
+        use_rgb
+        or use_albedo
+        or use_semantic
+        or use_instance_seg
+        or use_instance_id_seg
+        or use_depth
+        or use_motion_vectors
     ):
         return "/Render/Vars/NormalSD", "NormalSD", "NormalSD"
     if use_motion_vectors and not (
-        use_rgb or use_albedo or use_semantic or use_instance_seg or use_depth or use_normals
+        use_rgb or use_albedo or use_semantic or use_instance_seg or use_instance_id_seg or use_depth or use_normals
     ):
         return "/Render/Vars/TargetMotionSD", "TargetMotionSD", "TargetMotionSD"
     if use_hdr and not use_rgb:
@@ -62,36 +95,17 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
 def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     """Return render var configs needed for the requested data types.
 
-    Each config is a ``(render_var_path, render_var_name, source_name)`` tuple as defined by
-    :func:`get_render_var_config`. Always includes the single render var resolved by
-    :func:`get_render_var_config`, plus the following extras when applicable:
-
-    * ``HdrColor`` — when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are requested, so
-      PPISP can consume the HDR AOV alongside the LDR destination on the same render product.
-    * ``SemanticIdMap`` — when ``"semantic_segmentation"`` is requested, so the
-      semantic-ID-to-label mapping can be decoded for ``camera.data.info``.
-    * ``StableIdSemanticIdMap``, ``StableIdMap``, ``SemanticIdMap`` — when
-      ``"instance_segmentation_fast"`` is requested, so the instance-ID-to-prim-path
-      (``idToLabels``) and instance-ID-to-semantic (``idToSemantics``) mappings can be decoded.
-
-    Other multi-AOV combinations are not supported.
+    Returns the single render var resolved by :func:`get_render_var_config`,
+    plus ``HdrColor`` when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are
+    in ``data_types`` so PPISP can consume the HDR AOV alongside the LDR
+    destination on the same render product. Other multi-AOV combinations are
+    not supported.
     """
     data_types = data_types if data_types else ["rgb"]
     render_vars: list[tuple[str, str, str]] = [get_render_var_config(data_types)]
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
     if use_rgb and "rgb_hdr" in data_types:
         render_vars.append(("/Render/Vars/HdrColor", "HdrColor", "HdrColor"))
-    # Author the ID-to-label map render vars needed to decode the segmentation info dicts. These are keyed off
-    # the requested data types (not the single AOV resolved by get_render_var_config) so they are still authored
-    # when segmentation is combined with other outputs. instance_segmentation_fast needs StableIdSemanticIdMap +
-    # StableIdMap to resolve each pixel to a prim path.
-    if "instance_segmentation_fast" in data_types:
-        render_vars.append(("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"))
-        render_vars.append(("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"))
-    # SemanticIdMap resolves the semantic-ID-to-label mapping and is shared by both semantic_segmentation and
-    # instance_segmentation_fast, so it is authored once when either output is requested.
-    if "semantic_segmentation" in data_types or "instance_segmentation_fast" in data_types:
-        render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
     return render_vars
 
 

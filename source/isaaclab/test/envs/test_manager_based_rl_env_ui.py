@@ -16,8 +16,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import pytest
-
 from isaacsim.core.experimental.utils.app import enable_extension
 
 import isaaclab.sim as sim_utils
@@ -25,8 +23,6 @@ from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.ui import ManagerBasedRLEnvWindow
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
-
-pytestmark = pytest.mark.integration
 
 enable_extension("isaacsim.gui.components")
 

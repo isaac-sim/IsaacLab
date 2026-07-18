@@ -14,19 +14,16 @@ import warp as wp
 def split_flat_pose_to_pos_quat(
     src: wp.array(dtype=wp.transformf),
     mask: wp.array(dtype=wp.bool),
-    num_envs: wp.int32,
+    num_bodies: wp.int32,
     dst_pos: wp.array2d(dtype=wp.vec3f),
     dst_quat: wp.array2d(dtype=wp.quatf),
 ):
-    """Split flat (B*N,) transformf into (N, B) vec3f pos and (N, B) quatf quat.
-
-    The source array is body-major (view created from one pattern per body):
-    ``src_idx = body_id * num_envs + env_id``.
+    """Split flat (N*B,) transformf into (N, B) vec3f pos and (N, B) quatf quat.
 
     Args:
-        src: Flat source array of transforms from PhysX view. Shape is (B*N,).
+        src: Flat source array of transforms from PhysX view. Shape is (N*B,).
         mask: Boolean mask for which environments to update. Shape is (N,).
-        num_envs: Number of environments.
+        num_bodies: Number of bodies per environment.
         dst_pos: Destination position buffer. Shape is (N, B).
         dst_quat: Destination quaternion buffer. Shape is (N, B).
     """
@@ -35,7 +32,7 @@ def split_flat_pose_to_pos_quat(
         if not mask[env]:
             return
 
-    src_idx = sensor * num_envs + env
+    src_idx = env * num_bodies + sensor
     dst_pos[env, sensor] = wp.transform_get_translation(src[src_idx])
     dst_quat[env, sensor] = wp.transform_get_rotation(src[src_idx])
 
@@ -49,7 +46,7 @@ def unpack_contact_buffer_data(
     buffer_count: wp.array2d(dtype=wp.uint32),
     buffer_start_indices: wp.array2d(dtype=wp.uint32),
     mask: wp.array(dtype=wp.bool),
-    num_envs: wp.int32,
+    num_bodies: wp.int32,
     avg: bool,
     default_val: wp.float32,
     dst: wp.array3d(dtype=wp.vec3f),
@@ -58,15 +55,14 @@ def unpack_contact_buffer_data(
 
     Each thread handles one (body, filter) pair for one environment. It reads
     `count` contact entries starting at `start_index` and either averages or
-    sums them. The flat buffer dimension is body-major (view created from one
-    pattern per body): ``flat_idx = body_id * num_envs + env_id``.
+    sums them.
 
     Args:
         contact_data: Flat buffer of contact data. Shape is (total_contacts,) vec3f.
-        buffer_count: Count of contacts per (body*env, filter). Shape is (B*N, M) uint32.
-        buffer_start_indices: Start indices per (body*env, filter). Shape is (B*N, M) uint32.
+        buffer_count: Count of contacts per (env*body, filter). Shape is (N*B, M) uint32.
+        buffer_start_indices: Start indices per (env*body, filter). Shape is (N*B, M) uint32.
         mask: Boolean mask for which environments to update. Shape is (N,).
-        num_envs: Number of environments.
+        num_bodies: Number of bodies per environment.
         avg: If True, average the data; if False, sum it.
         default_val: Default value for groups with zero contacts (e.g. NaN or 0.0).
         dst: Destination buffer. Shape is (N, B, M).
@@ -76,7 +72,7 @@ def unpack_contact_buffer_data(
         if not mask[env]:
             return
 
-    flat_idx = sensor * num_envs + env
+    flat_idx = env * num_bodies + sensor
     count = wp.int32(buffer_count[flat_idx, contact])
     start = wp.int32(buffer_start_indices[flat_idx, contact])
 
@@ -196,7 +192,7 @@ def update_net_forces_kernel(
     net_forces_flat: wp.array(dtype=wp.vec3f),
     net_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
     mask: wp.array(dtype=wp.bool),
-    num_envs: int,
+    num_sensors: int,
     num_filter_shapes: int,
     history_length: int,
     contact_force_threshold: wp.float32,
@@ -214,14 +210,13 @@ def update_net_forces_kernel(
 ):
     """Update the net forces, force matrix and air/contact time for each (env, sensor) pair.
 
-    Launch with dim=(num_envs, num_sensors). The flat arrays are body-major (view created
-    from one pattern per body): ``src_idx = sensor_id * num_envs + env_id``.
+    Launch with dim=(num_envs, num_sensors).
 
     Args:
-        net_forces_flat: Flat net forces. Shape is (num_sensors*num_envs,).
-        net_forces_matrix_flat: Flat force matrix. Shape is (num_sensors*num_envs, num_filter_shapes).
+        net_forces_flat: Flat net forces. Shape is (num_envs*num_sensors,).
+        net_forces_matrix_flat: Flat force matrix. Shape is (num_envs*num_sensors, num_filter_shapes).
         mask: Mask array. Shape is (num_envs,).
-        num_envs: Number of environments.
+        num_sensors: Number of sensors per environment.
         num_filter_shapes: Number of filter shapes.
         history_length: Length of history.
         contact_force_threshold: Threshold for the contact force.
@@ -248,7 +243,7 @@ def update_net_forces_kernel(
     if timestamp[env] == 0.0:
         return
 
-    src_idx = sensor * num_envs + env
+    src_idx = env * num_sensors + sensor
 
     # Update net forces
     net_forces_w[env, sensor] = net_forces_flat[src_idx]

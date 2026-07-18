@@ -17,8 +17,6 @@ from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
-
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
     focus_distance=400.0,
@@ -133,8 +131,6 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.RGB_HDR,
         RenderBufferKind.ALBEDO,
         RenderBufferKind.DEPTH,
-        RenderBufferKind.DISTANCE_TO_CAMERA,
-        RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.NORMALS,
         RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
     }

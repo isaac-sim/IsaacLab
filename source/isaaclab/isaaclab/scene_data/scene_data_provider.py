@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import warp as wp
 
+from pxr import UsdGeom
+
 import isaaclab.sim as sim_utils
 
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
@@ -438,8 +440,6 @@ def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
     """
     if stage is None:
         return None
-
-    from pxr import UsdGeom  # noqa: PLC0415
 
     shared_paths: list[str] = []
     instances: dict[str, list[tuple[int, str]]] = {}

@@ -99,7 +99,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
             presets=depth          # depth rendering, default renderer
             presets=depth,newton_renderer     # depth rendering with Newton renderer
-            presets=depth,ovrtx    # depth rendering with OVRTX renderer
+            presets=depth,ovrtx_renderer    # depth rendering with OVRTX renderer
     """
 
     semantic_segmentation: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
@@ -124,7 +124,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
         renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
-        warp_supported = {"rgb", "depth", "distance_to_camera", "distance_to_image_plane", "normals"}
+        warp_supported = {"rgb", "depth", "normals"}
         if renderer_type == "newton_warp":
             unsupported = set(self.tiled_camera.data_types) - warp_supported
             if unsupported:
@@ -166,7 +166,7 @@ class ShadowHandCameraBenchmarkEnvCfg(ShadowHandCameraEnvCfg):
     The renderer backend and camera data types can still be selected via ``presets``::
 
         presets = newton_renderer  # benchmark with Newton renderer
-        presets = ovrtx  # benchmark with OVRTX renderer
+        presets = ovrtx_renderer  # benchmark with OVRTX renderer
         presets = rgb  # benchmark RGB rendering only
         presets = depth, newton_renderer  # benchmark depth rendering with Newton
     """

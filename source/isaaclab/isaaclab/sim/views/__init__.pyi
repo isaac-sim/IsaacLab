@@ -7,9 +7,6 @@ __all__ = [
     "BaseFrameView",
     "UsdFrameView",
     "FrameView",
-    "FrameViewSpaceWriterBase",
-    "FrameViewWorldSpaceWriter",
-    "FrameViewLocalSpaceWriter",
     # Deprecated alias
     "XformPrimView",
 ]
@@ -17,6 +14,5 @@ __all__ = [
 from .base_frame_view import BaseFrameView
 from .usd_frame_view import UsdFrameView
 from .frame_view import FrameView
-from .xform_space_writer import FrameViewSpaceWriterBase, FrameViewWorldSpaceWriter, FrameViewLocalSpaceWriter
 # Deprecated alias
 from .xform_prim_view import XformPrimView

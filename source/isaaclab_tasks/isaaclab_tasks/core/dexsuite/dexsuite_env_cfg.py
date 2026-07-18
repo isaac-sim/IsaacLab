@@ -74,7 +74,7 @@ class ObjectCfg(PresetCfg):
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )
     cube = sim_utils.CuboidCfg(
-        size=(0.05, 0.05, 0.05),
+        size=(0.05, 0.1, 0.1),
         physics_material=RigidBodyMaterialCfg(static_friction=0.5),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             solver_position_iteration_count=16,
@@ -103,7 +103,7 @@ class SceneCfg(InteractiveSceneCfg):
 
     # table
     table: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/table",
+        prim_path="/World/envs/env_.*/table",
         spawn=TABLE_SPAWN_CFG,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
     )
@@ -188,10 +188,6 @@ class ObservationsCfg:
             # and quaternion are unlikely to exceed -2 to 2 range
             clip=(-2.0, 2.0),
             params={
-                # pose-only: body velocities are the most engine-sensitive observables
-                # (derivative signals amplify solver differences) and do not transfer
-                # across physics backends; the observation history carries velocity info
-                "include_vel": False,
                 "body_asset_cfg": SceneEntityCfg("robot"),
                 "base_asset_cfg": SceneEntityCfg("robot"),
             },
@@ -309,90 +305,49 @@ class EventCfg:
         },
     )
 
-    # robot configs add their static-obstacle geometry to ``params["valid_criteria"]``
-    conditional_reset = EventTerm(
-        func="isaaclab_tasks.core.dexsuite.mdp.events:conditional_reset",
+    reset_object = EventTerm(
+        func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "terms": {
-                "reset_root": EventTerm(
-                    func=mdp.reset_root_state_uniform,
-                    mode="reset",
-                    params={
-                        "pose_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "yaw": [-0.0, 0.0]},
-                        "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-                        "asset_cfg": SceneEntityCfg("robot"),
-                    },
-                ),
-                "reset_robot_joints": EventTerm(
-                    func=mdp.reset_joints_by_offset,
-                    mode="reset",
-                    params={
-                        "position_range": [-0.50, 0.50],
-                        "velocity_range": [0.0, 0.0],
-                    },
-                ),
-                "reset_robot_wrist_joint": EventTerm(
-                    func=mdp.reset_joints_by_offset,
-                    mode="reset",
-                    params={
-                        "asset_cfg": SceneEntityCfg("robot", joint_names=["wrist"]),
-                        "position_range": [-3, 3],
-                        "velocity_range": [0.0, 0.0],
-                    },
-                ),
-                "reset_object": EventTerm(
-                    func=mdp.reset_root_state_uniform,
-                    mode="reset",
-                    params={
-                        "pose_range": {
-                            "x": [-0.2, 0.2],
-                            "y": [-0.2, 0.2],
-                            "z": [0.0, 0.4],
-                            "roll": [-3.14, 3.14],
-                            "pitch": [-3.14, 3.14],
-                            "yaw": [-3.14, 3.14],
-                        },
-                        "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-                        "asset_cfg": SceneEntityCfg("object"),
-                    },
-                ),
-                # spawn-in-hand curriculum: a small share of episodes starts with the
-                # object at the gripper (uniform random orientation, small body-frame
-                # offset); interpenetrating draws are rejected by object_robot_clearance.
-                # Must stay LAST: it reads the gripper pose after the robot reset terms.
-                "reset_object_to_target": EventTerm(
-                    func="isaaclab_tasks.core.dexsuite.mdp.events:reset_to_target",
-                    mode="reset",
-                    params={
-                        "pose_range": {"x": [-0.04, 0.04], "y": [-0.04, 0.04], "z": [-0.04, 0.04]},
-                        "velocity_range": {},
-                        "probability": 0.05,
-                        # robot configs must point this at their gripper body and may shift
-                        # the z range along the approach axis (e.g. between the fingertips)
-                        "target_cfg": MISSING,
-                        "asset_cfg": SceneEntityCfg("object"),
-                    },
-                ),
+            "pose_range": {
+                "x": [-0.2, 0.2],
+                "y": [-0.2, 0.2],
+                "z": [0.0, 0.4],
+                "roll": [-3.14, 3.14],
+                "pitch": [-3.14, 3.14],
+                "yaw": [-3.14, 3.14],
             },
-            "buffer_size_per_group": 1024,
-            "valid_criteria": {
-                "object_robot_clearance": mdp.MeshClearanceCfg(
-                    asset_name="robot",
-                    body_names=".*",
-                    object_name="object",
-                    num_object_points=64,
-                    min_clearance=0.0,
-                ),
-                "robot_table_clearance": mdp.SlabClearanceCfg(
-                    asset_name="robot",
-                    body_names=MISSING,  # overridden by robot configs
-                    object_name="object",
-                    obstacle_slabs=[((-0.95, -0.15), (-0.75, 0.75), 0.255), (None, None, 0.0)],  # table dimension
-                    num_object_points=64,
-                    min_clearance=0.02,
-                ),
-            },
+            "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
+            "asset_cfg": SceneEntityCfg("object"),
+        },
+    )
+
+    reset_root = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "pose_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "yaw": [-0.0, 0.0]},
+            "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
+            "asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
+
+    reset_robot_joints = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "position_range": [-0.50, 0.50],
+            "velocity_range": [0.0, 0.0],
+        },
+    )
+
+    reset_robot_wrist_joint = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names="iiwa7_joint_7"),
+            "position_range": [-3, 3],
+            "velocity_range": [0.0, 0.0],
         },
     )
 
@@ -406,16 +361,18 @@ class ActionsCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
+    action_l2 = RewTerm(func=mdp.action_l2_clamped, weight=-0.005)
 
-    fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2_clamped, weight=-0.005)
+
+    fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=1.0)
 
     position_tracking = RewTerm(
         func=mdp.position_command_error_tanh,
         weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "std": 0.1,
+            "std": 0.2,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
         },
@@ -437,14 +394,14 @@ class RewardsCfg:
         weight=10,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "pos_std": 0.05,
+            "pos_std": 0.1,
             "rot_std": 0.5,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
         },
     )
 
-    early_termination = RewTerm(func=mdp.is_terminated_term, weight=-50, params={"term_keys": ["abnormal_robot"]})
+    early_termination = RewTerm(func=mdp.is_terminated_term, weight=-1, params={"term_keys": "abnormal_robot"})
 
 
 @configclass
@@ -456,12 +413,12 @@ class TerminationsCfg:
     object_out_of_bound = DoneTerm(
         func=mdp.out_of_bound,
         params={
-            "in_bound_range": {"x": (-1.5, 0.5), "y": (-2.0, 2.0), "z": (0.3, 2.0)},
+            "in_bound_range": {"x": (-1.5, 0.5), "y": (-2.0, 2.0), "z": (0.0, 2.0)},
             "asset_cfg": SceneEntityCfg("object"),
         },
     )
 
-    abnormal_robot = DoneTerm(func=mdp.joint_vel_out_of_limit)
+    abnormal_robot = DoneTerm(func=mdp.abnormal_robot_state)
 
 
 @configclass
@@ -477,15 +434,15 @@ class PhysicsCfg(PresetCfg):
             integrator="implicitfast",
             njmax=300,
             nconmax=200,
-            impratio=1.0,
-            cone="pyramidal",
+            impratio=10.0,
+            cone="elliptic",
             update_data_interval=2,
             iterations=100,
             ls_iterations=15,
             use_mujoco_contacts=False,
             ccd_iterations=35,
         ),
-        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=4000000),
+        collision_cfg=NewtonCollisionPipelineCfg(),
         default_shape_cfg=NewtonShapeCfg(),
         num_substeps=2,
         debug_mode=False,
@@ -513,7 +470,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
     def validate_config(self):
         """Check for invalid preset combinations after resolution."""
 
-        warp_supported = {"rgb", "depth", "distance_to_camera", "distance_to_image_plane", "normals"}
+        warp_supported = {"rgb", "depth", "distance_to_image_plane", "normals"}
         for cam_attr in ("base_camera", "wrist_camera"):
             cam = getattr(self.scene, cam_attr, None)
             if cam is None:
@@ -531,7 +488,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 4  # 50 Hz
+        self.decimation = 2  # 50 Hz
 
         # *single-goal setup
         self.commands.object_pose.resampling_time_range = (2.0, 3.0)
@@ -563,7 +520,6 @@ class DexsuiteReorientEnvCfg_PLAY(DexsuiteReorientEnvCfg):
         super().__post_init__()
         self.commands.object_pose.debug_vis = True
         self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
-        self.curriculum.adr.params["promotion_only"] = True
 
 
 class DexsuiteLiftEnvCfg_PLAY(DexsuiteLiftEnvCfg):
@@ -574,4 +530,3 @@ class DexsuiteLiftEnvCfg_PLAY(DexsuiteLiftEnvCfg):
         self.commands.object_pose.debug_vis = True
         self.commands.object_pose.position_only = True
         self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
-        self.curriculum.adr.params["promotion_only"] = True

@@ -22,8 +22,6 @@ from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
-
 
 def test_web_visualizer_cfgs_do_not_open_browser_by_default():
     assert RerunVisualizerCfg().open_browser is False

@@ -38,9 +38,8 @@ package—request those explicitly when needed.
    * - Token
      - What it installs
    * - ``newton``
-     - Newton interactive viewer GUI dependencies (``imgui-bundle``,
-       ``typing-extensions``). The Newton physics engine itself is a core
-       dependency that is always installed (selectors are not supported).
+     - Newton physics dependencies on ``isaaclab_newton``, ``isaaclab_physx``,
+       and ``isaaclab_visualizers`` (selectors are not supported)
    * - ``rl[<framework>]``
      - RL framework extras on ``isaaclab_rl``. Selectors: ``rsl-rl``, ``skrl``,
        ``sb3``, ``rl-games``. Omit the selector to install all frameworks.

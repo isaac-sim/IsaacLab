@@ -12,8 +12,7 @@ Covers:
   :attr:`NewtonCfg.class_type` so that ``SimulationContext`` picks the right
   manager.
 * Each leaf manager subclasses :class:`NewtonManager` and implements
-  :meth:`_build_solver` and :meth:`_create_solver` (with the abstract base
-  raising ``NotImplementedError``).
+  :meth:`_build_solver` (with the abstract base raising ``NotImplementedError``).
 * :class:`FeatherPGSSolverCfg` exposes exactly the arguments accepted by
   Newton's ``SolverFeatherPGS`` constructor.
 * Contact reporting supports Newton solvers with and without a state argument
@@ -50,7 +49,6 @@ from isaaclab_newton.physics import (
     NewtonManager,
     NewtonMJWarpManager,
     NewtonMPMManager,
-    NewtonShapeCfg,
     NewtonSolverCfg,
     NewtonXPBDManager,
     XPBDSolverCfg,
@@ -214,22 +212,6 @@ def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimat
     assert warned is should_warn
     # Cfg field round-trips regardless of warning.
     assert cfg.collision_decimation == collision_decimation
-
-
-def test_newton_shape_cfg_defaults_match_newton_shape_config():
-    """``NewtonShapeCfg`` contact defaults mirror Newton's ``ShapeConfig``.
-
-    Guards the invariant that keeps ``checked_apply`` a no-op for envs that do
-    not override ``ke``/``kd``/``mu``: if Newton's upstream defaults drift, this
-    fails instead of silently clobbering every Newton scene's shape materials.
-    """
-    import newton
-
-    upstream = newton.ModelBuilder().default_shape_cfg
-    shape_cfg = NewtonShapeCfg()
-    assert shape_cfg.ke == upstream.ke
-    assert shape_cfg.kd == upstream.kd
-    assert shape_cfg.mu == upstream.mu
 
 
 def test_mpm_solver_cfg_maps_only_newton_solver_fields():
@@ -486,70 +468,6 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     assert NewtonManager._graph_capture_pending is False
 
 
-def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
-    """CUDA graph capture should use the simulation device instead of Warp's default device."""
-    from isaaclab.physics import PhysicsManager
-
-    captured_devices = []
-    captured_graph = object()
-
-    class FakeScopedCapture:
-        def __init__(self, device=None):
-            captured_devices.append(device)
-            self.graph = captured_graph
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            return False
-
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
-    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
-    monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
-
-    NewtonManager._capture_or_defer_graph()
-
-    assert captured_devices == ["cuda:1"]
-    assert NewtonManager._graph is captured_graph
-
-
-# ---------------------------------------------------------------------------
-# Manager state-refresh boundaries (no SimulationContext required)
-# ---------------------------------------------------------------------------
-
-
-def test_forward_consumes_existing_reset_masks(monkeypatch):
-    """The existing device masks are the complete input to masked FK and the solver reset hook."""
-    world_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
-    fk_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
-    observed: list[tuple[list[bool], list[bool]]] = []
-    solver_resets: list[list[bool]] = []
-
-    def record_fk(worlds, articulations):
-        observed.append((worlds.numpy().tolist(), articulations.numpy().tolist()))
-
-    class _RecordingSolver:
-        def reset(self, state, world_mask=None, flags=0):
-            solver_resets.append(world_mask.numpy().tolist())
-
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
-
-    NewtonManager.forward()
-
-    assert observed == [([False, True], [True, False])]
-    assert solver_resets == [[False, True]]
-    assert world_mask.numpy().tolist() == [False, False]
-    assert fk_mask.numpy().tolist() == [False, False]
-
-
 # ---------------------------------------------------------------------------
 # Manager class hierarchy and factory contracts
 # ---------------------------------------------------------------------------
@@ -557,21 +475,13 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
 
 @pytest.mark.parametrize(
     "manager",
-    [
-        NewtonMJWarpManager,
-        NewtonXPBDManager,
-        NewtonFeatherstoneManager,
-        NewtonFeatherPGSManager,
-        NewtonKaminoManager,
-        NewtonMPMManager,
-    ],
+    [NewtonMJWarpManager, NewtonXPBDManager, NewtonFeatherstoneManager, NewtonKaminoManager, NewtonMPMManager],
 )
 def test_subclass_of_newton_manager(manager):
     """All concrete managers inherit from :class:`NewtonManager`."""
     assert issubclass(manager, NewtonManager)
     # Subclasses must override the abstract factory.
     assert manager._build_solver is not NewtonManager._build_solver
-    assert manager._create_solver is not NewtonManager._create_solver
 
 
 def test_abstract_build_solver_raises():
@@ -580,22 +490,9 @@ def test_abstract_build_solver_raises():
         NewtonManager._build_solver(model=None, solver_cfg=NewtonSolverCfg())
 
 
-def test_abstract_create_solver_raises():
-    """Calling :meth:`_create_solver` on the base manager raises."""
-    with pytest.raises(NotImplementedError):
-        NewtonManager._create_solver(model=None, solver_cfg=NewtonSolverCfg())
-
-
 @pytest.mark.parametrize(
     "manager",
-    [
-        NewtonMJWarpManager,
-        NewtonXPBDManager,
-        NewtonFeatherstoneManager,
-        NewtonFeatherPGSManager,
-        NewtonKaminoManager,
-        NewtonMPMManager,
-    ],
+    [NewtonMJWarpManager, NewtonXPBDManager, NewtonFeatherstoneManager, NewtonKaminoManager, NewtonMPMManager],
 )
 def test_manager_name_starts_with_newton(manager):
     """The ``"newton"`` prefix is required by :class:`InteractiveScene` and the
@@ -865,89 +762,3 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
-
-
-def _build_collision_scene(sim, num_boxes=8):
-    """Add ``num_boxes`` free-falling boxes over a ground plane.
-
-    Uses ``MJWarpSolverCfg(use_mujoco_contacts=False)`` so the Newton collision
-    pipeline / contacts are allocated on ``sim.reset()``.
-    """
-    builder = sim.physics_manager.create_builder()
-    for _ in range(num_boxes):
-        body = builder.add_body(mass=1.0)
-        builder.add_joint_free(child=body)
-        builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1)
-    builder.add_ground_plane()
-    NewtonManager.set_builder(builder)
-
-
-# Model device arrays ``CollisionPipeline.collide()`` reads off its cached model.
-_COLLIDE_MODEL_ARRAYS = (
-    "shape_transform",
-    "shape_body",
-    "shape_type",
-    "shape_scale",
-    "shape_collision_radius",
-    "shape_source_ptr",
-    "shape_margin",
-    "shape_gap",
-    "shape_collision_aabb_lower",
-    "shape_collision_aabb_upper",
-)
-
-
-def _free_model_collide_arrays_and_churn(model, device):
-    """Free the arrays ``collide()`` reads off ``model``, then churn the allocator.
-
-    Reusing the freed blocks mimics the GPU memory pressure a real workload
-    applies between resets, so a stale pipeline still pointing at ``model``
-    would read overwritten memory on its next ``collide()``.
-    """
-    import gc
-
-    for attr in _COLLIDE_MODEL_ARRAYS:
-        arr = getattr(model, attr, None)
-        if isinstance(arr, wp.array) and arr.device.is_cuda:
-            setattr(model, attr, None)
-    gc.collect()
-    wp.synchronize_device(device)
-    _churn = [wp.zeros(1 << 16, dtype=wp.float32, device=device) for _ in range(128)]  # noqa: F841
-    wp.synchronize_device(device)
-
-
-@pytest.mark.parametrize("use_cuda_graph", [False, True])
-def test_hard_reset_then_step_runs(use_cuda_graph):
-    """A step after a second (hard) ``sim.reset()`` runs without a CUDA error.
-
-    Drives reset -> step -> hard reset, frees the old model's collide arrays and
-    churns the allocator to mimic GPU memory pressure, then steps and syncs.
-    Without the fix the stale pipeline reads the freed buffers and faults
-    (CUDA 700). Run with CUDA graphs off and on.
-    """
-    sim_cfg = SimulationCfg(
-        dt=1.0 / 120.0,
-        device="cuda:0",
-        gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
-            num_substeps=2,
-            use_cuda_graph=use_cuda_graph,
-        ),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        _build_collision_scene(sim)
-
-        sim.reset()
-        assert NewtonManager._needs_collision_pipeline is True
-        old_model = NewtonManager._collision_pipeline.model
-        sim.step(render=False)
-
-        sim.reset()
-
-        _free_model_collide_arrays_and_churn(old_model, "cuda:0")
-
-        # A hard device sync surfaces any deferred illegal access as an exception.
-        sim.step(render=False)
-        wp.synchronize_device("cuda:0")

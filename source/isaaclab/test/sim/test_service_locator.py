@@ -9,8 +9,6 @@ import pytest
 
 from isaaclab.sim.service_locator import ServiceLocator
 
-pytestmark = pytest.mark.integration
-
 # -- Dummy service helpers --
 
 

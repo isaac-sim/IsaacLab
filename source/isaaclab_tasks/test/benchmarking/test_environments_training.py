@@ -42,8 +42,6 @@ def train_job(workflow, task, env_config, num_gpus):
     cmd = [
         sys.executable,
         WORKFLOW_TRAINER[workflow],
-        "--rl_library",
-        workflow,
         "--task",
         task,
         "--enable_cameras",

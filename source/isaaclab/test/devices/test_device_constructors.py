@@ -27,8 +27,6 @@ from isaaclab.devices import (
     Se3SpaceMouseCfg,
 )
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture
 def mock_environment(mocker):

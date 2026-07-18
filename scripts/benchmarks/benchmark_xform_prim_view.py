@@ -138,35 +138,21 @@ def benchmark_frame_view(  # noqa: C901
 
     is_newton = api == "isaaclab-newton-site"
 
-    # Synchronize around timed regions using Warp directly (rather than torch),
-    # since all backend kernels here are Warp launches and ``wp.synchronize()``
-    # covers CPU/CUDA Warp devices consistently.  We only need it for GPU runs,
-    # where kernel launches are asynchronous; guard on device to avoid paying
-    # it needlessly on CPU.
-    _needs_sync = str(device).startswith("cuda")
-
-    def _sync() -> None:
-        if _needs_sync:
-            wp.synchronize()
-
     def to_torch(a):
-        if isinstance(a, wp.array):
-            return wp.to_torch(a)
-        if hasattr(a, "torch"):
-            return a.torch
-        return a
+        return wp.to_torch(a) if isinstance(a, wp.array) else a
 
     try:
         # -- Warmup --------------------------------------------------------
         xform_view.get_world_poses()
-        xform_view.get_world_scales()
 
         # -- get_world_poses -----------------------------------------------
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             positions, orientations = xform_view.get_world_poses()
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         positions_t = to_torch(positions)
@@ -175,24 +161,20 @@ def benchmark_frame_view(  # noqa: C901
         computed_results["initial_world_orientations"] = orientations_t.clone()
 
         # -- set_world_poses -----------------------------------------------
-        # ``.warp`` unwraps the ProxyArray returned by ``get_*_poses`` /
-        # ``get_*_scales`` to the underlying ``wp.array`` that ``wp.clone``
-        # requires.  ProxyArray was introduced in PR #5304 ("ProxyArray and
-        # Asset/Sensor level property caching") which changed the FrameView
-        # getter return type.  Applies to every ``wp.clone`` call below.
         if is_newton:
-            new_positions = wp.clone(positions.warp)
+            new_positions = wp.clone(positions)
             wp.to_torch(new_positions)[:, 2] += 0.1
         else:
             new_positions = positions_t.clone()
             new_positions[:, 2] += 0.1
 
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            with xform_view.xform_world_space_writer() as w:
-                w.set_poses(new_positions, orientations)
-        _sync()
+            xform_view.set_world_poses(new_positions, orientations)
+        if is_newton:
+            torch.cuda.synchronize()
         timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         pa, oa = xform_view.get_world_poses()
@@ -200,11 +182,13 @@ def benchmark_frame_view(  # noqa: C901
         computed_results["world_orientations_after_set"] = to_torch(oa).clone()
 
         # -- get_local_poses -----------------------------------------------
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             translations, orientations_local = xform_view.get_local_poses()
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         timing_results["get_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         translations_t = to_torch(translations)
@@ -214,99 +198,45 @@ def benchmark_frame_view(  # noqa: C901
 
         # -- set_local_poses -----------------------------------------------
         if is_newton:
-            new_translations = wp.clone(translations.warp)
+            new_translations = wp.clone(translations)
             wp.to_torch(new_translations)[:, 2] += 0.1
         else:
             new_translations = translations_t.clone()
             new_translations[:, 2] += 0.1
 
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            with xform_view.xform_local_space_writer() as w:
-                w.set_poses(new_translations, orientations_local)
-        _sync()
+            xform_view.set_local_poses(new_translations, orientations_local)
+        if is_newton:
+            torch.cuda.synchronize()
         timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         ta, ola = xform_view.get_local_poses()
         computed_results["local_translations_after_set"] = to_torch(ta).clone()
         computed_results["local_orientations_after_set"] = to_torch(ola).clone()
 
-        # -- get_world_scales ----------------------------------------------
-        _sync()
-        start_time = time.perf_counter()
-        for _ in range(num_iterations):
-            world_scales = xform_view.get_world_scales()
-        _sync()
-        timing_results["get_world_scales"] = (time.perf_counter() - start_time) / num_iterations
-
-        world_scales_t = to_torch(world_scales)
-        computed_results["initial_world_scales"] = world_scales_t.clone()
-
-        # -- set_world_scales ----------------------------------------------
-        if is_newton:
-            new_world_scales = wp.clone(world_scales.warp)
-            wp.to_torch(new_world_scales)[:] = 1.1
-        else:
-            new_world_scales = world_scales_t.clone()
-            new_world_scales[:] = 1.1
-
-        _sync()
-        start_time = time.perf_counter()
-        for _ in range(num_iterations):
-            with xform_view.xform_world_space_writer() as w:
-                w.set_scales(new_world_scales)
-        _sync()
-        timing_results["set_world_scales"] = (time.perf_counter() - start_time) / num_iterations
-
-        computed_results["world_scales_after_set"] = to_torch(xform_view.get_world_scales()).clone()
-
-        # -- get_local_scales ----------------------------------------------
-        _sync()
-        start_time = time.perf_counter()
-        for _ in range(num_iterations):
-            local_scales = xform_view.get_local_scales()
-        _sync()
-        timing_results["get_local_scales"] = (time.perf_counter() - start_time) / num_iterations
-
-        local_scales_t = to_torch(local_scales)
-        computed_results["initial_local_scales"] = local_scales_t.clone()
-
-        # -- set_local_scales ----------------------------------------------
-        if is_newton:
-            new_local_scales = wp.clone(local_scales.warp)
-            wp.to_torch(new_local_scales)[:] = 0.9
-        else:
-            new_local_scales = local_scales_t.clone()
-            new_local_scales[:] = 0.9
-
-        _sync()
-        start_time = time.perf_counter()
-        for _ in range(num_iterations):
-            with xform_view.xform_local_space_writer() as w:
-                w.set_scales(new_local_scales)
-        _sync()
-        timing_results["set_local_scales"] = (time.perf_counter() - start_time) / num_iterations
-
-        computed_results["local_scales_after_set"] = to_torch(xform_view.get_local_scales()).clone()
-
         # -- get_both (world + local) --------------------------------------
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             xform_view.get_world_poses()
             xform_view.get_local_poses()
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         timing_results["get_both"] = (time.perf_counter() - start_time) / num_iterations
 
         # -- interleaved set -> get ----------------------------------------
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            with xform_view.xform_world_space_writer() as w:
-                w.set_poses(new_positions, orientations)
+            xform_view.set_world_poses(new_positions, orientations)
             xform_view.get_world_poses()
-        _sync()
+        if is_newton:
+            torch.cuda.synchronize()
         timing_results["interleaved_world_set_get"] = (time.perf_counter() - start_time) / num_iterations
 
     finally:
@@ -337,26 +267,15 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
     print(header)
     print("-" * 120)
 
-    # ``init`` is the one-time view-construction cost.  We display it in the
-    # per-operation table but EXCLUDE it from the steady-state totals and the
-    # overall speedup -- otherwise a backend whose construction is dominated
-    # by stage population (e.g. Newton, where the first call materializes the
-    # site cache) shows a misleading "0.00x" overall and crushes the rest of
-    # the table.  The overall row is intended to compare per-iteration cost.
-    init_op = ("Initialization (one-time)", "init")
-    per_iter_operations = [
+    operations = [
+        ("Initialization", "init"),
         ("Get World Poses", "get_world_poses"),
         ("Set World Poses", "set_world_poses"),
         ("Get Local Poses", "get_local_poses"),
         ("Set Local Poses", "set_local_poses"),
-        ("Get World Scales", "get_world_scales"),
-        ("Set World Scales", "set_world_scales"),
-        ("Get Local Scales", "get_local_scales"),
-        ("Set Local Scales", "set_local_scales"),
         ("Get Both (World+Local)", "get_both"),
         ("Interleaved World Set->Get", "interleaved_world_set_get"),
     ]
-    operations = [init_op, *per_iter_operations]
 
     for op_name, op_key in operations:
         row = f"{op_name:<28}"
@@ -367,16 +286,15 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
 
     print("=" * 120)
 
-    total_row = f"{'Total (per-iter ops)':<28}"
+    total_row = f"{'Total':<28}"
     for name in api_names:
-        per_iter_total = sum(results_dict[name].get(k, 0) for _, k in per_iter_operations)
-        total_row += f" {per_iter_total * 1000:>{col_width}.4f}"
+        total_row += f" {sum(results_dict[name].values()) * 1000:>{col_width}.4f}"
     print(f"\n{total_row}")
 
     baseline = "isaaclab-usd"
     if baseline in results_dict and len(api_names) > 1:
         print("\n" + "=" * 120)
-        print(f"SPEEDUP vs {baseline.replace('-', ' ').title()} (per-iter ops; one-time init excluded)")
+        print(f"SPEEDUP vs {baseline.replace('-', ' ').title()}")
         print("=" * 120)
         header = f"{'Operation':<28}"
         for name in api_names:
@@ -386,7 +304,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         print("-" * 120)
 
         base = results_dict[baseline]
-        for op_name, op_key in per_iter_operations:
+        for op_name, op_key in operations:
             row = f"{op_name:<28}"
             base_t = base.get(op_key, 0)
             for name in api_names:
@@ -399,11 +317,11 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
             print(row)
 
         print("=" * 120)
-        print(f"{'Overall (per-iter ops)':>28}", end="")
-        total_base = sum(base.get(k, 0) for _, k in per_iter_operations)
+        print(f"{'Overall':>28}", end="")
+        total_base = sum(base.values())
         for name in api_names:
             if name != baseline:
-                total_impl = sum(results_dict[name].get(k, 0) for _, k in per_iter_operations)
+                total_impl = sum(results_dict[name].values())
                 if total_base > 0 and total_impl > 0:
                     print(f" {total_base / total_impl:>{col_width}.2f}x", end="")
                 else:

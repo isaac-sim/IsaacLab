@@ -13,8 +13,6 @@ the world-attached prim edge case.
 import sys
 from pathlib import Path
 
-from isaaclab.test.utils import test_devices
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
 
@@ -104,7 +102,7 @@ def view_factory():
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_reject_body_path(device):
     """FrameView rejects prim paths that resolve to a Newton physics body."""
     ctx = _sim_context(device, num_envs=2)
@@ -118,7 +116,7 @@ def test_reject_body_path(device):
     ctx.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_reject_shape_path(device):
     """FrameView rejects prim paths that resolve to a Newton collision shape."""
     ctx = _sim_context(device, num_envs=2)
@@ -185,7 +183,7 @@ def test_view_can_resolve_from_body_labels_after_reset(device):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_world_attached_returns_initial_pose(device):
     """A world-rooted frame returns its configured position."""
     ctx = _sim_context(device, num_envs=2)
@@ -203,7 +201,7 @@ def test_world_attached_returns_initial_pose(device):
     ctx.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_world_attached_set_world_roundtrip(device):
     """A world-attached prim can be repositioned via set_world_poses."""
     ctx = _sim_context(device, num_envs=2)
@@ -217,8 +215,7 @@ def test_world_attached_set_world_roundtrip(device):
 
     new_pos = _wp_vec3f([[10.0, 20.0, 30.0]], device=device)
     new_quat = _wp_vec4f([[0.0, 0.0, 0.0, 1.0]], device=device)
-    with view.xform_world_space_writer() as w:
-        w.set_poses(new_pos, new_quat)
+    view.set_world_poses(new_pos, new_quat)
 
     ret_pos, ret_quat = view.get_world_poses()
     torch.testing.assert_close(ret_pos.torch, wp.to_torch(new_pos), atol=1e-5, rtol=0)

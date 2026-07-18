@@ -19,8 +19,6 @@ from pxr import UsdPhysics, UsdShade
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
-pytestmark = pytest.mark.integration
-
 # -------------------------------------------------------------------------------------
 # RigidBodyMaterialFragment marker + metadata
 # -------------------------------------------------------------------------------------

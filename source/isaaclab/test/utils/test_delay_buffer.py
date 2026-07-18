@@ -10,8 +10,6 @@ import torch
 
 from isaaclab.utils import DelayBuffer
 
-pytestmark = pytest.mark.unit
-
 
 @pytest.fixture
 def delay_buffer():
