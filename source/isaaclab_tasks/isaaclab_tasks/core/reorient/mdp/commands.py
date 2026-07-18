@@ -21,6 +21,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 
+from .rewards import evaluate_reorient_success
+
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
@@ -66,6 +68,10 @@ class ReorientCommand(CommandTerm):
         # -- orientation: (x, y, z, w)
         self.quat_command_w = torch.zeros(self.num_envs, 4, device=self.device)
         self.quat_command_w[:, 3] = 1.0  # set the scalar component to 1.0
+        # persistent (num_envs, 7) pose command: the position half is static and written once
+        # here, the quaternion half is refreshed by _resample_command; `command` returns this
+        # buffer directly instead of allocating a torch.cat every call
+        self._command_buf = torch.cat((self.pos_command_e, self.quat_command_w), dim=-1)
 
         # -- unit vectors
         self._X_UNIT_VEC = torch.tensor([1.0, 0, 0], device=self.device).repeat((self.num_envs, 1))
@@ -80,6 +86,8 @@ class ReorientCommand(CommandTerm):
         # -- per-attempt success accounting: each success-driven resample completes one attempt;
         #    the trailing attempt at episode end counts as one unsuccessful attempt.
         self._completed_attempts = torch.zeros(self.num_envs, device=self.device)
+        # goal-marker position with the configured offset; built lazily on first render
+        self._marker_pos_w: torch.Tensor | None = None
 
         # adds (optional) cmd kind and element names for leapp export
         # during export, semantic data about this command will be used to annotate the command input
@@ -97,26 +105,28 @@ class ReorientCommand(CommandTerm):
 
     @property
     def command(self) -> torch.Tensor:
-        """The desired goal pose in the environment frame. Shape is (num_envs, 7)."""
-        return torch.cat((self.pos_command_e, self.quat_command_w), dim=-1)
+        """The desired goal pose in the environment frame. Shape is (num_envs, 7).
+
+        The returned tensor is a persistent buffer refreshed in place; consumers that
+        store it across steps must copy it.
+        """
+        return self._command_buf
 
     """
     Implementation specific functions.
     """
 
     def _update_metrics(self):
-        # logs data
-        # -- compute the orientation error
-        self.metrics["orientation_error"] = math_utils.quat_error_magnitude(
-            self.object.data.root_quat_w.torch, self.quat_command_w
+        success_flags, orientation_error = evaluate_reorient_success(
+            self.object.data.root_quat_w.torch, self.quat_command_w, self.cfg.orientation_success_threshold
         )
-        # -- compute the position error
-        self.metrics["position_error"] = torch.linalg.norm(
-            self.object.data.root_pos_w.torch - self.pos_command_w, dim=1
+        # write the stable metric buffers in place; the manager holds references to them
+        self.metrics["orientation_error"][:] = orientation_error
+        self.metrics["position_error"][:] = torch.linalg.norm(
+            self.object.data.root_pos_w.torch - self.pos_command_w, ord=2, dim=-1
         )
-        # -- compute the number of consecutive successes
-        successes = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
-        self.metrics["consecutive_success"] += successes.float()
+        # bool flags promote to the metric's float dtype; add_ avoids the .float() temporary
+        self.metrics["consecutive_success"].add_(success_flags)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         # Snapshot per-attempt success rate BEFORE the base class logs and zeros metrics.
@@ -148,6 +158,8 @@ class ReorientCommand(CommandTerm):
         )
         # make sure the quaternion real-part is always positive
         self.quat_command_w[env_ids] = math_utils.quat_unique(quat) if self.cfg.make_quat_unique else quat
+        # keep the persistent pose-command buffer current (position half is static)
+        self._command_buf[env_ids, 3:] = self.quat_command_w[env_ids]
 
     def _update_command(self):
         # update the command if goal is reached
@@ -173,10 +185,11 @@ class ReorientCommand(CommandTerm):
 
     def _debug_vis_callback(self, event):
         # add an offset to the marker position to visualize the goal
-        marker_pos = self.pos_command_w + torch.tensor(self.cfg.marker_pos_offset, device=self.device)
-        marker_quat = self.quat_command_w
+        if self._marker_pos_w is None:
+            # constant per run; cached to avoid a host-to-device allocation every render frame
+            self._marker_pos_w = self.pos_command_w + torch.tensor(self.cfg.marker_pos_offset, device=self.device)
         # visualize the goal marker
-        self.goal_pose_visualizer.visualize(translations=marker_pos, orientations=marker_quat)
+        self.goal_pose_visualizer.visualize(translations=self._marker_pos_w, orientations=self.quat_command_w)
 
 
 @configclass
@@ -209,7 +222,10 @@ class ReorientCommandCfg(CommandTermCfg):
     """
 
     orientation_success_threshold: float = MISSING
-    """Threshold for the orientation error to consider the goal orientation to be reached."""
+    """Threshold [rad] for the orientation error to consider the goal orientation to be reached.
+
+    Set per family at the declaration site, matching the Direct configuration's value.
+    """
 
     update_goal_on_success: bool = MISSING
     """Whether to update the goal orientation when the goal orientation is reached."""
@@ -231,3 +247,68 @@ class ReorientCommandCfg(CommandTermCfg):
         },
     )
     """The configuration for the goal pose visualization marker. Defaults to a DexCube marker."""
+
+
+class ReorientEpisodeCommand(ReorientCommand):
+    """Reorientation command whose success metric is owned by an episode reward term.
+
+    This variant retains success-triggered goal resampling while suppressing the
+    generic command's per-attempt ``Metrics/success_rate`` value.
+    """
+
+    cfg: ReorientEpisodeCommandCfg
+
+    def __init__(self, cfg: ReorientEpisodeCommandCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._skip_success_update = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._fixed_marker_pos_w: torch.Tensor | None = None
+
+    def _update_command(self):
+        if self.cfg.update_goal_on_success:
+            goal_reset_ids = (
+                (
+                    (self.metrics["orientation_error"] <= self.cfg.orientation_success_threshold)
+                    & ~self._skip_success_update
+                )
+                .nonzero(as_tuple=False)
+                .squeeze(-1)
+            )
+            self._resample(goal_reset_ids)
+        self._skip_success_update[:] = False
+
+    def _debug_vis_callback(self, event):
+        if self.cfg.fixed_marker_pos is None:
+            super()._debug_vis_callback(event)
+            return
+        if self._fixed_marker_pos_w is None:
+            # constant per run; cached to avoid a host-to-device allocation every render frame
+            self._fixed_marker_pos_w = (
+                torch.tensor(self.cfg.fixed_marker_pos, device=self.device).repeat(self.num_envs, 1)
+                + self._env.scene.env_origins
+            )
+        self.goal_pose_visualizer.visualize(translations=self._fixed_marker_pos_w, orientations=self.quat_command_w)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        if env_ids is None:
+            env_ids = slice(None)
+        extras = CommandTerm.reset(self, env_ids)
+        self._completed_attempts[env_ids] = 0.0
+        # Auto-reset happens immediately before CommandManager.compute(). Skip
+        # success handling for those IDs until one new physics/reward step has run.
+        reset_buf = getattr(self._env, "reset_buf", None)
+        if reset_buf is None:
+            self._skip_success_update[env_ids] = False
+        else:
+            self._skip_success_update[env_ids] = reset_buf[env_ids]
+        extras.pop("success_rate", None)
+        return extras
+
+
+@configclass
+class ReorientEpisodeCommandCfg(ReorientCommandCfg):
+    """Configuration for episode-accounted reorientation commands."""
+
+    class_type: type[ReorientEpisodeCommand] = ReorientEpisodeCommand
+
+    fixed_marker_pos: tuple[float, float, float] | None = None
+    """Fixed goal-marker position [m] in each environment, or ``None`` to use the command position."""
