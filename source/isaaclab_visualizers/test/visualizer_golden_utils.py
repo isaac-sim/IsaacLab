@@ -427,6 +427,8 @@ def run_visualizer_golden_cartpole(
     visualizer_type: str,
     mode: str,
     comparison_scores: list[dict],
+    *,
+    buffer_steps: int = 0,
 ) -> None:
     """Run a golden-image test for one ``(physics_backend, visualizer_type, mode)`` combination.
 
@@ -438,6 +440,8 @@ def run_visualizer_golden_cartpole(
         visualizer_type: ``"kit"`` (RTX viewport) or ``"newton"`` (OpenGL).
         mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
+        buffer_steps: Physics steps to run before capture (default 0 — capture the reset pose
+            so the pole remains at its initial 45° angle and is clearly attached to the cart).
     """
     import torch
     import visualizer_integration_utils as _viz_utils
@@ -489,7 +493,7 @@ def run_visualizer_golden_cartpole(
         configure_seed(42, torch_deterministic=True)
         env.reset()
 
-        for _ in range(_viz_utils._START_BUFFER_STEPS):
+        for _ in range(buffer_steps):
             env.step(action=actions)
 
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
@@ -571,6 +575,8 @@ def run_visualizer_golden_anymal_d(
     visualizer_type: str,
     mode: str,
     comparison_scores: list[dict],
+    *,
+    buffer_steps: int | None = None,
 ) -> None:
     """Run a golden-image test for AnymalD + one ``(physics_backend, visualizer_type, mode)`` combination.
 
@@ -579,6 +585,9 @@ def run_visualizer_golden_anymal_d(
         visualizer_type: ``"kit"`` (RTX viewport) or ``"newton"`` (OpenGL).
         mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
+        buffer_steps: Physics steps to run before capture.  Defaults to
+            :data:`~visualizer_integration_utils._START_BUFFER_STEPS`.  Pass ``0`` for
+            combinations where multi-env PhysX contact dynamics are not bit-reproducible.
     """
     import torch
     import visualizer_integration_utils as _viz_utils
@@ -623,7 +632,8 @@ def run_visualizer_golden_anymal_d(
         configure_seed(42, torch_deterministic=True)
         env.reset()
 
-        for _ in range(_viz_utils._START_BUFFER_STEPS):
+        n_steps = _viz_utils._START_BUFFER_STEPS if buffer_steps is None else buffer_steps
+        for _ in range(n_steps):
             env.step(action=actions)
 
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)

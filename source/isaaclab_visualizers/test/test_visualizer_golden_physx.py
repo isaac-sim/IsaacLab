@@ -44,10 +44,25 @@ _attach_comparison_properties_fixture = _golden.make_attach_comparison_propertie
 
 _PHYSICS_BACKEND = "physx"
 
+
+def _run_anymal_d_physx(
+    physics_backend: str,
+    visualizer_type: str,
+    mode: str,
+    comparison_scores: list[dict],
+) -> None:
+    # PhysX 4-env AnymalD contact dynamics are not bit-reproducible under Kit RTX
+    # tiled rendering.  Capture the reset pose (0 steps) for a stable golden.
+    steps = 0 if (visualizer_type == "kit" and mode == "tiled") else None
+    _golden.run_visualizer_golden_anymal_d(
+        physics_backend, visualizer_type, mode, comparison_scores, buffer_steps=steps
+    )
+
+
 _SCENE_RUNNERS = {
     "cartpole": _golden.run_visualizer_golden_cartpole,
     "shadow_hand": _golden.run_visualizer_golden_shadow_hand,
-    "anymal_d": _golden.run_visualizer_golden_anymal_d,
+    "anymal_d": _run_anymal_d_physx,
 }
 
 SCENE_VISUALIZER_MODE_COMBINATIONS = [
