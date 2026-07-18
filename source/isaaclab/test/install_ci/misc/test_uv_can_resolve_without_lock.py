@@ -8,8 +8,8 @@ Setup:
     - (none: the test resolves dependencies only and does not install anything)
 Tests:
     - uv lock --upgrade --dry-run -> verify the full dependency graph (all extras, all
-      platforms) re-resolves from the live public indexes, so the lockfile can be
-      regenerated after any pyproject.toml change
+      platforms) still resolves from the live public indexes without the committed
+      lockfile, so an unresolvable dependency can never hide behind the current lock
 """
 
 from __future__ import annotations
@@ -23,16 +23,17 @@ from utils import run_cmd
 @pytest.mark.uv
 @pytest.mark.smoke
 class Test_Uv_Can_Resolve_Without_Lock:
-    """A fresh, full-graph resolution must succeed from the public indexes.
+    """Unresolvable dependencies must never hide behind the committed lockfile.
 
-    ``uv lock --upgrade --dry-run`` re-resolves every dependency, extra, and platform
-    fork from scratch, ignoring the committed lockfile and without writing or
-    installing anything. The committed lock shields ``uv run`` users from resolution,
-    but a fresh resolve still happens whenever the lock must be regenerated: any
-    contributor changing ``pyproject.toml`` runs ``uv lock``, and ``uv run`` silently
-    re-resolves when the lock is stale. This is the check that catches a pin that
-    only resolves against internal infrastructure (e.g. an unpublished
-    ``ovphysx==0.5.2+head...`` build) or a marker split uv cannot satisfy.
+    Because everyone installs from the committed ``uv.lock``, the project can keep
+    working long after its dependency graph has stopped being resolvable from the
+    public indexes (a pin that only exists on internal infrastructure, like the old
+    unpublished ``ovphysx==0.5.2+head...`` build, or an unsatisfiable marker split).
+    Such a break would only surface later, when someone edits ``pyproject.toml`` and
+    needs to regenerate the lock. ``uv lock --upgrade --dry-run`` re-resolves the
+    full graph while ignoring the lockfile - and without writing or installing
+    anything - so a resolution break hidden by the current lock fails CI now, not at
+    the next dependency change.
 
     Complements the neighbouring checks: ``test_uv_lock_check_smoke`` validates the
     committed lock is current, the ``uv_run/`` tests validate the committed lock
