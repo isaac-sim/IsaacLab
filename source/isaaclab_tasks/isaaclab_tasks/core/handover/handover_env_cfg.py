@@ -3,12 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectMARLEnvCfg
@@ -138,20 +140,6 @@ class EventCfg:
 _SHADOW_HAND_NEWTON_CFG = ShadowHandRobotCfg().newton_mjwarp
 
 
-def _quat_mul_xyzw(
-    q1: tuple[float, float, float, float], q2: tuple[float, float, float, float]
-) -> tuple[float, float, float, float]:
-    """Product of two quaternions with ``(x, y, z, w)`` component order, in float64."""
-    x1, y1, z1, w1 = (float(v) for v in q1)
-    x2, y2, z2, w2 = (float(v) for v in q2)
-    return (
-        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
-    )
-
-
 def _shadow_hand_cfg(
     prim_path: str,
     init_pos: tuple[float, float, float],
@@ -191,9 +179,14 @@ def _shadow_hand_cfg(
     # task rotation must compose with that base rotation rather than replace
     # it — replacing left both palms heading 90 degrees off and the object
     # never rested in the right hand.
-    # The quaternion product treats the tuples with (x, y, z, w) component
-    # order and composes in float64, matching the previously used wp.quatd math.
-    newton_rot = _quat_mul_xyzw(init_rot, _SHADOW_HAND_NEWTON_CFG.init_state.rot)
+    # Composed in float64 via the shared (x, y, z, w) quaternion product,
+    # matching the previously used wp.quatd math bit-for-bit.
+    newton_rot = tuple(
+        math_utils.quat_mul(
+            torch.tensor(init_rot, dtype=torch.float64),
+            torch.tensor(_SHADOW_HAND_NEWTON_CFG.init_state.rot, dtype=torch.float64),
+        ).tolist()
+    )
     newton_cfg = _SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
         init_state=_SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
@@ -348,16 +341,20 @@ class PhysicsCfg(PresetCfg):
 # deep-copies these defaults per cfg instance). The solver-common base material
 # is sufficient: only friction values are set, so no PhysX-specific
 # ``physxMaterial`` attributes are authored.
-HANDOVER_SIM_CFG = SimulationCfg(
-    dt=1 / 120,
-    render_interval=2,
-    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-    physics=PhysicsCfg(),
-)
+@configclass
+class HandoverTaskCfgBase:
+    """Shared handover task settings inherited by both the Direct and the manager configurations."""
+
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=2,
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+        physics=PhysicsCfg(),
+    )
 
 
 @configclass
-class HandoverEnvCfg(DirectMARLEnvCfg):
+class HandoverEnvCfg(HandoverTaskCfgBase, DirectMARLEnvCfg):
     # env
     decimation = 2
     episode_length_s = 7.5
@@ -366,8 +363,6 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     observation_spaces = {"right_hand": 157, "left_hand": 157}
     state_space = 290
 
-    # simulation
-    sim: SimulationCfg = HANDOVER_SIM_CFG
     # robot
     right_robot_cfg: PresetCfg = RIGHT_HAND_CFG
     left_robot_cfg: PresetCfg = LEFT_HAND_CFG

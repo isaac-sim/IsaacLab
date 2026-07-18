@@ -55,29 +55,6 @@ def validate_shadow_hand_camera_settings(
 
 
 @configclass
-class _ShadowHandBaseTiledCameraCfg(CameraCfg):
-    """Base camera configuration for the shadow hand vision environment.
-
-    This is an internal config used by :class:`ShadowHandTiledCameraCfg` presets and
-    by derived env configs that hard-code a specific data type. It embeds
-    :class:`~isaaclab_tasks.utils.MultiBackendRendererCfg` so the renderer backend can
-    still be selected via the ``presets`` CLI argument.
-    """
-
-    prim_path: str = "/World/envs/env_.*/Camera"
-    offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
-        pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
-    )
-    data_types: list[str] = []
-    spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-        focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-    )
-    width: int = 120
-    height: int = 120
-    renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
-
-
-@configclass
 class ShadowHandTiledCameraCfg(PresetCfg):
     """Camera data-type presets for the shadow hand vision environment.
 
@@ -96,41 +73,55 @@ class ShadowHandTiledCameraCfg(PresetCfg):
         presets = newton_renderer, rgb
     """
 
-    default: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
-        data_types=["rgb", "depth", "semantic_segmentation"]
-    )
+    @configclass
+    class BaseTiledCameraCfg(CameraCfg):
+        """Base camera configuration for the shadow hand vision environment.
+
+        This is an internal config used by :class:`ShadowHandTiledCameraCfg` presets and
+        by derived env configs that hard-code a specific data type. It embeds
+        :class:`~isaaclab_tasks.utils.MultiBackendRendererCfg` so the renderer backend can
+        still be selected via the ``presets`` CLI argument.
+        """
+
+        prim_path: str = "/World/envs/env_.*/Camera"
+        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
+            pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
+        )
+        data_types: list[str] = []
+        spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        )
+        width: int = 120
+        height: int = 120
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
+
+    default: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["rgb", "depth", "semantic_segmentation"])
     """Default: RGB + depth + semantic segmentation (7 CNN input channels)."""
 
-    full: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
-        data_types=["rgb", "depth", "semantic_segmentation"]
-    )
+    full: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["rgb", "depth", "semantic_segmentation"])
     """Full modalities: RGB + depth + semantic segmentation (7 channels). Alias for default."""
 
-    rgb: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"])
+    rgb: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["rgb"])
     """RGB only (3 CNN input channels)."""
 
-    rgb_depth: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["rgb", "depth"])
+    rgb_depth: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["rgb", "depth"])
     """RGB and depth (4 CNN input channels)."""
 
-    albedo: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["albedo"])
+    albedo: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["albedo"])
     """Albedo (3 CNN input channels)."""
 
-    simple_shading_constant_diffuse: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
+    simple_shading_constant_diffuse: BaseTiledCameraCfg = BaseTiledCameraCfg(
         data_types=["simple_shading_constant_diffuse"]
     )
     """Simple shading with constant diffuse (3 CNN input channels)."""
 
-    simple_shading_diffuse_mdl: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
-        data_types=["simple_shading_diffuse_mdl"]
-    )
+    simple_shading_diffuse_mdl: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
     """Simple shading with diffuse MDL (3 CNN input channels)."""
 
-    simple_shading_full_mdl: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
-        data_types=["simple_shading_full_mdl"]
-    )
+    simple_shading_full_mdl: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["simple_shading_full_mdl"])
     """Simple shading with full MDL (3 CNN input channels)."""
 
-    depth: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["depth"])
+    depth: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["depth"])
     """Depth only (1 channel).
 
     .. warning::
@@ -144,9 +135,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
             presets=depth,ovrtx    # depth rendering with OVRTX renderer
     """
 
-    semantic_segmentation: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
-        data_types=["semantic_segmentation"]
-    )
+    semantic_segmentation: BaseTiledCameraCfg = BaseTiledCameraCfg(data_types=["semantic_segmentation"])
     """Semantic segmentation (3 CNN input channels)."""
 
 
