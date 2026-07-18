@@ -271,11 +271,6 @@ def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, t
         root_prim.GetPath(),
         lambda prim: prim.GetTypeName() in mesh_types and prim.HasAPI(UsdPhysics.CollisionAPI),
     )
-    if not mesh_prims:
-        # some assets author colliders without CollisionAPI on the gprim itself
-        mesh_prims = sim_utils.get_all_matching_child_prims(
-            root_prim.GetPath(), lambda prim: prim.GetTypeName() in mesh_types
-        )
 
     meshes_by_owner: dict[int, list[trimesh.Trimesh]] = {}
     for prim in mesh_prims:
