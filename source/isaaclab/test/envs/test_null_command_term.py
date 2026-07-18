@@ -9,6 +9,8 @@ import pytest
 
 from isaaclab.envs.mdp import NullCommandCfg
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def env():

@@ -148,9 +148,6 @@ def rename_builder_labels(
         ):
             _rename_pair(labels, worlds, collect_body_bindings=collect_body_bindings)
 
-        if "mujoco:equality_constraint_label" not in builder.custom_attributes:
-            _rename_pair(builder.equality_constraint_label, builder.equality_constraint_world)
-
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
         for attr in custom_attrs:

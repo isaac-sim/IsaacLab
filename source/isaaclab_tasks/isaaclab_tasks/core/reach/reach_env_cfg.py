@@ -45,7 +45,6 @@ class ReachPhysicsCfg(PresetCfg):
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
-        num_substeps=2,
     )
     feather_pgs: NewtonCfg = NewtonCfg(
         solver_cfg=FeatherPGSSolverCfg(
@@ -72,7 +71,7 @@ class ReachPhysicsCfg(PresetCfg):
 @configclass
 class TableCfg(PresetCfg):
     physx = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Table",
+        prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0), rot=(0, 0, 0.707, 0.707)),
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
@@ -80,7 +79,7 @@ class TableCfg(PresetCfg):
     )
 
     newton_mjwarp: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Table",
+        prim_path="{ENV_REGEX_NS}/Table",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.5, 0, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}
         ),

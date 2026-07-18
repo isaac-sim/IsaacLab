@@ -49,6 +49,13 @@ RUN apt-get update && \
     git \
     wget
 
+# Install the Carbonite environment shim that serializes glibc environment
+# access across Kit worker threads. Use /etc/ld.so.preload because Isaac Sim's
+# python.sh overwrites LD_PRELOAD before launching the interpreter.
+COPY docker/scripts/install_carb_env_shim.sh /tmp/install_carb_env_shim.sh
+RUN /bin/bash /tmp/install_carb_env_shim.sh "${ISAACSIM_ROOT_PATH}" && \
+    rm /tmp/install_carb_env_shim.sh
+
 # arm64-only build deps:
 # - imgui-bundle has no prebuilt arm64 wheel; needs GL/X11 dev headers.
 RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \

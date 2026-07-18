@@ -19,7 +19,7 @@ There are two main ways of using the spawners:
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd")
     prim_path = "/World/myAsset"
 
     # spawn using the function from the module
@@ -33,7 +33,7 @@ There are two main ways of using the spawners:
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd")
     prim_path = "/World/myAsset"
 
     # use the `func` reference in the config class

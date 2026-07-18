@@ -129,24 +129,23 @@ Benchmark Scripts
 -----------------
 
 For ease of reproducibility, we provide benchmarking scripts available at ``scripts/benchmarks``.
-This folder contains individual benchmark scripts that resemble the ``train.py`` script for RL-Games
-and RSL RL. In addition, we also provide a benchmarking script that runs only the environment implementation
-without any reinforcement learning library.
+The unified entry points cover RL training with any supported library as well as environment
+stepping without any reinforcement learning library.
 
-Example scripts can be run similarly to training scripts:
+Run the benchmark entry points through the Isaac Lab CLI:
 
 .. code-block:: bash
 
    # benchmark with RSL RL
-   python scripts/benchmarks/benchmark_rsl_rl.py --task=Isaac-Cartpole
+   uv run isaaclab benchmark training --rl_library rsl_rl --task=Isaac-Cartpole
 
    # benchmark with RL Games
-   python scripts/benchmarks/benchmark_rlgames.py --task=Isaac-Cartpole
+   uv run isaaclab benchmark training --rl_library rl_games --task=Isaac-Cartpole
 
-   # benchmark without RL libraries
-   python scripts/benchmarks/benchmark_non_rl.py --task=Isaac-Cartpole
+   # benchmark without RL libraries (environment stepping only)
+   uv run isaaclab benchmark runtime --task=Isaac-Cartpole
 
-Each script will generate a set of KPI files at the end of the run, which includes data on the
-startup times, runtime statistics, such as the time taken for each simulation or rendering step,
+Each benchmark emits a schema-v1 JSON bundle at the end of the run, which includes data on the
+startup times, runtime statistics such as the time taken for each simulation or rendering step,
 as well as overall environment FPS for stepping the environment, performing inference during
-rollout, as well as training.
+rollout, and training.

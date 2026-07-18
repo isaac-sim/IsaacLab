@@ -26,10 +26,13 @@ class NewtonFeatherPGSManager(NewtonManager):
     """
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: FeatherPGSSolverCfg) -> SolverFeatherPGS:
+        """Construct the configured FeatherPGS solver without changing manager state."""
+        return SolverFeatherPGS(model, **cls._filter_solver_kwargs(SolverFeatherPGS, solver_cfg))
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: FeatherPGSSolverCfg) -> None:
         """Construct :class:`SolverFeatherPGS` and populate the base-class slots."""
-        ignored = {"class_type", "solver_type"}
-        kwargs = {key: value for key, value in solver_cfg.to_dict().items() if key not in ignored}
-        NewtonManager._solver = SolverFeatherPGS(model, **kwargs)
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True

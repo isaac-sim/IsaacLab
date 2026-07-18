@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import math
 
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -32,7 +34,9 @@ class CartpoleTiledCameraCfg(PresetCfg):
         )
         width: int = 100
         height: int = 100
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(
+            newton_renderer=NewtonWarpRendererCfg(tile_rendering_width=10, tile_rendering_height=10)
+        )
 
     default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
     depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])

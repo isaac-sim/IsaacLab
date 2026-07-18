@@ -16,12 +16,9 @@ This script demonstrates an interactive demo with the H1 rough terrain environme
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import os
-import sys
 from importlib import metadata
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-import scripts.reinforcement_learning.rsl_rl.cli_args as cli_args  # isort: skip
+from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args  # isort: skip
 
 
 from isaaclab.app import AppLauncher

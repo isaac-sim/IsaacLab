@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,6 +16,7 @@ from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from isaaclab.utils.version import has_kit
 
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
@@ -26,6 +28,9 @@ from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from . import meshes_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @clone
@@ -294,11 +299,10 @@ def spawn_mesh_rectangle(
         ValueError: If a prim already exists at the given path.
     """
     # create a 2D triangle mesh grid
-    from omni.physx.scripts import deformableUtils
-
-    vertices, faces = deformableUtils.create_triangle_mesh_square(cfg.resolution[0], cfg.resolution[1], scale=1.0)
-    vertices = np.array([(v[0] * cfg.size[0], v[1] * cfg.size[1], v[2]) for v in vertices], dtype=np.float32)
-    grid = trimesh.Trimesh(vertices=vertices, faces=np.array(faces).reshape(-1, 3), process=False)
+    vertices, faces = _create_triangle_mesh_grid(cfg.resolution)
+    vertices[:, 0] *= cfg.size[0]
+    vertices[:, 1] *= cfg.size[1]
+    grid = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = get_current_stage()
@@ -306,6 +310,34 @@ def spawn_mesh_rectangle(
     _spawn_mesh_geom_from_mesh(prim_path, cfg, grid, translation, orientation, None, stage=stage)
     # return the prim
     return stage.GetPrimAtPath(prim_path)
+
+
+def _create_triangle_mesh_grid(resolution: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+    """Create a centered triangle grid for :class:`MeshRectangleCfg`."""
+    if resolution[0] < 1 or resolution[1] < 1:
+        raise ValueError(f"Rectangle mesh resolution must be positive, got {resolution}.")
+
+    num_x, num_y = resolution
+    xs = np.linspace(-0.5, 0.5, num_x + 1, dtype=np.float32)
+    ys = np.linspace(-0.5, 0.5, num_y + 1, dtype=np.float32)
+    vertices = np.array([(x, y, 0.0) for y in ys for x in xs], dtype=np.float32)
+
+    faces = []
+    row_stride = num_x + 1
+    for iy in range(num_y):
+        for ix in range(num_x):
+            v0 = iy * row_stride + ix
+            v1 = v0 + 1
+            v2 = v0 + row_stride
+            v3 = v2 + 1
+            if (ix % 2 == 0) != (iy % 2 == 0):
+                faces.append((v0, v1, v2))
+                faces.append((v1, v3, v2))
+            else:
+                faces.append((v0, v1, v3))
+                faces.append((v0, v3, v2))
+
+    return vertices, np.asarray(faces, dtype=np.int64)
 
 
 """
@@ -438,14 +470,17 @@ def _spawn_mesh_geom_from_mesh(
 
     # apply visual material
     if cfg.visual_material is not None:
-        if not cfg.visual_material_path.startswith("/"):
-            material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
+        if not has_kit():
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", mesh_prim_path)
         else:
-            material_path = cfg.visual_material_path
-        # create material
-        cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
-        bind_visual_material(mesh_prim_path, material_path, stage=stage)
+            if not cfg.visual_material_path.startswith("/"):
+                material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
+            else:
+                material_path = cfg.visual_material_path
+            # create material
+            cfg.visual_material.func(material_path, cfg.visual_material)
+            # apply material
+            bind_visual_material(mesh_prim_path, material_path, stage=stage)
 
     # apply physics material
     if cfg.physics_material is not None:

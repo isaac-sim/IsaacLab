@@ -38,7 +38,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=2)
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
     feather_pgs = NewtonCfg(
         solver_cfg=FeatherPGSSolverCfg(
             angular_damping=0.05,

@@ -53,7 +53,7 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
          ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct \
            --enable_cameras --num_envs=16 --max_iterations=10 \
-           physics=newton_mjwarp renderer=ovrtx_renderer presets=simple_shading_diffuse_mdl
+           physics=newton_mjwarp renderer=ovrtx presets=simple_shading_diffuse_mdl
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -81,9 +81,9 @@ Available Presets
 
 **Renderer backends** (``renderer=NAME``):
 
-- ``isaacsim_rtx_renderer`` — Isaac Sim RTX (default with Isaac Sim)
+- ``isaacsim_rtx`` — Isaac Sim RTX (default with Isaac Sim)
 - ``newton_renderer`` — Newton Warp renderer
-- ``ovrtx_renderer`` — OV RTX renderer (kit-less)
+- ``ovrtx`` — OV RTX renderer (kit-less)
 - ``rtx`` — Automatic RTX renderer selection
 
 Automatic RTX selection is available only when the camera exposes the renderer
@@ -132,11 +132,11 @@ Common combinations:
    physics=newton_mjwarp renderer=newton_renderer presets=rgb
    physics=newton_mjwarp renderer=newton_renderer presets=depth
    physics=newton_mjwarp renderer=rtx presets=rgb
-   physics=physx renderer=isaacsim_rtx_renderer presets=rgb
-   physics=physx renderer=isaacsim_rtx_renderer presets=depth
-   physics=physx renderer=isaacsim_rtx_renderer presets=albedo
-   physics=newton_mjwarp renderer=ovrtx_renderer presets=rgb
-   physics=newton_mjwarp renderer=ovrtx_renderer presets=simple_shading_diffuse_mdl
+   physics=physx renderer=isaacsim_rtx presets=rgb
+   physics=physx renderer=isaacsim_rtx presets=depth
+   physics=physx renderer=isaacsim_rtx presets=albedo
+   physics=newton_mjwarp renderer=ovrtx presets=rgb
+   physics=newton_mjwarp renderer=ovrtx presets=simple_shading_diffuse_mdl
 
 Legacy ``presets=newton_mjwarp,newton_renderer,rgb`` form still works; prefer typed selectors
 for clarity. See :doc:`/source/features/hydra` for the full preset system.
