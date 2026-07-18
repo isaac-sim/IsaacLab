@@ -274,18 +274,16 @@ class ShadowHandSceneCfg(PresetCfg):
     Newton does not support Fabric cloning, so ``clone_in_fabric`` must be ``False``.
     """
 
-    physx: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192,
-        env_spacing=0.75,
-        replicate_physics=True,
-        clone_in_fabric=True,
-    )
-    newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192,
-        env_spacing=0.75,
-        replicate_physics=True,
-        clone_in_fabric=False,
-    )
+    @configclass
+    class SceneCfg(InteractiveSceneCfg):
+        """Shadow Direct scene defaults; backend presets only set ``clone_in_fabric``."""
+
+        num_envs = 8192
+        env_spacing = 0.75
+        replicate_physics = True
+
+    physx: InteractiveSceneCfg = SceneCfg(clone_in_fabric=True)
+    newton_mjwarp: InteractiveSceneCfg = SceneCfg(clone_in_fabric=False)
     default: InteractiveSceneCfg = physx
     newton_kamino = newton_mjwarp
 
@@ -328,26 +326,38 @@ GOAL_OBJECT_CFG = VisualizationMarkersCfg(
         )
     },
 )
+
+
 # Simulation settings shared by the Direct and manager variants (configclass
 # deep-copies these defaults per cfg instance). The solver-common base material
 # is sufficient: only friction values are set, so no PhysX-specific
 # ``physxMaterial`` attributes are authored.
-SHADOW_SIM_CFG = SimulationCfg(
-    dt=1 / 120,
-    render_interval=2,
-    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-    physics=PhysicsCfg(),
-)
-OPENAI_SIM_CFG = SimulationCfg(
-    dt=1 / 60,
-    render_interval=3,
-    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-    physics=PhysicsCfg(),
-)
+@configclass
+class ShadowHandTaskCfgBase:
+    """Shared Shadow task settings inherited by both the Direct and the manager configurations."""
+
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=2,
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+        physics=PhysicsCfg(),
+    )
 
 
 @configclass
-class ShadowHandEnvCfg(DirectRLEnvCfg):
+class ShadowHandOpenAITaskCfgBase(ShadowHandTaskCfgBase):
+    """Shared OpenAI-variant task settings (60 Hz stepping) for both paradigms."""
+
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        render_interval=3,
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+        physics=PhysicsCfg(),
+    )
+
+
+@configclass
+class ShadowHandEnvCfg(ShadowHandTaskCfgBase, DirectRLEnvCfg):
     # env
     decimation = 2
     episode_length_s = 10.0
@@ -357,8 +367,6 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    # simulation
-    sim: SimulationCfg = SHADOW_SIM_CFG
     # robot
     robot_cfg: ShadowHandRobotCfg = ROBOT_CFG
     actuated_joint_names = SHADOW_ACTUATED_JOINT_NAMES
@@ -405,7 +413,7 @@ OPENAI_OBSERVATION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
 
 
 @configclass
-class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
+class ShadowHandOpenAIEnvCfg(ShadowHandOpenAITaskCfgBase, ShadowHandEnvCfg):
     # env
     decimation = 3
     episode_length_s = 8.0
@@ -414,8 +422,6 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     state_space = 187
     asymmetric_obs = True
     obs_type = "openai"
-    # simulation
-    sim: SimulationCfg = OPENAI_SIM_CFG
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset

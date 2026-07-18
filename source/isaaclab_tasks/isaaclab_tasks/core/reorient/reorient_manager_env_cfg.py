@@ -3,8 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Legacy manager-based reorientation environment configuration.
+
+.. deprecated:: 9.0.0
+    This module's configurations are superseded by the Direct-compatible
+    manager configurations in
+    :mod:`~isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg`
+    and
+    :mod:`~isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_manager_env_cfg`,
+    which share their scalar parameters and reward semantics with the Direct
+    tasks. This module will be removed in a future release.
+"""
+
 from __future__ import annotations
 
+import warnings
 from dataclasses import MISSING
 
 from isaaclab_physx.physics import PhysxCfg
@@ -26,6 +39,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg as Gnoise
 
 import isaaclab_tasks.core.reorient.mdp as mdp
+from isaaclab_tasks.core.reorient.reorient_task_base import IN_HAND_POS_OFFSET
 
 ##
 # Scene definition
@@ -34,7 +48,11 @@ import isaaclab_tasks.core.reorient.mdp as mdp
 
 @configclass
 class ReorientObjectSceneCfg(InteractiveSceneCfg):
-    """Configuration for a scene with an object and a dexterous hand."""
+    """Configuration for a scene with an object and a dexterous hand.
+
+    .. deprecated:: 9.0.0
+        Part of the deprecated :class:`ReorientObjectEnvCfg`; see the module docstring.
+    """
 
     # robots
     robot: ArticulationCfg = MISSING
@@ -78,11 +96,15 @@ class ReorientObjectSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CommandsCfg:
-    """Command specifications for the MDP."""
+    """Command specifications for the MDP.
+
+    .. deprecated:: 9.0.0
+        Part of the deprecated :class:`ReorientObjectEnvCfg`; see the module docstring.
+    """
 
     object_pose = mdp.ReorientCommandCfg(
         asset_name="object",
-        init_pos_offset=(0.0, 0.0, -0.04),
+        init_pos_offset=IN_HAND_POS_OFFSET,
         update_goal_on_success=True,
         orientation_success_threshold=0.1,
         make_quat_unique=False,
@@ -93,7 +115,11 @@ class CommandsCfg:
 
 @configclass
 class ActionsCfg:
-    """Action specifications for the MDP."""
+    """Action specifications for the MDP.
+
+    .. deprecated:: 9.0.0
+        Part of the deprecated :class:`ReorientObjectEnvCfg`; see the module docstring.
+    """
 
     joint_pos = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="robot",
@@ -105,7 +131,11 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP."""
+    """Observation specifications for the MDP.
+
+    .. deprecated:: 9.0.0
+        Part of the deprecated :class:`ReorientObjectEnvCfg`; see the module docstring.
+    """
 
     @configclass
     class KinematicObsGroupCfg(ObsGroup):
@@ -173,7 +203,11 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    """Configuration for randomization."""
+    """Configuration for randomization.
+
+    .. deprecated:: 9.0.0
+        Part of the deprecated :class:`ReorientObjectEnvCfg`; see the module docstring.
+    """
 
     # startup
     # -- robot
@@ -255,7 +289,11 @@ class EventCfg:
 
 @configclass
 class RewardsCfg:
-    """Reward terms for the MDP."""
+    """Reward terms for the MDP.
+
+    .. deprecated:: 9.0.0
+        Part of the deprecated :class:`ReorientObjectEnvCfg`; see the module docstring.
+    """
 
     # -- task
     # track_pos_l2 = RewTerm(
@@ -289,7 +327,11 @@ class RewardsCfg:
 
 @configclass
 class TerminationsCfg:
-    """Termination terms for the MDP."""
+    """Termination terms for the MDP.
+
+    .. deprecated:: 9.0.0
+        Part of the deprecated :class:`ReorientObjectEnvCfg`; see the module docstring.
+    """
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
@@ -311,7 +353,12 @@ class TerminationsCfg:
 
 @configclass
 class ReorientObjectEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the in hand reorientation environment."""
+    """Configuration for the in hand reorientation environment.
+
+    .. deprecated:: 9.0.0
+        Superseded by the Direct-compatible manager configurations; see the
+        module docstring for the replacements.
+    """
 
     # Scene settings
     scene: ReorientObjectSceneCfg = ReorientObjectSceneCfg(num_envs=8192, env_spacing=0.6)
@@ -338,6 +385,12 @@ class ReorientObjectEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        warnings.warn(
+            "ReorientObjectEnvCfg is deprecated; use the Direct-compatible manager configurations"
+            " (e.g. ShadowHandManagerEnvCfg, AllegroCubeEnvCfg) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # general settings
         self.decimation = 4
         self.episode_length_s = 20.0
