@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,11 @@ def success_bonus(
 ) -> torch.Tensor:
     """Bonus reward for successfully reaching the goal.
 
+    .. deprecated:: 9.0.0
+        Only consumed by the deprecated
+        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
+        Use :class:`ReorientReward` instead.
+
     The object is considered to have reached the goal when the object orientation is within the threshold.
     The reward is 1.0 if the object has reached the goal, otherwise 0.0.
 
@@ -37,6 +43,13 @@ def success_bonus(
         command_name: The command term to be used for extracting the goal.
         object_cfg: The configuration for the scene entity. Default is "object".
     """
+    if not getattr(success_bonus, "_deprecation_warned", False):
+        success_bonus._deprecation_warned = True
+        warnings.warn(
+            "success_bonus() is deprecated; use ReorientReward instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     # extract useful elements
     asset: RigidObject = env.scene[object_cfg.name]
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
@@ -56,6 +69,11 @@ def track_pos_l2(
 ) -> torch.Tensor:
     """Reward for tracking the object position using the L2 norm.
 
+    .. deprecated:: 9.0.0
+        Only consumed by the deprecated
+        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
+        Use :class:`ReorientReward` instead.
+
     The reward is the distance between the object position and the goal position.
 
     Args:
@@ -63,6 +81,13 @@ def track_pos_l2(
         command_term: The command term to be used for extracting the goal.
         object_cfg: The configuration for the scene entity. Default is "object".
     """
+    if not getattr(track_pos_l2, "_deprecation_warned", False):
+        track_pos_l2._deprecation_warned = True
+        warnings.warn(
+            "track_pos_l2() is deprecated; use ReorientReward instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     # extract useful elements
     asset: RigidObject = env.scene[object_cfg.name]
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
@@ -83,6 +108,11 @@ def track_orientation_inv_l2(
 ) -> torch.Tensor:
     """Reward for tracking the object orientation using the inverse of the orientation error.
 
+    .. deprecated:: 9.0.0
+        Only consumed by the deprecated
+        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
+        Use :class:`ReorientReward` instead.
+
     The reward is the inverse of the orientation error between the object orientation and the goal orientation.
 
     Args:
@@ -91,6 +121,13 @@ def track_orientation_inv_l2(
         object_cfg: The configuration for the scene entity. Default is "object".
         rot_eps: The threshold for the orientation error. Default is 1e-3.
     """
+    if not getattr(track_orientation_inv_l2, "_deprecation_warned", False):
+        track_orientation_inv_l2._deprecation_warned = True
+        warnings.warn(
+            "track_orientation_inv_l2() is deprecated; use ReorientReward instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     # extract useful elements
     asset: RigidObject = env.scene[object_cfg.name]
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
@@ -101,21 +138,6 @@ def track_orientation_inv_l2(
     dtheta = math_utils.quat_error_magnitude(asset.data.root_quat_w.torch, goal_quat_w)
 
     return 1.0 / (dtheta + rot_eps)
-
-
-@torch.jit.script
-def direct_reorient_rotation_distance(object_quat: torch.Tensor, target_quat: torch.Tensor) -> torch.Tensor:
-    """Compute the Direct reorientation orientation distance [rad].
-
-    Args:
-        object_quat: Object ``(x, y, z, w)`` orientations.
-        target_quat: Target ``(x, y, z, w)`` orientations.
-
-    Returns:
-        Per-environment orientation distances [rad], in ``[0, pi]``.
-    """
-    quat_diff = math_utils.quat_mul(object_quat, math_utils.quat_conjugate(target_quat))
-    return 2.0 * torch.asin(torch.clamp(torch.linalg.norm(quat_diff[:, 0:3], ord=2, dim=-1), max=1.0))
 
 
 @torch.jit.script
@@ -136,12 +158,12 @@ def evaluate_reorient_success(
     Returns:
         Per-environment success flags and orientation errors [rad].
     """
-    orientation_error = direct_reorient_rotation_distance(object_quat, target_quat)
+    orientation_error = math_utils.quat_error_magnitude(object_quat, target_quat)
     return orientation_error <= success_tolerance, orientation_error
 
 
 @torch.jit.script
-def direct_reorient_reward(
+def reorient_reward(
     reset_buf: torch.Tensor,
     reset_goal_buf: torch.Tensor,
     successes: torch.Tensor,
@@ -214,9 +236,11 @@ def direct_reorient_reward(
     return reward, goal_resets, successes, consecutive_successes
 
 
-class DirectReorientReward(ManagerTermBase):
-    """Match Direct reorientation rewards and sticky per-episode success accounting.
+class ReorientReward(ManagerTermBase):
+    """Compute reorientation rewards with sticky per-episode success accounting.
 
+    Matches the reward semantics of the Direct-workflow implementation
+    (:class:`~isaaclab_tasks.core.reorient.reorient_direct_env.ReorientDirectEnv`).
     The scalar task parameters arrive as term params, set at the configuration
     declaration site to match the Direct environment's values.
     """
@@ -273,7 +297,7 @@ class DirectReorientReward(ManagerTermBase):
             asset.data.root_quat_w.torch, command[:, 3:7], success_tolerance
         )
         self._orientation_error.update(orientation_error)
-        reward, _, self._successes, self._consecutive_successes = direct_reorient_reward(
+        reward, _, self._successes, self._consecutive_successes = reorient_reward(
             env.reset_buf,
             torch.zeros_like(env.reset_buf),
             self._successes,

@@ -15,15 +15,14 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import (
-    ALLEGRO_SIM_CFG,
     GOAL_OBJECT_CFG,
     OBJECT_CFG,
     ROBOT_CFG,
+    AllegroHandTaskCfgBase,
     ObjectCfg,
 )
 from isaaclab_tasks.core.reorient.reorient_task_base import (
@@ -36,40 +35,28 @@ from isaaclab_tasks.utils import PresetCfg
 
 
 @configclass
-class _AllegroCubeSceneCfg(InteractiveSceneCfg):
-    """Allegro scene shared by the backend alternatives."""
-
-    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    robot: ArticulationCfg = ROBOT_CFG
-    object: ObjectCfg = OBJECT_CFG
-    light = AssetBaseCfg(
-        prim_path="/World/Light",
-        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
-    )
-
-
-@configclass
 class AllegroCubeSceneCfg(PresetCfg):
     """Backend-specific scene cloning settings matching the Direct task."""
 
-    physx = _AllegroCubeSceneCfg(
-        replicate_physics=True,
-        num_envs=8192,
-        env_spacing=0.75,
-        clone_in_fabric=True,
-    )
-    newton_mjwarp = _AllegroCubeSceneCfg(
-        replicate_physics=True,
-        num_envs=8192,
-        env_spacing=0.75,
-        clone_in_fabric=False,
-    )
-    ovphysx = _AllegroCubeSceneCfg(
-        replicate_physics=True,
-        num_envs=8192,
-        env_spacing=0.75,
-        clone_in_fabric=True,
-    )
+    @configclass
+    class SceneCfg(InteractiveSceneCfg):
+        """Allegro scene shared by the backend alternatives."""
+
+        num_envs = 8192
+        env_spacing = 0.75
+        replicate_physics = True
+
+        ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+        robot: ArticulationCfg = ROBOT_CFG
+        object: ObjectCfg = OBJECT_CFG
+        light = AssetBaseCfg(
+            prim_path="/World/Light",
+            spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
+        )
+
+    physx = SceneCfg(clone_in_fabric=True)
+    newton_mjwarp = SceneCfg(clone_in_fabric=False)
+    ovphysx = SceneCfg(clone_in_fabric=True)
     default = physx
 
     def set_num_envs(self, num_envs: int) -> None:
@@ -77,6 +64,7 @@ class AllegroCubeSceneCfg(PresetCfg):
         self.physx.num_envs = num_envs
         self.newton_mjwarp.num_envs = num_envs
         self.ovphysx.num_envs = num_envs
+        self.default.num_envs = num_envs
 
 
 @configclass
@@ -246,7 +234,7 @@ class RewardsCfg:
     """Direct-compatible reward and success accounting."""
 
     reorient = RewTerm(
-        func=mdp.DirectReorientReward,
+        func=mdp.ReorientReward,
         weight=1.0,
         params={
             "command_name": "object_pose",
@@ -281,11 +269,10 @@ class TerminationsCfg:
 
 
 @configclass
-class AllegroCubeEnvCfg(ManagerBasedRLEnvCfg):
+class AllegroCubeEnvCfg(AllegroHandTaskCfgBase, ManagerBasedRLEnvCfg):
     """Manager-based Allegro Hand task with Direct-compatible semantics."""
 
     scene: AllegroCubeSceneCfg = AllegroCubeSceneCfg()
-    sim: SimulationCfg = ALLEGRO_SIM_CFG
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()

@@ -4,14 +4,19 @@ Added
 * Added an RSL-RL training configuration and behavioral-success metrics to the
   Shadow handover Direct task.
 * Added renderer presets and configuration validation to the Shadow camera
-  Direct task.
+  Direct task, including an RGB-depth preset for training with the Newton Warp
+  renderer.
+* Added OVPhysX physics presets to the handover and camera Direct
+  environments.
 
-Changed
-^^^^^^^
+Deprecated
+^^^^^^^^^^
 
-* Changed the camera Direct feature-extractor keypoints helper to delegate to
-  the shared :func:`~isaaclab_tasks.core.reorient.mdp.observations.compute_cube_keypoints`;
-  the old ``compute_keypoints`` name is deprecated and warns.
+* Deprecated ``shadow_hand_camera_env.compute_keypoints`` in favor of
+  :func:`~isaaclab_tasks.core.reorient.mdp.observations.compute_cube_keypoints`.
+* Deprecated the ``Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct``
+  registration in favor of the regular camera task with the
+  ``env.feature_extractor.enabled=False`` override.
 
 Fixed
 ^^^^^

@@ -14,7 +14,7 @@ import torch
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 
-from .rewards import DirectReorientReward, evaluate_reorient_success
+from .rewards import ReorientReward, evaluate_reorient_success
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -28,7 +28,7 @@ def max_consecutive_success(env: ManagerBasedRLEnv, num_success: int, command_na
     .. deprecated:: 9.0.0
         Only consumed by the deprecated
         :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
-        Use :class:`DirectReorientTimeout` instead.
+        Use :class:`ReorientTimeout` instead.
 
     Args:
         env: The environment object.
@@ -38,7 +38,7 @@ def max_consecutive_success(env: ManagerBasedRLEnv, num_success: int, command_na
     if not globals().get("_warned_max_consecutive_success"):
         globals()["_warned_max_consecutive_success"] = True
         warnings.warn(
-            "max_consecutive_success() is deprecated; use DirectReorientTimeout instead.",
+            "max_consecutive_success() is deprecated; use ReorientTimeout instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -114,10 +114,12 @@ class object_reorientation_out_of_reach(ManagerTermBase):
         return distance >= threshold
 
 
-class DirectReorientTimeout(ManagerTermBase):
-    """Apply the Direct OpenAI progress-reset and timeout semantics.
+class ReorientTimeout(ManagerTermBase):
+    """Apply progress-reset and timeout semantics with a consecutive-success cap.
 
-    Resets the episode timer whenever the goal is reached so episodes extend
+    Matches the OpenAI-variant timeout semantics of the Direct-workflow implementation
+    (:class:`~isaaclab_tasks.core.reorient.reorient_direct_env.ReorientDirectEnv`):
+    resets the episode timer whenever the goal is reached so episodes extend
     across goal streaks (real Direct dynamics, not boundary cosmetics), and
     terminates after the consecutive-success cap or the usual timeout. The
     scalar task parameters arrive as term params, set at the configuration
@@ -156,7 +158,7 @@ class DirectReorientTimeout(ManagerTermBase):
         )
         # in place: rebinding env.episode_length_buf would orphan references held elsewhere
         env.episode_length_buf.masked_fill_(goal_reached, 0)
-        reward_term: DirectReorientReward = env.reward_manager.get_term_cfg(reward_name).func
+        reward_term: ReorientReward = env.reward_manager.get_term_cfg(reward_name).func
         max_success_reached = reward_term.successes >= max_successes
         return (env.episode_length_buf >= env.max_episode_length - 1) | max_success_reached
 

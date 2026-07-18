@@ -36,7 +36,28 @@ def _reorient_cases(direct_cfg, manager_cfg):
         (direct_cfg.act_moving_average, manager_cfg.actions.joint_pos.alpha),
         (direct_cfg.decimation, manager_cfg.decimation),
         (direct_cfg.episode_length_s, manager_cfg.episode_length_s),
+        (direct_cfg.reset_position_noise, _reset_event_params(manager_cfg)["position_noise"]),
+        (direct_cfg.reset_dof_pos_noise, _reset_event_params(manager_cfg)["joint_position_noise"]),
+        (direct_cfg.reset_dof_vel_noise, _reset_event_params(manager_cfg)["joint_velocity_noise"]),
+        (direct_cfg.max_consecutive_success, _timeout_max_successes(manager_cfg)),
     ]
+
+
+def _reset_event_params(manager_cfg):
+    """Params of the reset event term (the OpenAI events are preset-wrapped)."""
+    events = manager_cfg.events
+    term = getattr(events, "reset_state", None) or events.default.reset_state
+    return term.params
+
+
+def _timeout_max_successes(manager_cfg):
+    """Successes-based timeout threshold; 0 when the manager uses the plain timeout.
+
+    Mirrors the Direct convention where ``max_consecutive_success = 0`` disables
+    the mechanism (state and Allegro), while the OpenAI variants enable it.
+    """
+    params = getattr(manager_cfg.terminations.time_out, "params", None) or {}
+    return params.get("max_successes", 0)
 
 
 def _pairs():

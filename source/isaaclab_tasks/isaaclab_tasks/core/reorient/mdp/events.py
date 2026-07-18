@@ -53,11 +53,10 @@ def reset_reorient_state(
 
     object_asset: Articulation | RigidObject = env.scene[object_cfg.name]
     object_pose = object_asset.data.default_root_pose.torch[env_ids].clone()
-    object_velocity = object_asset.data.default_root_vel.torch[env_ids].clone()
+    object_velocity = torch.zeros_like(object_asset.data.default_root_vel.torch[env_ids])
     position_delta = math_utils.sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=env.device)
     object_pose[:, :3] += position_noise * position_delta + env.scene.env_origins[env_ids]
     object_pose[:, 3:7] = random_xy_rotation(len(env_ids), env.device)
-    object_velocity[:] = 0.0
     object_asset.write_root_pose_to_sim_index(root_pose=object_pose, env_ids=env_ids)
     object_asset.write_root_velocity_to_sim_index(root_velocity=object_velocity, env_ids=env_ids)
 

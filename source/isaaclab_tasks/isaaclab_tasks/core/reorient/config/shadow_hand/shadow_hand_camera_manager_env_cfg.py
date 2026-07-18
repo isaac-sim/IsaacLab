@@ -38,6 +38,9 @@ from isaaclab_tasks.utils import PresetCfg
 class _ShadowHandCameraManagerSceneCfg(_ShadowHandManagerSceneCfg):
     """State Manager scene augmented with camera and fingertip-wrench sensors."""
 
+    num_envs = 1225
+    env_spacing = 2.0
+
     ground = None
     tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
@@ -47,18 +50,8 @@ class _ShadowHandCameraManagerSceneCfg(_ShadowHandManagerSceneCfg):
 class ShadowHandCameraManagerSceneCfg(PresetCfg):
     """Backend-specific camera scene alternatives for training and benchmarking."""
 
-    physx = _ShadowHandCameraManagerSceneCfg(
-        num_envs=1225,
-        env_spacing=2.0,
-        replicate_physics=True,
-        clone_in_fabric=True,
-    )
-    newton_mjwarp = _ShadowHandCameraManagerSceneCfg(
-        num_envs=1225,
-        env_spacing=2.0,
-        replicate_physics=True,
-        clone_in_fabric=False,
-    )
+    physx = _ShadowHandCameraManagerSceneCfg(clone_in_fabric=True)
+    newton_mjwarp = _ShadowHandCameraManagerSceneCfg(clone_in_fabric=False)
     ovphysx = physx
     default = physx
 
@@ -67,24 +60,9 @@ class ShadowHandCameraManagerSceneCfg(PresetCfg):
 class ShadowHandCameraManagerPlaySceneCfg(PresetCfg):
     """Reduced backend-specific camera scenes for checkpoint playback."""
 
-    physx = _ShadowHandCameraManagerSceneCfg(
-        num_envs=CAMERA_PLAY_NUM_ENVS,
-        env_spacing=2.0,
-        replicate_physics=True,
-        clone_in_fabric=True,
-    )
-    newton_mjwarp = _ShadowHandCameraManagerSceneCfg(
-        num_envs=CAMERA_PLAY_NUM_ENVS,
-        env_spacing=2.0,
-        replicate_physics=True,
-        clone_in_fabric=False,
-    )
-    ovphysx = _ShadowHandCameraManagerSceneCfg(
-        num_envs=CAMERA_PLAY_NUM_ENVS,
-        env_spacing=2.0,
-        replicate_physics=True,
-        clone_in_fabric=True,
-    )
+    physx = _ShadowHandCameraManagerSceneCfg(num_envs=CAMERA_PLAY_NUM_ENVS, clone_in_fabric=True)
+    newton_mjwarp = _ShadowHandCameraManagerSceneCfg(num_envs=CAMERA_PLAY_NUM_ENVS, clone_in_fabric=False)
+    ovphysx = _ShadowHandCameraManagerSceneCfg(num_envs=CAMERA_PLAY_NUM_ENVS, clone_in_fabric=True)
     default = physx
 
 

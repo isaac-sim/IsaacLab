@@ -24,15 +24,14 @@ __all__ = [
     "success_bonus",
     "track_orientation_inv_l2",
     "track_pos_l2",
-    "direct_reorient_rotation_distance",
     "evaluate_reorient_success",
-    "direct_reorient_reward",
-    "DirectReorientReward",
+    "reorient_reward",
+    "ReorientReward",
     "max_consecutive_success",
     "object_away_from_goal",
     "object_away_from_robot",
     "object_reorientation_out_of_reach",
-    "DirectReorientTimeout",
+    "ReorientTimeout",
 ]
 
 from .commands import ReorientCommand, ReorientCommandCfg, ReorientEpisodeCommand, ReorientEpisodeCommandCfg
@@ -54,16 +53,15 @@ from .observations import (
     reorient_last_action,
 )
 from .rewards import (
-    DirectReorientReward,
-    direct_reorient_reward,
-    direct_reorient_rotation_distance,
+    ReorientReward,
+    reorient_reward,
     evaluate_reorient_success,
     success_bonus,
     track_orientation_inv_l2,
     track_pos_l2,
 )
 from .terminations import (
-    DirectReorientTimeout,
+    ReorientTimeout,
     max_consecutive_success,
     object_away_from_goal,
     object_away_from_robot,

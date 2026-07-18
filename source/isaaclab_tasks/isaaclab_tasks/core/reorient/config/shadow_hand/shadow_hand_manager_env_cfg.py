@@ -16,7 +16,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
@@ -26,11 +25,11 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import 
     OPENAI_ACTION_NOISE_CFG,
     OPENAI_OBSERVATION_NOISE_CFG,
     ROBOT_CFG,
-    SHADOW_SIM_CFG,
     NewtonEventCfg,
     ObjectCfg,
-    PhysicsCfg,
     PhysxEventCfg,
+    ShadowHandOpenAITaskCfgBase,
+    ShadowHandTaskCfgBase,
 )
 from isaaclab_tasks.core.reorient.reorient_task_base import (
     GOAL_MARKER_POSITION,
@@ -45,6 +44,10 @@ from isaaclab_tasks.utils import PresetCfg
 class _ShadowHandManagerSceneCfg(InteractiveSceneCfg):
     """Scene shared by the Shadow Hand Manager backend alternatives."""
 
+    num_envs = 8192
+    env_spacing = 0.75
+    replicate_physics = True
+
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
     robot: PresetCfg = ROBOT_CFG
     object: ObjectCfg = OBJECT_CFG
@@ -58,18 +61,8 @@ class _ShadowHandManagerSceneCfg(InteractiveSceneCfg):
 class ShadowHandManagerSceneCfg(PresetCfg):
     """Backend-specific scene cloning settings matching the Direct task."""
 
-    physx = _ShadowHandManagerSceneCfg(
-        num_envs=8192,
-        env_spacing=0.75,
-        replicate_physics=True,
-        clone_in_fabric=True,
-    )
-    newton_mjwarp = _ShadowHandManagerSceneCfg(
-        num_envs=8192,
-        env_spacing=0.75,
-        replicate_physics=True,
-        clone_in_fabric=False,
-    )
+    physx = _ShadowHandManagerSceneCfg(clone_in_fabric=True)
+    newton_mjwarp = _ShadowHandManagerSceneCfg(clone_in_fabric=False)
     ovphysx = physx
     newton_kamino = newton_mjwarp
     default = physx
@@ -182,7 +175,7 @@ class RewardsCfg:
     """Direct-compatible reward and success accounting."""
 
     reorient = RewTerm(
-        func=mdp.DirectReorientReward,
+        func=mdp.ReorientReward,
         weight=1.0,
         params={
             "command_name": "object_pose",
@@ -217,11 +210,10 @@ class TerminationsCfg:
 
 
 @configclass
-class ShadowHandManagerEnvCfg(ManagerBasedRLEnvCfg):
+class ShadowHandManagerEnvCfg(ShadowHandTaskCfgBase, ManagerBasedRLEnvCfg):
     """Manager-based state Shadow Hand task with Direct-compatible semantics."""
 
     scene: ShadowHandManagerSceneCfg = ShadowHandManagerSceneCfg()
-    sim: SimulationCfg = SHADOW_SIM_CFG
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
@@ -304,28 +296,17 @@ class OpenAIObservationsCfg:
 
 
 @configclass
-class _ShadowHandOpenAIManagerSceneCfg(_ShadowHandManagerSceneCfg):
-    """Shadow Hand scene with fingertip joint-wrench sensing."""
-
-    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-
-
-@configclass
 class ShadowHandOpenAIManagerSceneCfg(PresetCfg):
     """Backend-specific OpenAI scene alternatives."""
 
-    physx = _ShadowHandOpenAIManagerSceneCfg(
-        num_envs=8192,
-        env_spacing=0.75,
-        replicate_physics=True,
-        clone_in_fabric=True,
-    )
-    newton_mjwarp = _ShadowHandOpenAIManagerSceneCfg(
-        num_envs=8192,
-        env_spacing=0.75,
-        replicate_physics=True,
-        clone_in_fabric=False,
-    )
+    @configclass
+    class SceneCfg(_ShadowHandManagerSceneCfg):
+        """Shadow Hand scene with fingertip joint-wrench sensing."""
+
+        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+    physx = SceneCfg(clone_in_fabric=True)
+    newton_mjwarp = SceneCfg(clone_in_fabric=False)
     ovphysx = physx
     newton_kamino = newton_mjwarp
     default = physx
@@ -369,7 +350,7 @@ class OpenAIRewardsCfg:
     """Direct-compatible OpenAI reward and success accounting."""
 
     reorient = RewTerm(
-        func=mdp.DirectReorientReward,
+        func=mdp.ReorientReward,
         weight=1.0,
         params={
             "command_name": "object_pose",
@@ -402,7 +383,7 @@ class OpenAITerminationsCfg:
         },
     )
     time_out = DoneTerm(
-        func=mdp.DirectReorientTimeout,
+        func=mdp.ReorientTimeout,
         time_out=True,
         params={
             "command_name": "object_pose",
@@ -415,7 +396,7 @@ class OpenAITerminationsCfg:
 
 
 @configclass
-class ShadowHandOpenAIManagerEnvCfg(ShadowHandManagerEnvCfg):
+class ShadowHandOpenAIManagerEnvCfg(ShadowHandOpenAITaskCfgBase, ShadowHandManagerEnvCfg):
     """Manager counterpart shared by the OpenAI FF and LSTM variants."""
 
     scene: ShadowHandOpenAIManagerSceneCfg = ShadowHandOpenAIManagerSceneCfg()
@@ -430,6 +411,3 @@ class ShadowHandOpenAIManagerEnvCfg(ShadowHandManagerEnvCfg):
         super().__post_init__()
         self.decimation = 3
         self.episode_length_s = 8.0
-        self.sim.dt = 1 / 60
-        self.sim.render_interval = self.decimation
-        self.sim.physics = PhysicsCfg()
