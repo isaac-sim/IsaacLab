@@ -7,9 +7,8 @@ from dataclasses import MISSING
 
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 from isaaclab.sim.spawners.wrappers import MultiUsdFileCfg
+from isaaclab.utils.assets import SIMREADY_SEARCH_SERVICE_ENDPOINT, search_simready_usd_paths
 from isaaclab.utils.configclass import configclass
-
-from .simready import SIMREADY_SEARCH_SERVICE_ENDPOINT, search_simready_usd_paths
 
 
 @configclass
@@ -23,8 +22,8 @@ class SimReadyUsdFileCfg(UsdFileCfg):
     simulation. When :attr:`usd_path` is already set (for instance, on a copy of a resolved
     configuration), the search is skipped.
 
-    Please check :func:`~isaaclab.sim.spawners.simready.search_simready_usd_paths` for the
-    required optional dependency and the service credentials.
+    Please check :func:`~isaaclab.utils.assets.search_simready_usd_paths` for the required
+    optional dependency and the service credentials.
 
     Example usage::
 
@@ -89,8 +88,8 @@ class SimReadyMultiUsdFileCfg(MultiUsdFileCfg):
     script may resolve a different list. The resolved paths are recorded in the environment
     configuration dump of a training run; pin them via :attr:`usd_path` to reproduce a run exactly.
 
-    Please check :func:`~isaaclab.sim.spawners.simready.search_simready_usd_paths` for the
-    required optional dependency and the service credentials.
+    Please check :func:`~isaaclab.utils.assets.search_simready_usd_paths` for the required
+    optional dependency and the service credentials.
 
     Example usage::
 

@@ -4,11 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "search_simready_usd_paths",
-    "SIMREADY_SEARCH_SERVICE_ENDPOINT",
     "SimReadyMultiUsdFileCfg",
     "SimReadyUsdFileCfg",
 ]
 
-from .simready import SIMREADY_SEARCH_SERVICE_ENDPOINT, search_simready_usd_paths
 from .simready_cfg import SimReadyMultiUsdFileCfg, SimReadyUsdFileCfg

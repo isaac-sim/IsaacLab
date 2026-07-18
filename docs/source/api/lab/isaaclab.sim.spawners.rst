@@ -399,8 +399,6 @@ SimReady Assets
     SimReadyUsdFileCfg
     SimReadyMultiUsdFileCfg
 
-.. autofunction:: search_simready_usd_paths
-
 .. autoclass:: SimReadyUsdFileCfg
     :members:
     :show-inheritance:

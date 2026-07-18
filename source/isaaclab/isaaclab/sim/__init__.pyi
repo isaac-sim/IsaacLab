@@ -353,7 +353,6 @@ from .spawners import (
     UsdFileCfg,
     UsdFileWithCompliantContactCfg,
     VisualMaterialCfg,
-    search_simready_usd_paths,
     spawn_camera,
     spawn_capsule,
     spawn_cone,

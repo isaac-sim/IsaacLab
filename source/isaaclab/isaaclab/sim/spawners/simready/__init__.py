@@ -6,8 +6,9 @@
 """Sub-module for spawner configurations that resolve USD assets from SimReady search queries.
 
 Instead of hardcoding USD file paths, these configurations query the SimReady USD-Search service
-with a natural-language phrase (e.g. ``"food box"``) and spawn the top-ranked assets. The service
-is queried once, when the configuration is instantiated; no network calls are made during
+with a natural-language phrase (e.g. ``"food box"``) and spawn the top-ranked assets. The search
+itself is performed by :func:`isaaclab.utils.assets.search_simready_usd_paths`. The service is
+queried once, when the configuration is instantiated; no network calls are made during
 simulation.
 
 Using this sub-module requires the optional ``simready-search`` package. Install it with
