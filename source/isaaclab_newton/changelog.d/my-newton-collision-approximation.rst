@@ -7,6 +7,7 @@ Fixed
   ``boundingSphere``, ``boundingCube``, ``meshSimplification``, or ``none``),
   without a warning. The cloner now honors authored approximations the same way
   non-cloned scene loading does, and applies the default convex-hull simplification
-  only to meshes with no authored approximation. Also added the ``coacd``
-  dependency so ``convexDecomposition`` decomposes instead of silently falling
-  back to a single convex hull.
+  only to meshes with no authored approximation. Also switched the core install to
+  ``newton[sim,importers]`` so the mesh-processing dependencies (``coacd``,
+  ``fast-simplification``, ...) ship by default and ``convexDecomposition``
+  decomposes instead of silently falling back to a single convex hull.

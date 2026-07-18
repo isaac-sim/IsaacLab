@@ -10,15 +10,13 @@ Tests:
     - ./isaaclab.sh -i core -> verify all core packages importable
     - ./isaaclab.sh -i core -> verify optional submodules (mimic, teleop, ovrtx, ovphysx) NOT installed
     - ./isaaclab.sh -i core -> verify isaaclab_physx test suite passes
-    - ./isaaclab.sh -i core -> python misc/convex_decomposition_probe.py -> verify USD-authored
-      convexDecomposition decomposes into multiple hulls on both Newton import paths
-      (requires the coacd dependency and the cloner honoring physics:approximation)
+    - ./isaaclab.sh -i core -> verify the Newton importer mesh-processing dependencies
+      (coacd, fast-simplification) are installed
 """
 
 from __future__ import annotations
 
 import shutil
-from pathlib import Path
 
 import pytest
 from utils import UV_Mixin, find_isaaclab_root
@@ -103,24 +101,23 @@ class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_install_core_honors_authored_convex_decomposition(self, isaaclab_root):
-        """USD-authored convexDecomposition decomposes on both Newton import paths after -i core.
+    def test_install_core_provides_newton_importer_dependencies(self, isaaclab_root):
+        """Newton's mesh-processing deps ship with -i core (via newton[sim,importers]).
 
-        Guards two regressions at once: the ``coacd`` dependency must be part of the
-        core install (Newton silently falls back to a single convex hull without it),
-        and the Newton cloner must honor ``physics:approximation`` instead of
-        flattening every collision mesh to one hull.
+        Without them, Newton warns and falls back to a single convex hull instead of
+        honoring an authored ``physics:approximation`` (behavior is unit-tested in
+        isaaclab_newton's test_collision_approximation.py).
         """
-        probe = Path(__file__).resolve().parent.parent / "misc" / "convex_decomposition_probe.py"
-
         try:
             self.create_uv_env(isaaclab_root)
 
             result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
             assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
 
-            result = self.run_in_uv_env(["python", str(probe)], cwd=isaaclab_root)
-            assert result.returncode == 0, f"convex decomposition probe failed:\n{result.stdout}\n{result.stderr}"
+            result = self.run_in_uv_env(["python", "-c", "import coacd, fast_simplification"])
+            assert result.returncode == 0, (
+                f"Newton importer mesh-processing deps missing:\n{result.stdout}\n{result.stderr}"
+            )
 
         finally:
             self.destroy_uv_env()

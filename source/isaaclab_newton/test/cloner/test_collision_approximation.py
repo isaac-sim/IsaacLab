@@ -15,19 +15,11 @@ from pxr import Usd, UsdGeom, UsdPhysics
 _SOURCE = "/World/Asset"
 
 
-def _make_stage(approximation: str | None) -> Usd.Stage:
-    """Author a rigid concave L-prism; optionally set ``physics:approximation``."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
-    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
-
-    xform = UsdGeom.Xform.Define(stage, _SOURCE)
-    UsdPhysics.RigidBodyAPI.Apply(xform.GetPrim())
-
-    mesh = UsdGeom.Mesh.Define(stage, f"{_SOURCE}/geom")
-    # Concave hexagonal cross-section (an "L"), extruded along z.
+def _add_l_prism(stage: Usd.Stage, path: str, approximation: str | None, offset: float = 0.0) -> None:
+    """Author a concave L-prism collision mesh; optionally set ``physics:approximation``."""
+    mesh = UsdGeom.Mesh.Define(stage, path)
     base = [(0, 0), (2, 0), (2, 1), (1, 1), (1, 2), (0, 2)]
-    points = [(x, y, 0.0) for x, y in base] + [(x, y, 1.0) for x, y in base]
+    points = [(x + offset, y, 0.0) for x, y in base] + [(x + offset, y, 1.0) for x, y in base]
     tris = []
     # Bottom and top caps: a fan from vertex 0 (which sees the whole L polygon).
     for a, b in ((1, 2), (2, 3), (3, 4), (4, 5)):
@@ -46,16 +38,26 @@ def _make_stage(approximation: str | None) -> Usd.Stage:
     mesh_collision = UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim())
     if approximation is not None:
         mesh_collision.CreateApproximationAttr().Set(approximation)
+
+
+def _make_stage(approximation: str | None) -> Usd.Stage:
+    """A rigid body with one L-prism collision mesh."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    xform = UsdGeom.Xform.Define(stage, _SOURCE)
+    UsdPhysics.RigidBodyAPI.Apply(xform.GetPrim())
+    _add_l_prism(stage, f"{_SOURCE}/geom", approximation)
     return stage
 
 
-def _collision_shapes(builder: newton.ModelBuilder) -> list[GeoType]:
-    """Geo types of the colliding shapes in the builder."""
-    return [
-        GeoType(shape_type)
+def _collision_shapes(builder: newton.ModelBuilder) -> dict[str, GeoType]:
+    """Label -> geo type of the colliding shapes in the builder."""
+    return {
+        builder.shape_label[i]: GeoType(shape_type)
         for i, shape_type in enumerate(builder.shape_type)
         if builder.shape_flags[i] & ShapeFlags.COLLIDE_SHAPES
-    ]
+    }
 
 
 def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
@@ -74,38 +76,42 @@ class TestClonerCollisionApproximation:
 
     def test_authored_convex_decomposition_produces_multiple_hulls(self):
         """A concave mesh authored with convexDecomposition decomposes into 2+ hulls."""
-        pytest.importorskip("coacd", reason="convexDecomposition requires the coacd dependency")
         shapes = _collision_shapes(_build(_make_stage("convexDecomposition")))
         assert len(shapes) >= 2, f"expected a multi-hull decomposition, got {shapes}"
-        assert all(s == GeoType.CONVEX_MESH for s in shapes)
+        assert all(geo_type == GeoType.CONVEX_MESH for geo_type in shapes.values())
 
-    def test_authored_bounding_sphere_produces_sphere(self):
-        """boundingSphere becomes a SPHERE collision shape, not a convex hull."""
-        shapes = _collision_shapes(_build(_make_stage("boundingSphere")))
-        assert shapes == [GeoType.SPHERE]
-
-    def test_authored_bounding_cube_produces_box(self):
-        """boundingCube becomes a BOX collision shape, not a convex hull."""
-        shapes = _collision_shapes(_build(_make_stage("boundingCube")))
-        assert shapes == [GeoType.BOX]
-
-    def test_authored_mesh_simplification_keeps_mesh(self):
-        """meshSimplification stays a MESH; the hull pass must not overwrite it."""
-        shapes = _collision_shapes(_build(_make_stage("meshSimplification")))
-        assert shapes == [GeoType.MESH]
-
-    def test_authored_none_keeps_raw_mesh(self):
-        """An explicit approximation of "none" keeps the raw trimesh collision."""
-        shapes = _collision_shapes(_build(_make_stage("none")))
-        assert shapes == [GeoType.MESH]
+    @pytest.mark.parametrize(
+        ("approximation", "expected"),
+        [
+            ("boundingSphere", GeoType.SPHERE),
+            ("boundingCube", GeoType.BOX),
+            ("meshSimplification", GeoType.MESH),
+            ("none", GeoType.MESH),
+        ],
+    )
+    def test_authored_approximation_produces_expected_shape(self, approximation, expected):
+        """Each authored mode maps to its shape type instead of a convex hull."""
+        shapes = _collision_shapes(_build(_make_stage(approximation)))
+        assert list(shapes.values()) == [expected]
 
     def test_unauthored_mesh_still_simplifies_to_single_hull(self):
         """Meshes with no authored approximation keep the default convex-hull treatment."""
         shapes = _collision_shapes(_build(_make_stage(None)))
         assert len(shapes) == 1
-        assert shapes[0] in (GeoType.MESH, GeoType.CONVEX_MESH)
+        assert next(iter(shapes.values())) in (GeoType.MESH, GeoType.CONVEX_MESH)
 
     def test_simplify_meshes_false_keeps_raw_mesh(self):
         """simplify_meshes=False leaves an unauthored mesh untouched."""
         shapes = _collision_shapes(_build(_make_stage(None), simplify_meshes=False))
-        assert shapes == [GeoType.MESH]
+        assert list(shapes.values()) == [GeoType.MESH]
+
+    def test_simplify_pass_only_touches_unauthored_meshes(self):
+        """In a mixed stage, only the unauthored mesh gets the default hull treatment."""
+        stage = _make_stage("none")
+        _add_l_prism(stage, f"{_SOURCE}/geom_plain", None, offset=4.0)
+
+        shapes = _collision_shapes(_build(stage))
+
+        # The authored "none" mesh keeps its raw trimesh; the unauthored sibling is hulled.
+        assert shapes[f"{_SOURCE}/geom"] == GeoType.MESH
+        assert shapes[f"{_SOURCE}/geom_plain"] == GeoType.CONVEX_MESH
