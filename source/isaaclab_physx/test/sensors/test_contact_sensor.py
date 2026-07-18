@@ -460,6 +460,105 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
 
 
+@pytest.mark.parametrize(
+    "expr, expected_old, expected_new",
+    [
+        # simple leaf — old bare glob prefix-matches geometry children sharing the same name
+        ("/World/envs/env_.*/Table", "/World/envs/env_*/Table", "/World/envs/env_*/(Table)"),
+        # wildcard leaf — wildcard is preserved inside the alternation group
+        ("/World/envs/env_.*/Robot/.*_FOOT", "/World/envs/env_*/Robot/*_FOOT", "/World/envs/env_*/Robot/(*_FOOT)"),
+        # absolute path without env wildcard — only the leaf gets wrapped
+        ("/World/ground/CollisionPlane", "/World/ground/CollisionPlane", "/World/ground/(CollisionPlane)"),
+    ],
+)
+def test_filter_prim_paths_glob_leaf_wrapping(expr, expected_old, expected_new):
+    """Verify the leaf-wrapping transformation anchors the last path segment.
+
+    Positive test: the new ``re.sub`` + ``replace`` form produces a PhysX alternation
+    group ``(leaf)`` that anchors to just the named prim.
+
+    Negative test (encoded in ``expected_old``): the pre-fix plain ``replace`` form
+    produces a bare-leaf glob that PhysX prefix-matches, so a filter target whose
+    geometry child shares the same name (URDF-to-USD pattern) would match *two*
+    prims per env instead of one, causing ``create_rigid_contact_view`` to raise a
+    count-consistency error.
+    """
+    import re
+
+    old_glob = expr.replace(".*", "*")
+    new_glob = re.sub(r"([^/]+)$", r"(\1)", expr).replace(".*", "*")
+
+    assert old_glob == expected_old
+    assert new_glob == expected_new
+    assert old_glob != new_glob
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("num_envs", [1, 4])
+def test_contact_sensor_filter_same_name_geometry_child(setup_simulation, device, num_envs):
+    """Contact sensor with a filter target whose geometry child shares the link's name must initialize.
+
+    Regression test for the ``filter_prim_paths_expr`` leaf-wrapping fix. The
+    URDF-to-USD importer nests collision geometry under a child prim with the
+    same name as the link (e.g. ``.../Table`` body with ``.../Table/Table``
+    geometry). Before the fix, ``filter_prim_paths_glob`` was produced by a plain
+    ``.*`` → ``*`` replacement, yielding ``env_*/Table``. PhysX prefix-matched that
+    against both ``.../Table`` and ``.../Table/Table``, returning 2 filter shapes
+    per env instead of 1 and raising a count-consistency error at
+    ``create_rigid_contact_view``. After the fix, the glob is ``env_*/(Table)``,
+    which anchors to the link prim only.
+    """
+    sim_dt, *_ = setup_simulation
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        stage = get_current_stage()
+
+        for env_id in range(num_envs):
+            env_path = f"/World/envs/env_{env_id}"
+            env_xform = UsdGeom.Xform.Define(stage, env_path)
+            env_xform.AddTranslateOp().Set(Gf.Vec3d(3.0 * env_id, 0.0, 0.0))
+
+            # Sensor subject: a simple kinematic rigid body cube.
+            cube_path = f"{env_path}/Cube"
+            cube = UsdGeom.Cube.Define(stage, cube_path)
+            cube_rb = UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+            cube_rb.CreateKinematicEnabledAttr(True)
+            UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+
+            # Filter target: a link prim (Table) whose collision geometry is nested
+            # under a child prim with the same name — the URDF-to-USD import pattern.
+            table_path = f"{env_path}/Table"
+            table_xform = UsdGeom.Xform.Define(stage, table_path)
+            table_xform.AddTranslateOp().Set(Gf.Vec3d(0.0, 1.0, 0.0))
+            table_rb = UsdPhysics.RigidBodyAPI.Apply(stage.GetPrimAtPath(table_path))
+            table_rb.CreateKinematicEnabledAttr(True)
+            # Geometry child shares the parent link name — this is what triggers the bug.
+            table_geom_path = f"{table_path}/Table"
+            table_geom = UsdGeom.Cube.Define(stage, table_geom_path)
+            table_geom.GetSizeAttr().Set(0.5)
+            UsdPhysics.CollisionAPI.Apply(table_geom.GetPrim())
+
+        schemas.activate_contact_sensors("/World/envs")
+
+        # Before the fix, create_rigid_contact_view raised a RuntimeError because
+        # env_*/Table matched both .../Table and .../Table/Table (2 shapes per env).
+        # After the fix, env_*/(Table) anchors to the link prim only (1 shape per env).
+        contact_sensor = ContactSensor(
+            ContactSensorCfg(
+                prim_path="/World/envs/env_.*/Cube",
+                update_period=0.0,
+                filter_prim_paths_expr=["/World/envs/env_.*/Table"],
+            )
+        )
+
+        sim.reset()
+
+        assert contact_sensor.num_sensors == num_envs
+        # Exactly 1 filter shape per env (the Table link prim, not Table/Table geometry).
+        assert contact_sensor.contact_view.filter_count == 1
+
+
 def _author_nested_chain(prim_path: str):
     """Author a chain of kinematic rigid bodies whose link prims are nested under each other.
 
