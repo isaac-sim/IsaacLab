@@ -16,6 +16,7 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=52,
                 nconmax=15,
                 cone="pyramidal",

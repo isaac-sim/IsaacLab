@@ -249,6 +249,7 @@ class PhysicsCfg(PresetCfg):
     )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
+            use_mujoco_contacts=False,
             solver="newton",
             integrator="implicitfast",
             njmax=200,
@@ -256,7 +257,6 @@ class PhysicsCfg(PresetCfg):
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
-            ccd_iterations=50,  # bumped from default 35 for multi-finger contact geometry
         ),
         num_substeps=2,
         debug_mode=False,

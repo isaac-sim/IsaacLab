@@ -43,6 +43,7 @@ def _make_coupled_cfg(coupling_mode: str, rigid_solver: str = "mjwarp") -> Simul
     if rigid_solver == "mjwarp":
         solver_cfg = CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=40,
                 nconmax=20,
                 ls_iterations=20,

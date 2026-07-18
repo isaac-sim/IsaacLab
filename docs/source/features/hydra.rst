@@ -210,7 +210,9 @@ override is given:
     @configclass
     class PhysicsCfg(PresetCfg):
         default: PhysxCfg = PhysxCfg()
-        newton_mjwarp: NewtonCfg = NewtonCfg()
+        newton_mjwarp: NewtonCfg = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False)
+        )
 
     @configclass
     class MyEnvCfg:
@@ -265,7 +267,7 @@ Physics backend selection uses the same preset system. A task can define a
         default: PhysxCfg = PhysxCfg()
         physx: PhysxCfg = PhysxCfg()
         newton_mjwarp: NewtonCfg = NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, njmax=5, nconmax=3),
             num_substeps=1,
         )
         newton_kamino: NewtonCfg = NewtonCfg(
@@ -279,6 +281,13 @@ Physics backend selection uses the same preset system. A task can define a
             debug_mode=False,
             use_cuda_graph=True,
         )
+
+First-party ``newton_mjwarp`` presets set ``use_mujoco_contacts=False`` so
+Newton's collision pipeline owns contact generation and MJWarp resolves those
+contacts. The public ``True`` setting remains available during its deprecation
+window for external configurations that still depend on MuJoCo's internal
+collision path. New and migrated presets should use ``False`` and customize
+contact generation through ``NewtonCfg.collision_cfg``.
 
 The ``newton_mjwarp`` and ``newton_kamino`` entries both select the Newton physics backend because
 both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference

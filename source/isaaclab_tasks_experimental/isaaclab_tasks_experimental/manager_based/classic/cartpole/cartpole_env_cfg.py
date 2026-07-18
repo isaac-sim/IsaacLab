@@ -174,6 +174,7 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=5,
                 nconmax=3,
                 cone="pyramidal",

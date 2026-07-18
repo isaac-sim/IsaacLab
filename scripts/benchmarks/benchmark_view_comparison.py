@@ -159,7 +159,9 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
         )
 
     print("  Setting up Newton scene")
-    newton_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()), device=args_cli.device)
+    newton_cfg = SimulationCfg(
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False)), device=args_cli.device
+    )
     start_time = time.perf_counter()
     ctx = build_simulation_context(device=args_cli.device, sim_cfg=newton_cfg, add_ground_plane=True)
     sim = ctx.__enter__()

@@ -58,6 +58,7 @@ TARGET_OFFSET = 0.1  # [rad] added to initial joint positions
 
 NEWTON_CFG = NewtonCfg(
     solver_cfg=MJWarpSolverCfg(
+        use_mujoco_contacts=False,
         njmax=500,
         nconmax=500,
         ls_iterations=20,
@@ -957,6 +958,7 @@ class TestDelayedPDAuthoring(unittest.TestCase):
 
 NEWTON_CFG_DEC = NewtonCfg(
     solver_cfg=MJWarpSolverCfg(
+        use_mujoco_contacts=False,
         njmax=500,
         nconmax=500,
         ls_iterations=20,
@@ -1415,6 +1417,7 @@ class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
         env_cfg.terminations.base_contact = None
         env_cfg.sim.physics = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=95,
                 nconmax=10,
                 cone="pyramidal",

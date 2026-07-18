@@ -29,6 +29,7 @@ class AntWarpEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     solver_cfg = MJWarpSolverCfg(
+        use_mujoco_contacts=False,
         njmax=45,
         nconmax=25,
         cone="pyramidal",

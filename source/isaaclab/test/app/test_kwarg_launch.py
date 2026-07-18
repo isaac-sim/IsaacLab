@@ -18,6 +18,12 @@ from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _
 pytestmark = pytest.mark.integration
 
 
+def test_make_physics_cfg_mjwarp_uses_newton_contacts():
+    """The named MJWarp backend must explicitly select Newton-generated contacts."""
+    cfg = sim_launcher.make_physics_cfg("newton_mjwarp")
+    assert cfg.solver_cfg.use_mujoco_contacts is False
+
+
 @pytest.mark.usefixtures("mocker")
 def test_livestream_launch_with_kwargs(mocker):
     """Test launching with keyword arguments."""

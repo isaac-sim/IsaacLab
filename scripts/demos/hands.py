@@ -169,7 +169,6 @@ def main():
             physics_cfg.solver_cfg.impratio = 10.0
             physics_cfg.solver_cfg.cone = "elliptic"
             physics_cfg.solver_cfg.update_data_interval = 2
-            physics_cfg.solver_cfg.ccd_iterations = 50
             physics_cfg.num_substeps = 2
             physics_cfg.debug_mode = False
 

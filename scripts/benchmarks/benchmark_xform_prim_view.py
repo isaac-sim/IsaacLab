@@ -93,7 +93,9 @@ def benchmark_frame_view(  # noqa: C901
     cleanup = None
 
     if api == "isaaclab-newton-site":
-        newton_cfg = SimulationCfg(device=device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+        newton_cfg = SimulationCfg(
+            device=device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False))
+        )
         ctx = build_simulation_context(device=device, sim_cfg=newton_cfg, add_ground_plane=True)
         sim = ctx.__enter__()
         sim._app_control_on_stop_handle = None

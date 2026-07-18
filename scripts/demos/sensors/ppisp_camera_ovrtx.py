@@ -180,7 +180,7 @@ def make_sim_cfg() -> sim_utils.SimulationCfg:
     return sim_utils.SimulationCfg(
         dt=0.005,
         device=args_cli.device,
-        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1),
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False), num_substeps=1),
         use_fabric=not args_cli.disable_fabric,
     )
 

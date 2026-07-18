@@ -49,6 +49,7 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
+        solver_cfg.validate_contact_mode()
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import inspect
 from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -63,6 +64,7 @@ try:
 except ImportError:
     from newton._src.solvers import SolverFeatherPGS
 
+from isaaclab.physics import PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -73,11 +75,14 @@ from isaaclab.sim import SimulationCfg, build_simulation_context
 #  expected_use_single_state, expected_needs_collision_pipeline)
 SOLVER_MATRIX = [
     pytest.param(
-        lambda: MJWarpSolverCfg(use_mujoco_contacts=True),
+        lambda: MJWarpSolverCfg(),
         NewtonMJWarpManager,
         SolverMuJoCo,
         True,
         False,
+        marks=pytest.mark.filterwarnings(
+            "ignore:MJWarpSolverCfg.use_mujoco_contacts=True selects.*:DeprecationWarning"
+        ),
         id="mjwarp_internal_contacts",
     ),
     pytest.param(
@@ -209,7 +214,11 @@ def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimat
     import logging
 
     with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_manager_cfg"):
-        cfg = NewtonCfg(num_substeps=num_substeps, collision_decimation=collision_decimation)
+        cfg = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
+            num_substeps=num_substeps,
+            collision_decimation=collision_decimation,
+        )
     warned = any("collision_decimation" in rec.getMessage() for rec in caplog.records)
     assert warned is should_warn
     # Cfg field round-trips regardless of warning.
@@ -304,6 +313,18 @@ def test_mpm_register_builder_attributes_is_idempotent():
     # Second call must be a no-op (no exceptions, attribute still present).
     NewtonMPMManager._register_builder_attributes(builder)
     assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+def test_feather_pgs_register_builder_attributes_is_idempotent():
+    """The FeatherPGS manager owns registration without duplicating attributes."""
+    builder = mock.Mock()
+    builder.has_custom_attribute.side_effect = [False, True]
+
+    with mock.patch.object(SolverFeatherPGS, "register_custom_attributes") as register:
+        NewtonFeatherPGSManager._register_builder_attributes(builder)
+        NewtonFeatherPGSManager._register_builder_attributes(builder)
+
+    register.assert_called_once_with(builder)
 
 
 def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
@@ -467,7 +488,6 @@ def test_mpm_cuda_graph_capture_supports_only_fixed_grid(monkeypatch, grid_type,
 
 def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     """Sparse/dense MPM should not enter a CUDA graph capture window."""
-    from isaaclab.physics import PhysicsManager
 
     monkeypatch.setattr(
         PhysicsManager,
@@ -488,7 +508,6 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     """CUDA graph capture should use the simulation device instead of Warp's default device."""
-    from isaaclab.physics import PhysicsManager
 
     captured_devices = []
     captured_graph = object()
@@ -729,8 +748,28 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         NewtonManager.set_builder(builder)
 
-        with pytest.raises(ValueError, match="collision_cfg cannot be set"):
-            sim.reset()
+        with pytest.warns(DeprecationWarning, match="internal contact pipeline"):
+            with pytest.raises(ValueError, match="collision_cfg cannot be set"):
+                sim.reset()
+
+
+def test_mjwarp_cpu_with_newton_contacts_raises():
+    """Pure MuJoCo CPU cannot silently discard contacts from Newton's pipeline."""
+    solver_cfg = MJWarpSolverCfg(use_mujoco_cpu=True, use_mujoco_contacts=False)
+
+    with pytest.raises(ValueError, match="cannot consume Newton CollisionPipeline contacts"):
+        NewtonMJWarpManager._build_solver(None, solver_cfg)  # type: ignore[arg-type]
+
+
+def test_mjwarp_cfg_owns_contact_mode_validation():
+    """The public solver config owns warnings and invalid contact-mode combinations."""
+    with pytest.warns(DeprecationWarning, match="internal contact pipeline"):
+        MJWarpSolverCfg(use_mujoco_contacts=True).validate_contact_mode()
+
+    MJWarpSolverCfg(use_mujoco_contacts=False).validate_contact_mode()
+
+    with pytest.raises(ValueError, match="cannot consume Newton CollisionPipeline contacts"):
+        MJWarpSolverCfg(use_mujoco_cpu=True, use_mujoco_contacts=False).validate_contact_mode()
 
 
 @pytest.mark.parametrize(

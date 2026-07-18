@@ -32,9 +32,10 @@ simulation parameters except for the ``dt``:
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
-    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 
     solver_cfg = MJWarpSolverCfg(
+        use_mujoco_contacts=False,
         njmax=35,
         nconmax=20,
         ls_iterations=10,
@@ -43,6 +44,7 @@ simulation parameters except for the ``dt``:
     )
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
+        collision_cfg=NewtonCollisionPipelineCfg(),
         num_substeps=1,
         debug_mode=False,
     )
@@ -51,12 +53,32 @@ simulation parameters except for the ``dt``:
 
 Here is a very brief explanation of some of the key parameters above:
 
+* ``use_mujoco_contacts``: Selects contact ownership. First-party
+  configurations set this to ``False`` so Newton's ``CollisionPipeline``
+  generates contacts and MJWarp resolves them. The public default remains
+  ``True`` during the deprecation window so
+  existing external configurations can temporarily retain MuJoCo's internal
+  collision path. New and migrated configurations should always set it to
+  ``False``. Standalone and coupled MJWarp managers call
+  :meth:`~isaaclab_newton.physics.MJWarpSolverCfg.validate_contact_mode`
+  before constructing the solver, so custom manager integrations should do the
+  same after applying any configuration overrides.
+
+* ``collision_cfg``: Configures Newton's contact generation, including broad
+  phase, contact reduction, and generation buffers. Move collision-specific
+  tuning here when migrating from MuJoCo's internal collision path. Its
+  ``rigid_contact_max`` field controls the first contact-capacity stage.
+
 * ``njmax``: This is the number of constraint rows MuJoCo-Warp pre-allocates for a
   given environment. A large value will slow down the simulation, while a too small
   value may lead to missing constraints.
 
-* ``nconmax``: This is the maximum number of contact points MuJoCo-Warp pre-allocates
-  for a given environment. Set it high enough for the expected contact count.
+* ``nconmax``: This is the contact capacity MJWarp accepts from Newton. It does
+  not size Newton's generation buffer; use ``collision_cfg.rigid_contact_max``
+  for that stage. Both limits must be large enough to avoid overflow warnings.
+
+* ``ccd_iterations``: Tunes GJK/EPA only on the deprecated MuJoCo internal
+  collision path. It does not configure Newton's collision pipeline.
 
 * ``ls_iterations``: The number of iterative line searches performed by the
   MuJoCo Warp solver. Line searches are used to find an acceptable step size,

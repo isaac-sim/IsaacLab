@@ -55,7 +55,7 @@ def sim():
     sim_cfg = SimulationCfg(
         dt=1.0 / 200.0,
         physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(),
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
             num_substeps=1,
         ),
     )

@@ -919,8 +919,8 @@ class NewtonManager(PhysicsManager):
     def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
         """Create a :class:`ModelBuilder` configured with default settings.
 
-        Forwards :class:`NewtonShapeCfg` defaults onto Newton's upstream
-        ``ModelBuilder.default_shape_cfg`` via :func:`~isaaclab.utils.checked_apply`.
+        Forwards :class:`NewtonShapeCfg` defaults and the configured mesh BVH
+        constructor onto Newton's upstream builder defaults.
         Falls back to wrapper defaults when no Newton config is active so
         rough-terrain margin/gap still apply during early construction.
 
@@ -930,7 +930,7 @@ class NewtonManager(PhysicsManager):
             **kwargs: Forwarded to :class:`ModelBuilder`.
 
         Returns:
-            New builder with up-axis and per-shape defaults (gap, margin) applied.
+            New builder with up-axis, per-shape defaults, and mesh BVH defaults applied.
         """
         # Resolve which NewtonShapeCfg to apply: user override if active config
         # is NewtonCfg, else the wrapper's own defaults so callers from non-Newton

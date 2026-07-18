@@ -48,13 +48,13 @@ class PhysicsCfg(PresetCfg):
     newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=40,
                 nconmax=20,
                 ls_iterations=20,
                 cone="pyramidal",
                 impratio=1,
                 integrator="implicitfast",
-                ccd_iterations=100,
             ),
             soft_solver_cfg=VBDSolverCfg(
                 iterations=10,

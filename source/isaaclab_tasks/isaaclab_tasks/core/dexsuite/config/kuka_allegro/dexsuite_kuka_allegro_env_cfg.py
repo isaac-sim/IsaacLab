@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import FeatherPGSSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -81,6 +83,35 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
 
 @configclass
 class KukaAllegroMixinCfg:
+    @configclass
+    class PhysicsCfg(dexsuite.PhysicsCfg):
+        """KUKA-Allegro solver presets owned by this task composition."""
+
+        feather_pgs = NewtonCfg(
+            solver_cfg=FeatherPGSSolverCfg(
+                pgs_mode="matrix_free",
+                update_mass_matrix_interval=2,
+                enable_joint_limits=True,
+                joint_limit_activation_gap=0.1,
+                pgs_iterations=8,
+                pgs_velocity_iterations=0,
+                dense_max_constraints=384,
+                mf_max_constraints=64,
+                hinv_jt_kernel="par_row",
+                pgs_warmstart=False,
+                pgs_omega=1.0,
+                pgs_beta=0.05,
+                pgs_cfm=1.0e-6,
+                serial_kernel_block_dim=64,
+                row_watermark=False,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(),
+            default_shape_cfg=NewtonShapeCfg(),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
+
     scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     rewards: KukaAllegroReorientRewardCfg = KukaAllegroReorientRewardCfg()
     observations: StateObservationCfg = StateObservationCfg()
@@ -88,6 +119,7 @@ class KukaAllegroMixinCfg:
 
     def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
         super().__post_init__()
+        self.sim.physics = self.PhysicsCfg()
         self.commands.object_pose.body_name = "palm_link"
         events = self.events.conditional_reset.params["terms"]
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")

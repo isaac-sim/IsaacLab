@@ -29,6 +29,7 @@ class UR10ReachEnvCfg(ReachEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=50,
                 nconmax=20,
                 cone="pyramidal",

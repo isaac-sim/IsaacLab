@@ -28,6 +28,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     _rigid_solver: SolverMuJoCo
     _soft_solver: SolverVBD
     _coupling_mode: str | None = None
+    _rigid_uses_mujoco_contacts: bool = False
 
     @classmethod
     def step(cls) -> None:
@@ -62,7 +63,10 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
 
         cls._coupling_mode = solver_cfg.coupling_mode
 
-        cls._rigid_solver = SolverMuJoCo(model, **cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg.rigid_solver_cfg))
+        rigid_solver_cfg = solver_cfg.rigid_solver_cfg
+        rigid_solver_cfg.validate_contact_mode()
+        cls._rigid_uses_mujoco_contacts = rigid_solver_cfg.use_mujoco_contacts
+        cls._rigid_solver = SolverMuJoCo(model, **cls._filter_solver_kwargs(SolverMuJoCo, rigid_solver_cfg))
         cls._soft_solver = SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg.soft_solver_cfg))
 
         # Dummy solver for the newtonmanager
@@ -81,7 +85,8 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
             state_in: Current state (read/write).
             state_out: Next state (write).
             control: Joint-level control inputs.
-            contacts: Ignored -- the solver uses its own internal contacts.
+            contacts: Newton contacts for VBD and external-contact rigid mode. Legacy internal-contact MJWarp receives
+                ``None`` instead.
             dt: Substep timestep [s].
         """
         if cls._coupling_mode == "one_way":
@@ -154,10 +159,11 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         saved_particle_count = model.particle_count
         model.particle_count = 0
 
-        cls._rigid_solver.step(state_in, state_out, control, None, dt)
-
-        # restore original settings
-        model.particle_count = saved_particle_count
+        rigid_contacts = None if cls._rigid_uses_mujoco_contacts else cls._contacts
+        try:
+            cls._rigid_solver.step(state_in, state_out, control, rigid_contacts, dt)
+        finally:
+            model.particle_count = saved_particle_count
 
     @classmethod
     def _apply_reactions(cls, state: State, state_prev: State, dt: float) -> None:

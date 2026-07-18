@@ -44,7 +44,7 @@ from isaaclab.utils.math import (
 
 NEWTON_SIM_CFG = SimulationCfg(
     physics=NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(),
+        solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
     ),
 )
 

@@ -213,6 +213,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
             dt=1 / 120.0,
             physics=NewtonCfg(
                 solver_cfg=MJWarpSolverCfg(
+                    use_mujoco_contacts=False,
                     njmax=80,
                     nconmax=25,
                     ls_iterations=15,

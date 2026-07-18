@@ -29,6 +29,7 @@ class CabinetDirectPhysicsCfg(PresetCfg):
     physx: PhysxCfg = PhysxCfg()
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
+            use_mujoco_contacts=False,
             integrator="implicitfast",
         ),
         num_substeps=1,

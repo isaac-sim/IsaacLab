@@ -143,11 +143,18 @@ The MJWarp + VBD deformable manager is a concrete example:
 The two-way MJWarp + VBD substep stays compact because it is expressed as a
 short coupling algorithm:
 
+The algorithm below describes the recommended and first-party external-contact
+mode, where ``rigid_solver_cfg.use_mujoco_contacts=False`` and Newton contacts
+are shared with both sub-solvers. If a configuration selects the deprecated
+``True`` mode, Newton contacts still drive deformable coupling and VBD, but the
+rigid step receives no external contacts and MJWarp performs rigid collision
+detection internally.
+
 .. admonition:: Algorithm: Two-Way MJWarp + VBD Substep
    :class: note
 
-   **Inputs:** rigid body state, deformable particle state, and the shared
-   Newton collision pipeline.
+   **Inputs:** rigid body state, deformable particle state, and contacts from
+   Newton's collision pipeline.
 
    **Output:** updated rigid body and deformable particle state for one Newton
    substep.
@@ -165,9 +172,11 @@ short coupling algorithm:
       bodies can be pushed back by the deformable contact penalties.
 
    4. **Advance the rigid solver.**
-      Step the MJWarp rigid solver with the coupled contact forces applied.
+      Step MJWarp with the Newton contacts in the configured external-contact mode.
+      The deprecated internal-contact mode instead passes no external contacts;
+      injected deformable reaction forces still affect the rigid bodies.
 
-   5. **Preserve shared contacts for the soft solve.**
+   5. **Preserve Newton contacts for the soft solve.**
       Clear particle forces written during the rigid step while keeping the
       detected contact information available.
 

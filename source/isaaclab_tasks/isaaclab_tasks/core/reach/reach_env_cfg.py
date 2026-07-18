@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import FeatherPGSSolverCfg, KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -34,6 +34,7 @@ class ReachPhysicsCfg(PresetCfg):
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
+            use_mujoco_contacts=False,
             njmax=50,
             nconmax=20,
             cone="pyramidal",
@@ -46,20 +47,6 @@ class ReachPhysicsCfg(PresetCfg):
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
     )
-    feather_pgs: NewtonCfg = NewtonCfg(
-        solver_cfg=FeatherPGSSolverCfg(
-            enable_joint_limits=True,
-            pgs_iterations=8,
-            pgs_beta=0.05,
-            pgs_cfm=1.0e-6,
-            dense_max_constraints=32,
-            mf_max_constraints=256,
-        ),
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=False,
-    )
-
     default = physx
 
 

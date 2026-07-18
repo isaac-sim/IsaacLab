@@ -63,6 +63,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         dt=1 / 120,
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=20,
                 nconmax=20,
                 integrator="implicitfast",

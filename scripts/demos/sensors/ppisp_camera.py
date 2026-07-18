@@ -186,7 +186,7 @@ def make_sim_cfg() -> sim_utils.SimulationCfg:
         from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
         from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
 
-        physics_cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
+        physics_cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False), num_substeps=1)
 
     return sim_utils.SimulationCfg(
         dt=0.005,

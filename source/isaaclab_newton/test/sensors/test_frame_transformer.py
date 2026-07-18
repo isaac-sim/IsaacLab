@@ -78,6 +78,7 @@ def sim():
         dt=1 / 120,
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=70,
                 nconmax=70,
                 ls_iterations=40,

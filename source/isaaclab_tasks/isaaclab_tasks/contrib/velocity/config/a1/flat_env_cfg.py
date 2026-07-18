@@ -16,7 +16,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg, preset
+from isaaclab_tasks.utils import PresetCfg
 
 from .rough_env_cfg import UnitreeA1RoughEnvCfg
 
@@ -26,6 +26,7 @@ class PhysicsCfg(PresetCfg):
     default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
+            use_mujoco_contacts=False,
             njmax=60,
             nconmax=30,
             cone="pyramidal",
@@ -37,17 +38,21 @@ class PhysicsCfg(PresetCfg):
     )
     feather_pgs = NewtonCfg(
         solver_cfg=FeatherPGSSolverCfg(
-            angular_damping=0.1,
+            pgs_mode="matrix_free",
             update_mass_matrix_interval=1,
             enable_joint_limits=True,
+            joint_limit_activation_gap=0.1,
             pgs_iterations=8,
+            pgs_velocity_iterations=0,
+            dense_max_constraints=64,
+            mf_max_constraints=512,
+            hinv_jt_kernel="auto",
+            pgs_warmstart=False,
+            pgs_omega=1.0,
             pgs_beta=0.05,
             pgs_cfm=1.0e-6,
-            pgs_omega=1.0,
-            dense_max_constraints=64,
-            pgs_warmstart=False,
-            pgs_mode="split",
-            mf_max_constraints=512,
+            serial_kernel_block_dim=64,
+            row_watermark=False,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
         num_substeps=1,
@@ -67,9 +72,6 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        self.scene.robot.actuators["base_legs"].armature = preset(
-            default=self.scene.robot.actuators["base_legs"].armature, feather_pgs=0.1
-        )
         # override rewards
         self.rewards.flat_orientation_l2.weight = -2.5
         self.rewards.feet_air_time.weight = 0.25

@@ -53,7 +53,11 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """Integrator type. Can be "euler", "rk4", or "implicitfast", or their corresponding MuJoCo integer constants."""
 
     use_mujoco_cpu: bool = False
-    """Whether to use the pure MuJoCo backend instead of `mujoco_warp`."""
+    """Whether to use the pure MuJoCo backend instead of `mujoco_warp`.
+
+    The CPU backend requires the deprecated internal contact pipeline and cannot consume contacts from Newton's
+    :class:`CollisionPipeline`.
+    """
 
     disable_contacts: bool = False
     """Whether to disable contact computation in MuJoCo."""
@@ -83,10 +87,11 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """The type of contact friction cone. Can be "pyramidal" or "elliptic"."""
 
     ccd_iterations: int = 35
-    """Maximum iterations for convex collision detection (GJK/EPA).
+    """Maximum iterations for the deprecated internal convex collision path (GJK/EPA).
 
-    Increase this if you see warnings about ``opt.ccd_iterations`` needing to be increased,
-    which typically occurs with complex collision geometries (e.g. multi-finger hands).
+    This field has no effect when ``use_mujoco_contacts=False``. On the legacy path, increase it if you see warnings
+    about ``opt.ccd_iterations`` needing to be increased, which typically occurs with complex collision geometries
+    such as multi-finger hands.
     """
 
     ls_parallel: bool = False
@@ -98,13 +103,19 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """
 
     use_mujoco_contacts: bool = True
-    """Whether to use MuJoCo's internal contact solver.
+    """Whether to use MuJoCo's deprecated internal contact pipeline.
 
-    If ``True`` (default), MuJoCo handles collision detection and contact resolution internally.
-    If ``False``, Newton's :class:`CollisionPipeline` is used instead.  A default pipeline
+    If ``False``, Newton's :class:`CollisionPipeline` generates contacts for MJWarp. A default pipeline
     (``broad_phase="explicit"``) is created automatically when :attr:`NewtonCfg.collision_cfg`
-    is ``None``.  Set :attr:`NewtonCfg.collision_cfg` to a :class:`NewtonCollisionPipelineCfg`
+    is ``None``. Set :attr:`NewtonCfg.collision_cfg` to a :class:`NewtonCollisionPipelineCfg`
     to customize pipeline parameters (broad phase, contact limits, hydroelastic, etc.).
+
+    If ``True``, MuJoCo handles collision detection internally. The default remains ``True`` only for
+    compatibility during the deprecation window; first-party configurations explicitly use ``False``.
+
+    .. deprecated::
+        MuJoCo's internal contact pipeline is deprecated. Set ``use_mujoco_contacts=False`` and configure
+        :attr:`NewtonCfg.collision_cfg` instead. The legacy path will be removed in a future release.
 
     .. note::
         Setting ``collision_cfg`` while ``use_mujoco_contacts=True`` raises
@@ -119,6 +130,28 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     satisfaction at the cost of more iterations.  MuJoCo default is ``1e-8``;
     Newton default is ``1e-6``.
     """
+
+    def validate_contact_mode(self) -> None:
+        """Validate the selected contact pipeline.
+
+        Warns:
+            DeprecationWarning: When MuJoCo's internal contact pipeline is selected.
+
+        Raises:
+            ValueError: When the MuJoCo CPU backend is combined with Newton-generated contacts.
+        """
+        if self.use_mujoco_contacts:
+            warnings.warn(
+                "MJWarpSolverCfg.use_mujoco_contacts=True selects MuJoCo's internal contact pipeline, which is "
+                "deprecated. Set use_mujoco_contacts=False and configure NewtonCfg.collision_cfg instead.",
+                DeprecationWarning,
+                stacklevel=6,
+            )
+        if self.use_mujoco_cpu and not self.use_mujoco_contacts:
+            raise ValueError(
+                "MJWarpSolverCfg.use_mujoco_cpu=True cannot consume Newton CollisionPipeline contacts; "
+                "set use_mujoco_contacts=True for the legacy CPU path."
+            )
 
     def __post_init__(self):
         if self.ls_parallel:

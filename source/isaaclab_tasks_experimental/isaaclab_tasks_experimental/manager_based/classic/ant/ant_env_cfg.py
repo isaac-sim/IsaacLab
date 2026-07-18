@@ -162,6 +162,7 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=38,
                 nconmax=15,
                 ls_iterations=10,

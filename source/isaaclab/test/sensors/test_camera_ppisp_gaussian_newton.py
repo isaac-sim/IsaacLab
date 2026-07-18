@@ -91,7 +91,7 @@ MULTI_TILE_COUNT = 4
 def _newton_sim_cfg(device: str) -> SimulationCfg:
     return SimulationCfg(
         dt=SIM_DT,
-        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1),
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False), num_substeps=1),
         device=device,
     )
 

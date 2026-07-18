@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
+import math
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import FeatherPGSSolverCfg, KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
@@ -63,6 +63,7 @@ class CabinetSimCfg(PresetCfg):
         render_interval=1,
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=90,
                 nconmax=100,
                 cone="pyramidal",
@@ -83,18 +84,25 @@ class CabinetSimCfg(PresetCfg):
         render_interval=1,
         physics=NewtonCfg(
             solver_cfg=FeatherPGSSolverCfg(
-                angular_damping=0.2,
+                pgs_mode="matrix_free",
+                update_mass_matrix_interval=1,
                 enable_joint_limits=True,
-                pgs_iterations=32,
-                pgs_beta=0.02,
-                pgs_cfm=1.0e-5,
+                joint_limit_activation_gap=math.inf,
+                pgs_iterations=8,
+                pgs_velocity_iterations=0,
+                dense_max_constraints=256,
+                mf_max_constraints=32,
+                hinv_jt_kernel="par_row",
+                pgs_warmstart=False,
                 pgs_omega=1.0,
-                dense_max_constraints=64,
-                mf_max_constraints=512,
+                pgs_beta=0.05,
+                pgs_cfm=1.0e-6,
+                serial_kernel_block_dim=64,
+                row_watermark=False,
             ),
             num_substeps=1,
             debug_mode=False,
-            use_cuda_graph=False,
+            use_cuda_graph=True,
         ),
     )
 

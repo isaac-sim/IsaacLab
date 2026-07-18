@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import inspect
 import math
 import sys
 from types import SimpleNamespace
@@ -18,11 +19,14 @@ from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 from isaaclab.cloner.usd import UsdReplicateContext
 
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
+from isaaclab_contrib.deformable.coupled_featherstone_vbd_manager import NewtonCoupledFeatherstoneVBDManager
+from isaaclab_contrib.deformable.coupled_mjwarp_vbd_manager import NewtonCoupledMJWarpVBDManager
 from isaaclab_contrib.deformable.deformable_object import (
     DeformableRegistryEntry,
     add_deformable_entry_to_builder,
     setup_registered_deformable_fabric_sync,
 )
+from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 class _FakeBuilder:
@@ -199,3 +203,15 @@ def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
 
     assert not _FakeManager.marked
     assert not _FakeManager.synced
+
+
+@pytest.mark.parametrize(
+    "manager_cls",
+    (NewtonVBDManager, NewtonCoupledFeatherstoneVBDManager, NewtonCoupledMJWarpVBDManager),
+)
+def test_deformable_manager_builder_overrides_use_manager_factory(manager_cls):
+    """Deformable managers must preserve manager-owned builder configuration."""
+    source = inspect.getsource(manager_cls.instantiate_builder_from_stage)
+
+    assert "ModelBuilder(" not in source
+    assert source.count("cls.create_builder(up_axis=up_axis)") == 2

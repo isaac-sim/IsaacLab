@@ -30,6 +30,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         dt=1 / 60,
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
+                use_mujoco_contacts=False,
                 njmax=50,
                 nconmax=20,
                 cone="pyramidal",
