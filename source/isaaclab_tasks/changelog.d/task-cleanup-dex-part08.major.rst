@@ -10,17 +10,14 @@ Added
   retraining).
 * Added a Newton physics preset to the manager-based Allegro environment.
 
-Deprecated
-^^^^^^^^^^
+Removed
+^^^^^^^
 
-* Deprecated the legacy manager-based reorientation configuration
-  :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`
-  and the manager terms only it consumes (:func:`~isaaclab_tasks.core.reorient.mdp.success_bonus`,
-  :func:`~isaaclab_tasks.core.reorient.mdp.track_pos_l2`,
-  :func:`~isaaclab_tasks.core.reorient.mdp.track_orientation_inv_l2`,
-  :func:`~isaaclab_tasks.core.reorient.mdp.max_consecutive_success`, and
-  :func:`~isaaclab_tasks.core.reorient.mdp.object_away_from_goal`) in favor of
-  the Direct-compatible manager configurations and terms (e.g.
+* Removed the legacy manager-based reorientation configuration
+  ``ReorientObjectEnvCfg`` and the manager terms only it consumed
+  (``success_bonus``, ``track_pos_l2``, ``track_orientation_inv_l2``,
+  ``max_consecutive_success``, and ``object_away_from_goal``). Use the
+  Direct-compatible manager configurations and terms instead (e.g.
   :class:`~isaaclab_tasks.core.reorient.mdp.ReorientReward` and
   :class:`~isaaclab_tasks.core.reorient.mdp.ReorientTimeout`).
 

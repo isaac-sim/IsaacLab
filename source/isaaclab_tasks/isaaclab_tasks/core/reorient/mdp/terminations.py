@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING
 
 import torch
@@ -20,71 +19,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
     from .commands import ReorientCommand
-
-
-def max_consecutive_success(env: ManagerBasedRLEnv, num_success: int, command_name: str) -> torch.Tensor:
-    """Check if the task has been completed consecutively for a certain number of times.
-
-    .. deprecated:: 9.0.0
-        Only consumed by the deprecated
-        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
-        Use :class:`ReorientTimeout` instead.
-
-    Args:
-        env: The environment object.
-        num_success: Threshold for the number of consecutive successes required.
-        command_name: The command term to be used for extracting the goal.
-    """
-    if not globals().get("_warned_max_consecutive_success"):
-        globals()["_warned_max_consecutive_success"] = True
-        warnings.warn(
-            "max_consecutive_success() is deprecated; use ReorientTimeout instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-    command_term: ReorientCommand = env.command_manager.get_term(command_name)
-
-    return command_term.metrics["consecutive_success"] >= num_success
-
-
-def object_away_from_goal(
-    env: ManagerBasedRLEnv,
-    threshold: float,
-    command_name: str,
-    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-) -> torch.Tensor:
-    """Check if object has gone far from the goal.
-
-    The object is considered to be out-of-reach if the distance between the goal and the object is greater
-    than the threshold.
-
-    .. deprecated:: 9.0.0
-        Only consumed by the deprecated
-        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
-        Use :class:`object_reorientation_out_of_reach` instead.
-
-    Args:
-        env: The environment object.
-        threshold: The threshold for the distance between the robot and the object.
-        command_name: The command term to be used for extracting the goal.
-        object_cfg: The configuration for the scene entity. Default is "object".
-    """
-    if not globals().get("_warned_object_away_from_goal"):
-        globals()["_warned_object_away_from_goal"] = True
-        warnings.warn(
-            "object_away_from_goal() is deprecated; use object_reorientation_out_of_reach instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-    # extract useful elements
-    command_term: ReorientCommand = env.command_manager.get_term(command_name)
-    asset = env.scene[object_cfg.name]
-
-    # object pos
-    asset_pos_e = asset.data.root_pos_w.torch - env.scene.env_origins
-    goal_pos_e = command_term.command[:, :3]
-
-    return torch.linalg.norm(asset_pos_e - goal_pos_e, ord=2, dim=1) > threshold
 
 
 class object_reorientation_out_of_reach(ManagerTermBase):

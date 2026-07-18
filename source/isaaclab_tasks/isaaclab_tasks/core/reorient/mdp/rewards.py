@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -21,123 +20,6 @@ from isaaclab_tasks.core.utils import EpisodeErrorRecorder
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-
-    from .commands import ReorientCommand
-
-
-def success_bonus(
-    env: ManagerBasedRLEnv, command_name: str, object_cfg: SceneEntityCfg = SceneEntityCfg("object")
-) -> torch.Tensor:
-    """Bonus reward for successfully reaching the goal.
-
-    .. deprecated:: 9.0.0
-        Only consumed by the deprecated
-        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
-        Use :class:`ReorientReward` instead.
-
-    The object is considered to have reached the goal when the object orientation is within the threshold.
-    The reward is 1.0 if the object has reached the goal, otherwise 0.0.
-
-    Args:
-        env: The environment object.
-        command_name: The command term to be used for extracting the goal.
-        object_cfg: The configuration for the scene entity. Default is "object".
-    """
-    if not getattr(success_bonus, "_deprecation_warned", False):
-        success_bonus._deprecation_warned = True
-        warnings.warn(
-            "success_bonus() is deprecated; use ReorientReward instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-    # extract useful elements
-    asset: RigidObject = env.scene[object_cfg.name]
-    command_term: ReorientCommand = env.command_manager.get_term(command_name)
-
-    # obtain the goal orientation
-    goal_quat_w = command_term.command[:, 3:7]
-    # obtain the threshold for the orientation error
-    threshold = command_term.cfg.orientation_success_threshold
-    # calculate the orientation error
-    dtheta = math_utils.quat_error_magnitude(asset.data.root_quat_w.torch, goal_quat_w)
-
-    return dtheta <= threshold
-
-
-def track_pos_l2(
-    env: ManagerBasedRLEnv, command_name: str, object_cfg: SceneEntityCfg = SceneEntityCfg("object")
-) -> torch.Tensor:
-    """Reward for tracking the object position using the L2 norm.
-
-    .. deprecated:: 9.0.0
-        Only consumed by the deprecated
-        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
-        Use :class:`ReorientReward` instead.
-
-    The reward is the distance between the object position and the goal position.
-
-    Args:
-        env: The environment object.
-        command_term: The command term to be used for extracting the goal.
-        object_cfg: The configuration for the scene entity. Default is "object".
-    """
-    if not getattr(track_pos_l2, "_deprecation_warned", False):
-        track_pos_l2._deprecation_warned = True
-        warnings.warn(
-            "track_pos_l2() is deprecated; use ReorientReward instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-    # extract useful elements
-    asset: RigidObject = env.scene[object_cfg.name]
-    command_term: ReorientCommand = env.command_manager.get_term(command_name)
-
-    # obtain the goal position
-    goal_pos_e = command_term.command[:, 0:3]
-    # obtain the object position in the environment frame
-    object_pos_e = asset.data.root_pos_w.torch - env.scene.env_origins
-
-    return torch.linalg.norm(goal_pos_e - object_pos_e, ord=2, dim=-1)
-
-
-def track_orientation_inv_l2(
-    env: ManagerBasedRLEnv,
-    command_name: str,
-    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-    rot_eps: float = 1e-3,
-) -> torch.Tensor:
-    """Reward for tracking the object orientation using the inverse of the orientation error.
-
-    .. deprecated:: 9.0.0
-        Only consumed by the deprecated
-        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
-        Use :class:`ReorientReward` instead.
-
-    The reward is the inverse of the orientation error between the object orientation and the goal orientation.
-
-    Args:
-        env: The environment object.
-        command_name: The command term to be used for extracting the goal.
-        object_cfg: The configuration for the scene entity. Default is "object".
-        rot_eps: The threshold for the orientation error. Default is 1e-3.
-    """
-    if not getattr(track_orientation_inv_l2, "_deprecation_warned", False):
-        track_orientation_inv_l2._deprecation_warned = True
-        warnings.warn(
-            "track_orientation_inv_l2() is deprecated; use ReorientReward instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-    # extract useful elements
-    asset: RigidObject = env.scene[object_cfg.name]
-    command_term: ReorientCommand = env.command_manager.get_term(command_name)
-
-    # obtain the goal orientation
-    goal_quat_w = command_term.command[:, 3:7]
-    # calculate the orientation error
-    dtheta = math_utils.quat_error_magnitude(asset.data.root_quat_w.torch, goal_quat_w)
-
-    return 1.0 / (dtheta + rot_eps)
 
 
 @torch.jit.script
