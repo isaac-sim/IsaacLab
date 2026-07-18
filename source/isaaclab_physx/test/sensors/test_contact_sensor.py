@@ -519,19 +519,23 @@ def test_contact_sensor_filter_same_name_geometry_child(setup_simulation, device
             env_xform = UsdGeom.Xform.Define(stage, env_path)
             env_xform.AddTranslateOp().Set(Gf.Vec3d(3.0 * env_id, 0.0, 0.0))
 
-            # Sensor subject: a simple kinematic rigid body cube.
+            # Sensor subject: an Xform rigid body with a separate geometry child.
+            # RigidBodyAPI must be on the Xform parent, not the geometry prim itself,
+            # so PhysX can resolve the body for the contact view.
             cube_path = f"{env_path}/Cube"
-            cube = UsdGeom.Cube.Define(stage, cube_path)
-            cube_rb = UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+            cube_xform = UsdGeom.Xform.Define(stage, cube_path)
+            cube_rb = UsdPhysics.RigidBodyAPI.Apply(cube_xform.GetPrim())
             cube_rb.CreateKinematicEnabledAttr(True)
-            UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+            cube_geom = UsdGeom.Cube.Define(stage, f"{cube_path}/geom")
+            cube_geom.GetSizeAttr().Set(0.5)
+            UsdPhysics.CollisionAPI.Apply(cube_geom.GetPrim())
 
             # Filter target: a link prim (Table) whose collision geometry is nested
             # under a child prim with the same name — the URDF-to-USD import pattern.
             table_path = f"{env_path}/Table"
             table_xform = UsdGeom.Xform.Define(stage, table_path)
             table_xform.AddTranslateOp().Set(Gf.Vec3d(0.0, 1.0, 0.0))
-            table_rb = UsdPhysics.RigidBodyAPI.Apply(stage.GetPrimAtPath(table_path))
+            table_rb = UsdPhysics.RigidBodyAPI.Apply(table_xform.GetPrim())
             table_rb.CreateKinematicEnabledAttr(True)
             # Geometry child shares the parent link name — this is what triggers the bug.
             table_geom_path = f"{table_path}/Table"
