@@ -76,11 +76,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
-        # Forward render_mode to VideoRecorderCfg before super().__init__() creates the VideoRecorder,
-        # so fallback cameras are only spawned when --video is active (env_render_mode="rgb_array").
-        if cfg.video_recorder is not None:
-            cfg.video_recorder.env_render_mode = render_mode
-
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
@@ -301,6 +296,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
+        # -- advance video recorders (after render and resets, before final obs)
+        for recorder in self.video_recorders:
+            recorder.step()
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
         self.obs_buf = self.observation_manager.compute(update_history=True)
@@ -335,12 +333,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
-        if self.render_mode == "human" or self.render_mode is None:
+        if self.render_mode == "human" or self.render_mode is None or self.render_mode == "rgb_array":
             return None
-        elif self.render_mode == "rgb_array":
-            if self.video_recorder is None:
-                return None
-            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."

@@ -3,51 +3,51 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`.
-
-Captures a single wide-angle perspective view of the scene. Newton backends use the
-Newton GL viewer; Kit backends use the ``/OmniverseKit_Persp`` camera via
-``omni.replicator.core``.
-"""
+"""Configuration for video recording from visualizers and scene sensors."""
 
 from __future__ import annotations
 
-from typing import Literal
-
 from isaaclab.utils.configclass import configclass
-
-from .video_recorder import VideoRecorder
 
 
 @configclass
 class VideoRecorderCfg:
-    """Configuration for :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`."""
+    """Configuration for one video recording stream.
 
-    class_type: type = VideoRecorder
-    """Recorder class to instantiate; must accept ``(cfg, scene)``."""
+    A recording stream captures frames from a *source* — either an active visualizer
+    (interactive or tiled camera) or a named scene sensor — and writes them to an mp4
+    clip file.  Multiple ``VideoRecorderCfg`` entries on an env cfg produce independent
+    simultaneous streams.
 
-    env_render_mode: str | None = None
-    """Gym render mode forwarded from the environment constructor (``"rgb_array"`` when ``--video`` is active).
+    Source string format
+    --------------------
+    * ``"visualizer"``               – first active recording-capable visualizer, interactive camera.
+    * ``"visualizer:kit"``           – Kit visualizer, interactive viewport camera.
+    * ``"visualizer:newton"``        – Newton GL visualizer, interactive camera.
+    * ``"visualizer:newton/tiled"``  – Newton GL visualizer, tiled camera panel.
+    * ``"sensor:<name>"``            – ``env.scene.sensors[<name>]``, rgb channel.
+    * ``"sensor:<name>/depth"``      – same sensor, depth channel.
 
-    Set automatically by the environment base classes; do not set manually.
+    The camera position and window resolution are configured on the visualizer cfg
+    (e.g. :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`), not here.
     """
 
-    backend_source: Literal["visualizer", "renderer"] = "visualizer"
-    """Source used to resolve the video capture backend.
+    source: str = "visualizer"
+    """Recording source.  See class docstring for the source string format."""
 
-    ``"visualizer"`` records from the active Kit or Newton visualizer when one is enabled, and falls back to the
-    physics/renderer stack otherwise. ``"renderer"`` ignores active visualizers and records from the backend implied by
-    the physics/renderer stack.
-    """
+    output_dir: str = "videos"
+    """Directory for output mp4 files (created on demand, relative to the working directory)."""
 
-    window_width: int = 1280
-    """Width of the recorded frame in pixels.
+    fps: int = 30
+    """Output video frame rate in frames per second."""
 
-    Visualizer-selected Newton capture uses the active visualizer width instead.
-    """
+    clip_length: int = 200
+    """Number of env steps captured per clip."""
 
-    window_height: int = 720
-    """Height of the recorded frame in pixels.
+    clip_trigger_step: int = 0
+    """Start a new clip every ``clip_trigger_step`` env steps.
 
-    Visualizer-selected Newton capture uses the active visualizer height instead.
+    ``0`` means a single clip is started at the first step and the recorder is inactive
+    afterwards (useful for fixed-length episode captures).  Set to a positive integer to
+    record recurring clips spaced by that many env steps.
     """

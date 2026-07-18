@@ -161,5 +161,9 @@ class ManagerBasedEnvCfg:
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
-    video_recorder: VideoRecorderCfg = VideoRecorderCfg()
-    """Configuration for video recording when ``render_mode="rgb_array"`` (i.e. ``--video``)."""
+    video_recorders: list[VideoRecorderCfg] = []
+    """Video recording streams. Each entry records from its configured source independently.
+
+    Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list
+    with a default stream from the active visualizer.
+    """

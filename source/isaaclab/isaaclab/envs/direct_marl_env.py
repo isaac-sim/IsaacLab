@@ -164,15 +164,7 @@ class DirectMARLEnv(gym.Env):
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
-        # Instantiate the video recorder before sim.reset() so that any fallback Camera
-        # (used for state-based envs without an observation camera) is spawned into the USD
-        # stage and registered for the PHYSICS_READY callback before physics initialises.
-        # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
-        if self.cfg.video_recorder is not None:
-            self.cfg.video_recorder.env_render_mode = render_mode
-            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
-        else:
-            self.video_recorder = None
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -577,12 +569,8 @@ class DirectMARLEnv(gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
-        if self.render_mode == "human" or self.render_mode is None:
+        if self.render_mode == "human" or self.render_mode is None or self.render_mode == "rgb_array":
             return None
-        elif self.render_mode == "rgb_array":
-            if self.video_recorder is None:
-                return None
-            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
@@ -599,6 +587,10 @@ class DirectMARLEnv(gym.Env):
             if isinstance(getattr(self, "obs_dict", None), dict):
                 self.obs_dict.clear()
             self.state_buf = None
+
+            # flush any buffered video frames
+            for recorder in getattr(self, "video_recorders", []):
+                recorder.close()
 
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references

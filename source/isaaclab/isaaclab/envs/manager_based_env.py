@@ -184,15 +184,7 @@ class ManagerBasedEnv:
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
-        # Instantiate the video recorder before sim.reset() so that any fallback Camera
-        # (used for state-based envs without an observation camera) is spawned into the USD
-        # stage and registered for the PHYSICS_READY callback before physics initialises.
-        # env_render_mode and eye/lookat are forwarded by subclasses (e.g. ManagerBasedRLEnv)
-        # into cfg.video_recorder before calling super().__init__().
-        if self.cfg.video_recorder is not None:
-            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
-        else:
-            self.video_recorder = None
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -610,6 +602,10 @@ class ManagerBasedEnv:
             # gymnasium's wrapper chain.
             if isinstance(getattr(self, "obs_buf", None), dict):
                 self.obs_buf.clear()
+
+            # flush any buffered video frames
+            for recorder in getattr(self, "video_recorders", []):
+                recorder.close()
 
             # destructor is order-sensitive
             del self.action_manager

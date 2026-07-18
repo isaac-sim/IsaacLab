@@ -270,23 +270,9 @@ class DirectRLEnvCfg:
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
-    video_recorder: VideoRecorderCfg = VideoRecorderCfg()
-    """Configuration for video recording when ``render_mode="rgb_array"`` (i.e. ``--video``)."""
+    video_recorders: list[VideoRecorderCfg] = []
+    """Video recording streams. Each entry records from its configured source independently.
 
-    def play_mode(self):
-        """Adjust the configuration for interactive playback and policy inference.
-
-        Play scripts call this method after the configuration is fully initialized (i.e. after
-        :meth:`__post_init__`) unless the user requests the training configuration as-is.
-        The base implementation applies defaults that are useful for most tasks:
-
-        * caps the number of environments at 50 to keep the scene lightweight, and
-        * disables the observation noise model.
-
-        Override this method in a task configuration to customize playback behavior. Call
-        ``super().play_mode()`` to keep the shared defaults.
-        """
-        # make a smaller scene for play
-        self.scene.num_envs = min(self.scene.num_envs, 50)
-        # disable observation noise for play
-        self.observation_noise_model = None
+    Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list
+    with a default stream from the active visualizer.
+    """

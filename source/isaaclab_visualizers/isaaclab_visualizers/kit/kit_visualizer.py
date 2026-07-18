@@ -78,6 +78,9 @@ class KitVisualizer(BaseVisualizer):
         self._runtime_headless = bool(cfg.headless)
         # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
         self._controlled_camera_path: str | None = None
+        # Lazy Replicator render product + annotator for render_rgb_array().
+        self._rgb_render_product = None
+        self._rgb_annotator = None
         self._camera_sensor = None
         self._camera_sensor_indices: list[int] = []
         self._camera_env_indices: list[int] = []
@@ -195,8 +198,56 @@ class KitVisualizer(BaseVisualizer):
         self._simulation_app = None
         self._viewport_window = None
         self._viewport_api = None
+        import contextlib
+
+        if self._rgb_annotator is not None:
+            with contextlib.suppress(Exception):
+                self._rgb_annotator.detach()
+        if self._rgb_render_product is not None:
+            with contextlib.suppress(Exception):
+                self._rgb_render_product.destroy()
+        self._rgb_annotator = None
+        self._rgb_render_product = None
         self._is_initialized = False
         self._is_closed = True
+
+    def render_rgb_array(self) -> np.ndarray:
+        """Return an RGB frame captured from the Kit viewport camera.
+
+        Uses the Replicator annotator bound to the controlled camera prim
+        (``/OmniverseKit_Persp`` by default). Lazily creates the render product
+        and annotator on the first call. Returns a blank frame while the RTX
+        pipeline warms up.
+
+        Returns:
+            RGB image array of shape ``(window_height, window_width, 3)``, dtype ``uint8``.
+        """
+        import omni.kit.app
+        import omni.replicator.core as rep
+
+        camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
+        w, h = self.cfg.window_width, self.cfg.window_height
+
+        settings = get_settings_manager()
+        play_flag = settings.get("/app/player/playSimulations")
+        settings.set_bool("/app/player/playSimulations", False)
+        omni.kit.app.get_app().update()
+        settings.set_bool("/app/player/playSimulations", bool(play_flag))
+
+        if self._rgb_annotator is None:
+            self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
+            self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
+            self._rgb_annotator.attach([self._rgb_render_product])
+
+        raw = self._rgb_annotator.get_data()
+        if isinstance(raw, dict):
+            raw = raw.get("data", np.array([], dtype=np.uint8))
+        raw = np.asarray(raw, dtype=np.uint8)
+        if raw.size == 0:
+            return np.zeros((h, w, 3), dtype=np.uint8)
+        if raw.ndim == 1:
+            raw = raw.reshape(h, w, -1)
+        return raw[:, :, :3]
 
     # ---- Capabilities ---------------------------------------------------------------------
 
