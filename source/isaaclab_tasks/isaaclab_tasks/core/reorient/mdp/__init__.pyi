@@ -6,6 +6,9 @@
 __all__ = [
     "NoisyEMAJointPositionToLimitsAction",
     "NoisyEMAJointPositionToLimitsActionCfg",
+    "ShadowHandCameraFeatures",
+    "shadow_hand_camera_cached_features",
+    "shadow_hand_goal_keypoints",
     "ReorientCommand",
     "ReorientCommandCfg",
     "ReorientEpisodeCommand",
@@ -38,6 +41,9 @@ from .actions import (
     NoisyEMAJointPositionToLimitsActionCfg,
 )
 from .observations import (
+    ShadowHandCameraFeatures,
+    shadow_hand_camera_cached_features,
+    shadow_hand_goal_keypoints,
     OpenAIPolicyObservation,
     fingertip_pos,
     fingertip_quat,
