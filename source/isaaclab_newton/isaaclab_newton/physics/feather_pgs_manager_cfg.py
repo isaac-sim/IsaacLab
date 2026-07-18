@@ -115,6 +115,12 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     pgs_warmstart: bool = False
     """Whether to warm-start impulses from the previous frame."""
 
+    mf_warmstart: bool = False
+    """Whether to reuse matched matrix-free contact impulses from the previous frame."""
+
+    mf_warmstart_decay: float = 1.0
+    """Scale applied to matched matrix-free contact impulses before reuse."""
+
     pgs_mode: Literal["dense", "split", "matrix_free"] = "split"
     """Constraint solve layout.
 

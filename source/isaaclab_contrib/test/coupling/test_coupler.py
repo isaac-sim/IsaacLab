@@ -177,7 +177,12 @@ def test_config_validation_requires_newton_solver_config():
             "post-step projection",
         ),
         (MPMSolverCfg(), {}, ValueError, "must set in_place=True"),
-        (MJWarpSolverCfg(use_mujoco_cpu=True), {}, NotImplementedError, "reset-mask lifecycle"),
+        (
+            MJWarpSolverCfg(use_mujoco_contacts=False, use_mujoco_cpu=True),
+            {},
+            NotImplementedError,
+            "reset-mask lifecycle",
+        ),
     ],
 )
 def test_config_validation_rejects_unsupported_nested_lifecycle(solver_cfg, entry_kwargs, error_type, match):
@@ -459,7 +464,7 @@ def test_entry_build_uses_solver_config_class_type():
 @pytest.mark.parametrize(
     "solver_cfg",
     [
-        MJWarpSolverCfg(),
+        MJWarpSolverCfg(use_mujoco_contacts=False),
         XPBDSolverCfg(),
         FeatherstoneSolverCfg(),
         FeatherPGSSolverCfg(),
@@ -596,7 +601,7 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
         resolved_entries[0].config.solver_cfg = MPMSolverCfg()
         resolved_entries[0].config.in_place = True
     else:
-        resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
+        resolved_entries[0].config.solver_cfg = MJWarpSolverCfg(use_mujoco_contacts=False)
 
     for attribute in (
         "_solver",

@@ -31,11 +31,9 @@ Covers:
 from __future__ import annotations
 
 import inspect
-import typing
 from types import SimpleNamespace
 from unittest import mock
 
-import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
@@ -198,42 +196,6 @@ def test_newton_cfg_post_init_propagates_class_type(
     """``NewtonCfg.__post_init__`` lifts ``solver_cfg.class_type`` onto ``NewtonCfg.class_type``."""
     cfg = NewtonCfg(solver_cfg=solver_cfg_factory())
     assert cfg.class_type.__name__ == expected_manager.__name__
-
-
-def test_newton_cfg_mesh_bvh_constructor_type_exposes_all_supported_values():
-    """The public type must expose every triangle-mesh BVH constructor supported by Newton."""
-    module = inspect.getmodule(NewtonCfg)
-    assert module is not None
-    annotation = inspect.get_annotations(
-        NewtonCfg,
-        globals={**vars(module), "NewtonManager": NewtonManager, "PhysicsManager": PhysicsManager},
-        eval_str=True,
-    )["mesh_bvh_constructor"]
-    literal = next(member for member in typing.get_args(annotation) if typing.get_origin(member) is typing.Literal)
-
-    assert set(typing.get_args(literal)) == {"lbvh", "sah", "median", "cubql"}
-    assert type(None) in typing.get_args(annotation)
-
-
-@pytest.mark.parametrize("mesh_bvh_constructor", [None, "sah", "median"])
-def test_create_builder_applies_mesh_bvh_constructor_to_main_and_prototype_builders(monkeypatch, mesh_bvh_constructor):
-    """Main and prototype builders must share the manager-owned mesh BVH constructor."""
-    upstream_mesh_bvh_constructor = newton_manager_module.ModelBuilder().default_bvh_cfg.mesh_constructor
-    if mesh_bvh_constructor is None:
-        cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False))
-    else:
-        cfg = NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
-            mesh_bvh_constructor=mesh_bvh_constructor,
-        )
-    monkeypatch.setattr(PhysicsManager, "_cfg", cfg)
-
-    main_builder = NewtonManager.create_builder()
-    prototype_builder = NewtonManager.create_builder()
-    expected = upstream_mesh_bvh_constructor if mesh_bvh_constructor is None else mesh_bvh_constructor
-
-    assert main_builder.default_bvh_cfg.mesh_constructor == expected
-    assert prototype_builder.default_bvh_cfg.mesh_constructor == expected
 
 
 @pytest.mark.parametrize(
@@ -526,7 +488,6 @@ def test_mpm_cuda_graph_capture_supports_only_fixed_grid(monkeypatch, grid_type,
 
 def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     """Sparse/dense MPM should not enter a CUDA graph capture window."""
-    from isaaclab.physics import PhysicsManager
 
     monkeypatch.setattr(
         PhysicsManager,
@@ -547,7 +508,6 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     """CUDA graph capture should use the simulation device instead of Warp's default device."""
-    from isaaclab.physics import PhysicsManager
 
     captured_devices = []
     captured_graph = object()

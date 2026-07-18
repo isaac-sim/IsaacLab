@@ -170,13 +170,6 @@ class NewtonCfg(PhysicsCfg):
     :class:`NewtonShapeCfg` for the declared fields.
     """
 
-    mesh_bvh_constructor: Literal["lbvh", "sah", "median", "cubql"] | None = None
-    """BVH constructor used for triangle meshes.
-
-    Supported constructors are ``"lbvh"``, ``"sah"``, ``"median"``, and ``"cubql"``. Forwarded to Newton's
-    :attr:`ModelBuilder.default_bvh_cfg` for every builder. When ``None``, Newton selects its default constructor.
-    """
-
     simplify_meshes: bool = True
     """Whether Newton replication simplifies mesh colliders to convex hulls.
 

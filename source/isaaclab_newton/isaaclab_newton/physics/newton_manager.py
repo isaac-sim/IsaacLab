@@ -947,8 +947,6 @@ class NewtonManager(PhysicsManager):
         cls._register_builder_attributes(builder)
         shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()
         checked_apply(shape_cfg, builder.default_shape_cfg)
-        if isinstance(cfg, NewtonCfg) and cfg.mesh_bvh_constructor is not None:
-            builder.default_bvh_cfg.mesh_constructor = cfg.mesh_bvh_constructor
         return builder
 
     @classmethod

@@ -121,7 +121,6 @@ class PhysicsCfg(PresetCfg):
                 cone="pyramidal",
                 impratio=1,
                 integrator="implicitfast",
-                ccd_iterations=100,
             ),
             soft_solver_cfg=VBDSolverCfg(
                 iterations=10,
