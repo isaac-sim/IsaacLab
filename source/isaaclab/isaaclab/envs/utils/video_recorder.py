@@ -47,10 +47,32 @@ def _select_video_backend(scene: InteractiveScene, backend_source: str) -> tuple
 
     if backend_source == "visualizer":
         visualizer_cfgs = scene.sim._resolve_visualizer_cfgs()
-        for visualizer_type, backend in (("kit", "kit"), ("newton", "newton_gl")):
+        physics_backend = scene.sim.physics_manager.video_capture_backend()
+
+        if physics_backend != "newton_gl":
+            # PhysX: Kit Replicator and Newton GL visualizers both supported.
+            for visualizer_type, backend in (("kit", "kit"), ("newton", "newton_gl")):
+                for visualizer_cfg in visualizer_cfgs:
+                    if visualizer_cfg.visualizer_type == visualizer_type:
+                        return backend, visualizer_cfg
+        else:
+            # Newton physics: Kit Replicator recording does not work because
+            # Newton's Fabric transform writes do not trigger RTX's scene
+            # delegate — the annotator buffer stays black. Use Newton GL
+            # capture instead (from an active Newton visualizer if present,
+            # or standalone otherwise).
             for visualizer_cfg in visualizer_cfgs:
-                if visualizer_cfg.visualizer_type == visualizer_type:
-                    return backend, visualizer_cfg
+                if visualizer_cfg.visualizer_type == "newton":
+                    return "newton_gl", visualizer_cfg
+            kit_requested = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in visualizer_cfgs)
+            if kit_requested:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Kit Replicator recording is not supported with Newton physics "
+                    "(Newton Fabric writes do not notify the RTX scene delegate). "
+                    "Falling back to standalone Newton GL capture."
+                )
 
     backend = scene.sim.physics_manager.video_capture_backend()
     if backend is not None:

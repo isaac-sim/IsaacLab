@@ -80,6 +80,28 @@ def test_resolve_backend_selects_newton_visualizer():
     assert visualizer_cfg is newton_cfg
 
 
+def test_kit_visualizer_falls_back_to_newton_gl_when_newton_physics():
+    """Kit visualizer is skipped for Newton physics; falls back to Newton GL standalone."""
+    kit_cfg = _make_visualizer_cfg("kit")
+    scene = _make_scene([kit_cfg], video_backend="newton_gl")
+
+    backend, visualizer_cfg = _select_video_backend(scene, "visualizer")
+
+    assert backend == "newton_gl"
+    assert visualizer_cfg is None
+
+
+def test_kit_visualizer_is_used_when_physx_physics():
+    """Kit visualizer is still preferred when PhysX is the physics backend."""
+    kit_cfg = _make_visualizer_cfg("kit")
+    scene = _make_scene([kit_cfg], video_backend="kit")
+
+    backend, visualizer_cfg = _select_video_backend(scene, "visualizer")
+
+    assert backend == "kit"
+    assert visualizer_cfg is kit_cfg
+
+
 def test_resolve_backend_renderer_source_ignores_visualizers():
     """Renderer source bypasses active visualizers and falls through to physics manager."""
     newton_cfg = _make_visualizer_cfg("newton")

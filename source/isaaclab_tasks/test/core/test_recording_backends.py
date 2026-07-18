@@ -7,34 +7,29 @@
 
 ``_select_video_backend`` has three dispatch paths:
 
-1. ``"kit"`` visualizer present    → Kit Replicator capture (IsaacsimKitPerspectiveVideo)
-2. ``"newton"`` visualizer present → Newton GL framebuffer  (NewtonGLVisualizer.render_rgb_array)
-3. Neither above (any other visualizer or no visualizer)
+1. ``"kit"`` visualizer present + PhysX → Kit Replicator capture (IsaacsimKitPerspectiveVideo)
+2. ``"newton"`` visualizer present      → Newton GL framebuffer  (NewtonGLVisualizer.render_rgb_array)
+3. Neither above, OR Kit visualizer with Newton physics
    → physics manager video_capture_backend():
      "kit"        → standalone Kit capture
      "newton_gl"  → standalone Newton GL capture
      None         → RuntimeError (not tested here; covered by test_video_recorder.py)
 
+When Newton is the physics backend, Kit Replicator recording is skipped
+(Newton Fabric writes do not notify RTX's scene delegate, producing black frames).
+_select_video_backend falls back to Newton GL standalone with a logged warning.
+
 Path 3 fallthrough (Rerun, Viser, NewtonRTX visualizer types) is covered at the
 unit level by test_video_recorder.py::test_resolve_backend_unsupported_visualizer_falls_back.
-NewtonRTXVisualizerCfg is not yet a factory-registered type and cannot be
-instantiated as a visualizer, so it has no integration test here.
-
-Known limitation (xfail): Kit Replicator recording does not produce frames when
-Newton is the physics backend. Kit recording relies on
-``ensure_isaac_rtx_render_update`` called by the PhysX manager's render
-callback; when Newton is active that callback is absent, so the render product
-buffer stays zeroed even though the Kit visualizer pumps ``app.update()``.
-Tracked as a known gap — not a regression introduced by this re-arch.
 
 Setup:
     - AppLauncher(headless=True, enable_cameras=True)
     - CartpoleEnv (DirectRLEnv, 1 env) as the test vehicle.
 Tests:
     - KitVisualizerCfg + PhysX + backend_source="visualizer"
-      -> Kit Replicator capture (path 1, PhysX physics) [passes]
+      -> Kit Replicator capture (path 1) [passes]
     - KitVisualizerCfg + Newton + backend_source="visualizer"
-      -> Kit Replicator capture (path 1, Newton physics) [xfail: see above]
+      -> Newton GL standalone (path 3 fallback: Kit skipped for Newton physics) [passes]
     - NewtonGLVisualizerCfg + Newton + backend_source="visualizer"
       -> Newton GL framebuffer capture (path 2) [passes]
     - PhysX + backend_source="renderer"
@@ -130,17 +125,13 @@ def test_kit_visualizer_physx_source_records_rgb():
     _assert_valid_frame(frame, "kit-visualizer-physx")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Kit Replicator recording produces a zero buffer when Newton is the physics backend. "
-        "The PhysX manager registers an ensure_isaac_rtx_render_update render callback that "
-        "primes the render product; Newton does not, so the buffer stays zeroed even though "
-        "the Kit visualizer pumps app.update(). Known gap — not a regression of this re-arch."
-    ),
-)
 def test_kit_visualizer_newton_source_records_rgb():
-    """Kit visualizer + Newton physics → Kit Replicator capture stays all-black (known limitation)."""
+    """Kit visualizer + Newton + backend_source='visualizer' → Newton GL standalone (Kit skipped for Newton).
+
+    Kit Replicator recording does not work with Newton physics because Newton Fabric
+    writes do not notify RTX's scene delegate. _select_video_backend detects Newton
+    and falls back to standalone Newton GL capture with a logged warning.
+    """
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
@@ -158,13 +149,13 @@ def test_kit_visualizer_newton_source_records_rgb():
 
 
 def test_newton_gl_visualizer_source_records_rgb():
-    """NewtonGLVisualizerCfg + Newton + backend_source='visualizer' → Newton GL framebuffer capture."""
+    """NewtonVisualizerCfg + Newton + backend_source='visualizer' → Newton GL framebuffer capture."""
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
     env_cfg = _cartpole_cfg(backend_source="visualizer")
     env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
-    env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(window_width=_W, window_height=_H)]
+    env_cfg.sim.visualizer_cfgs = [NewtonVisualizerCfg(window_width=_W, window_height=_H)]
 
     frame = _capture_frame(env_cfg)
     _assert_valid_frame(frame, "newton-gl-visualizer-source")
