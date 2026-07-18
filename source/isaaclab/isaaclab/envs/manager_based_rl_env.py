@@ -143,12 +143,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Wire manager terms into live plots for all active visualizer backends.
+        """Wire manager terms and episode metrics into live plots for all active visualizer backends.
 
         Calls :meth:`~isaaclab.visualizers.BaseVisualizer.add_live_plots` on every visualizer
-        registered with the simulation context.  For the Kit backend this also populates
-        :attr:`manager_visualizers` with :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer`
-        instances so that :class:`~isaaclab.envs.ui.BaseEnvWindow` can build the omni.ui panels.
+        registered with the simulation context.  In addition to manager terms, registers
+        ``episode/mean_reward`` and ``episode/episode_length`` as direct scalar sources so
+        that top-level training metrics are always visible alongside per-term breakdowns.
+        For the Kit backend this also populates :attr:`manager_visualizers` with
+        :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` instances so that
+        :class:`~isaaclab.envs.ui.BaseEnvWindow` can build the omni.ui panels.
         """
         managers = {
             "action_manager": self.action_manager,
@@ -158,8 +161,16 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             "reward_manager": self.reward_manager,
             "curriculum_manager": self.curriculum_manager,
         }
+        scalars = {
+            "episode": {
+                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
+                if getattr(self, "reward_buf", None) is not None
+                else 0.0,
+                "episode_length": lambda: float(self.episode_length_buf.float().mean()),
+            }
+        }
         for viz in self.sim.visualizers:
-            viz.add_live_plots(managers)
+            viz.add_live_plots(managers, scalars=scalars)
         # Populate manager_visualizers for the Kit window (BaseEnvWindow reads this attribute).
         self.manager_visualizers = {
             name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()

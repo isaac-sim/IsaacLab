@@ -136,15 +136,13 @@ class NewtonViewerRerun(ViewerRerun):
     def _get_blueprint(self):
         """Return a per-manager blueprint when live plots are registered, else the default.
 
-        Each per-manager :class:`~rerun.blueprint.TimeSeriesView` is visible by default.
+        Each per-manager :class:`~rerun.blueprint.TimeSeriesView` starts visible.
         Individual views can be toggled from the Rerun viewer's blueprint panel.
         The stored :attr:`_camera_pose` is forwarded to :class:`~rerun.blueprint.EyeControls3D`
         so the camera position is preserved when the live-plot blueprint replaces the initial one.
         """
         if self._live_plot_manager_names:
-            manager_views = [
-                rrb.TimeSeriesView(name=name, origin=f"/{name}", visible=True) for name in self._live_plot_manager_names
-            ]
+            manager_views = [rrb.TimeSeriesView(name=name, origin=f"/{name}") for name in self._live_plot_manager_names]
             eye_controls = None
             if self._camera_pose is not None:
                 cam_pos, cam_target = self._camera_pose
@@ -153,7 +151,7 @@ class NewtonViewerRerun(ViewerRerun):
                 rrb.Horizontal(
                     rrb.Spatial3DView(eye_controls=eye_controls),
                     rrb.Vertical(*manager_views),
-                    column_shares=[3, 1],
+                    column_shares=[4, 1],
                 ),
                 rrb.TimePanel(timeline="time", state="collapsed"),
                 collapse_panels=True,
@@ -426,6 +424,7 @@ class RerunVisualizer(BaseVisualizer):
     def add_live_plots(
         self,
         managers: dict,
+        scalars: dict | None = None,
         term_names: dict[str, list[str]] | None = None,
         env_idx: int = 0,
     ) -> None:
@@ -438,10 +437,12 @@ class RerunVisualizer(BaseVisualizer):
 
         Args:
             managers: Mapping of manager name to manager instance.
+            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
+                Each callable must take no arguments and return a numeric value.
             term_names: Optional per-manager allowlists of term names to include.
             env_idx: Environment index to sample each step.  Defaults to ``0``.
         """
-        super().add_live_plots(managers, term_names=term_names, env_idx=env_idx)
+        super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
         if self._viewer is None or not self._live_plot_sources:
             return
         # Enable scalar history now that live plots are registered so scalars accumulate as

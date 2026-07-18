@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend-agnostic data collector for manager-term live plots."""
+"""Backend-agnostic data collectors for live plots."""
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -103,4 +104,42 @@ class ManagerLivePlots:
                     result[term_name] = arr
         except Exception:
             logger.debug("[ManagerLivePlots] Failed to collect images from %s.", self.manager_name, exc_info=True)
+        return result
+
+
+class DirectScalarLivePlots:
+    """Collects scalar values from zero-argument callables for live plotting.
+
+    Used to wire non-manager metrics (e.g. per-step reward mean, episode length) into the
+    same live-plot pipeline as :class:`ManagerLivePlots`.  Each callable is invoked once
+    per :meth:`collect` call and must return a numeric value.
+    """
+
+    def __init__(self, manager_name: str, scalars: dict[str, Callable[[], float]]):
+        """Initialize the direct scalar collector.
+
+        Args:
+            manager_name: Label used as the plot group/namespace prefix in the UI.
+            scalars: Mapping from term name to a zero-argument callable that returns the
+                current scalar value.
+        """
+        self.manager_name = manager_name
+        self._scalars = scalars
+
+    def collect(self, env_idx: int) -> dict[str, list[float]]:
+        """Return the current value of each registered scalar.
+
+        Args:
+            env_idx: Environment index (unused; present for API compatibility with
+                :class:`ManagerLivePlots`).
+
+        Returns:
+            Mapping from term name to a single-element list containing the scalar value.
+        """
+        result: dict[str, list[float]] = {}
+        for name, fn in self._scalars.items():
+            try:
+                result[name] = [float(fn())]
+            except Exception:
+                logger.debug("[DirectScalarLivePlots] Failed to collect '%s'.", name, exc_info=True)
         return result

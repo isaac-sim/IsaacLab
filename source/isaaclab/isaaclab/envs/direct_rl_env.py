@@ -289,6 +289,9 @@ class DirectRLEnv(gym.Env):
             if self.cfg.num_rerenders_on_reset == 0:
                 self.cfg.num_rerenders_on_reset = 1
 
+        # wire episode metrics into live plots for standalone visualizer backends
+        self.setup_direct_visualizers()
+
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
@@ -559,6 +562,25 @@ class DirectRLEnv(gym.Env):
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
             )
+
+    def setup_direct_visualizers(self):
+        """Wire episode metrics into live plots for all active visualizer backends.
+
+        Registers ``episode/mean_reward`` and ``episode/episode_length`` as direct scalar
+        sources so that top-level training metrics are visible in the live-plot panels of
+        Newton, Rerun, and Viser visualizers.  Mirrors the equivalent hook in
+        :meth:`~isaaclab.envs.ManagerBasedRLEnv.setup_manager_visualizers`.
+        """
+        scalars = {
+            "episode": {
+                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
+                if getattr(self, "reward_buf", None) is not None
+                else 0.0,
+                "episode_length": lambda: float(self.episode_length_buf.float().mean()),
+            }
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots({}, scalars=scalars)
 
     def close(self):
         """Cleanup for the environment."""

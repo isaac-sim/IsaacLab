@@ -145,17 +145,22 @@ class BaseVisualizer(ABC):
     def add_live_plots(
         self,
         managers: dict[str, ManagerBase],
+        scalars: dict[str, dict[str, Any]] | None = None,
         term_names: dict[str, list[str]] | None = None,
         env_idx: int = 0,
     ) -> None:
-        """Register environment managers as live-plot data sources.
+        """Register environment managers and direct scalars as live-plot data sources.
 
-        Creates one :class:`~isaaclab.ui.live_plots.ManagerLivePlots` per manager and stores
-        them for use inside :meth:`_render_live_plots`.  Does nothing when
+        Creates one :class:`~isaaclab.ui.live_plots.ManagerLivePlots` per manager and one
+        :class:`~isaaclab.ui.live_plots.DirectScalarLivePlots` per scalar group, storing all
+        sources for use inside :meth:`_render_live_plots`.  Does nothing when
         :meth:`supports_live_plots` returns ``False`` or ``cfg.enable_live_plots`` is ``False``.
 
         Args:
             managers: Mapping of manager name to manager instance.
+            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
+                Each callable must take no arguments and return a numeric value.  Used to
+                plot non-manager metrics such as episode reward or episode length.
             term_names: Optional per-manager allowlists of term names to include.
                 ``None`` (default) collects all terms for every manager.
             env_idx: Environment index to sample each step.  Defaults to ``0``.
@@ -164,9 +169,15 @@ class BaseVisualizer(ABC):
             return
         if not getattr(self.cfg, "enable_live_plots", True):
             return
-        from isaaclab.ui.live_plots.manager_live_plots import ManagerLivePlots
+        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
 
-        self._live_plot_sources = [
+        # Scalar groups (e.g. episode metrics) are placed first so they appear at
+        # the top of every visualizer's plot list regardless of backend ordering.
+        self._live_plot_sources = []
+        if scalars:
+            for group_name, scalar_dict in scalars.items():
+                self._live_plot_sources.append(DirectScalarLivePlots(group_name, scalar_dict))
+        self._live_plot_sources += [
             ManagerLivePlots(name, mgr, (term_names or {}).get(name)) for name, mgr in managers.items()
         ]
         self._live_plot_env_idx = env_idx

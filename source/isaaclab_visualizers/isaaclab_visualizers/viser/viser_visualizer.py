@@ -37,6 +37,15 @@ if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
 
 
+def _scalar_base_name(name: str) -> str:
+    """Strip a trailing ``[N]`` component index from a scalar name to get the term base name."""
+    if name.endswith("]") and "[" in name:
+        bracket = name.rfind("[")
+        if name[bracket + 1 : -1].isdigit():
+            return name[:bracket]
+    return name
+
+
 def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
     """Skip viser's runtime frontend rebuild when a bundled build is present."""
     try:
@@ -123,6 +132,7 @@ class NewtonViewerViser(ViewerViser):
         self._metadata = metadata or {}
         self._isaaclab_plane_grid_cache: dict[str, tuple] = {}
         self._per_plot_folders: dict[str, Any] = {}
+        self._live_plots_folder: Any = None
 
     @property
     def share_url(self) -> str | None:
@@ -141,6 +151,11 @@ class NewtonViewerViser(ViewerViser):
                 with contextlib.suppress(Exception):
                     folder.remove()
             per_plot_folders.clear()
+        live_plots_folder = getattr(self, "_live_plots_folder", None)
+        if live_plots_folder is not None:
+            with contextlib.suppress(Exception):
+                live_plots_folder.remove()
+            self._live_plots_folder = None
 
     @staticmethod
     def _array_signature(array) -> tuple[tuple[int, ...], bytes] | None:
@@ -208,44 +223,80 @@ class NewtonViewerViser(ViewerViser):
         )
 
     def _update_scalar_plots(self) -> None:
-        """Create one collapsible folder per scalar signal, named after the term it shows."""
-        # Relies on private ViewerViser attributes (_plot_history_size, _scalar_buffers,
-        # _scalar_dirty, _plot_handles, _plot_folder) to mirror the base implementation
-        # with per-term folders instead of a shared "Plots" folder.  If Newton refactors
-        # these internals, this override should be updated or removed.
+        """Create one collapsible folder per term, with one multi-series chart per term.
+
+        Components of the same term (e.g. ``joint_pos[0]``, ``joint_pos[1]``) are grouped
+        onto a single uPlot chart as separate series, matching the Kit visualizer's per-term
+        grouping.  Single-value terms get a chart with one data series.
+
+        Relies on private ViewerViser attributes (_plot_history_size, _scalar_buffers,
+        _scalar_dirty, _plot_handles, _plot_folder).  If Newton refactors these internals
+        this override should be updated or removed.
+        """
         if not self._scalar_dirty:
             return
         try:
             from viser import uplot
 
+            _SERIES_COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#f97316", "#06b6d4"]
+
             n = self._plot_history_size
             x = np.arange(n, dtype=np.float64)
-            for name in list(self._scalar_dirty):
-                buf = self._scalar_buffers.get(name)
-                if buf is None:
+
+            # Identify which term groups (base names) have at least one dirty component.
+            dirty_bases: set[str] = {_scalar_base_name(name) for name in self._scalar_dirty}
+
+            # Collect all known scalars grouped by base term name (insertion order preserved).
+            all_groups: dict[str, list[str]] = {}
+            for name in self._scalar_buffers:
+                base = _scalar_base_name(name)
+                all_groups.setdefault(base, []).append(name)
+
+            for base_name, names in all_groups.items():
+                if base_name not in dirty_bases:
                     continue
-                y = np.full(n, np.nan, dtype=np.float64)
-                y[n - len(buf) :] = np.array(buf, dtype=np.float64)
-                handle = self._plot_handles.get(name)
+
+                # Build per-component y arrays.
+                ys = []
+                for name in names:
+                    buf = self._scalar_buffers.get(name)
+                    y = np.full(n, np.nan, dtype=np.float64)
+                    if buf:
+                        y[n - len(buf) :] = np.array(buf, dtype=np.float64)
+                    ys.append(y)
+                data = (x, *ys)
+
+                handle = self._plot_handles.get(names[0])
                 if handle is None:
-                    folder_label = name.rsplit("/", 1)[-1]
-                    folder = self._server.gui.add_folder(folder_label)
-                    self._per_plot_folders[name] = folder
+                    folder_label = base_name.rsplit("/", 1)[-1]
+                    parent = self._live_plots_folder if self._live_plots_folder is not None else self._server.gui
+                    with parent:
+                        folder = self._server.gui.add_folder(folder_label, expand_by_default=False)
+                    self._per_plot_folders[base_name] = folder
                     if self._plot_folder is None:
                         self._plot_folder = folder
+
+                    series_list = [uplot.Series(show=False)]
+                    for i, name in enumerate(names):
+                        suffix = name[len(base_name) :]  # "" for scalar, "[0]" etc. for vector
+                        series_list.append(
+                            uplot.Series(
+                                label=suffix if suffix else folder_label,
+                                stroke=_SERIES_COLORS[i % len(_SERIES_COLORS)],
+                                width=1,
+                            )
+                        )
                     with folder:
                         handle = self._server.gui.add_uplot(
-                            data=(x, y),
-                            series=(
-                                uplot.Series(label="step"),
-                                uplot.Series(label=folder_label, stroke="#3b82f6", width=2),
-                            ),
+                            data=data,
+                            series=tuple(series_list),
                             scales={"x": uplot.Scale(time=False)},
-                            aspect=2.0,
+                            aspect=1.33,
                         )
-                    self._plot_handles[name] = handle
+                    for name in names:
+                        self._plot_handles[name] = handle
                 else:
-                    handle.data = (x, y)
+                    handle.data = data
         except Exception:
             pass
         self._scalar_dirty.clear()
@@ -396,6 +447,7 @@ class ViserVisualizer(BaseVisualizer):
     def add_live_plots(
         self,
         managers: dict,
+        scalars: dict | None = None,
         term_names: dict[str, list[str]] | None = None,
         env_idx: int = 0,
     ) -> None:
@@ -407,10 +459,12 @@ class ViserVisualizer(BaseVisualizer):
 
         Args:
             managers: Mapping of manager name to manager instance.
+            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
+                Each callable must take no arguments and return a numeric value.
             term_names: Optional per-manager allowlists of term names to include.
             env_idx: Environment index to sample each step.  Defaults to ``0``.
         """
-        super().add_live_plots(managers, term_names=term_names, env_idx=env_idx)
+        super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
 
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to the Viser viewer's per-term plot folders."""
@@ -457,6 +511,10 @@ class ViserVisualizer(BaseVisualizer):
             )
         num_envs = int((metadata or {}).get("num_envs", 0))
         self._viewer.set_model(self._model)
+        # Set up sidebar AFTER set_model() — set_model calls clear_model() internally,
+        # which would destroy any GUI elements created before it.
+        if server is not None:
+            self._setup_isaaclab_sidebar(server)
         apply_viewer_visible_worlds(
             self._viewer,
             env_ids=self._env_ids,
@@ -470,6 +528,47 @@ class ViserVisualizer(BaseVisualizer):
         initial_pose = self._resolve_initial_camera_pose()
         self._set_viser_camera_view(initial_pose)
         self._sim_time = 0.0
+
+    def _setup_isaaclab_sidebar(self, server) -> None:
+        """Configure the Viser sidebar as the Isaac Lab panel.
+
+        The panel is renamed to ``Isaac Lab``.  ``Live Plots`` and
+        ``Visualization Markers`` are added as top-level collapsed folders
+        directly inside the panel alongside the physics backend label.
+        """
+        viewer = self._viewer
+        with contextlib.suppress(Exception):
+            server.gui.set_panel_label("Isaac Lab")
+
+            live_plots_folder = server.gui.add_folder("Live Plots", expand_by_default=False)
+            viewer._live_plots_folder = live_plots_folder
+
+            vis_folder = server.gui.add_folder("Visualization Markers", expand_by_default=False)
+
+            _VIZ_FLAGS = [
+                ("Joints", "show_joints"),
+                ("Contacts", "show_contacts"),
+                ("Center of Mass", "show_com"),
+                ("Particles", "show_particles"),
+                ("Visual", "show_visual"),
+                ("Collision", "show_collision"),
+                ("Springs", "show_springs"),
+                ("Cloth", "show_triangles"),
+                ("Inertia Boxes", "show_inertia_boxes"),
+            ]
+            with vis_folder:
+                for label, attr in _VIZ_FLAGS:
+                    if not hasattr(viewer, attr):
+                        continue
+                    cb = server.gui.add_checkbox(label, initial_value=getattr(viewer, attr, False))
+
+                    def _make_cb(a=attr):
+                        @cb.on_update
+                        def _(event, _attr=a):
+                            with contextlib.suppress(Exception):
+                                setattr(viewer, _attr, event.target.value)
+
+                    _make_cb()
 
     def _close_viewer(self, finalize_viser: bool = False) -> None:
         """Close viewer and log recording output when requested."""
