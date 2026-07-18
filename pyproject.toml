@@ -167,7 +167,7 @@ torchaudio = "2.11.0"
 ovphysx = "0.5.2+head.f62c22207c"
 ovrtx = ">=0.3.0,<0.4.0"
 # FeatherPGS Newton fork commit + matching warp-lang prerelease (upgraded together).
-newton = "186502cec5db4b80a4cc235c9a6f5e4266ee2c07"
+newton = "aae676fee7b08c945aa2746f673fb924f2e12c22"
 warp = "1.15.0.dev20260626"
 
 [tool.ruff]
@@ -334,7 +334,7 @@ prerelease = "allow"
 # the CUDA indexes via [tool.uv.sources]. Values mirror [tool.isaaclab.versions] above.
 override-dependencies = [
     "numpy>=2",
-    "newton[sim] @ git+https://github.com/ooctipus/newton.git@186502cec5db4b80a4cc235c9a6f5e4266ee2c07",
+    "newton[sim] @ git+https://github.com/ooctipus/newton.git@aae676fee7b08c945aa2746f673fb924f2e12c22",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.3.1",
     "torch==2.11.0",
