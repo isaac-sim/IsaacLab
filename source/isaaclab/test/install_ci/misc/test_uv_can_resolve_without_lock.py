@@ -22,7 +22,7 @@ from utils import run_cmd
 
 @pytest.mark.uv
 @pytest.mark.smoke
-class Test_Uv_Fresh_Resolution_Smoke:
+class Test_Uv_Can_Resolve_Without_Lock:
     """A fresh, full-graph resolution must succeed from the public indexes.
 
     ``uv lock --upgrade --dry-run`` re-resolves every dependency, extra, and platform
