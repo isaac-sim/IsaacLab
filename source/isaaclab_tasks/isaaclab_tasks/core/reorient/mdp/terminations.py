@@ -95,23 +95,3 @@ class ReorientTimeout(ManagerTermBase):
         reward_term: ReorientReward = env.reward_manager.get_term_cfg(reward_name).func
         max_success_reached = reward_term.successes >= max_successes
         return (env.episode_length_buf >= env.max_episode_length - 1) | max_success_reached
-
-
-class object_away_from_robot(ManagerTermBase):
-    """Terminate when the object is farther than the threshold [m] from the robot."""
-
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-
-    def __call__(
-        self,
-        env: ManagerBasedRLEnv,
-        threshold: float,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-        object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-    ) -> torch.Tensor:
-        """Return per-environment termination flags."""
-        robot = env.scene[asset_cfg.name]
-        obj = env.scene[object_cfg.name]
-        distance = torch.linalg.norm(robot.data.root_pos_w.torch - obj.data.root_pos_w.torch, ord=2, dim=-1)
-        return distance > threshold

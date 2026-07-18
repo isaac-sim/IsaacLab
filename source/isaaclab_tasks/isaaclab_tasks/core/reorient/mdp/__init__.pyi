@@ -24,7 +24,6 @@ __all__ = [
     "evaluate_reorient_success",
     "reorient_reward",
     "ReorientReward",
-    "object_away_from_robot",
     "object_reorientation_out_of_reach",
     "ReorientTimeout",
 ]
@@ -54,7 +53,6 @@ from .rewards import (
 )
 from .terminations import (
     ReorientTimeout,
-    object_away_from_robot,
     object_reorientation_out_of_reach,
 )
 from isaaclab.envs.mdp import *

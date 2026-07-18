@@ -16,8 +16,9 @@ Removed
 * Removed the legacy manager-based reorientation configuration
   ``ReorientObjectEnvCfg`` and the manager terms only it consumed
   (``success_bonus``, ``track_pos_l2``, ``track_orientation_inv_l2``,
-  ``max_consecutive_success``, and ``object_away_from_goal``). Use the
-  Direct-compatible manager configurations and terms instead (e.g.
+  ``max_consecutive_success``, ``object_away_from_goal``, and
+  ``object_away_from_robot``). Use the Direct-compatible manager
+  configurations and terms instead (e.g.
   :class:`~isaaclab_tasks.core.reorient.mdp.ReorientReward` and
   :class:`~isaaclab_tasks.core.reorient.mdp.ReorientTimeout`).
 
