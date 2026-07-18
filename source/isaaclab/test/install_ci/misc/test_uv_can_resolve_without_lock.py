@@ -36,9 +36,8 @@ class Test_Uv_Can_Resolve_Without_Lock:
     the next dependency change.
 
     Complements the neighbouring checks: ``test_uv_lock_check_smoke`` validates the
-    committed lock is current, the ``uv_run/`` tests validate the committed lock
-    installs and trains, and ``test_uv_universal_resolution_smoke`` covers the base
-    dependencies only (no extras).
+    committed lock is current, and the ``uv_run/`` tests validate the committed lock
+    installs and trains.
     """
 
     @classmethod
