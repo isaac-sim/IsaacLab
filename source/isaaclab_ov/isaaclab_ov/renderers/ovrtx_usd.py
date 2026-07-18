@@ -120,13 +120,23 @@ def build_render_scope_usd(
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
         render_var_configs: Render variables to author. Uses the single render var arguments if not provided.
         background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
-            When set, the render product uses ``"color"`` as the background source type.
-            When ``None``, the default ``"domeLight"`` background is used.
+            When set, the render product uses a solid color background instead of the dome light.
+            When ``None``, the default dome-light background is used.
 
     Returns:
         The USD string for the render scope.
     """
     camera_rel_list = ", ".join([f"<{p}>" for p in camera_paths])
+
+    if background_color is None:
+        bg_attrs = ['token omni:rtx:background:source:type = "domeLight"']
+    else:
+        r, g, b = background_color
+        bg_attrs = [
+            'token omni:rtx:background:source:type = "color"',
+            f"float3 omni:rtx:background:source:color = ({r}, {g}, {b})",
+        ]
+    background_lines = "\n        ".join(bg_attrs)
 
     if minimal_mode is None:
         render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
@@ -147,16 +157,6 @@ def build_render_scope_usd(
         }}'''
         for _, name, source in render_var_configs
     )
-
-    if background_color is not None:
-        r, g, b = (max(0.0, min(1.0, c)) for c in background_color)
-        background_lines = (
-            f'token omni:rtx:background:source:type = "color"\n'
-            f"        float3 omni:rtx:background:source:color = ({r}, {g}, {b})"
-        )
-    else:
-        # Do not set background source type, so that the default dome light is used.
-        background_lines = 'token omni:rtx:background:source:type = "domeLight"'
 
     return f'''
 def Scope "Render"
