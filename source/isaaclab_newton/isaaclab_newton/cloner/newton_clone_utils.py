@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -48,33 +49,71 @@ def build_source_builders(
     ignore_paths: Sequence[str] | None = None,
     simplify_meshes: bool = True,
 ) -> dict[str, ModelBuilder]:
-    """Build one Newton builder for each clone source prim path."""
-    builders: dict[str, ModelBuilder] = {}
+    """Build one Newton builder for each clone source prim path.
+
+    USD-authored ``physics:approximation`` modes are honored. Exception: when the
+    honored modes leave multiple sources with differing shape-type sequences (e.g.
+    heterogeneous asset variants), every mesh falls back to the uniform convex-hull
+    treatment, because :class:`SolverMuJoCo` requires homogeneous worlds.
+    """
     authored_prim_paths = _authored_approximation_prim_paths(stage)
-    for source in sources:
-        builder = create_builder()
-        solvers.SolverMuJoCo.register_custom_attributes(builder)
-        solvers.SolverKamino.register_custom_attributes(builder)
-        import_result = builder.add_usd(
-            stage,
-            root_path=source,
-            load_visual_shapes=True,
-            # Preserve explicitly authored USD collision approximations.
-            skip_mesh_approximation=False,
-            schema_resolvers=schema_resolvers,
-            ignore_paths=ignore_paths,
+    builders = {
+        source: _build_source_builder(
+            stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, authored_prim_paths
         )
-        if simplify_meshes:
-            path_shape_map = import_result["path_shape_map"]
-            authored_shape_indices = {path_shape_map[path] for path in authored_prim_paths if path in path_shape_map}
-            builder.approximate_meshes(
-                "convex_hull",
-                shape_indices=_unauthored_collision_mesh_shapes(builder, authored_shape_indices),
-                keep_visual_shapes=True,
+        for source in sources
+    }
+
+    shape_sequences = {tuple(int(t) for t in b.shape_type) for b in builders.values()}
+    if authored_prim_paths and simplify_meshes and len(shape_sequences) > 1:
+        warnings.warn(
+            "Clone sources have differing collision shape sequences after honoring authored"
+            " physics:approximation modes, which SolverMuJoCo's homogeneous-worlds requirement"
+            " does not support. Falling back to uniform convex-hull approximation for all"
+            " collision meshes.",
+            stacklevel=2,
+        )
+        builders = {
+            source: _build_source_builder(
+                stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, set()
             )
-        replace_newton_builder_shape_colors(builder, stage)
-        builders[source] = builder
+            for source in sources
+        }
     return builders
+
+
+def _build_source_builder(
+    stage: Usd.Stage,
+    source: str,
+    create_builder: Callable[[], ModelBuilder],
+    schema_resolvers: Sequence[Any],
+    ignore_paths: Sequence[str] | None,
+    simplify_meshes: bool,
+    authored_prim_paths: set[str],
+) -> ModelBuilder:
+    """Build one source builder; an empty ``authored_prim_paths`` restores hull-everything."""
+    builder = create_builder()
+    solvers.SolverMuJoCo.register_custom_attributes(builder)
+    solvers.SolverKamino.register_custom_attributes(builder)
+    import_result = builder.add_usd(
+        stage,
+        root_path=source,
+        load_visual_shapes=True,
+        # Preserve explicitly authored USD collision approximations.
+        skip_mesh_approximation=not authored_prim_paths,
+        schema_resolvers=schema_resolvers,
+        ignore_paths=ignore_paths,
+    )
+    if simplify_meshes:
+        path_shape_map = import_result["path_shape_map"]
+        authored_shape_indices = {path_shape_map[path] for path in authored_prim_paths if path in path_shape_map}
+        builder.approximate_meshes(
+            "convex_hull",
+            shape_indices=_unauthored_collision_mesh_shapes(builder, authored_shape_indices),
+            keep_visual_shapes=True,
+        )
+    replace_newton_builder_shape_colors(builder, stage)
+    return builder
 
 
 def replicate_builder_mapping(

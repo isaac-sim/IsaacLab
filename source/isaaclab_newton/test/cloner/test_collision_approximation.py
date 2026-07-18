@@ -60,15 +60,31 @@ def _collision_shapes(builder: newton.ModelBuilder) -> dict[str, GeoType]:
     }
 
 
-def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
-    builders = build_source_builders(
+def _make_two_source_stage(approximation_a: str | None, approximation_b: str | None) -> tuple[Usd.Stage, list[str]]:
+    """Two rigid-body sources, each with one L-prism collision mesh."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    sources = ["/World/AssetA", "/World/AssetB"]
+    for source, approximation in zip(sources, (approximation_a, approximation_b)):
+        xform = UsdGeom.Xform.Define(stage, source)
+        UsdPhysics.RigidBodyAPI.Apply(xform.GetPrim())
+        _add_l_prism(stage, f"{source}/geom", approximation)
+    return stage, sources
+
+
+def _build_sources(stage: Usd.Stage, sources: list[str], **kwargs) -> dict[str, newton.ModelBuilder]:
+    return build_source_builders(
         stage,
-        [_SOURCE],
+        sources,
         create_builder=lambda: newton.ModelBuilder(up_axis=newton.Axis.Z),
         schema_resolvers=[],
         **kwargs,
     )
-    return builders[_SOURCE]
+
+
+def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
+    return _build_sources(stage, [_SOURCE], **kwargs)[_SOURCE]
 
 
 class TestClonerCollisionApproximation:
@@ -115,3 +131,26 @@ class TestClonerCollisionApproximation:
         # The authored "none" mesh keeps its raw trimesh; the unauthored sibling is hulled.
         assert shapes[f"{_SOURCE}/geom"] == GeoType.MESH
         assert shapes[f"{_SOURCE}/geom_plain"] == GeoType.CONVEX_MESH
+
+    def test_heterogeneous_sources_fall_back_to_uniform_hulls(self):
+        """Differing shape sequences across sources revert to hull-everything with a warning.
+
+        SolverMuJoCo requires homogeneous worlds, so honoring authored modes that make
+        clone sources structurally different would break solver initialization.
+        """
+        stage, sources = _make_two_source_stage("boundingSphere", None)
+
+        with pytest.warns(UserWarning, match="homogeneous-worlds"):
+            builders = _build_sources(stage, sources)
+
+        for source in sources:
+            assert list(_collision_shapes(builders[source]).values()) == [GeoType.CONVEX_MESH]
+
+    def test_heterogeneous_sources_with_equal_sequences_stay_honored(self):
+        """Identically authored sources keep their authored modes (no fallback)."""
+        stage, sources = _make_two_source_stage("boundingSphere", "boundingSphere")
+
+        builders = _build_sources(stage, sources)
+
+        for source in sources:
+            assert list(_collision_shapes(builders[source]).values()) == [GeoType.SPHERE]
