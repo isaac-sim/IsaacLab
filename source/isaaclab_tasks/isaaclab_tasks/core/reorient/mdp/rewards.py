@@ -7,12 +7,16 @@
 
 from __future__ import annotations
 
+import warnings
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
 import isaaclab.utils.math as math_utils
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+
+from isaaclab_tasks.core.utils import EpisodeErrorRecorder
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
@@ -26,6 +30,11 @@ def success_bonus(
 ) -> torch.Tensor:
     """Bonus reward for successfully reaching the goal.
 
+    .. deprecated:: 9.0.0
+        Only consumed by the deprecated
+        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
+        Use :class:`ReorientReward` instead.
+
     The object is considered to have reached the goal when the object orientation is within the threshold.
     The reward is 1.0 if the object has reached the goal, otherwise 0.0.
 
@@ -34,6 +43,13 @@ def success_bonus(
         command_name: The command term to be used for extracting the goal.
         object_cfg: The configuration for the scene entity. Default is "object".
     """
+    if not getattr(success_bonus, "_deprecation_warned", False):
+        success_bonus._deprecation_warned = True
+        warnings.warn(
+            "success_bonus() is deprecated; use ReorientReward instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     # extract useful elements
     asset: RigidObject = env.scene[object_cfg.name]
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
@@ -53,6 +69,11 @@ def track_pos_l2(
 ) -> torch.Tensor:
     """Reward for tracking the object position using the L2 norm.
 
+    .. deprecated:: 9.0.0
+        Only consumed by the deprecated
+        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
+        Use :class:`ReorientReward` instead.
+
     The reward is the distance between the object position and the goal position.
 
     Args:
@@ -60,6 +81,13 @@ def track_pos_l2(
         command_term: The command term to be used for extracting the goal.
         object_cfg: The configuration for the scene entity. Default is "object".
     """
+    if not getattr(track_pos_l2, "_deprecation_warned", False):
+        track_pos_l2._deprecation_warned = True
+        warnings.warn(
+            "track_pos_l2() is deprecated; use ReorientReward instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     # extract useful elements
     asset: RigidObject = env.scene[object_cfg.name]
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
@@ -80,6 +108,11 @@ def track_orientation_inv_l2(
 ) -> torch.Tensor:
     """Reward for tracking the object orientation using the inverse of the orientation error.
 
+    .. deprecated:: 9.0.0
+        Only consumed by the deprecated
+        :class:`~isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`.
+        Use :class:`ReorientReward` instead.
+
     The reward is the inverse of the orientation error between the object orientation and the goal orientation.
 
     Args:
@@ -88,6 +121,13 @@ def track_orientation_inv_l2(
         object_cfg: The configuration for the scene entity. Default is "object".
         rot_eps: The threshold for the orientation error. Default is 1e-3.
     """
+    if not getattr(track_orientation_inv_l2, "_deprecation_warned", False):
+        track_orientation_inv_l2._deprecation_warned = True
+        warnings.warn(
+            "track_orientation_inv_l2() is deprecated; use ReorientReward instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     # extract useful elements
     asset: RigidObject = env.scene[object_cfg.name]
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
@@ -194,3 +234,87 @@ def reorient_reward(
         consecutive_successes,
     )
     return reward, goal_resets, successes, consecutive_successes
+
+
+class ReorientReward(ManagerTermBase):
+    """Compute reorientation rewards with sticky per-episode success accounting.
+
+    Matches the reward semantics of the Direct-workflow implementation
+    (:class:`~isaaclab_tasks.core.reorient.reorient_direct_env.ReorientDirectEnv`).
+    The scalar task parameters arrive as term params, set at the configuration
+    declaration site to match the Direct environment's values.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._successes = torch.zeros(self.num_envs, device=self.device)
+        self._consecutive_successes = torch.zeros(1, device=self.device)
+        self._orientation_error = EpisodeErrorRecorder(self.num_envs, self.device)
+
+    @property
+    def successes(self) -> torch.Tensor:
+        """Goals reached in each current episode."""
+        return self._successes
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        if env_ids is None:
+            env_ids = slice(None)
+        threshold = self.cfg.params["success_count_threshold"]
+        # 0-dim device tensor: avoids a host sync here; consumers read it at logging cadence
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
+            (self._successes[env_ids] >= threshold).float().mean()
+        )
+        for statistic, value in self._orientation_error.reset(env_ids).items():
+            self._env.extras["log"][f"Diagnostics/episode_min_orientation_error_{statistic}"] = value
+        self._successes[env_ids] = 0.0
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        distance_scale: float,
+        rotation_scale: float,
+        rotation_epsilon: float,
+        action_penalty_scale: float,
+        success_tolerance: float,
+        success_bonus: float,
+        fall_distance: float,
+        fall_penalty: float,
+        averaging_factor: float,
+        success_count_threshold: int,
+        action_name: str | None = None,
+        object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ) -> torch.Tensor:
+        del success_count_threshold  # consumed in __init__ (used by reset())
+        asset: RigidObject = env.scene[object_cfg.name]
+        command = env.command_manager.get_command(command_name)
+        object_pos = asset.data.root_pos_w.torch - env.scene.env_origins
+        actions = (
+            env.action_manager.action if action_name is None else env.action_manager.get_term(action_name).raw_actions
+        )
+        # single per-step success evaluation: the recorder and the reward reuse it
+        goal_reached, orientation_error = evaluate_reorient_success(
+            asset.data.root_quat_w.torch, command[:, 3:7], success_tolerance
+        )
+        self._orientation_error.update(orientation_error)
+        reward, _, self._successes, self._consecutive_successes = reorient_reward(
+            env.reset_buf,
+            torch.zeros_like(env.reset_buf),
+            self._successes,
+            self._consecutive_successes,
+            object_pos,
+            command[:, :3],
+            goal_reached,
+            orientation_error,
+            actions,
+            distance_scale,
+            rotation_scale,
+            rotation_epsilon,
+            action_penalty_scale,
+            success_bonus,
+            fall_distance,
+            fall_penalty,
+            averaging_factor,
+        )
+        env.extras.setdefault("log", {})["consecutive_successes"] = self._consecutive_successes.mean()
+        return reward / env.step_dt
