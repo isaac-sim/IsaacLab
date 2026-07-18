@@ -23,7 +23,7 @@ from pxr import Usd
 
 import isaaclab.sim as sim_utils
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 def test_create_new_stage():

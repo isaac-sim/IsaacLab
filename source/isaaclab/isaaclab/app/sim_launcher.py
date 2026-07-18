@@ -27,14 +27,16 @@ from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
+from isaaclab.utils._device import set_cuda_device
 
 logger = logging.getLogger(__name__)
 
 # Class names of the kitless physics backends (Newton, OvPhysX). Matched by exact
-# name so subclasses with distinct names (e.g. ``DeformableNewtonCfg``) opt out.
+# name so subclasses with distinct names opt out.
 _KITLESS_PHYSICS_CFGS = ("NewtonCfg", "OvPhysxCfg")
 
 
@@ -53,7 +55,7 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     """Build a concrete physics config for the requested backend.
 
     Args:
-        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, or ``"ovphysx"``.
+        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, ``"newton_vbd"``, or ``"ovphysx"``.
 
     Returns:
         A new physics config instance for the requested backend.
@@ -65,9 +67,22 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
         return PhysxCfg()
     if physics_cfg_str == "newton_mjwarp":
         return NewtonCfg()
+    if physics_cfg_str == "newton_vbd":
+        # lazy import: core depends on isaaclab_contrib only when VBD is requested
+        try:
+            from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+        except ImportError as err:
+            raise ImportError(
+                "The 'newton_vbd' physics backend requires the isaaclab_contrib package."
+                " Install it with `./isaaclab.sh -i contrib`."
+            ) from err
+
+        return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
-    raise ValueError(f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', or 'ovphysx').")
+    raise ValueError(
+        f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', 'newton_vbd', or 'ovphysx')."
+    )
 
 
 """
@@ -315,8 +330,9 @@ def _has_kit_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | d
 
 
 def _uses_isaac_sim_runtime(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
-    """Return whether the scanned config requires Isaac Sim / Kit."""
-    return config_scan.needs_kit or _has_kit_visualizer(config_scan, launcher_args)
+    """Return whether the scanned config or launcher arguments require Isaac Sim / Kit."""
+    explicit_experience = bool(_get_arg(launcher_args, "experience", ""))
+    return explicit_experience or config_scan.needs_kit or _has_kit_visualizer(config_scan, launcher_args)
 
 
 def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | None) -> None:
@@ -351,11 +367,11 @@ def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | Non
         "\n"
         "To fix this, pick one of the following supported combinations:\n"
         "  * Keep Isaac Sim / Kit and switch the renderer:\n"
-        "      presets=isaacsim_rtx_renderer\n"
+        "      presets=isaacsim_rtx\n"
         "    (uses `IsaacRtxRendererCfg`, the Kit-compatible renderer.)\n"
         "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
         "    (and avoid `--visualizer kit`):\n"
-        "      presets=newton_mjwarp,ovrtx_renderer\n"
+        "      presets=newton_mjwarp,ovrtx\n"
     )
 
 
@@ -379,7 +395,7 @@ def _resolve_distributed_device(cfg, launcher_args: argparse.Namespace | dict | 
     sim_cfg = getattr(cfg, "sim", None)
     if sim_cfg is not None:
         sim_cfg.device = device_str
-    torch.cuda.set_device(device_str)
+    set_cuda_device(device_str)
     logger.info(
         "Distributed device resolved to %s (local_rank=%d, visible_gpus=%d)",
         device_str,
@@ -423,7 +439,7 @@ def launch_simulation(
     # with a targeted hint (_validate_runtime covers the broader ovrtx-vs-Kit cases).
     if "kit" in visualizer_types and config_scan.has_ovrtx:
         raise ValueError(
-            "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx_renderer'. "
+            "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx'. "
             "Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries "
             "(librtx.hydra.so, liblegacy.hydra.so) compiled against different USD namespaces, "
             "which causes a dynamic-linker crash when loaded into the same process. "
@@ -433,6 +449,11 @@ def launch_simulation(
     _validate_runtime(config_scan, launcher_args)
     needs_kit = _uses_isaac_sim_runtime(config_scan, launcher_args)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
+
+    # Kit-based backends apply the Python logging level inside AppLauncher; kitless backends
+    # never construct it, so honor --verbose / --info here to keep behavior consistent.
+    if not needs_kit:
+        apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
     if needs_kit and config_scan.has_kit_camera and launcher_args is not None:
         if not _get_arg(launcher_args, "enable_cameras", False):

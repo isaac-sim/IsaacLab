@@ -19,6 +19,8 @@ from pxr import UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
+pytestmark = pytest.mark.integration
+
 
 def _make_xform(stage, path="/World/Body"):
     UsdGeom.Xform.Define(stage, path)
@@ -235,7 +237,7 @@ def test_apply_namespaced_raises_without_namespace():
     from typing import ClassVar
 
     from isaaclab.sim.schemas import RigidBodyFragment, apply_namespaced
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     @configclass
     class _NoNamespaceFragment(RigidBodyFragment):

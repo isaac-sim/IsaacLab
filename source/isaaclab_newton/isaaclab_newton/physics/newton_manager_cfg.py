@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.configclass import configclass
@@ -57,11 +57,11 @@ class NewtonSolverCfg:
 class NewtonShapeCfg:
     """Default per-shape collision properties applied to all shapes in a Newton scene.
 
-    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Only fields Isaac
-    Lab actually overrides are declared here; unspecified fields keep Newton's
-    upstream default. The struct is forwarded onto Newton's upstream
-    ``ShapeConfig`` via :func:`~isaaclab.utils.checked_apply` at builder
-    construction.
+    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Fields that Isaac
+    Lab overrides or exposes for user overrides are declared here; fields not
+    represented keep Newton's upstream defaults. The struct is forwarded onto
+    Newton's upstream ``ShapeConfig`` via
+    :func:`~isaaclab.utils.checked_apply` at builder construction.
     """
 
     margin: float = 0.0
@@ -74,6 +74,28 @@ class NewtonShapeCfg:
 
     gap: float = 0.01
     """Default per-shape contact gap [m]. Newton's upstream default is ``None``."""
+
+    # Defaults mirror Newton's ShapeConfig defaults so an unspecified field is a no-op.
+    ke: float = 2.5e3
+    """Default per-shape normal contact stiffness [N/m].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.ke`` default.
+    """
+
+    kd: float = 100.0
+    """Default per-shape normal contact damping [N*s/m].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.kd`` default.
+    """
+
+    mu: float = 1.0
+    """Default per-shape friction coefficient [dimensionless].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.mu`` default.
+    """
 
 
 @configclass
@@ -153,6 +175,38 @@ class NewtonCfg(PhysicsCfg):
 
     Keep this enabled for most rigid-body scenes. Disable it when exact triangle
     meshes are intentional, for example thin or hollow MPM colliders.
+    """
+
+    bvh_constructor_geometry: Literal["lbvh", "sah", "cubql"] = "cubql"
+    """BVH construction algorithm for mesh geometry colliders.
+
+    Selects the bounding-volume-hierarchy builder Newton uses for the triangle
+    meshes of collision geometry, forwarded to :attr:`ModelBuilder.BvhConfig`.
+    Trades build time against query (traversal) quality:
+
+    - ``"lbvh"``: linear BVH; fastest to build, lowest-quality tree.
+    - ``"sah"``: surface-area-heuristic BVH; slower build, tighter tree with
+      faster ray/overlap queries.
+    - ``"cubql"``: cuBQL GPU builder; balances fast construction with good tree
+      quality on the GPU (default).
+    """
+
+    bvh_constructor_scene: Literal["lbvh", "sah"] = "sah"
+    """BVH construction algorithm for the top-level scene (broad-phase) hierarchy.
+
+    Selects the builder for the BVH over all colliders used during broad-phase
+    culling, forwarded to :attr:`ModelBuilder.BvhConfig`. See
+    :attr:`bvh_constructor_geometry` for the ``"lbvh"`` / ``"sah"`` trade-off;
+    ``"cubql"`` is not available for the scene hierarchy.
+    """
+
+    bvh_constructor_gaussian: Literal["lbvh", "sah", "cubql"] = "cubql"
+    """BVH construction algorithm for Gaussian-splat primitives.
+
+    Selects the builder for the BVH over 3D Gaussian primitives (used by the
+    Gaussian renderer/collision path), forwarded to
+    :attr:`ModelBuilder.BvhConfig`. See :attr:`bvh_constructor_geometry` for the
+    ``"lbvh"`` / ``"sah"`` / ``"cubql"`` trade-off.
     """
 
     def __post_init__(self):

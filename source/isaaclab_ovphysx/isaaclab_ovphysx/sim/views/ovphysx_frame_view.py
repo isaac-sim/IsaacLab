@@ -19,6 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
+from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx.physics import OvPhysxManager
@@ -629,17 +630,22 @@ class OvPhysxFrameView(BaseFrameView):
     # World poses
     # ------------------------------------------------------------------
 
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        """Get world-space positions and orientations.
+    # ------------------------------------------------------------------
+    # Writer factory hooks (pass-through; OvPhysX has no separate Fabric storage)
+    # ------------------------------------------------------------------
 
-        Args:
-            indices: Subset of sites to query. ``None`` means all sites.
+    def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
+        return _OvPhysxWorldSpaceWriter(self)
 
-        Returns:
-            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
-            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
-            cached zero-copy ``torch.Tensor`` view.
-        """
+    def _make_local_space_writer(self) -> FrameViewLocalSpaceWriter:
+        return _OvPhysxLocalSpaceWriter(self)
+
+    # ------------------------------------------------------------------
+    # Backend hooks
+    # ------------------------------------------------------------------
+
+    def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+        """Get world-space positions and orientations."""
         self._require_initialized()
         body_q = self._current_body_q()
 
@@ -665,31 +671,20 @@ class OvPhysxFrameView(BaseFrameView):
         )
         return self._pos_ta, self._quat_ta
 
-    def set_world_poses(
+    def _apply_world_pose_write(
         self,
         positions: wp.array | None = None,
         orientations: wp.array | None = None,
         indices: wp.array | None = None,
     ) -> None:
-        """Set world-space positions and/or orientations.
-
-        Updates ``site_local`` so that ``body_q[body] * site_local`` yields the
-        desired world pose.  Does **not** modify ``body_q``.
-
-        Args:
-            positions: Desired world positions ``(M, 3)`` [m]. ``None`` leaves
-                positions unchanged.
-            orientations: Desired world quaternions ``(M, 4)`` as
-                ``(qx, qy, qz, qw)``. ``None`` leaves orientations unchanged.
-            indices: Subset of sites to update. ``None`` means all sites.
-        """
+        """Set world-space positions and/or orientations."""
         if positions is None and orientations is None:
             return
         self._require_initialized()
         body_q = self._current_body_q()
 
         if positions is None or orientations is None:
-            cur_pos_ta, cur_quat_ta = self.get_world_poses(indices)
+            cur_pos_ta, cur_quat_ta = self._get_world_poses_impl(indices)
             if positions is None:
                 positions = cur_pos_ta.warp
             if orientations is None:
@@ -714,18 +709,8 @@ class OvPhysxFrameView(BaseFrameView):
     # Local poses (parent-relative)
     # ------------------------------------------------------------------
 
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        """Get parent-relative positions and orientations.
-
-        Computes ``inv(parent_world) * prim_world`` for each site.
-
-        Args:
-            indices: Subset of sites to query. ``None`` means all sites.
-
-        Returns:
-            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
-            wrappers.
-        """
+    def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+        """Get parent-relative positions and orientations."""
         self._require_initialized()
         body_q = self._current_body_q()
 
@@ -764,30 +749,20 @@ class OvPhysxFrameView(BaseFrameView):
         )
         return self._local_pos_ta, self._local_quat_ta
 
-    def set_local_poses(
+    def _apply_local_pose_write(
         self,
         translations: wp.array | None = None,
         orientations: wp.array | None = None,
         indices: wp.array | None = None,
     ) -> None:
-        """Set parent-relative translations and/or orientations.
-
-        Updates ``site_local`` only; does **not** modify ``body_q``.
-
-        Args:
-            translations: Desired parent-relative translations ``(M, 3)`` [m].
-                ``None`` leaves translations unchanged.
-            orientations: Desired parent-relative quaternions ``(M, 4)`` as
-                ``(qx, qy, qz, qw)``. ``None`` leaves orientations unchanged.
-            indices: Subset of sites to update. ``None`` means all sites.
-        """
+        """Set parent-relative translations and/or orientations."""
         if translations is None and orientations is None:
             return
         self._require_initialized()
         body_q = self._current_body_q()
 
         if translations is None or orientations is None:
-            cur_pos_ta, cur_quat_ta = self.get_local_poses(indices)
+            cur_pos_ta, cur_quat_ta = self._get_local_poses_impl(indices)
             if translations is None:
                 translations = cur_pos_ta.warp
             if orientations is None:
@@ -839,39 +814,43 @@ class OvPhysxFrameView(BaseFrameView):
             )
         return self._usd_view
 
-    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
-        """Get prim scales from the USD stage's ``xformOp:scale`` attribute.
+    def _get_local_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """Get local-space scales (xformOp:scale) via the USD view.
 
         .. note::
             This reads the *static* USD authored value, not a live physics-state
             value. OVPhysX does not maintain a per-shape ``shape_scale`` array
             equivalent to Newton's ``model.shape_scale``, so sim-driven scale
-            updates are not reflected here. For sites under ``clone_usd=False``
-            envs without authored USD prims, the read returns the env_0
-            template's scale via the lazy internal :class:`UsdFrameView`.
-
-        Args:
-            indices: Subset of sites to query. ``None`` means all sites.
-
-        Returns:
-            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
+            updates are not reflected here.
         """
-        return self._ensure_usd_view().get_scales(indices)
+        return self._ensure_usd_view()._get_local_scales_impl(indices)
 
-    def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set prim scales by writing the USD ``xformOp:scale`` attribute.
+    def _get_world_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """Get world-space (composed) scales via the USD view."""
+        return self._ensure_usd_view()._get_world_scales_impl(indices)
+
+    def _apply_local_scale_write(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set local-space scales (xformOp:scale) via the USD view.
 
         .. note::
             The write lands in the USD stage but does *not* propagate to any
             OVPhysX-side collision-shape scale. PhysX is unaffected; this is a
-            stage-only annotation. Use :class:`~isaaclab_ovphysx.assets.RigidObject`
-            APIs if you need to change physics-effective shape sizes.
-
-        Args:
-            scales: Scales ``(M, 3)`` as ``wp.array``.
-            indices: Subset of sites to update. ``None`` means all sites.
+            stage-only annotation.
         """
-        self._ensure_usd_view().set_scales(scales, indices)
+        self._ensure_usd_view()._apply_local_scale_write(scales, indices)
+
+    def _apply_world_scale_write(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set world-space scales via the USD view."""
+        self._ensure_usd_view()._apply_world_scale_write(scales, indices)
+
+    def _get_scales_impl(self, indices=None):
+        """OvPhysX legacy: deprecated get_scales returns local scales."""
+        return self._get_local_scales_impl(indices)
+
+    def _set_scales_impl(self, scales, indices=None):
+        """OvPhysX legacy: deprecated set_scales writes local scales via a one-shot writer scope."""
+        with self.xform_local_space_writer() as writer:
+            writer.set_scales(scales, indices)
 
     def get_visibility(self, indices: wp.array | None = None):
         """Get visibility for prims in the view (USD-backed).
@@ -893,3 +872,40 @@ def _gf_matrix_to_xform7(mat: Gf.Matrix4d) -> list[float]:
     q = mat.ExtractRotationQuat()
     imag = q.GetImaginary()
     return [float(t[0]), float(t[1]), float(t[2]), float(imag[0]), float(imag[1]), float(imag[2]), float(q.GetReal())]
+
+
+# ----------------------------------------------------------------------
+# Pass-through writer classes
+# ----------------------------------------------------------------------
+
+
+class _OvPhysxWorldSpaceWriter(FrameViewWorldSpaceWriter):
+    """OvPhysX world-space writer: pass-through to backend ``_apply_*`` hooks."""
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        self._view._apply_world_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._apply_world_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_world_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_world_scales_impl(indices)  # type: ignore[attr-defined]
+
+
+class _OvPhysxLocalSpaceWriter(FrameViewLocalSpaceWriter):
+    """OvPhysX local-space writer: pass-through to backend ``_apply_*`` hooks."""
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        self._view._apply_local_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._apply_local_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_local_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_local_scales_impl(indices)  # type: ignore[attr-defined]

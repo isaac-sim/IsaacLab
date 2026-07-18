@@ -92,6 +92,10 @@ inputs:
   wheelhouse-packages:
     description: 'Space-separated packages to install from /tmp/ovphysx-wheelhouse with pip --no-index'
     default: ''
+  ci-marker:
+    description: 'CI_MARKER value forwarded to the container (read by tools/conftest.py to select test files by pytest marker)'
+    default: ''
+    required: false
   omni-github-test-type:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
@@ -108,6 +112,7 @@ runs:
         # the run_tests positional arguments if substituted textually.
         PYTEST_OPTIONS: ${{ inputs.pytest-options }}
         TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
+        CI_MARKER_INPUT: ${{ inputs.ci-marker }}
       run: |
         # Function to run tests in Docker container
         run_tests() {
@@ -131,6 +136,7 @@ runs:
           local wheelhouse_host_dir="${18}"
           local wheelhouse_packages="${19}"
           local test_k_expr="${20}"
+          local ci_marker="${21}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -149,6 +155,7 @@ runs:
                 if [ -n \"\$wait_pid\" ]; then kill \"\$wait_pid\" 2>/dev/null || true; fi; \
                 exit 130" HUP INT TERM
 
+          echo "::group::Configuration / Setup"
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
             echo "With pytest options: $pytest_options"
@@ -279,6 +286,11 @@ runs:
             echo "Setting per-file pytest -k expression: $test_k_expr"
           fi
 
+          if [ -n "$ci_marker" ]; then
+            docker_env_vars="$docker_env_vars -e CI_MARKER=$ci_marker"
+            echo "Setting CI_MARKER=$ci_marker"
+          fi
+
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
           # source code over /workspace/isaaclab instead of baking it into the image.
           docker_volume_args=""
@@ -353,6 +365,7 @@ runs:
           fi
 
           echo "Docker environment variables: '$docker_env_vars'"
+          echo "::endgroup::"
 
           # Run tests in a detached container and follow logs.  Running detached
           # means the container lifecycle is independent of the shell - if the
@@ -383,7 +396,7 @@ runs:
               # set this detect-only flag, which makes cold asset downloads
               # fall back to slow repeated retries.
               unset HUB__ARGS__DETECT_ONLY
-              ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky \"coverage>=7.6.1\"
+              ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky \"coverage>=7.6.1\"
               if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
                 if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
                   echo \"Wheelhouse path is missing: \${TEST_WHEELHOUSE_PATH:-}\"
@@ -418,6 +431,7 @@ runs:
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
+          echo "::group::Following Docker container logs"
           # Stream container logs in background.
           docker logs -f "$container_name" &
           logs_pid=$!
@@ -442,6 +456,7 @@ runs:
           kill $logs_pid 2>/dev/null || true
           wait $logs_pid 2>/dev/null || true
           logs_pid=""
+          echo "::endgroup::"
 
           if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
@@ -449,6 +464,7 @@ runs:
             echo "🟠 Docker container failed (exit $DOCKER_EXIT), but continuing to copy results..."
           fi
 
+          echo "::group::Copy results"
           # Copy test results with error handling.
           # When volume-mounted, test output lands on the host filesystem directly
           # (docker cp cannot see bind-mounted paths after the container stops).
@@ -500,19 +516,22 @@ runs:
           elif docker cp "$container_name:/workspace/isaaclab/tests/comparison-images" "$img_dir" 2>/dev/null; then
             echo "🟢 Comparison images copied from container to $img_dir"
           fi
+          echo "::endgroup::"
 
+          echo "::group::Cleanup"
           # Clean up container
           echo "🔵 Cleaning up Docker container..."
           docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
           if [ -n "$docker_runtime_dir" ]; then
             rm -rf "$docker_runtime_dir" || echo "🟠 Docker runtime storage cleanup failed, but continuing..."
           fi
+          echo "::endgroup::"
 
           return $DOCKER_EXIT
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT"
 
     - name: Kill container on cancellation
       if: cancelled()
