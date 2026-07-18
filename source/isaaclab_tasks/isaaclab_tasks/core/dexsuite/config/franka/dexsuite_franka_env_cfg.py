@@ -108,7 +108,6 @@ class FrankaSceneCfg(dexsuite.SceneCfg):
         graspable_shape_assets_cfg = [
             MeshCuboidCfg(size=(0.05, 0.05, 0.05), **dexsuite.OBJECT_PHYSICS),
             MeshCuboidCfg(size=(0.025, 0.05, 0.05), **dexsuite.OBJECT_PHYSICS),
-            MeshCuboidCfg(size=(0.025, 0.05, 0.05), **dexsuite.OBJECT_PHYSICS),
             MeshCuboidCfg(size=(0.025, 0.025, 0.05), **dexsuite.OBJECT_PHYSICS),
             MeshCuboidCfg(size=(0.01, 0.05, 0.05), **dexsuite.OBJECT_PHYSICS),
             MeshSphereCfg(radius=0.02, **dexsuite.OBJECT_PHYSICS),
@@ -166,7 +165,7 @@ class FrankaEventCfg(dexsuite.EventCfg):
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint1"),
             "damping_distribution_params": (
-                FRANKA_PANDA_DEXSUITE_CFG.actuators["panda_hand"].damping,
+                0.0,
                 FRANKA_PANDA_DEXSUITE_CFG.actuators["panda_hand"].stiffness * 0.1 / 0.01
                 - FRANKA_PANDA_DEXSUITE_CFG.actuators["panda_hand"].damping,
             ),
