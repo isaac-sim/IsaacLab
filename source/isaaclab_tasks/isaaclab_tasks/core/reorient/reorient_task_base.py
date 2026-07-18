@@ -6,10 +6,19 @@
 """Structural definitions shared by the reorientation task family.
 
 Joint/body name lists, marker geometry, and reset-pose offsets consumed by both
-the Direct and manager-based variants. Scalar task parameters are defined
-per-paradigm in the respective environment configurations, following the
-convention of the other core tasks.
+the Direct and manager-based variants, plus the manager term factories and the
+shared termination section used by the robot-specific manager tasks. The
+factory defaults carry the Shadow Hand state-task values; each variant declares
+its section class stating only its deltas.
 """
+
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.utils.configclass import configclass
+
+import isaaclab_tasks.core.reorient.mdp as mdp
 
 GOAL_MARKER_POSITION: tuple[float, float, float] = (-0.2, -0.45, 0.68)
 """Fixed goal-marker display position [m], environment frame (state-based tasks)."""
@@ -92,3 +101,87 @@ SHADOW_ACTUATED_JOINT_NAMES: list[str] = [
     "robot0_THJ0",
 ]
 """Shadow Hand actuated joint names, in the Direct task's actuation order."""
+
+
+def reorient_goal_command(**overrides) -> "mdp.ReorientEpisodeCommandCfg":
+    """Build the object-pose goal command with the Direct-parity defaults.
+
+    Keyword overrides replace the corresponding command fields; robot-specific
+    variants declare the goal marker (``goal_pose_visualizer_cfg``) and their
+    success threshold this way at the declaration site.
+    """
+    return mdp.ReorientEpisodeCommandCfg(
+        asset_name="object",
+        init_pos_offset=IN_HAND_POS_OFFSET,
+        update_goal_on_success=True,
+        orientation_success_threshold=0.1,
+        make_quat_unique=False,
+        fixed_marker_pos=GOAL_MARKER_POSITION,
+        debug_vis=True,
+    ).replace(**overrides)
+
+
+def reorient_reward_term(**param_overrides) -> RewTerm:
+    """Build the :class:`~isaaclab_tasks.core.reorient.mdp.ReorientReward` term.
+
+    The parameter defaults are the Direct-parity values of the Shadow Hand
+    state task; keyword overrides are merged on top, so variants state only
+    their deltas at the declaration site.
+    """
+    params = {
+        "command_name": "object_pose",
+        "distance_scale": -10.0,
+        "rotation_scale": 1.0,
+        "rotation_epsilon": 0.1,
+        "action_penalty_scale": -0.0002,
+        "success_tolerance": 0.1,
+        "success_bonus": 250.0,
+        "fall_distance": 0.24,
+        "fall_penalty": 0.0,
+        "averaging_factor": 0.1,
+        "success_count_threshold": 1,
+        "object_cfg": SceneEntityCfg("object"),
+    }
+    params.update(param_overrides)
+    return RewTerm(func=mdp.ReorientReward, weight=1.0, params=params)
+
+
+def reorient_joint_action(joint_names: list[str]) -> "mdp.EMAJointPositionToLimitsActionCfg":
+    """Build the Direct-parity EMA joint-position action for the given joints."""
+    return mdp.EMAJointPositionToLimitsActionCfg(
+        asset_name="robot",
+        joint_names=joint_names,
+        alpha=1.0,
+        rescale_to_limits=True,
+    )
+
+
+def reorient_reset_event(**param_overrides) -> EventTerm:
+    """Build the Direct-parity state-reset event.
+
+    The reset-noise defaults are shared by every reorientation task; keyword
+    overrides are merged on top.
+    """
+    params = {
+        "position_noise": 0.01,
+        "joint_position_noise": 0.2,
+        "joint_velocity_noise": 0.0,
+        "action_name": "joint_pos",
+    }
+    params.update(param_overrides)
+    return EventTerm(func=mdp.reset_reorient_state, mode="reset", params=params)
+
+
+@configclass
+class ReorientTerminationsCfg:
+    """Termination conditions matching the Direct task."""
+
+    object_out_of_reach = DoneTerm(
+        func=mdp.object_reorientation_out_of_reach,
+        params={
+            "threshold": 0.24,
+            "command_name": "object_pose",
+            "object_cfg": SceneEntityCfg("object"),
+        },
+    )
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
