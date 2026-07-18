@@ -32,7 +32,8 @@ pip extras include:
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]`` version |isaacsim_version|) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
    * - ``all``
-     - RL frameworks (SB3, SKRL, RSL-RL). Combine with ``isaacsim`` for a full install.
+     - RL frameworks (SB3, SKRL, RSL-RL, RL-Games), the Rerun visualizer, Mimic, and
+       RLinf post-training. Combine with ``isaacsim`` for a full install.
 
 Install with ``isaaclab[isaacsim,all]`` for the full workflow.
 
@@ -52,12 +53,9 @@ Install with ``isaaclab[isaacsim,all]`` for the full workflow.
 
 .. note::
 
-   ``rl_games`` is not included in the Isaac Lab pip wheel extras. If your workflow requires
-   ``rl_games``, install it manually from the Isaac Lab-compatible branch:
-
-   .. code-block:: bash
-
-      pip install "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11" gym standard-distutils
+   ``rl_games`` is installed by the ``all`` (or ``rl-games``) extra directly from the
+   Isaac Lab-compatible git branch (``isaac-sim/rl_games@python3.11``), so ``git`` must
+   be available on the machine at install time.
 
 Installing dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~

@@ -117,9 +117,9 @@ jobs:
       id: ov_pins
       run: |
         PINS=$(python3 <<'PY'
-        import re
-        block = re.search(r"^\[tool\.isaaclab\.versions\]\n(.*?)(?:\n\[|\Z)", open("pyproject.toml").read(), re.S | re.M).group(1)
-        vals = dict(re.findall(r'(\w+)\s*=\s*"([^"]+)"', block))
+        import tomllib
+        with open("pyproject.toml", "rb") as f:
+            vals = tomllib.load(f)["tool"]["isaaclab"]["versions"]
         print(f"ovphysx=={vals['ovphysx']} ovrtx{vals['ovrtx']}")
         PY
         )
