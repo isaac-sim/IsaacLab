@@ -6,9 +6,10 @@
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import CameraCfg, ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -17,7 +18,6 @@ from isaaclab_assets.robots import FRANKA_PANDA_CFG
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
-from .camera_cfg import StateObservationCfg
 
 # Dexsuite runs the menagerie-converted asset (identified inertials, authored finger
 # coupling) with actuators calibrated for it; the stock FRANKA_PANDA_CFG stays on the
@@ -76,15 +76,9 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != THUMB
 
 @configclass
 class FrankaSceneCfg(dexsuite.SceneCfg):
-    """Franka scene for the dexsuite lift/reorient tasks.
-
-    The ``base_camera`` / ``wrist_camera`` slots are left unset (``None``) for the state task; the
-    camera env config populates them (see ``dexsuite_franka_camera_env_cfg``).
-    """
+    """Franka scene for the dexsuite lift/reorient tasks."""
 
     robot: ArticulationCfg = FRANKA_PANDA_DEXSUITE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    base_camera: CameraCfg | None = None
-    wrist_camera: CameraCfg | None = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -117,6 +111,20 @@ class FrankaSceneCfg(dexsuite.SceneCfg):
         ]
         self.object.spawn.shapes.assets_cfg = graspable_shape_assets_cfg
         self.object.spawn.default.assets_cfg = graspable_shape_assets_cfg
+
+
+@configclass
+class StateObservationCfg(dexsuite.ObservationsCfg):
+    """State observations for the Franka dexsuite tasks."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.proprio.contact = ObsTerm(
+            func=mdp.fingers_contact_force_b,
+            params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
+            clip=(-20.0, 20.0),
+        )
+        self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = FINGERTIP_LIST
 
 
 @configclass

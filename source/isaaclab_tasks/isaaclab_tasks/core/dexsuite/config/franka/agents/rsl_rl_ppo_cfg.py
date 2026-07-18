@@ -8,7 +8,6 @@ from dataclasses import MISSING
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.rsl_rl import (
-    RslRlCNNModelCfg,
     RslRlMLPModelCfg,
     RslRlOnPolicyRunnerCfg,
     RslRlPpoAlgorithmCfg,
@@ -26,19 +25,6 @@ STATE_POLICY_CFG = RslRlMLPModelCfg(
 STATE_CRITIC_CFG = RslRlMLPModelCfg(
     obs_normalization=True,
     hidden_dims=[512, 256, 128],
-    activation="elu",
-)
-
-CNN_POLICY_CFG = RslRlCNNModelCfg(
-    obs_normalization=True,
-    hidden_dims=[512, 256, 128],
-    distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=1.0),
-    cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-        output_channels=[32, 64, 64],
-        kernel_size=[8, 4, 3],
-        stride=[4, 2, 1],
-        activation="elu",
-    ),
     activation="elu",
 )
 
@@ -79,23 +65,4 @@ class DexsuiteFrankaPPORunnerCfg(PresetCfg):
         actor=STATE_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
         algorithm=ALGO_CFG,
-    )
-
-    single_camera = DexsuiteFrankaPPOBaseRunnerCfg().replace(
-        experiment_name="dexsuite_franka_single_camera",
-        obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
-        actor=CNN_POLICY_CFG,
-        critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=8),
-    )
-
-    duo_camera = DexsuiteFrankaPPOBaseRunnerCfg().replace(
-        experiment_name="dexsuite_franka_duo_camera",
-        obs_groups={
-            "actor": ["policy", "proprio", "base_image", "wrist_image"],
-            "critic": ["policy", "proprio", "perception"],
-        },
-        actor=CNN_POLICY_CFG,
-        critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=8),
     )
