@@ -17,7 +17,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 
-from isaaclab_tasks.core.reorient.mdp.rewards import direct_reorient_rotation_distance, evaluate_reorient_success
+from isaaclab_tasks.core.reorient.mdp.rewards import evaluate_reorient_success
 
 _DEVICES = ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else [])
 
@@ -35,8 +35,8 @@ def _quats(device, *quats):
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_rotation_distance_recovers_known_angles(device):
-    distance = direct_reorient_rotation_distance(
-        _quats(device, _IDENTITY, _ROT90_X, _ROT180_Z), _quats(device, _IDENTITY, _IDENTITY, _IDENTITY)
+    _, distance = evaluate_reorient_success(
+        _quats(device, _IDENTITY, _ROT90_X, _ROT180_Z), _quats(device, _IDENTITY, _IDENTITY, _IDENTITY), 0.4
     )
     torch.testing.assert_close(distance, torch.tensor([0.0, math.pi / 2, math.pi], device=device), atol=1e-5, rtol=0.0)
 
