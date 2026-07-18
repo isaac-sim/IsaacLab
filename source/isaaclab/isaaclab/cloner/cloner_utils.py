@@ -263,7 +263,7 @@ def make_clone_plan(
         count = num_variants(cfg.spawn)
         if count <= 0:
             raise ValueError(f"Spawner at '{prim_path}' must have at least one variant.")
-        destination = prim_path.replace(".*", "{}")
+        destination = prim_path.replace(".*", "{}", 1)
         groups.append((cfg, cfg.spawn, destination, count))
 
     env_ids = torch.arange(num_clones, dtype=torch.long, device=device)
