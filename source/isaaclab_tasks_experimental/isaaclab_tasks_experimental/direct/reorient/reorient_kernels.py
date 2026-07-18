@@ -19,7 +19,7 @@ A Direct environment step launches these kernels in the following order:
    :func:`reorient_success_kernel` evaluates goal orientation success once per
    step, and :func:`reorient_progress_kernel` folds it into the episode
    bookkeeping (episode-counter reset, time-out flags, minimum-error tracking).
-3. ``_get_rewards``: :func:`direct_reorient_reward` reuses the success state
+3. ``_get_rewards``: :func:`reorient_reward` reuses the success state
    and launches :func:`reorient_reward_kernel` plus the two
    ``consecutive_success_*`` reduction kernels, all writing in place.
 4. Observations: :func:`full_obs_kernel` or :func:`reduced_obs_kernel` build
@@ -350,7 +350,7 @@ def consecutive_success_update_kernel(
 
 
 class ReorientRewardBuffers:
-    """Caller-owned device buffers for :func:`direct_reorient_reward`.
+    """Caller-owned device buffers for :func:`reorient_reward`.
 
     Allocate once (Direct environments in ``__init__``, manager terms in their
     term ``__init__``); every step writes in place.
@@ -365,7 +365,7 @@ class ReorientRewardBuffers:
         self.stats = wp.zeros(2, dtype=wp.float32, device=device)
 
 
-def direct_reorient_reward(
+def reorient_reward(
     reset_buf: wp.array,
     goal_resets: wp.array,
     successes: wp.array,

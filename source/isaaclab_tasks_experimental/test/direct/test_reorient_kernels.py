@@ -19,7 +19,6 @@ from isaaclab_tasks_experimental.direct.reorient.reorient_kernels import (
     ReorientRewardBuffers,
     compute_cube_keypoints,
     cube_keypoints_from_quat_kernel,
-    direct_reorient_reward,
     ema_actuation_kernel,
     fingertip_pos_kernel,
     fingertip_quat_kernel,
@@ -28,6 +27,7 @@ from isaaclab_tasks_experimental.direct.reorient.reorient_kernels import (
     out_of_reach_kernel,
     reduced_obs_kernel,
     reorient_progress_kernel,
+    reorient_reward,
     reorient_success_kernel,
     rotation_distance_kernel,
 )
@@ -249,7 +249,7 @@ def test_cube_keypoints_match_reference(device):
 
 
 @pytest.mark.parametrize("device", DEVICES)
-def test_direct_reorient_reward_matches_reference(device):
+def test_reorient_reward_matches_reference(device):
     torch.manual_seed(6)
     obj = 0.2 * torch.randn(N_ENVS, 3, device=device)
     origins = torch.randn(N_ENVS, 3, device=device)
@@ -275,7 +275,7 @@ def test_direct_reorient_reward_matches_reference(device):
         averaging_factor=0.1,
     )
     buffers = ReorientRewardBuffers(N_ENVS, device)
-    reward = direct_reorient_reward(
+    reward = reorient_reward(
         wp.from_torch(reset_buf),
         goal_resets,
         successes,

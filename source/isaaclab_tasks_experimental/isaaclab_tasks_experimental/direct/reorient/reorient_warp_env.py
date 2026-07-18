@@ -32,12 +32,12 @@ from isaaclab_tasks.core.utils import EpisodeErrorRecorder, randomize_rotation, 
 
 from isaaclab_tasks_experimental.direct.reorient.reorient_kernels import (
     ReorientRewardBuffers,
-    direct_reorient_reward,
     ema_actuation_kernel,
     full_obs_kernel,
     out_of_reach_kernel,
     reduced_obs_kernel,
     reorient_progress_kernel,
+    reorient_reward,
     reorient_success_kernel,
 )
 
@@ -264,7 +264,7 @@ class ReorientWarpEnv(DirectRLEnv):
         # the goal-reset flags, success counts, and moving average update in place.
         # passing the time-out flags alone is exact here: the kernel ORs in the
         # fallen-object condition itself, and that is this env's only other reset
-        direct_reorient_reward(
+        reorient_reward(
             self.time_out_flags,
             self.reset_goal_buf,
             self.successes,
