@@ -10,12 +10,36 @@ from typing import Any
 
 import torch
 import warp as wp
-from newton import ModelBuilder, solvers
+from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 
-from pxr import Usd
+from pxr import Usd, UsdPhysics
 
 from isaaclab.cloner.cloner_utils import replace_path_prefix
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+
+
+def _unauthored_collision_mesh_shapes(builder: ModelBuilder, stage: Usd.Stage) -> list[int]:
+    """Indices of colliding mesh shapes whose prim does not author ``physics:approximation``.
+
+    ``add_usd`` already remeshed the shapes with an authored approximation (spheres,
+    boxes, and convex hulls leave :attr:`GeoType.MESH` behind, and a mesh produced by
+    ``meshSimplification`` or ``none`` keeps its source prim's label). The convex-hull
+    simplify pass must leave those alone, otherwise it would override the authored
+    intent; only meshes with no authored approximation get the default hull treatment.
+    """
+    authored: set[str] = set()
+    for prim in stage.Traverse():
+        attr = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr()
+        if attr and attr.HasAuthoredValue():
+            authored.add(prim.GetPath().pathString)
+
+    return [
+        index
+        for index, shape_type in enumerate(builder.shape_type)
+        if shape_type == GeoType.MESH
+        and (builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES)
+        and builder.shape_label[index] not in authored
+    ]
 
 
 def build_source_builders(
@@ -37,12 +61,19 @@ def build_source_builders(
             stage,
             root_path=source,
             load_visual_shapes=True,
-            skip_mesh_approximation=True,
+            # Honor USD-authored ``physics:approximation`` (convexDecomposition,
+            # boundingSphere, ...) the same way non-cloned scene loading does; the
+            # simplify pass below only touches meshes with no authored approximation.
+            skip_mesh_approximation=False,
             schema_resolvers=schema_resolvers,
             ignore_paths=ignore_paths,
         )
         if simplify_meshes:
-            builder.approximate_meshes("convex_hull", keep_visual_shapes=True)
+            builder.approximate_meshes(
+                "convex_hull",
+                shape_indices=_unauthored_collision_mesh_shapes(builder, stage),
+                keep_visual_shapes=True,
+            )
         replace_newton_builder_shape_colors(builder, stage)
         builders[source] = builder
     return builders
