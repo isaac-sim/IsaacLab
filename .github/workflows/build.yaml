@@ -308,7 +308,7 @@ jobs:
         result-file: arm-ci-report.xml
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        extra-pip-packages: "ovrtx ovphysx==0.4.13"
+        extra-pip-packages: "ovrtx>=0.3.0,<0.4.0 ovphysx==0.4.13"
         # ovphysx-backed test params require ovphysx >= 0.5.1, which has no aarch64
         # wheel yet; keep the newton/ovrtx rendering coverage, mirroring the public
         # pip-index fallback of rendering-correctness-kitless. Running them anyway
@@ -675,7 +675,7 @@ jobs:
         # NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip index
         # and keep only the ovrtx-based isaaclab_ov coverage.
         exclude-pattern: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'isaaclab_ovphysx' }}
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx>=0.3.0,<0.4.0' || 'ovrtx>=0.3.0,<0.4.0 ovphysx' }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
@@ -859,7 +859,7 @@ jobs:
         # from the NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip
         # index and keep the newton/ovrtx kitless rendering coverage.
         test-k-expr: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'not ovphysx' }}
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx>=0.3.0,<0.4.0' || 'ovrtx>=0.3.0,<0.4.0 ovphysx' }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
