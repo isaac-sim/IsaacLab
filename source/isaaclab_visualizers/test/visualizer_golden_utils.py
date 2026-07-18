@@ -463,7 +463,7 @@ def run_visualizer_golden_cartpole(
 
         if viz_type == "kit":
             kit_viz = _get_active_visualizer(env, "kit")
-            return _viz_utils._capture_kit_viewport_with_pose_reapply(env, kit_viz)
+            return _viz_utils._capture_kit_viewport_with_pose_reapply(env, kit_viz, physics_backend=backend)
 
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -538,7 +538,10 @@ def run_visualizer_golden_shadow_hand(
         if viz_type == "kit":
             kit_viz = _get_active_visualizer(env, "kit")
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
-                env, kit_viz, resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION
+                env,
+                kit_viz,
+                resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION,
+                physics_backend=backend,
             )
 
         newton_viz = _get_active_visualizer(env, "newton")
@@ -610,7 +613,7 @@ def run_visualizer_golden_anymal_d(
         if viz_type == "kit":
             kit_viz = _get_active_visualizer(env, "kit")
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
-                env, kit_viz, resolution=_viz_utils._ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION
+                env, kit_viz, resolution=_viz_utils._ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION, physics_backend=backend
             )
 
         newton_viz = _get_active_visualizer(env, "newton")
@@ -683,7 +686,10 @@ def run_visualizer_golden_franka_cloth(
         if viz_type == "kit":
             kit_viz = _get_active_visualizer(env, "kit")
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
-                env, kit_viz, resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION
+                env,
+                kit_viz,
+                resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION,
+                physics_backend="newton",
             )
 
         newton_viz = _get_active_visualizer(env, "newton")
