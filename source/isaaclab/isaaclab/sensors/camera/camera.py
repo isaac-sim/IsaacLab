@@ -708,12 +708,12 @@ class Camera(SensorBase):
             return
 
         intrinsic_matrices = np.zeros((len(env_ids_np), 3, 3), dtype=np.float32)
+        # viewport parameters are shared by every camera prim of this sensor
+        height, width = self.image_shape
         # iterate over all cameras
         for matrix_id, i in enumerate(env_ids_np):
             # Get corresponding sensor prim
             sensor_prim = self._sensor_prims[int(i)]
-            # get viewport parameters
-            height, width = self.image_shape
             # Prefer an authored OpenCV lens-distortion model when present: it carries the authoritative
             # fx/fy/cx/cy that the RTX/OVRTX renderer projects through, which may be non-square or off-center.
             authored = self._read_authored_opencv_intrinsics(sensor_prim.GetPrim(), width, height, int(i))
