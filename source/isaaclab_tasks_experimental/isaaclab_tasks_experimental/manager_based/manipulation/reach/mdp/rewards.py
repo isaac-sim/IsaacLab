@@ -6,7 +6,6 @@
 """Warp-first reward terms for the reach task.
 
 All functions follow the ``func(env, out, **params) -> None`` signature.
-Command tensors are cached as zero-copy warp views on first call.
 """
 
 from __future__ import annotations
@@ -50,12 +49,7 @@ def _position_command_error_kernel(
 
 def position_command_error(env: ManagerBasedRLEnv, out, command_name: str, asset_cfg: SceneEntityCfg) -> None:
     """Penalize tracking of the position error using L2-norm."""
-    fn = position_command_error
     asset: Articulation = env.scene[asset_cfg.name]
-    if not hasattr(fn, "_cmd_wp") or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
     wp.launch(
         kernel=_position_command_error_kernel,
         dim=env.num_envs,
@@ -63,7 +57,7 @@ def position_command_error(env: ManagerBasedRLEnv, out, command_name: str, asset
             asset.data.root_pos_w.warp,
             asset.data.root_quat_w.warp,
             asset.data.body_pos_w.warp,
-            fn._cmd_wp,
+            env.command_manager.get_command_wp(command_name),
             asset_cfg.body_ids[0],
             out,
         ],
@@ -101,12 +95,7 @@ def position_command_error_tanh(
     env: ManagerBasedRLEnv, out, std: float, command_name: str, asset_cfg: SceneEntityCfg
 ) -> None:
     """Reward tracking of the position using the tanh kernel."""
-    fn = position_command_error_tanh
     asset: Articulation = env.scene[asset_cfg.name]
-    if not hasattr(fn, "_cmd_wp") or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
     wp.launch(
         kernel=_position_command_error_tanh_kernel,
         dim=env.num_envs,
@@ -114,7 +103,7 @@ def position_command_error_tanh(
             asset.data.root_pos_w.warp,
             asset.data.root_quat_w.warp,
             asset.data.body_pos_w.warp,
-            fn._cmd_wp,
+            env.command_manager.get_command_wp(command_name),
             asset_cfg.body_ids[0],
             1.0 / std,
             out,
@@ -152,15 +141,16 @@ def _orientation_command_error_kernel(
 
 def orientation_command_error(env: ManagerBasedRLEnv, out, command_name: str, asset_cfg: SceneEntityCfg) -> None:
     """Penalize tracking orientation error using shortest path."""
-    fn = orientation_command_error
     asset: Articulation = env.scene[asset_cfg.name]
-    if not hasattr(fn, "_cmd_wp") or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
     wp.launch(
         kernel=_orientation_command_error_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_quat_w.warp, asset.data.body_quat_w.warp, fn._cmd_wp, asset_cfg.body_ids[0], out],
+        inputs=[
+            asset.data.root_quat_w.warp,
+            asset.data.body_quat_w.warp,
+            env.command_manager.get_command_wp(command_name),
+            asset_cfg.body_ids[0],
+            out,
+        ],
         device=env.device,
     )

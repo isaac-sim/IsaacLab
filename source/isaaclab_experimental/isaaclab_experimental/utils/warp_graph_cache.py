@@ -12,7 +12,7 @@ import warp as wp
 
 
 class WarpGraphCache:
-    """Caches Warp CUDA graphs by stage name: captures on first call, replays after.
+    """Run Warp stages eagerly or cache CUDA graphs by stage name.
 
     On the very first call for a given stage, an **eager warm-up** run
     executes *before* graph capture.  This lets one-time initialisation
@@ -32,7 +32,13 @@ class WarpGraphCache:
         result2 = cache.capture_or_replay("my_stage_post", my_other_function)
     """
 
-    def __init__(self):
+    def __init__(self, *, enabled: bool = True):
+        """Initialize the execution cache.
+
+        Args:
+            enabled: Whether to capture stages. When false, stages execute eagerly.
+        """
+        self._enabled = enabled
         self._graphs: dict[str, Any] = {}
         self._results: dict[str, Any] = {}
 
@@ -54,10 +60,12 @@ class WarpGraphCache:
             kwargs: Keyword arguments forwarded to *fn*. Defaults to ``None``.
 
         Returns:
-            The cached return value from the first (capture) invocation.
+            The eager result when disabled, otherwise the cached result from capture.
         """
         if kwargs is None:
             kwargs = {}
+        if not self._enabled:
+            return fn(*args, **kwargs)
         graph = self._graphs.get(stage)
         if graph is not None:
             wp.capture_launch(graph)

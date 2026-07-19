@@ -43,6 +43,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _resolve_reset_mask(
+    owner: ManagerBase | ManagerTermBase,
+    env_ids: Sequence[int] | None,
+    env_mask: wp.array(dtype=wp.bool) | None,
+) -> wp.array(dtype=wp.bool):
+    """Resolve reset input once while keeping ID conversion outside capture."""
+    if isinstance(env_mask, wp.array):
+        if env_mask.dtype != wp.bool or env_mask.ndim != 1 or env_mask.shape[0] != owner.num_envs:
+            raise ValueError(
+                f"env_mask must be a Warp boolean array with shape ({owner.num_envs},), received {env_mask}."
+            )
+        expected_device = wp.get_device(owner.device)
+        if env_mask.device != expected_device:
+            raise ValueError(f"env_mask must be on {expected_device}, received {env_mask.device}.")
+        return env_mask
+    if wp.get_device(owner.device).is_capturing:
+        raise RuntimeError(
+            f"{type(owner).__name__}.reset requires env_mask(wp.array[bool]) during capture. "
+            "Resolve environment IDs before entering the captured stage."
+        )
+    return owner._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+
+
 class ManagerTermBase(ABC):
     """Base class for manager terms.
 
@@ -115,6 +138,14 @@ class ManagerTermBase(ABC):
                 If None, all envs are considered.
         """
         pass
+
+    def _resolve_reset_mask(
+        self,
+        env_ids: Sequence[int] | None,
+        env_mask: wp.array(dtype=wp.bool) | None,
+    ) -> wp.array(dtype=wp.bool):
+        """Resolve a legacy reset selection to the canonical Warp mask."""
+        return _resolve_reset_mask(self, env_ids, env_mask)
 
     def serialize(self) -> dict:
         """General serialization call. Includes the configuration dict."""
@@ -226,7 +257,11 @@ class ManagerBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> dict[str, float]:
+    def reset(
+        self,
+        env_ids: Sequence[int] | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> dict[str, float]:
         """Resets the manager and returns logging information for the current time-step.
 
         Args:
@@ -237,6 +272,14 @@ class ManagerBase(ABC):
             Dictionary containing the logging information.
         """
         return {}
+
+    def _resolve_reset_mask(
+        self,
+        env_ids: Sequence[int] | None,
+        env_mask: wp.array(dtype=wp.bool) | None,
+    ) -> wp.array(dtype=wp.bool):
+        """Resolve a legacy reset selection to the canonical Warp mask."""
+        return _resolve_reset_mask(self, env_ids, env_mask)
 
     def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:
         """Find terms in the manager based on the names.

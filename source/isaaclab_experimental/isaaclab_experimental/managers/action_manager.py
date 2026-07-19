@@ -373,32 +373,21 @@ class ActionManager(ManagerBase):
         Returns:
             An empty dictionary.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "ActionManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         # reset the action history
-        if env_mask is None:
-            self._prev_action.fill_(0.0)
-            self._action.fill_(0.0)
-        else:
-            wp.launch(
-                kernel=_zero_masked_2d,
-                dim=(self.num_envs, self.total_action_dim),
-                inputs=[env_mask, self._prev_action],
-                device=self.device,
-            )
-            wp.launch(
-                kernel=_zero_masked_2d,
-                dim=(self.num_envs, self.total_action_dim),
-                inputs=[env_mask, self._action],
-                device=self.device,
-            )
+        wp.launch(
+            kernel=_zero_masked_2d,
+            dim=(self.num_envs, self.total_action_dim),
+            inputs=[env_mask, self._prev_action],
+            device=self.device,
+        )
+        wp.launch(
+            kernel=_zero_masked_2d,
+            dim=(self.num_envs, self.total_action_dim),
+            inputs=[env_mask, self._action],
+            device=self.device,
+        )
 
         # reset all action terms
         for term in self._terms.values():

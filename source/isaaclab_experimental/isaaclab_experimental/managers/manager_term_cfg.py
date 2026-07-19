@@ -8,6 +8,7 @@
 This module is a passthrough to :mod:`isaaclab.managers.manager_term_cfg` except for
 the following term configs which are overridden for Warp-first execution:
 
+- :class:`CurriculumTermCfg`
 - :class:`ObservationTermCfg`
 - :class:`RewardTermCfg`
 - :class:`TerminationTermCfg`
@@ -19,8 +20,21 @@ from collections.abc import Callable
 from dataclasses import MISSING
 
 from isaaclab.managers.manager_term_cfg import *  # noqa: F401,F403
+from isaaclab.managers.manager_term_cfg import CurriculumTermCfg as _CurriculumTermCfg
 from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg as _ManagerTermBaseCfg
 from isaaclab.utils.configclass import configclass
+
+
+@configclass
+class CurriculumTermCfg(_CurriculumTermCfg):
+    """Configuration for a Warp-mask or legacy curriculum term."""
+
+    requires_host_ids: bool | None = None
+    """Whether a legacy term consumes compact environment IDs.
+
+    ``None`` selects the manager default: mask-native terms do not require IDs, while legacy terms do.
+    Set this to ``False`` for global legacy terms that ignore their ``env_ids`` argument.
+    """
 
 
 @configclass

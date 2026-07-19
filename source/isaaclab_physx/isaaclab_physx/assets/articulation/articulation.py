@@ -236,15 +236,21 @@ class Articulation(BaseArticulation):
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
-        # reset actuators (including Newton-native adapter which owns its states)
+        actuator_env_ids = env_ids
+        if self.actuators and env_mask is not None and not getattr(self, "_has_newton_actuators", False):
+            # Explicit boundary for the legacy Torch actuator fallback. The Warp
+            # frontend enables Newton-native actuators, whose state resets below
+            # consume the mask directly without materializing compact IDs.
+            actuator_env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        # reset Lab actuators
         for actuator in self.actuators.values():
-            actuator.reset(env_ids)
+            actuator.reset(actuator_env_ids)
         # Reset Newton-actuator per-env states (delay queues, neural hidden state, etc.).
         # The adapter is per-articulation on PhysX and is not part of ``self.actuators``.
         # ``getattr`` guards subclasses (e.g. ``Multirotor``) that override
         # ``_process_actuators_cfg`` and never initialize these attributes.
         if getattr(self, "_has_newton_actuators", False) and getattr(self, "newton_actuator_adapter", None) is not None:
-            self.newton_actuator_adapter.reset(env_ids)
+            self.newton_actuator_adapter.reset(env_ids, env_mask=env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)

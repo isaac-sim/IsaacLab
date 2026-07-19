@@ -25,12 +25,12 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from isaaclab.managers import CommandManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.timer import Timer
 
-from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
+from isaaclab_experimental.managers import CommandManager, CurriculumManager
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
+from isaaclab_experimental.utils.warp import increment_all_int64, zero_masked_int64
 
 from .manager_based_env_warp import ManagerBasedEnvWarp
 
@@ -106,9 +106,9 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # store the render mode
         self.render_mode = render_mode
 
-        # The persistent reset mask needed for warp capture
-        # The intended use is to copy into this mask whenever capture is needed
-        # TODO: termination manager provides the same mask, investigate whether this can be replaced.
+        # Reset stages may be captured independently, so every stage must see
+        # one owner-held mask pointer. Copy each new selection into this buffer
+        # before dispatch instead of recording caller-owned mask addresses.
         self.reset_mask_wp = wp.zeros(cfg.scene.num_envs, dtype=wp.bool, device=cfg.sim.device)
 
         # Persistent action input buffer to keep pointer stable for captured graphs.
@@ -155,7 +155,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     def load_managers(self):
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
-        # -- command manager (stable impl — not routed through ManagerCallSwitch)
+        # -- Warp-first command manager
         self.command_manager = CommandManager(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
 
@@ -171,10 +171,8 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # -- reward manager (experimental fork; Warp-compatible rewards)
         self.reward_manager = self._manager_call_switch.resolve_manager_class("RewardManager")(self.cfg.rewards, self)
         print("[INFO] Reward Manager: ", self.reward_manager)
-        # -- curriculum manager
-        self.curriculum_manager = self._manager_call_switch.resolve_manager_class("CurriculumManager")(
-            self.cfg.curriculum, self
-        )
+        # -- Warp-first curriculum manager
+        self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
 
         # setup the action and observation spaces for Gym
@@ -243,13 +241,15 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             action_device = action.to(self.device)
             wp.copy(self._action_in_wp, wp.from_torch(action_device, dtype=wp.float32))
 
-        self._manager_call_switch.call_stage(
-            stage="ActionManager_process_action",
-            warp_call={"fn": self.action_manager.process_action, "kwargs": {"action": self._action_in_wp}},
-            timer=DEBUG_TIMER_STEP,
+        self._manager_call_switch.call(
+            "ActionManager_process_action",
+            self.action_manager.process_action,
+            action=self._action_in_wp,
+            _timer=DEBUG_TIMER_STEP,
         )
 
-        self.recorder_manager.record_pre_step()
+        if self._has_recorders:
+            self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
@@ -259,21 +259,22 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self._manager_call_switch.call_stage(
-                stage="ActionManager_apply_action",
-                warp_call={"fn": self.action_manager.apply_action},
-                timer=DEBUG_TIMER_STEP,
+            self._manager_call_switch.call(
+                "ActionManager_apply_action",
+                self.action_manager.apply_action,
+                _timer=DEBUG_TIMER_STEP,
             )
-            self._manager_call_switch.call_stage(
-                stage="Scene_write_data_to_sim",
-                warp_call={"fn": self.scene.write_data_to_sim},
-                timer=DEBUG_TIMER_STEP,
+            self._manager_call_switch.call(
+                "Scene_write_data_to_sim",
+                self.scene.write_data_to_sim,
+                _timer=DEBUG_TIMER_STEP,
             )
 
             # simulate
             with Timer(name="simulate", msg="Newton simulation step took:", enable=DEBUG_TIMER_STEP, time_unit="us"):
                 self.sim.step(render=False)
-            self.recorder_manager.record_post_physics_decimation_step()
+            if self._has_recorders:
+                self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
@@ -290,90 +291,66 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         # post-step:
         # -- update env counters (used for curriculum generation)
-        self.episode_length_buf += 1  # step in current episode (per env)
+        wp.launch(
+            increment_all_int64,
+            dim=self.num_envs,
+            inputs=[self._episode_length_buf_wp, 1],
+            device=self.device,
+        )
         self.common_step_counter += 1  # total step (common for all envs)
 
         # -- post-processing (termination + reward) as independently configurable stages
-        self._manager_call_switch.call_stage(
-            stage="TerminationManager_compute",
-            warp_call={"fn": self.step_warp_termination_compute},
-            timer=DEBUG_TIMER_STEP,
+        self._manager_call_switch.call(
+            "TerminationManager_compute",
+            self.step_warp_termination_compute,
+            _timer=DEBUG_TIMER_STEP,
         )
-        self.reward_buf = self._manager_call_switch.call_stage(
-            stage="RewardManager_compute",
-            warp_call={"fn": self.reward_manager.compute, "kwargs": {"dt": float(self.step_dt)}},
-            timer=DEBUG_TIMER_STEP,
+        self.reward_buf = self._manager_call_switch.call(
+            "RewardManager_compute",
+            self.reward_manager.compute,
+            dt=float(self.step_dt),
+            _timer=DEBUG_TIMER_STEP,
         )
 
-        if len(self.recorder_manager.active_terms) > 0:
+        if self._has_recorders:
             # update observations for recording if needed
-            self._manager_call_switch.call_stage(
-                stage="ObservationManager_compute_no_history",
-                warp_call={"fn": self.observation_manager.compute, "kwargs": {"return_cloned_output": False}},
-                timer=DEBUG_TIMER_STEP,
+            self._manager_call_switch.call(
+                "ObservationManager_compute_no_history",
+                self.observation_manager.compute,
+                return_cloned_output=False,
+                _timer=DEBUG_TIMER_STEP,
             )
             self.recorder_manager.record_post_step()
 
-        # -- reset envs that terminated/timed-out and log the episode information
-        # NOTE: Interim path (intentional).
-        # We still compact `reset_buf` into `env_ids` here because several reset-time managers/recorders
-        # are still `env_ids`-based. Do NOT remove/replace this until mask-based reset is end-to-end.
-        with Timer(
-            name="reset_selection",
-            msg="Reset selection took:",
-            enable=DEBUG_TIMER_STEP,
-            time_unit="us",
-        ):
-            # Keep the reset-mask handoff fully in Warp when experimental termination buffers exist.
-            # Stable termination manager path exposes torch-only dones/reset buffers.
-            termination_manager_mode = self._manager_call_switch.get_mode_for_manager("TerminationManager")
-            if termination_manager_mode == ManagerCallMode.STABLE:
-                # copy still needed as mask will be used if manager is set to mode > 0
-                wp.copy(self.reset_mask_wp, wp.from_torch(self.reset_buf, dtype=wp.bool))
-            else:
-                wp.copy(self.reset_mask_wp, self.termination_manager.dones_wp)
-            reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            # trigger recorder terms for pre-reset calls
-            self.recorder_manager.record_pre_reset(reset_env_ids)
-
-            with Timer(
-                name="reset_idx",
-                msg="Reset idx took:",
-                enable=DEBUG_TIMER_STEP,
-                time_unit="us",
-            ):
-                self._reset_idx(env_ids=reset_env_ids, env_mask=self.reset_mask_wp)
-
-            # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
-                for _ in range(self.cfg.num_rerenders_on_reset):
-                    self.sim.render()
-
-            # trigger recorder terms for post-reset calls
-            self.recorder_manager.record_post_reset(reset_env_ids)
+        self._reset_terminated_envs()
 
         # -- update command
-        self.command_manager.compute(dt=float(self.step_dt))
+        self._manager_call_switch.call(
+            "CommandManager_compute",
+            self.command_manager.compute,
+            dt=float(self.step_dt),
+            _timer=DEBUG_TIMER_STEP,
+        )
 
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
-            self._manager_call_switch.call_stage(
-                stage="EventManager_apply_interval",
-                warp_call={"fn": self.event_manager.apply, "kwargs": {"mode": "interval", "dt": float(self.step_dt)}},
-                timer=DEBUG_TIMER_STEP,
+            self._manager_call_switch.call(
+                "EventManager_apply_interval",
+                self.event_manager.apply,
+                mode="interval",
+                dt=float(self.step_dt),
+                _timer=DEBUG_TIMER_STEP,
             )
 
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
-        self.obs_buf = self._manager_call_switch.call_stage(
-            stage="ObservationManager_compute_update_history",
-            warp_call={
-                "fn": self.observation_manager.compute,
-                "kwargs": {"update_history": True, "return_cloned_output": False},
-                "output": lambda r: clone_obs_buffer(r),
-            },
-            timer=DEBUG_TIMER_STEP,
+        self.obs_buf = self._manager_call_switch.call(
+            "ObservationManager_compute_update_history",
+            self.observation_manager.compute,
+            update_history=True,
+            return_cloned_output=False,
+            _output=clone_obs_buffer,
+            _timer=DEBUG_TIMER_STEP,
         )
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
@@ -487,118 +464,104 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
     def _reset_idx(
         self,
-        env_ids: Sequence[int] | slice | torch.Tensor,
         *,
-        env_mask: wp.array | None = None,
-    ):
-        """Reset environments based on specified indices.
-
-        IMPORTANT:
-            This function always uses the **TerminationManager-produced Warp env mask** (`self.reset_buf`) to select
-            which envs to reset. The ids/mask conversion is performed in `step()` before calling this function.
-
-            In other words:
-            - If `env_mask` is provided, it **must** be `self.reset_buf` (Warp bool mask)
-            - If `env_mask` is not provided, this function will populate `self.reset_buf` from `env_ids`
-            - When `env_mask` is provided, `env_ids` **must** correspond to the same mask
+        env_mask: wp.array(dtype=wp.bool),
+        env_ids: Sequence[int] | torch.Tensor | None = None,
+    ) -> None:
+        """Reset Warp-owned RL state for selected environments.
 
         Args:
-            env_ids: Environment indices to reset.
-            env_mask: Warp boolean env mask selecting envs to reset. Must be `self.reset_buf`.
-                If None, uses and populates `self.reset_buf` from `env_ids`.
+            env_mask: Boolean Warp mask selecting environments to reset.
+            env_ids: Optional compact IDs for legacy curriculum terms that
+                explicitly require a host selection.
         """
-        if env_mask is None:
-            # Base `reset()` / `reset_to()` call-path provides only `env_ids`.
-            # Populate the stable TerminationManager-owned mask (`self.reset_buf`) from ids.
-            env_mask = self.reset_mask_wp
-            # Use the centralized env-id/mask resolution from the base Warp env, then copy into the
-            # stable TerminationManager-owned buffer (`self.reset_buf`) used by captured graphs.
-            resolved_mask = self.resolve_env_mask(env_ids=env_ids)
-            wp.copy(env_mask, resolved_mask)
+        if env_mask is not self.reset_mask_wp:
+            wp.copy(self.reset_mask_wp, env_mask)
+        env_mask = self.reset_mask_wp
 
-        if not isinstance(env_mask, wp.array):
-            raise TypeError(f"env_mask must be a wp.array (got {type(env_mask)}).")
+        self._manager_call_switch.call(
+            "CurriculumManager_compute",
+            self.curriculum_manager.compute,
+            env_mask=env_mask,
+            env_ids=env_ids,
+            _timer=DEBUG_TIMER_RESET,
+        )
 
-        # update the curriculum for environments that need a reset
-        with Timer(
-            name="curriculum_manager.compute_reset",
-            msg="CurriculumManager.compute (reset) took:",
-            enable=DEBUG_TIMER_RESET,
-            time_unit="us",
-        ):
-            self.curriculum_manager.compute(env_ids=env_ids)
-
-        # reset the internal buffers of the scene elements
-        self._manager_call_switch.call_stage(
-            stage="Scene_reset",
-            warp_call={"fn": self.scene.reset, "kwargs": {"env_ids": env_ids, "env_mask": env_mask}},
-            timer=DEBUG_TIMER_RESET,
+        self._manager_call_switch.call(
+            "Scene_reset",
+            self.scene.reset,
+            env_mask=env_mask,
+            _timer=DEBUG_TIMER_RESET,
         )
 
         if "reset" in self.event_manager.available_modes:
             self._global_env_step_count_wp.fill_(self._sim_step_counter // self.cfg.decimation)
-            self._manager_call_switch.call_stage(
-                stage="EventManager_apply_reset",
-                warp_call={
-                    "fn": self.event_manager.apply,
-                    "kwargs": {
-                        "mode": "reset",
-                        "env_mask_wp": env_mask,
-                        "global_env_step_count": self._global_env_step_count_wp,
-                    },
-                },
-                timer=DEBUG_TIMER_RESET,
+            self._manager_call_switch.call(
+                "EventManager_apply_reset",
+                self.event_manager.apply,
+                mode="reset",
+                env_mask_wp=env_mask,
+                global_env_step_count=self._global_env_step_count_wp,
+                _timer=DEBUG_TIMER_RESET,
             )
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
         # -- observation manager + action + reward managers
-        obs_info = self._manager_call_switch.call_stage(
-            stage="ObservationManager_reset",
-            warp_call={"fn": self.observation_manager.reset, "kwargs": {"env_mask": env_mask}},
-            timer=DEBUG_TIMER_RESET,
+        obs_info = self._manager_call_switch.call(
+            "ObservationManager_reset",
+            self.observation_manager.reset,
+            env_mask=env_mask,
+            _timer=DEBUG_TIMER_RESET,
         )
-        action_info = self._manager_call_switch.call_stage(
-            stage="ActionManager_reset",
-            warp_call={"fn": self.action_manager.reset, "kwargs": {"env_mask": env_mask}},
-            timer=DEBUG_TIMER_RESET,
+        action_info = self._manager_call_switch.call(
+            "ActionManager_reset",
+            self.action_manager.reset,
+            env_mask=env_mask,
+            _timer=DEBUG_TIMER_RESET,
         )
-        reward_info = self._manager_call_switch.call_stage(
-            stage="RewardManager_reset",
-            warp_call={"fn": self.reward_manager.reset, "kwargs": {"env_mask": env_mask}},
-            timer=DEBUG_TIMER_RESET,
+        reward_info = self._manager_call_switch.call(
+            "RewardManager_reset",
+            self.reward_manager.reset,
+            env_mask=env_mask,
+            _timer=DEBUG_TIMER_RESET,
         )
-
-        # -- curriculum manager
-        with Timer(
-            name="curriculum_manager.reset",
-            msg="CurriculumManager.reset took:",
-            enable=DEBUG_TIMER_RESET,
-            time_unit="us",
-        ):
-            curriculum_info = self.curriculum_manager.reset(env_ids=env_ids)
+        curriculum_info = self._manager_call_switch.call(
+            "CurriculumManager_reset",
+            self.curriculum_manager.reset,
+            env_mask=env_mask,
+            env_ids=env_ids,
+            _timer=DEBUG_TIMER_RESET,
+        )
 
         # -- command + event + termination managers
-        command_info = self.command_manager.reset(env_ids=env_ids)
-        event_info = self._manager_call_switch.call_stage(
-            stage="EventManager_reset",
-            warp_call={"fn": self.event_manager.reset, "kwargs": {"env_mask": env_mask}},
-            stable_call={"fn": self.event_manager.reset, "kwargs": {"env_ids": env_ids}},
-            timer=DEBUG_TIMER_RESET,
+        command_info = self._manager_call_switch.call(
+            "CommandManager_reset",
+            self.command_manager.reset,
+            env_mask=env_mask,
+            _timer=DEBUG_TIMER_RESET,
         )
-        termination_info = self._manager_call_switch.call_stage(
-            stage="TerminationManager_reset",
-            warp_call={"fn": self.termination_manager.reset, "kwargs": {"env_mask": env_mask}},
-            stable_call={"fn": self.termination_manager.reset, "kwargs": {"env_ids": env_ids}},
-            timer=DEBUG_TIMER_RESET,
+        event_info = self._manager_call_switch.call(
+            "EventManager_reset",
+            self.event_manager.reset,
+            env_mask=env_mask,
+            _timer=DEBUG_TIMER_RESET,
         )
-
-        # -- recorder manager
-        recorder_info = self.recorder_manager.reset(env_ids=env_ids)
+        termination_info = self._manager_call_switch.call(
+            "TerminationManager_reset",
+            self.termination_manager.reset,
+            env_mask=env_mask,
+            _timer=DEBUG_TIMER_RESET,
+        )
 
         # reset the episode length buffer
-        self.episode_length_buf[env_ids] = 0
+        wp.launch(
+            zero_masked_int64,
+            dim=self.num_envs,
+            inputs=[env_mask, self._episode_length_buf_wp],
+            device=self.device,
+        )
 
         # aggregate logging info
         log: dict[str, Any] = {}
@@ -610,7 +573,57 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             command_info,
             event_info,
             termination_info,
-            recorder_info,
         ):
             log.update(info)
         self.extras["log"] = log
+
+    def _reset_terminated_envs(self) -> None:
+        """Reset terminated environments, compacting IDs only for host consumers."""
+        reset_mask = self.termination_manager.dones_wp
+        reset_env_ids = None
+        if self._reset_requires_host_selection():
+            with Timer(
+                name="reset_selection_host",
+                msg="Host reset selection took:",
+                enable=DEBUG_TIMER_STEP,
+                time_unit="us",
+            ):
+                reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+            if reset_env_ids.numel() == 0:
+                return
+            if self._has_recorders:
+                self.recorder_manager.record_pre_reset(reset_env_ids)
+            self._reset_host_pre(reset_env_ids)
+
+        with Timer(
+            name="reset_idx",
+            msg="Reset idx took:",
+            enable=DEBUG_TIMER_STEP,
+            time_unit="us",
+        ):
+            self._reset_idx(env_mask=reset_mask, env_ids=reset_env_ids)
+
+        if reset_env_ids is not None and reset_env_ids.numel() > 0:
+            self.extras["log"].update(self._reset_host_post(reset_env_ids))
+            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+                for _ in range(self.cfg.num_rerenders_on_reset):
+                    self.sim.render()
+            if self._has_recorders:
+                self.recorder_manager.record_post_reset(reset_env_ids)
+
+    def _reset_host_pre(self, env_ids: Sequence[int] | torch.Tensor) -> None:
+        """Run host-only pre-reset work for selected environments."""
+        super()._reset_host_pre(env_ids)
+
+    def _reset_host_post(self, env_ids: Sequence[int] | torch.Tensor) -> dict[str, Any]:
+        """Run host-only manager resets and return their logging values."""
+        return super()._reset_host_post(env_ids)
+
+    def _reset_requires_host_selection(self) -> bool:
+        """Return whether enabled reset features require a host-visible selection."""
+        return bool(
+            self.curriculum_manager.requires_host_boundary
+            or self._has_recorders
+            or self.scene.surface_grippers
+            or (self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0)
+        )

@@ -55,7 +55,7 @@ import isaaclab.envs.mdp.rewards as stable_rew
 @pytest.fixture(autouse=True)
 def _clear_caches():
     yield
-    for fn in [warp_rew.track_lin_vel_xy_exp, warp_rew.track_ang_vel_z_exp, warp_rew.undesired_contacts]:
+    for fn in [warp_rew.undesired_contacts]:
         for attr in list(vars(fn)):
             if attr.startswith("_"):
                 delattr(fn, attr)

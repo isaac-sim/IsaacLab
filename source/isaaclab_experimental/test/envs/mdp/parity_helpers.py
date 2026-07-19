@@ -533,10 +533,14 @@ class MockCommandManager:
 
     def __init__(self, command_tensor: torch.Tensor, cmd_term: MockCommandTerm):
         self._cmd = command_tensor
+        self._cmd_wp = wp.from_torch(command_tensor, dtype=wp.float32)
         self._term = cmd_term
 
     def get_command(self, name: str) -> torch.Tensor:
         return self._cmd
+
+    def get_command_wp(self, name: str) -> wp.array(dtype=wp.float32, ndim=2):
+        return self._cmd_wp
 
     def get_term(self, name: str):
         return self._term

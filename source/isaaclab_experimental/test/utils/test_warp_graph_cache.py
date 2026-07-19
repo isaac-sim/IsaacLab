@@ -27,6 +27,20 @@ class TestWarpGraphCache(unittest.TestCase):
         self.device = "cuda:0"
         self.cache = WarpGraphCache()
 
+    def test_disabled_cache_runs_eager_once_per_call(self):
+        """A disabled cache should preserve eager execution semantics."""
+        cache = WarpGraphCache(enabled=False)
+        call_count = 0
+
+        def counted_call(value):
+            nonlocal call_count
+            call_count += 1
+            return value
+
+        self.assertEqual(cache.capture_or_replay("stage", counted_call, args=(1,)), 1)
+        self.assertEqual(cache.capture_or_replay("stage", counted_call, args=(2,)), 2)
+        self.assertEqual(call_count, 2)
+
     # ------------------------------------------------------------------
     # Warm-up
     # ------------------------------------------------------------------

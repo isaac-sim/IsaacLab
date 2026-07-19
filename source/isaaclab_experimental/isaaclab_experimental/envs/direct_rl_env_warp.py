@@ -38,6 +38,7 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
+from isaaclab_experimental.utils.warp import increment_all_int32, zero_masked_int32
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
 # from isaacsim.core.simulation_manager import SimulationManager
@@ -53,24 +54,8 @@ DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
 DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
 """Enable all fine-grained inner timers (adds wp.synchronize per sub-phase). Set DEBUG_TIMERS=1 env var to enable."""
 
-
-@wp.kernel
-def zero_mask_int32(
-    mask: wp.array(dtype=wp.bool),
-    data: wp.array(dtype=wp.int32),
-):
-    env_index = wp.tid()
-    if mask[env_index]:
-        data[env_index] = 0
-
-
-@wp.kernel
-def add_to_env(
-    data: wp.array(dtype=wp.int32),
-    value: wp.int32,
-):
-    env_index = wp.tid()
-    data[env_index] += value
+WARP_DIRECT_CAPTURE = os.environ.get("ISAACLAB_WARP_DIRECT_CAPTURE", "0") == "1"
+"""Enable direct-environment stage capture. Eager execution is the correctness-first default."""
 
 
 class DirectRLEnvWarp(DirectRLEnv):
@@ -117,6 +102,10 @@ class DirectRLEnvWarp(DirectRLEnv):
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # Keep the Warp frontend on the Warp-native actuator path. This covers
+        # implicit, PD, delayed, DC, and neural actuator configurations without
+        # crossing through the Torch-based Isaac Lab actuator loop each step.
+        cfg.sim.use_newton_actuators = True
         # check that the config is valid
         cfg.validate()
         # store inputs to class
@@ -243,8 +232,10 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Warp CUDA graph cache for capture-or-replay
-        self._graph_cache = WarpGraphCache()
+        # Direct stages are Warp eager by default. The owner-held cache keeps
+        # execution dispatch out of call sites and can enable capture later once
+        # stateful warm-up semantics are defined.
+        self._graph_cache = WarpGraphCache(enabled=WARP_DIRECT_CAPTURE)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -429,8 +420,8 @@ class DirectRLEnvWarp(DirectRLEnv):
                 with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
                     self._graph_cache.capture_or_replay("action", self.step_warp_action)
 
-                # write_data_to_sim runs outside the CUDA graph because _apply_actuator_model
-                # uses torch ops (wp.to_torch + torch arithmetic) that cross CUDA streams.
+                # Keep scene writes outside the task graph until scene, sensor, and
+                # actuator capturability have been validated as one backend boundary.
                 with Timer(name="write_data_to_sim_loop", msg="Write data to sim (loop) took:", enable=DEBUG_TIMERS):
                     self.scene.write_data_to_sim()
 
@@ -448,7 +439,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
             self._graph_cache.capture_or_replay("end_pre", self._step_warp_end_pre)
-        # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
+        # Keep the post-reset scene write at the explicit backend boundary.
         with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
             self.scene.write_data_to_sim()
         with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
@@ -479,15 +470,13 @@ class DirectRLEnvWarp(DirectRLEnv):
 
     def step_warp_action(self) -> None:
         self._apply_action()
-        # Note: scene.write_data_to_sim() is called separately outside the CUDA graph
-        # capture scope because it invokes _apply_actuator_model() which uses torch
-        # arithmetic (wp.to_torch + torch ops). This would cause a CUDA stream crossing
-        # error during graph capture. Moving it outside is safe since it runs every step.
+        # Scene writes remain a separate backend stage. This keeps the Warp-first
+        # task path correct without making capture support a prerequisite.
 
     def _step_warp_end_pre(self) -> None:
         """Capturable portion before write_data_to_sim (pure warp kernels)."""
         wp.launch(
-            add_to_env,
+            increment_all_int32,
             dim=self.num_envs,
             inputs=[
                 self._episode_length_buf_wp,
@@ -741,7 +730,7 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # reset the episode length buffer
         wp.launch(
-            zero_mask_int32,
+            zero_masked_int32,
             dim=self.num_envs,
             inputs=[
                 mask,

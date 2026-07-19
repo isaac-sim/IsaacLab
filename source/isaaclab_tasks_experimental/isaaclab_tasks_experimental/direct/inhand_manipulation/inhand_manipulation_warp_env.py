@@ -667,6 +667,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         self.torch_reset_terminated = wp.to_torch(self.reset_terminated)
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
+        self.torch_consecutive_successes = wp.to_torch(self.consecutive_successes)
 
     def _setup_scene(self):
         # add hand, in-hand object, and goal object
@@ -771,7 +772,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         if "log" not in self.extras:
             self.extras["log"] = dict()
         # .mean() cannot be called here as it causes problems on stream
-        self.extras["log"]["consecutive_successes"] = wp.to_torch(self.consecutive_successes)
+        self.extras["log"]["consecutive_successes"] = self.torch_consecutive_successes
 
         # Reset goals for envs that reached the target (mask is `reset_goal_buf`).
         # This avoids Torch-side index extraction and keeps the step graphable.

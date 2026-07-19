@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+from collections.abc import Callable
 from enum import IntEnum
 from typing import Any
 
@@ -22,6 +23,7 @@ class ManagerCallMode(IntEnum):
     """Execution mode for manager stage calls.
 
     * ``STABLE``  (0): Call stable Python manager implementations from :mod:`isaaclab.managers`.
+      This mode is deprecated inside ``ManagerBasedEnvWarp``; use the stable environment instead.
     * ``WARP_NOT_CAPTURED`` (1): Call Warp-compatible implementations without CUDA graph capture.
     * ``WARP_CAPTURED`` (2): Call Warp implementations with CUDA graph capture/replay.
     """
@@ -39,7 +41,9 @@ class ManagerCallSwitch:
     wraps each call in a :class:`Timer` context for profiling.
     """
 
-    DEFAULT_CONFIG: dict[str, int] = {"default": 2}
+    # Warp eager is the correctness-first default. Capture remains an explicit
+    # optimization while stage state and pointer contracts are validated.
+    DEFAULT_CONFIG: dict[str, int] = {"default": 1}
     DEFAULT_KEY = "default"
     MANAGER_NAMES: tuple[str, ...] = (
         "ActionManager",
@@ -52,9 +56,8 @@ class ManagerCallSwitch:
         "CurriculumManager",
         "Scene",
     )
-    # FIXME: Scene_write_data_to_sim calls articulation._apply_actuator_model which
-    #  uses wp.to_torch + torch indexing -- not capture-safe on this branch.
-    #  Cap Scene stages to WARP_NOT_CAPTURED until the articulation layer is capture-ready.
+    # Scene stages remain eager until scene, sensor, and actuator graphability is
+    # validated together. Warp-first execution does not depend on that later step.
     MAX_MODE_OVERRIDES: dict[str, int] = {"Scene": ManagerCallMode.WARP_NOT_CAPTURED}
 
     ENV_VAR = "MANAGER_CALL_CONFIG"
@@ -62,7 +65,7 @@ class ManagerCallSwitch:
 
     Example usage::
 
-        MANAGER_CALL_CONFIG='{"RewardManager": 0, "default": 2}' python train.py ...
+        MANAGER_CALL_CONFIG='{"RewardManager": 0, "default": 1}' python train.py ...
     """
 
     def __init__(
@@ -71,7 +74,8 @@ class ManagerCallSwitch:
         *,
         max_modes: dict[str, int] | None = None,
     ):
-        self._graph_cache = WarpGraphCache()
+        # The graph cache is reached only for an explicit WARP_CAPTURED mode.
+        self._graph_cache = WarpGraphCache(enabled=True)
         # Merge caller-supplied max_modes with the class-level MAX_MODE_OVERRIDES.
         self._max_modes = dict(self.MAX_MODE_OVERRIDES)
         if max_modes is not None:
@@ -99,6 +103,40 @@ class ManagerCallSwitch:
     # ------------------------------------------------------------------
     # Stage dispatch
     # ------------------------------------------------------------------
+
+    def call(
+        self,
+        stage: str,
+        fn: Callable[..., Any],
+        /,
+        *args: Any,
+        _output: Callable[[Any], Any] | None = None,
+        _timer: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        """Run a Warp frontend stage eagerly or through its cached CUDA graph.
+
+        The call site always supplies the same callable and arguments. The
+        configured manager mode only controls how that call is executed.
+
+        Args:
+            stage: Stage identifier in the form ``"ManagerName_function_name"``.
+            fn: Callable implementing the stage.
+            *args: Positional arguments forwarded to :paramref:`fn`.
+            _output: Optional transform applied to the stage result after execution.
+            _timer: Whether to time the stage.
+            **kwargs: Keyword arguments forwarded to :paramref:`fn`.
+
+        Returns:
+            The stage result, optionally transformed by :paramref:`_output`.
+        """
+        with Timer(name=stage, msg=f"{stage} took:", enable=_timer, time_unit="us"):
+            mode = self.get_mode_for_manager(self._manager_name_from_stage(stage))
+            if mode == ManagerCallMode.WARP_CAPTURED:
+                result = self._graph_cache.capture_or_replay(stage, fn, args=args, kwargs=kwargs)
+            else:
+                result = fn(*args, **kwargs)
+        return _output(result) if _output is not None else result
 
     def call_stage(
         self,

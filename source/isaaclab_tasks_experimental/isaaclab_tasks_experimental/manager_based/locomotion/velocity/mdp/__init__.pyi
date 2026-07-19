@@ -5,6 +5,7 @@
 
 __all__ = [
     "terrain_levels_vel",
+    "TerrainLevelsVel",
     "feet_air_time",
     "feet_air_time_positive_biped",
     "feet_slide",
@@ -18,7 +19,7 @@ __all__ = [
 # observations, ...) lazily, then override with locomotion-specific terms below.
 from isaaclab_experimental.envs.mdp import *  # noqa: F401, F403
 
-from .curriculums import terrain_levels_vel
+from .curriculums import TerrainLevelsVel, terrain_levels_vel
 from .rewards import (
     feet_air_time,
     feet_air_time_positive_biped,

@@ -182,8 +182,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if object_ids is None:
             object_ids = self._ALL_BODY_INDICES
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import trimesh
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
@@ -23,6 +24,32 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+@wp.kernel
+def _update_env_origins_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    move_up: wp.array(dtype=wp.bool),
+    move_down: wp.array(dtype=wp.bool),
+    rng_state: wp.array(dtype=wp.uint32),
+    terrain_levels: wp.array(dtype=wp.int64),
+    terrain_types: wp.array(dtype=wp.int64),
+    terrain_origins: wp.array(dtype=wp.vec3f, ndim=2),
+    env_origins: wp.array(dtype=wp.vec3f),
+    max_terrain_level: int,
+):
+    env_id = wp.tid()
+    if env_mask[env_id]:
+        state = rng_state[env_id]
+        random_level = wp.randi(state, 0, max_terrain_level)
+        level = terrain_levels[env_id] + wp.int64(move_up[env_id]) - wp.int64(move_down[env_id])
+        if level >= wp.int64(max_terrain_level):
+            level = wp.int64(random_level)
+        elif level < wp.int64(0):
+            level = wp.int64(0)
+        terrain_levels[env_id] = level
+        env_origins[env_id] = terrain_origins[level, terrain_types[env_id]]
+        rng_state[env_id] = state
 
 
 class TerrainImporter:
@@ -77,6 +104,10 @@ class TerrainImporter:
         self.terrain_prim_paths = list()
         self.terrain_origins = None
         self.env_origins = None  # assigned later when `configure_env_origins` is called
+        self._terrain_levels_wp = None
+        self._terrain_types_wp = None
+        self._terrain_origins_wp = None
+        self._env_origins_wp = None
         # private variables
         self._terrain_flat_patches = dict()
 
@@ -143,6 +174,12 @@ class TerrainImporter:
     def terrain_names(self) -> list[str]:
         """A list of names of the imported terrains."""
         return [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
+
+    @property
+    def terrain_levels_wp(self) -> wp.array(dtype=wp.int64):
+        """Pointer-stable Warp view of the per-environment terrain levels."""
+        self._initialize_warp_origin_views()
+        return self._terrain_levels_wp
 
     """
     Operations - Visibility.
@@ -310,6 +347,7 @@ class TerrainImporter:
                 raise ValueError("Environment spacing must be specified for configuring grid-like origins.")
             # compute environment origins
             self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
+        self._invalidate_warp_origin_views()
 
     def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor):
         """Update the environment origins based on the terrain levels."""
@@ -328,9 +366,89 @@ class TerrainImporter:
         # update the env origins
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
 
+    def update_env_origins_mask(
+        self,
+        env_mask: wp.array(dtype=wp.bool),
+        move_up: wp.array(dtype=wp.bool),
+        move_down: wp.array(dtype=wp.bool),
+        rng_state: wp.array(dtype=wp.uint32),
+    ) -> None:
+        """Update terrain levels and origins for a boolean environment mask.
+
+        This method preserves the level update semantics of :meth:`update_env_origins`: moving past the
+        maximum level wraps to a random level, moving below zero clamps to zero, and unselected environments
+        remain unchanged.
+
+        Args:
+            env_mask: Boolean Warp mask selecting environments to update. Shape is
+                ``(num_envs,)`` on :attr:`device`.
+            move_up: Boolean Warp flags that increment selected terrain levels.
+                Shape is ``(num_envs,)`` on :attr:`device`.
+            move_down: Boolean Warp flags that decrement selected terrain levels.
+                Shape is ``(num_envs,)`` on :attr:`device`.
+            rng_state: Per-environment Warp random-number-generator state. Shape is
+                ``(num_envs,)`` on :attr:`device`.
+
+        Raises:
+            ValueError: If an input array does not match the configured environment count.
+            TypeError: If an input array has the wrong Warp data type.
+        """
+        if self.terrain_origins is None:
+            return
+        num_envs = self.terrain_levels.shape[0]
+        arrays = {
+            "env_mask": (env_mask, wp.bool),
+            "move_up": (move_up, wp.bool),
+            "move_down": (move_down, wp.bool),
+            "rng_state": (rng_state, wp.uint32),
+        }
+        for name, (array, dtype) in arrays.items():
+            if not isinstance(array, wp.array) or array.dtype != dtype:
+                raise TypeError(f"{name} must be a Warp array with dtype {dtype}; received {array}.")
+            if array.ndim != 1 or array.shape[0] != num_envs:
+                raise ValueError(f"{name} must have shape ({num_envs},); received {array.shape}.")
+            if array.device != wp.get_device(self.device):
+                raise ValueError(f"{name} must be on device {self.device}; received {array.device}.")
+
+        self._initialize_warp_origin_views()
+        wp.launch(
+            kernel=_update_env_origins_mask,
+            dim=num_envs,
+            inputs=[
+                env_mask,
+                move_up,
+                move_down,
+                rng_state,
+                self._terrain_levels_wp,
+                self._terrain_types_wp,
+                self._terrain_origins_wp,
+                self._env_origins_wp,
+                self.max_terrain_level,
+            ],
+            device=self.device,
+        )
+
     """
     Internal helpers.
     """
+
+    def _invalidate_warp_origin_views(self) -> None:
+        """Invalidate cached Warp views after origin storage changes."""
+        self._terrain_levels_wp = None
+        self._terrain_types_wp = None
+        self._terrain_origins_wp = None
+        self._env_origins_wp = None
+
+    def _initialize_warp_origin_views(self) -> None:
+        """Create persistent Warp views of terrain-origin Torch storage."""
+        if self._terrain_levels_wp is not None:
+            return
+        if self.terrain_origins is None or self.env_origins is None:
+            raise RuntimeError("Terrain origins are not configured for curriculum updates.")
+        self._terrain_levels_wp = wp.from_torch(self.terrain_levels, dtype=wp.int64)
+        self._terrain_types_wp = wp.from_torch(self.terrain_types, dtype=wp.int64)
+        self._terrain_origins_wp = wp.from_torch(self.terrain_origins, dtype=wp.vec3f)
+        self._env_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
 
     def _compute_env_origins_curriculum(self, num_envs: int, origins: torch.Tensor) -> torch.Tensor:
         """Compute the origins of the environments defined by the sub-terrains origins."""

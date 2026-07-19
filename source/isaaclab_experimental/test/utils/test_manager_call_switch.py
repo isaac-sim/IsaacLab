@@ -44,7 +44,7 @@ class TestConfigLoading(unittest.TestCase):
 
     def test_none_uses_default(self):
         switch = ManagerCallSwitch(cfg_source=None)
-        self.assertEqual(switch.get_mode_for_manager("RewardManager"), ManagerCallMode.WARP_CAPTURED)
+        self.assertEqual(switch.get_mode_for_manager("RewardManager"), ManagerCallMode.WARP_NOT_CAPTURED)
 
     def test_dict_config(self):
         switch = ManagerCallSwitch(cfg_source={"default": 1})
@@ -58,8 +58,8 @@ class TestConfigLoading(unittest.TestCase):
     def test_dict_without_default_key(self):
         """A dict missing 'default' should inherit from DEFAULT_CONFIG."""
         switch = ManagerCallSwitch(cfg_source={"RewardManager": 0})
-        # default should be 2 (from DEFAULT_CONFIG)
-        self.assertEqual(switch.get_mode_for_manager("ActionManager"), ManagerCallMode.WARP_CAPTURED)
+        # default should be Warp eager (from DEFAULT_CONFIG)
+        self.assertEqual(switch.get_mode_for_manager("ActionManager"), ManagerCallMode.WARP_NOT_CAPTURED)
         self.assertEqual(switch.get_mode_for_manager("RewardManager"), ManagerCallMode.STABLE)
 
     def test_json_string_config(self):
@@ -70,7 +70,7 @@ class TestConfigLoading(unittest.TestCase):
 
     def test_empty_string_uses_default(self):
         switch = ManagerCallSwitch(cfg_source="")
-        self.assertEqual(switch.get_mode_for_manager("RewardManager"), ManagerCallMode.WARP_CAPTURED)
+        self.assertEqual(switch.get_mode_for_manager("RewardManager"), ManagerCallMode.WARP_NOT_CAPTURED)
 
     def test_env_var_fallback(self):
         """When cfg_source is None, should read from MANAGER_CALL_CONFIG env var."""
@@ -190,6 +190,20 @@ class TestModeResolution(unittest.TestCase):
 class TestStageDispatch(unittest.TestCase):
     """Tests for call_stage routing through stable / warp-eager / warp-captured paths."""
 
+    def test_call_forwards_normal_arguments_and_output(self):
+        """The concise frontend call should not require a call-spec dictionary."""
+        switch = ManagerCallSwitch(cfg_source={"default": 1})
+
+        result = switch.call(
+            "RewardManager_compute",
+            lambda value, *, scale: value * scale,
+            3,
+            scale=4,
+            _output=lambda value: value + 1,
+        )
+
+        self.assertEqual(result, 13)
+
     def test_stable_mode_calls_stable_fn(self):
         switch = ManagerCallSwitch(cfg_source={"default": 0})
         called = {"stable": False, "warp": False}
@@ -302,6 +316,24 @@ class TestStageDispatchCaptured(unittest.TestCase):
         )
         self.assertIs(result, result2, "Replay must return same reference")
         self.assertAlmostEqual(result2.numpy()[0], 11.0, places=5)
+
+    def test_call_uses_the_same_signature_when_captured(self):
+        """The concise call should capture without changing the function signature."""
+        switch = ManagerCallSwitch(cfg_source={"default": 2})
+        src = wp.full(4, value=2.0, dtype=wp.float32, device=self.device)
+        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
+
+        def warp_fn(source, destination):
+            wp.launch(_add_one, dim=4, inputs=[source, destination], device=self.device)
+            return destination
+
+        result = switch.call("RewardManager_compute", warp_fn, src, dst)
+        self.assertAlmostEqual(result.numpy()[0], 3.0, places=5)
+
+        wp.copy(src, wp.full(4, value=8.0, dtype=wp.float32, device=self.device))
+        replay = switch.call("RewardManager_compute", warp_fn, src, dst)
+        self.assertIs(result, replay)
+        self.assertAlmostEqual(replay.numpy()[0], 9.0, places=5)
 
     def test_captured_warmup_call_count(self):
         """WARP_CAPTURED first call should invoke fn exactly 2 times (warm-up + capture)."""

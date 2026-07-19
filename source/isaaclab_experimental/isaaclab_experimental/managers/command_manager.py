@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import inspect
-import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -124,9 +123,11 @@ class CommandTerm(ManagerTermBase):
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        if self._debug_vis_handle:
-            self._debug_vis_handle.unsubscribe()
-            self._debug_vis_handle = None
+        env = getattr(self, "_env", None)
+        sim = getattr(env, "sim", None)
+        registry = getattr(sim, "vis_marker_registry", None)
+        if registry is not None:
+            registry.clear_debug_vis_callback(self)
 
     """
     Properties
@@ -137,6 +138,21 @@ class CommandTerm(ManagerTermBase):
     def command(self) -> torch.Tensor | wp.array:
         """The command tensor. Shape is (num_envs, command_dim)."""
         raise NotImplementedError
+
+    @property
+    def command_wp(self) -> wp.array(dtype=wp.float32, ndim=2):
+        """Pointer-stable Warp command storage with shape ``(num_envs, command_dim)``.
+
+        Existing custom terms that only implement :attr:`command` receive a
+        lazily cached zero-copy Warp view. Warp-native terms may override this
+        property to return their owner-held array directly.
+        """
+        command = self.command
+        if isinstance(command, wp.array):
+            return command
+        if not hasattr(self, "_command_wp_compat"):
+            self._command_wp_compat = wp.from_torch(command, dtype=wp.float32)
+        return self._command_wp_compat
 
     @property
     def has_debug_vis_implementation(self) -> bool:
@@ -171,25 +187,10 @@ class CommandTerm(ManagerTermBase):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
         if debug_vis:
-            # only enable debug_vis if omniverse is available
-            from isaaclab.sim.simulation_context import SimulationContext
-
-            sim_context = SimulationContext.instance()
-            if not sim_context.has_omniverse_visualizer():
-                return False
-            # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                import omni.kit.app
-
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                self._debug_vis_handle = self._env.sim.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            # remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
-                self._debug_vis_handle = None
+            self._env.sim.vis_marker_registry.clear_debug_vis_callback(self)
         # return success
         return True
 
@@ -213,14 +214,7 @@ class CommandTerm(ManagerTermBase):
         Returns:
             A dictionary containing the information to log under the "{name}" key.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "CommandTerm.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         # compute selected count and reset scale
         self._reset_count_wp.zero_()
@@ -410,9 +404,14 @@ class CommandManager(ManagerBase):
 
         # reset logging extras (persistent holder for orchestrator aggregation)
         self._reset_extras: dict[str, torch.Tensor] = {}
+        success_term_count = sum("success_rate" in term.reset_extras for term in self._terms.values())
         for term_name, term in self._terms.items():
             for metric_name, metric_value in term.reset_extras.items():
-                self._reset_extras[f"Metrics/{term_name}/{metric_name}"] = metric_value
+                if metric_name == "success_rate" and success_term_count == 1:
+                    metric_key = "Metrics/success_rate"
+                else:
+                    metric_key = f"Metrics/{term_name}/{metric_name}"
+                self._reset_extras[metric_key] = metric_value
 
     def __str__(self) -> str:
         """Returns: A string representation for the command manager."""
@@ -513,14 +512,7 @@ class CommandManager(ManagerBase):
         Returns:
             A dictionary containing the information to log under the "Metrics/{term_name}/{metric_name}" key.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "CommandManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         for term in self._terms.values():
             # reset the command term
@@ -555,6 +547,17 @@ class CommandManager(ManagerBase):
         if isinstance(command, wp.array):
             return wp.to_torch(command)
         return command
+
+    def get_command_wp(self, name: str) -> wp.array(dtype=wp.float32, ndim=2):
+        """Return pointer-stable Warp storage for a command term.
+
+        Args:
+            name: The name of the command term.
+
+        Returns:
+            The command array with shape ``(num_envs, command_dim)``.
+        """
+        return self._terms[name].command_wp
 
     def get_term(self, name: str) -> CommandTerm:
         """Returns the command term with the specified name.

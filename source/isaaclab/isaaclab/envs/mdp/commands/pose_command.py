@@ -14,9 +14,10 @@ import torch
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
-from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
+
+from ._debug_vis import _PoseCommandDebugVis
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
     from .commands_cfg import UniformPoseCommandCfg
 
 
-class UniformPoseCommand(CommandTerm):
+class UniformPoseCommand(_PoseCommandDebugVis, CommandTerm):
     """Command generator for generating pose commands uniformly.
 
     The command generator generates poses by sampling positions uniformly within specified
@@ -63,7 +64,7 @@ class UniformPoseCommand(CommandTerm):
         # create buffers
         # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
         self.pose_command_b = torch.zeros(self.num_envs, 7, device=self.device)
-        self.pose_command_b[:, 3] = 1.0
+        self.pose_command_b[:, 6] = 1.0
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
@@ -151,31 +152,3 @@ class UniformPoseCommand(CommandTerm):
 
     def _update_command(self):
         pass
-
-    def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first time
-        if debug_vis:
-            if not hasattr(self, "goal_pose_visualizer"):
-                # -- goal pose
-                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
-                # -- current body pose
-                self.current_pose_visualizer = VisualizationMarkers(self.cfg.current_pose_visualizer_cfg)
-            # set their visibility to true
-            self.goal_pose_visualizer.set_visibility(True)
-            self.current_pose_visualizer.set_visibility(True)
-        else:
-            if hasattr(self, "goal_pose_visualizer"):
-                self.goal_pose_visualizer.set_visibility(False)
-                self.current_pose_visualizer.set_visibility(False)
-
-    def _debug_vis_callback(self, event):
-        # check if robot is initialized
-        # note: this is needed in-case the robot is de-initialized. we can't access the data
-        if not self.robot.is_initialized:
-            return
-        # update the markers
-        # -- goal pose
-        self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
-        # -- current body pose
-        body_link_pose_w = self.robot.data.body_link_pose_w.torch[:, self.body_idx]
-        self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])

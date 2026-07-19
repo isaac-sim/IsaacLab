@@ -353,17 +353,6 @@ def generated_commands(env: ManagerBasedEnv, out, command_name: str) -> None:
     """The generated command from the command manager. Writes into ``out``.
 
     Warp-first override of :func:`isaaclab.envs.mdp.observations.generated_commands`.
-    Uses ``wp.from_torch`` to create a zero-copy warp view of the command tensor on first call.
+    Reads the command manager's pointer-stable Warp storage directly.
     """
-    # TODO(warp-migration): Cross-manager access (observation → command). Replace with direct
-    #  warp getter once all managers are guaranteed to be warp-native.
-    fn = generated_commands
-    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        if isinstance(cmd, wp.array):
-            fn._cmd_wp = cmd
-        else:
-            fn._cmd_wp = wp.from_torch(cmd)
-        fn._cmd_name = command_name
-        fn._is_warmed_up = True
-    wp.copy(out, fn._cmd_wp)
+    wp.copy(out, env.command_manager.get_command_wp(command_name))
