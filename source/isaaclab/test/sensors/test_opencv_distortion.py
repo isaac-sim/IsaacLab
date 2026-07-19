@@ -29,10 +29,13 @@ import pytest
 _REQUIRED_MODULES = ("isaaclab", "pxr", "warp")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
-pytestmark = pytest.mark.skipif(
-    bool(_MISSING_MODULES),
-    reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
-)
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.skipif(
+        bool(_MISSING_MODULES),
+        reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
+    ),
+]
 
 if not _MISSING_MODULES:
     from pxr import Gf, Sdf, Usd, UsdGeom
