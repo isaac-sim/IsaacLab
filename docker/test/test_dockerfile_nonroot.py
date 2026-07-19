@@ -35,12 +35,18 @@ DOCKERFILE_RUNTIME_USERS = {
     "Dockerfile.base": "isaaclab",
     "Dockerfile.curobo": "isaaclab",
     "Dockerfile.installci": "isaaclab",
+    "Dockerfile.newton": "isaaclab",
     "Dockerfile.ros2": "isaaclab",
 }
 
 # Dockerfiles that are expected to *create* the non-root runtime user
 # (i.e. contain groupadd/useradd/USER isaaclab).
-DOCKERFILES_CREATING_RUNTIME_USER = {"Dockerfile.base", "Dockerfile.curobo", "Dockerfile.installci"}
+DOCKERFILES_CREATING_RUNTIME_USER = {
+    "Dockerfile.base",
+    "Dockerfile.curobo",
+    "Dockerfile.installci",
+    "Dockerfile.newton",
+}
 
 USER_DIRECTIVE_RE = re.compile(r"^USER\s+(\S+)\s*$")
 
@@ -101,6 +107,15 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
     dockerfile_text = (DOCKER_DIR / "Dockerfile.ros2").read_text(encoding="utf-8")
 
     assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
+
+
+def test_newton_dockerfile_excludes_isaac_sim():
+    """The kitless image installs Newton without an Isaac Sim runtime."""
+    dockerfile_text = (DOCKER_DIR / "Dockerfile.newton").read_text(encoding="utf-8")
+
+    assert "--install 'newton,rl[rsl-rl]'" in dockerfile_text
+    assert "all(d.metadata['Name'].lower() != 'isaacsim'" in dockerfile_text
+    assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
 
 
 # --------------------------------------------------------------------------- #

@@ -6,8 +6,9 @@ Docker Guide
 
 .. caution::
 
-    Due to the dependency on Isaac Sim docker image, by running this container you are implicitly
-    agreeing to the `NVIDIA Software License Agreement`_. If you do not agree to the EULA, do not run this container.
+    The standard Isaac Lab container depends on the Isaac Sim Docker image. By running that container, you are
+    implicitly agreeing to the `NVIDIA Software License Agreement`_. The kitless Newton container described below
+    does not contain Isaac Sim.
 
 Setup Instructions
 ------------------
@@ -45,6 +46,7 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
 
 * **Dockerfile.base**: Defines the base Isaac Lab image by overlaying its dependencies onto the Isaac Sim Docker image.
   Dockerfiles which end with something else, (i.e. ``Dockerfile.ros2``) build an `image extension <#isaac-lab-image-extensions>`_.
+* **Dockerfile.newton**: Defines a kitless image for headless Newton training without Isaac Sim dependencies.
 * **docker-compose.yaml**: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
   the container. It also creates several named volumes such as ``isaac-cache-kit`` to
   store frequently reused resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
@@ -298,6 +300,32 @@ The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Ea
 
    .. literalinclude:: ../../../docker/.env.ros2
       :language: bash
+
+
+Building the Kitless Newton Container
+-------------------------------------
+
+The kitless Newton container uses Ubuntu 24.04 and a Python 3.12 virtual environment instead of the Isaac Sim base
+image. It includes the Newton backend and RSL-RL for GPU-accelerated headless training. Build it from the repository
+root:
+
+.. code:: bash
+
+    docker build --file docker/Dockerfile.newton --tag isaac-lab-newton .
+
+Run a short Cartpole training job to verify the image and NVIDIA Container Toolkit setup:
+
+.. code:: bash
+
+    docker run --rm --gpus all --network host isaac-lab-newton \
+      isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Direct \
+      --num_envs 16 \
+      presets=newton_mjwarp \
+      --max_iterations 5
+
+The image runs as the non-root ``isaaclab`` user with uid/gid 1000. It is intentionally separate from the Compose
+profiles, which configure Isaac Sim services and cache volumes.
 
 
 Running Pre-Built Isaac Lab Container
