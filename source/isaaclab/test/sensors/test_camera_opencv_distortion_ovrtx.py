@@ -20,6 +20,8 @@ Notes:
     OVRTX render context applies one lens model, so the two passes must not share a process context.
 """
 
+from __future__ import annotations
+
 import importlib.util
 
 import numpy as np
@@ -45,7 +47,12 @@ if not _MISSING_MODULES:
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sensors import Camera, CameraCfg
     from isaaclab.sim import SimulationCfg
-    from isaaclab.sim.spawners.sensors.sensors_cfg import OpenCvPinholeDistortionCfg, PinholeCameraCfg
+    from isaaclab.sim.spawners.sensors.sensors_cfg import (
+        OpenCvDistortionCfg,
+        OpenCvFisheyeDistortionCfg,
+        OpenCvPinholeDistortionCfg,
+        PinholeCameraCfg,
+    )
     from isaaclab.utils.configclass import configclass
     from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
@@ -53,11 +60,13 @@ SIM_DT = 1.0 / 60.0
 WIDTH, HEIGHT = 640, 480
 WARMUP_STEPS = 4
 
-# Real SO-101 wrist-camera calibration (fx != fy, off-center principal point).
+# Example real-world OpenCV pinhole calibration (fx != fy, off-center principal point).
 _CALIB = dict(fx=339.26592887, fy=338.82010626, cx=323.55809091, cy=250.27360914)
 _COEFFS = dict(k1=0.07702322, k2=-0.13605453, k3=0.05163219, p1=-0.00024938, p2=-0.00175006)
 # scale the (mild) real coefficients so the barrel effect is unambiguous in the assertion
 _K_SCALE = 15.0
+# OpenCV fisheye (equidistant) coefficients; the base fisheye projection alone differs strongly from pinhole
+_FISHEYE_COEFFS = dict(k1=0.1, k2=-0.05, k3=0.0, k4=0.0)
 
 _CAM_EYE = (0.0, 0.0, 2.5)
 _CAM_TARGET = (1.75, 0.0, 0.0)
@@ -88,7 +97,27 @@ if not _MISSING_MODULES:
         )
 
 
-def _render_grid(apply_lens_distortion: bool, device: str) -> tuple[np.ndarray, np.ndarray]:
+def _pinhole_distortion(apply_lens_distortion: bool) -> OpenCvPinholeDistortionCfg:
+    """Pinhole OpenCV calibration with the (scaled) SO-101 radial/tangential coefficients."""
+    return OpenCvPinholeDistortionCfg(
+        image_size=(WIDTH, HEIGHT),
+        apply_lens_distortion=apply_lens_distortion,
+        **_CALIB,
+        **{name: value * _K_SCALE for name, value in _COEFFS.items()},
+    )
+
+
+def _fisheye_distortion(apply_lens_distortion: bool) -> OpenCvFisheyeDistortionCfg:
+    """Fisheye OpenCV calibration reusing the SO-101 intrinsics with fisheye coefficients."""
+    return OpenCvFisheyeDistortionCfg(
+        image_size=(WIDTH, HEIGHT),
+        apply_lens_distortion=apply_lens_distortion,
+        **_CALIB,
+        **_FISHEYE_COEFFS,
+    )
+
+
+def _render_grid(distortion: OpenCvDistortionCfg, device: str) -> tuple[np.ndarray, np.ndarray]:
     """Render the ground-plane grid through an OpenCV-calibrated OVRTX camera; return ``(rgb, K)``."""
     sim_utils.create_new_stage()
     sim = sim_utils.SimulationContext(
@@ -100,12 +129,6 @@ def _render_grid(apply_lens_distortion: bool, device: str) -> tuple[np.ndarray, 
         quat_from_matrix(
             create_rotation_matrix_from_view(torch.tensor([_CAM_EYE]), torch.tensor([_CAM_TARGET]), up_axis="Z")
         )[0].tolist()
-    )
-    distortion = OpenCvPinholeDistortionCfg(
-        image_size=(WIDTH, HEIGHT),
-        apply_lens_distortion=apply_lens_distortion,
-        **_CALIB,
-        **{name: value * _K_SCALE for name, value in _COEFFS.items()},
     )
     camera = Camera(
         CameraCfg(
@@ -139,8 +162,8 @@ def _render_grid(apply_lens_distortion: bool, device: str) -> tuple[np.ndarray, 
 @_SKIP_MISSING_OVRTX
 def test_opencv_distortion_changes_ovrtx_render(device):
     """OVRTX must render the distorted and zero-coefficient cameras meaningfully differently."""
-    distorted, _ = _render_grid(apply_lens_distortion=True, device=device)
-    reference, _ = _render_grid(apply_lens_distortion=False, device=device)
+    distorted, _ = _render_grid(_pinhole_distortion(True), device=device)
+    reference, _ = _render_grid(_pinhole_distortion(False), device=device)
 
     assert distorted.shape == (HEIGHT, WIDTH, 3)
     # both frames render content (not degenerate)
@@ -156,7 +179,7 @@ def test_opencv_distortion_changes_ovrtx_render(device):
 @_SKIP_MISSING_OVRTX
 def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
     """The OVRTX camera reports intrinsics matching the authored, non-square, off-center calibration."""
-    _rgb, k = _render_grid(apply_lens_distortion=True, device=device)
+    _rgb, k = _render_grid(_pinhole_distortion(True), device=device)
 
     assert k[0, 0] == pytest.approx(_CALIB["fx"], abs=1e-2)
     assert k[1, 1] == pytest.approx(_CALIB["fy"], abs=1e-2)
@@ -165,3 +188,30 @@ def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
     # not the stock fx == fy / centered-principal-point collapse
     assert k[0, 0] != k[1, 1]
     assert k[0, 2] != pytest.approx(WIDTH / 2)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+@_SKIP_MISSING_OVRTX
+def test_opencv_fisheye_distortion_renders_through_ovrtx(device):
+    """OVRTX honors the OpenCV fisheye schema: its render differs meaningfully from the pinhole projection.
+
+    The same calibrated camera is rendered under the OpenCV fisheye model and under an undistorted
+    pinhole. The fisheye equidistant projection bends the straight grid, so the two frames must differ
+    well beyond render noise, and the reported intrinsics must still match the authored calibration.
+    """
+    fisheye, k = _render_grid(_fisheye_distortion(True), device=device)
+    pinhole, _ = _render_grid(_pinhole_distortion(False), device=device)
+
+    assert fisheye.shape == (HEIGHT, WIDTH, 3)
+    # both frames render content (not degenerate)
+    assert fisheye.std() > 1.0
+    assert pinhole.std() > 1.0
+    # OVRTX applied the fisheye projection: it differs from the pinhole render well beyond render noise
+    mean_abs_diff = np.abs(fisheye.astype(np.float32) - pinhole.astype(np.float32)).mean()
+    assert mean_abs_diff > 2.0, f"fisheye vs pinhole differ by only {mean_abs_diff:.3f}/255"
+    # the fisheye camera still reports the authored, non-square, off-center calibration
+    assert k[0, 0] == pytest.approx(_CALIB["fx"], abs=1e-2)
+    assert k[1, 1] == pytest.approx(_CALIB["fy"], abs=1e-2)
+    assert k[0, 2] == pytest.approx(_CALIB["cx"], abs=1e-2)
+    assert k[1, 2] == pytest.approx(_CALIB["cy"], abs=1e-2)
