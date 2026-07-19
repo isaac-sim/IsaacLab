@@ -204,7 +204,7 @@ def spawn_camera(
         # get attribute from the class
         prim.GetAttribute(prim_prop_name).Set(param_value)
     # author the OpenCV lens-distortion model (renderer-agnostic; RTX/OVRTX honors it natively)
-    if getattr(cfg, "distortion", None) is not None:
+    if cfg.distortion is not None:
         _author_opencv_distortion(prim, cfg.distortion)
     # return the prim
     return prim
