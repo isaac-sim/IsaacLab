@@ -17,6 +17,7 @@ to controller arrays.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -28,8 +29,9 @@ from newton.actuators import Actuator, Clamping, Delay
 
 from .kernels import (
     build_implicit_dof_mask,
-    build_per_dof_env_mask_kernel,
-    scatter_gain_kernel,
+    gather_env_mask_kernel,
+    mark_flat_kernel,
+    scatter_flat_kernel,
     set_mask_kernel,
     zero_at_indices_kernel,
 )
@@ -82,49 +84,58 @@ class NewtonActuatorAdapter:
         self,
         actuators: list[Actuator],
         num_envs: int,
-        num_joints: int,
-        dof_offset: int,
         device: str,
+        *,
+        dof_count: int,
+        dof_env_id: wp.array,
     ):
+        """
+        Args:
+            actuators: Newton actuators over the model's flat DOF layout.
+            num_envs: Number of environments (for reset masks).
+            device: Warp device string.
+            dof_count: Total flat DOF count of the model. All adapter buffers
+                are flat over this index space — no per-env rectangle is
+                assumed, so heterogeneous layouts work unchanged.
+            dof_env_id: ``int32`` array of length :paramref:`dof_count` mapping
+                each flat DOF to its environment index (``-1`` when the DOF
+                belongs to no environment).
+        """
         self.actuators = actuators
-        self.num_joints = num_joints
-
         self._num_envs = num_envs
-        self._dof_offset = dof_offset
         self._device = device
+        self._dof_count = dof_count
+        self._dof_env_id = dof_env_id
 
-        # Collect the set of local DOFs covered by some actuator. Only the
-        # env-0 slice of each actuator's flat ``indices`` array is needed —
-        # later envs are repeats with a constant ``num_joints`` stride.
-        managed: set[int] = set()
+        # Flat snapshots over the global DOF space: initial gains and the
+        # managed-DOF mask, filled by pure scatters through each actuator's
+        # flat ``indices`` — layout-agnostic by construction.
+        self._kp_flat = wp.zeros(dof_count, dtype=wp.float32, device=device)
+        self._kd_flat = wp.zeros(dof_count, dtype=wp.float32, device=device)
+        self._managed_flat = wp.zeros(dof_count, dtype=wp.bool, device=device)
         for act in actuators:
-            all_indices = act.indices.numpy()
-            num_per_act = len(all_indices) // num_envs
-            for global_dof in all_indices[:num_per_act]:
-                local_dof = global_dof - dof_offset
-                if 0 <= local_dof < num_joints:
-                    managed.add(local_dof)
-
-        if len(managed) == num_joints:
-            self.joint_indices: torch.Tensor | slice = slice(None)
-        else:
-            self.joint_indices = torch.tensor(sorted(managed), dtype=torch.int32, device=device)
+            ctrl = act.controller
+            if hasattr(ctrl, "kp"):
+                wp.launch(scatter_flat_kernel, dim=act.indices.shape[0], inputs=[ctrl.kp, act.indices, self._kp_flat])
+            if hasattr(ctrl, "kd"):
+                wp.launch(scatter_flat_kernel, dim=act.indices.shape[0], inputs=[ctrl.kd, act.indices, self._kd_flat])
+            wp.launch(mark_flat_kernel, dim=act.indices.shape[0], inputs=[act.indices, self._managed_flat])
+        self._kp_flat_t = wp.to_torch(self._kp_flat)
+        self._kd_flat_t = wp.to_torch(self._kd_flat)
+        self._managed_flat_t = wp.to_torch(self._managed_flat)
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
 
-        # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
-        # its raw controller output to ``sim_control.joint_computed_f`` when
-        # ``control_computed_output_attr`` is set; we route that to this
-        # buffer so the post-actuator telemetry kernel can report the actual
-        # computed (pre-clamp) effort instead of mirroring ``joint_f``. The
-        # binding onto ``sim_control`` happens in :meth:`finalize`.
-        self._computed_effort = wp.zeros(
-            num_envs * num_joints,
-            dtype=wp.float32,
-            device=device,
-        )
-        self.computed_effort_2d = self._computed_effort.reshape((num_envs, num_joints))
+        # Pre-clamp computed effort buffer, flat over the global DOF space.
+        # Each Newton actuator scatter-adds its raw controller output here
+        # (routed via ``control_computed_output_attr``) so the post-actuator
+        # telemetry kernel can report the actual computed (pre-clamp) effort
+        # instead of mirroring ``joint_f``. The binding onto ``sim_control``
+        # happens in :meth:`finalize`; per-articulation strided views are
+        # built by :meth:`bind_articulation`.
+        self._computed_effort = wp.zeros(dof_count, dtype=wp.float32, device=device)
+        self._computed_effort_t = wp.to_torch(self._computed_effort)
         for act in actuators:
             act.control_computed_output_attr = "joint_computed_f"
 
@@ -204,9 +215,9 @@ class NewtonActuatorAdapter:
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
             wp.launch(
-                build_per_dof_env_mask_kernel,
+                gather_env_mask_kernel,
                 dim=act.indices.shape[0],
-                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
+                inputs=[act.indices, env_mask, self._dof_env_id, per_dof_mask],
                 device=self._device,
             )
             if sa is not None:
@@ -218,51 +229,73 @@ class NewtonActuatorAdapter:
         self,
         *,
         lab_actuators: dict[str, ActuatorBase],
-        dof_offset: int,
-        num_joints: int,
+        dof_index_map: torch.Tensor,
         joint_user_to_backend_indices: Sequence[int] | None = None,
     ) -> ArticulationBinding:
         """Assemble the Newton fast-path init state for one articulation.
 
-        Consolidates the pieces the articulation formerly built with
-        separate :func:`build_newton_actuator_defaults` and
-        :func:`build_implicit_dof_mask` calls plus a manual
-        computed-effort slice: it snapshots the initial gains, builds the
-        implicit-DOF mask, and slices this adapter's computed-effort buffer
-        to the articulation's columns. Whole-model quantities
-        (:attr:`actuators`, :attr:`num_joints` as the env stride,
-        ``num_envs``, ``device``) come from the adapter; only the
-        articulation-local placement varies per call.
+        All per-articulation quantities are pure gathers of the adapter's flat
+        global-DOF snapshots through :paramref:`dof_index_map` — no layout
+        assumption beyond the map itself, so homogeneous and heterogeneous
+        scenes take the same path.
 
         Args:
             lab_actuators: The articulation's Isaac Lab actuator groups in
                 public joint order. Only :class:`~isaaclab.actuators.ImplicitActuator`
                 groups contribute to :attr:`ArticulationBinding.implicit_dof_mask`.
-            dof_offset: Offset of this articulation's DOFs in the adapter's
-                env-major global index space (``0`` on PhysX, view-dependent
-                on Newton).
-            num_joints: Articulation-local joint count. Distinct from
-                :attr:`num_joints`, which is the whole-model per-env DOF
-                stride used to lay out the actuator index arrays.
+            dof_index_map: Integer tensor of shape ``(num_instances, num_joints)``
+                holding each (instance, backend-local joint)'s absolute flat DOF
+                index in the adapter's global index space.
             joint_user_to_backend_indices: Complete permutation from public
-                joint indices to adapter-local joint indices. ``None``
-                preserves adapter-local order (the PhysX case, whose adapter
-                is already built from public joint names).
+                joint indices to backend-local joint indices. ``None`` preserves
+                backend-local order.
 
         Returns:
             The bundled :class:`ArticulationBinding` for this articulation.
+
+        Raises:
+            ValueError: If :paramref:`joint_user_to_backend_indices` is not a
+                complete permutation of the map's joint columns.
+            NotImplementedError: If the articulation's instances are not
+                uniformly strided in the flat DOF space (the computed-effort
+                telemetry view requires a strided layout).
         """
+        dof_map = dof_index_map.to(device=self._device, dtype=torch.long)
+        num_instances, num_joints = dof_map.shape
+
         stiffness, damping, joint_indices = build_newton_actuator_defaults(
-            actuators=self.actuators,
-            num_envs=self._num_envs,
-            num_joints=num_joints,
-            dof_offset=dof_offset,
-            env_stride=self.num_joints,
-            device=self._device,
+            kp_flat=self._kp_flat_t,
+            kd_flat=self._kd_flat_t,
+            managed_flat=self._managed_flat_t,
+            dof_index_map=dof_map,
             joint_user_to_backend_indices=joint_user_to_backend_indices,
         )
         implicit_dof_mask, implicit_dof_mask_owner = build_implicit_dof_mask(lab_actuators, num_joints, self._device)
-        computed_effort_view = self.computed_effort_2d[:, dof_offset : dof_offset + num_joints]
+
+        # The telemetry kernel reads computed effort as (instance, backend joint):
+        # expose a strided zero-copy view of the flat buffer. Joint columns must
+        # be contiguous and instances uniformly spaced — both hold for Lab
+        # articulation views (equal instance spacing is the Newton-view
+        # invariant); anything else is not representable as a view.
+        contiguous_cols = bool(torch.all(dof_map == dof_map[:, :1] + torch.arange(num_joints, device=dof_map.device)))
+        row_starts = dof_map[:, 0]
+        row_strides = row_starts[1:] - row_starts[:-1] if num_instances > 1 else None
+        uniform_rows = row_strides is None or bool(torch.all(row_strides == row_strides[0]))
+        if not (contiguous_cols and uniform_rows):
+            raise NotImplementedError(
+                "NewtonActuatorAdapter.bind_articulation: this articulation's DOFs are not"
+                " uniformly strided in the flat DOF space; a computed-effort view cannot be"
+                " built. Instance spacing must be uniform (the Newton view invariant)."
+            )
+        row_stride = int(row_strides[0]) if row_strides is not None else num_joints
+        computed_effort_view = wp.from_torch(
+            torch.as_strided(
+                self._computed_effort_t,
+                size=(num_instances, num_joints),
+                stride=(row_stride, 1),
+                storage_offset=int(row_starts[0]),
+            )
+        )
         return self.ArticulationBinding(
             stiffness=stiffness,
             damping=damping,
@@ -323,7 +356,10 @@ class NewtonActuatorAdapter:
             device,
             articulation_prim_path=articulation_prim_path,
         )
-        return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
+        # PhysX layouts are the trivial env-major rectangle; express it as the
+        # explicit flat tables the adapter core requires.
+        dof_env_id = wp.array(np.repeat(np.arange(num_envs, dtype=np.int32), num_joints), dtype=wp.int32, device=device)
+        return cls(actuators, num_envs, device, dof_count=num_envs * num_joints, dof_env_id=dof_env_id)
 
 
 # ---------------------------------------------------------------------------
@@ -333,59 +369,49 @@ class NewtonActuatorAdapter:
 
 
 def build_newton_actuator_defaults(
-    actuators: list[Actuator],
-    num_envs: int,
-    num_joints: int,
-    dof_offset: int,
-    env_stride: int,
-    device: str,
+    kp_flat: torch.Tensor,
+    kd_flat: torch.Tensor,
+    managed_flat: torch.Tensor,
+    dof_index_map: torch.Tensor,
     joint_user_to_backend_indices: Sequence[int] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | slice]:
     """Snapshot initial Newton actuator gains for one articulation.
 
-    Actuators are filtered to those whose environment-zero DOF lies in
-    ``[dof_offset, dof_offset + num_joints)``. Their gains are scattered in the
-    actuator adapter's local joint order. Without :paramref:`joint_user_to_backend_indices`,
-    the output preserves that local order. PhysX builds its per-articulation adapter from
-    public joint names, so its adapter-local order is public order. Newton's global adapter
-    uses backend-local order; the optional map converts its gains and managed indices to
-    public order.
+    Pure gathers of the adapter's flat global-DOF snapshots through the
+    articulation's DOF index map. Without
+    :paramref:`joint_user_to_backend_indices` the outputs stay in
+    backend-local joint order; with it, gains and managed indices are
+    converted to public joint order.
 
     Args:
-        actuators: Newton actuators visible to this articulation.
-        num_envs: Number of environments.
-        num_joints: Articulation-local joint count.
-        dof_offset: Offset of this articulation's DOFs in the env-major
-            global index space (``0`` on PhysX, view-dependent on Newton).
-        env_stride: Whole-model per-env DOF count — the stride used to build
-            each actuator's env-major ``indices``. Equals ``num_joints`` on
-            PhysX, but exceeds it by the free-root DOFs on a floating-base
-            Newton articulation, so it must be passed explicitly rather than
-            assumed equal to ``num_joints``. The owning adapter's
-            :attr:`NewtonActuatorAdapter.num_joints` is exactly this value.
-        device: Warp device string (e.g. ``"cuda:0"``).
+        kp_flat: Flat per-DOF stiffness snapshot over the global DOF space.
+        kd_flat: Flat per-DOF damping snapshot over the global DOF space.
+        managed_flat: Flat boolean mask of DOFs claimed by a Newton actuator.
+        dof_index_map: Integer tensor ``(num_instances, num_joints)`` of
+            absolute flat DOF indices per (instance, backend-local joint).
         joint_user_to_backend_indices: Complete permutation from public joint
-            indices to adapter-local joint indices. For Newton's global adapter,
-            adapter-local order is backend order. ``None`` preserves adapter-local order.
+            indices to backend-local joint indices. ``None`` preserves
+            backend-local order.
 
     Returns:
         Tuple containing the following values:
 
         * ``stiffness``: Initial gains [N/m or N·m/rad, depending on joint
-          type], shape ``(num_envs, num_joints)``, dtype ``torch.float32``, on
-          :paramref:`device`.
+          type], shape ``(num_instances, num_joints)``, dtype ``torch.float32``.
         * ``damping``: Initial gains [N·s/m or N·m·s/rad, depending on joint
-          type], shape ``(num_envs, num_joints)``, dtype ``torch.float32``, on
-          :paramref:`device`.
+          type], same shape and dtype.
         * ``joint_indices``: ``slice(None)`` when every joint is managed;
-          otherwise, a ``torch.int32`` tensor on :paramref:`device` containing
-          managed columns in the same adapter-local or public order as the gain tensors.
+          otherwise a ``torch.int32`` tensor of managed columns, in the same
+          (backend-local or public) order as the gain tensors.
 
     Raises:
         ValueError: If :paramref:`joint_user_to_backend_indices` is not a
-            complete permutation of all adapter-local joint indices.
+            complete permutation of all joint columns.
     """
-    user_to_backend: tuple[int, ...] | None = None
+    num_instances, num_joints = dof_index_map.shape
+    device = dof_index_map.device
+
+    columns: torch.Tensor | None = None
     if joint_user_to_backend_indices is not None:
         user_to_backend = tuple(int(index) for index in joint_user_to_backend_indices)
         if sorted(user_to_backend) != list(range(num_joints)):
@@ -393,64 +419,29 @@ def build_newton_actuator_defaults(
                 "joint_user_to_backend_indices must contain each backend joint index exactly once; "
                 f"expected a permutation of 0..{num_joints - 1}, got {user_to_backend}."
             )
+        columns = torch.tensor(user_to_backend, dtype=torch.long, device=device)
 
-    arti_actuators = [act for act in actuators if dof_offset <= int(act.indices.numpy()[0]) < dof_offset + num_joints]
+    stiffness = kp_flat[dof_index_map]
+    damping = kd_flat[dof_index_map]
+    managed = managed_flat[dof_index_map]
+    if columns is not None:
+        stiffness = stiffness[:, columns].contiguous()
+        damping = damping[:, columns].contiguous()
+        managed = managed[:, columns]
 
-    managed_local: set[int] = set()
-    for act in arti_actuators:
-        per_act = act.indices.shape[0] // num_envs
-        for global_dof in act.indices.numpy()[:per_act]:
-            local = int(global_dof) - dof_offset
-            if 0 <= local < num_joints:
-                managed_local.add(local)
-    joint_indices: torch.Tensor | slice
-    if len(managed_local) == num_joints:
-        joint_indices = slice(None)
+    managed_any = managed.any(dim=0)
+    if not bool(torch.equal(managed_any, managed.all(dim=0))):
+        warnings.warn(
+            "Newton actuator coverage differs across instances of one articulation;"
+            " treating a joint as managed when any instance manages it.",
+            UserWarning,
+            stacklevel=2,
+        )
+    if bool(managed_any.all()):
+        joint_indices: torch.Tensor | slice = slice(None)
     else:
-        joint_indices = torch.tensor(sorted(managed_local), dtype=torch.int32, device=device)
-
-    wp_device = wp.get_device(device)
-    flat_stiffness = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
-    flat_damping = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
-    for act in arti_actuators:
-        ctrl = act.controller
-        if hasattr(ctrl, "kp"):
-            wp.launch(
-                scatter_gain_kernel,
-                dim=act.indices.shape[0],
-                inputs=[ctrl.kp, flat_stiffness, act.indices, dof_offset, num_joints, env_stride],
-                device=wp_device,
-            )
-        if hasattr(ctrl, "kd"):
-            wp.launch(
-                scatter_gain_kernel,
-                dim=act.indices.shape[0],
-                inputs=[ctrl.kd, flat_damping, act.indices, dof_offset, num_joints, env_stride],
-                device=wp_device,
-            )
-    stiffness = wp.to_torch(flat_stiffness.reshape((num_envs, num_joints)))
-    damping = wp.to_torch(flat_damping.reshape((num_envs, num_joints)))
-    if user_to_backend is not None:
-        # ``index_select(1, backend_column_indices)`` gathers backend-order columns into user-order
-        # positions: for each user position ``u`` it holds the backend column ``user_to_backend[u]``.
-        backend_column_indices = torch.tensor(user_to_backend, dtype=torch.long, device=device)
-        stiffness = stiffness.index_select(1, backend_column_indices)
-        damping = damping.index_select(1, backend_column_indices)
-        if not isinstance(joint_indices, slice):
-            backend_to_user = [0] * num_joints
-            for user_index, backend_index in enumerate(user_to_backend):
-                backend_to_user[backend_index] = user_index
-            joint_indices = torch.tensor(
-                sorted(backend_to_user[index] for index in managed_local),
-                dtype=torch.int32,
-                device=device,
-            )
+        joint_indices = torch.nonzero(managed_any, as_tuple=False).flatten().to(torch.int32)
     return stiffness, damping, joint_indices
-
-
-# ---------------------------------------------------------------------------
-# PhysX-only USD parsing
-# ---------------------------------------------------------------------------
 
 
 def _actuator_signature(parsed: Any) -> tuple:

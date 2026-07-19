@@ -4299,8 +4299,9 @@ class Articulation(BaseArticulation):
             if self.newton_actuator_adapter is not None:
                 binding = self.newton_actuator_adapter.bind_articulation(
                     lab_actuators=self.actuators,
-                    dof_offset=0,
-                    num_joints=self.num_joints,
+                    dof_index_map=torch.arange(
+                        self.num_instances * self.num_joints, device=self.device, dtype=torch.long
+                    ).reshape(self.num_instances, self.num_joints),
                 )
                 self.newton_default_stiffness = binding.stiffness
                 self.newton_default_damping = binding.damping

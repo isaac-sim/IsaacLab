@@ -18,6 +18,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -2197,13 +2198,19 @@ class NewtonManager(PhysicsManager):
             return
         from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
 
-        dofs_per_env = cls._model.joint_dof_count // cls._num_envs
+        # Flat DOF->env table from the model: layout-agnostic, so homogeneous
+        # and heterogeneous scenes construct the adapter identically.
+        joint_world = cls._model.joint_world.numpy()
+        dof_counts = np.diff(cls._model.joint_qd_start.numpy())
+        dof_env_id = wp.array(
+            np.repeat(joint_world, dof_counts).astype(np.int32), dtype=wp.int32, device=PhysicsManager._device
+        )
         NewtonManager._adapter = NewtonActuatorAdapter(
             actuators=list(cls._model.actuators),
             num_envs=cls._num_envs,
-            num_joints=dofs_per_env,
-            dof_offset=0,
             device=PhysicsManager._device,
+            dof_count=cls._model.joint_dof_count,
+            dof_env_id=dof_env_id,
         )
         cls._adapter.finalize(cls._control)
 

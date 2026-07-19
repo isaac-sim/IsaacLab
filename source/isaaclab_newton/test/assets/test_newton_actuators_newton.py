@@ -25,7 +25,6 @@ simulation_app = AppLauncher(headless=True).app
 import json
 import os
 import tempfile
-import types
 import unittest
 
 import numpy as np
@@ -1729,25 +1728,25 @@ def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> Non
 
 
 def test_newton_actuator_defaults_follow_requested_public_joint_order() -> None:
-    """Convert Newton actuator gain snapshots and managed IDs into public joint order."""
+    """Convert Newton actuator gain snapshots and managed IDs into public joint order.
+
+    ``build_newton_actuator_defaults`` gathers each articulation's gains from the
+    adapter's flat global-DOF snapshots (an actuator with DOFs {0, 2} in env 0 and
+    {3, 5} in env 1, kp 10/30 and 11/31) through the DOF index map, then permutes
+    into public joint order.
+    """
     from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
 
-    controller = types.SimpleNamespace(
-        kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
-        kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
-    )
-    actuator = types.SimpleNamespace(
-        controller=controller,
-        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
-    )
+    kp_flat = torch.tensor([10.0, 0.0, 30.0, 11.0, 0.0, 31.0])
+    kd_flat = torch.tensor([1.0, 0.0, 3.0, 1.1, 0.0, 3.1])
+    managed_flat = torch.tensor([True, False, True, True, False, True])
+    dof_index_map = torch.tensor([[0, 1, 2], [3, 4, 5]], dtype=torch.long)
 
     stiffness, damping, managed = build_newton_actuator_defaults(
-        actuators=[actuator],
-        num_envs=2,
-        num_joints=3,
-        dof_offset=0,
-        env_stride=3,
-        device="cpu",
+        kp_flat=kp_flat,
+        kd_flat=kd_flat,
+        managed_flat=managed_flat,
+        dof_index_map=dof_index_map,
         joint_user_to_backend_indices=(2, 0, 1),
     )
 
@@ -1768,12 +1767,10 @@ def test_newton_actuator_defaults_reject_incomplete_joint_permutation() -> None:
         ),
     ):
         build_newton_actuator_defaults(
-            actuators=[],
-            num_envs=1,
-            num_joints=3,
-            dof_offset=0,
-            env_stride=3,
-            device="cpu",
+            kp_flat=torch.zeros(3),
+            kd_flat=torch.zeros(3),
+            managed_flat=torch.zeros(3, dtype=torch.bool),
+            dof_index_map=torch.arange(3, dtype=torch.long).reshape(1, 3),
             joint_user_to_backend_indices=(0, 0, 2),
         )
 

@@ -3638,18 +3638,35 @@ class Articulation(BaseArticulation):
             # global adapter exists — the kernel only reads it on explicit DOFs.
             adapter = SimulationManager._adapter
             if adapter is not None:
+                # Materialize this articulation's (instance, backend joint) ->
+                # flat-DOF map from the view layout; the adapter derives every
+                # per-articulation quantity from it, with no per-env stride
+                # assumption (heterogeneous layouts included). The layout's
+                # ``indices``/``slice`` are relative to ``offset``, the view's
+                # global base in the flat attribute array — for any articulation
+                # that is not first in its world the offset is non-zero.
                 dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
-                if dof_layout.slice is not None:
-                    arti_start = dof_layout.slice.start
-                elif dof_layout.indices is not None:
-                    arti_start = int(dof_layout.indices.numpy()[0])
+                if dof_layout.indices is not None:
+                    base_dof_ids = wp.to_torch(dof_layout.indices).to(device=self.device, dtype=torch.long)
                 else:
-                    arti_start = 0
+                    layout_slice = dof_layout.slice
+                    base_dof_ids = torch.arange(
+                        layout_slice.start, layout_slice.stop, layout_slice.step or 1, device=self.device
+                    )
+                base_dof_ids = base_dof_ids + dof_layout.offset
+                if base_dof_ids.numel() != self.num_joints:
+                    raise RuntimeError(
+                        f"Articulation '{self.cfg.prim_path}': joint-DOF layout holds"
+                        f" {base_dof_ids.numel()} DOFs per instance, expected num_joints = {self.num_joints}."
+                    )
+                instance_starts = (
+                    torch.arange(self.num_instances, device=self.device, dtype=torch.long)
+                    * dof_layout.stride_between_worlds
+                )
                 joint_ordering = self.joint_ordering
                 binding = adapter.bind_articulation(
                     lab_actuators=self.actuators,
-                    dof_offset=arti_start,
-                    num_joints=self.num_joints,
+                    dof_index_map=instance_starts[:, None] + base_dof_ids[None, :],
                     joint_user_to_backend_indices=(
                         joint_ordering.user_to_backend_indices if joint_ordering is not None else None
                     ),
