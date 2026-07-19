@@ -102,10 +102,6 @@ class DirectRLEnvWarp(DirectRLEnv):
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
-        # Keep the Warp frontend on the Warp-native actuator path. This covers
-        # implicit, PD, delayed, DC, and neural actuator configurations without
-        # crossing through the Torch-based Isaac Lab actuator loop each step.
-        cfg.sim.use_newton_actuators = True
         # check that the config is valid
         cfg.validate()
         # store inputs to class
