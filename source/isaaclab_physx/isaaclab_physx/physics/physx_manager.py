@@ -285,9 +285,10 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager."""
-        from isaaclab_physx import _patch_isaacsim_simulation_manager
+        from isaaclab_physx import _patch_isaacsim_simulation_manager, _subscribe_to_simulation_manager_enable
 
-        _patch_isaacsim_simulation_manager(enable_if_available=True)
+        _subscribe_to_simulation_manager_enable()
+        _patch_isaacsim_simulation_manager()
 
         from isaaclab.sim.utils.stage import get_current_stage_id
 

@@ -27,6 +27,7 @@ from isaaclab.controllers.utils import (
     change_revolute_to_fixed,
     change_revolute_to_fixed_regex,
     convert_usd_to_urdf,
+    resolve_rmpflow_path,
 )
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.io.torchscript import load_torchscript_model
@@ -141,12 +142,20 @@ def _mock_kit_app(monkeypatch):
 
     class MockExtensionManager:
         def is_extension_enabled(self, _name):
-            return False
+            return _name in enabled_extensions
 
         def set_extension_enabled_immediate(self, name, enabled):
             if enabled:
                 enabled_extensions.append(name)
             return True
+
+        def get_enabled_extension_id(self, name):
+            if name in enabled_extensions:
+                return name
+            return ""
+
+        def get_extension_path(self, extension_id):
+            return f"/extensions/{extension_id}"
 
     class MockApp:
         def get_extension_manager(self):
@@ -194,6 +203,32 @@ def test_convert_usd_to_urdf_uses_isaacsim_exporter(monkeypatch, tmp_path):
     assert limit.attrib["upper"] == "inf"
     assert limit.attrib["effort"] == "0."
     assert limit.attrib["velocity"] == "0."
+
+
+def test_resolve_rmpflow_path_enables_motion_generation_extension(monkeypatch):
+    """Test that RMPFlow sentinel paths enable the owning Isaac Sim extension."""
+    enabled_extensions = _mock_kit_app(monkeypatch)
+
+    resolved_path = resolve_rmpflow_path("rmpflow_ext:motion_policy_configs/franka/rmpflow/config.yaml")
+
+    assert enabled_extensions == ["isaacsim.robot_motion.motion_generation"]
+    assert resolved_path == (
+        "/extensions/isaacsim.robot_motion.motion_generation/motion_policy_configs/franka/rmpflow/config.yaml"
+    )
+
+
+def test_franka_rmpflow_config_resolves_motion_generation_path():
+    """Test that the trimmed app resolves Franka RMPFlow config files from the disabled extension."""
+    from isaaclab.controllers.config.rmp_flow import FRANKA_RMPFLOW_CFG
+
+    extension_manager = omni.kit.app.get_app().get_extension_manager()
+    assert not extension_manager.is_extension_enabled("isaacsim.robot_motion.motion_generation")
+
+    resolved_path = resolve_rmpflow_path(FRANKA_RMPFLOW_CFG.config_file)
+
+    assert os.path.isabs(resolved_path)
+    assert os.path.exists(resolved_path)
+    assert extension_manager.is_extension_enabled("isaacsim.robot_motion.motion_generation")
 
 
 # =============================================================================

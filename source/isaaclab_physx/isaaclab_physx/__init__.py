@@ -19,7 +19,7 @@ except importlib.metadata.PackageNotFoundError:
 _SIMULATION_MANAGER_ENABLE_HOOK: Any | None = None
 
 
-def _patch_isaacsim_simulation_manager(enable_if_available: bool = False) -> None:
+def _patch_isaacsim_simulation_manager() -> None:
     """Patch Isaac Sim's ``SimulationManager`` to use :class:`PhysxManager`.
 
     This redirects future ``from isaacsim.core.simulation_manager import SimulationManager``
@@ -56,16 +56,9 @@ def _patch_isaacsim_simulation_manager(enable_if_available: bool = False) -> Non
     :mod:`isaaclab_physx` before Kit has launched; in that case, there is no app
     interface and no Isaac Sim callbacks to patch yet.
 
-    When ``enable_if_available`` is set, :meth:`PhysxManager.initialize` asks Kit
-    to enable the extension before Isaac Lab creates PhysX tensor views. This
-    prevents later optional Isaac Sim imports (for example from a controller or
-    gripper utility) from starting the original manager after our tensor views
-    exist and invalidating them during its startup reset.
+    :meth:`PhysxManager.initialize` subscribes to extension enablement so the
+    patch is re-applied if optional Isaac Sim code loads the manager later.
     """
-    if enable_if_available:
-        _subscribe_to_simulation_manager_enable()
-        _enable_isaacsim_simulation_manager_if_available()
-
     original_module = sys.modules.get("isaacsim.core.simulation_manager")
     if original_module is None:
         return
@@ -138,17 +131,6 @@ def _subscribe_to_simulation_manager_enable() -> None:
         ext_name="isaacsim.core.simulation_manager",
         hook_name="isaaclab_physx simulation manager lifecycle patch",
     )
-
-
-def _enable_isaacsim_simulation_manager_if_available() -> None:
-    """Enable Isaac Sim's manager before PhysxManager creates tensor views."""
-    extension_manager = _get_kit_extension_manager()
-    if extension_manager is None:
-        return
-
-    with suppress(Exception):
-        if not extension_manager.is_extension_enabled("isaacsim.core.simulation_manager"):
-            extension_manager.set_extension_enabled_immediate("isaacsim.core.simulation_manager", True)
 
 
 _patch_isaacsim_simulation_manager()

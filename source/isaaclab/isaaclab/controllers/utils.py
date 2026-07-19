@@ -154,6 +154,10 @@ def resolve_rmpflow_path(path: str) -> str:
     """
     if path.startswith(_RMPFLOW_EXT_PREFIX):
         rel = path[len(_RMPFLOW_EXT_PREFIX) :]
+        # The trimmed Isaac Lab apps do not preload Isaac Sim's deprecated
+        # motion-generation extension. Enable it explicitly before resolving
+        # bundled RMPFlow configuration files from its extension directory.
+        enable_extension(_RMPFLOW_EXT_NAME)
         ext_dir = get_extension_path(_RMPFLOW_EXT_NAME)
         return os.path.join(ext_dir, rel)
     return path
