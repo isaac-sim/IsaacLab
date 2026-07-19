@@ -582,8 +582,8 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         reset_mask = self.termination_manager.dones_wp
         # The eager reset pipeline contains many small launches. Keep the mask as
         # the canonical selection, but use one explicit host predicate to avoid
-        # dispatching the entire pipeline when it is empty. Record/replay can
-        # remove this boundary once reset stages have replay-safe launch caches.
+        # dispatching the entire pipeline when it is empty. Recorded launches
+        # can reduce that cost; capture can later make this predicate unnecessary.
         if not self.reset_buf.any().item():
             return
         reset_env_ids = None
