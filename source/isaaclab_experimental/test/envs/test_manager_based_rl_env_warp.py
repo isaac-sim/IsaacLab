@@ -190,3 +190,19 @@ def test_empty_reset_skips_legacy_host_boundary_and_preserves_logs() -> None:
     env._reset_host_pre.assert_not_called()
     env._reset_host_post.assert_not_called()
     assert env.extras["log"] == {"previous": 1.0}
+
+
+def test_empty_reset_skips_warp_pipeline_without_compacting_ids() -> None:
+    """An empty mask should skip eager reset stages without materializing IDs."""
+    env = ManagerBasedRLEnvWarp.__new__(ManagerBasedRLEnvWarp)
+    reset_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
+    env.termination_manager = SimpleNamespace(dones_wp=reset_mask)
+    env.reset_buf = torch.zeros(3, dtype=torch.bool)
+    env._reset_requires_host_selection = Mock(return_value=False)
+    env._reset_idx = Mock()
+    env.extras = {"log": {"previous": 1.0}}
+
+    env._reset_terminated_envs()
+
+    env._reset_idx.assert_not_called()
+    assert env.extras["log"] == {"previous": 1.0}

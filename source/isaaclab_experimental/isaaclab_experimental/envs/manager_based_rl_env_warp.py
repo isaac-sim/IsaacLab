@@ -580,6 +580,12 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     def _reset_terminated_envs(self) -> None:
         """Reset terminated environments, compacting IDs only for host consumers."""
         reset_mask = self.termination_manager.dones_wp
+        # The eager reset pipeline contains many small launches. Keep the mask as
+        # the canonical selection, but use one explicit host predicate to avoid
+        # dispatching the entire pipeline when it is empty. Record/replay can
+        # remove this boundary once reset stages have replay-safe launch caches.
+        if not self.reset_buf.any().item():
+            return
         reset_env_ids = None
         if self._reset_requires_host_selection():
             with Timer(
