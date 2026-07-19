@@ -205,16 +205,18 @@ def test_convert_usd_to_urdf_uses_isaacsim_exporter(monkeypatch, tmp_path):
     assert limit.attrib["velocity"] == "0."
 
 
-def test_resolve_rmpflow_path_enables_motion_generation_extension(monkeypatch):
-    """Test that RMPFlow sentinel paths enable the owning Isaac Sim extension."""
+def test_resolve_rmpflow_path_uses_installed_motion_generation_extension(monkeypatch, tmp_path):
+    """Test that RMPFlow sentinel paths resolve from the installed extension directory."""
     enabled_extensions = _mock_kit_app(monkeypatch)
+    ext_dir = tmp_path / "extsDeprecated" / "isaacsim.robot_motion.motion_generation"
+    config_dir = ext_dir / "motion_policy_configs" / "franka" / "rmpflow"
+    config_dir.mkdir(parents=True)
+    monkeypatch.setenv("ISAAC_PATH", str(tmp_path))
 
     resolved_path = resolve_rmpflow_path("rmpflow_ext:motion_policy_configs/franka/rmpflow/config.yaml")
 
-    assert enabled_extensions == ["isaacsim.robot_motion.motion_generation"]
-    assert resolved_path == (
-        "/extensions/isaacsim.robot_motion.motion_generation/motion_policy_configs/franka/rmpflow/config.yaml"
-    )
+    assert enabled_extensions == []
+    assert resolved_path == str(config_dir / "config.yaml")
 
 
 def test_franka_rmpflow_config_resolves_motion_generation_path():
@@ -228,7 +230,7 @@ def test_franka_rmpflow_config_resolves_motion_generation_path():
 
     assert os.path.isabs(resolved_path)
     assert os.path.exists(resolved_path)
-    assert extension_manager.is_extension_enabled("isaacsim.robot_motion.motion_generation")
+    assert not extension_manager.is_extension_enabled("isaacsim.robot_motion.motion_generation")
 
 
 # =============================================================================
