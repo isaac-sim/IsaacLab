@@ -21,6 +21,7 @@ The renderer actually rendering *through* the distortion is a backend-specific c
 from __future__ import annotations
 
 import importlib.util
+import logging
 from types import SimpleNamespace
 
 import numpy as np
@@ -38,6 +39,8 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
+    import torch
+
     from pxr import Gf, Sdf, Usd, UsdGeom
 
     import isaaclab.sim as sim_utils
@@ -280,3 +283,62 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     Camera._update_intrinsic_matrices(fake)
 
     assert fake._warned_distortion_image_sizes == {(640, 480), (1280, 720)}
+
+
+def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch():
+    """In a mixed batch only the distortion camera is skipped (with a warning); a plain camera is updated.
+
+    The authored ``omni:lensdistortion:*`` fx/fy/cx/cy are the readback's source of truth, so the
+    focal-length/aperture write would be discarded for a distortion camera. Skipping the whole call would
+    also drop ordinary selected cameras; only the distortion entries must be left untouched.
+    """
+    width, height = 640, 480
+    _stage_d, distortion_cam = _camera_prim_with_pinhole_distortion(339.0, 338.0, 323.0, 250.0, width, height)
+    plain_stage = Usd.Stage.CreateInMemory()
+    plain_cam = UsdGeom.Camera.Define(plain_stage, "/PlainCamera")
+
+    captured = {}
+
+    def _capture_state(env_ids=None, intrinsics_src=None, update_intrinsics=False):
+        captured["K"] = intrinsics_src.numpy()
+
+    fake = Camera.__new__(Camera)
+    fake._sensor_prims = [distortion_cam, plain_cam]
+    fake._device = "cpu"
+    fake.cfg = SimpleNamespace(height=height, width=width)
+    fake._warned_distortion_image_sizes = set()
+    fake._warned_distortion_missing_intrinsics = False
+    fake._resolve_env_ids_np = lambda env_ids: np.array([0, 1])
+    fake._update_camera_state = _capture_state
+    # attributes touched by ``__del__``/``_clear_callbacks`` when the fake object is garbage collected
+    fake._initialize_handle = None
+    fake._invalidate_initialize_handle = None
+    fake._prim_deletion_handle = None
+    fake._debug_vis_handle = None
+    fake._renderer = None
+    fake._render_data = None
+
+    messages: list[str] = []
+    handler = logging.Handler()
+    handler.emit = lambda record: messages.append(record.getMessage())
+    cam_logger = logging.getLogger("isaaclab.sensors.camera.camera")
+    cam_logger.addHandler(handler)
+    # row 0 targets the distortion camera (skipped); row 1 recalibrates the plain camera to fx = fy = 500
+    requested = torch.tensor(
+        [
+            [[999.0, 0.0, 111.0], [0.0, 999.0, 222.0], [0.0, 0.0, 1.0]],
+            [[500.0, 0.0, 320.0], [0.0, 500.0, 240.0], [0.0, 0.0, 1.0]],
+        ],
+        dtype=torch.float32,
+    )
+    try:
+        Camera.set_intrinsic_matrices(fake, requested, env_ids=[0, 1])
+    finally:
+        cam_logger.removeHandler(handler)
+
+    k = captured["K"]
+    # the distortion camera keeps its authored calibration (skipped, request ignored)
+    assert k[0, 0, 0] == pytest.approx(339.0, abs=1e-2)
+    # the plain camera reflects the requested focal length (updated, not over-skipped)
+    assert k[1, 0, 0] == pytest.approx(500.0, abs=1e-2)
+    assert any("skipped" in message.lower() for message in messages)

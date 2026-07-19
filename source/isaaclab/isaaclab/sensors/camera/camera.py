@@ -281,11 +281,21 @@ class Camera(SensorBase):
             i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
             is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
+        .. note::
+
+            Cameras carrying an OpenCV lens-distortion model are skipped (with a warning): their
+            ``fx/fy/cx/cy`` are fixed at spawn through the
+            :attr:`~isaaclab.sim.spawners.sensors.PinholeCameraCfg.distortion` cfg and cannot be overridden
+            here. Any other selected cameras in the same call are still updated.
+
         Args:
             matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
             focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,
                 focal_length will be calculated 1 / width.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
+
+        Raises:
+            TypeError: If ``matrices`` is not a :class:`torch.Tensor` or a Warp array.
         """
         if isinstance(matrices, torch.Tensor):
             if not matrices.is_contiguous():
@@ -305,15 +315,21 @@ class Camera(SensorBase):
         if matrices.ndim == 2:
             matrices = matrices[None, ...]
         # iterate over env_ids
+        height, width = self.image_shape
+        skipped_distortion = False
         for i, intrinsic_matrix in zip(env_ids_np, matrices):
-            height, width = self.image_shape
+            # change data for corresponding camera index
+            sensor_prim = self._sensor_prims[i]
+            # A camera with an authored OpenCV lens-distortion model owns its fx/fy/cx/cy through the
+            # ``omni:lensdistortion:*`` calibration, which this square-pixel, centered focal-length/aperture
+            # write cannot express, so skip that camera and leave its calibration untouched.
+            if sensor_prim.GetPrim().GetAttribute("omni:lensdistortion:model").Get():
+                skipped_distortion = True
+                continue
 
             params = sensor_utils.convert_camera_intrinsics_to_usd(
                 intrinsic_matrix=intrinsic_matrix.reshape(-1), height=height, width=width, focal_length=focal_length
             )
-
-            # change data for corresponding camera index
-            sensor_prim = self._sensor_prims[i]
             # set parameters for camera
             for param_name, param_value in params.items():
                 # convert to camel case (CC)
@@ -325,6 +341,11 @@ class Camera(SensorBase):
                     param_value = float(param_value)
                 # set value using pure USD API
                 param_attr().Set(param_value)
+        if skipped_distortion:
+            logger.warning(
+                "set_intrinsic_matrices() skipped one or more cameras configured with an OpenCV"
+                " lens-distortion model; their intrinsics are fixed at spawn via the 'distortion' cfg."
+            )
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids_np)
 
