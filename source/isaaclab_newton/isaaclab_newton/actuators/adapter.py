@@ -119,12 +119,29 @@ class NewtonActuatorAdapter:
                 wp.launch(scatter_flat_kernel, dim=act.indices.shape[0], inputs=[ctrl.kd, act.indices, self._kd_flat])
             wp.launch(fill_at_indices_kernel, dim=act.indices.shape[0], inputs=[self._managed_flat, act.indices, True])
 
+        # Every actuated DOF must have exactly one writer: overlapping
+        # actuator index sets would make the scatter order load-bearing and
+        # silently corrupt efforts. (~10 lines, checked once at build.)
+        if actuators:
+            all_indices = np.concatenate([act.indices.numpy() for act in actuators])
+            counts = np.bincount(all_indices, minlength=dof_count)
+            dup = np.nonzero(counts > 1)[0]
+            if dup.size:
+                raise ValueError(
+                    f"NewtonActuatorAdapter: DOFs {dup[:8].tolist()} are claimed by more than one"
+                    " actuator; every actuated DOF must have exactly one writer."
+                )
+
         # Preallocated reset scratch (no allocation at reset-rate).
         self._reset_env_mask = wp.zeros(num_envs, dtype=wp.bool, device=device)
         self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
+        # Reset-event memo: a scene reset chain calls reset() once per
+        # articulation with the same env set; the adapter state is
+        # model-global, so repeats within one event are redundant.
+        self._last_reset_key = None
 
         # Pre-clamp computed effort buffer, flat over the global DOF space.
         # Each Newton actuator scatter-adds its raw controller output here
@@ -191,6 +208,18 @@ class NewtonActuatorAdapter:
         etc.). We therefore build a per-actuator per-DOF mask from the
         env mask before delegating to each state.
         """
+        from isaaclab.physics import PhysicsManager  # noqa: PLC0415
+
+        if isinstance(env_ids, torch.Tensor):
+            reset_key = (float(PhysicsManager._sim_time), tuple(env_ids.flatten().tolist()))
+        elif env_ids is None or env_ids == slice(None):
+            reset_key = (float(PhysicsManager._sim_time), None)
+        else:
+            reset_key = (float(PhysicsManager._sim_time), tuple(int(i) for i in env_ids))
+        if reset_key == self._last_reset_key:
+            return
+        self._last_reset_key = reset_key
+
         if env_ids is None or env_ids == slice(None):
             for sa, sb in zip(self._states_a, self._states_b):
                 if sa is not None:

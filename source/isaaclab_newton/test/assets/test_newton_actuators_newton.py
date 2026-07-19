@@ -1079,11 +1079,12 @@ class TestActuatorStateReset(unittest.TestCase):
             # per-env DOF count (model.joint_dof_count // num_envs — includes free
             # joint DOFs on floating-base articulations, unlike articulation.num_joints
             # which counts only actuated DOFs).
+            dof_env_id = adapter._dof_env_id.numpy()
             for act, state in stateful_pairs:
                 pushes_after = state.delay_state.num_pushes.numpy()
                 indices_np = act.indices.numpy()
                 for i, global_dof in enumerate(indices_np):
-                    env = int(global_dof) // adapter.num_joints
+                    env = int(dof_env_id[int(global_dof)])
                     if env == self.RESET_ENV:
                         self.assertEqual(
                             int(pushes_after[i]),
