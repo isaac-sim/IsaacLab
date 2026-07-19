@@ -15,6 +15,7 @@ from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_m
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import Camera
 
 
@@ -38,42 +39,66 @@ def object_quat_b(
     return quat_mul(quat_inv(robot.data.root_quat_w.torch), object.data.root_quat_w.torch)
 
 
-def body_state_b(
-    env: ManagerBasedRLEnv,
-    body_asset_cfg: SceneEntityCfg,
-    base_asset_cfg: SceneEntityCfg,
-) -> torch.Tensor:
+class body_state_b(ManagerTermBase):
     """Body state (pos, quat, lin vel, ang vel) in the base asset's root frame.
 
     The state for each body is stacked horizontally as
     ``[position(3), quaternion(4)(wxyz), linvel(3), angvel(3)]`` and then concatenated over bodies.
 
-    Args:
-        env: The environment.
-        body_asset_cfg: Scene entity for the articulated body whose links are observed.
-        base_asset_cfg: Scene entity providing the reference (root) frame.
-
-    Returns:
-        Tensor of shape ``(num_envs, num_bodies * 13)`` with per-body states expressed in the base root frame.
+    The body indices are baked to a device tensor at construction.
     """
-    body_asset: Articulation = env.scene[body_asset_cfg.name]
-    base_asset: Articulation = env.scene[base_asset_cfg.name]
-    # get world pose of bodies
-    body_pos_w = body_asset.data.body_pos_w.torch[:, body_asset_cfg.body_ids].view(-1, 3)
-    body_quat_w = body_asset.data.body_quat_w.torch[:, body_asset_cfg.body_ids].view(-1, 4)
-    body_lin_vel_w = body_asset.data.body_lin_vel_w.torch[:, body_asset_cfg.body_ids].view(-1, 3)
-    body_ang_vel_w = body_asset.data.body_ang_vel_w.torch[:, body_asset_cfg.body_ids].view(-1, 3)
-    num_bodies = int(body_pos_w.shape[0] / env.num_envs)
-    # get world pose of base frame
-    root_pos_w = base_asset.data.root_link_pos_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
-    root_quat_w = base_asset.data.root_link_quat_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
-    # transform from world body pose to local body pose
-    body_pos_b, body_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, body_pos_w, body_quat_w)
-    body_lin_vel_b = quat_apply_inverse(root_quat_w, body_lin_vel_w)
-    body_ang_vel_b = quat_apply_inverse(root_quat_w, body_ang_vel_w)
-    # concate and return
-    out = torch.cat((body_pos_b, body_quat_b, body_lin_vel_b, body_ang_vel_b), dim=1)
-    return out.view(env.num_envs, -1)
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        body_ids = cfg.params["body_asset_cfg"].body_ids
+        if isinstance(body_ids, list):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=env.device)
+        self._body_ids = body_ids
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        body_asset_cfg: SceneEntityCfg,
+        base_asset_cfg: SceneEntityCfg,
+        include_vel: bool = True,
+    ) -> torch.Tensor:
+        """Compute the stacked body states.
+
+        Args:
+            env: The environment.
+            body_asset_cfg: Scene entity for the articulated body whose links are observed.
+            base_asset_cfg: Scene entity providing the reference (root) frame.
+            include_vel: Whether to append the body linear/angular velocities.
+
+        Returns:
+            Tensor of shape ``(num_envs, num_bodies * 13)`` (``num_bodies * 7`` without
+            velocities) with per-body states expressed in the base root frame.
+        """
+        body_asset: Articulation = env.scene[body_asset_cfg.name]
+        base_asset: Articulation = env.scene[base_asset_cfg.name]
+        # get world pose of bodies
+        body_pos_w = body_asset.data.body_pos_w.torch[:, self._body_ids].view(-1, 3)
+        body_quat_w = body_asset.data.body_quat_w.torch[:, self._body_ids].view(-1, 4)
+        num_bodies = int(body_pos_w.shape[0] / env.num_envs)
+        # get world pose of base frame
+        root_pos_w = base_asset.data.root_link_pos_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
+        root_quat_w = (
+            base_asset.data.root_link_quat_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
+        )
+        # transform from world body pose to local body pose
+        body_pos_b, body_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, body_pos_w, body_quat_w)
+        # note: body velocities are the most engine/solver-sensitive observables (derivative
+        # signals amplify integrator and contact-response differences); pose-only states with
+        # observation history transfer across physics backends, velocity states do not.
+        if include_vel:
+            body_lin_vel_w = body_asset.data.body_lin_vel_w.torch[:, self._body_ids].view(-1, 3)
+            body_ang_vel_w = body_asset.data.body_ang_vel_w.torch[:, self._body_ids].view(-1, 3)
+            body_lin_vel_b = quat_apply_inverse(root_quat_w, body_lin_vel_w)
+            body_ang_vel_b = quat_apply_inverse(root_quat_w, body_ang_vel_w)
+            out = torch.cat((body_pos_b, body_quat_b, body_lin_vel_b, body_ang_vel_b), dim=1)
+        else:
+            out = torch.cat((body_pos_b, body_quat_b), dim=1)
+        return out.view(env.num_envs, -1)
 
 
 class object_point_cloud_b(ManagerTermBase):
