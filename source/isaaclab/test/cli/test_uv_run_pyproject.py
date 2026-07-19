@@ -89,9 +89,14 @@ def test_version_single_source_matches_literal_pins():
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
-    # OV extras mirror the table (ovphysx exact pin in ``ov``, ovrtx range spec in ``rtx``).
-    assert f"ovphysx=={versions['ovphysx']}" in optional["ov"]
-    assert f"ovrtx{versions['ovrtx']}" in optional["rtx"]
+    # OV extras mirror the table. Table values may be an exact version ("1.2.3",
+    # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
+    def spec(package: str) -> str:
+        value = versions[package]
+        return f"{package}=={value}" if value[0].isdigit() else f"{package}{value}"
+
+    assert spec("ovphysx") in optional["ov"]
+    assert spec("ovrtx") in optional["rtx"]
 
     # uv torch-stack overrides mirror the table.
     for package in ("torch", "torchvision", "torchaudio"):
@@ -133,8 +138,9 @@ def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
     dependencies = _root_pyproject()["project"]["dependencies"]
 
     # Newton is the default physics engine and RSL-RL the default training library,
-    # so both ship as core third-party requirements (not opt-in extras).
-    assert any(dep.startswith("newton[sim]") for dep in dependencies)
+    # so both ship as core third-party requirements (not opt-in extras). The importers
+    # extra carries the mesh-processing deps that authored collision approximations need.
+    assert any(dep.startswith("newton[sim,importers]") for dep in dependencies)
     assert any(dep.startswith("rsl-rl-lib") for dep in dependencies)
 
 
