@@ -183,7 +183,8 @@ def _read_back_intrinsics(cam, width, height):
     fake = Camera.__new__(Camera)
     fake._sensor_prims = [cam]
     fake._device = "cpu"
-    fake._warned_distortion_image_size = False
+    fake._warned_distortion_image_sizes = set()
+    fake._warned_distortion_missing_intrinsics = False
     fake.cfg = SimpleNamespace(height=height, width=width)
     fake._resolve_env_ids_np = lambda env_ids: np.array([0])
     fake._update_camera_state = _capture_state
@@ -227,3 +228,52 @@ def test_readback_preserves_non_square_and_off_center():
     # principal point is off-center (the old readback forced width/2, height/2)
     assert k[0, 2] != pytest.approx(width / 2)
     assert k[1, 2] != pytest.approx(height / 2)
+
+
+def _camera_prim_with_model_token_only():
+    """Build a camera prim that declares the distortion model token but authors no fx/fy/cx/cy."""
+    stage = Usd.Stage.CreateInMemory()
+    cam = UsdGeom.Camera.Define(stage, "/Camera")
+    cam.GetPrim().CreateAttribute("omni:lensdistortion:model", Sdf.ValueTypeNames.Token).Set("opencvPinhole")
+    return stage, cam
+
+
+def test_readback_missing_intrinsics_falls_back_to_focal_length():
+    """A model token without fx/fy/cx/cy falls back to the focal-length projection instead of raising."""
+    width, height = 640, 480
+    _stage, cam = _camera_prim_with_model_token_only()
+
+    k = _read_back_intrinsics(cam, width, height)
+
+    # focal-length/aperture projection: square pixels, centered principal point
+    assert k[0, 0] == pytest.approx(k[1, 1])
+    assert k[0, 2] == pytest.approx(width / 2)
+    assert k[1, 2] == pytest.approx(height / 2)
+    assert k[2, 2] == pytest.approx(1.0)
+
+
+def test_readback_distinct_image_size_mismatches_each_warn():
+    """Distinct authored image sizes across a camera's prims each warn, not only the first."""
+    width, height = 320, 240
+    _stage_a, cam_a = _camera_prim_with_pinhole_distortion(300.0, 300.0, 160.0, 120.0, 640, 480)
+    _stage_b, cam_b = _camera_prim_with_pinhole_distortion(300.0, 300.0, 160.0, 120.0, 1280, 720)
+
+    fake = Camera.__new__(Camera)
+    fake._sensor_prims = [cam_a, cam_b]
+    fake._device = "cpu"
+    fake._warned_distortion_image_sizes = set()
+    fake._warned_distortion_missing_intrinsics = False
+    fake.cfg = SimpleNamespace(height=height, width=width)
+    fake._resolve_env_ids_np = lambda env_ids: np.array([0, 1])
+    fake._update_camera_state = lambda **kwargs: None
+    # attributes touched by ``__del__``/``_clear_callbacks`` when the fake object is garbage collected
+    fake._initialize_handle = None
+    fake._invalidate_initialize_handle = None
+    fake._prim_deletion_handle = None
+    fake._debug_vis_handle = None
+    fake._renderer = None
+    fake._render_data = None
+
+    Camera._update_intrinsic_matrices(fake)
+
+    assert fake._warned_distortion_image_sizes == {(640, 480), (1280, 720)}
