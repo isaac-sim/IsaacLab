@@ -246,6 +246,9 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``depth/albedo{..}``,        |
     |                         |                              |                                                                             | ``simple_shading_*{..}``     |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    |                         | |so101-lift-link|            | Pick up a small shape on the table with the SO-101 arm and lift it to       | **physics=** ``physx``,      |
+    |                         |                              | the target position.                                                        | ``newton_mjwarp``            |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose.        | **physics=** ``physx``,      |
     |                         |                              |                                                                             | ``newton_mjwarp``            |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
@@ -328,6 +331,7 @@ for the lift-cube environment:
 .. |gr1_pp_waist-link| replace:: :isaaclab-source:`IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`
 .. |galbot_stack-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/galbot/stack_rmp_rel_env_cfg.py>`
 .. |kuka-allegro-lift-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`
+.. |so101-lift-link| replace:: :isaaclab-source:`Isaac-Lift-SO101 <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/so101/dexsuite_so101_env_cfg.py>`
 .. |kuka-allegro-reorient-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`
 .. |ka-lift-cam-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`
 .. |ka-reorient-cam-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`
@@ -1111,6 +1115,13 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO)
       - **presets=** ``cube``, ``shapes``
+      -
+    * - Isaac-Lift-SO101
+      - Isaac-Lift-SO101-Play
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **presets=** ``cube``, ``shapes``
+
     * - Isaac-Lift-Soft-Franka
       -
       - Manager Based
