@@ -24,6 +24,10 @@ keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
 "omni.kit.viewport.rtx" = {}
 "omni.kit.viewport.utility" = {}
 "omni.kit.hydra_texture" = {}  # required for headless rendering and rtx instantiation
+# Required even in headless camera runs: viewport.window creates the implicit
+# Kit viewport render product and global RenderSettings prims under /Render
+# that RTX/rendering golden-stage tests and viewport camera helpers expect.
+"omni.kit.viewport.window" = {}
 
 
 [settings.isaaclab]
