@@ -1298,9 +1298,9 @@ def pytest_sessionstart(session):
     # device mask is unset.
     run_device = resolve_test_sim_device()
 
-    summary_str += "\n\n================\n"
-    summary_str += "Slowest 30 Tests\n"
-    summary_str += "================\n"
+    summary_str += "\n\n=====================\n"
+    summary_str += "Slowest 30 Test Files\n"
+    summary_str += "=====================\n"
 
     per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
     per_file_result_table.align["Test Path"] = "l"

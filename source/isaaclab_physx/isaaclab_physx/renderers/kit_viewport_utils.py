@@ -31,7 +31,11 @@ def _set_kit_camera_view(
         raise RuntimeError("No active Kit viewport is available.")
 
     camera_state = ViewportCameraState(str(camera_prim_path), viewport_api)
-    camera_state.set_position_world(Gf.Vec3d(*eye), True)
+    # ``rotate=False`` avoids reading an unauthored
+    # ``omni:kit:centerOfInterest`` value from freshly-created perspective
+    # cameras. The target call below performs the look-at rotation and authors
+    # the center of interest as a side effect.
+    camera_state.set_position_world(Gf.Vec3d(*eye), False)
     camera_state.set_target_world(Gf.Vec3d(*target), True)
 
 

@@ -4,6 +4,12 @@ Added
 * Added :func:`isaaclab.sim.enable_extension`, :func:`isaaclab.sim.disable_extension`, and
   :func:`isaaclab.sim.get_extension_path` for interacting with Kit extensions without Isaac Sim utility dependencies.
 
+Changed
+^^^^^^^
+
+* Changed the stock Kit experiences to stop registering deprecated Isaac Sim extension aliases and deprecated extension
+  search paths. Custom Kit experiences should depend on current ``isaacsim.*`` or ``omni.*`` extensions directly.
+
 Fixed
 ^^^^^
 

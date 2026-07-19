@@ -36,10 +36,9 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import os
+from typing import Any
 
 import torch
-
-import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
@@ -98,9 +97,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # extract entities for simplified notation
     camera: RayCasterCamera = scene_entities["camera"]
 
-    # Create replicator writer
-    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
-    rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
+    # Create the Replicator writer only when saving. The ray-cast camera itself
+    # is Warp-based and does not require Replicator or RTX rendering extensions.
+    rep_writer: Any | None = None
+    if args_cli.save:
+        import omni.replicator.core as rep
+
+        output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
+        rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
@@ -142,6 +146,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
                     rep_output["annotators"][key] = {"render_product": {"data": data}}
             # Save images
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
+            assert rep_writer is not None
             rep_writer.write(rep_output)
 
             # Pointcloud in world frame

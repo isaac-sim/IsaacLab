@@ -285,13 +285,11 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager."""
+        from isaaclab_physx import _patch_isaacsim_simulation_manager
+
+        _patch_isaacsim_simulation_manager(enable_if_available=True)
+
         from isaaclab.sim.utils.stage import get_current_stage_id
-
-        from isaaclab_physx import _simulation_manager_patch
-
-        # Claim an already-loaded SimulationManager and subscribe once Kit is
-        # available so late callbacks cannot compete for tensor views.
-        _simulation_manager_patch.claim_physics_lifecycle()
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
@@ -789,12 +787,16 @@ class PhysxManager(PhysicsManager):
         physx = omni.physx.get_physx_interface()
         physx_sim = omni.physx.get_physx_simulation_interface()
 
-        # Attach the stage before starting physics. Calling attach_stage() and
-        # force_load_physics_from_usd() together corrupts the CPU broadphase (MBP), so
-        # only force-load the GPU pipeline after attaching the stage.
+        # The Kit app owns loading the low-level physics extensions, but the
+        # Isaac Sim SimulationManager is no longer guaranteed to be loaded.
+        # Attach the current USD stage here so PhysX tensor views can find the
+        # scene without relying on Isaac Sim's default warm-start callback.
         physx_sim.attach_stage(stage_id)
 
         # warmup physx
+        # Calling attach_stage() and force_load_physics_from_usd() together on
+        # CPU can corrupt PhysX broadphase state, so only force-load the GPU
+        # pipeline after the stage is attached.
         if is_gpu:
             physx.force_load_physics_from_usd()
         physx.start_simulation()

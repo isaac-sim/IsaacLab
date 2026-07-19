@@ -39,9 +39,9 @@ class IsaacsimKitPerspectiveVideo:
 
         h, w = self.cfg.window_height, self.cfg.window_width
         if self._rgb_annotator is None:
-            from isaaclab_physx.renderers.kit_viewport_utils import _set_kit_camera_view
+            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view
 
-            _set_kit_camera_view(self.cfg.eye, self.cfg.lookat, self.cfg.camera_prim_path)
+            set_kit_renderer_camera_view(self.cfg.eye, self.cfg.lookat, self.cfg.camera_prim_path)
             self._render_product = rep.create.render_product(self.cfg.camera_prim_path, (w, h))
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._render_product])
