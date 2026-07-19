@@ -20,8 +20,7 @@ gym.register(
     },
 )
 
-# Gymnasium rejects a versioned ID when its versionless replacement is registered,
-# so retain the released ID by inserting its deprecation spec directly.
+# Retain the released ID as a deprecated alias by inserting its spec directly.
 registry.update(
     {
         "Isaac-DrLegs-HoldPose-v0": EnvSpec(

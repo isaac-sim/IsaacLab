@@ -79,11 +79,6 @@ registry.update(
             },
             disable_env_checker=True,
         ),
-    }
-)
-
-registry.update(
-    {
         "Isaac-Reach-Franka-Newton-IK-Rel-Play-v0": EnvSpec(
             id="Isaac-Reach-Franka-Newton-IK-Rel-Play-v0",
             entry_point="isaaclab.envs:ManagerBasedRLEnv",
