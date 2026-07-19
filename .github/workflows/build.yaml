@@ -280,7 +280,7 @@ jobs:
     name: arm-ci
     runs-on: [self-hosted, arm64]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     timeout-minutes: 60
     continue-on-error: true
     steps:
@@ -343,9 +343,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -368,9 +366,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -393,9 +389,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -417,9 +411,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -440,9 +432,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -463,9 +453,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -486,9 +474,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -508,9 +494,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -529,9 +513,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -550,9 +532,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -571,9 +551,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -592,9 +570,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -613,9 +589,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -634,9 +608,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -655,9 +627,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -712,9 +682,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build-curobo.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -762,9 +730,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build-curobo.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -786,9 +752,7 @@ jobs:
     timeout-minutes: 300
     continue-on-error: true
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     steps:
     - uses: actions/checkout@v6
       with:
@@ -823,13 +787,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         include-files: >-
-          test_rendering_cartpole.py,
-          test_rendering_dexsuite_kuka_hetero.py,
-          test_rendering_dexsuite_kuka_homo.py,
-          test_rendering_franka_cloth.py,
-          test_rendering_franka_soft.py,
-          test_rendering_registered_tasks.py,
-          test_rendering_shadow_hand.py
+          test_rendering_franka_soft.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         container-name: isaac-lab-rendering-correctness-test
@@ -841,7 +799,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled for debugging - only rendering-correctness
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:

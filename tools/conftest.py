@@ -609,7 +609,6 @@ def _run_one_pass(
             "pytest",
             "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
             "-s",
-            "-vv",
             "--show-capture=all",
             f"--config-file={ctx.workspace_root}/pyproject.toml",
             f"--junitxml={report_file}",
@@ -1143,14 +1142,18 @@ def pytest_sessionstart(session):
     ci_marker = os.environ.get("CI_MARKER", "")
     test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
 
-    # Parse include files list (comma-separated paths)
-    include_files = set()
+    # Parse include files list (comma-separated paths).
+    # TEMP (stress testing): preserve duplicate basenames so the same file can be
+    # scheduled multiple times. Filtering still uses the unique set; multiplicity
+    # is re-applied after filesystem collection below.
+    include_files_list: list[str] = []
     if include_files_str:
         for f in include_files_str.split(","):
             f = f.strip()
             if f:
-                include_files.add(os.path.basename(f))
-    include_files.update(os.path.basename(path) for path in test_node_ids_by_file)
+                include_files_list.append(os.path.basename(f))
+    include_files_list.extend(os.path.basename(path) for path in test_node_ids_by_file)
+    include_files = set(include_files_list)
 
     # Also try to get from pytest config
     if hasattr(session.config, "option") and hasattr(session.config.option, "filter_pattern"):
@@ -1219,6 +1222,22 @@ def pytest_sessionstart(session):
         missing_files = sorted(configured_files - {os.path.normpath(test_file) for test_file in test_files})
         if missing_files:
             pytest.exit(f"Configured test node ID files were not collected: {missing_files}", returncode=1)
+
+    # TEMP (stress testing): expand collected paths to match include-list multiplicity.
+    # E.g. include-files listing the same basename 10 times runs that file 10 times.
+    if include_files_list and len(include_files_list) > len(include_files):
+        basename_to_path = {os.path.basename(path): path for path in test_files}
+        expanded_test_files = []
+        for basename in include_files_list:
+            path = basename_to_path.get(basename)
+            if path is not None:
+                expanded_test_files.append(path)
+        if expanded_test_files:
+            logger.info(
+                f"TEMP stress repeat: expanding {len(test_files)} collected file(s) "
+                f"to {len(expanded_test_files)} run(s) from include-list duplicates"
+            )
+            test_files = expanded_test_files
 
     if not test_files:
         if quarantined_only:
