@@ -204,6 +204,8 @@ class Camera(SensorBase):
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
+        # Guard so the lens-distortion image-size mismatch warning is emitted at most once.
+        self._warned_distortion_image_size: bool = False
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
         # Renderer and render data — assigned in _initialize_impl.
@@ -651,18 +653,43 @@ class Camera(SensorBase):
         for matrix_id, i in enumerate(env_ids_np):
             # Get corresponding sensor prim
             sensor_prim = self._sensor_prims[int(i)]
-            # get camera parameters
-            # currently rendering does not use aperture offsets or vertical aperture
-            focal_length = sensor_prim.GetFocalLengthAttr().Get()
-            horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
-
             # get viewport parameters
             height, width = self.image_shape
-            # extract intrinsic parameters
-            f_x = (width * focal_length) / horiz_aperture
-            f_y = f_x
-            c_x = width * 0.5
-            c_y = height * 0.5
+            # Prefer an authored OpenCV lens-distortion model when present: it carries the
+            # authoritative fx/fy/cx/cy that the RTX/OVRTX renderer projects through. These may be
+            # non-square (fx != fy) or off-center, unlike the focal-length/aperture readback which
+            # assumes square pixels and a centered principal point.
+            raw_prim = sensor_prim.GetPrim()
+            distortion_model = raw_prim.GetAttribute("omni:lensdistortion:model").Get()
+            if distortion_model:
+                prefix = f"omni:lensdistortion:{distortion_model}"
+                f_x = float(raw_prim.GetAttribute(f"{prefix}:fx").Get())
+                f_y = float(raw_prim.GetAttribute(f"{prefix}:fy").Get())
+                c_x = float(raw_prim.GetAttribute(f"{prefix}:cx").Get())
+                c_y = float(raw_prim.GetAttribute(f"{prefix}:cy").Get())
+                # the intrinsics are reported in the calibrated pixel space; warn once if the render
+                # resolution differs, since the reported matrix will not match the rendered pixels.
+                image_size = raw_prim.GetAttribute(f"{prefix}:imageSize").Get()
+                if image_size is not None and (int(image_size[0]), int(image_size[1])) != (width, height):
+                    if not self._warned_distortion_image_size:
+                        logger.warning(
+                            "Camera lens-distortion 'imageSize' %s does not match the render resolution"
+                            " (%d, %d). The reported intrinsic matrix is in the calibrated pixel space.",
+                            (int(image_size[0]), int(image_size[1])),
+                            width,
+                            height,
+                        )
+                        self._warned_distortion_image_size = True
+            else:
+                # get camera parameters
+                # currently rendering does not use aperture offsets or vertical aperture
+                focal_length = sensor_prim.GetFocalLengthAttr().Get()
+                horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
+                # extract intrinsic parameters
+                f_x = (width * focal_length) / horiz_aperture
+                f_y = f_x
+                c_x = width * 0.5
+                c_y = height * 0.5
             # create intrinsic matrix for depth linear
             intrinsic_matrices[matrix_id, 0, 0] = f_x
             intrinsic_matrices[matrix_id, 0, 2] = c_x
