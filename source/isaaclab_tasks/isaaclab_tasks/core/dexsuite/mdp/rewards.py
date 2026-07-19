@@ -20,16 +20,6 @@ if TYPE_CHECKING:
     from isaaclab.sensors import ContactSensor
 
 
-def action_rate_l2_clamped(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Penalize the rate of change of the actions using L2 squared kernel."""
-    return torch.sum(torch.square(env.action_manager.action - env.action_manager.prev_action), dim=1).clamp(-1000, 1000)
-
-
-def action_l2_clamped(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Penalize the actions using L2 squared kernel."""
-    return torch.sum(torch.square(env.action_manager.action), dim=1).clamp(-1000, 1000)
-
-
 def object_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
@@ -170,10 +160,10 @@ class success_reward(ManagerTermBase):
         if rot_std:
             rot_dist = torch.linalg.norm(rot_err, dim=1)
             reward = (1 - torch.tanh(pos_dist / pos_std)) * (1 - torch.tanh(rot_dist / rot_std)) * contact_mask.float()
-            self.succeeded |= contact_mask & (pos_dist < pos_std) & (rot_dist < rot_std)
+            self.succeeded |= (pos_dist < pos_std) & (rot_dist < rot_std) & contact_mask
         else:
             reward = ((1 - torch.tanh(pos_dist / pos_std)) ** 2) * contact_mask.float()
-            self.succeeded |= contact_mask & (pos_dist < pos_std)
+            self.succeeded |= (pos_dist < pos_std) & contact_mask
 
         return reward
 
