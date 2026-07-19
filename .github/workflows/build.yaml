@@ -787,6 +787,15 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         include-files: >-
+          test_rendering_franka_soft.py,
+          test_rendering_franka_soft.py,
+          test_rendering_franka_soft.py,
+          test_rendering_franka_soft.py,
+          test_rendering_franka_soft.py,
+          test_rendering_franka_soft.py,
+          test_rendering_franka_soft.py,
+          test_rendering_franka_soft.py,
+          test_rendering_franka_soft.py,
           test_rendering_franka_soft.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
