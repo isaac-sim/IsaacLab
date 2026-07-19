@@ -8,6 +8,7 @@ from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
+from isaaclab_newton.sensors import NewtonRaycastSensorCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_ovphysx.sensors import ContactSensorCfg as OvPhysXContactSensorCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -86,6 +87,31 @@ class VelocityEnvContactSensorCfg(PresetCfg):
 
 
 @configclass
+class VelocityEnvHeightScannerCfg(PresetCfg):
+    """Height-scanner preset for supported physics backends."""
+
+    default = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        ray_alignment="yaw",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+        debug_vis=False,
+        mesh_prim_paths=["/World/ground"],
+    )
+    newton_mjwarp = NewtonRaycastSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base",
+        offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        ray_alignment="yaw",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+        debug_vis=False,
+        global_world_only=True,
+    )
+    newton_kamino = newton_mjwarp
+    physx = default
+    ovphysx = default
+
+
+@configclass
 class MySceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
 
@@ -112,14 +138,7 @@ class MySceneCfg(InteractiveSceneCfg):
     # robots
     robot: ArticulationCfg = MISSING
     # sensors
-    height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"],
-    )
+    height_scanner = VelocityEnvHeightScannerCfg()
     contact_forces = VelocityEnvContactSensorCfg()
     # lights
     sky_light = AssetBaseCfg(

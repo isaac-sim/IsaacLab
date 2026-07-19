@@ -7,7 +7,6 @@
 
   .. autosummary::
 
-    NewtonSensorManager
     NewtonRaycastSensor
     NewtonRaycastSensorCfg
     NewtonRaycastSensorData
@@ -17,12 +16,6 @@
     LegacyMultiMeshRayCasterCamera
 
 .. currentmodule:: isaaclab_newton.sensors
-
-Sensor Manager
---------------
-
-.. autoclass:: NewtonSensorManager
-  :members:
 
 Ray Caster
 ----------

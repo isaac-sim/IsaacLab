@@ -25,7 +25,7 @@ from isaaclab.sensors.ray_caster.kernels import copy_mesh_poses_to_table_kernel
 
 from isaaclab_newton.physics import NewtonManager
 
-from .newton_raycast_sensor import _NewtonRayCasterPoseMixin, _newton_body_pattern
+from .newton_raycast_sensor import _newton_body_pattern, _NewtonRayCasterPoseMixin
 
 
 def _has_rigid_body_api(prim) -> bool:
@@ -149,8 +149,7 @@ class LegacyMultiMeshRayCasterCamera(_LegacyNewtonRayCasterMixin, BaseMultiMeshR
 def _warn_legacy_alias(old_name: str, new_name: str) -> None:
     """Warn when a pre-rename Newton backend class is constructed directly."""
     warnings.warn(
-        f"isaaclab_newton.sensors.{old_name} is deprecated; use "
-        f"isaaclab_newton.sensors.{new_name} instead.",
+        f"isaaclab_newton.sensors.{old_name} is deprecated; use isaaclab_newton.sensors.{new_name} instead.",
         DeprecationWarning,
         stacklevel=3,
     )

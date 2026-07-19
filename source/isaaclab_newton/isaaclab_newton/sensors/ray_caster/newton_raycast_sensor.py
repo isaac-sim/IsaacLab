@@ -19,7 +19,6 @@ from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caste
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager
-from isaaclab_newton.sensors.sensor_manager import NewtonSensorManager
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
 from .newton_raycast_sensor_data import NewtonRaycastSensorData
@@ -79,7 +78,7 @@ def _identity_offsets(count: int, device: str) -> tuple[wp.array, wp.array]:
 
 
 class _NewtonRayCasterPoseMixin:
-    """Register Newton sensor sites and update ray poses from the sensor manager state."""
+    """Register Newton sensor sites and update ray poses from the Newton manager state."""
 
     @property
     def count(self: Any) -> int:
@@ -88,13 +87,11 @@ class _NewtonRayCasterPoseMixin:
 
     def __init__(self: Any, cfg):
         """Register the sensor site before Newton model finalization."""
-        self._sensor_manager: NewtonSensorManager | None = None
         super().__init__(cfg)  # pyright: ignore[reportCallIssue]
         self._sensor_site_labels = self._register_sites_for_expr(self.cfg.prim_path)
 
     def _initialize_impl(self: Any) -> None:
-        """Bind the sensor manager before base ray-caster initialization."""
-        self._sensor_manager = NewtonManager.get_sensor_manager()
+        """Bind the sensor to the finalized Newton model before base initialization."""
         super()._initialize_impl()  # pyright: ignore[reportCallIssue]
 
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
@@ -192,10 +189,8 @@ class _NewtonRayCasterPoseMixin:
         quat_buf: wp.array,
     ) -> None:
         """Update site transforms using the manager-bound model and state."""
-        if self._sensor_manager is None:
-            raise RuntimeError("Newton ray caster is not bound to a sensor manager.")
-        model = self._sensor_manager.model
-        state = self._sensor_manager.state
+        model = NewtonManager.get_model()
+        state = NewtonManager.get_state_0()
         wp.launch(
             _newton_site_world_poses_kernel,
             dim=site_indices.shape[0],
@@ -264,7 +259,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
     shape in the sensor's own world plus the global world (e.g. terrain), so
     dynamic bodies are hit without configuring target meshes. The full update
     (sensor pose, ray transform, BVH query, hit resolve) is registered as a
-    task with :class:`~isaaclab_newton.sensors.NewtonSensorManager`, which owns
+    task with :class:`~isaaclab_newton.physics.NewtonManager`, which owns
     the shared BVH refit and sensor execution graph.
     """
 
@@ -327,15 +322,13 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         self._hit_normal = wp.empty(ray_count, dtype=wp.vec3f, device=self._device)
 
         self._sensor_task_name = f"newton_raycast:{self.cfg.prim_path}:{id(self)}"
-        assert self._sensor_manager is not None
-        self._sensor_manager.register(self._sensor_task_name, self._launch_raycast)
+        NewtonManager._register_sensor_task(self._sensor_task_name, self._launch_raycast)
 
     def _launch_raycast(self) -> None:
         """Sensor pose + ray transform + BVH query + hit resolve (graph-capturable)."""
-        assert self._sensor_manager is not None
         self._update_ray_infos(self._is_outdated)
         newton.intersect_ray(
-            self._sensor_manager.model,
+            NewtonManager.get_model(),
             ray_origins=self._ray_starts_w_flat,
             ray_directions=self._ray_directions_w_flat,
             ray_worlds=self._ray_worlds,
@@ -367,13 +360,12 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         # The captured graph is bound to ``_is_outdated``; mirror any other mask into it.
         if env_mask.ptr != self._is_outdated.ptr:
             wp.copy(self._is_outdated, env_mask)
-        assert self._sensor_manager is not None
         assert self._sensor_task_name is not None
-        self._sensor_manager.update(self._sensor_task_name)
+        NewtonManager._update_sensor_tasks(self._sensor_task_name)
 
     def _invalidate_initialize_callback(self, event) -> None:
-        if self._sensor_task_name is not None and self._sensor_manager is not None:
-            self._sensor_manager.unregister(self._sensor_task_name)
+        if self._sensor_task_name is not None:
+            NewtonManager._unregister_sensor_task(self._sensor_task_name)
         self._sensor_task_name = None
         super()._invalidate_initialize_callback(event)
 

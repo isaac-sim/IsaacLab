@@ -36,8 +36,9 @@ import math
 import time
 
 import torch
-
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.sensors import LegacyRayCaster, NewtonRaycastSensorCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -47,9 +48,6 @@ from isaaclab.sensors import RayCasterCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
-from isaaclab_newton.sensors import LegacyRayCaster, NewtonRaycastSensorCfg
 
 
 def _make_terrain_cfg(num_envs: int, env_spacing: float) -> TerrainGeneratorCfg:

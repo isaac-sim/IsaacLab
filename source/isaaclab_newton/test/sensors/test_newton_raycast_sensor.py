@@ -192,8 +192,8 @@ class RaycastCameraSceneCfg(RaycastTestSceneCfg):
     )
 
 
-def test_renderer_and_raycast_share_sensor_manager_graph(sim):
-    """Tiled-camera and ray-cast updates share the sensor manager graph."""
+def test_renderer_and_raycast_share_newton_manager_graph(sim):
+    """Tiled-camera and ray-cast updates share the Newton manager graph."""
     scene = InteractiveScene(RaycastCameraSceneCfg(num_envs=1))
     sim.reset()
     sim.step()
@@ -204,8 +204,7 @@ def test_renderer_and_raycast_share_sensor_manager_graph(sim):
     assert abs(depth[0, 24, 32].item() - RAY_START_HEIGHT) < 5e-3
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
 
-    sensor_manager = NewtonManager.get_sensor_manager()
-    task_names = sorted(sensor_manager.task_names)
+    task_names = sorted(NewtonManager._sensor_tasks)
     assert any(name.startswith("newton_raycast:") for name in task_names)
     assert any(name.startswith("newton_warp_render:") for name in task_names)
-    assert sensor_manager.is_graph_captured == sim.cfg.physics.use_cuda_graph
+    assert (NewtonManager._sensor_graph is not None) == sim.cfg.physics.use_cuda_graph
