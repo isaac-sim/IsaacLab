@@ -267,7 +267,7 @@ def collect_environment_doc_rows(
     rows: list[EnvironmentDocRow] = []
 
     for spec in specs:
-        if not is_training_task(spec.id):
+        if not is_training_task(spec.id) or spec.kwargs.get("deprecated"):
             continue
 
         preset_map = enumerate_task_presets(spec.id)
