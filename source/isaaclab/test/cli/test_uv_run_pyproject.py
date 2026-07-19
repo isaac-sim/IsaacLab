@@ -133,8 +133,9 @@ def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
     dependencies = _root_pyproject()["project"]["dependencies"]
 
     # Newton is the default physics engine and RSL-RL the default training library,
-    # so both ship as core third-party requirements (not opt-in extras).
-    assert any(dep.startswith("newton[sim]") for dep in dependencies)
+    # so both ship as core third-party requirements (not opt-in extras). The importers
+    # extra carries the mesh-processing deps that authored collision approximations need.
+    assert any(dep.startswith("newton[sim,importers]") for dep in dependencies)
     assert any(dep.startswith("rsl-rl-lib") for dep in dependencies)
 
 
