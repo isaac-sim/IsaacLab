@@ -25,8 +25,9 @@ if TYPE_CHECKING:
 class out_of_bound(ManagerTermBase):
     """Termination condition for when the object falls out of bound.
 
-    This class-based implementation caches the asset reference, ranges tensor, and env_origins
-    to avoid recomputing them on every call.
+    The world-space bounds are cached and rebuilt per axis only when the corresponding
+    ``in_bound_range`` entry changes. This keeps the hot path free of host-to-device
+    transfers while still honoring runtime updates (e.g. from a curriculum term).
     """
 
     def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
@@ -35,14 +36,11 @@ class out_of_bound(ManagerTermBase):
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("object"))
         self._object: RigidObject = env.scene[asset_cfg.name]
 
-        in_bound_range: dict[str, tuple[float, float]] = cfg.params.get("in_bound_range", {})
-        range_list = [in_bound_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        ranges = torch.tensor(range_list, device=env.device, dtype=torch.float32)
-
         # Pre-apply env_origins so we can compare directly against world-space positions.
-        origins = env.scene.env_origins  # (N, 3)
-        self._lower = origins + ranges[:, 0]  # (N, 3)
-        self._upper = origins + ranges[:, 1]  # (N, 3)
+        self._origins = env.scene.env_origins  # (N, 3)
+        self._lower = self._origins.clone()  # (N, 3)
+        self._upper = self._origins.clone()  # (N, 3)
+        self._cached_axis: list[tuple[float, ...] | None] = [None, None, None]
 
     def __call__(
         self,
@@ -50,6 +48,15 @@ class out_of_bound(ManagerTermBase):
         asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         in_bound_range: dict[str, tuple[float, float]] = {},
     ) -> torch.Tensor:
+        # rebuild only the axes whose bounds changed (curriculum typically only moves one)
+        for i, key in enumerate(["x", "y", "z"]):
+            bounds = tuple(in_bound_range.get(key, (0.0, 0.0)))
+            if bounds != self._cached_axis[i]:
+                lo, hi = bounds
+                self._lower[:, i] = self._origins[:, i] + lo
+                self._upper[:, i] = self._origins[:, i] + hi
+                self._cached_axis[i] = bounds
+
         pos_w = self._object.data.root_pos_w.torch
         return ((pos_w < self._lower) | (pos_w > self._upper)).any(dim=1)
 

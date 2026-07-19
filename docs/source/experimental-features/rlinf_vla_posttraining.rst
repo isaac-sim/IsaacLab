@@ -180,7 +180,7 @@ Checkpoints
 
 Checkpoints are saved every ``save_interval`` epochs (default: ``2``) to::
 
-   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-IsaacContrib-Assemble-Trocar-G129-Dex3/<experiment_name>/checkpoints/global_step_<N>/
+   logs/rlinf/<timestamp>-IsaacContrib-Assemble-Trocar-G129-Dex3/<experiment_name>/checkpoints/global_step_<N>/
 
 The placeholders are configurable in the task YAML
 (``source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/config/isaaclab_ppo_gr00t_assemble_trocar.yaml``):
@@ -235,15 +235,14 @@ Key Files
 
 .. code-block:: text
 
-   scripts/reinforcement_learning/rlinf/
-   ├── README.md          # Detailed documentation
-   ├── train.py           # Training entry point
-   ├── play.py            # Evaluation entry point
-   └── cli_args.py        # Shared CLI argument definitions
+   source/isaaclab_rl/isaaclab_rl/entrypoints/backends/
+   ├── train_rlinf.py      # Training entry point
+   ├── play_rlinf.py       # Evaluation entry point
+   └── cli_args_rlinf.py   # Shared CLI argument definitions
 
    source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/
    ├── __init__.py
    └── extension.py       # Task registration, obs/action conversion
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
-see ``scripts/reinforcement_learning/rlinf/README.md``.
+use the unified ``./isaaclab.sh train --rl_library rlinf`` and ``./isaaclab.sh play --rl_library rlinf`` commands.

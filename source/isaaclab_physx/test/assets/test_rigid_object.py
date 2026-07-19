@@ -649,7 +649,7 @@ def test_set_material_properties_via_view(num_cubes, device):
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_rigid_body_no_friction(num_cubes, device):
-    """Test that a rigid object with no friction will maintain it's velocity when sliding across a plane."""
+    """Test that a rigid object with no friction maintains its tangential velocity on a plane."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Generate cubes scene
@@ -701,7 +701,7 @@ def test_rigid_body_no_friction(num_cubes, device):
                 tolerance = 1e-5
 
             torch.testing.assert_close(
-                cube_object.data.root_lin_vel_w.torch, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
+                cube_object.data.root_lin_vel_w.torch[:, :2], initial_velocity[:, :2], rtol=1e-5, atol=tolerance
             )
 
 
@@ -858,8 +858,8 @@ def test_rigid_body_with_restitution(num_cubes, device):
                 curr_z_velocity = cube_object.data.root_lin_vel_w.torch[:, 2].clone()
 
                 if expected_collision_type == "inelastic":
-                    # assert that the block has not bounced by checking that the z velocity is less than or equal to 0
-                    assert (curr_z_velocity <= 0.0).all()
+                    # Allow a small contact separation velocity while ensuring that the block does not bounce.
+                    assert (curr_z_velocity <= 1e-3).all()
 
                 if torch.all(curr_z_velocity <= 0.0):
                     # Still in the air

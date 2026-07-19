@@ -9,7 +9,6 @@ import importlib.metadata
 
 from ._simulation_manager_patch import _SimulationManagerPatch
 
-
 try:
     __version__ = importlib.metadata.version("isaaclab_physx")
 except importlib.metadata.PackageNotFoundError:
@@ -17,4 +16,11 @@ except importlib.metadata.PackageNotFoundError:
 
 
 _simulation_manager_patch = _SimulationManagerPatch()
-_simulation_manager_patch.claim_physics_lifecycle()
+
+
+def _patch_isaacsim_simulation_manager() -> None:
+    """Patch Isaac Sim's ``SimulationManager`` to use Isaac Lab's PhysX manager."""
+    _simulation_manager_patch.claim_physics_lifecycle()
+
+
+_patch_isaacsim_simulation_manager()
