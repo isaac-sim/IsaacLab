@@ -18,12 +18,9 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg 
 )
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg import (
     ActionsCfg,
-    CommandsCfg,
     EventCfg,
     FullStateWithoutActionCfg,
-    RewardsCfg,
     ShadowHandManagerEnvCfg,
-    TerminationsCfg,
     _ShadowHandManagerSceneCfg,
 )
 from isaaclab_tasks.core.reorient.reorient_task_base import (
@@ -122,9 +119,8 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
     scene: ShadowHandCameraManagerSceneCfg = ShadowHandCameraManagerSceneCfg()
     observations: CameraObservationsCfg = CameraObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    # commands/rewards/terminations are inherited from ShadowHandManagerEnvCfg (the
+    # shared sections from isaaclab_tasks.core.reorient.reorient_task_base)
     events: EventCfg = EventCfg()
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg()
 

@@ -11,9 +11,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
@@ -28,8 +26,11 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cf
 from isaaclab_tasks.core.reorient.reorient_task_base import (
     ALLEGRO_ACTUATED_JOINT_NAMES,
     ALLEGRO_FINGERTIP_BODY_NAMES,
-    GOAL_MARKER_POSITION,
-    IN_HAND_POS_OFFSET,
+    ReorientTerminationsCfg,
+    reorient_goal_command,
+    reorient_joint_action,
+    reorient_reset_event,
+    reorient_reward_term,
 )
 from isaaclab_tasks.utils import PresetCfg
 
@@ -56,43 +57,27 @@ class AllegroCubeSceneCfg(PresetCfg):
 
     physx = SceneCfg(clone_in_fabric=True)
     newton_mjwarp = SceneCfg(clone_in_fabric=False)
-    ovphysx = SceneCfg(clone_in_fabric=True)
+    ovphysx = physx
     default = physx
 
     def set_num_envs(self, num_envs: int) -> None:
         """Set the environment count on every backend alternative."""
-        self.physx.num_envs = num_envs
-        self.newton_mjwarp.num_envs = num_envs
-        self.ovphysx.num_envs = num_envs
-        self.default.num_envs = num_envs
+        for scene in (self.physx, self.newton_mjwarp, self.ovphysx, self.default):
+            scene.num_envs = num_envs
 
 
 @configclass
 class CommandsCfg:
-    """Object pose goal matching the Direct in-hand target."""
+    """The reorient goal command with the Allegro marker and tolerance."""
 
-    object_pose = mdp.ReorientEpisodeCommandCfg(
-        asset_name="object",
-        init_pos_offset=IN_HAND_POS_OFFSET,
-        update_goal_on_success=True,
-        orientation_success_threshold=0.2,
-        make_quat_unique=False,
-        fixed_marker_pos=GOAL_MARKER_POSITION,
-        goal_pose_visualizer_cfg=GOAL_OBJECT_CFG,
-        debug_vis=True,
-    )
+    object_pose = reorient_goal_command(orientation_success_threshold=0.2, goal_pose_visualizer_cfg=GOAL_OBJECT_CFG)
 
 
 @configclass
 class ActionsCfg:
     """Sixteen actuated Allegro Hand joints in Direct order."""
 
-    joint_pos = mdp.EMAJointPositionToLimitsActionCfg(
-        asset_name="robot",
-        joint_names=ALLEGRO_ACTUATED_JOINT_NAMES,
-        alpha=1.0,
-        rescale_to_limits=True,
-    )
+    joint_pos = reorient_joint_action(ALLEGRO_ACTUATED_JOINT_NAMES)
 
 
 @configclass
@@ -217,55 +202,14 @@ class EventCfg:
         },
     )
 
-    reset_state = EventTerm(
-        func=mdp.reset_reorient_state,
-        mode="reset",
-        params={
-            "position_noise": 0.01,
-            "joint_position_noise": 0.2,
-            "joint_velocity_noise": 0.0,
-            "action_name": "joint_pos",
-        },
-    )
+    reset_state = reorient_reset_event()
 
 
 @configclass
 class RewardsCfg:
-    """Direct-compatible reward and success accounting."""
+    """The reorient reward with the Allegro success tolerance."""
 
-    reorient = RewTerm(
-        func=mdp.ReorientReward,
-        weight=1.0,
-        params={
-            "command_name": "object_pose",
-            "distance_scale": -10.0,
-            "rotation_scale": 1.0,
-            "rotation_epsilon": 0.1,
-            "action_penalty_scale": -0.0002,
-            "success_tolerance": 0.2,
-            "success_bonus": 250.0,
-            "fall_distance": 0.24,
-            "fall_penalty": 0.0,
-            "averaging_factor": 0.1,
-            "success_count_threshold": 1,
-            "object_cfg": SceneEntityCfg("object"),
-        },
-    )
-
-
-@configclass
-class TerminationsCfg:
-    """Termination conditions matching the Direct task."""
-
-    object_out_of_reach = DoneTerm(
-        func=mdp.object_reorientation_out_of_reach,
-        params={
-            "threshold": 0.24,
-            "command_name": "object_pose",
-            "object_cfg": SceneEntityCfg("object"),
-        },
-    )
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    reorient = reorient_reward_term(success_tolerance=0.2)
 
 
 @configclass
@@ -277,7 +221,8 @@ class AllegroCubeEnvCfg(AllegroHandTaskCfgBase, ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    # the shared termination section from isaaclab_tasks.core.reorient.reorient_task_base
+    terminations: ReorientTerminationsCfg = ReorientTerminationsCfg()
     events: EventCfg = EventCfg()
 
     enable_domain_randomization: bool = False

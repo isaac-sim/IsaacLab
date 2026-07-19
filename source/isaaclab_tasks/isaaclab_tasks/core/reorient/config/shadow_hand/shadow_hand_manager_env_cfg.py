@@ -8,10 +8,8 @@
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
@@ -32,10 +30,13 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import 
     ShadowHandTaskCfgBase,
 )
 from isaaclab_tasks.core.reorient.reorient_task_base import (
-    GOAL_MARKER_POSITION,
-    IN_HAND_POS_OFFSET,
     SHADOW_ACTUATED_JOINT_NAMES,
     SHADOW_FINGERTIP_BODY_NAMES,
+    ReorientTerminationsCfg,
+    reorient_goal_command,
+    reorient_joint_action,
+    reorient_reset_event,
+    reorient_reward_term,
 )
 from isaaclab_tasks.utils import PresetCfg
 
@@ -69,31 +70,10 @@ class ShadowHandManagerSceneCfg(PresetCfg):
 
 
 @configclass
-class CommandsCfg:
-    """Object pose goal matching the Direct in-hand target."""
-
-    object_pose = mdp.ReorientEpisodeCommandCfg(
-        asset_name="object",
-        init_pos_offset=IN_HAND_POS_OFFSET,
-        update_goal_on_success=True,
-        orientation_success_threshold=0.1,
-        make_quat_unique=False,
-        fixed_marker_pos=GOAL_MARKER_POSITION,
-        goal_pose_visualizer_cfg=GOAL_OBJECT_CFG,
-        debug_vis=True,
-    )
-
-
-@configclass
 class ActionsCfg:
     """Twenty actuated Shadow Hand joints."""
 
-    joint_pos = mdp.EMAJointPositionToLimitsActionCfg(
-        asset_name="robot",
-        joint_names=SHADOW_ACTUATED_JOINT_NAMES,
-        alpha=1.0,
-        rescale_to_limits=True,
-    )
+    joint_pos = reorient_joint_action(SHADOW_ACTUATED_JOINT_NAMES)
 
 
 @configclass
@@ -158,55 +138,21 @@ class ObservationsCfg:
 class EventCfg:
     """Reset distributions matching the Direct task."""
 
-    reset_state = EventTerm(
-        func=mdp.reset_reorient_state,
-        mode="reset",
-        params={
-            "position_noise": 0.01,
-            "joint_position_noise": 0.2,
-            "joint_velocity_noise": 0.0,
-            "action_name": "joint_pos",
-        },
-    )
+    reset_state = reorient_reset_event()
+
+
+@configclass
+class CommandsCfg:
+    """The reorient goal command with the Shadow Hand goal marker."""
+
+    object_pose = reorient_goal_command(goal_pose_visualizer_cfg=GOAL_OBJECT_CFG)
 
 
 @configclass
 class RewardsCfg:
-    """Direct-compatible reward and success accounting."""
+    """Direct-compatible reward and success accounting (the factory defaults)."""
 
-    reorient = RewTerm(
-        func=mdp.ReorientReward,
-        weight=1.0,
-        params={
-            "command_name": "object_pose",
-            "distance_scale": -10.0,
-            "rotation_scale": 1.0,
-            "rotation_epsilon": 0.1,
-            "action_penalty_scale": -0.0002,
-            "success_tolerance": 0.1,
-            "success_bonus": 250.0,
-            "fall_distance": 0.24,
-            "fall_penalty": 0.0,
-            "averaging_factor": 0.1,
-            "success_count_threshold": 1,
-            "object_cfg": SceneEntityCfg("object"),
-        },
-    )
-
-
-@configclass
-class TerminationsCfg:
-    """Termination conditions matching the Direct task."""
-
-    object_out_of_reach = DoneTerm(
-        func=mdp.object_reorientation_out_of_reach,
-        params={
-            "threshold": 0.24,
-            "command_name": "object_pose",
-            "object_cfg": SceneEntityCfg("object"),
-        },
-    )
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    reorient = reorient_reward_term()
 
 
 @configclass
@@ -218,7 +164,8 @@ class ShadowHandManagerEnvCfg(ShadowHandTaskCfgBase, ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    # the shared termination section from isaaclab_tasks.core.reorient.reorient_task_base
+    terminations: ReorientTerminationsCfg = ReorientTerminationsCfg()
     events: EventCfg = EventCfg()
 
     def __post_init__(self):
@@ -226,22 +173,6 @@ class ShadowHandManagerEnvCfg(ShadowHandTaskCfgBase, ManagerBasedRLEnvCfg):
         self.episode_length_s = 10.0
         self.sim.render_interval = self.decimation
         self.viewer.eye = (2.0, 2.0, 2.0)
-
-
-@configclass
-class OpenAICommandsCfg:
-    """OpenAI goal command with its wider success tolerance."""
-
-    object_pose = mdp.ReorientEpisodeCommandCfg(
-        asset_name="object",
-        init_pos_offset=IN_HAND_POS_OFFSET,
-        update_goal_on_success=True,
-        orientation_success_threshold=0.4,
-        make_quat_unique=False,
-        fixed_marker_pos=GOAL_MARKER_POSITION,
-        goal_pose_visualizer_cfg=GOAL_OBJECT_CFG,
-        debug_vis=True,
-    )
 
 
 @configclass
@@ -312,26 +243,18 @@ class ShadowHandOpenAIManagerSceneCfg(PresetCfg):
     default = physx
 
 
-_OPENAI_RESET_PARAMS = {
-    "position_noise": 0.01,
-    "joint_position_noise": 0.2,
-    "joint_velocity_noise": 0.0,
-    "action_name": "joint_pos",
-}
-
-
 @configclass
 class OpenAIPhysxEventCfg(PhysxEventCfg):
     """PhysX OpenAI randomization and state reset events."""
 
-    reset_state = EventTerm(func=mdp.reset_reorient_state, mode="reset", params=_OPENAI_RESET_PARAMS)
+    reset_state = reorient_reset_event()
 
 
 @configclass
 class OpenAINewtonEventCfg(NewtonEventCfg):
     """Newton OpenAI randomization and state reset events."""
 
-    reset_state = EventTerm(func=mdp.reset_reorient_state, mode="reset", params=_OPENAI_RESET_PARAMS)
+    reset_state = reorient_reset_event()
 
 
 @configclass
@@ -346,28 +269,17 @@ class OpenAIEventCfg(PresetCfg):
 
 
 @configclass
-class OpenAIRewardsCfg:
-    """Direct-compatible OpenAI reward and success accounting."""
+class OpenAICommandsCfg:
+    """OpenAI goal command with its wider success tolerance."""
 
-    reorient = RewTerm(
-        func=mdp.ReorientReward,
-        weight=1.0,
-        params={
-            "command_name": "object_pose",
-            "distance_scale": -10.0,
-            "rotation_scale": 1.0,
-            "rotation_epsilon": 0.1,
-            "action_penalty_scale": -0.0002,
-            "success_tolerance": 0.4,
-            "success_bonus": 250.0,
-            "fall_distance": 0.24,
-            "fall_penalty": -50.0,
-            "averaging_factor": 0.1,
-            "success_count_threshold": 1,
-            "action_name": "joint_pos",
-            "object_cfg": SceneEntityCfg("object"),
-        },
-    )
+    object_pose = reorient_goal_command(orientation_success_threshold=0.4, goal_pose_visualizer_cfg=GOAL_OBJECT_CFG)
+
+
+@configclass
+class OpenAIRewardsCfg:
+    """OpenAI reward: wider tolerance, fall penalty, and noisy-EMA action source."""
+
+    reorient = reorient_reward_term(success_tolerance=0.4, fall_penalty=-50.0, action_name="joint_pos")
 
 
 @configclass
