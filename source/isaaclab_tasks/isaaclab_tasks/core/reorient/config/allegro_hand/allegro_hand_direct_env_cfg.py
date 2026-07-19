@@ -119,20 +119,26 @@ GOAL_OBJECT_CFG = VisualizationMarkersCfg(
         )
     },
 )
+
+
 # Simulation settings shared by the Direct and manager variants (configclass
 # deep-copies these defaults per cfg instance). The solver-common base material
 # is sufficient: only friction values are set, so no PhysX-specific
 # ``physxMaterial`` attributes are authored.
-ALLEGRO_SIM_CFG = SimulationCfg(
-    dt=1 / 120,
-    render_interval=4,
-    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-    physics=PhysicsCfg(),
-)
+@configclass
+class AllegroHandTaskCfgBase:
+    """Shared Allegro task settings inherited by both the Direct and the manager configurations."""
+
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=4,
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+        physics=PhysicsCfg(),
+    )
 
 
 @configclass
-class AllegroHandEnvCfg(DirectRLEnvCfg):
+class AllegroHandEnvCfg(AllegroHandTaskCfgBase, DirectRLEnvCfg):
     # env
     decimation = 4
     episode_length_s = 10.0
@@ -141,8 +147,6 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     state_space = 0
     asymmetric_obs = False
     obs_type = "full"
-    # simulation
-    sim: SimulationCfg = ALLEGRO_SIM_CFG
     # robot
     robot_cfg: ArticulationCfg = ROBOT_CFG
 
