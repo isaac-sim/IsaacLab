@@ -50,18 +50,19 @@ def _position_command_error_kernel(
 def position_command_error(env: ManagerBasedRLEnv, out, command_name: str, asset_cfg: SceneEntityCfg) -> None:
     """Penalize tracking of the position error using L2-norm."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_position_command_error_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _position_command_error_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_pos_w.warp,
             asset.data.root_quat_w.warp,
             asset.data.body_pos_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             asset_cfg.body_ids[0],
             out,
         ],
-        device=env.device,
+        site=(out, command_name, int(asset_cfg.body_ids[0])),
     )
 
 
@@ -96,19 +97,20 @@ def position_command_error_tanh(
 ) -> None:
     """Reward tracking of the position using the tanh kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_position_command_error_tanh_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _position_command_error_tanh_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_pos_w.warp,
             asset.data.root_quat_w.warp,
             asset.data.body_pos_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             asset_cfg.body_ids[0],
             1.0 / std,
             out,
         ],
-        device=env.device,
+        site=(out, command_name, int(asset_cfg.body_ids[0]), float(std)),
     )
 
 
@@ -142,15 +144,16 @@ def _orientation_command_error_kernel(
 def orientation_command_error(env: ManagerBasedRLEnv, out, command_name: str, asset_cfg: SceneEntityCfg) -> None:
     """Penalize tracking orientation error using shortest path."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_orientation_command_error_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _orientation_command_error_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_quat_w.warp,
             asset.data.body_quat_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             asset_cfg.body_ids[0],
             out,
         ],
-        device=env.device,
+        site=(out, command_name, int(asset_cfg.body_ids[0])),
     )

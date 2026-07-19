@@ -36,6 +36,7 @@ from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp import WarpLaunchCache
 
 from isaaclab_experimental.managers import ActionManager, EventManager, ObservationManager
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
@@ -108,6 +109,10 @@ class ManagerBasedEnvWarp:
         # make sure torch is running on the correct device
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
+
+        # Managers and MDP terms share one launcher so persistent call sites can
+        # replay outside graphs and naturally compose with outer stage capture.
+        self._warp_launch = WarpLaunchCache(device=self.device)
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -646,6 +651,7 @@ class ManagerBasedEnvWarp:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            self.invalidate_wp_graphs()
             # destructor is order-sensitive
             del self.viewport_camera_controller
             del self.action_manager
@@ -662,6 +668,16 @@ class ManagerBasedEnvWarp:
                 self._window = None
             # update closing status
             self._is_closed = True
+
+    def invalidate_wp_graphs(self) -> None:
+        """Invalidate cached Warp graphs and recorded launches.
+
+        Call this after changing launch topology, static scalar arguments, or
+        persistent array storage. Device work is drained before retained
+        argument owners are released.
+        """
+        self._warp_graph_cache.invalidate()
+        self._warp_launch.reset()
 
     """
     Helper functions.

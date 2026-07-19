@@ -232,31 +232,36 @@ class CommandTerm(ManagerTermBase):
         # compute selected count and reset scale
         self._reset_count_wp.zero_()
         self._reset_scale_wp.zero_()
-        wp.launch(kernel=count_masked, dim=self.num_envs, inputs=[env_mask, self._reset_count_wp], device=self.device)
-        wp.launch(
+        self._env._warp_launch.launch(
+            kernel=count_masked,
+            dim=self.num_envs,
+            inputs=[env_mask, self._reset_count_wp],
+            site=("command_term", self, "reset_count", env_mask),
+        )
+        self._env._warp_launch.launch(
             kernel=compute_reset_scale,
             dim=1,
             inputs=[self._reset_count_wp, 1.0, self._reset_scale_wp],
-            device=self.device,
+            site=("command_term", self, "reset_scale"),
         )
 
         # update pre-allocated reset extras and clear selected metric rows
         for metric_name, metric_value_wp in self.metrics.items():
             out_mean_wp = self._reset_metric_mean_wp[metric_name]
             out_mean_wp.zero_()
-            wp.launch(
+            self._env._warp_launch.launch(
                 kernel=_sum_and_zero_masked,
                 dim=self.num_envs,
                 inputs=[env_mask, self._reset_scale_wp, metric_value_wp, out_mean_wp],
-                device=self.device,
+                site=("command_term", self, "reset_metric", metric_name, env_mask),
             )
 
         # set the command counter to zero
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_zero_counter_masked,
             dim=self.num_envs,
             inputs=[env_mask, self.command_counter_wp],
-            device=self.device,
+            site=("command_term", self, "reset_counter", env_mask),
         )
         # resample the command
         self._resample(env_mask=env_mask)
@@ -295,11 +300,11 @@ class CommandTerm(ManagerTermBase):
         # update the metrics based on current state
         self._update_metrics()
         # reduce the time left before resampling and build resample mask
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_step_time_left_and_build_resample_mask,
             dim=self.num_envs,
             inputs=[self.time_left_wp, float(dt), self._resample_mask_wp],
-            device=self.device,
+            site=("command_term", self, "step_time_left", float(dt)),
         )
         # resample masked envs
         self._resample(env_mask=self._resample_mask_wp)
@@ -327,7 +332,9 @@ class CommandTerm(ManagerTermBase):
             raise RuntimeError("Environment rng_state_wp is not initialized.")
 
         # resample time-left and increment command-counter for masked envs
-        wp.launch(
+        lower = float(self.cfg.resampling_time_range[0])
+        upper = float(self.cfg.resampling_time_range[1])
+        self._env._warp_launch.launch(
             kernel=_resample_time_left_and_increment_counter,
             dim=self.num_envs,
             inputs=[
@@ -335,10 +342,10 @@ class CommandTerm(ManagerTermBase):
                 self.time_left_wp,
                 self.command_counter_wp,
                 self._env.rng_state_wp,
-                float(self.cfg.resampling_time_range[0]),
-                float(self.cfg.resampling_time_range[1]),
+                lower,
+                upper,
             ],
-            device=self.device,
+            site=("command_term", self, "resample_time_left", env_mask, lower, upper),
         )
         # resample command values for masked envs
         self._resample_command(env_mask)

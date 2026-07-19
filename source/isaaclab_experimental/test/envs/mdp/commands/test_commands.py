@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
+import pytest
 import torch
 import warp as wp
 from isaaclab_experimental.envs import mdp as experimental_mdp
@@ -25,34 +26,35 @@ from isaaclab_experimental.managers import CommandManager, CommandTerm
 from isaaclab.envs.mdp.commands import UniformPoseCommandCfg as StableUniformPoseCommandCfg
 from isaaclab.envs.mdp.commands import UniformVelocityCommandCfg as StableUniformVelocityCommandCfg
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
+from isaaclab.utils.warp import WarpLaunchCache
 
 
 class _ArrayProxy:
     """Minimal backend-neutral data proxy used by command terms."""
 
-    def __init__(self, values: np.ndarray, dtype):
-        self.warp = wp.array(values, dtype=dtype, device="cpu")
+    def __init__(self, values: np.ndarray, dtype, device: str = "cpu"):
+        self.warp = wp.array(values, dtype=dtype, device=device)
         self.torch = wp.to_torch(self.warp)
 
 
 class _Robot:
     """Minimal articulation data needed by velocity and pose commands."""
 
-    def __init__(self, num_envs: int):
+    def __init__(self, num_envs: int, device: str = "cpu"):
         identity_quat = np.zeros((num_envs, 4), dtype=np.float32)
         identity_quat[:, 3] = 1.0
         identity_pose = np.zeros((num_envs, 7), dtype=np.float32)
         identity_pose[:, 6] = 1.0
         self.data = SimpleNamespace(
-            root_pose_w=_ArrayProxy(identity_pose, wp.transformf),
-            root_vel_w=_ArrayProxy(np.zeros((num_envs, 6), dtype=np.float32), wp.spatial_vectorf),
-            root_pos_w=_ArrayProxy(np.zeros((num_envs, 3), dtype=np.float32), wp.vec3f),
-            root_quat_w=_ArrayProxy(identity_quat, wp.quatf),
-            root_lin_vel_b=_ArrayProxy(np.zeros((num_envs, 3), dtype=np.float32), wp.vec3f),
-            root_ang_vel_b=_ArrayProxy(np.zeros((num_envs, 3), dtype=np.float32), wp.vec3f),
-            heading_w=_ArrayProxy(np.zeros(num_envs, dtype=np.float32), wp.float32),
-            body_pos_w=_ArrayProxy(np.zeros((num_envs, 1, 3), dtype=np.float32), wp.vec3f),
-            body_quat_w=_ArrayProxy(identity_quat[:, None, :], wp.quatf),
+            root_pose_w=_ArrayProxy(identity_pose, wp.transformf, device),
+            root_vel_w=_ArrayProxy(np.zeros((num_envs, 6), dtype=np.float32), wp.spatial_vectorf, device),
+            root_pos_w=_ArrayProxy(np.zeros((num_envs, 3), dtype=np.float32), wp.vec3f, device),
+            root_quat_w=_ArrayProxy(identity_quat, wp.quatf, device),
+            root_lin_vel_b=_ArrayProxy(np.zeros((num_envs, 3), dtype=np.float32), wp.vec3f, device),
+            root_ang_vel_b=_ArrayProxy(np.zeros((num_envs, 3), dtype=np.float32), wp.vec3f, device),
+            heading_w=_ArrayProxy(np.zeros(num_envs, dtype=np.float32), wp.float32, device),
+            body_pos_w=_ArrayProxy(np.zeros((num_envs, 1, 3), dtype=np.float32), wp.vec3f, device),
+            body_quat_w=_ArrayProxy(identity_quat[:, None, :], wp.quatf, device),
         )
         self.is_initialized = True
 
@@ -63,10 +65,11 @@ class _Robot:
 class _Env:
     """Minimal manager-based environment used by command terms."""
 
-    def __init__(self, num_envs: int = 4):
+    def __init__(self, num_envs: int = 4, device: str = "cpu"):
         self.num_envs = num_envs
-        self.device = "cpu"
-        self.scene = {"robot": _Robot(num_envs)}
+        self.device = device
+        self._warp_launch = WarpLaunchCache(device=self.device)
+        self.scene = {"robot": _Robot(num_envs, device)}
         self.rng_state_wp = wp.array(np.arange(num_envs, dtype=np.uint32) + 41, device=self.device)
         self.extras = {}
         self.sim = SimpleNamespace(
@@ -332,3 +335,38 @@ def test_uniform_pose_command_matches_stable_math_and_tracks_sticky_success():
     wp.synchronize()
     torch.testing.assert_close(extras["success_rate"], torch.tensor(0.5))
     torch.testing.assert_close(wp.to_torch(term._success_rate), torch.tensor([0.0, 0.0, 1.0, 0.0]))
+
+
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
+def test_command_replay_uses_changed_configuration_scalars():
+    """Recorded command launches should specialize changed range and heading scalars."""
+    env = _Env(device="cuda:0")
+    env._warp_launch = WarpLaunchCache(mode="replay", debug=True, device=env.device)
+    env_mask = wp.ones(env.num_envs, dtype=wp.bool, device=env.device)
+
+    pose_term = UniformPoseCommand(_pose_cfg(), env)
+    pose_term._resample_command(env_mask)
+    wp.synchronize()
+    torch.testing.assert_close(pose_term.command[:, 0], torch.ones(env.num_envs, device=env.device))
+
+    pose_term.cfg.ranges.pos_x = (4.0, 4.0)
+    pose_term._resample_command(env_mask)
+    wp.synchronize()
+    torch.testing.assert_close(pose_term.command[:, 0], torch.full((env.num_envs,), 4.0, device=env.device))
+
+    velocity_cfg = _velocity_cfg()
+    velocity_cfg.ranges.ang_vel_z = (-10.0, 10.0)
+    velocity_term = UniformVelocityCommand(velocity_cfg, env)
+    velocity_term.command.zero_()
+    velocity_term.heading_target.fill_(0.5)
+    velocity_term.is_heading_env.fill_(True)
+    velocity_term.is_standing_env.fill_(False)
+    velocity_term._update_command()
+    wp.synchronize()
+    torch.testing.assert_close(velocity_term.command[:, 2], torch.ones(env.num_envs, device=env.device))
+
+    velocity_term.cfg.heading_control_stiffness = 4.0
+    velocity_term.command[:, 2] = 0.0
+    velocity_term._update_command()
+    wp.synchronize()
+    torch.testing.assert_close(velocity_term.command[:, 2], torch.full((env.num_envs,), 2.0, device=env.device))

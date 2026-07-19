@@ -7,10 +7,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Hashable
+
 import numpy as np
 import pytest
 import torch
 import warp as wp
+
+from isaaclab.utils.warp import WarpLaunchCache
 
 # Skip entire module if no CUDA device available
 wp.init()
@@ -36,6 +40,31 @@ from parity_helpers import (
 # ============================================================================
 # Fixtures
 # ============================================================================
+
+
+class _LaunchRecorder:
+    """Record launch sites while executing kernels eagerly."""
+
+    def __init__(self, device: str):
+        self._device = device
+        self.sites: list[Hashable | None] = []
+        self.invalidated_sites: list[Hashable | None] = []
+
+    def launch(
+        self,
+        kernel: wp.Kernel,
+        dim: int,
+        inputs=(),
+        outputs=(),
+        *,
+        stream: wp.Stream | None = None,
+        site: Hashable | None = None,
+    ) -> None:
+        self.sites.append(site)
+        wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=self._device, stream=stream)
+
+    def invalidate(self, site: Hashable | None = None) -> None:
+        self.invalidated_sites.append(site)
 
 
 @pytest.fixture()
@@ -87,7 +116,16 @@ def warp_env(scene, action_wp, episode_length_buf):
     env.max_episode_length_s = 10.0
     # RNG state for events (seeded deterministically)
     env.rng_state_wp = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
+    env._warp_launch = _LaunchRecorder(env.device)
     return env
+
+
+@pytest.fixture()
+def replay_warp_env(warp_env):
+    """Warp environment with recorded-launch debug validation enabled."""
+    warp_env._warp_launch = WarpLaunchCache(mode="replay", debug=True, device=warp_env.device)
+    yield warp_env
+    warp_env._warp_launch.reset()
 
 
 @pytest.fixture()
@@ -128,6 +166,7 @@ def _make_event_env(seed: int, *, num_bodies: int = 1):
     env.device = DEVICE
     env.env_origins_wp = env.scene.env_origins_wp
     env.rng_state_wp = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + seed, device=DEVICE)
+    env._warp_launch = _LaunchRecorder(env.device)
     return env, data, asset
 
 
@@ -184,6 +223,17 @@ class TestEventParity:
 
         assert_close(warp_pos, expected_pos)
         assert_close(warp_vel, expected_vel)
+        asset = warp_env.scene[cfg.name]
+        assert warp_env._warp_launch.sites == [
+            (
+                "reset_joints_by_offset",
+                asset,
+                cfg.joint_ids_wp,
+                mask,
+                (0.0, 0.0),
+                (0.0, 0.0),
+            )
+        ]
 
     def test_reset_joints_by_scale_parity(self, warp_env, stable_env, art_data, all_joints_cfg):
         """Scale=1.0: both warp and stable should produce clamped defaults."""
@@ -211,6 +261,17 @@ class TestEventParity:
 
         assert_close(warp_pos, expected_pos)
         assert_close(warp_vel, expected_vel)
+        asset = warp_env.scene[cfg.name]
+        assert warp_env._warp_launch.sites == [
+            (
+                "reset_joints_by_scale",
+                asset,
+                cfg.joint_ids_wp,
+                mask,
+                (1.0, 1.0),
+                (1.0, 1.0),
+            )
+        ]
 
 
 # ============================================================================
@@ -223,8 +284,9 @@ class TestEventCapturedDataMutation:
 
     # -- reset_joints_by_offset -------------------------------------------------
 
-    def test_reset_joints_by_offset(self, warp_env, art_data, all_joints_cfg):
-        """With zero-width offset, result == defaults.  Mutate defaults -> result tracks."""
+    def test_reset_joints_by_offset(self, replay_warp_env, art_data, all_joints_cfg):
+        """Debug-validated replay inside capture should read mutated defaults."""
+        warp_env = replay_warp_env
         cfg = all_joints_cfg
         mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
 
@@ -254,8 +316,9 @@ class TestEventCapturedDataMutation:
 
     # -- reset_joints_by_scale --------------------------------------------------
 
-    def test_reset_joints_by_scale(self, warp_env, art_data, all_joints_cfg):
-        """With scale=1.0, result == defaults.  Mutate defaults -> result tracks."""
+    def test_reset_joints_by_scale(self, replay_warp_env, art_data, all_joints_cfg):
+        """Debug-validated replay inside capture should read mutated defaults."""
+        warp_env = replay_warp_env
         cfg = all_joints_cfg
         mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
 
@@ -316,12 +379,12 @@ class TestEventCapturedDataMutation:
 
     # -- apply_external_force_torque --------------------------------------------
 
-    def test_apply_external_force_torque(self, warp_env, art_data, all_joints_cfg):
-        """With zero-width ranges, forces/torques are zero.  Non-zero ranges produce non-zero output."""
+    def test_apply_external_force_torque_zero_ranges_are_no_op(self, warp_env, art_data, all_joints_cfg):
+        """Zero wrench ranges should preserve existing composer state by skipping the setter."""
         mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
-        captured = {}
-        warp_env.scene["robot"].permanent_wrench_composer.set_forces_and_torques_mask = (
-            lambda **kwargs: captured.update(kwargs)
+        calls = []
+        warp_env.scene["robot"].permanent_wrench_composer.set_forces_and_torques_mask = lambda **kwargs: calls.append(
+            kwargs
         )
         zero_range = (0.0, 0.0)
         term = _make_event_term(
@@ -338,10 +401,8 @@ class TestEventCapturedDataMutation:
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
-        forces = wp.to_torch(captured["forces"])
-        torques = wp.to_torch(captured["torques"])
-        assert_close(forces, torch.zeros_like(forces))
-        assert_close(torques, torch.zeros_like(torques))
+        assert calls == []
+        assert warp_env._warp_launch.sites == []
 
     # -- reset_root_state_uniform -----------------------------------------------
 
@@ -414,8 +475,107 @@ class TestEventCapturedDataMutation:
         assert_close(result[NUM_ENVS // 2 :], torch.full((NUM_ENVS // 2, NUM_JOINTS), 999.0, device=DEVICE))
 
 
-class TestEventStateOwnership:
-    """Verify event scratch and parsed ranges are owned by one environment configuration."""
+class TestEventClassTermOwnership:
+    """Verify class event terms allocate persistent state only during initialization."""
+
+    def test_push_term_reuses_velocity_buffer(self, monkeypatch):
+        env, data, asset = _make_event_env(81)
+        copy_np_to_wp(data.root_vel_w, np.zeros((NUM_ENVS, 6), dtype=np.float32))
+        captured = []
+        asset.write_root_velocity_to_sim_mask = lambda **kwargs: captured.append(kwargs)
+        env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
+        term = _make_event_term(
+            warp_evt.push_by_setting_velocity,
+            env,
+            velocity_range={"x": (1.0, 1.0)},
+        )
+        monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: pytest.fail("allocated during term call"))
+
+        term(env, env_mask, **term.cfg.params)
+        term(env, env_mask, **term.cfg.params)
+        wp.synchronize()
+
+        assert captured[0]["root_velocity"].ptr == captured[1]["root_velocity"].ptr
+        assert env._warp_launch.sites == [(term, env_mask), (term, env_mask)]
+
+    def test_external_wrench_term_reuses_buffers(self, monkeypatch):
+        env, _, asset = _make_event_env(82, num_bodies=2)
+        captured = []
+        asset.permanent_wrench_composer.set_forces_and_torques_mask = lambda **kwargs: captured.append(kwargs)
+        env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
+        term = _make_event_term(
+            warp_evt.apply_external_force_torque,
+            env,
+            force_range=(1.0, 1.0),
+            torque_range=(2.0, 2.0),
+        )
+        monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: pytest.fail("allocated during term call"))
+
+        term(env, env_mask, **term.cfg.params)
+        term(env, env_mask, **term.cfg.params)
+        wp.synchronize()
+
+        assert captured[0]["forces"].ptr == captured[1]["forces"].ptr
+        assert captured[0]["torques"].ptr == captured[1]["torques"].ptr
+        assert env._warp_launch.sites == [(term, env_mask), (term, env_mask)]
+
+    def test_root_reset_term_reuses_buffers(self, monkeypatch):
+        env, data, asset = _make_event_env(83)
+        default_pose = np.zeros((NUM_ENVS, 7), dtype=np.float32)
+        default_pose[:, 6] = 1.0
+        copy_np_to_wp(data.default_root_pose, default_pose)
+        copy_np_to_wp(data.default_root_vel, np.zeros((NUM_ENVS, 6), dtype=np.float32))
+        poses = []
+        velocities = []
+        asset.write_root_pose_to_sim_mask = lambda **kwargs: poses.append(kwargs)
+        asset.write_root_velocity_to_sim_mask = lambda **kwargs: velocities.append(kwargs)
+        env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
+        term = _make_event_term(
+            warp_evt.reset_root_state_uniform,
+            env,
+            pose_range={},
+            velocity_range={},
+        )
+        monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: pytest.fail("allocated during term call"))
+
+        term(env, env_mask, **term.cfg.params)
+        term(env, env_mask, **term.cfg.params)
+        wp.synchronize()
+
+        assert poses[0]["root_pose"].ptr == poses[1]["root_pose"].ptr
+        assert velocities[0]["root_velocity"].ptr == velocities[1]["root_velocity"].ptr
+        assert env._warp_launch.sites == [(term, env_mask), (term, env_mask)]
+
+    def test_com_term_captures_first_call_baseline_without_accumulation(self, monkeypatch):
+        env, data, asset = _make_event_env(84, num_bodies=2)
+        baseline = np.zeros((NUM_ENVS, 2, 3), dtype=np.float32)
+        baseline[..., 0] = 0.25
+        copy_np_to_wp(data.body_com_pos_b, baseline)
+        asset.set_coms_mask = lambda **kwargs: None
+        asset_cfg = SceneEntityCfg("robot", body_ids=[0, 1])
+        env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
+        term = _make_event_term(
+            warp_evt.randomize_rigid_body_com,
+            env,
+            asset_cfg=asset_cfg,
+            com_range={"x": (1.0, 1.0)},
+        )
+
+        # Startup terms may update COM after term construction but before its first call.
+        baseline[..., 0] = 0.75
+        copy_np_to_wp(data.body_com_pos_b, baseline)
+
+        term(env, env_mask, **term.cfg.params)
+        monkeypatch.setattr(wp, "clone", lambda *args, **kwargs: pytest.fail("baseline cloned more than once"))
+        term(env, env_mask, **term.cfg.params)
+        wp.synchronize()
+
+        assert_close(data.body_com_pos_b.torch[..., 0], torch.full((NUM_ENVS, 2), 1.75, device=DEVICE))
+        assert env._warp_launch.sites == [(term, env_mask), (term, env_mask)]
+
+
+class TestLegacyEventFunctionOwnership:
+    """Verify legacy event functions retain isolated state and eager-call compatibility."""
 
     def test_com_term_is_marked_non_capturable(self):
         assert warp_evt.randomize_rigid_body_com._warp_capturable is False

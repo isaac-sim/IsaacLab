@@ -51,9 +51,9 @@ def terrain_out_of_bounds(
     half_height = 0.5 * (n_cols * grid_length + 2 * border_width)
 
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_terrain_out_of_bounds_kernel,
+    env._warp_launch.launch(
+        _terrain_out_of_bounds_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_pos_w.warp, half_width, half_height, distance_buffer, out],
-        device=env.device,
+        site=(out, float(half_width), float(half_height), float(distance_buffer)),
     )

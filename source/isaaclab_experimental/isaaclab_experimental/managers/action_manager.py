@@ -376,17 +376,17 @@ class ActionManager(ManagerBase):
         env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         # reset the action history
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_zero_masked_2d,
             dim=(self.num_envs, self.total_action_dim),
             inputs=[env_mask, self._prev_action],
-            device=self.device,
+            site=("action_manager", self, "reset_previous", env_mask),
         )
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_zero_masked_2d,
             dim=(self.num_envs, self.total_action_dim),
             inputs=[env_mask, self._action],
-            device=self.device,
+            site=("action_manager", self, "reset_current", env_mask),
         )
 
         # reset all action terms

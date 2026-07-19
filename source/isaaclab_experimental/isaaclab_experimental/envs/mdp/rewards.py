@@ -45,11 +45,11 @@ def _is_alive_kernel(terminated: wp.array(dtype=wp.bool), out: wp.array(dtype=wp
 
 def is_alive(env: ManagerBasedRLEnv, out: wp.array(dtype=wp.float32)) -> None:
     """Reward for being alive. Writes into ``out`` (shape: (num_envs,))."""
-    wp.launch(
-        kernel=_is_alive_kernel,
+    env._warp_launch.launch(
+        _is_alive_kernel,
         dim=env.num_envs,
         inputs=[env.termination_manager.terminated_wp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -62,11 +62,11 @@ def _is_terminated_kernel(terminated: wp.array(dtype=wp.bool), out: wp.array(dty
 
 def is_terminated(env: ManagerBasedRLEnv, out) -> None:
     """Penalize terminated episodes. Writes into ``out``."""
-    wp.launch(
-        kernel=_is_terminated_kernel,
+    env._warp_launch.launch(
+        _is_terminated_kernel,
         dim=env.num_envs,
         inputs=[env.termination_manager.terminated_wp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -101,11 +101,11 @@ def _lin_vel_z_l2_kernel(
 def lin_vel_z_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize z-axis base linear velocity using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_lin_vel_z_l2_kernel,
+    env._warp_launch.launch(
+        _lin_vel_z_l2_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -124,11 +124,11 @@ def _ang_vel_xy_l2_kernel(
 def ang_vel_xy_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize xy-axis base angular velocity using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_ang_vel_xy_l2_kernel,
+    env._warp_launch.launch(
+        _ang_vel_xy_l2_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -152,11 +152,11 @@ def _flat_orientation_l2_kernel(
 def flat_orientation_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize non-flat base orientation using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_flat_orientation_l2_kernel,
+    env._warp_launch.launch(
+        _flat_orientation_l2_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -183,11 +183,11 @@ def _sum_sq_masked_kernel(
 def joint_torques_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize joint torques applied on the articulation using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_sum_sq_masked_kernel,
+    env._warp_launch.launch(
+        _sum_sq_masked_kernel,
         dim=env.num_envs,
         inputs=[asset.data.applied_torque.warp, asset_cfg.joint_mask, out],
-        device=env.device,
+        site=("joint_torques_l2", out),
     )
 
 
@@ -208,33 +208,33 @@ def _sum_abs_masked_kernel(
 def joint_vel_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg) -> None:
     """Penalize joint velocities on the articulation using an L1-kernel. Writes into ``out``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_sum_abs_masked_kernel,
+    env._warp_launch.launch(
+        _sum_abs_masked_kernel,
         dim=env.num_envs,
         inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask, out],
-        device=env.device,
+        site=out,
     )
 
 
 def joint_vel_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize joint velocities on the articulation using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_sum_sq_masked_kernel,
+    env._warp_launch.launch(
+        _sum_sq_masked_kernel,
         dim=env.num_envs,
         inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask, out],
-        device=env.device,
+        site=("joint_vel_l2", out),
     )
 
 
 def joint_acc_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize joint accelerations on the articulation using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_sum_sq_masked_kernel,
+    env._warp_launch.launch(
+        _sum_sq_masked_kernel,
         dim=env.num_envs,
         inputs=[asset.data.joint_acc.warp, asset_cfg.joint_mask, out],
-        device=env.device,
+        site=("joint_acc_l2", out),
     )
 
 
@@ -258,11 +258,11 @@ def _sum_abs_diff_masked_kernel(
 def joint_deviation_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize joint positions that deviate from the default one."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_sum_abs_diff_masked_kernel,
+    env._warp_launch.launch(
+        _sum_abs_diff_masked_kernel,
         dim=env.num_envs,
         inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, asset_cfg.joint_mask, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -301,11 +301,11 @@ def _joint_pos_limits_kernel(
 def joint_pos_limits(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize joint positions if they cross the soft limits."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_joint_pos_limits_kernel,
+    env._warp_launch.launch(
+        _joint_pos_limits_kernel,
         dim=env.num_envs,
         inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, asset_cfg.joint_mask, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -332,11 +332,11 @@ def _sum_sq_diff_2d_kernel(
 
 def action_rate_l2(env: ManagerBasedRLEnv, out) -> None:
     """Penalize the rate of change of the actions using L2 squared kernel."""
-    wp.launch(
-        kernel=_sum_sq_diff_2d_kernel,
+    env._warp_launch.launch(
+        _sum_sq_diff_2d_kernel,
         dim=env.num_envs,
         inputs=[env.action_manager.action, env.action_manager.prev_action, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -353,11 +353,11 @@ def _sum_sq_2d_kernel(x: wp.array(dtype=wp.float32, ndim=2), out: wp.array(dtype
 
 def action_l2(env: ManagerBasedRLEnv, out) -> None:
     """Penalize the actions using L2 squared kernel."""
-    wp.launch(
-        kernel=_sum_sq_2d_kernel,
+    env._warp_launch.launch(
+        _sum_sq_2d_kernel,
         dim=env.num_envs,
         inputs=[env.action_manager.action, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -395,11 +395,11 @@ def undesired_contacts(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg
     Warp-first override of :func:`isaaclab.envs.mdp.rewards.undesired_contacts`.
     """
     contact_sensor = env.scene.sensors[sensor_cfg.name]
-    wp.launch(
-        kernel=_undesired_contacts_kernel,
+    env._warp_launch.launch(
+        _undesired_contacts_kernel,
         dim=env.num_envs,
         inputs=[contact_sensor.data.net_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
-        device=env.device,
+        site=(out, float(threshold)),
     )
 
 
@@ -440,17 +440,18 @@ def track_lin_vel_xy_exp(
     Warp-first override of :func:`isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp`.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_track_lin_vel_xy_exp_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _track_lin_vel_xy_exp_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_link_pose_w.warp,
             asset.data.root_com_vel_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             1.0 / (std * std),
             out,
         ],
-        device=env.device,
+        site=(out, command_name, float(std)),
     )
 
 
@@ -484,16 +485,17 @@ def track_ang_vel_z_exp(
     Warp-first override of :func:`isaaclab.envs.mdp.rewards.track_ang_vel_z_exp`.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_track_ang_vel_z_exp_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _track_ang_vel_z_exp_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_link_pose_w.warp,
             asset.data.root_com_vel_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             2,
             1.0 / (std * std),
             out,
         ],
-        device=env.device,
+        site=(out, command_name, float(std)),
     )

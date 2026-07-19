@@ -19,6 +19,7 @@ from isaaclab_tasks_experimental.core.velocity.mdp import terrain_levels_vel
 
 from isaaclab.managers import ManagerTermBase as StableManagerTermBase
 from isaaclab.terrains import TerrainImporter
+from isaaclab.utils.warp import WarpLaunchCache
 
 
 class _GlobalCurriculumTerm(StableManagerTermBase):
@@ -143,6 +144,8 @@ class _Env:
         self.scene = _Scene(_Robot(root_positions), terrain)
         self.command_manager = _CommandManager(commands)
         self.rng_state_wp = wp.array(np.arange(self.num_envs, dtype=np.uint32) + 101, device=self.device)
+        self._global_env_step_count_wp = wp.zeros(1, dtype=wp.int32, device=self.device)
+        self._warp_launch = WarpLaunchCache(mode="eager", device=self.device)
         self.max_episode_length_s = 10.0
         self.sim = SimpleNamespace(is_playing=lambda: True)
 
@@ -437,7 +440,13 @@ def test_registered_reach_curricula_update_weights_without_a_host_boundary():
     torch.testing.assert_close(extras["Curriculum/action_rate"], torch.tensor(-0.01))
     torch.testing.assert_close(extras["Curriculum/joint_vel"], torch.tensor(-0.0001))
 
-    env.common_step_counter = 4501
+    env._global_env_step_count_wp.fill_(4500)
+    manager.compute(env_mask)
+    extras = manager.reset(env_mask)
+    torch.testing.assert_close(extras["Curriculum/action_rate"], torch.tensor(-0.01))
+    torch.testing.assert_close(extras["Curriculum/joint_vel"], torch.tensor(-0.0001))
+
+    env._global_env_step_count_wp.fill_(4501)
     empty_mask = wp.zeros(4, dtype=wp.bool, device="cpu")
     manager.compute(empty_mask)
     np.testing.assert_allclose(env.reward_manager._weights_wp.numpy(), [-0.01, -0.0001])

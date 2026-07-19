@@ -13,6 +13,8 @@ import numpy as np
 import warp as wp
 from isaaclab_experimental.managers.termination_manager import TerminationManager
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 
 class TestTerminationManager:
     """Tests for :class:`TerminationManager`."""
@@ -21,6 +23,7 @@ class TestTerminationManager:
         """Partial reset statistics should be averaged over selected environments only."""
         manager = TerminationManager.__new__(TerminationManager)
         manager._env = SimpleNamespace(num_envs=4, device="cpu")
+        manager._env._warp_launch = WarpLaunchCache(device=manager._env.device)
         manager._term_names = ["fall", "timeout"]
         manager._last_episode_dones_wp = wp.array(
             [[True, False], [False, True], [True, True], [False, False]], dtype=wp.bool, device="cpu"

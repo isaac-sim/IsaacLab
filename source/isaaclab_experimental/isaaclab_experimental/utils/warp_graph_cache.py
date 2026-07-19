@@ -48,8 +48,10 @@ class WarpGraphCache:
     :meth:`call` uses the first invocation as an eager warm-up, captures the
     second invocation, and replays later invocations. This lets one-time
     initialization run outside capture without executing stateful manager work
-    twice in one environment step. :meth:`capture_or_replay` retains the direct
-    environment behavior of warming up and capturing on its first invocation.
+    twice in one environment step. :meth:`capture_or_replay` captures its stage
+    on the first invocation and launches the new graph to perform the first
+    transition; one-time setup must happen before that call, preferably in the
+    owning object's constructor.
 
     The return value from the capture run is cached and returned on every
     subsequent replay, ensuring captured stages return the same references
@@ -163,9 +165,11 @@ class WarpGraphCache:
         if graph is not None:
             wp.capture_launch(graph)
             return self._results[stage]
-        # Warm-up: run eagerly to flush first-call allocations / hasattr guards.
-        _invoke_stage(fn, args, kwargs)
-        return self._capture(stage, fn, args, kwargs)
+        result = self._capture(stage, fn, args, kwargs)
+        # CUDA graph capture records launches without executing them. Launch the
+        # new graph so the first logical invocation still advances exactly once.
+        wp.capture_launch(self._graphs[stage])
+        return result
 
     def _capture(
         self,
@@ -174,7 +178,7 @@ class WarpGraphCache:
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> Any:
-        """Capture one already-warmed stage invocation."""
+        """Record one stage invocation into a CUDA graph without executing it."""
         with wp.ScopedCapture(device=self._device) as capture:
             result = fn(*args, **kwargs)
         self._graphs[stage] = capture.graph
@@ -205,12 +209,26 @@ class WarpGraphCache:
         return self._enabled and device.is_cuda
 
     def invalidate(self, stage: str | None = None) -> None:
-        """Drop cached graph(s). If *stage* is ``None``, drop all."""
+        """Drain and drop one captured graph or every captured graph.
+
+        Args:
+            stage: Stage to invalidate. If ``None``, invalidate every stage.
+        """
         if stage is None:
+            self._synchronize_graphs(tuple(self._graphs.values()))
             self._graphs.clear()
             self._results.clear()
             self._warmed.clear()
         else:
+            graph = self._graphs.get(stage)
+            self._synchronize_graphs(() if graph is None else (graph,))
             self._graphs.pop(stage, None)
             self._results.pop(stage, None)
             self._warmed.discard(stage)
+
+    @staticmethod
+    def _synchronize_graphs(graphs: tuple[Any, ...]) -> None:
+        """Synchronize each device referenced by a collection of graphs."""
+        devices = {str(graph.device): graph.device for graph in graphs}
+        for device in devices.values():
+            wp.synchronize_device(device)

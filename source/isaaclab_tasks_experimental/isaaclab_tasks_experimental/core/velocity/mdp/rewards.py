@@ -49,20 +49,21 @@ def _feet_air_time_kernel(
 def feet_air_time(env: ManagerBasedRLEnv, out, command_name: str, sensor_cfg: SceneEntityCfg, threshold: float) -> None:
     """Reward long steps taken by the feet using L2-kernel."""
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    command = env.command_manager.get_command_wp(command_name)
     # Newton contact sensor returns persistent wp.arrays — use directly, no wp.from_torch needed
     first_contact = contact_sensor.compute_first_contact(env.step_dt)
-    wp.launch(
-        kernel=_feet_air_time_kernel,
+    env._warp_launch.launch(
+        _feet_air_time_kernel,
         dim=env.num_envs,
         inputs=[
             contact_sensor.data.last_air_time.warp,
             first_contact,
             sensor_cfg.body_ids_wp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             threshold,
             out,
         ],
-        device=env.device,
+        site=(out, command_name, float(threshold)),
     )
 
 
@@ -106,18 +107,19 @@ def _feet_air_time_positive_biped_kernel(
 def feet_air_time_positive_biped(env, out, command_name: str, threshold: float, sensor_cfg: SceneEntityCfg) -> None:
     """Reward long steps taken by the feet for bipeds."""
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    wp.launch(
-        kernel=_feet_air_time_positive_biped_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _feet_air_time_positive_biped_kernel,
         dim=env.num_envs,
         inputs=[
             contact_sensor.data.current_air_time.warp,
             contact_sensor.data.current_contact_time.warp,
             sensor_cfg.body_ids_wp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             threshold,
             out,
         ],
-        device=env.device,
+        site=(out, command_name, float(threshold)),
     )
 
 
@@ -157,8 +159,8 @@ def feet_slide(env, out, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg =
     """Penalize feet sliding."""
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     asset = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_feet_slide_kernel,
+    env._warp_launch.launch(
+        _feet_slide_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.body_lin_vel_w.warp,
@@ -167,7 +169,7 @@ def feet_slide(env, out, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg =
             contact_sensor.data.net_forces_w_history.warp.shape[1],
             out,
         ],
-        device=env.device,
+        site=(out, int(contact_sensor.data.net_forces_w_history.warp.shape[1])),
     )
 
 
@@ -210,17 +212,18 @@ def track_lin_vel_xy_yaw_frame_exp(
 ) -> None:
     """Reward tracking of linear velocity commands (xy axes) in the gravity aligned robot frame."""
     asset = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_track_lin_vel_xy_yaw_frame_exp_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _track_lin_vel_xy_yaw_frame_exp_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_quat_w.warp,
             asset.data.root_lin_vel_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             1.0 / (std * std),
             out,
         ],
-        device=env.device,
+        site=(out, command_name, float(std)),
     )
 
 
@@ -246,16 +249,17 @@ def track_ang_vel_z_world_exp(
 ) -> None:
     """Reward tracking of angular velocity commands (yaw) in world frame."""
     asset = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_track_ang_vel_z_world_exp_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _track_ang_vel_z_world_exp_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_ang_vel_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             1.0 / (std * std),
             out,
         ],
-        device=env.device,
+        site=(out, command_name, float(std)),
     )
 
 
@@ -289,15 +293,16 @@ def stand_still_joint_deviation_l1(
 ) -> None:
     """Penalize offsets from the default joint positions when the command is very small."""
     asset = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_stand_still_joint_deviation_l1_kernel,
+    command = env.command_manager.get_command_wp(command_name)
+    env._warp_launch.launch(
+        _stand_still_joint_deviation_l1_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.joint_pos.warp,
             asset.data.default_joint_pos.warp,
-            env.command_manager.get_command_wp(command_name),
+            command,
             command_threshold,
             out,
         ],
-        device=env.device,
+        site=(out, command_name, float(command_threshold)),
     )

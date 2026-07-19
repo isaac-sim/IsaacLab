@@ -51,11 +51,11 @@ def _base_yaw_roll_kernel(
 def base_yaw_roll(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Yaw and roll of the base in the simulation world frame. Shape: (num_envs, 2)."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_yaw_roll_kernel,
+    env._warp_launch.launch(
+        _base_yaw_roll_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_quat_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -79,11 +79,11 @@ def _base_up_proj_kernel(
 def base_up_proj(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Projection of the base up vector onto the world up vector. Shape: (num_envs, 1)."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_up_proj_kernel,
+    env._warp_launch.launch(
+        _base_up_proj_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -124,8 +124,8 @@ def base_heading_proj(
 ) -> None:
     """Dot product between the base forward direction and direction to target. Shape: (num_envs, 1)."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_heading_proj_kernel,
+    env._warp_launch.launch(
+        _base_heading_proj_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_pos_w.warp,
@@ -135,7 +135,7 @@ def base_heading_proj(
             target_pos[2],
             out,
         ],
-        device=env.device,
+        site=(out, tuple(target_pos)),
     )
 
 
@@ -177,9 +177,9 @@ def base_angle_to_target(
 ) -> None:
     """Angle between the base forward vector and the vector to the target. Shape: (num_envs, 1)."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_angle_to_target_kernel,
+    env._warp_launch.launch(
+        _base_angle_to_target_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_pos_w.warp, asset.data.root_quat_w.warp, target_pos[0], target_pos[1], out],
-        device=env.device,
+        site=(out, tuple(target_pos)),
     )

@@ -159,8 +159,6 @@ def test_mask_native_code_has_no_unsanctioned_host_syncs():
 EXPECTED_NON_CAPTURABLE = {
     ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_com"),
     ("isaaclab_experimental/envs/mdp/observations.py", "height_scan"),
-    # Reads the Python-owned common step counter; captured replay would bake it.
-    ("isaaclab_tasks_experimental/core/reach/mdp/curriculums.py", "modify_reward_weight"),
 }
 
 NON_CAPTURABLE_SCAN_ROOTS = [

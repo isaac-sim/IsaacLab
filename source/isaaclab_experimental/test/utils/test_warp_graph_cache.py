@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for WarpGraphCache capture/replay and warm-up behavior."""
+"""Tests for WarpGraphCache capture/replay and preparation behavior."""
 
 from __future__ import annotations
 
@@ -167,15 +167,11 @@ class TestWarpGraphCache(unittest.TestCase):
             self.assertEqual(result.numpy()[0], expected)
 
     # ------------------------------------------------------------------
-    # Warm-up
+    # Preparation
     # ------------------------------------------------------------------
 
-    def test_warmup_runs_before_capture(self):
-        """The function should be called eagerly (warm-up) before graph capture.
-
-        We verify this by counting total invocations on the first call.
-        Warm-up = 1, capture = 1, so fn should be called exactly 2 times.
-        """
+    def test_first_capture_invokes_callable_once(self):
+        """The first captured transition should invoke its Python callable once."""
         call_count = [0]
         src = wp.zeros(4, dtype=wp.float32, device=self.device)
         dst = wp.zeros(4, dtype=wp.float32, device=self.device)
@@ -185,37 +181,13 @@ class TestWarpGraphCache(unittest.TestCase):
             wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
             return dst
 
-        # First call: warm-up + capture
+        # First call: capture once, then launch the resulting graph.
         self.cache.capture_or_replay("stage_a", counted_launch)
-        self.assertEqual(call_count[0], 2, "First call should invoke fn twice (warm-up + capture)")
+        self.assertEqual(call_count[0], 1, "First call should invoke fn exactly once")
 
         # Second call: replay only
         self.cache.capture_or_replay("stage_a", counted_launch)
-        self.assertEqual(call_count[0], 2, "Replay should NOT invoke fn again")
-
-    def test_warmup_flushes_first_call_allocations(self):
-        """Warm-up should handle first-call allocations so capture is clean.
-
-        Simulates a hasattr guard pattern: allocate a buffer on first call only.
-        Without warm-up, the allocation would be recorded in the graph.
-        """
-        holder = {}
-        src = wp.ones(8, dtype=wp.float32, device=self.device)
-
-        def fn_with_hasattr_guard():
-            if "buf" not in holder:
-                holder["buf"] = wp.zeros(8, dtype=wp.float32, device=self.device)
-            wp.launch(_add_one, dim=8, inputs=[src, holder["buf"]], device=self.device)
-            return holder["buf"]
-
-        # Should not raise — warm-up handles the allocation outside capture
-        result = self.cache.capture_or_replay("guarded", fn_with_hasattr_guard)
-        self.assertIsNotNone(result)
-
-        # Verify the kernel produced correct output
-        result_np = result.numpy()
-        for val in result_np:
-            self.assertAlmostEqual(val, 2.0, places=5)
+        self.assertEqual(call_count[0], 1, "Replay should not invoke fn again")
 
     # ------------------------------------------------------------------
     # Capture / replay correctness
@@ -318,13 +290,13 @@ class TestWarpGraphCache(unittest.TestCase):
             return dst
 
         self.cache.capture_or_replay("s1", my_fn)
-        self.assertEqual(call_count[0], 2)  # warm-up + capture
+        self.assertEqual(call_count[0], 1)
 
         self.cache.invalidate()
 
-        # After invalidation, next call should re-warm-up and re-capture
+        # After invalidation, the next call should capture again.
         self.cache.capture_or_replay("s1", my_fn)
-        self.assertEqual(call_count[0], 4)  # 2 more (warm-up + capture)
+        self.assertEqual(call_count[0], 2)
 
     def test_invalidate_single_stage(self):
         """invalidate(stage) should only drop the named stage."""
@@ -347,16 +319,16 @@ class TestWarpGraphCache(unittest.TestCase):
 
         self.cache.capture_or_replay("a", fn_a)
         self.cache.capture_or_replay("b", fn_b)
-        self.assertEqual(count_a[0], 2)
-        self.assertEqual(count_b[0], 2)
+        self.assertEqual(count_a[0], 1)
+        self.assertEqual(count_b[0], 1)
 
         # Invalidate only "a"
         self.cache.invalidate("a")
 
         self.cache.capture_or_replay("a", fn_a)
         self.cache.capture_or_replay("b", fn_b)
-        self.assertEqual(count_a[0], 4, "Stage 'a' should re-capture after invalidation")
-        self.assertEqual(count_b[0], 2, "Stage 'b' should replay (not re-capture)")
+        self.assertEqual(count_a[0], 2, "Stage 'a' should re-capture after invalidation")
+        self.assertEqual(count_b[0], 1, "Stage 'b' should replay (not re-capture)")
 
     def test_invalidate_nonexistent_stage_is_noop(self):
         """Invalidating a stage that was never captured should not raise."""

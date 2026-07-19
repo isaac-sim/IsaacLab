@@ -255,8 +255,12 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
             Persistent scalar metric views for logging.
         """
         env_mask = self._resolve_reset_mask(env_ids, env_mask)
-        wp.launch(
-            kernel=_finalize_velocity_metrics,
+        metric_thresholds = (
+            float(self.cfg.vel_xy_success_threshold),
+            float(self.cfg.vel_yaw_success_threshold),
+        )
+        self._env._warp_launch.launch(
+            _finalize_velocity_metrics,
             dim=self.num_envs,
             inputs=[
                 env_mask,
@@ -266,16 +270,15 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
                 self.metrics["error_vel_xy"],
                 self.metrics["error_vel_yaw"],
                 self.metrics["success_rate"],
-                self.cfg.vel_xy_success_threshold,
-                self.cfg.vel_yaw_success_threshold,
+                *metric_thresholds,
             ],
-            device=self.device,
+            site=(self, "finalize_metrics", env_mask, *metric_thresholds),
         )
         return super().reset(env_mask=env_mask)
 
     def _update_metrics(self):
-        wp.launch(
-            kernel=_accumulate_velocity_metrics,
+        self._env._warp_launch.launch(
+            _accumulate_velocity_metrics,
             dim=self.num_envs,
             inputs=[
                 self.vel_command_b,
@@ -285,13 +288,26 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
                 self._error_yaw_sum,
                 self._step_count,
             ],
-            device=self.device,
+            site=(self, "accumulate_metrics"),
         )
 
     def _resample_command(self, env_mask: wp.array):
         heading_range = self.cfg.ranges.heading if self.cfg.ranges.heading is not None else (0.0, 0.0)
-        wp.launch(
-            kernel=_resample_velocity_command,
+        launch_scalars = (
+            float(self.cfg.ranges.lin_vel_x[0]),
+            float(self.cfg.ranges.lin_vel_x[1]),
+            float(self.cfg.ranges.lin_vel_y[0]),
+            float(self.cfg.ranges.lin_vel_y[1]),
+            float(self.cfg.ranges.ang_vel_z[0]),
+            float(self.cfg.ranges.ang_vel_z[1]),
+            float(heading_range[0]),
+            float(heading_range[1]),
+            bool(self.cfg.heading_command),
+            float(self.cfg.rel_heading_envs),
+            float(self.cfg.rel_standing_envs),
+        )
+        self._env._warp_launch.launch(
+            _resample_velocity_command,
             dim=self.num_envs,
             inputs=[
                 env_mask,
@@ -300,24 +316,20 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
                 self.heading_target,
                 self.is_heading_env,
                 self.is_standing_env,
-                self.cfg.ranges.lin_vel_x[0],
-                self.cfg.ranges.lin_vel_x[1],
-                self.cfg.ranges.lin_vel_y[0],
-                self.cfg.ranges.lin_vel_y[1],
-                self.cfg.ranges.ang_vel_z[0],
-                self.cfg.ranges.ang_vel_z[1],
-                heading_range[0],
-                heading_range[1],
-                self.cfg.heading_command,
-                self.cfg.rel_heading_envs,
-                self.cfg.rel_standing_envs,
+                *launch_scalars,
             ],
-            device=self.device,
+            site=(self, "resample", env_mask, *launch_scalars),
         )
 
     def _update_command(self):
-        wp.launch(
-            kernel=_update_velocity_command,
+        launch_scalars = (
+            bool(self.cfg.heading_command),
+            float(self.cfg.heading_control_stiffness),
+            float(self.cfg.ranges.ang_vel_z[0]),
+            float(self.cfg.ranges.ang_vel_z[1]),
+        )
+        self._env._warp_launch.launch(
+            _update_velocity_command,
             dim=self.num_envs,
             inputs=[
                 self.vel_command_b,
@@ -325,10 +337,7 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
                 self.is_heading_env,
                 self.is_standing_env,
                 self.robot.data.root_pose_w.warp,
-                self.cfg.heading_command,
-                self.cfg.heading_control_stiffness,
-                self.cfg.ranges.ang_vel_z[0],
-                self.cfg.ranges.ang_vel_z[1],
+                *launch_scalars,
             ],
-            device=self.device,
+            site=(self, "update_command", *launch_scalars),
         )

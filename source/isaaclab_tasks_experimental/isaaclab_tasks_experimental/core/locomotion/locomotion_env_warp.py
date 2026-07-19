@@ -428,17 +428,17 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         self.actions.assign(actions)
-        wp.launch(
+        self._warp_launch.launch(
             update_actions,
             dim=(self.num_envs, self.robot.num_joints),
-            inputs=[actions, self.actions_mapped, self.joint_gears, self.action_scale],
+            inputs=[self.actions, self.actions_mapped, self.joint_gears, self.action_scale],
         )
 
     def _apply_action(self) -> None:
         self.robot.set_joint_effort_target_mask(target=self.actions_mapped)
 
     def _compute_intermediate_values(self) -> None:
-        wp.launch(
+        self._warp_launch.launch(
             compute_heading_and_up,
             dim=self.num_envs,
             inputs=[
@@ -455,7 +455,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             ],
         )
 
-        wp.launch(
+        self._warp_launch.launch(
             compute_rot,
             dim=self.num_envs,
             inputs=[
@@ -467,7 +467,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.angle_to_target,
             ],
         )
-        wp.launch(
+        self._warp_launch.launch(
             scale_dof_pos,
             dim=(self.num_envs, self.robot.num_joints),
             inputs=[
@@ -478,7 +478,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         )
 
     def _get_observations(self) -> dict:
-        wp.launch(
+        self._warp_launch.launch(
             observations,
             dim=self.num_envs,
             inputs=[
@@ -500,7 +500,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         return {"policy": self.torch_obs_buf}
 
     def _get_rewards(self) -> None:
-        wp.launch(
+        self._warp_launch.launch(
             compute_rewards,
             dim=self.num_envs,
             inputs=[
@@ -527,7 +527,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
     def _get_dones(self) -> None:
         self._compute_intermediate_values()
 
-        wp.launch(
+        self._warp_launch.launch(
             get_dones,
             dim=self.num_envs,
             inputs=[
@@ -547,7 +547,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
 
         super()._reset_idx(mask)
 
-        wp.launch(
+        self._warp_launch.launch(
             reset_root,
             dim=self.num_envs,
             inputs=[
@@ -562,8 +562,9 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.root_vel_w,
                 mask,
             ],
+            site=mask,
         )
-        wp.launch(
+        self._warp_launch.launch(
             reset_joints,
             dim=(self.num_envs, self.robot.num_joints),
             inputs=[
@@ -573,6 +574,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.joint_vel,
                 mask,
             ],
+            site=mask,
         )
 
         self._compute_intermediate_values()

@@ -260,23 +260,23 @@ class TerminationManager(ManagerBase):
             self._term_done_avg_wp.zero_()
             self._reset_count_wp.zero_()
             self._reset_scale_wp.zero_()
-            wp.launch(
+            self._env._warp_launch.launch(
                 kernel=count_masked,
                 dim=self.num_envs,
                 inputs=[env_mask, self._reset_count_wp],
-                device=self.device,
+                site=("termination_manager", "reset_count", env_mask),
             )
-            wp.launch(
+            self._env._warp_launch.launch(
                 kernel=compute_reset_scale,
                 dim=1,
                 inputs=[self._reset_count_wp, 1.0, self._reset_scale_wp],
-                device=self.device,
+                site=("termination_manager", "reset_scale"),
             )
-            wp.launch(
+            self._env._warp_launch.launch(
                 kernel=_termination_reset_mean_masked_2d,
                 dim=(self.num_envs, len(self._term_names)),
                 inputs=[env_mask, self._last_episode_dones_wp, self._reset_scale_wp, self._term_done_avg_wp],
-                device=self.device,
+                site=("termination_manager", "reset_means", env_mask),
             )
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_mask=env_mask)
@@ -294,11 +294,11 @@ class TerminationManager(ManagerBase):
             The combined termination signal of shape (num_envs,).
         """
         # reset computation (Warp buffers) in a single kernel launch
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_termination_pre_compute_reset,
             dim=self.num_envs,
             inputs=[self._term_dones_wp, self._truncated_wp, self._terminated_wp, self._dones_wp],
-            device=self.device,
+            site=("termination_manager", "compute_reset"),
         )
 
         # iterate over all the termination terms (fixed list; per-term math is Warp)
@@ -306,7 +306,7 @@ class TerminationManager(ManagerBase):
             term_cfg.func(self._env, term_cfg.out, **term_cfg.params)
 
         # finalize dones and update last-episode term flags (single kernel launch)
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_termination_finalize,
             dim=self.num_envs,
             inputs=[
@@ -317,7 +317,7 @@ class TerminationManager(ManagerBase):
                 self._dones_wp,
                 self._last_episode_dones_wp,
             ],
-            device=self.device,
+            site=("termination_manager", "finalize"),
         )
 
         return self._dones_tensor_view

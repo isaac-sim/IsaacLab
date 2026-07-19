@@ -175,8 +175,11 @@ class UniformPoseCommand(_PoseCommandDebugVis, CommandTerm):
         return self.pose_command_b
 
     def _update_metrics(self):
-        wp.launch(
-            kernel=_update_pose_metrics,
+        body_idx = int(self.body_idx)
+        track_success = bool(self._track_success)
+        position_success_threshold = float(self.cfg.position_success_threshold or 0.0)
+        self._env._warp_launch.launch(
+            _update_pose_metrics,
             dim=self.num_envs,
             inputs=[
                 self.pose_command_b,
@@ -184,40 +187,44 @@ class UniformPoseCommand(_PoseCommandDebugVis, CommandTerm):
                 self.robot.data.root_quat_w.warp,
                 self.robot.data.body_pos_w.warp,
                 self.robot.data.body_quat_w.warp,
-                self.body_idx,
+                body_idx,
                 self.pose_command_w,
                 self.metrics["position_error"],
                 self.metrics["orientation_error"],
                 self._success_rate,
-                self._track_success,
-                self.cfg.position_success_threshold or 0.0,
+                track_success,
+                position_success_threshold,
             ],
-            device=self.device,
+            site=(self, "update_metrics", body_idx, track_success, position_success_threshold),
         )
 
     def _resample_command(self, env_mask: wp.array):
-        wp.launch(
-            kernel=_resample_pose_command,
+        ranges = self.cfg.ranges
+        launch_scalars = (
+            float(ranges.pos_x[0]),
+            float(ranges.pos_x[1]),
+            float(ranges.pos_y[0]),
+            float(ranges.pos_y[1]),
+            float(ranges.pos_z[0]),
+            float(ranges.pos_z[1]),
+            float(ranges.roll[0]),
+            float(ranges.roll[1]),
+            float(ranges.pitch[0]),
+            float(ranges.pitch[1]),
+            float(ranges.yaw[0]),
+            float(ranges.yaw[1]),
+            bool(self.cfg.make_quat_unique),
+        )
+        self._env._warp_launch.launch(
+            _resample_pose_command,
             dim=self.num_envs,
             inputs=[
                 env_mask,
                 self._env.rng_state_wp,
                 self.pose_command_b,
-                self.cfg.ranges.pos_x[0],
-                self.cfg.ranges.pos_x[1],
-                self.cfg.ranges.pos_y[0],
-                self.cfg.ranges.pos_y[1],
-                self.cfg.ranges.pos_z[0],
-                self.cfg.ranges.pos_z[1],
-                self.cfg.ranges.roll[0],
-                self.cfg.ranges.roll[1],
-                self.cfg.ranges.pitch[0],
-                self.cfg.ranges.pitch[1],
-                self.cfg.ranges.yaw[0],
-                self.cfg.ranges.yaw[1],
-                self.cfg.make_quat_unique,
+                *launch_scalars,
             ],
-            device=self.device,
+            site=(self, "resample", env_mask, *launch_scalars),
         )
 
     def _update_command(self):

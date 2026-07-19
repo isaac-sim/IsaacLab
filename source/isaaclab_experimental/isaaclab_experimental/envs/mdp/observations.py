@@ -98,11 +98,11 @@ def _base_pos_z_kernel(
 def base_pos_z(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Root height in the simulation world frame."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_pos_z_kernel,
+    env._warp_launch.launch(
+        _base_pos_z_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_pos_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -137,11 +137,11 @@ def _base_lin_vel_kernel(
 def base_lin_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Root linear velocity in the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_lin_vel_kernel,
+    env._warp_launch.launch(
+        _base_lin_vel_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -168,11 +168,11 @@ def _base_ang_vel_kernel(
 def base_ang_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Root angular velocity in the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_ang_vel_kernel,
+    env._warp_launch.launch(
+        _base_ang_vel_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -196,11 +196,11 @@ def _projected_gravity_kernel(
 def projected_gravity(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Gravity projection on the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_projected_gravity_kernel,
+    env._warp_launch.launch(
+        _projected_gravity_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -221,11 +221,11 @@ def joint_pos(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntity
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_gather_kernel,
+    env._warp_launch.launch(
+        _joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_pos.warp, joint_ids_wp, out],
-        device=env.device,
+        site=("joint_pos", out),
     )
 
 
@@ -261,11 +261,11 @@ def joint_pos_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_rel_gather_kernel,
+    env._warp_launch.launch(
+        _joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, joint_ids_wp, out],
-        device=env.device,
+        site=("joint_pos_rel", out),
     )
 
 
@@ -299,11 +299,11 @@ def joint_pos_limit_normalized(env: ManagerBasedEnv, out, asset_cfg: SceneEntity
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_pos_limit_normalized_kernel,
+    env._warp_launch.launch(
+        _joint_pos_limit_normalized_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, joint_ids_wp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -319,11 +319,11 @@ def joint_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntity
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_gather_kernel,
+    env._warp_launch.launch(
+        _joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_vel.warp, joint_ids_wp, out],
-        device=env.device,
+        site=("joint_vel", out),
     )
 
 
@@ -343,11 +343,11 @@ def joint_vel_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_rel_gather_kernel,
+    env._warp_launch.launch(
+        _joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_vel.warp, asset.data.default_joint_vel.warp, joint_ids_wp, out],
-        device=env.device,
+        site=("joint_vel_rel", out),
     )
 
 

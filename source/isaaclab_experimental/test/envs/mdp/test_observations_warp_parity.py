@@ -12,6 +12,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 # Skip entire module if no CUDA device available
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
@@ -118,6 +120,7 @@ def warp_env(scene, action_wp, episode_length_buf):
     env.action_manager = MockActionManagerWarp(action_wp[0], action_wp[1])
     env.num_envs = NUM_ENVS
     env.device = DEVICE
+    env._warp_launch = WarpLaunchCache(mode="replay", debug=True, device=DEVICE)
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
@@ -156,6 +159,7 @@ def warp_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, cmd
     env.command_manager = MockCommandManager(cmd_tensor, cmd_term)
     env.num_envs = NUM_ENVS
     env.device = DEVICE
+    env._warp_launch = WarpLaunchCache(mode="replay", debug=True, device=DEVICE)
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length = 500
@@ -273,6 +277,24 @@ class TestObservationParity:
         actual_cap = run_warp_obs_captured(warp_obs.joint_vel, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
+
+    @pytest.mark.parametrize(
+        ("first_fn", "second_fn", "stable_second_fn"),
+        [
+            (warp_obs.joint_pos, warp_obs.joint_vel, stable_obs.joint_vel),
+            (warp_obs.joint_pos_rel, warp_obs.joint_vel_rel, stable_obs.joint_vel_rel),
+        ],
+    )
+    def test_joint_helpers_reuse_output(
+        self, warp_env, stable_env, all_joints_cfg, first_fn, second_fn, stable_second_fn
+    ):
+        """Distinct public helpers sharing a kernel may safely reuse one output buffer."""
+        out = wp.empty((NUM_ENVS, NUM_JOINTS), dtype=wp.float32, device=DEVICE)
+
+        first_fn(warp_env, out, asset_cfg=all_joints_cfg)
+        second_fn(warp_env, out, asset_cfg=all_joints_cfg)
+
+        assert_close(wp.to_torch(out).clone(), stable_second_fn(stable_env, asset_cfg=all_joints_cfg))
 
     # -- Normalized joint position ----------------------------------------------
 

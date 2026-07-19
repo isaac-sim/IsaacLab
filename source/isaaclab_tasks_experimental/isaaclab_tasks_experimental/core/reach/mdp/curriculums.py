@@ -26,14 +26,14 @@ def _mark_reset_requested(env_mask: wp.array(dtype=wp.bool), reset_requested: wp
 @wp.kernel
 def _update_reward_weight(
     reset_requested: wp.array(dtype=wp.int32),
-    common_step_counter: int,
+    common_step_counter: wp.array(dtype=wp.int32),
     num_steps: int,
     target_weight: float,
     term_weight: wp.array(dtype=wp.float32),
     out: wp.array(dtype=wp.float32),
 ):
     if reset_requested[0] != 0:
-        if common_step_counter > num_steps:
+        if common_step_counter[0] > num_steps:
             term_weight[0] = target_weight
         out[0] = term_weight[0]
     reset_requested[0] = 0
@@ -41,10 +41,6 @@ def _update_reward_weight(
 
 class modify_reward_weight(ManagerTermBase):
     """Update one reward weight after a reset reaches the configured step threshold."""
-
-    # The Python-owned common step counter is intentionally read in eager mode.
-    # A future captured path should first move this counter to persistent device storage.
-    _warp_capturable = False
 
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         """Initialize persistent device state.
@@ -55,6 +51,7 @@ class modify_reward_weight(ManagerTermBase):
         """
         super().__init__(cfg, env)
         self._term_weight_wp = env.reward_manager.get_term_weight_wp(cfg.params["term_name"])
+        self._global_env_step_count_wp = env._global_env_step_count_wp
         self._reset_requested_wp = wp.zeros(1, dtype=wp.int32, device=self.device)
 
     def __call__(
@@ -69,7 +66,7 @@ class modify_reward_weight(ManagerTermBase):
         """Update the reward weight when at least one environment resets.
 
         Args:
-            env: Environment containing the common step counter.
+            env: Environment containing the persistent launch owner.
             env_mask: Boolean mask selecting resetting environments.
             out: Persistent one-element output containing the current weight.
             term_name: Reward term name, resolved during initialization.
@@ -77,22 +74,24 @@ class modify_reward_weight(ManagerTermBase):
             num_steps: Step threshold after which the target weight is applied.
         """
         del term_name
-        wp.launch(
-            _mark_reset_requested,
+        weight = float(weight)
+        num_steps = int(num_steps)
+        env._warp_launch.launch(
+            kernel=_mark_reset_requested,
             dim=self.num_envs,
             inputs=[env_mask, self._reset_requested_wp],
-            device=self.device,
+            site=(self, "mark_reset", env_mask),
         )
-        wp.launch(
-            _update_reward_weight,
+        env._warp_launch.launch(
+            kernel=_update_reward_weight,
             dim=1,
             inputs=[
                 self._reset_requested_wp,
-                env.common_step_counter,
+                self._global_env_step_count_wp,
                 num_steps,
                 weight,
                 self._term_weight_wp,
                 out,
             ],
-            device=self.device,
+            site=(self, "update_weight", out, num_steps, weight),
         )

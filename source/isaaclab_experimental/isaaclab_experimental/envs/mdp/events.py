@@ -64,6 +64,32 @@ def _resolve_body_ids(asset_cfg: SceneEntityCfg, num_bodies: int) -> list[int]:
     return list(asset_cfg.body_ids)
 
 
+def _launch_recorded(
+    env: ManagerBasedEnv,
+    term: object,
+    kernel: wp.Kernel,
+    dim: int,
+    inputs: list,
+    env_mask: wp.array(dtype=wp.bool),
+) -> None:
+    """Launch a persistent event kernel eagerly or through the environment launch cache.
+
+    Args:
+        env: Environment owning the recorded-launch cache.
+        term: Term instance owning the persistent kernel arguments.
+        kernel: Warp kernel to launch.
+        dim: Launch dimension.
+        inputs: Kernel inputs. Must be pointer-stable for recorded replay.
+        env_mask: Selection mask included in the recording identity, so the same
+            term records separately per persistent mask buffer.
+    """
+    launch_cache = getattr(env, "_warp_launch", None)
+    if launch_cache is None:
+        wp.launch(kernel=kernel, dim=dim, inputs=inputs, device=env.device)
+        return
+    launch_cache.launch(kernel, dim, inputs=inputs, site=(term, env_mask))
+
+
 # ---------------------------------------------------------------------------
 # Randomize rigid body center of mass
 # ---------------------------------------------------------------------------
@@ -113,7 +139,9 @@ class randomize_rigid_body_com(ManagerTermBase):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self._asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-        self._default_com = wp.clone(self._asset.data.body_com_pos_b.warp)
+        # Startup terms may adjust the center of mass after this term is constructed;
+        # the randomization baseline is captured lazily on the first call instead.
+        self._default_com: wp.array | None = None
         body_ids = _resolve_body_ids(asset_cfg, self._asset.num_bodies)
         self._body_ids = wp.array(body_ids, dtype=wp.int32, device=env.device)
 
@@ -137,10 +165,14 @@ class randomize_rigid_body_com(ManagerTermBase):
             com_range: Per-axis offset ranges [m]. Parsed during initialization.
             asset_cfg: Scene entity selection. Resolved during initialization.
         """
-        wp.launch(
-            kernel=_randomize_com_kernel,
-            dim=env.num_envs,
-            inputs=[
+        if self._default_com is None:
+            self._default_com = wp.clone(self._asset.data.body_com_pos_b.warp)
+        _launch_recorded(
+            env,
+            self,
+            _randomize_com_kernel,
+            env.num_envs,
+            [
                 env_mask,
                 env.rng_state_wp,
                 self._default_com,
@@ -149,7 +181,7 @@ class randomize_rigid_body_com(ManagerTermBase):
                 self._com_lo,
                 self._com_hi,
             ],
-            device=env.device,
+            env_mask,
         )
 
         self._asset.set_coms_mask(coms=self._asset.data.body_com_pos_b.warp, env_mask=env_mask)
@@ -225,6 +257,9 @@ class apply_external_force_torque(ManagerTermBase):
         self._force_hi = float(force_range[1])
         self._torque_lo = float(torque_range[0])
         self._torque_hi = float(torque_range[1])
+        # Zero-width ranges configure a placeholder term. Skipping the whole call
+        # preserves composer wrench state written by other sources across resets.
+        self._is_noop = self._force_lo == self._force_hi == 0.0 and self._torque_lo == self._torque_hi == 0.0
 
     def __call__(
         self,
@@ -243,10 +278,14 @@ class apply_external_force_torque(ManagerTermBase):
             torque_range: Component-wise torque range [N·m]. Parsed during initialization.
             asset_cfg: Scene entity selection. Resolved during initialization.
         """
-        wp.launch(
-            kernel=_apply_external_force_torque_kernel,
-            dim=env.num_envs,
-            inputs=[
+        if self._is_noop:
+            return
+        _launch_recorded(
+            env,
+            self,
+            _apply_external_force_torque_kernel,
+            env.num_envs,
+            [
                 env_mask,
                 env.rng_state_wp,
                 self._body_ids,
@@ -257,7 +296,7 @@ class apply_external_force_torque(ManagerTermBase):
                 self._torque_lo,
                 self._torque_hi,
             ],
-            device=env.device,
+            env_mask,
         )
 
         self._asset.permanent_wrench_composer.set_forces_and_torques_mask(
@@ -344,10 +383,12 @@ class push_by_setting_velocity(ManagerTermBase):
             velocity_range: Per-axis velocity ranges [m/s or rad/s]. Parsed during initialization.
             asset_cfg: Scene entity selection. Resolved during initialization.
         """
-        wp.launch(
-            kernel=_push_by_setting_velocity_kernel,
-            dim=env.num_envs,
-            inputs=[
+        _launch_recorded(
+            env,
+            self,
+            _push_by_setting_velocity_kernel,
+            env.num_envs,
+            [
                 env_mask,
                 env.rng_state_wp,
                 self._asset.data.root_vel_w.warp,
@@ -357,7 +398,7 @@ class push_by_setting_velocity(ManagerTermBase):
                 self._ang_lo,
                 self._ang_hi,
             ],
-            device=env.device,
+            env_mask,
         )
 
         self._asset.write_root_velocity_to_sim_mask(root_velocity=self._velocity, env_mask=env_mask)
@@ -487,10 +528,12 @@ class reset_root_state_uniform(ManagerTermBase):
             velocity_range: Linear and angular velocity ranges [m/s or rad/s]. Parsed during initialization.
             asset_cfg: Scene entity selection. Resolved during initialization.
         """
-        wp.launch(
-            kernel=_reset_root_state_uniform_kernel,
-            dim=env.num_envs,
-            inputs=[
+        _launch_recorded(
+            env,
+            self,
+            _reset_root_state_uniform_kernel,
+            env.num_envs,
+            [
                 env_mask,
                 env.rng_state_wp,
                 self._default_root_pose,
@@ -507,7 +550,7 @@ class reset_root_state_uniform(ManagerTermBase):
                 self._vel_ang_lo,
                 self._vel_ang_hi,
             ],
-            device=env.device,
+            env_mask,
         )
 
         self._asset.write_root_pose_to_sim_mask(root_pose=self._pose, env_mask=env_mask)
@@ -596,8 +639,10 @@ def reset_joints_by_offset(
             "Use ManagerBasedEnvWarp or ManagerBasedRLEnvWarp as the base environment."
         )
 
-    wp.launch(
-        kernel=_reset_joints_by_offset_kernel,
+    position_range = (float(position_range[0]), float(position_range[1]))
+    velocity_range = (float(velocity_range[0]), float(velocity_range[1]))
+    env._warp_launch.launch(
+        _reset_joints_by_offset_kernel,
         dim=env.num_envs,
         inputs=[
             env_mask,
@@ -609,12 +654,19 @@ def reset_joints_by_offset(
             asset.data.joint_vel.warp,
             asset.data.soft_joint_pos_limits.warp,
             asset.data.soft_joint_vel_limits.warp,
-            float(position_range[0]),
-            float(position_range[1]),
-            float(velocity_range[0]),
-            float(velocity_range[1]),
+            position_range[0],
+            position_range[1],
+            velocity_range[0],
+            velocity_range[1],
         ],
-        device=env.device,
+        site=(
+            "reset_joints_by_offset",
+            asset,
+            asset_cfg.joint_ids_wp,
+            env_mask,
+            position_range,
+            velocity_range,
+        ),
     )
 
     # Sync derived buffers (_previous_joint_vel, joint_acc) for reset envs.
@@ -691,8 +743,10 @@ def reset_joints_by_scale(
             "Use ManagerBasedEnvWarp or ManagerBasedRLEnvWarp as the base environment."
         )
 
-    wp.launch(
-        kernel=_reset_joints_by_scale_kernel,
+    position_range = (float(position_range[0]), float(position_range[1]))
+    velocity_range = (float(velocity_range[0]), float(velocity_range[1]))
+    env._warp_launch.launch(
+        _reset_joints_by_scale_kernel,
         dim=env.num_envs,
         inputs=[
             env_mask,
@@ -704,12 +758,19 @@ def reset_joints_by_scale(
             asset.data.joint_vel.warp,
             asset.data.soft_joint_pos_limits.warp,
             asset.data.soft_joint_vel_limits.warp,
-            float(position_range[0]),
-            float(position_range[1]),
-            float(velocity_range[0]),
-            float(velocity_range[1]),
+            position_range[0],
+            position_range[1],
+            velocity_range[0],
+            velocity_range[1],
         ],
-        device=env.device,
+        site=(
+            "reset_joints_by_scale",
+            asset,
+            asset_cfg.joint_ids_wp,
+            env_mask,
+            position_range,
+            velocity_range,
+        ),
     )
 
     # Sync derived buffers (_previous_joint_vel, joint_acc) for reset envs.

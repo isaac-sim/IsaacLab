@@ -37,6 +37,7 @@ from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp import WarpLaunchCache
 
 from isaaclab_experimental.utils.warp import increment_all_int32, zero_masked_int32
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
@@ -52,6 +53,9 @@ DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
 """Enable outer step() timer only. Set DEBUG_TIMER_STEP=1 env var to enable."""
 
 DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
+
+WARP_DIRECT_CAPTURE = os.environ.get("ISAACLAB_WARP_DIRECT_CAPTURE", "0") == "1"
+"""Enable direct-environment stage capture. Eager execution is the correctness-first default."""
 """Enable all fine-grained inner timers (adds wp.synchronize per sub-phase). Set DEBUG_TIMERS=1 env var to enable."""
 
 
@@ -123,6 +127,10 @@ class DirectRLEnvWarp(DirectRLEnv):
         # make sure torch is running on the correct device
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
+
+        # One owner-held launcher serves both uncaptured replay and kernels
+        # submitted while an outer direct-stage graph is being captured.
+        self._warp_launch = WarpLaunchCache(device=self.device)
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -220,13 +228,9 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Pure-kernel task stages capture as on develop. Only the reset stage is
-        # registered eager: it dispatches scene.reset(), whose legacy Torch
-        # actuator boundary materializes compact IDs on the host, and CUDA graph
-        # replay would silently skip that Python-side reset work. The follow-up
-        # launch-replay execution path restores its speed correctly.
-        self._warp_graph_cache = WarpGraphCache(device=self.device)
-        self._warp_graph_cache.register_capturability("DirectReset", False)
+        # Direct stages are uncaptured by default. The owner-held launch cache
+        # still replays their pointer-stable kernels without call-site branches.
+        self._warp_graph_cache = WarpGraphCache(enabled=WARP_DIRECT_CAPTURE, device=self.device)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -428,12 +432,11 @@ class DirectRLEnvWarp(DirectRLEnv):
                     self.scene.update(dt=self.physics_dt)
 
         self.common_step_counter += 1  # total step (common for all envs)
-        with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
-            self._warp_graph_cache.call("DirectEndPre_compute", self._step_warp_end_pre)
-        # Reset stage: registered eager (see __init__) because its scene dispatch
-        # crosses the legacy actuator host boundary.
-        with Timer(name="reset_stage", msg="Reset stage took:", enable=DEBUG_TIMERS):
-            self._warp_graph_cache.call("DirectReset_apply", self._step_warp_reset)
+        # Reset can cross the legacy actuator Torch-ID boundary. Keep the whole
+        # stage outside the graph for now; its persistent kernels still use the
+        # owner-held recorded-launch cache.
+        with Timer(name="end_pre", msg="End pre-step took:", enable=DEBUG_TIMERS):
+            self._step_warp_end_pre()
         # Keep the post-reset scene write at the explicit backend boundary.
         with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
             self.scene.write_data_to_sim()
@@ -469,20 +472,20 @@ class DirectRLEnvWarp(DirectRLEnv):
         # task path correct without making capture support a prerequisite.
 
     def _step_warp_end_pre(self) -> None:
-        """Capturable portion before the reset stage (pure warp kernels)."""
-        wp.launch(
+        """Run the pre-write Warp stage, including the uncaptured reset boundary."""
+        self._warp_launch.launch(
             increment_all_int32,
             dim=self.num_envs,
             inputs=[
                 self._episode_length_buf_wp,
                 1,
             ],
+            site=("direct_rl_env", "episode_length_increment"),
         )
         self._get_dones()
         self._get_rewards()
 
-    def _step_warp_reset(self) -> None:
-        """Reset envs that terminated/timed-out (eager: crosses host boundaries)."""
+        # -- reset envs that terminated/timed-out and log the episode information
         self._reset_idx(mask=self.reset_buf)
 
     def _step_warp_end_post(self) -> None:
@@ -594,6 +597,8 @@ class DirectRLEnvWarp(DirectRLEnv):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            self._warp_graph_cache.invalidate()
+            self._warp_launch.reset()
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
@@ -720,13 +725,14 @@ class DirectRLEnvWarp(DirectRLEnv):
         #    self._observation_noise_model.reset(env_ids)
 
         # reset the episode length buffer
-        wp.launch(
+        self._warp_launch.launch(
             zero_masked_int32,
             dim=self.num_envs,
             inputs=[
                 mask,
                 self._episode_length_buf_wp,
             ],
+            site=("direct_rl_env", "episode_length_reset", mask),
         )
 
     """

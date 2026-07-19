@@ -6,13 +6,14 @@
 """Warp-native noise functions and models (experimental).
 
 Each noise function takes a ``wp.array`` as its first argument and operates **in-place**
-via ``wp.launch``.  The calling convention mirrors the stable noise interface::
+through a Warp kernel. The calling convention mirrors the stable noise interface::
 
     noise_cfg.func(data_wp, noise_cfg) -> None
 
 Random noise kernels (gaussian, uniform) consume the shared per-env Warp RNG state
-(``rng_state_wp``) that is set on the config at manager prep time from
-``env.rng_state_wp``.  See :func:`initialize_rng_state` in
+(``rng_state_wp``) that is set on a manager-owned runtime copy at preparation time
+from ``env.rng_state_wp``. Prepared noise kernels also use the environment's launch cache.
+See :func:`initialize_rng_state` in
 ``isaaclab_experimental.envs.manager_based_env_warp`` for the initialization pattern.
 """
 
@@ -30,6 +31,22 @@ if TYPE_CHECKING:
 ##
 
 _OPERATION_MAP: dict[str, int] = {"add": 0, "scale": 1, "abs": 2}
+
+
+def _launch_noise(
+    data: wp.array,
+    cfg: noise_cfg.NoiseCfg,
+    kernel: wp.Kernel,
+    inputs: list,
+    site: tuple,
+) -> None:
+    """Launch a noise kernel through its prepared owner cache when available."""
+    launch_cache = getattr(cfg, "_warp_launch", None)
+    if launch_cache is None:
+        wp.launch(kernel, dim=data.shape[0], inputs=inputs, device=data.device)
+        return
+    launch_cache.launch(kernel, dim=data.shape[0], inputs=inputs, site=site)
+
 
 ##
 # Noise as functions.
@@ -64,11 +81,13 @@ def constant_noise(data: wp.array, cfg: noise_cfg.ConstantNoiseCfg) -> None:
         data: The data buffer to modify. Shape ``(num_envs, D)``.
         cfg: The configuration parameters for constant noise.
     """
-    wp.launch(
+    operation = _OPERATION_MAP[cfg.operation]
+    _launch_noise(
+        data,
+        cfg,
         _apply_constant_noise,
-        dim=data.shape[0],
-        inputs=[data, float(cfg.bias), _OPERATION_MAP[cfg.operation]],
-        device=data.device,
+        inputs=[data, float(cfg.bias), operation],
+        site=("constant_noise", data, float(cfg.bias), operation),
     )
 
 
@@ -105,11 +124,13 @@ def uniform_noise(data: wp.array, cfg: noise_cfg.UniformNoiseCfg) -> None:
         data: The data buffer to modify. Shape ``(num_envs, D)``.
         cfg: The configuration parameters for uniform noise.
     """
-    wp.launch(
+    operation = _OPERATION_MAP[cfg.operation]
+    _launch_noise(
+        data,
+        cfg,
         _apply_uniform_noise,
-        dim=data.shape[0],
-        inputs=[data, cfg.rng_state_wp, float(cfg.n_min), float(cfg.n_max), _OPERATION_MAP[cfg.operation]],
-        device=data.device,
+        inputs=[data, cfg.rng_state_wp, float(cfg.n_min), float(cfg.n_max), operation],
+        site=("uniform_noise", data, cfg.rng_state_wp, float(cfg.n_min), float(cfg.n_max), operation),
     )
 
 
@@ -146,11 +167,13 @@ def gaussian_noise(data: wp.array, cfg: noise_cfg.GaussianNoiseCfg) -> None:
         data: The data buffer to modify. Shape ``(num_envs, D)``.
         cfg: The configuration parameters for gaussian noise.
     """
-    wp.launch(
+    operation = _OPERATION_MAP[cfg.operation]
+    _launch_noise(
+        data,
+        cfg,
         _apply_gaussian_noise,
-        dim=data.shape[0],
-        inputs=[data, cfg.rng_state_wp, float(cfg.mean), float(cfg.std), _OPERATION_MAP[cfg.operation]],
-        device=data.device,
+        inputs=[data, cfg.rng_state_wp, float(cfg.mean), float(cfg.std), operation],
+        site=("gaussian_noise", data, cfg.rng_state_wp, float(cfg.mean), float(cfg.std), operation),
     )
 
 

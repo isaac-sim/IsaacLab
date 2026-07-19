@@ -202,6 +202,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
 
         # Buffers
         self.observations = wp.zeros((self.num_envs), dtype=wp.vec4f, device=self.device)
+        self._input_actions = wp.zeros((self.num_envs, 1), dtype=wp.float32, device=self.device)
         self.actions = wp.zeros((self.num_envs, self.cartpole.num_joints), dtype=wp.float32, device=self.device)
         self.rewards = wp.zeros((self.num_envs), dtype=wp.float32, device=self.device)
         self.states = wp.zeros((self.num_envs), dtype=wp.uint32, device=self.device)
@@ -244,22 +245,24 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
 
     def _pre_physics_step(self, actions: wp.array) -> None:
-        wp.launch(
+        wp.copy(self._input_actions, actions)
+        self._warp_launch.launch(
             update_actions,
             dim=self.num_envs,
             inputs=[
-                actions,
+                self._input_actions,
                 self.actions,
                 self.action_scale,
                 self._cart_dof_idx[0],
             ],
+            site=("cartpole", "update_actions"),
         )
 
     def _apply_action(self) -> None:
         self.cartpole.set_joint_effort_target_mask(target=self.actions)
 
     def _get_observations(self) -> dict:
-        wp.launch(
+        self._warp_launch.launch(
             get_observations,
             dim=self.num_envs,
             inputs=[
@@ -275,7 +278,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         return {"policy": self.torch_obs_buf}
 
     def _get_rewards(self) -> None:
-        wp.launch(
+        self._warp_launch.launch(
             compute_rewards,
             dim=self.num_envs,
             inputs=[
@@ -295,7 +298,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         )
 
     def _get_dones(self) -> None:
-        wp.launch(
+        self._warp_launch.launch(
             get_dones,
             dim=self.num_envs,
             inputs=[
@@ -316,7 +319,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
 
         super()._reset_idx(mask)
 
-        wp.launch(
+        self._warp_launch.launch(
             reset,
             dim=self.num_envs,
             inputs=[
@@ -335,4 +338,5 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 mask,
                 self.states,
             ],
+            site=mask,
         )

@@ -193,13 +193,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     Operations - MDP
     """
 
-    def invalidate_wp_graphs(self) -> None:
-        """Invalidate all cached Warp graphs.
-
-        Call this if the captured launch topology changes (e.g. different term list, shapes, etc.).
-        """
-        self._warp_graph_cache.invalidate()
-
     def step_warp_termination_compute(self) -> None:
         """Captured stage: compute terminations (env-step frequency)."""
         self.reset_buf = self.termination_manager.compute()
@@ -286,11 +279,11 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         # post-step:
         # -- update env counters (used for curriculum generation)
-        wp.launch(
+        self._warp_launch.launch(
             increment_all_int64,
             dim=self.num_envs,
             inputs=[self._episode_length_buf_wp, 1],
-            device=self.device,
+            site=("manager_based_rl_env", "episode_length_increment"),
         )
         self.common_step_counter += 1  # total step (common for all envs)
 
@@ -415,6 +408,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
     def close(self):
         if not self._is_closed:
+            self.invalidate_wp_graphs()
             # destructor is order-sensitive
             del self.command_manager
             del self.reward_manager
@@ -551,11 +545,11 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         )
 
         # reset the episode length buffer
-        wp.launch(
+        self._warp_launch.launch(
             zero_masked_int64,
             dim=self.num_envs,
             inputs=[env_mask, self._episode_length_buf_wp],
-            device=self.device,
+            site=("manager_based_rl_env", "episode_length_reset", env_mask),
         )
 
         # aggregate logging info

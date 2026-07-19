@@ -57,11 +57,11 @@ def upright_posture_bonus(
 ) -> None:
     """Reward for maintaining an upright posture. Writes 1.0 if up_proj > threshold, else 0.0."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_upright_posture_bonus_kernel,
+    env._warp_launch.launch(
+        _upright_posture_bonus_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, threshold, out],
-        device=env.device,
+        site=(out, float(threshold)),
     )
 
 
@@ -99,8 +99,8 @@ def move_to_target_bonus(
 ) -> None:
     """Reward for heading towards the target."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_move_to_target_bonus_kernel,
+    env._warp_launch.launch(
+        _move_to_target_bonus_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_pos_w.warp,
@@ -110,7 +110,7 @@ def move_to_target_bonus(
             threshold,
             out,
         ],
-        device=env.device,
+        site=(out, float(threshold), tuple(target_pos)),
     )
 
 
@@ -174,8 +174,8 @@ class progress_reward(ManagerTermBase):
             return
         asset: Articulation = self._env.scene["robot"]
         inv_dt = 1.0 / self._env.step_dt
-        wp.launch(
-            kernel=_progress_reward_reset_kernel,
+        self._env._warp_launch.launch(
+            _progress_reward_reset_kernel,
             dim=self.num_envs,
             inputs=[
                 env_mask,
@@ -186,7 +186,7 @@ class progress_reward(ManagerTermBase):
                 inv_dt,
                 self.potentials,
             ],
-            device=self.device,
+            site=(self, env_mask, tuple(self._target_pos), float(inv_dt)),
         )
 
     def __call__(
@@ -198,11 +198,11 @@ class progress_reward(ManagerTermBase):
     ) -> None:
         asset: Articulation = env.scene[asset_cfg.name]
         inv_dt = 1.0 / env.step_dt
-        wp.launch(
-            kernel=_progress_reward_kernel,
+        env._warp_launch.launch(
+            _progress_reward_kernel,
             dim=env.num_envs,
             inputs=[asset.data.root_pos_w.warp, target_pos[0], target_pos[1], inv_dt, self.potentials, out],
-            device=env.device,
+            site=(self, out, tuple(target_pos), float(inv_dt)),
         )
 
 
@@ -259,8 +259,8 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     ) -> None:
         asset: Articulation = env.scene[asset_cfg.name]
-        wp.launch(
-            kernel=_joint_pos_limits_penalty_ratio_kernel,
+        env._warp_launch.launch(
+            _joint_pos_limits_penalty_ratio_kernel,
             dim=env.num_envs,
             inputs=[
                 asset.data.joint_pos.warp,
@@ -270,7 +270,7 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
                 1.0 / (1.0 - threshold),
                 out,
             ],
-            device=env.device,
+            site=(self, out, float(threshold)),
         )
 
 
@@ -313,9 +313,9 @@ class power_consumption(ManagerTermBase):
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     ) -> None:
         asset: Articulation = env.scene[asset_cfg.name]
-        wp.launch(
-            kernel=_power_consumption_kernel,
+        env._warp_launch.launch(
+            _power_consumption_kernel,
             dim=env.num_envs,
             inputs=[env.action_manager.action, asset.data.joint_vel.warp, self._gear_ratio_scaled_wp, out],
-            device=env.device,
+            site=(self, out),
         )

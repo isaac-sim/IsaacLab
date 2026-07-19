@@ -15,6 +15,8 @@ import torch
 import warp as wp
 from isaaclab_experimental.envs.manager_based_rl_env_warp import ManagerBasedRLEnvWarp
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 
 def test_reset_without_host_consumers_does_not_compact_ids() -> None:
     """The normal Warp reset path should not call :meth:`torch.Tensor.nonzero`."""
@@ -48,6 +50,9 @@ def test_curriculum_uses_mask_before_scene_reset() -> None:
 
     env._warp_graph_cache = SimpleNamespace(call=call)
     env.sim = SimpleNamespace(device="cpu")
+    env.common_step_counter = 7
+    env._global_env_step_count_wp = wp.zeros(1, dtype=wp.int32, device="cpu")
+    env._warp_launch = WarpLaunchCache(device="cpu")
     env.reset_mask_wp = wp.zeros(3, dtype=wp.bool, device="cpu")
     env.scene = SimpleNamespace(
         num_envs=3,
@@ -87,6 +92,9 @@ def test_reset_stages_reuse_owner_mask_for_sparse_and_empty_selections() -> None
 
     env._warp_graph_cache = SimpleNamespace(call=call)
     env.sim = SimpleNamespace(device="cpu")
+    env.common_step_counter = 7
+    env._global_env_step_count_wp = wp.zeros(1, dtype=wp.int32, device="cpu")
+    env._warp_launch = WarpLaunchCache(device="cpu")
     env.reset_mask_wp = wp.zeros(3, dtype=wp.bool, device="cpu")
     env.scene = SimpleNamespace(num_envs=3, reset=Mock(), surface_grippers={})
     env.curriculum_manager = SimpleNamespace(compute=Mock(), reset=Mock(), requires_host_ids=False)
@@ -119,6 +127,7 @@ def test_reset_threads_one_id_materialization_to_legacy_curriculum() -> None:
         return None if stage.endswith("_compute") else {}
 
     env._warp_graph_cache = SimpleNamespace(call=call)
+    env._warp_launch = WarpLaunchCache(device="cpu")
     env.sim = SimpleNamespace(device="cpu")
     env.reset_mask_wp = wp.zeros(3, dtype=wp.bool, device="cpu")
     env.scene = SimpleNamespace(num_envs=3, reset=Mock(), surface_grippers={})

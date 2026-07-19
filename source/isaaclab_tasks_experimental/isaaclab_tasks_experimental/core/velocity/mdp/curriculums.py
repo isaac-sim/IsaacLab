@@ -98,7 +98,7 @@ class terrain_levels_vel(ManagerTermBase):
             asset_cfg: Robot scene entity configuration.
         """
         del asset_cfg
-        wp.launch(
+        env._warp_launch.launch(
             kernel=_compute_terrain_level_updates,
             dim=self.num_envs,
             inputs=[
@@ -111,7 +111,7 @@ class terrain_levels_vel(ManagerTermBase):
                 self._move_up_wp,
                 self._move_down_wp,
             ],
-            device=self.device,
+            site=(self, "updates", env_mask),
         )
         self._terrain.update_env_origins_mask(
             env_mask,
@@ -119,9 +119,9 @@ class terrain_levels_vel(ManagerTermBase):
             self._move_down_wp,
             env.rng_state_wp,
         )
-        wp.launch(
+        env._warp_launch.launch(
             kernel=_compute_terrain_level_mean,
             dim=self.num_envs,
             inputs=[self._terrain_levels_wp, self._mean_scale, out],
-            device=self.device,
+            site=(self, "mean", out),
         )
