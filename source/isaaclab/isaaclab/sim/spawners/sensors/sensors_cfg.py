@@ -111,6 +111,10 @@ class OpenCvFisheyeDistortionCfg(OpenCvDistortionCfg):
     """OpenCV fisheye lens-distortion model.
 
     Corresponds to ``OmniLensDistortionOpenCvFisheyeAPI`` under the RTX/OVRTX renderer.
+
+    See Also:
+        :class:`FisheyeCameraCfg` for the USD ``fisheyePolynomial`` projection, an alternative fisheye
+        model authored directly on the camera rather than as an OpenCV ``fx/fy/cx/cy`` calibration.
     """
 
     model: str = "opencvFisheye"
@@ -296,6 +300,10 @@ class FisheyeCameraCfg(PinholeCameraCfg):
         function.
 
     .. _fish-eye camera: https://en.wikipedia.org/wiki/Fisheye_lens
+
+    See Also:
+        :class:`OpenCvFisheyeDistortionCfg` for an OpenCV ``fx/fy/cx/cy`` + distortion-coefficient
+        fisheye calibration applied via the :attr:`~PinholeCameraCfg.distortion` field.
     """
 
     func: Callable | str = "{DIR}.sensors:spawn_camera"

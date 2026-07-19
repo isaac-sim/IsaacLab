@@ -7,7 +7,8 @@
 
 Currently, the following sensors are supported:
 
-* Camera: A USD camera prim with settings for pinhole or fisheye projections.
+* Camera: A USD camera prim with settings for pinhole or fisheye projections, optionally carrying an
+  OpenCV lens-distortion calibration.
 
 """
 

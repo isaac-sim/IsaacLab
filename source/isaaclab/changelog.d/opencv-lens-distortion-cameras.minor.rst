@@ -10,8 +10,7 @@ Added
 Changed
 ^^^^^^^
 
-* Changed :meth:`~isaaclab.sensors.camera.Camera._update_intrinsic_matrices` to read the authored
-  ``fx/fy/cx/cy`` when an OpenCV lens-distortion model is present, so
-  :attr:`~isaaclab.sensors.camera.Camera.data` intrinsics reflect a real calibration (non-square
-  pixels or an off-center principal point) instead of assuming ``fx == fy`` and a centered principal
-  point.
+* Changed the reconstructed :attr:`~isaaclab.sensors.camera.Camera.data` intrinsic matrices to use the
+  authored OpenCV ``fx/fy/cx/cy`` when a lens-distortion model is present, so they reflect a real
+  calibration (non-square pixels or an off-center principal point) instead of assuming ``fx == fy`` and
+  a centered principal point.

@@ -392,8 +392,9 @@ class NewtonWarpRenderer(BaseRenderer):
         if getattr(spawn, "distortion", None) is not None:
             logger.warning(
                 "OpenCV lens distortion is set on the camera cfg but is not yet applied by the Newton"
-                " renderer; the camera will render undistorted. Use the RTX/OVRTX renderer to apply"
-                " the distortion model."
+                " renderer: it derives a single field of view from fy, so the distortion coefficients,"
+                " the principal point, and a non-square fx are ignored and the camera renders as a"
+                " centered, square-pixel pinhole. Use the RTX/OVRTX renderer to apply the full model."
             )
         if spec.cfg.isp_cfg is None:
             return
