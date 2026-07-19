@@ -96,7 +96,7 @@ prerelease-mode = "allow"
 
 [manifest]
 overrides = [
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=c7ae7c7648cd0717df39e5c94b95d5a02c997320" },
+    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/newton-physics/newton.git?rev=c7ae7c7648cd0717df39e5c94b95d5a02c997320" },
     { name = "newton-usd-schemas", specifier = ">=0.3.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "torch", marker = "(platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')", specifier = "==2.11.0" },
@@ -182,6 +182,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8d/75/94cd5d389649578aca399e5aa822637eec18319a1dadc400ffe2f9a7493f/accelerate-1.14.0.tar.gz", hash = "sha256:41b9c4377a54e0b460a959b0defa1b736e4ca0a2373252d9a539964c2afe3c8d", size = 412167, upload-time = "2026-06-11T13:45:52.326Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a8/db/253133d7e7cb40d3af384bb2f5c0b4a2b7fdcffbc95c688cc67a20a3c103/accelerate-1.14.0-py3-none-any.whl", hash = "sha256:e94390c2863b873be18f623f9df48a0d8fe5eff13ea7f1a00092b0a7904888c6", size = 389246, upload-time = "2026-06-11T13:45:50.477Z" },
+]
+
+[[package]]
+name = "addict"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/ef/fd7649da8af11d93979831e8f1f8097e85e82d5bfeabc8c68b39175d8e75/addict-2.4.0.tar.gz", hash = "sha256:b3b2210e0e067a281f5646c8c5db92e99b7231ea8b0eb5f74dbdf9e259d4e494", size = 9186, upload-time = "2020-11-21T16:21:31.416Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/00/b08f23b7d7e1e14ce01419a467b583edbb93c6cdb8654e54a9cc579cd61f/addict-2.4.0-py3-none-any.whl", hash = "sha256:249bb56bbfd3cdc2a004ea0ff4c2b6ddc84d53bc2194761636eb314d5cfa5dfc", size = 3832, upload-time = "2020-11-21T16:21:29.588Z" },
 ]
 
 [[package]]
@@ -455,6 +464,28 @@ wheels = [
 ]
 
 [[package]]
+name = "alphashape"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click", version = "8.1.7", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "click", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "click-log" },
+    { name = "networkx" },
+    { name = "numpy" },
+    { name = "rtree" },
+    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "shapely" },
+    { name = "trimesh", version = "4.11.1", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "trimesh", version = "4.12.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2e/83/67ff905694df5b34a777123b59fdfd05998d5a31766f188aafbf5b340055/alphashape-1.3.1.tar.gz", hash = "sha256:7a27340afc5f8ed301577acec46bb0cf2bada5410045f7289142e735ef6977ec", size = 26316, upload-time = "2021-04-16T17:47:19.486Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e4/ad/77fad9d6f974ec58d837cb49fb9b483d6227a420c4f908c3578633de1d47/alphashape-1.3.1-py2.py3-none-any.whl", hash = "sha256:96a5ddd5f09534a35f03a8916aeeaac00fe4d6bec2f9ad78f87f57be3007f795", size = 13122, upload-time = "2021-04-16T17:47:17.773Z" },
+]
+
+[[package]]
 name = "annotated-doc"
 version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -648,6 +679,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bd/5f/64a471e09f064b3b3a53529ecd9ed8facfebfafff3dad7ee9350f3a00a30/azure-storage-blob-12.17.0.zip", hash = "sha256:c14b785a17050b30fc326a315bdae6bc4a078855f4f94a4c303ad74a48dc8c63", size = 698725, upload-time = "2023-07-11T22:58:40.758Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/06/68c50a905e1e5481b04a6166b69fecddb87681aae7a556ab727f8e8e6f70/azure_storage_blob-12.17.0-py3-none-any.whl", hash = "sha256:0016e0c549a80282d7b4920c03f2f4ba35c53e6e3c7dbcd2a4a8c8eb3882c1e7", size = 388030, upload-time = "2023-07-11T22:58:43.288Z" },
+]
+
+[[package]]
+name = "blinker"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/28/9b3f50ce0e048515135495f198351908d99540d69bfdc8c1d15b73dc55ce/blinker-1.9.0.tar.gz", hash = "sha256:b4ce2265a7abece45e7cc896e98dbebe6cead56bcf805a3d23136d145f5445bf", size = 22460, upload-time = "2024-11-08T17:25:47.436Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/cb/f2ad4230dc2eb1a74edf38f1a38b9b52277f75bef262d8908e60d957e13c/blinker-1.9.0-py3-none-any.whl", hash = "sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc", size = 8458, upload-time = "2024-11-08T17:25:46.184Z" },
 ]
 
 [[package]]
@@ -889,6 +929,19 @@ wheels = [
 ]
 
 [[package]]
+name = "click-log"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click", version = "8.1.7", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "click", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/32/32/228be4f971e4bd556c33d52a22682bfe318ffe57a1ddb7a546f347a90260/click-log-0.4.0.tar.gz", hash = "sha256:3970f8570ac54491237bcdb3d8ab5e3eef6c057df29f8c3d1151a51a9c23b975", size = 9985, upload-time = "2022-03-13T11:10:15.262Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ae/5a/4f025bc751087833686892e17e7564828e409c43b632878afeae554870cd/click_log-0.4.0-py2.py3-none-any.whl", hash = "sha256:a43e394b528d52112af599f2fc9e4b7cf3c15f94e53581f74fa6867e68c91756", size = 4273, upload-time = "2022-03-13T11:10:17.594Z" },
+]
+
+[[package]]
 name = "cloudpickle"
 version = "3.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1116,6 +1169,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4c/13/7d740c5849255756bc17888787313b61fd38a0a8304fc4f073dfc46122aa/comm-0.2.3.tar.gz", hash = "sha256:2dc8048c10962d55d7ad693be1e7045d891b7ce8d999c97963a5e3e99c055971", size = 6319, upload-time = "2025-07-25T14:02:04.452Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/97/891a0971e1e4a8c5d2b20bbe0e524dc04548d2307fee33cdeba148fd4fc7/comm-0.2.3-py3-none-any.whl", hash = "sha256:c615d91d75f7f04f095b30d1c1711babd43bdc6419c1be9886a85f2f4e489417", size = 7294, upload-time = "2025-07-25T14:02:02.896Z" },
+]
+
+[[package]]
+name = "configargparse"
+version = "1.7.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/0b/30328302903c55218ffc5199646d0e9d28348ff26c02ba77b2ffc58d294a/configargparse-1.7.5.tar.gz", hash = "sha256:e3f9a7bb6be34d66b2e3c4a2f58e3045f8dfae47b0dc039f87bcfaa0f193fb0f", size = 53548, upload-time = "2026-03-11T02:19:38.144Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/19/3ba5e1b0bcc7b91aeab6c258afd70e4907d220fed3972febe38feb40db30/configargparse-1.7.5-py3-none-any.whl", hash = "sha256:1e63fdffedf94da9cd435fc13a1cd24777e76879dd2343912c1f871d4ac8c592", size = 27692, upload-time = "2026-03-11T02:19:36.442Z" },
 ]
 
 [[package]]
@@ -1521,6 +1583,31 @@ wheels = [
 ]
 
 [[package]]
+name = "dash"
+version = "4.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flask", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "importlib-metadata", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "janus", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "nest-asyncio", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "plotly", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "pydantic", version = "2.11.10", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "pydantic", version = "2.14.0a1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "requests", version = "2.32.3", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "retrying", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "setuptools", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "typing-extensions", version = "4.12.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "werkzeug", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/71/2d/c605f929e126f72a980a0f06fc08084d9e35e43f14bba2cddd507f7d7b14/dash-4.4.0.tar.gz", hash = "sha256:9155e4b1136b5a6bdae1fbd108f55a2ce9e9b4ac376dace4457c877cc7da279d", size = 8517423, upload-time = "2026-07-03T18:29:11.163Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/49/c15f6c1d3d340bf18b4f66a4bf884d6bd2364d1707db2c200963066cf67c/dash-4.4.0-py3-none-any.whl", hash = "sha256:59eb377b8601fcbcf67246c75cc6daf066790ec08a616eb6f64efba7a5e021d4", size = 8925788, upload-time = "2026-07-03T18:29:03.189Z" },
+]
+
+[[package]]
 name = "decorator"
 version = "4.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1731,6 +1818,22 @@ wheels = [
 ]
 
 [[package]]
+name = "fast-simplification"
+version = "0.1.13"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e1/c7/e000571f3f271fb88b92f2bf0fbe48a12993c77cde8093c490997df46a6d/fast_simplification-0.1.13.tar.gz", hash = "sha256:5e95c966ad4ddf04b0a49013c92e5a06a3b888c6e02bb3c7ab3817fc8ba0f03f", size = 27136, upload-time = "2025-12-19T16:57:40.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6f/81/ea0026164dd9dbaf6904176dbc716b8361548bbff7c0a273c14e2137ed27/fast_simplification-0.1.13-cp311-abi3-macosx_10_9_x86_64.whl", hash = "sha256:4a89d1d0ecbb547528048ab6333bf2287767dbba727fa0553b18a138802d9b61", size = 225697, upload-time = "2025-12-19T16:57:31.776Z" },
+    { url = "https://files.pythonhosted.org/packages/49/1c/ea8c057ebf02a3b24eddc79619bdc1c844a2354dbdf66176d86750755846/fast_simplification-0.1.13-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:f3bcd10b5de2a85fe41d4ba27ccdf3adc723c2a0f5a1afb47f01e95c6c158651", size = 221602, upload-time = "2025-12-19T16:57:32.941Z" },
+    { url = "https://files.pythonhosted.org/packages/34/64/4ecbf504f3207a36e7713013b473d40fb56d1b665b7d6ee80ffd3b217f81/fast_simplification-0.1.13-cp311-abi3-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3ed45b1f07d718832aec76ae92c91ab8e84001d935055379ce0089b0cfb87870", size = 1613145, upload-time = "2025-12-19T16:57:34.13Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/44/ae0b556d62ed6a8c6f290435f4764fae9944f6857171b60613ab35f0f1a7/fast_simplification-0.1.13-cp311-abi3-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c694f0f0bbafbaf29acf7043de603b4c85259f2eae7b802d4946d47976e9959d", size = 1638154, upload-time = "2025-12-19T16:57:35.609Z" },
+    { url = "https://files.pythonhosted.org/packages/33/44/3208d9c3f76b5cadcc43b96a0db21c62926b3aa35be2cf16deb88cc7d4d1/fast_simplification-0.1.13-cp311-abi3-win_amd64.whl", hash = "sha256:94565811e708828f77c0a30eb8f05278e8f5826f2cbf1791cc470f6471dd0dce", size = 378277, upload-time = "2025-12-19T16:57:38.783Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.120.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1743,6 +1846,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3f/3a/0bf90d5189d7f62dc2bd0523899629ca59b58ff4290d631cd3bb5c8889d4/fastapi-0.120.4.tar.gz", hash = "sha256:2d856bc847893ca4d77896d4504ffdec0fb04312b705065fca9104428eca3868", size = 339716, upload-time = "2025-10-31T18:37:28.81Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ed/47/14a76b926edc3957c8a8258423db789d3fa925d2fed800102fce58959413/fastapi-0.120.4-py3-none-any.whl", hash = "sha256:9bdf192308676480d3593e10fd05094e56d6fdc7d9283db26053d8104d5f82a0", size = 108235, upload-time = "2025-10-31T18:37:27.038Z" },
+]
+
+[[package]]
+name = "fastjsonschema"
+version = "2.21.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/20/b5/23b216d9d985a956623b6bd12d4086b60f0059b27799f23016af04a74ea1/fastjsonschema-2.21.2.tar.gz", hash = "sha256:b1eb43748041c880796cd077f1a07c3d94e93ae84bba5ed36800a33554ae05de", size = 374130, upload-time = "2025-08-14T18:49:36.666Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cb/a8/20d0723294217e47de6d9e2e40fd4a9d2f7c4b6ef974babd482a59743694/fastjsonschema-2.21.2-py3-none-any.whl", hash = "sha256:1c797122d0a86c5cace2e54bf4e819c36223b552017172f32c5c024a6b77e463", size = 24024, upload-time = "2025-08-14T18:49:34.776Z" },
 ]
 
 [[package]]
@@ -1796,6 +1908,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5b/c5/ef69119a01427204ff2db5fc8f98001087bcce719bbb94749dcd7b191365/flaky-3.8.1.tar.gz", hash = "sha256:47204a81ec905f3d5acfbd61daeabcada8f9d4031616d9bcb0618461729699f5", size = 25248, upload-time = "2024-03-12T22:17:59.265Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7f/b8/b830fc43663246c3f3dd1ae7dca4847b96ed992537e85311e27fa41ac40e/flaky-3.8.1-py2.py3-none-any.whl", hash = "sha256:194ccf4f0d3a22b2de7130f4b62e45e977ac1b5ccad74d4d48f3005dcc38815e", size = 19139, upload-time = "2024-03-12T22:17:51.59Z" },
+]
+
+[[package]]
+name = "flask"
+version = "3.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "blinker", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "click", version = "8.1.7", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "click", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "itsdangerous", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "jinja2", version = "3.1.5", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "jinja2", version = "3.1.6", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "markupsafe", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "werkzeug", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/26/00/35d85dcce6c57fdc871f3867d465d780f302a175ea360f62533f12b27e2b/flask-3.1.3.tar.gz", hash = "sha256:0ef0e52b8a9cd932855379197dd8f94047b359ca0a78695144304cb45f87c9eb", size = 759004, upload-time = "2026-02-19T05:00:57.678Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/9c/34f6962f9b9e9c71f6e5ed806e0d0ff03c9d1b0b2340088a0cf4bce09b18/flask-3.1.3-py3-none-any.whl", hash = "sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c", size = 103424, upload-time = "2026-02-19T05:00:56.027Z" },
 ]
 
 [[package]]
@@ -2654,7 +2785,7 @@ dependencies = [
     { name = "matplotlib", version = "3.10.8", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "matplotlib", version = "3.11.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
     { name = "moviepy" },
-    { name = "newton", extra = ["sim"] },
+    { name = "newton", extra = ["importers", "sim"] },
     { name = "newton-usd-schemas" },
     { name = "numba", version = "0.64.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "numba", version = "0.66.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
@@ -2838,7 +2969,7 @@ requires-dist = [
     { name = "lazy-loader", specifier = ">=0.4" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "moviepy", specifier = ">=1.0.3,<2.0.0.dev0" },
-    { name = "newton", extras = ["sim"], specifier = ">=1.2.0" },
+    { name = "newton", extras = ["sim", "importers"], specifier = ">=1.2.0" },
     { name = "newton-usd-schemas", specifier = ">=0.2.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -3194,7 +3325,7 @@ dependencies = [
     { name = "mujoco-warp", version = "3.8.0.3", source = { registry = "https://pypi.org/simple" } },
     { name = "nest-asyncio" },
     { name = "networkx" },
-    { name = "newton", extra = ["sim"], marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "newton", extra = ["importers", "sim"], marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "newton-actuators" },
     { name = "newton-usd-schemas" },
     { name = "numpy-stl" },
@@ -3562,6 +3693,24 @@ wheels = [
 ]
 
 [[package]]
+name = "itsdangerous"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9c/cb/8ac0172223afbccb63986cc25049b154ecfb5e85932587206f42317be31d/itsdangerous-2.2.0.tar.gz", hash = "sha256:e0050c0b7da1eea53ffaf149c0cfbb5c6e2e2b69c4bef22c81fa6eb73e5f6173", size = 54410, upload-time = "2024-04-16T21:28:15.614Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/96/92447566d16df59b2a776c0fb82dbc4d9e07cd95062562af01e408583fc4/itsdangerous-2.2.0-py3-none-any.whl", hash = "sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef", size = 16234, upload-time = "2024-04-16T21:28:14.499Z" },
+]
+
+[[package]]
+name = "janus"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/7f/69884b6618be4baf6ebcacc716ee8680a842428a19f403db6d1c0bb990aa/janus-2.0.0.tar.gz", hash = "sha256:0970f38e0e725400496c834a368a67ee551dc3b5ad0a257e132f5b46f2e77770", size = 22910, upload-time = "2024-12-13T12:59:08.622Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/34/65604740edcb20e1bda6a890348ed7d282e7dd23aa00401cbe36fd0edbd9/janus-2.0.0-py3-none-any.whl", hash = "sha256:7e6449d34eab04cd016befbd7d8c0d8acaaaab67cb59e076a69149f9031745f9", size = 12161, upload-time = "2024-12-13T12:59:06.106Z" },
+]
+
+[[package]]
 name = "jedi"
 version = "0.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3711,6 +3860,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/12/ed/063362ed6c5e39273879ba3db91da13b00551c6277de6842e45ab55a1a22/junitparser-5.0.1.tar.gz", hash = "sha256:45d100ca35ce5e2596c1f251de5e0f9411827aa93edaba7ad2d8eef423eecdd0", size = 12051, upload-time = "2026-06-05T03:55:55.888Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e5/32/15c6dd4267d530c38ca8b661c8322d201a6766087efd81ef81d3456e3cad/junitparser-5.0.1-py3-none-any.whl", hash = "sha256:019410471ac82c6b49c3cd500b930b3f39a5dae34e5ca5d5f719c4dcd9bb7e9a", size = 15014, upload-time = "2026-06-05T03:55:54.478Z" },
+]
+
+[[package]]
+name = "jupyter-core"
+version = "5.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "platformdirs", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "traitlets", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/02/49/9d1284d0dc65e2c757b74c6687b6d319b02f822ad039e5c512df9194d9dd/jupyter_core-5.9.1.tar.gz", hash = "sha256:4d09aaff303b9566c3ce657f580bd089ff5c91f5f89cf7d8846c3cdf465b5508", size = 89814, upload-time = "2025-10-16T19:19:18.444Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/e7/80988e32bf6f73919a113473a604f5a8f09094de312b9d52b79c2df7612b/jupyter_core-5.9.1-py3-none-any.whl", hash = "sha256:ebf87fdc6073d142e114c72c9e29a9d7ca03fad818c5d300ce2adc1fb0743407", size = 29032, upload-time = "2025-10-16T19:19:16.783Z" },
 ]
 
 [[package]]
@@ -4071,6 +4233,19 @@ wheels = [
 ]
 
 [[package]]
+name = "meshio"
+version = "5.3.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/20/1e/caa4f15c020de3e3486b4133ca689236bd3863a3d6dd0f58e97ce86a296a/meshio-5.3.5.tar.gz", hash = "sha256:f21f01abd9f29ba06ea119304b3d39e610421cfe93b9dd23362834919f87586d", size = 490922, upload-time = "2024-01-31T15:09:41.731Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/5f/39cbadc320cd78f4834b0a9f7a2fa3c980dca942bf193f315837eacb8870/meshio-5.3.5-py3-none-any.whl", hash = "sha256:0736c6e34ecc768f62f2cde5d8233a3529512a9399b25c68ea2ca0d5900cdc10", size = 166162, upload-time = "2024-01-31T15:09:36.691Z" },
+]
+
+[[package]]
 name = "ml-dtypes"
 version = "0.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -4391,6 +4566,30 @@ wheels = [
 ]
 
 [[package]]
+name = "narwhals"
+version = "2.24.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/1d/58946e5aab18393e793bd4add6985b95d0e01c3a2d832f38f54468b10dcd/narwhals-2.24.0.tar.gz", hash = "sha256:b5c0f684ccd9d7475b564111e319a4964abcf2baf79d3cf6b1003d06ac9b828d", size = 661143, upload-time = "2026-07-13T10:49:19.086Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/85/a5bfaebfd305ac18b57b0854d74e37e586809061a91fda62f0bd50c8518e/narwhals-2.24.0-py3-none-any.whl", hash = "sha256:42fdedf44e5b2ca7505630d45b4ac3058f38d8485cba9fe1652ca23152df7489", size = 461030, upload-time = "2026-07-13T10:49:17.571Z" },
+]
+
+[[package]]
+name = "nbformat"
+version = "5.10.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fastjsonschema", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "jsonschema", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "jupyter-core", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "traitlets", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/fd/91545e604bc3dad7dca9ed03284086039b294c6b3d75c0d2fa45f9e9caf3/nbformat-5.10.4.tar.gz", hash = "sha256:322168b14f937a5d11362988ecac2a4952d3d8e3a2cbeb2319584631226d5b3a", size = 142749, upload-time = "2024-04-04T11:20:37.371Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a9/82/0340caa499416c78e5d8f5f05947ae4bc3cba53c9f038ab6e9ed964e22f1/nbformat-5.10.4-py3-none-any.whl", hash = "sha256:3b48d6c8fbca4b299bf3982ea7db1af21580e4fec269ad087b9e81588891200b", size = 78454, upload-time = "2024-04-04T11:20:34.895Z" },
+]
+
+[[package]]
 name = "nest-asyncio"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4417,6 +4616,24 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+importers = [
+    { name = "alphashape" },
+    { name = "coacd" },
+    { name = "fast-simplification" },
+    { name = "meshio" },
+    { name = "newton-usd-schemas" },
+    { name = "open3d", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "pycollada" },
+    { name = "requests", version = "2.32.3", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "resolve-robotics-uri-py" },
+    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "trimesh", version = "4.11.1", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "trimesh", version = "4.12.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "usd-core", marker = "platform_machine != 'aarch64' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "usd-exchange", marker = "platform_machine == 'aarch64' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
 sim = [
     { name = "mujoco", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "mujoco", version = "3.8.1", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
@@ -5021,6 +5238,34 @@ wheels = [
 ]
 
 [[package]]
+name = "open3d"
+version = "0.19.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "addict", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "configargparse", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "dash", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "flask", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "matplotlib", version = "3.10.8", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "matplotlib", version = "3.11.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "nbformat", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "numpy", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "pandas", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "pillow", version = "12.1.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "pillow", version = "12.3.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "pyquaternion", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "pyyaml", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "scikit-learn", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "tqdm", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "werkzeug", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/37/c5/286c605e087e72ad83eab130451ce13b768caa4374d926dc735edc20da5a/open3d-0.19.0-cp312-cp312-macosx_10_15_universal2.whl", hash = "sha256:9e4a8d29443ba4c83010d199d56c96bf553dd970d3351692ab271759cbe2d7ac", size = 103202754, upload-time = "2025-01-08T07:26:27.169Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/95/3723e5ade77c234a1650db11cbe59fe25c4f5af6c224f8ea22ff088bb36a/open3d-0.19.0-cp312-cp312-manylinux_2_31_x86_64.whl", hash = "sha256:01e4590dc2209040292ebe509542fbf2bf869ea60bcd9be7a3fe77b65bad3192", size = 447665185, upload-time = "2025-01-08T07:23:39.769Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/c4/35a6e0a35aa72420e75dc28d54b24beaff79bcad150423e47c67d2ad8773/open3d-0.19.0-cp312-cp312-win_amd64.whl", hash = "sha256:665839837e1d3a62524804c31031462c3b548a2b6ed55214e6deb91522844f97", size = 69169961, upload-time = "2025-01-08T07:27:35.392Z" },
+]
+
+[[package]]
 name = "opencensus"
 version = "0.11.4"
 source = { registry = "https://pypi.org/simple" }
@@ -5454,6 +5699,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/47/e4501f49c178ae1d9f4a75073fda4204f52647993f075a9db4d14930e0c5/platformdirs-4.10.0.tar.gz", hash = "sha256:31e761a6a0ca04faf7353ea759bdba55652be214725111e5aac52dfa29d4bef7", size = 31224, upload-time = "2026-05-28T03:32:53.587Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/e6/cd9575ac904136b3cbf7aa7ee819ef86eedb7274e46f230e94ea4342e729/platformdirs-4.10.0-py3-none-any.whl", hash = "sha256:fb516cdb12eb0d857d0cd85a7c57cea4d060bee4578d6cf5a14dfdf8cbf8784a", size = 22743, upload-time = "2026-05-28T03:32:52.175Z" },
+]
+
+[[package]]
+name = "plotly"
+version = "6.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "narwhals", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "packaging", version = "23.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "packaging", version = "26.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/96/07/795c79dbce40c39bece88e69d049babbd23ffa95b5d117f248db8ea03abb/plotly-6.9.0.tar.gz", hash = "sha256:967ad33e8c704fed051800d11d985eb206a9c795c14206b30a6f463ed9c67d0d", size = 6919903, upload-time = "2026-07-09T14:55:59.982Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/18/d8544811ab076f876c4892b3714f5b0dad335e1dc33aef826df431b8325d/plotly-6.9.0-py3-none-any.whl", hash = "sha256:36bebe2f1bb13884774fe61689c329071446f6ce4a8927fb1f0d6fb24f581236", size = 9909646, upload-time = "2026-07-09T14:55:55.421Z" },
 ]
 
 [[package]]
@@ -6038,6 +6297,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pyquaternion"
+version = "0.9.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/3d092aa20efaedacb89c3221a92c6491be5b28f618a2c36b52b53e7446c2/pyquaternion-0.9.9.tar.gz", hash = "sha256:b1f61af219cb2fe966b5fb79a192124f2e63a3f7a777ac3cadf2957b1a81bea8", size = 15530, upload-time = "2020-10-05T01:31:30.327Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/b3/d8482e8cacc8ea15a356efea13d22ce1c5914a9ee36622ba250523240bf2/pyquaternion-0.9.9-py3-none-any.whl", hash = "sha256:e65f6e3f7b1fdf1a9e23f82434334a1ae84f14223eee835190cd2e841f8172ec", size = 14361, upload-time = "2020-10-05T01:31:37.575Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -6464,6 +6735,24 @@ wheels = [
 ]
 
 [[package]]
+name = "resolve-robotics-uri-py"
+version = "0.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/62/dca8d993c9e2e17d0c6a3184ac1e3d088b10430271ff8f947d810010d0f2/resolve_robotics_uri_py-0.5.1.tar.gz", hash = "sha256:bcbe8aab5dfd228c3e120d35d8b9a6afc14483422701c11330ff8c415d3b5cbf", size = 17026, upload-time = "2026-06-26T15:53:34.796Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/82/115f29fdb7d3d25d4281ec22fe9f1184612f8e5c9bdb66244c3a4213f61b/resolve_robotics_uri_py-0.5.1-py3-none-any.whl", hash = "sha256:2b4fb4278dd6823f778a617047e07a2d69a0b470678fe7061a5985baec8a0298", size = 8822, upload-time = "2026-06-26T15:53:33.861Z" },
+]
+
+[[package]]
+name = "retrying"
+version = "1.4.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/5a/b17e1e257d3e6f2e7758930e1256832c9ddd576f8631781e6a072914befa/retrying-1.4.2.tar.gz", hash = "sha256:d102e75d53d8d30b88562d45361d6c6c934da06fab31bd81c0420acb97a8ba39", size = 11411, upload-time = "2025-08-03T03:35:25.189Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/67/f3/6cd296376653270ac1b423bb30bd70942d9916b6978c6f40472d6ac038e7/retrying-1.4.2-py3-none-any.whl", hash = "sha256:bbc004aeb542a74f3569aeddf42a2516efefcdaff90df0eb38fbfbf19f179f59", size = 10859, upload-time = "2025-08-03T03:35:23.829Z" },
+]
+
+[[package]]
 name = "rich"
 version = "14.3.4"
 source = { registry = "https://pypi.org/simple" }
@@ -6630,6 +6919,28 @@ wheels = [
 ]
 
 [[package]]
+name = "scikit-learn"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "joblib", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "narwhals", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "numpy", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-12-isaaclab-dev-all') or (platform_machine != 'aarch64' and extra != 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-all') or (sys_platform != 'linux' and extra != 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "threadpoolctl", marker = "platform_machine != 'aarch64' or sys_platform != 'linux' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/6f/37092bdb25f712817231799fc5674d8e704066a8a70c1d2d40517e18b4ab/scikit_learn-1.9.0.tar.gz", hash = "sha256:8833266989d3a5110178a9fae30783675460724d0e1efb13b14901d2c660c557", size = 7750767, upload-time = "2026-06-02T11:54:32.706Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ac/20/75f915ff375d6249e6550ac740fdbbd66159a068fd3af1400ff62036b07a/scikit_learn-1.9.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:2bd41b0d201bc81575531b96b713d3eb5e5f50fb0b82101ff0f92294fdc236ac", size = 8741122, upload-time = "2026-06-02T11:53:24.08Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/d5/2b5148f2279196775e1db2aeb85d14b70ac80e7e32b3b28e7ebeafb0901d/scikit_learn-1.9.0-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:5be45aa4a42a68a533913a6ed736cf309de2226411c79ef8d609a5456f1939b1", size = 8261512, upload-time = "2026-06-02T11:53:27.183Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/ee/5adbc77656b71f9456a2f5a7a9fdb4bcf9207a6b962889f1c2f9323afa4e/scikit_learn-1.9.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5e50ed4da51974e86e940690e9a3d82e729b62b5a49f7c9bac534d515d39d86f", size = 8837603, upload-time = "2026-06-02T11:53:30.328Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/c2/63fdda36c56437eeb44aaf9493c8bcd62ce230ab1598924fc626ffbfa943/scikit_learn-1.9.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:056c92bb67ad4c28463c2f2653d9701449201e7e7a9e94e321be0f71c4fef2b8", size = 9132097, upload-time = "2026-06-02T11:53:33.456Z" },
+    { url = "https://files.pythonhosted.org/packages/83/a4/c8e67227c680e2259c8864ae72ff48b06e16a6f51253a22167aa02a8aa4e/scikit_learn-1.9.0-cp312-cp312-win_amd64.whl", hash = "sha256:4306775fad04cc4b472a1b15af1ae9cede1540fbfcc17fbce3767cd8dc7ae283", size = 8211173, upload-time = "2026-06-02T11:53:36.602Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/fd/3c0863792e98e67e9184aa4029288a175935eb65443afcd30d4f143450cf/scikit_learn-1.9.0-cp312-cp312-win_arm64.whl", hash = "sha256:26e22435f63bcdcf396b574273f29f13dd531f5ea035801f5be10ba1540a4e60", size = 7867451, upload-time = "2026-06-02T11:53:39.075Z" },
+]
+
+[[package]]
 name = "scipy"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -6784,6 +7095,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0d/1c/73e719955c59b8e424d015ab450f51c0af856ae46ea2da83eba51cc88de1/setuptools-81.0.0.tar.gz", hash = "sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a", size = 1198299, upload-time = "2026-02-06T21:10:39.601Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/e3/c164c88b2e5ce7b24d667b9bd83589cf4f3520d97cad01534cd3c4f55fdb/setuptools-81.0.0-py3-none-any.whl", hash = "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6", size = 1062021, upload-time = "2026-02-06T21:10:37.175Z" },
+]
+
+[[package]]
+name = "shapely"
+version = "2.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4d/bc/0989043118a27cccb4e906a46b7565ce36ca7b57f5a18b78f4f1b0f72d9d/shapely-2.1.2.tar.gz", hash = "sha256:2ed4ecb28320a433db18a5bf029986aa8afcfd740745e78847e330d5d94922a9", size = 315489, upload-time = "2025-09-24T13:51:41.432Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/c0/f3b6453cf2dfa99adc0ba6675f9aaff9e526d2224cbd7ff9c1a879238693/shapely-2.1.2-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:fe2533caae6a91a543dec62e8360fe86ffcdc42a7c55f9dfd0128a977a896b94", size = 1833550, upload-time = "2025-09-24T13:50:30.019Z" },
+    { url = "https://files.pythonhosted.org/packages/86/07/59dee0bc4b913b7ab59ab1086225baca5b8f19865e6101db9ebb7243e132/shapely-2.1.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:ba4d1333cc0bc94381d6d4308d2e4e008e0bd128bdcff5573199742ee3634359", size = 1643556, upload-time = "2025-09-24T13:50:32.291Z" },
+    { url = "https://files.pythonhosted.org/packages/26/29/a5397e75b435b9895cd53e165083faed5d12fd9626eadec15a83a2411f0f/shapely-2.1.2-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:0bd308103340030feef6c111d3eb98d50dc13feea33affc8a6f9fa549e9458a3", size = 2988308, upload-time = "2025-09-24T13:50:33.862Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/37/e781683abac55dde9771e086b790e554811a71ed0b2b8a1e789b7430dd44/shapely-2.1.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:1e7d4d7ad262a48bb44277ca12c7c78cb1b0f56b32c10734ec9a1d30c0b0c54b", size = 3099844, upload-time = "2025-09-24T13:50:35.459Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/f3/9876b64d4a5a321b9dc482c92bb6f061f2fa42131cba643c699f39317cb9/shapely-2.1.2-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:e9eddfe513096a71896441a7c37db72da0687b34752c4e193577a145c71736fc", size = 3988842, upload-time = "2025-09-24T13:50:37.478Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/a0/704c7292f7014c7e74ec84eddb7b109e1fbae74a16deae9c1504b1d15565/shapely-2.1.2-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:980c777c612514c0cf99bc8a9de6d286f5e186dcaf9091252fcd444e5638193d", size = 4152714, upload-time = "2025-09-24T13:50:39.9Z" },
+    { url = "https://files.pythonhosted.org/packages/53/46/319c9dc788884ad0785242543cdffac0e6530e4d0deb6c4862bc4143dcf3/shapely-2.1.2-cp312-cp312-win32.whl", hash = "sha256:9111274b88e4d7b54a95218e243282709b330ef52b7b86bc6aaf4f805306f454", size = 1542745, upload-time = "2025-09-24T13:50:41.414Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/bf/cb6c1c505cb31e818e900b9312d514f381fbfa5c4363edfce0fcc4f8c1a4/shapely-2.1.2-cp312-cp312-win_amd64.whl", hash = "sha256:743044b4cfb34f9a67205cee9279feaf60ba7d02e69febc2afc609047cb49179", size = 1722861, upload-time = "2025-09-24T13:50:43.35Z" },
 ]
 
 [[package]]
@@ -7020,6 +7350,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/46/79/cf31d7a93a8fdc6aa0fbb665be84426a8c5a557d9240b6239e9e11e35fc5/termcolor-3.3.0.tar.gz", hash = "sha256:348871ca648ec6a9a983a13ab626c0acce02f515b9e1983332b17af7979521c5", size = 14434, upload-time = "2025-12-29T12:55:21.882Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/33/d1/8bb87d21e9aeb323cc03034f5eaf2c8f69841e40e4853c2627edf8111ed3/termcolor-3.3.0-py3-none-any.whl", hash = "sha256:cf642efadaf0a8ebbbf4bc7a31cec2f9b5f21a9f726f4ccbb08192c9c26f43a5", size = 7734, upload-time = "2025-12-29T12:55:20.718Z" },
+]
+
+[[package]]
+name = "threadpoolctl"
+version = "3.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b7/4d/08c89e34946fce2aec4fbb45c9016efd5f4d7f24af8e5d93296e935631d8/threadpoolctl-3.6.0.tar.gz", hash = "sha256:8ab8b4aa3491d812b623328249fab5302a68d2d71745c8a4c719a2fcaba9f44e", size = 21274, upload-time = "2025-03-13T13:49:23.031Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/32/d5/f9a850d79b0851d1d4ef6456097579a9005b31fea68726a4ae5f2d82ddd9/threadpoolctl-3.6.0-py3-none-any.whl", hash = "sha256:43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb", size = 18638, upload-time = "2025-03-13T13:49:21.846Z" },
 ]
 
 [[package]]
