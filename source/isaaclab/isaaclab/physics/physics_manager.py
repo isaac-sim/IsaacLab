@@ -119,13 +119,14 @@ class PhysicsManager(ABC):
         Raises:
             NotImplementedError: If a new joint is needed and the root is not a rigid body.
         """
-        # Keep this import local to avoid the SimulationContext -> PhysicsManager ->
-        # sim.utils.queries -> SimulationContext import cycle.
-        # Keep pxr local as well: this module is imported while environment configs load (via the
-        # manager classes), and config loading must not pull USD/omni modules before the simulation
-        # app starts.
-        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
+        # Keep these imports local to avoid the SimulationContext -> PhysicsManager ->
+        # sim.utils.queries -> SimulationContext import cycle (and the schemas ->
+        # physics_manager -> schemas cycle). Keep pxr local as well: this module is
+        # imported while environment configs load (via the manager classes), and config
+        # loading must not pull USD/omni modules before the simulation app starts.
+        from pxr import UsdPhysics  # noqa: PLC0415
 
+        from isaaclab.sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
         from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
 
         if stage is None:
@@ -138,17 +139,7 @@ class PhysicsManager(ABC):
         if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
             raise NotImplementedError(f"Cannot fix non-rigid articulation root '{root_path}'.")
 
-        joint_path = f"{root_path}/FixedJoint"
-        index = 0
-        while stage.GetPrimAtPath(joint_path).IsValid():
-            index += 1
-            joint_path = f"{root_path}/FixedJoint{index}"
-
-        world_xform = UsdGeom.XformCache().GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
-        joint = UsdPhysics.FixedJoint.Define(stage, joint_path)
-        joint.CreateBody1Rel().SetTargets([articulation_prim.GetPath()])
-        joint.CreateLocalPos0Attr().Set(Gf.Vec3f(world_xform.ExtractTranslation()))
-        joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_xform.ExtractRotationQuat()))
+        create_world_fixed_joint(articulation_prim, stage)
         return articulation_prim
 
     @staticmethod
@@ -158,9 +149,9 @@ class PhysicsManager(ABC):
         companion_namespace: str,
     ) -> Any:
         """Move root-bearing schemas and authored properties to the root link's parent."""
-        # Keep pxr local: this module is imported while environment configs load (via the manager
-        # classes), and config loading must not pull USD/omni modules before the simulation app
-        # starts.
+        # Keep pxr local: this module is imported while environment configs load (via the
+        # manager classes), and config loading must not pull USD/omni modules before the
+        # simulation app starts.
         from pxr import Usd, UsdPhysics  # noqa: PLC0415
 
         new_root = articulation_prim.GetParent()
