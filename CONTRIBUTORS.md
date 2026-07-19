@@ -125,6 +125,7 @@ Guidelines for modifications:
 * Krishna Lakhi
 * Lin He
 * Lionel Gulich
+* Lior Ben Horin
 * Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
