@@ -125,12 +125,6 @@ class PhysxReplicateContext:
             rep.unregister_replicator(_stage_id)
 
         get_physx_replicator_interface().register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
-        try:
-            import omni.kit.app  # noqa: PLC0415
-
-            omni.kit.app.get_app().update()
-        except RuntimeError:
-            pass
         self._queue.clear()
 
 
