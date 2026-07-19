@@ -5,6 +5,8 @@
 
 """Shared Warp kernels for the Newton actuator fast path."""
 
+from typing import Any
+
 import torch
 import warp as wp
 
@@ -21,17 +23,26 @@ from isaaclab.actuators import ActuatorBase, ImplicitActuator
 
 
 @wp.kernel(enable_backward=False)
-def zero_at_indices_kernel(data: wp.array(dtype=wp.float32), indices: wp.array(dtype=wp.uint32)):
-    """Zero a flat ``data`` buffer at the given flat ``indices``."""
+def fill_at_indices_kernel(dst: wp.array(dtype=Any), indices: wp.array(dtype=Any), value: Any):
+    """Write ``value`` into a flat ``dst`` buffer at the given flat ``indices``.
+
+    The one fill-shaped scatter: zeroing effort slots, setting mask bits, and
+    marking managed DOFs are all instances (see the overloads below).
+    """
     i = wp.tid()
-    data[indices[i]] = 0.0
+    dst[indices[i]] = value
 
 
-@wp.kernel(enable_backward=False)
-def set_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
-    """Set ``mask[indices[i]] = True`` for each ``i``. The mask must be pre-zeroed."""
-    i = wp.tid()
-    mask[indices[i]] = True
+wp.overload(
+    fill_at_indices_kernel,
+    {"dst": wp.array(dtype=wp.float32), "indices": wp.array(dtype=wp.uint32), "value": wp.float32},
+)
+wp.overload(
+    fill_at_indices_kernel, {"dst": wp.array(dtype=wp.bool), "indices": wp.array(dtype=wp.int32), "value": wp.bool}
+)
+wp.overload(
+    fill_at_indices_kernel, {"dst": wp.array(dtype=wp.bool), "indices": wp.array(dtype=wp.uint32), "value": wp.bool}
+)
 
 
 @wp.kernel(enable_backward=False)
@@ -43,13 +54,6 @@ def scatter_flat_kernel(
     """Scatter per-actuator values into a flat global-DOF buffer: ``dst[indices[i]] = src[i]``."""
     i = wp.tid()
     dst[indices[i]] = src[i]
-
-
-@wp.kernel(enable_backward=False)
-def mark_flat_kernel(indices: wp.array(dtype=wp.uint32), dst: wp.array(dtype=wp.bool)):
-    """Mark flat global-DOF slots covered by an actuator: ``dst[indices[i]] = True``."""
-    i = wp.tid()
-    dst[indices[i]] = True
 
 
 @wp.kernel(enable_backward=False)

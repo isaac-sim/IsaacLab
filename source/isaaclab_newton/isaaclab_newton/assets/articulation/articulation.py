@@ -1639,9 +1639,9 @@ class Articulation(BaseArticulation):
         )
         env_mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
         wp.launch(
-            actuator_kernels.set_mask_kernel,
+            actuator_kernels.fill_at_indices_kernel,
             dim=env_ids_wp.shape[0],
-            inputs=[env_mask, env_ids_wp],
+            inputs=[env_mask, env_ids_wp, True],
             device=self.device,
         )
 

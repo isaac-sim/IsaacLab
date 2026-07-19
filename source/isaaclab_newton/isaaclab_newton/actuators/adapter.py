@@ -29,11 +29,9 @@ from newton.actuators import Actuator, Clamping, Delay
 
 from .kernels import (
     build_implicit_dof_mask,
+    fill_at_indices_kernel,
     gather_env_mask_kernel,
-    mark_flat_kernel,
     scatter_flat_kernel,
-    set_mask_kernel,
-    zero_at_indices_kernel,
 )
 
 if TYPE_CHECKING:
@@ -119,10 +117,11 @@ class NewtonActuatorAdapter:
                 wp.launch(scatter_flat_kernel, dim=act.indices.shape[0], inputs=[ctrl.kp, act.indices, self._kp_flat])
             if hasattr(ctrl, "kd"):
                 wp.launch(scatter_flat_kernel, dim=act.indices.shape[0], inputs=[ctrl.kd, act.indices, self._kd_flat])
-            wp.launch(mark_flat_kernel, dim=act.indices.shape[0], inputs=[act.indices, self._managed_flat])
-        self._kp_flat_t = wp.to_torch(self._kp_flat)
-        self._kd_flat_t = wp.to_torch(self._kd_flat)
-        self._managed_flat_t = wp.to_torch(self._managed_flat)
+            wp.launch(fill_at_indices_kernel, dim=act.indices.shape[0], inputs=[self._managed_flat, act.indices, True])
+
+        # Preallocated reset scratch (no allocation at reset-rate).
+        self._reset_env_mask = wp.zeros(num_envs, dtype=wp.bool, device=device)
+        self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
@@ -135,7 +134,6 @@ class NewtonActuatorAdapter:
         # happens in :meth:`finalize`; per-articulation strided views are
         # built by :meth:`bind_articulation`.
         self._computed_effort = wp.zeros(dof_count, dtype=wp.float32, device=device)
-        self._computed_effort_t = wp.to_torch(self._computed_effort)
         for act in actuators:
             act.control_computed_output_attr = "joint_computed_f"
 
@@ -169,9 +167,9 @@ class NewtonActuatorAdapter:
         self._computed_effort.zero_()
         for act in self.actuators:
             wp.launch(
-                zero_at_indices_kernel,
+                fill_at_indices_kernel,
                 dim=act.indices.shape[0],
-                inputs=[sim_control.joint_f, act.indices],
+                inputs=[sim_control.joint_f, act.indices, 0.0],
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
@@ -209,11 +207,11 @@ class NewtonActuatorAdapter:
             if len(env_ids) == 0:
                 return
             idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
-        env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-        wp.launch(set_mask_kernel, dim=idx.shape[0], inputs=[env_mask, idx], device=self._device)
+        env_mask = self._reset_env_mask
+        env_mask.zero_()
+        wp.launch(fill_at_indices_kernel, dim=idx.shape[0], inputs=[env_mask, idx, True], device=self._device)
 
-        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
+        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
             wp.launch(
                 gather_env_mask_kernel,
                 dim=act.indices.shape[0],
@@ -264,9 +262,9 @@ class NewtonActuatorAdapter:
         num_instances, num_joints = dof_map.shape
 
         stiffness, damping, joint_indices = build_newton_actuator_defaults(
-            kp_flat=self._kp_flat_t,
-            kd_flat=self._kd_flat_t,
-            managed_flat=self._managed_flat_t,
+            kp_flat=wp.to_torch(self._kp_flat),
+            kd_flat=wp.to_torch(self._kd_flat),
+            managed_flat=wp.to_torch(self._managed_flat),
             dof_index_map=dof_map,
             joint_user_to_backend_indices=joint_user_to_backend_indices,
         )
@@ -290,7 +288,7 @@ class NewtonActuatorAdapter:
         row_stride = int(row_strides[0]) if row_strides is not None else num_joints
         computed_effort_view = wp.from_torch(
             torch.as_strided(
-                self._computed_effort_t,
+                wp.to_torch(self._computed_effort),
                 size=(num_instances, num_joints),
                 stride=(row_stride, 1),
                 storage_offset=int(row_starts[0]),
