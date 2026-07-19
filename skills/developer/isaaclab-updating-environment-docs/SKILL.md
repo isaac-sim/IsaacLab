@@ -40,7 +40,7 @@ Run:
 ```
 
 Require ``./isaaclab.sh -d`` to exit successfully with no warnings or errors. Inspect the compiled
-``docs/_build/current/source/overview/environments.html`` page and verify that every new image and
+environment catalog page in the documentation build output and verify that every new image and
 substitution target renders correctly.
 
 ## Maintenance
