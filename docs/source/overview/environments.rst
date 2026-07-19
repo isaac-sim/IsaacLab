@@ -710,9 +710,9 @@ Others
     |                | |humanoid_amp_walk-link|  |                                                                             |                              |
     +----------------+---------------------------+-----------------------------------------------------------------------------+------------------------------+
 
-.. |humanoid_amp_dance-link| replace:: :isaaclab-source:`Isaac-Humanoid-AMP-Dance-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
-.. |humanoid_amp_run-link| replace:: :isaaclab-source:`Isaac-Humanoid-AMP-Run-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
-.. |humanoid_amp_walk-link| replace:: :isaaclab-source:`Isaac-Humanoid-AMP-Walk-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
+.. |humanoid_amp_dance-link| replace:: :isaaclab-source:`IsaacContrib-Humanoid-AMP-Dance-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
+.. |humanoid_amp_run-link| replace:: :isaaclab-source:`IsaacContrib-Humanoid-AMP-Run-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
+.. |humanoid_amp_walk-link| replace:: :isaaclab-source:`IsaacContrib-Humanoid-AMP-Walk-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`
 
 .. |humanoid_amp| image:: ../_static/tasks/others/humanoid_amp.jpg
 
