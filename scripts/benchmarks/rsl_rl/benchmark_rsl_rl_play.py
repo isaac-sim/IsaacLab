@@ -14,15 +14,8 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
-_BENCH_DIR = Path(__file__).resolve().parents[1]
-_RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
-if str(_RL_SCRIPTS) not in sys.path:
-    # Shared training utilities remain script-local, so their directory must be on sys.path.
-    sys.path.insert(0, str(_RL_SCRIPTS))
-
-import common as _common  # noqa: E402
+from isaaclab_rl.entrypoints import common as _common
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -168,7 +161,7 @@ def run(argv: list[str]) -> None:
 
         num_envs = env.unwrapped.num_envs
 
-        # Load the trained policy the same way scripts/reinforcement_learning/rsl_rl/play.py does.
+        # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_rsl_rl does.
         if agent_cfg.class_name == "OnPolicyRunner":
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
         elif agent_cfg.class_name == "DistillationRunner":

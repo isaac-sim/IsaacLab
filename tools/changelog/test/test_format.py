@@ -88,7 +88,7 @@ def test_version_bumped_rejects_non_semver():
 
 def test_version_accepts_dev_suffix():
     """PEP 440 ``.devN`` suffixes are tolerated on construction (they appear in
-    real ``extension.toml`` files between releases) and stripped on bump."""
+    real ``pyproject.toml`` files between releases) and stripped on bump."""
     v = cli.Version("4.6.21.dev20260301")
     assert v.text == "4.6.21.dev20260301"
     assert v.bumped("patch").text == "4.6.22"

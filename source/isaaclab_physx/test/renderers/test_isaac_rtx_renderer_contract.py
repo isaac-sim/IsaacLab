@@ -107,6 +107,45 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)
 
 
+_MISSING = object()
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected_called"),
+    [
+        pytest.param(True, True, id="deterministic-true-applies-settings"),
+        pytest.param(False, False, id="deterministic-false-skips-settings"),
+        pytest.param(_MISSING, False, id="deterministic-missing-skips-settings"),
+    ],
+)
+def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, expected_called):
+    """IsaacRtxRenderer applies RTX determinism settings only when ``/isaaclab/render/deterministic`` is true."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    # RTX rendering requires cameras to be enabled.
+    settings_values = {"/isaaclab/cameras_enabled": True}
+    if stored is not _MISSING:
+        settings_values["/isaaclab/render/deterministic"] = stored
+
+    settings = MagicMock()
+    settings.get.side_effect = settings_values.get
+    determinism_mock = MagicMock()
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "apply_isaac_rtx_global_settings"),
+        patch.object(rtx_renderer, "apply_isaac_rtx_determinism_settings", determinism_mock),
+        patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
+    ):
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+
+    assert determinism_mock.called is expected_called
+    if expected_called:
+        determinism_mock.assert_called_once_with(settings)
+
+
 def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monkeypatch):
     """read_output replaces (not merges): a dropped annotator info resets its info entry, seeded keys persist."""
     _install_omni_stubs(monkeypatch)

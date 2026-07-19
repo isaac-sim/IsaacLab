@@ -5,11 +5,6 @@
 
 """Test dataset generation with SkillGen for Isaac Lab Mimic workflow."""
 
-from isaaclab.app import AppLauncher
-
-# Launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import os
 import sys
 import tempfile

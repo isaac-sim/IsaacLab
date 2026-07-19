@@ -55,6 +55,10 @@ class OVRTXRendererCfg(RendererCfg):
 
     If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
     If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
+
+    Regardless of this setting, the instance ID (or color) to prim-path mapping is exposed via
+    ``camera.data.info["instance_segmentation_fast"]["idToLabels"]`` and the instance ID (or color) to
+    semantic-label mapping via ``camera.data.info["instance_segmentation_fast"]["idToSemantics"]``.
     """
 
     colorize_instance_id_segmentation: bool = True

@@ -36,7 +36,7 @@ from isaaclab.utils._device import set_cuda_device
 logger = logging.getLogger(__name__)
 
 # Class names of the kitless physics backends (Newton, OvPhysX). Matched by exact
-# name so subclasses with distinct names (e.g. ``DeformableNewtonCfg``) opt out.
+# name so subclasses with distinct names opt out.
 _KITLESS_PHYSICS_CFGS = ("NewtonCfg", "OvPhysxCfg")
 
 
@@ -55,7 +55,7 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     """Build a concrete physics config for the requested backend.
 
     Args:
-        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, or ``"ovphysx"``.
+        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, ``"newton_vbd"``, or ``"ovphysx"``.
 
     Returns:
         A new physics config instance for the requested backend.
@@ -67,9 +67,22 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
         return PhysxCfg()
     if physics_cfg_str == "newton_mjwarp":
         return NewtonCfg()
+    if physics_cfg_str == "newton_vbd":
+        # lazy import: core depends on isaaclab_contrib only when VBD is requested
+        try:
+            from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+        except ImportError as err:
+            raise ImportError(
+                "The 'newton_vbd' physics backend requires the isaaclab_contrib package."
+                " Install it with `./isaaclab.sh -i contrib`."
+            ) from err
+
+        return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
-    raise ValueError(f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', or 'ovphysx').")
+    raise ValueError(
+        f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', 'newton_vbd', or 'ovphysx')."
+    )
 
 
 """
@@ -317,8 +330,9 @@ def _has_kit_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | d
 
 
 def _uses_isaac_sim_runtime(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
-    """Return whether the scanned config requires Isaac Sim / Kit."""
-    return config_scan.needs_kit or _has_kit_visualizer(config_scan, launcher_args)
+    """Return whether the scanned config or launcher arguments require Isaac Sim / Kit."""
+    explicit_experience = bool(_get_arg(launcher_args, "experience", ""))
+    return explicit_experience or config_scan.needs_kit or _has_kit_visualizer(config_scan, launcher_args)
 
 
 def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | None) -> None:

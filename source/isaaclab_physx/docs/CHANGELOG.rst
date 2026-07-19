@@ -1,6 +1,52 @@
 Changelog
 ---------
 
+2.9.1 (2026-07-15)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_physx.renderers.isaac_rtx_renderer.IsaacRtxRenderer.update_geometries`
+  as a no-op hook implementation; Isaac RTX reads deformable geometry from the
+  USD stage directly.
+
+
+2.9.0 (2026-07-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg`, the ``physxArticulation:*``
+  single-namespace articulation-root fragment (PhysX ``PhysxArticulationAPI``). It carries
+  ``articulation_enabled``, ``enabled_self_collisions``, solver position / velocity iteration
+  counts, and sleep / stabilization thresholds, and composes in an ``articulation_props`` fragment
+  list applied via :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`.
+
+
+2.8.2 (2026-07-11)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`
+  to apply Isaac RTX RealTimePathTracing and RTPT cache settings for reproducible rendering.
+* Added :class:`~isaaclab_physx.renderers.isaac_rtx_renderer.IsaacRtxRenderer` support for
+  ``/isaaclab/render/deterministic`` (set via ``--deterministic``).
+
+Changed
+^^^^^^^
+
+* Changed the buffer update of the contact sensor to capture its warp kernels into CUDA
+  graphs and replay them on subsequent updates, reducing the per-step CPU overhead of the
+  sensor. The PhysX tensor reads still run eagerly since they cannot be graph-captured.
+  The kernels also run eagerly on CPU devices or when graph capture fails. Updating the
+  sensor while an outer CUDA graph capture is active now raises an error, since replays
+  of such a graph would consume stale contact data.
+
+
 2.8.1 (2026-07-10)
 ~~~~~~~~~~~~~~~~~~
 

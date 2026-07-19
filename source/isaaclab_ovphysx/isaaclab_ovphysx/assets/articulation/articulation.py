@@ -244,7 +244,8 @@ class Articulation(BaseArticulation):
             )
             if self._get_binding(TT.LINK_WRENCH) is not None:
                 self._root_view.set_attribute(TT.LINK_WRENCH, self._wrench_buf)
-            inst.reset()
+            if inst.active:
+                inst.reset()
 
         # apply actuator models
         self._apply_actuator_model()
@@ -822,6 +823,57 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp
         )
+
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set joint positions and velocities over selected indices into the simulation.
+
+        The joint position and velocity caches, finite-difference velocity baseline, and
+        joint acceleration cache are updated in one device kernel.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            position: Joint positions [m or rad, depending on joint type]. Shape is
+                (len(env_ids), len(joint_ids)) with dtype wp.float32.
+            velocity: Joint velocities [m/s or rad/s, depending on joint type]. Shape is
+                (len(env_ids), len(joint_ids)) with dtype wp.float32.
+            joint_ids: Joint indices. Defaults to None (all joints).
+            env_ids: Environment indices. Defaults to None (all environments).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        expected_shape = (env_ids.shape[0], joint_ids.shape[0])
+        self.assert_shape_and_dtype(position, expected_shape, wp.float32, "position")
+        self.assert_shape_and_dtype(velocity, expected_shape, wp.float32, "velocity")
+        wp.launch(
+            shared_kernels.write_joint_state_to_buffer_with_indices,
+            dim=expected_shape,
+            inputs=[position, velocity, env_ids, joint_ids],
+            outputs=[
+                self._data._joint_pos_buf.data,
+                self._data._joint_vel_buf.data,
+                self._data._previous_joint_vel,
+                self._data._joint_acc.data,
+            ],
+            device=self._device,
+        )
+        self._data._joint_acc.timestamp = self._data._sim_timestamp
+        if not skip_forward:
+            self._data._reset_pose()
+            self._data._reset_velocity()
+        self._root_view.set_attribute(TT.DOF_POSITION, self._data._joint_pos_buf.data, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, self._data._joint_vel_buf.data, indices=env_ids)
 
     def write_joint_position_to_sim_index(
         self,
@@ -3924,6 +3976,10 @@ class Articulation(BaseArticulation):
             if not joint_ids:
                 logger.warning("Actuator '%s': no joints matched '%s'", name, act_cfg.joint_names_expr)
                 continue
+            if len(joint_names) == self.num_joints:
+                actuator_joint_ids = slice(None)
+            else:
+                actuator_joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
             act_cfg_copy = act_cfg.copy()
             # seed the actuator with the simulation's already-correct DOF defaults
             # (USD-authored ``physxJoint:maxJointVelocity`` etc. parsed at scene-load).
@@ -3933,17 +3989,17 @@ class Articulation(BaseArticulation):
             act = act_cfg_copy.class_type(
                 act_cfg_copy,
                 joint_names=joint_names,
-                joint_ids=joint_ids,
+                joint_ids=actuator_joint_ids,
                 num_envs=self._num_instances,
                 device=self._device,
-                stiffness=self._data.joint_stiffness.torch[:, joint_ids],
-                damping=self._data.joint_damping.torch[:, joint_ids],
-                armature=self._data.joint_armature.torch[:, joint_ids],
-                friction=self._data.joint_friction_coeff.torch[:, joint_ids],
-                dynamic_friction=self._data.joint_dynamic_friction_coeff.torch[:, joint_ids],
-                viscous_friction=self._data.joint_viscous_friction_coeff.torch[:, joint_ids],
-                effort_limit=self._data.joint_effort_limits.torch[:, joint_ids].clone(),
-                velocity_limit=self._data.joint_vel_limits.torch[:, joint_ids],
+                stiffness=self._data.joint_stiffness.torch[:, actuator_joint_ids],
+                damping=self._data.joint_damping.torch[:, actuator_joint_ids],
+                armature=self._data.joint_armature.torch[:, actuator_joint_ids],
+                friction=self._data.joint_friction_coeff.torch[:, actuator_joint_ids],
+                dynamic_friction=self._data.joint_dynamic_friction_coeff.torch[:, actuator_joint_ids],
+                viscous_friction=self._data.joint_viscous_friction_coeff.torch[:, actuator_joint_ids],
+                effort_limit=self._data.joint_effort_limits.torch[:, actuator_joint_ids].clone(),
+                velocity_limit=self._data.joint_vel_limits.torch[:, actuator_joint_ids],
             )
             self.actuators[name] = act
             self._joint_ids_per_actuator[name] = joint_ids
@@ -3978,10 +4034,7 @@ class Articulation(BaseArticulation):
         from isaaclab.utils.types import ArticulationActions
 
         for name, act in self.actuators.items():
-            jids = act.joint_indices
-            if jids is None:
-                continue
-            jids_t = jids if isinstance(jids, list) else list(jids)
+            jids_t = self._joint_ids_per_actuator[name]
             all_joints = len(jids_t) == self._num_joints
 
             # Warp -> torch (zero-copy on same device via DLPack).

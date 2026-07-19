@@ -13,16 +13,8 @@ and emits a :class:`~isaaclab.test.benchmark.schema.PlayBundle` JSON file. Dispa
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-_BENCH_DIR = Path(__file__).resolve().parents[1]
-_RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
-
-if str(_RL_SCRIPTS) not in sys.path:
-    # Shared training utilities remain script-local, so their directory must be on sys.path.
-    sys.path.insert(0, str(_RL_SCRIPTS))
-
-import common as _common  # noqa: E402
+from isaaclab_rl.entrypoints import common as _common
 
 
 def _parse_args(argv: list[str]):
@@ -38,9 +30,9 @@ def _parse_args(argv: list[str]):
     """
     import argparse
 
-    from isaaclab_tasks.utils import setup_preset_cli
+    from isaaclab.app import add_launcher_args
 
-    add_isaaclab_launcher_args = _common.add_isaaclab_launcher_args
+    from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with RL-Games.")
     help_requested = "-h" in argv or "--help" in argv
@@ -68,7 +60,7 @@ def _parse_args(argv: list[str]):
             " Example: 'schema,omniperf'."
         ),
     )
-    add_isaaclab_launcher_args(parser)
+    add_launcher_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
     sys.argv = [sys.argv[0]] + remaining_args
@@ -186,7 +178,7 @@ def run(argv: list[str]) -> None:
 
         num_envs = env.unwrapped.num_envs
 
-        # Load the trained policy the same way scripts/reinforcement_learning/rl_games/play.py does.
+        # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_rl_games does.
         agent_cfg["params"]["load_checkpoint"] = True
         agent_cfg["params"]["load_path"] = resume_path
         agent_cfg["params"]["config"]["num_actors"] = num_envs
@@ -202,7 +194,7 @@ def run(argv: list[str]) -> None:
         def policy(obs):
             """Map an observation batch to a deterministic action batch via the rl_games player.
 
-            Mirrors the inference path in ``scripts/reinforcement_learning/rl_games/play.py``:
+            Mirrors the inference path in ``isaaclab_rl.entrypoints.backends.play_rl_games``:
             extracts the ``"obs"`` tensor from the wrapper's dict observation and runs the
             player's deterministic action.
 
