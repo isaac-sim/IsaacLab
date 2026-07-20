@@ -1787,6 +1787,42 @@ def test_reset(sim, num_articulations, device):
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
+def test_write_root_velocity_invalidates_body_frame_cache(sim, num_articulations, device):
+    """Writing a root velocity must refresh the cached body-frame root velocities.
+
+    Regression for a cache-invalidation bug: ``root_lin_vel_b`` / ``root_ang_vel_b`` are gated on the
+    simulation timestamp, which a reset/velocity-write does not advance. Without invalidating those
+    buffers on a velocity write, the next read before any sim step returned stale (pre-write) values.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+
+    sim.reset()
+    # advance a few steps so the body-frame velocity caches are populated at the current timestamp
+    for _ in range(3):
+        sim.step()
+        articulation.update(sim.cfg.dt)
+    ang_before = articulation.data.root_ang_vel_b.torch.clone()
+
+    # write a distinctive root velocity WITHOUT stepping (so the sim timestamp does not advance)
+    new_vel = torch.zeros(num_articulations, 6, device=device)
+    new_vel[:, :3] = torch.tensor([3.0, 0.0, 0.0], device=device)  # linear velocity
+    new_vel[:, 3:] = torch.tensor([0.0, 0.0, 5.0], device=device)  # angular velocity (norm 5)
+    articulation.write_root_velocity_to_sim_index(
+        root_velocity=wp.from_torch(new_vel.contiguous(), dtype=wp.spatial_vectorf)
+    )
+
+    # the body-frame angular velocity must reflect the write; its norm is rotation-invariant (= 5)
+    ang_after = articulation.data.root_ang_vel_b.torch
+    torch.testing.assert_close(
+        ang_after.norm(dim=-1), torch.full((num_articulations,), 5.0, device=device), atol=1e-3, rtol=1e-3
+    )
+    # and it must actually differ from the stale pre-write value
+    assert not torch.allclose(ang_after, ang_before)
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     """Test applying of joint position target functions correctly for a robotic arm."""

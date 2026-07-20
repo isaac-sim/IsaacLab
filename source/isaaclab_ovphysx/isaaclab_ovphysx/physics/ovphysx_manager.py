@@ -494,7 +494,7 @@ class OvPhysxManager(PhysicsManager):
 
         Args:
             sim_stage: Live USD stage held by ``SimulationContext``.
-            target_file: Output ``.usda`` file path.  Overwritten if it exists.
+            target_file: Output ``.usdc`` file path.  Overwritten if it exists.
         """
         from pxr import Sdf  # noqa: PLC0415
 
@@ -594,7 +594,7 @@ class OvPhysxManager(PhysicsManager):
         # the physics runtime with proper clone lineage (which is what the
         # binding fast path expects).
         cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
-        stage_file = os.path.join(cls._tmp_dir.name, "scene.usda")
+        stage_file = os.path.join(cls._tmp_dir.name, "scene.usdc")
         cls._export_env0_only_stage(sim.stage, stage_file)
         cls._stage_path = stage_file
         logger.info("OvPhysxManager: exported env_0-scoped USD stage to %s", stage_file)
