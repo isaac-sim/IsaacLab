@@ -36,6 +36,8 @@ Run benchmarks using the Isaac Lab launcher:
 
          # Run Articulation method benchmarks
          uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
+         uv run python source/isaaclab_newton/benchmark/assets/benchmark_articulation.py
+         uv run python source/isaaclab_ovphysx/benchmark/assets/benchmark_articulation.py
 
          # With custom parameters
          uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
@@ -50,6 +52,8 @@ Run benchmarks using the Isaac Lab launcher:
 
          # Run Articulation method benchmarks
          ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
+         ./isaaclab.sh -p source/isaaclab_newton/benchmark/assets/benchmark_articulation.py
+         ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/assets/benchmark_articulation.py
 
          # With custom parameters
          ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \

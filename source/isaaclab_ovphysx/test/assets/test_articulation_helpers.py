@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import warp as wp
 
@@ -137,3 +138,50 @@ def test_mock_binding_set_rigid_object_shapes():
     # Articulation-only bindings must be absent
     assert TT.DOF_POSITION not in bindings.bindings
     assert TT.LINK_WRENCH not in bindings.bindings
+
+
+def test_mock_binding_benchmark_mode_reuses_warp_source(monkeypatch):
+    """Benchmark reads should allocate their mock Warp source only once."""
+    from isaaclab_ovphysx import tensor_types as TT
+
+    bindings = MockOvPhysxBindingSet(num_instances=4, num_joints=1, num_bodies=2, benchmark_mode=True)
+    destination = wp.empty((4, 2), dtype=wp.spatial_vectorf, device="cpu")
+    from_numpy = wp.from_numpy
+    call_count = 0
+
+    def count_from_numpy(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return from_numpy(*args, **kwargs)
+
+    monkeypatch.setattr(wp, "from_numpy", count_from_numpy)
+    bindings.bindings[TT.LINK_VELOCITY].read(destination)
+    bindings.bindings[TT.LINK_VELOCITY].read(destination)
+
+    assert call_count == 1
+
+
+def test_mock_binding_benchmark_mode_skips_write_scatter():
+    """Benchmark writes should not include mock-only NumPy scatter work."""
+    from isaaclab_ovphysx import tensor_types as TT
+
+    bindings = MockOvPhysxBindingSet(num_instances=4, num_joints=1, num_bodies=2, benchmark_mode=True)
+    binding = bindings.bindings[TT.DOF_POSITION_TARGET]
+    initial_data = binding._data.copy()
+    values = wp.ones((4, 1), dtype=wp.float32, device="cpu")
+
+    binding.write(values)
+
+    np.testing.assert_array_equal(binding._data, initial_data)
+
+
+def test_mock_binding_read_preserves_structured_warp_dtype():
+    """Mock bindings should read flat component data into structured Warp arrays."""
+    from isaaclab_ovphysx import tensor_types as TT
+
+    bindings = MockOvPhysxBindingSet(num_instances=4, num_joints=1, num_bodies=2)
+    destination = wp.empty((4, 2), dtype=wp.spatial_vectorf, device="cpu")
+
+    bindings.bindings[TT.LINK_VELOCITY].read(destination)
+
+    assert destination.numpy().shape == (4, 2, 6)
