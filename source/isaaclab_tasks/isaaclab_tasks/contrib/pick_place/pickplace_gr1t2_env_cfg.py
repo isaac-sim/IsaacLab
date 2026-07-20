@@ -18,6 +18,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
@@ -25,6 +26,7 @@ from isaaclab.utils.configclass import configclass
 from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
+from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg  # isort: skip
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
 
@@ -323,6 +325,25 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
+    # Per-hand fingertip contact sensors, filtered against the grasped object so
+    # force_matrix_w reports each finger's grip force on the steering wheel (used
+    # to drive per-finger haptic glove feedback; see GloveHapticFeedbackCfg below).
+    # The Fourier hand exposes thumb/index/middle/ring/pinky distal-most links.
+    left_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*L_(thumb_distal|index_intermediate|middle_intermediate|"
+        "ring_intermediate|pinky_intermediate)_link",
+        filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+        update_period=0.0,
+        history_length=3,
+    )
+    right_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*R_(thumb_distal|index_intermediate|middle_intermediate|"
+        "ring_intermediate|pinky_intermediate)_link",
+        filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+        update_period=0.0,
+        history_length=3,
+    )
+
     # Ground plane
     ground = AssetBaseCfg(
         prim_path="/World/GroundPlane",
@@ -606,4 +627,14 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+        )
+
+        # Per-finger haptic glove feedback: vibrate each finger of the operator's
+        # glove in proportion to how tightly it grips the object. The session
+        # always requests the push-tensor extension the glove device needs, so
+        # this stays inert (no glove connected) rather than failing.
+        self.haptic_feedback = GloveHapticFeedbackCfg(
+            left_sensor_name="left_hand_contact",
+            right_sensor_name="right_hand_contact",
+            object_name="object",
         )

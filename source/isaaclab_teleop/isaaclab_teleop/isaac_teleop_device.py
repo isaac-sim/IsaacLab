@@ -140,9 +140,9 @@ class IsaacTeleopDevice:
                 start.  When ``False`` (the default), the pipeline carries no
                 visualization overhead.
             haptic_cfg: Optional haptic-feedback configuration.  When provided,
-                the device renders per-hand contact forces pushed via
-                :meth:`send_haptic` as controller vibration.  ``None`` disables
-                haptics.
+                the device renders per-hand output vectors pushed via
+                :meth:`send_haptic` on the configured device (controller, glove,
+                ...).  ``None`` disables haptics.
         """
         self._cfg = cfg
 
@@ -233,8 +233,7 @@ class IsaacTeleopDevice:
         """
         self._anchor_manager.reset()
         self._session_lifecycle.request_reset()
-        self._session_lifecycle.push_haptic("left", 0.0)
-        self._session_lifecycle.push_haptic("right", 0.0)
+        self._session_lifecycle.reset_haptics()
 
     @property
     def last_control_events(self) -> ControlEvents:
@@ -312,20 +311,21 @@ class IsaacTeleopDevice:
 
         return action
 
-    def send_haptic(self, endpoint: str, force: float) -> None:
-        """Render a haptic pulse on one controller from a contact force.
+    def send_haptic(self, endpoint: str, values) -> None:
+        """Render one frame of haptic output on a device endpoint.
 
         Implements the :class:`~isaaclab_teleop.HapticFeedbackReceiver` protocol.
-        The force is cached and injected into the haptic sink on the next
+        The vector is cached and injected into the haptic sink on the next
         :meth:`advance`.  This is a no-op unless the device was constructed with
         a ``haptic_cfg``.
 
         Args:
             endpoint: ``"left"`` or ``"right"`` (see
                 :data:`~isaaclab_teleop.haptic_feedback.ENDPOINT_LEFT`).
-            force: Contact-force magnitude [N]; ``0`` stops any active pulse.
+            values: The per-hand output vector (one scalar for a rumble motor, one
+                value per finger for a glove); an all-zero vector stops feedback.
         """
-        self._session_lifecycle.push_haptic(endpoint, force)
+        self._session_lifecycle.push_haptic(endpoint, values)
 
     # ------------------------------------------------------------------
     # Debug visualization
@@ -554,8 +554,8 @@ def create_isaac_teleop_device(
             :paramref:`IsaacTeleopDevice.enable_debug_visualization`.
         haptic_cfg: Optional haptic-feedback configuration.  When provided, the
             returned device implements
-            :class:`~isaaclab_teleop.HapticFeedbackReceiver` and renders
-            per-hand contact forces as controller vibration.
+            :class:`~isaaclab_teleop.HapticFeedbackReceiver` and renders per-hand
+            output vectors on the configured device (controller, glove, ...).
 
     Returns:
         A fully configured :class:`IsaacTeleopDevice` ready for use in a
