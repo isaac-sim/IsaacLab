@@ -3,509 +3,488 @@
 Benchmark Framework API
 =======================
 
-This advanced reference explains how to call benchmark workflows from Python,
-record custom measurements, select output formatters, and extend the benchmark
-framework. To run and interpret the supported CLI workflows, see
-:ref:`testing_benchmarks`.
+This advanced guide is for automation authors who need to run supported
+benchmarks from Python, consume typed results, or add a benchmark producer. For
+day-to-day benchmarking, start with the CLI workflows and interpretation
+guidance in :ref:`testing_benchmarks`.
 
-Use The Python API
-------------------
+.. seealso::
 
-The canonical runtime, startup, training, and play workflows live in
-:mod:`isaaclab.benchmark`.
+   To isolate one asset method, cached property, or sensor update, see
+   :ref:`testing_micro_benchmarks`. Those workloads use the framework described
+   here, but have a different timing protocol and interpretation.
 
-Programmatic dispatch uses typed requests and returns the result bundle together
-with every formatter output path:
+Choose The Supported API
+------------------------
+
+Use the typed workflow API whenever an existing workflow answers the question.
+It applies the same launch, task, timing, schema, and output behavior as the CLI.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 37 38
+
+   * - Question
+     - Request
+     - Runner
+   * - Environment-step capacity
+     - :class:`~isaaclab.benchmark.BenchmarkRuntimeRequest`
+     - :func:`~isaaclab.benchmark.run_runtime_benchmark`
+   * - Application and task startup
+     - :class:`~isaaclab.benchmark.BenchmarkStartupRequest`
+     - :func:`~isaaclab.benchmark.run_startup_benchmark`
+   * - RL training and learning
+     - :class:`~isaaclab.benchmark.BenchmarkTrainingRequest`
+     - :func:`~isaaclab.benchmark.run_training_benchmark`
+   * - Trained-policy playback
+     - :class:`~isaaclab.benchmark.BenchmarkPlayRequest`
+     - :func:`~isaaclab.benchmark.run_play_benchmark`
+
+:func:`~isaaclab.benchmark.run_benchmark` accepts any of these request types
+when generic dispatch is more convenient. Use
+:class:`~isaaclab.benchmark.BaseIsaacLabBenchmark` only when implementing a
+measurement workflow that the supported requests do not cover.
+
+Run A Workflow From Python
+--------------------------
+
+The following complete runtime example measures 1000 steps after 50 warm-up
+steps, disables visualizers, and requests both the stable schema and the
+human-readable summary:
 
 .. code-block:: python
+
+   from pathlib import Path
+
+   from isaaclab.benchmark import (
+       BenchmarkLauncherConfig,
+       BenchmarkOutputConfig,
+       BenchmarkRuntimeRequest,
+       run_runtime_benchmark,
+   )
+
+   result = run_runtime_benchmark(
+       BenchmarkRuntimeRequest(
+           task="Isaac-Cartpole-Direct",
+           num_envs=4096,
+           num_frames=1000,
+           warmup_frames=50,
+           seed=42,
+           presets=("newton_mjwarp",),
+           output=BenchmarkOutputConfig(
+               path=Path("results/runtime"),
+               formatters=("schema", "summary"),
+           ),
+           launcher=BenchmarkLauncherConfig(visualizers=()),
+       )
+   )
+
+   print(f"Total FPS: {result.bundle.runtime.total_fps.mean:,.0f}")
+   for output_path in result.output_paths:
+       print(output_path)
+
+Run the file through the Isaac Lab Python wrapper:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p runtime_benchmark.py
+
+The terminal receives the summary report. The two paths returned in
+``result.output_paths`` identify the schema and summary JSON files actually
+written; do not reconstruct their timestamped names in automation.
+
+The other workflows use the same output and launcher objects. These focused
+examples show their workflow-specific inputs and results.
+
+Startup profiling records wall time and the most expensive functions for each
+phase:
+
+.. code-block:: python
+
+   from pathlib import Path
+
+   from isaaclab.benchmark import (
+       BenchmarkLauncherConfig,
+       BenchmarkOutputConfig,
+       BenchmarkStartupRequest,
+       run_startup_benchmark,
+   )
+
+   result = run_startup_benchmark(
+       BenchmarkStartupRequest(
+           task="Isaac-Cartpole-Direct",
+           num_envs=4096,
+           top_n=20,
+           presets=("newton_mjwarp",),
+           output=BenchmarkOutputConfig(
+               path=Path("results/startup"),
+               formatters=("schema", "summary"),
+           ),
+           launcher=BenchmarkLauncherConfig(visualizers=()),
+       )
+   )
+   print(f"Environment creation: {result.bundle.phases['env_creation'].total_time_s:.3f} s")
+
+Training returns the checkpoint produced by the selected RL library:
+
+.. code-block:: python
+
+   from pathlib import Path
 
    from isaaclab.benchmark import (
        BenchmarkLauncherConfig,
        BenchmarkOutputConfig,
        BenchmarkTrainingRequest,
-       run_benchmark,
+       run_training_benchmark,
    )
 
-   result = run_benchmark(
+   result = run_training_benchmark(
        BenchmarkTrainingRequest(
            backend="rsl_rl",
            task="Isaac-Cartpole-Direct",
            num_envs=4096,
            max_iterations=500,
+           warmup_steps=50,
+           seed=42,
            presets=("newton_mjwarp",),
-           output=BenchmarkOutputConfig(formatters=("schema", "summary")),
+           output=BenchmarkOutputConfig(
+               path=Path("results/training"),
+               formatters=("schema", "summary"),
+           ),
            launcher=BenchmarkLauncherConfig(visualizers=()),
        )
    )
+   print(f"Collection FPS: {result.bundle.runtime.collection_fps.mean:,.0f}")
+   print(f"Checkpoint: {result.bundle.checkpoint_path}")
 
-   print(result.bundle.runtime.total_fps.mean)
-   print(result.output_paths)
-
-See the full :mod:`isaaclab.benchmark` API reference for all supported
-requests, result bundles, and framework types.
-
-Benchmark Core
---------------
-
-Basic usage with :class:`~isaaclab.benchmark.BaseIsaacLabBenchmark`:
+Pass the persisted ``checkpoint_path`` to a play request in a **new process**:
 
 .. code-block:: python
+
+   from pathlib import Path
+
+   from isaaclab.benchmark import (
+       BenchmarkLauncherConfig,
+       BenchmarkOutputConfig,
+       BenchmarkPlayRequest,
+       run_play_benchmark,
+   )
+
+   checkpoint = Path("checkpoint.txt").read_text().strip()
+   result = run_play_benchmark(
+       BenchmarkPlayRequest(
+           backend="rsl_rl",
+           task="Isaac-Cartpole-Direct",
+           checkpoint=checkpoint,
+           num_envs=4096,
+           num_frames=1000,
+           warmup_steps=50,
+           seed=42,
+           presets=("newton_mjwarp",),
+           output=BenchmarkOutputConfig(
+               path=Path("results/play"),
+               formatters=("schema", "summary"),
+           ),
+           launcher=BenchmarkLauncherConfig(visualizers=()),
+       )
+   )
+   print(f"Environment + inference FPS: {result.bundle.runtime.collection_fps.mean:,.0f}")
+
+Persist the training checkpoint path in an orchestration artifact, configuration
+store, or the training schema file before starting play. A simulator application
+owns process-level state and is not designed to be repeatedly launched and
+closed by several workflow calls in one Python process.
+
+Configure Requests
+------------------
+
+All requests share the task identifier, optional environment count and seed,
+task configuration, output configuration, and launcher configuration.
+
+.. list-table:: Shared request fields
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Field
+     - Purpose
+   * - ``task``
+     - Registered Gym task identifier, for example ``Isaac-Cartpole-Direct``.
+   * - ``num_envs`` and ``seed``
+     - Environment count and random seed. Keep both fixed for comparisons.
+   * - ``presets``
+     - Typed task presets, such as ``("newton_mjwarp",)``.
+   * - ``hydra_args``
+     - Additional Hydra overrides, represented as a tuple of strings.
+   * - ``output``
+     - :class:`~isaaclab.benchmark.BenchmarkOutputConfig` controlling the output
+       directory and formatter set.
+   * - ``launcher``
+     - :class:`~isaaclab.benchmark.BenchmarkLauncherConfig` controlling device,
+       cameras, visualizers, Kit, livestream, and logging options.
+
+Workflow requests add the following measurement controls:
+
+.. list-table:: Workflow-specific fields
+   :header-rows: 1
+   :widths: 22 26 52
+
+   * - Workflow
+     - Fields
+     - Meaning
+   * - Runtime
+     - ``num_frames``, ``warmup_frames``
+     - Measured environment steps and preceding excluded steps.
+   * - Startup
+     - ``top_n``, ``whitelist_config``
+     - Number and optional filter of profiled functions retained per phase.
+   * - Training
+     - ``backend``, ``max_iterations``, ``warmup_steps``
+     - RL library, learning iterations, and initial environment steps excluded
+       from environment-step timing.
+   * - Play
+     - ``backend``, ``checkpoint``, ``num_frames``, ``warmup_steps``
+     - RL library, policy, measured inference steps, and initial excluded steps.
+
+Training exposes additional learning, video, sensor capture, and convergence
+options. Training and play also expose ``backend_args`` for options that truly
+belong to one RL library. Prefer typed fields, presets, and ``hydra_args`` when
+they express the option; ``backend_args`` bypasses the common request contract.
+See the :mod:`isaaclab.benchmark` API reference for the exhaustive field list.
+
+An empty ``visualizers`` tuple explicitly disables every visualizer. ``None``
+preserves task and environment defaults. Enabling cameras, rendering,
+livestreaming, deterministic behavior, or animation recording changes the
+workload and must be kept identical across compared runs.
+
+Choose Output Formats
+~~~~~~~~~~~~~~~~~~~~~
+
+Select one or more formatter names in
+:class:`~isaaclab.benchmark.BenchmarkOutputConfig`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Formatter
+     - Contract
+   * - ``schema``
+     - Writes the stable typed bundle. Use this for programmatic comparison and
+       long-lived result storage.
+   * - ``summary``
+     - Prints a compact terminal report and writes a flat metrics JSON file.
+   * - ``json``
+     - Writes the lower-level phase, measurement, and metadata representation.
+   * - ``osmo``
+     - Writes phase-oriented KPI files for Osmo consumers.
+   * - ``omniperf``
+     - Writes the OmniPerf KPI representation.
+
+Use ``("schema", "summary")`` for results intended for review or publication:
+the summary gives immediate feedback while the schema preserves typed data for
+analysis. With multiple formatters, each output filename includes its formatter
+name so JSON outputs cannot overwrite each other.
+
+Read Results
+------------
+
+Every workflow returns :class:`~isaaclab.benchmark.BenchmarkResult` with two
+members:
+
+* ``bundle`` is a :class:`~isaaclab.benchmark.RuntimeBundle`,
+  :class:`~isaaclab.benchmark.StartupBundle`,
+  :class:`~isaaclab.benchmark.TrainingBundle`, or
+  :class:`~isaaclab.benchmark.PlayBundle`.
+* ``output_paths`` is the exact tuple of :class:`pathlib.Path` objects written
+  by the selected formatters.
+
+Consume typed fields rather than scraping terminal text or depending on keys in
+``bundle.extra``:
+
+.. code-block:: python
+
+   # Runtime or play
+   total_fps = result.bundle.runtime.total_fps.mean
+   step_fps = result.bundle.runtime.environment_step_timing.environment_step_fps.mean
+
+   # Startup
+   scene_creation_s = result.bundle.phases["env_creation"].total_time_s
+
+   # Training
+   collection_fps = result.bundle.runtime.collection_fps.mean
+   final_reward = result.bundle.learning.reward.final_raw
+   checkpoint = result.bundle.checkpoint_path
+
+   # Play, when at least one episode completed
+   mean_return = result.bundle.reward.mean if result.bundle.reward is not None else None
+
+The common ``run``, ``versions``, and ``hardware`` fields carry the comparison
+context. ``runtime`` separates collection throughput, total throughput, startup
+time, and environment-step timing. See :ref:`testing_benchmarks` for the meaning
+of those scopes and the public API reference for every schema field.
+
+Handle Errors And Process Lifetime
+----------------------------------
+
+Typed dispatch converts a workflow parser rejection into ``ValueError``. A
+workflow that exits without returning a result raises ``RuntimeError``. Invalid
+output configuration, such as an empty formatter tuple or an unknown formatter,
+also fails rather than silently producing an incomplete result.
+
+Run each workflow in a separate process. This gives every benchmark a clean
+simulator lifecycle, prevents state from one workflow contaminating another,
+and matches the CLI execution model. Process startup is reported separately and
+is not included in steady-state throughput.
+
+.. warning::
+
+   ``measure_synchronized_step_breakdown=True`` inserts device
+   synchronizations around environment and simulation step boundaries. This
+   serializes work and changes the schedule being measured, especially on
+   Newton. Every rate from that run is diagnostic and must not be reported as
+   throughput. Time outside ``SimulationContext.step()`` includes required
+   action, actuator, state, manager, reset, wrapper, and synchronization work;
+   it is not equivalent to removable Isaac Lab overhead.
+
+Extend The Framework
+--------------------
+
+Use :class:`~isaaclab.benchmark.BaseIsaacLabBenchmark` when adding a producer
+whose lifecycle cannot be represented by a supported workflow. The framework
+provides phases, typed measurement and metadata records, system recorders, and
+formatters. It does not define the timing boundary for you.
+
+The main record types are:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Type
+     - Use
+   * - :class:`~isaaclab.benchmark.SingleMeasurement`
+     - One scalar with a unit, such as total duration or completed operations.
+   * - :class:`~isaaclab.benchmark.StatisticalMeasurement`
+     - Mean, standard deviation, sample count, and unit for repeated samples.
+   * - :class:`~isaaclab.benchmark.BooleanMeasurement`
+     - A status or correctness outcome.
+   * - :class:`~isaaclab.benchmark.DictMeasurement`
+     - Structured measurement data that is not a scalar sample.
+   * - :class:`~isaaclab.benchmark.ListMeasurement`
+     - A retained sample or learning series.
+   * - ``StringMetadata``, ``IntMetadata``, ``FloatMetadata``, ``DictMetadata``
+     - Configuration and identity needed to compare the measurement.
+
+Complete Custom Example
+~~~~~~~~~~~~~~~~~~~~~~~
+
+This executable example measures a CPU workload, records the sample
+distribution and configuration, updates system recorders, and always finalizes
+the benchmark:
+
+.. code-block:: python
+
+   import statistics
+   import time
 
    from isaaclab.benchmark import (
        BaseIsaacLabBenchmark,
-       SingleMeasurement,
+       IntMetadata,
        StatisticalMeasurement,
-       StringMetadata,
    )
 
-   # Initialize benchmark
+   num_iterations = 100
    benchmark = BaseIsaacLabBenchmark(
-       benchmark_name="MyBenchmark",
-       formatter_type="json",
-       output_path="./results",
+       benchmark_name="custom_cpu_workload",
+       formatter_type=["json", "summary"],
+       output_path="results/custom",
+       output_prefix="custom_cpu_workload",
+       use_recorders=False,
+       workflow_metadata={
+           "metadata": [{"name": "num_iterations", "data": num_iterations}]
+       },
    )
 
-   # Record measurements
-   benchmark.add_measurement(
-       phase_name="simulation",
-       measurement=SingleMeasurement(
-           name="fps",
-           value=1234.5,
-           unit="frames/sec"
-       ),
-   )
-
-   benchmark.add_measurement(
-       phase_name="simulation",
-       measurement=StatisticalMeasurement(
-           name="step_time",
-           mean=0.82,
-           std=0.05,
-           n=1000,
-           unit="ms"
-       ),
-   )
-
-   # Add metadata
-   benchmark.add_measurement(
-       phase_name="simulation",
-       metadata=StringMetadata(name="task", data="Isaac-Cartpole"),
-   )
-
-   # Finalize and write output
-   benchmark.finalize()
-
-Measurement Types
------------------
-
-The framework provides several measurement types for different data:
-
-SingleMeasurement
-~~~~~~~~~~~~~~~~~
-
-For single numeric values:
-
-.. code-block:: python
-
-   from isaaclab.benchmark import SingleMeasurement
-
-   measurement = SingleMeasurement(
-       name="total_frames",
-       value=100000,
-       unit="frames"
-   )
-
-StatisticalMeasurement
-~~~~~~~~~~~~~~~~~~~~~~
-
-For statistical summaries:
-
-.. code-block:: python
-
-   from isaaclab.benchmark import StatisticalMeasurement
-
-   measurement = StatisticalMeasurement(
-       name="step_time",
-       mean=0.82,
-       std=0.05,
-       n=1000,
-       unit="ms"
-   )
-
-BooleanMeasurement
-~~~~~~~~~~~~~~~~~~
-
-For pass/fail status:
-
-.. code-block:: python
-
-   from isaaclab.benchmark import BooleanMeasurement
-
-   measurement = BooleanMeasurement(
-       name="converged",
-       bvalue=True
-   )
-
-DictMeasurement
-~~~~~~~~~~~~~~~
-
-For structured data:
-
-.. code-block:: python
-
-   from isaaclab.benchmark import DictMeasurement
-
-   measurement = DictMeasurement(
-       name="config",
-       value={"learning_rate": 0.001, "batch_size": 64}
-   )
-
-ListMeasurement
-~~~~~~~~~~~~~~~
-
-For sequences of values:
-
-.. code-block:: python
-
-   from isaaclab.benchmark import ListMeasurement
-
-   measurement = ListMeasurement(
-       name="rewards_per_episode",
-       value=[100.5, 102.3, 98.7, 105.1]
-   )
-
-Test Phases
------------
-
-:class:`~isaaclab.benchmark.TestPhase` organizes measurements and metadata
-into logical groups. Common phases include:
-
-- ``benchmark_info``: Workflow name, timestamp, configuration
-- ``hardware_info``: CPU, GPU, memory information
-- ``version_info``: Software versions (Isaac Sim, PyTorch, etc.)
-- ``simulation``: Environment stepping metrics
-- ``training``: RL training metrics
-- ``runtime``: Execution time and resource usage
-
-Example:
-
-.. code-block:: python
-
-   # Measurements are automatically grouped by phase
-   benchmark.add_measurement("simulation", measurement=fps_measurement)
-   benchmark.add_measurement("simulation", metadata=task_metadata)
-   benchmark.add_measurement("training", measurement=reward_measurement)
-
-Output Formatters
------------------
-
-JSON Formatter
-~~~~~~~~~~~~~~
-
-Full output with all phases, measurements, and metadata:
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p ... --benchmark_formatter json --output_path ./results
-
-Output structure:
-
-.. code-block:: json
-
-   [
-     {
-       "phase_name": "simulation",
-       "measurements": [
-         {
-           "name": "MyBenchmark simulation fps",
-           "value": 1234.5,
-           "unit": "frames/sec",
-           "type": "single"
-         }
-       ],
-       "metadata": [
-         {"name": "MyBenchmark simulation task", "data": "Isaac-Cartpole", "type": "string"}
-       ]
-     }
-   ]
-
-Osmo Formatter
-~~~~~~~~~~~~~~
-
-Simplified key-value format for CI/CD integration:
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p ... --benchmark_formatter osmo --output_path ./results
-
-Output structure:
-
-.. code-block:: json
-
-   {
-     "workflow_name": "MyBenchmark",
-     "phase": "simulation",
-     "fps": 1234.5,
-     "task": "Isaac-Cartpole"
-   }
-
-OmniPerf Formatter
-~~~~~~~~~~~~~~~~~~
-
-Format for database upload and performance tracking:
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p ... --benchmark_formatter omniperf --output_path ./results
-
-Output structure:
-
-.. code-block:: json
-
-   {
-     "simulation": {
-       "workflow_name": "MyBenchmark",
-       "fps": 1234.5,
-       "step_time_mean": 0.82,
-       "step_time_std": 0.05
-     }
-   }
-
-Schema Formatter
-~~~~~~~~~~~~~~~~
-
-Writes a schema-v1 bundle attached with
-:meth:`~isaaclab.benchmark.BaseIsaacLabBenchmark.attach_bundle`. Use it
-with a ``RuntimeBundle``, ``TrainingBundle``, or ``StartupBundle`` when a
-typed, stable output contract is required.
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p ... --benchmark_formatter schema --output_path ./results
-
-Summary Formatter
-~~~~~~~~~~~~~~~~~
-
-Human-readable console report plus JSON file. Prints a formatted summary to the
-terminal while also writing the same data as JSON. Standard phases (runtime,
-startup, train, frametime, system info) are rendered with specialized formatting;
-any additional phases (e.g., from the startup profiling benchmark) are rendered
-automatically with their ``SingleMeasurement`` and ``StatisticalMeasurement``
-entries. Use when you want a quick readout without opening the JSON:
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p ... --benchmark_formatter summary --output_path ./results
-
-When ``summary`` is selected, frametime recorders are enabled automatically when
-running with Isaac Sim (Kit).
-
-Benchmark Monitor
------------------
-
-:class:`~isaaclab.benchmark.BenchmarkMonitor` enables continuous system
-monitoring during blocking operations like RL training loops:
-
-.. code-block:: python
-
-   from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
-
-   benchmark = BaseIsaacLabBenchmark(
-       benchmark_name="TrainingBenchmark",
-       formatter_type="json",
-       output_path="./results",
-   )
-
-   # Monitor system resources during blocking training call
-   with BenchmarkMonitor(benchmark, interval=1.0):
-       runner.learn(num_learning_iterations=1000)  # Blocking call
-
-   benchmark.finalize()
-
-The monitor runs in a background thread and periodically calls
-``update_manual_recorders()`` to capture CPU, GPU, and memory usage samples.
-
-System Recorders
-----------------
-
-The framework includes built-in recorders for system information:
-
-CPUInfoRecorder
-~~~~~~~~~~~~~~~
-
-Captures CPU model, core count, and usage statistics.
-
-GPUInfoRecorder
-~~~~~~~~~~~~~~~
-
-Captures GPU model, memory, and utilization via ``nvidia-smi``.
-
-MemoryInfoRecorder
-~~~~~~~~~~~~~~~~~~
-
-Captures system and GPU memory usage over time.
-
-VersionInfoRecorder
-~~~~~~~~~~~~~~~~~~~
-
-Captures software versions:
-
-- Isaac Sim version
-- Isaac Lab version
-- PyTorch version
-- CUDA version
-- Python version
-
-Create A Custom Benchmark
--------------------------
-
-Step 1: Initialize Benchmark
+   output_paths = ()
+   try:
+       for _ in range(10):
+           sum(value * value for value in range(10_000))
+
+       samples_ms = []
+       for _ in range(num_iterations):
+           start_ns = time.perf_counter_ns()
+           sum(value * value for value in range(10_000))
+           samples_ms.append((time.perf_counter_ns() - start_ns) / 1.0e6)
+
+       benchmark.add_measurement(
+           "workload",
+           measurement=StatisticalMeasurement(
+               name="duration",
+               mean=statistics.fmean(samples_ms),
+               std=statistics.stdev(samples_ms),
+               n=len(samples_ms),
+               unit="ms",
+           ),
+           metadata=IntMetadata(name="warmup_iterations", data=10),
+       )
+   finally:
+       output_paths = benchmark.finalize()
+
+   for output_path in output_paths:
+       print(output_path)
+
+Choose a meaningful phase name, state units explicitly, warm up before sampling,
+and report the sample count with the mean and standard deviation. For GPU work,
+define whether the measurement is submission latency or synchronized completion
+latency and place synchronization at deliberate boundaries.
+
+When a custom producer creates one of the stable workflow bundles, call
+``attach_bundle(bundle)`` before ``finalize()`` and select ``schema``. Otherwise,
+use the lower-level ``json`` representation. ``finalize()`` stops optional Kit
+frametime recorders, gathers recorder data, writes every selected formatter,
+and returns the paths written.
+
+System And Frametime Recorders
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With ``use_recorders=True`` (the default), the base class captures CPU, GPU,
+memory, and version metadata. Call ``update_manual_recorders()`` at least once
+before ``finalize()``, and update during long workloads when current utilization
+samples are needed.
+
+Set ``frametime_recorders=True`` only when a Kit application is running and the
+workload needs physics, render, application, or GPU frametime data. The
+framework enables the available Isaac Sim benchmark services and gracefully
+omits unavailable recorders. Frametime instrumentation is part of the workload;
+keep its setting fixed across comparisons.
+
+Isolate One Method Or Sensor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+:class:`~isaaclab.benchmark.MethodBenchmarkRunner` builds on the base class to
+repeat one method or property across input modes, warm-up steps, and instance
+counts. It is the common bridge used by the asset micro-benchmarks. Sensor
+benchmarks use live scenes and their own correctness and timing boundaries.
 
-   import argparse
-   from isaaclab.benchmark import BaseIsaacLabBenchmark
+Do not infer end-to-end environment or training throughput from either kind of
+isolated result. The command matrix, backend prerequisites, mock-versus-live
+distinction, output examples, and extension protocol are documented in
+:ref:`testing_micro_benchmarks`.
 
-   parser = argparse.ArgumentParser()
-   parser.add_argument("--benchmark_formatter", default="json")
-   parser.add_argument("--output_path", default="./")
-   args = parser.parse_args()
+Troubleshooting
+---------------
 
-   benchmark = BaseIsaacLabBenchmark(
-       benchmark_name="CustomBenchmark",
-       formatter_type=args.benchmark_formatter,
-       output_path=args.output_path,
-   )
+Run scripts through ``./isaaclab.sh -p`` so the Isaac Lab and simulator Python
+environment is active. If output is missing, inspect the returned
+``output_paths`` and make sure custom producers call ``finalize()``. Formatter
+names are lowercase and case-sensitive: ``schema``, ``summary``, ``json``,
+``osmo``, and ``omniperf``.
 
-Step 2: Run Your Workload
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Missing GPU metadata usually means ``nvidia-smi`` or CUDA device discovery is
+unavailable. Missing Kit frametime measurements can instead mean the relevant
+benchmark service is not present; it does not invalidate non-frametime phases.
 
-.. code-block:: python
-
-   import time
-
-   start_time = time.time()
-
-   # Your workload here
-   for i in range(num_iterations):
-       env.step(actions)
-
-   elapsed = time.time() - start_time
-
-Step 3: Record Measurements
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: python
-
-   from isaaclab.benchmark import SingleMeasurement, StringMetadata
-
-   benchmark.add_measurement(
-       phase_name="runtime",
-       measurement=SingleMeasurement(
-           name="total_time",
-           value=elapsed,
-           unit="seconds"
-       ),
-   )
-
-   benchmark.add_measurement(
-       phase_name="runtime",
-       metadata=StringMetadata(name="num_iterations", data=str(num_iterations)),
-   )
-
-Step 4: Finalize
-~~~~~~~~~~~~~~~~
-
-.. code-block:: python
-
-   benchmark.finalize()
-
-CI Integration
---------------
-
-The ``isaaclab benchmark`` entrypoints are designed for CI/CD integration:
-
-.. code-block:: bash
-
-   # GitHub Actions / GitLab CI example
-   - name: Run Runtime Benchmark
-     run: |
-       uv run isaaclab benchmark runtime \
-           --task Isaac-Cartpole --num_envs 4096 --num_frames 1000 \
-           --benchmark_formatter schema,summary --output_path ./benchmark_results
-
-   - name: Run Training Benchmark
-     run: |
-       uv run isaaclab benchmark training \
-           --rl_library rsl_rl --task Isaac-Cartpole --num_envs 4096 \
-           --max_iterations 500 --benchmark_formatter schema,summary \
-           --output_path ./benchmark_results
-
-   - name: Upload Results
-     uses: actions/upload-artifact@v3
-     with:
-       name: benchmark-results
-       path: ./benchmark_results/
-
-For Osmo integration, use the ``osmo`` formatter:
-
-.. code-block:: bash
-
-   uv run isaaclab benchmark runtime \
-       --task Isaac-Cartpole --num_envs 4096 --num_frames 1000 \
-       --benchmark_formatter osmo --output_path ./results
-   # Results are in Osmo-compatible JSON format
-
-Framework Troubleshooting
--------------------------
-
-Import Errors
-~~~~~~~~~~~~~
-
-Ensure you're running through the Isaac Lab launcher:
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p your_benchmark.py
-
-Not:
-
-.. code-block:: bash
-
-   python your_benchmark.py  # Missing environment setup
-
-Missing GPU Metrics
-~~~~~~~~~~~~~~~~~~~
-
-Verify ``nvidia-smi`` is available and CUDA is configured:
-
-.. code-block:: bash
-
-   nvidia-smi  # Should show GPU info
-
-Empty Output Files
-~~~~~~~~~~~~~~~~~~
-
-Ensure ``finalize()`` is called before the script exits:
-
-.. code-block:: python
-
-   try:
-       # Your benchmark code
-       pass
-   finally:
-       benchmark.finalize()
-
-Formatter Not Recognized
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Valid formatter types are: ``schema``, ``json``, ``osmo``, ``omniperf``, or ``summary``
-
-.. code-block:: bash
-
-   # Correct
-   --benchmark_formatter json
-
-   # Incorrect
-   --benchmark_formatter JSON  # Case sensitive
+For a new supported end-to-end workflow, keep typed request construction,
+dispatch, schema output, summary output, and CLI behavior aligned. For an
+isolated operation, continue with :ref:`testing_micro_benchmarks` before adding
+a new runner or timing convention.
