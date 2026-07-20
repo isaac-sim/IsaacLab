@@ -103,8 +103,7 @@ def test_version_single_source_matches_literal_pins():
     ]
     assert ovrtx_install_lines
     assert all(
-        f"ovrtx{versions['ovrtx']}" in line or "steps.ov_pins.outputs.ovrtx" in line
-        for line in ovrtx_install_lines
+        f"ovrtx{versions['ovrtx']}" in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines
     )
 
     # uv torch-stack overrides mirror the table.
