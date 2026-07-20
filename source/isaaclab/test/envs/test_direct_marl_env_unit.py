@@ -6,7 +6,7 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Unit tests for direct multi-agent environment space construction."""
+"""Unit tests for direct multi-agent reinforcement-learning environments."""
 
 from __future__ import annotations
 
