@@ -153,11 +153,11 @@ def build_runtime(
             [frames/s].
         total_fps: Per-iteration end-to-end throughput [frames/s].
         steps_per_iteration: Environment steps collected per iteration.
-        frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
         aggregate_throughput: When ``True``, report throughput means as total
             completed steps divided by total wall time. Standard deviation
             measures per-iteration dispersion around the effective mean, and
             peak remains the maximum per-iteration throughput.
+        frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
         environment_step_times_s: Positive per-environment-step wall times [s].
         simulation_step_times_s: Synchronized simulation wall times per environment step [s].
         simulation_step_calls: Number of measured simulation-step calls.
@@ -178,12 +178,19 @@ def build_runtime(
         collection_fps_agg = _with_effective_mean(collection_fps_agg, collection_fps, effective_fps)
         total_fps_agg = _with_effective_mean(total_fps_agg, total_fps, effective_fps)
         iterations_per_s_agg = _with_effective_mean(iterations_per_s_agg, iter_per_s, effective_iterations_per_s)
+    if environment_step_times_s is None and (simulation_step_times_s is not None or simulation_step_calls is not None):
+        raise ValueError("environment_step_times_s is required with simulation timing")
     environment_step_timing = None
     if environment_step_times_s is not None:
         if frames_per_environment_step is None or frames_per_environment_step <= 0:
             raise ValueError("frames_per_environment_step must be greater than zero")
         environment_samples = list(environment_step_times_s)
-        if not environment_samples or any(value <= 0 for value in environment_samples):
+        if not environment_samples:
+            raise ValueError(
+                "environment_step_times_s must contain only positive samples; no samples remained after warm-up, "
+                "so reduce warmup_steps or increase the workload"
+            )
+        if any(value <= 0 for value in environment_samples):
             raise ValueError("environment_step_times_s must contain only positive samples")
         total_environment_time_s = sum(environment_samples)
         environment_fps_samples = [frames_per_environment_step / value for value in environment_samples]

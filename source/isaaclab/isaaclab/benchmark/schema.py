@@ -40,8 +40,13 @@ class MeanStd:
     """Scalar aggregate with mean, standard deviation, and optional peak.
 
     Args:
-        mean: Sample mean.
-        std: Sample standard deviation.
+        mean: Central value of the aggregate. For most fields this is the
+            arithmetic sample mean; for effective-throughput fields it is the
+            aggregate rate (total completed work over total wall time).
+        std: Dispersion of the per-sample values. For most fields this is the
+            sample standard deviation about the sample mean; for
+            effective-throughput fields it is their deviation about the
+            effective (aggregate) mean.
         peak: Maximum observed value, or ``None`` where a peak is not
             meaningful (e.g. GPU utilisation, whose ceiling is always 100%).
     """
@@ -241,6 +246,13 @@ class EnvironmentStepTiming:
         """Validate that the timing fields form one consistent measurement mode."""
         if self.environment_step_calls <= 0:
             raise ValueError("environment_step_calls must be greater than zero")
+        if not (
+            math.isfinite(self.environment_step_time_s.mean)
+            and self.environment_step_time_s.mean > 0.0
+            and math.isfinite(self.environment_step_fps.mean)
+            and self.environment_step_fps.mean > 0.0
+        ):
+            raise ValueError("environment step time and FPS must be greater than zero")
 
         breakdown = (
             self.simulation_step_time_s,
