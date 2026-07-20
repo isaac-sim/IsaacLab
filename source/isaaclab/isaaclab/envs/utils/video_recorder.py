@@ -116,16 +116,45 @@ class VideoRecorder:
 
         if viz_type:
             candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
-        else:
-            candidates = [v for v in visualizers if hasattr(v, "render_rgb_array")]
 
-        if not candidates:
-            logger.warning(
-                "[VideoRecorder] No visualizer of type '%s' is active. "
-                "Add the appropriate VisualizerCfg to sim.visualizer_cfgs.",
-                viz_type or "any",
-            )
-            return None
+            if not candidates:
+                active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
+                logger.error(
+                    "[VideoRecorder] source='visualizer:%s' was requested but no visualizer of that type "
+                    "is active (active: %s). Add the corresponding VisualizerCfg to sim.visualizer_cfgs.",
+                    viz_type,
+                    active or ["none"],
+                )
+                return None
+
+            # Kit Replicator produces black frames with Newton physics because Newton Fabric writes
+            # do not notify RTX's scene delegate. Fall back to Newton GL if one is active.
+            if viz_type == "kit":
+                physics_backend = getattr(
+                    getattr(sim, "physics_manager", None), "video_capture_backend", lambda: None
+                )()
+                if physics_backend == "newton_gl":
+                    logger.warning(
+                        "[VideoRecorder] Kit Replicator recording is not supported with Newton physics. "
+                        "Falling back to Newton GL visualizer. Use source='visualizer:newton' to silence this."
+                    )
+                    newton = next((v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == "newton"), None)
+                    if newton is not None:
+                        return newton.render_rgb_array()
+                    logger.warning(
+                        "[VideoRecorder] No Newton GL visualizer configured as fallback. "
+                        "Add NewtonVisualizerCfg to sim.visualizer_cfgs for video capture with Newton physics."
+                    )
+                    return None
+        else:
+            # Auto: pick the first active visualizer that supports frame capture.
+            candidates = [v for v in visualizers if hasattr(v, "render_rgb_array")]
+            if not candidates:
+                logger.warning(
+                    "[VideoRecorder] source='visualizer' found no recording-capable visualizer. "
+                    "Add KitVisualizerCfg or NewtonVisualizerCfg to sim.visualizer_cfgs."
+                )
+                return None
 
         viz = candidates[0]
         if sub == "tiled":

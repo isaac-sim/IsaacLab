@@ -187,15 +187,51 @@ def test_visualizer_source_typed_filters_by_type():
     assert newton_viz.render_calls == 1
 
 
-def test_visualizer_source_missing_logs_warning_and_returns_none(caplog):
-    """source='visualizer:kit' with no matching active visualizer logs a warning."""
+def test_visualizer_source_missing_logs_error_and_returns_none(caplog):
+    """source='visualizer:kit' with no matching active visualizer logs an error with helpful context."""
     import logging
 
-    recorder = VideoRecorder(_cfg(source="visualizer:kit"), _make_env(visualizers=[]))
-    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
+    recorder = VideoRecorder(_cfg(source="visualizer:kit"), _make_env(visualizers=[_FakeViz("newton")]))
+    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
         frame = recorder._get_frame()
     assert frame is None
-    assert any("No visualizer" in r.message for r in caplog.records)
+    assert any("source='visualizer:kit'" in r.message for r in caplog.records)
+    assert any("newton" in r.message for r in caplog.records)  # active types listed
+
+
+def test_kit_visualizer_falls_back_to_newton_when_newton_physics(caplog):
+    """source='visualizer:kit' + Newton physics warns and falls back to Newton GL visualizer."""
+    import logging
+
+    kit_viz = _FakeViz("kit")
+    newton_viz = _FakeViz("newton")
+    env = _make_env(visualizers=[kit_viz, newton_viz])
+    env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
+
+    recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
+        frame = recorder._get_frame()
+
+    assert frame is not None
+    assert kit_viz.render_calls == 0  # Kit was skipped
+    assert newton_viz.render_calls == 1  # Newton GL was used as fallback
+    assert any("Newton" in r.message for r in caplog.records)
+
+
+def test_kit_visualizer_newton_physics_no_newton_fallback_warns(caplog):
+    """source='visualizer:kit' + Newton physics + no Newton GL visualizer → warns and returns None."""
+    import logging
+
+    kit_viz = _FakeViz("kit")
+    env = _make_env(visualizers=[kit_viz])
+    env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
+
+    recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
+        frame = recorder._get_frame()
+
+    assert frame is None
+    assert kit_viz.render_calls == 0
 
 
 def test_visualizer_tiled_calls_render_tiled_rgb_array():

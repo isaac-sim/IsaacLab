@@ -134,14 +134,23 @@ def test_kit_visualizer_physx_writes_clip():
 
 
 def test_kit_visualizer_newton_falls_back_to_newton_gl():
-    """source='visualizer:kit' + Newton → Newton GL fallback (Kit Replicator disabled for Newton)."""
+    """source='visualizer:kit' + Newton + Newton GL visualizer → falls back to Newton GL for recording.
+
+    Kit Replicator doesn't work with Newton physics. When a Newton GL visualizer is also
+    active, the recorder automatically falls back to it and logs a warning.
+    """
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_cfg()
         env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
-        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=320, window_height=240)]
+        # Both visualizers: Kit for interactive viewing, Newton GL for recording fallback.
+        env_cfg.sim.visualizer_cfgs = [
+            KitVisualizerCfg(window_width=320, window_height=240),
+            NewtonVisualizerCfg(window_width=320, window_height=240),
+        ]
 
         captured_frames: list[list[np.ndarray]] = []
 
