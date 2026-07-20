@@ -55,17 +55,22 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     # complex geometry and materials; observed ~5.5% tiled, ~3.7% viewport on CI.
     "anymal_d-kit-tiled": 6.5,
     "anymal_d-kit-viewport": 4.5,
-    # Shadow hand Kit (RTX) variance is higher still — many thin finger surfaces
-    # amplify RTX anti-aliasing noise; observed ~24% tiled, ~7.5% viewport on CI.
-    # Thresholds are set to catch catastrophic failures (black frames, wrong geometry)
-    # rather than subtle rendering differences.
-    "shadow_hand-kit-tiled": 30.0,
-    "shadow_hand-kit-viewport": 9.0,
-    # Franka cloth Kit RTX tiled: VBD cloth non-determinism between runs; observed ~4.2% tiled.
-    "franka_cloth-kit-tiled": 5.5,
-    # Franka cloth Kit RTX viewport: cloth VBD solver non-determinism combined with
-    # RTX warm-up variance produces large inter-run pixel diffs; observed ~41% viewport.
-    "franka_cloth-kit-viewport": 45.0,
+    # Shadow hand Kit (RTX) tiled: captured at reset (0 physics steps). RTX TAA
+    # accumulates differently between cold (golden-save) and warm (retry) states within
+    # the same test session; observed 12.24% diff, SSIM=0.79 on the warm retry.
+    # Threshold is set to catch catastrophic failures (wrong scene, black frame) rather
+    # than subtle rendering differences.
+    "shadow_hand-kit-tiled": 15.0,
+    # Shadow hand Kit viewport (single view): less composite noise than tiled; observed
+    # <8% inter-run diff at reset. Use 10% to give headroom over the 4-tiled baseline.
+    "shadow_hand-kit-viewport": 10.0,
+    # Franka cloth Kit RTX tiled: at reset, cloth is flat (USD-defined pose). RTX TAA
+    # composite noise still produces ~10% diff between cold-golden and warm-retry;
+    # observed 10.01% on second retry in session. 12% gives ~2% breathing room.
+    "franka_cloth-kit-tiled": 12.0,
+    # Franka cloth Kit viewport: RTX TAA warm-up produces ~10% diff at reset;
+    # observed 9.96–10.12%, SSIM=0.87 consistently across retries.
+    "franka_cloth-kit-viewport": 12.0,
 }
 
 _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
@@ -76,11 +81,14 @@ _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     # Observed 0.9539 (tiled) and 0.9678 (viewport) for AnymalD Kit on CI.
     "anymal_d-kit-tiled": 0.945,
     "anymal_d-kit-viewport": 0.960,
-    # Observed 0.8391 (tiled) and 0.9214 (viewport) for shadow hand Kit on CI.
-    "shadow_hand-kit-tiled": 0.80,
+    # Shadow hand Kit tiled at reset: cold-golden vs warm-retry gap; observed SSIM=0.79.
+    "shadow_hand-kit-tiled": 0.75,
+    # Shadow hand Kit viewport: less composite noise; estimated SSIM ~0.92.
     "shadow_hand-kit-viewport": 0.90,
-    # Observed 0.6896 for franka cloth Kit viewport; cloth VBD non-determinism.
-    "franka_cloth-kit-viewport": 0.65,
+    # Franka cloth Kit tiled at reset: observed SSIM=0.9730; threshold below that.
+    "franka_cloth-kit-tiled": 0.95,
+    # Franka cloth Kit viewport at reset: observed SSIM=0.87 on warm-retry.
+    "franka_cloth-kit-viewport": 0.85,
 }
 
 _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
@@ -544,7 +552,7 @@ def run_visualizer_golden_shadow_hand(
                 kit_viz,
                 resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION,
                 physics_backend=backend,
-                prior_physics_steps=_viz_utils._START_BUFFER_STEPS,
+                prior_physics_steps=0,
             )
 
         newton_viz = _get_active_visualizer(env, "newton")
@@ -565,9 +573,6 @@ def run_visualizer_golden_shadow_hand(
 
         configure_seed(42, torch_deterministic=True)
         env.reset()
-
-        for _ in range(_viz_utils._START_BUFFER_STEPS):
-            env.step(action=actions)
 
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
 
