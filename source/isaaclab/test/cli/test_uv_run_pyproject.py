@@ -89,9 +89,14 @@ def test_version_single_source_matches_literal_pins():
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
-    # OV extras mirror the table (ovphysx exact pin in ``ov``, ovrtx range spec in ``rtx``).
-    assert f"ovphysx=={versions['ovphysx']}" in optional["ov"]
-    assert f"ovrtx{versions['ovrtx']}" in optional["rtx"]
+    # OV extras mirror the table. Table values may be an exact version ("1.2.3",
+    # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
+    def spec(package: str) -> str:
+        value = versions[package]
+        return f"{package}=={value}" if value[0].isdigit() else f"{package}{value}"
+
+    assert spec("ovphysx") in optional["ov"]
+    assert spec("ovrtx") in optional["rtx"]
 
     # uv torch-stack overrides mirror the table.
     for package in ("torch", "torchvision", "torchaudio"):
