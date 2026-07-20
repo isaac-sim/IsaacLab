@@ -328,8 +328,8 @@ class AppLauncher:
             with contextlib.suppress(Exception):
                 # Kit's fast shutdown replaces Python's pending exit status unless
                 # close() receives a nonzero code. The interpreter sets
-                # sys.last_type before atexit callbacks run for an unhandled exception.
-                exit_code = 1 if getattr(sys, "last_type", None) is not None else 0
+                # sys.last_exc before atexit callbacks run for an unhandled exception.
+                exit_code = 1 if getattr(sys, "last_exc", None) is not None else 0
                 app.close(exit_code=exit_code)
 
         atexit.register(_atexit_close)
