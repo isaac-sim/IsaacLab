@@ -326,7 +326,11 @@ class AppLauncher:
         # and can leave GPU resources in a bad state for the next test).
         def _atexit_close(app=self._app):
             with contextlib.suppress(Exception):
-                app.close()
+                # Kit's fast shutdown replaces Python's pending exit status unless
+                # close() receives a nonzero code. The interpreter sets
+                # sys.last_type before atexit callbacks run for an unhandled exception.
+                exit_code = 1 if getattr(sys, "last_type", None) is not None else 0
+                app.close(exit_code=exit_code)
 
         atexit.register(_atexit_close)
 
