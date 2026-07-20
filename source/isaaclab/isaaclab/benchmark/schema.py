@@ -352,7 +352,7 @@ class Resources:
 
 @dataclass(frozen=True)
 class LearningCurve:
-    """One learning curve (reward or episode length)."""
+    """One learning curve (reward, episode length, or success rate)."""
 
     final_raw: float
     final_ema: float
@@ -361,11 +361,20 @@ class LearningCurve:
 
 @dataclass(frozen=True)
 class Learning:
-    """Learning curves for a training run, plus their EMA smoothing factor."""
+    """Learning curves for a training run, plus their EMA smoothing factor.
+
+    Args:
+        ema_alpha: EMA smoothing factor in ``[0, 1]``.
+        reward: Per-iteration mean-reward learning curve.
+        ep_length: Per-iteration mean episode-length learning curve.
+        success_rate: Per-iteration success-rate learning curve, or ``None``
+            when the task does not report success.
+    """
 
     ema_alpha: float
     reward: LearningCurve
     ep_length: LearningCurve
+    success_rate: LearningCurve | None = None
 
 
 @dataclass(frozen=True)

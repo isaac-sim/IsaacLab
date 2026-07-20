@@ -245,11 +245,21 @@ def build_runtime(
     )
 
 
+def _build_learning_curve(values: Sequence[float], ema_alpha: float, keep_series: bool) -> LearningCurve:
+    samples = list(values)
+    return LearningCurve(
+        final_raw=float(samples[-1]) if samples else 0.0,
+        final_ema=ema(samples, ema_alpha),
+        series_per_iter=samples if keep_series else None,
+    )
+
+
 def build_learning(
     *,
     reward_series: Sequence[float],
     ep_length_series: Sequence[float],
     ema_alpha: float,
+    success_rate_series: Sequence[float] | None = None,
     keep_series: bool = True,
 ) -> Learning:
     """Assemble a :class:`~isaaclab.benchmark.schema.Learning` from raw curves.
@@ -259,26 +269,25 @@ def build_learning(
         ep_length_series: Per-iteration mean episode-length values.
         ema_alpha: EMA smoothing factor in ``[0, 1]``; higher values weight
             recent observations more.
+        success_rate_series: Per-iteration success-rate values, or ``None``
+            when unavailable.
         keep_series: When ``True`` (default) the full per-iteration series is
             embedded in the bundle; set to ``False`` to reduce file size.
 
     Returns:
-        Populated :class:`~isaaclab.benchmark.schema.Learning`.
+        Populated :class:`~isaaclab.benchmark.schema.Learning`. Absent or empty
+        success history produces a ``None`` success-rate curve.
     """
     rewards = list(reward_series)
     ep_lengths = list(ep_length_series)
+    success_rates = list(success_rate_series) if success_rate_series else []
 
-    reward_curve = LearningCurve(
-        final_raw=float(rewards[-1]) if rewards else 0.0,
-        final_ema=ema(rewards, ema_alpha),
-        series_per_iter=rewards if keep_series else None,
+    return Learning(
+        ema_alpha=ema_alpha,
+        reward=_build_learning_curve(rewards, ema_alpha, keep_series),
+        ep_length=_build_learning_curve(ep_lengths, ema_alpha, keep_series),
+        success_rate=(_build_learning_curve(success_rates, ema_alpha, keep_series) if success_rates else None),
     )
-    ep_length_curve = LearningCurve(
-        final_raw=float(ep_lengths[-1]) if ep_lengths else 0.0,
-        final_ema=ema(ep_lengths, ema_alpha),
-        series_per_iter=ep_lengths if keep_series else None,
-    )
-    return Learning(ema_alpha=ema_alpha, reward=reward_curve, ep_length=ep_length_curve)
 
 
 def build_runtime_bundle(
