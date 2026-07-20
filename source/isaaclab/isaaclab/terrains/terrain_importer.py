@@ -75,33 +75,6 @@ class TerrainImporter:
     terrain_prim_paths: list[str]
     """A list containing the USD prim paths to the imported terrains."""
 
-    terrain_origins: ProxyArray | None
-    """The origins [m] of the sub-terrains, shape ``(num_rows, num_cols)`` of ``wp.vec3f``.
-
-    The :attr:`~isaaclab.utils.warp.ProxyArray.torch` view resolves to shape ``(num_rows, num_cols, 3)``.
-
-    If terrain origins is not None, the environment origins are computed based on the terrain origins.
-    Otherwise, the environment origins are computed based on the grid spacing.
-    """
-
-    env_origins: ProxyArray
-    """The environment origins [m], shape ``(num_envs,)`` of ``wp.vec3f``.
-
-    The :attr:`~isaaclab.utils.warp.ProxyArray.torch` view resolves to shape ``(num_envs, 3)``.
-    """
-
-    terrain_levels: ProxyArray | None
-    """The terrain level assigned to each environment, shape ``(num_envs,)`` of ``wp.int64``.
-
-    This is available only when sub-terrain origins are configured.
-    """
-
-    terrain_types: ProxyArray | None
-    """The terrain type assigned to each environment, shape ``(num_envs,)`` of ``wp.int64``.
-
-    This is available only when sub-terrain origins are configured.
-    """
-
     def __init__(self, cfg: TerrainImporterCfg):
         """Initialize the terrain importer.
 
@@ -122,9 +95,10 @@ class TerrainImporter:
 
         # create buffers for the terrains
         self.terrain_prim_paths = list()
-        self.terrain_origins = None
-        self.terrain_levels = None
-        self.terrain_types = None
+        self._terrain_origins: ProxyArray | None = None
+        self._env_origins: ProxyArray
+        self._terrain_levels: ProxyArray | None = None
+        self._terrain_types: ProxyArray | None = None
         # private variables
         self._terrain_flat_patches = dict()
 
@@ -191,6 +165,39 @@ class TerrainImporter:
     def terrain_names(self) -> list[str]:
         """A list of names of the imported terrains."""
         return [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
+
+    @property
+    def terrain_origins(self) -> ProxyArray | None:
+        """Sub-terrain origins [m], shape ``(num_rows, num_cols)`` of ``wp.vec3f``.
+
+        The :attr:`~isaaclab.utils.warp.ProxyArray.torch` view has shape ``(num_rows, num_cols, 3)``.
+        This is ``None`` when environment origins are configured from grid spacing.
+        """
+        return self._terrain_origins
+
+    @property
+    def env_origins(self) -> ProxyArray:
+        """Environment origins [m], shape ``(num_envs,)`` of ``wp.vec3f``.
+
+        The :attr:`~isaaclab.utils.warp.ProxyArray.torch` view has shape ``(num_envs, 3)``.
+        """
+        return self._env_origins
+
+    @property
+    def terrain_levels(self) -> ProxyArray | None:
+        """Terrain level per environment, shape ``(num_envs,)`` of ``wp.int64``.
+
+        This is ``None`` when environment origins are configured from grid spacing.
+        """
+        return self._terrain_levels
+
+    @property
+    def terrain_types(self) -> ProxyArray | None:
+        """Terrain type per environment, shape ``(num_envs,)`` of ``wp.int64``.
+
+        This is ``None`` when environment origins are configured from grid spacing.
+        """
+        return self._terrain_types
 
     """
     Operations - Visibility.
@@ -346,20 +353,12 @@ class TerrainImporter:
         """
         # decide whether to compute origins in a grid or based on curriculum
         if origins is not None:
-            origins_torch = torch.as_tensor(origins, dtype=torch.float32, device=self.device).contiguous()
-            # ``wp.from_torch`` is zero-copy and keeps the source tensor alive through the Warp array.
-            self.terrain_origins = ProxyArray(wp.from_torch(origins_torch, dtype=wp.vec3f))
-            # compute environment origins
-            self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
+            self._configure_env_origins_curriculum(self.cfg.num_envs, origins)
         else:
-            self.terrain_origins = None
-            self.terrain_levels = None
-            self.terrain_types = None
             # check if env spacing is valid
             if self.cfg.env_spacing is None:
                 raise ValueError("Environment spacing must be specified for configuring grid-like origins.")
-            # compute environment origins
-            self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
+            self._configure_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
 
     def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor) -> None:
         """Update environment origins through the Torch ID-based interface.
@@ -448,10 +447,13 @@ class TerrainImporter:
     Internal helpers.
     """
 
-    def _compute_env_origins_curriculum(self, num_envs: int, origins: ProxyArray) -> ProxyArray:
-        """Compute the origins of the environments defined by the sub-terrains origins."""
+    def _configure_env_origins_curriculum(self, num_envs: int, origins: np.ndarray | torch.Tensor) -> None:
+        """Allocate and initialize origin buffers from sub-terrain origins."""
+        origins_torch = torch.as_tensor(origins, dtype=torch.float32, device=self.device).contiguous()
+        # ``wp.from_torch`` is zero-copy and keeps the source tensor alive through the Warp array.
+        self._terrain_origins = ProxyArray(wp.from_torch(origins_torch, dtype=wp.vec3f))
         # extract number of rows and cols
-        num_rows, num_cols = origins.shape[:2]
+        num_rows, num_cols = self._terrain_origins.shape[:2]
         # maximum initial level possible for the terrains
         if self.cfg.max_init_terrain_level is None:
             max_init_level = num_rows - 1
@@ -464,18 +466,21 @@ class TerrainImporter:
         terrain_types = torch.div(
             torch.arange(num_envs, device=self.device), (num_envs / num_cols), rounding_mode="floor"
         ).to(torch.long)
-        env_origins = origins.torch[terrain_levels, terrain_types].contiguous()
+        env_origins = self._terrain_origins.torch[terrain_levels, terrain_types].contiguous()
 
-        self.terrain_levels = ProxyArray(wp.from_torch(terrain_levels, dtype=wp.int64))
-        self.terrain_types = ProxyArray(wp.from_torch(terrain_types, dtype=wp.int64))
-        return ProxyArray(wp.from_torch(env_origins, dtype=wp.vec3f))
+        self._terrain_levels = ProxyArray(wp.from_torch(terrain_levels, dtype=wp.int64))
+        self._terrain_types = ProxyArray(wp.from_torch(terrain_types, dtype=wp.int64))
+        self._env_origins = ProxyArray(wp.from_torch(env_origins, dtype=wp.vec3f))
 
-    def _compute_env_origins_grid(self, num_envs: int, env_spacing: float) -> ProxyArray:
-        """Compute the origins of the environments in a grid based on configured spacing."""
+    def _configure_env_origins_grid(self, num_envs: int, env_spacing: float) -> None:
+        """Allocate and initialize origin buffers from grid spacing."""
         from isaaclab.cloner import grid_transforms
 
         env_origins, _ = grid_transforms(num_envs, env_spacing, device=self.device)
-        return ProxyArray(wp.from_torch(env_origins.contiguous(), dtype=wp.vec3f))
+        self._terrain_origins = None
+        self._terrain_levels = None
+        self._terrain_types = None
+        self._env_origins = ProxyArray(wp.from_torch(env_origins.contiguous(), dtype=wp.vec3f))
 
     """
     Deprecated.
