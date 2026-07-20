@@ -575,12 +575,12 @@ def run_visualizer_golden_shadow_hand(
         env.reset()
 
         # Extra RTX TAA warmup passes (render-only, no physics).  Shadow hand uses 0
-        # physics buffer steps, so the standard capture warmup (20 iters × 2 calls = 40
-        # app.update()s) is all the accumulation the RTX renderer gets.  Without extra
-        # renders the gray matte surfaces show visible grain.  These 20 additional
-        # env.sim.render() calls bring the total to ~60 — matching anymal_d which runs
-        # 20 buffer steps before its capture warmup.
-        for _ in range(20):
+        # physics buffer steps, so without extra renders the gray matte surfaces show
+        # visible grain: tiled mode composes 4 independent sub-viewports each needing
+        # their own TAA convergence, requiring roughly 2× the sample count of a single
+        # viewport.  40 extra env.sim.render() calls (plus the 20 in the capture warmup
+        # loop) bring the total to ~60 and produce clean output on gray geometry.
+        for _ in range(40):
             env.sim.render()
 
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
