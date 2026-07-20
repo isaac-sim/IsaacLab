@@ -4887,7 +4887,9 @@ class Articulation(BaseArticulation):
         """Resolve joint indices to a warp array or tensor.
 
         .. note::
-            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
+            Torch tensors are converted to warp ``int32`` arrays here. Torch defaults integer
+            tensors to ``int64``, but the warp kernels that consume joint indices require
+            ``int32``. This matches :meth:`_resolve_env_ids` and the Newton backend.
 
         Args:
             joint_ids: Joint indices. If None, then all indices are used.
@@ -4895,9 +4897,17 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of joint indices or a tensor of joint indices.
         """
+        if joint_ids is None:
+            return self._ALL_JOINT_INDICES
+        if isinstance(joint_ids, torch.Tensor):
+            if joint_ids.dtype == torch.int64:
+                joint_ids = joint_ids.to(torch.int32)
+            return wp.from_torch(joint_ids, dtype=wp.int32)
         if isinstance(joint_ids, list):
             return wp.array(joint_ids, dtype=wp.int32, device=self.device)
-        if (joint_ids is None) or (joint_ids == slice(None)):
+        if isinstance(joint_ids, wp.array):
+            return joint_ids
+        if joint_ids == slice(None):
             return self._ALL_JOINT_INDICES
         return joint_ids
 
@@ -4927,9 +4937,17 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
+        if body_ids is None:
+            return self._ALL_BODY_INDICES
+        if isinstance(body_ids, torch.Tensor):
+            if body_ids.dtype == torch.int64:
+                body_ids = body_ids.to(torch.int32)
+            return wp.from_torch(body_ids, dtype=wp.int32)
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
-        if (body_ids is None) or (body_ids == slice(None)):
+        if isinstance(body_ids, wp.array):
+            return body_ids
+        if body_ids == slice(None):
             return self._ALL_BODY_INDICES
         return body_ids
 
@@ -4961,9 +4979,17 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
         """
+        if tendon_ids is None:
+            return self._ALL_FIXED_TENDON_INDICES
+        if isinstance(tendon_ids, torch.Tensor):
+            if tendon_ids.dtype == torch.int64:
+                tendon_ids = tendon_ids.to(torch.int32)
+            return wp.from_torch(tendon_ids, dtype=wp.int32)
         if isinstance(tendon_ids, list):
             return wp.array(tendon_ids, dtype=wp.int32, device=self.device)
-        if (tendon_ids is None) or (tendon_ids == slice(None)):
+        if isinstance(tendon_ids, wp.array):
+            return tendon_ids
+        if tendon_ids == slice(None):
             return self._ALL_FIXED_TENDON_INDICES
         return tendon_ids
 
@@ -4995,9 +5021,17 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
         """
+        if spatial_tendon_ids is None:
+            return self._ALL_SPATIAL_TENDON_INDICES
+        if isinstance(spatial_tendon_ids, torch.Tensor):
+            if spatial_tendon_ids.dtype == torch.int64:
+                spatial_tendon_ids = spatial_tendon_ids.to(torch.int32)
+            return wp.from_torch(spatial_tendon_ids, dtype=wp.int32)
         if isinstance(spatial_tendon_ids, list):
             return wp.array(spatial_tendon_ids, dtype=wp.int32, device=self.device)
-        if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):
+        if isinstance(spatial_tendon_ids, wp.array):
+            return spatial_tendon_ids
+        if spatial_tendon_ids == slice(None):
             return self._ALL_SPATIAL_TENDON_INDICES
         return spatial_tendon_ids
 
