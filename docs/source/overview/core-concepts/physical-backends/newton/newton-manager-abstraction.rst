@@ -190,6 +190,15 @@ simulation loop.
 
 You can exercise this coupling path with the Franka soft-body lifting task:
 
+.. note::
+
+   This volume soft-body task requires automatic tetrahedralization. Install its
+   optional dependencies before running it:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit

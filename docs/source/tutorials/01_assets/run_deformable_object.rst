@@ -23,6 +23,15 @@ This tutorial shows how to interact with a deformable object in the simulation. 
 set of soft cubes and see how to set their nodal positions and velocities, along with apply kinematic
 commands to the mesh nodes to move the soft body.
 
+.. note::
+
+   This tutorial automatically tetrahedralizes volume deformables. Install its
+   optional dependencies before running the script:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 
 The Code
 ~~~~~~~~

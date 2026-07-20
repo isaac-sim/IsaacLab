@@ -34,6 +34,15 @@ rigid bodies and VBD advances deformable particles:
 Start from a Supported Deformable Task
 --------------------------------------
 
+.. note::
+
+   The ``Isaac-Lift-Soft-Franka`` task requires automatic tetrahedralization.
+   Install its optional dependencies before running the examples below:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 Before adding VBD to a new task, first run one of the experimental Franka
 deformable tasks:
 

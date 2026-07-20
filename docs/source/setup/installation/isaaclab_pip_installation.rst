@@ -32,9 +32,13 @@ pip extras include:
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]`` version |isaacsim_version|) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
    * - ``all``
-     - RL frameworks (SB3, SKRL, RSL-RL). Combine with ``isaacsim`` for a full install.
+     - RL frameworks (SB3, SKRL, RSL-RL). Combine with ``isaacsim`` for Isaac Sim and the standard extras.
+   * - ``tetrahedralization``
+     - PyTetWild and its PyVista/VTK dependencies for automatic tetrahedral mesh generation of volume deformables.
 
-Install with ``isaaclab[isaacsim,all]`` for the full workflow.
+Install with ``isaaclab[isaacsim,all]`` for Isaac Sim and the standard extras. The ``all``
+extra does not include ``tetrahedralization``. Add it explicitly when needed, for
+example ``isaaclab[isaacsim,all,tetrahedralization]``.
 
 .. tab-set::
 

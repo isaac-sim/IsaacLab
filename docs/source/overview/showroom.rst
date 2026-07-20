@@ -67,12 +67,16 @@ A few quick showroom scripts to run and checkout:
 
          .. code:: bash
 
+            ./isaaclab.sh -i tetrahedralization
+
             ./isaaclab.sh -p scripts/demos/deformables.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: batch
+
+            isaaclab.bat -i tetrahedralization
 
             isaaclab.bat -p scripts\demos\deformables.py
 

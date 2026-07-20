@@ -84,3 +84,14 @@ def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(tmp_path):
     for extra_name in ("rsl-rl", "all"):
         rsl_rl_pins = [dep for dep in optional_dependencies[extra_name] if dep.startswith("rsl-rl-lib==")]
         assert rsl_rl_pins == [expected_pin]
+
+
+def test_wheel_builder_keeps_tetrahedralization_explicit(tmp_path):
+    """The generated wheel must expose PyTetWild only through its explicit extra."""
+    generated = _generate_wheel_pyproject(tmp_path)
+    project = generated["project"]
+    optional_dependencies = project["optional-dependencies"]
+
+    assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
+    assert optional_dependencies["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
+    assert not any(dep.startswith("pytetwild") for dep in optional_dependencies["all"])
