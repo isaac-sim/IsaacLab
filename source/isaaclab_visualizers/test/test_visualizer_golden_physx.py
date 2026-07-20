@@ -53,9 +53,13 @@ def _run_anymal_d_physx(
 ) -> None:
     # PhysX 4-env AnymalD contact dynamics are not bit-reproducible under Kit RTX
     # tiled rendering.  Capture the reset pose (0 steps) for a stable golden.
-    steps = 0 if (visualizer_type == "kit" and mode == "tiled") else None
+    # At 0 buffer steps the 4 sub-viewports each need extra TAA samples; 40 extra
+    # render-only passes compensate (same approach used for shadow_hand kit-tiled).
+    kit_tiled = visualizer_type == "kit" and mode == "tiled"
+    steps = 0 if kit_tiled else None
+    extra = 40 if kit_tiled else 0
     _golden.run_visualizer_golden_anymal_d(
-        physics_backend, visualizer_type, mode, comparison_scores, buffer_steps=steps
+        physics_backend, visualizer_type, mode, comparison_scores, buffer_steps=steps, extra_render_passes=extra
     )
 
 

@@ -597,6 +597,7 @@ def run_visualizer_golden_anymal_d(
     comparison_scores: list[dict],
     *,
     buffer_steps: int | None = None,
+    extra_render_passes: int = 0,
 ) -> None:
     """Run a golden-image test for AnymalD + one ``(physics_backend, visualizer_type, mode)`` combination.
 
@@ -608,6 +609,11 @@ def run_visualizer_golden_anymal_d(
         buffer_steps: Physics steps to run before capture.  Defaults to
             :data:`~visualizer_integration_utils._START_BUFFER_STEPS`.  Pass ``0`` for
             combinations where multi-env PhysX contact dynamics are not bit-reproducible.
+        extra_render_passes: Additional render-only ``env.sim.render()`` calls inserted
+            after ``env.reset()`` and before capture.  Use this to accumulate RTX TAA
+            samples when ``buffer_steps=0`` leaves the renderer under-sampled (e.g.
+            kit-tiled with 4 independent sub-viewports each needing their own TAA
+            convergence).
     """
     import torch
     import visualizer_integration_utils as _viz_utils
@@ -655,6 +661,9 @@ def run_visualizer_golden_anymal_d(
 
         configure_seed(42, torch_deterministic=True)
         env.reset()
+
+        for _ in range(extra_render_passes):
+            env.sim.render()
 
         n_steps = _viz_utils._START_BUFFER_STEPS if buffer_steps is None else buffer_steps
         for _ in range(n_steps):
