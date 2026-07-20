@@ -10,10 +10,27 @@ Called by isaaclab.sh / isaaclab.bat to populate PYTHONPATH / LD_LIBRARY_PATH.
 """
 
 import glob
+import importlib.util
 import os
 import sys
 
-extscache = os.path.join(os.environ.get("ISAACLAB_PATH", ""), "_isaac_sim", "extscache")
+
+def _find_extscache() -> str:
+    # Binary / symlink install: ISAACLAB_PATH/_isaac_sim/extscache
+    symlink_path = os.path.join(os.environ.get("ISAACLAB_PATH", ""), "_isaac_sim", "extscache")
+    if os.path.isdir(symlink_path):
+        return symlink_path
+
+    # Wheel / pip install: locate the isaacsim package without importing it so
+    # that this script can run before PYTHONPATH is fully configured.
+    spec = importlib.util.find_spec("isaacsim")
+    if spec is not None and spec.origin:
+        return os.path.join(os.path.dirname(spec.origin), "extscache")
+
+    return symlink_path
+
+
+extscache = _find_extscache()
 candidates = sorted(glob.glob(os.path.join(extscache, "omni.usd.libs-*")))
 if candidates:
     usd_libs_dir = candidates[-1]

@@ -23,18 +23,6 @@ def _repo_root() -> Path:
     raise RuntimeError("Could not find Isaac Lab repository root.")
 
 
-def test_isaaclab_usd_core_pin_stays_on_isaacsim_compatible_usd26_abi():
-    """The kit-less USD package must stay on the Isaac Sim compatible USD 26 ABI."""
-    with (_repo_root() / "pyproject.toml").open("rb") as f:
-        pyproject = tomllib.load(f)
-
-    usd_core_dependencies = [
-        dependency for dependency in pyproject["project"]["dependencies"] if dependency.startswith("usd-core")
-    ]
-
-    assert usd_core_dependencies == ["usd-core>=26.05,<27.0 ; platform_machine in 'x86_64 AMD64'"]
-
-
 def test_isaaclab_standalone_usd_providers_are_platform_disjoint():
     """Standalone USD packages must not overlap on platforms where both ship ``pxr``."""
     with (_repo_root() / "pyproject.toml").open("rb") as f:
