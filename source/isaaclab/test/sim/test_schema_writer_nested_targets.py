@@ -26,18 +26,23 @@ from isaaclab.sim.schemas import MassCfg
 pytestmark = pytest.mark.integration
 
 
+LINK_REL_PATHS = ("link1", "link2", "link2/link3")
+"""Link prim paths relative to the robot root; ``link2/link3`` is a nested child link."""
+
+
 def _author_robot_usd(path: str) -> None:
     """Author a minimal articulated-robot USD layout.
 
     Mirrors how real robot assets are structured: the default (spawn) prim carries
     ``ArticulationRootAPI``, the link prims carry ``RigidBodyAPI`` and ``MassAPI``, and the
     collider prims under the links carry ``CollisionAPI``. The spawn prim itself carries no
-    rigid-body, collision, or mass schema.
+    rigid-body, collision, or mass schema. ``link3`` is authored under ``link2`` the way the
+    URDF importer nests child links under their parent link.
     """
     stage = Usd.Stage.CreateNew(path)
     robot = UsdGeom.Xform.Define(stage, "/Robot")
     UsdPhysics.ArticulationRootAPI.Apply(robot.GetPrim())
-    for link_name in ("link1", "link2"):
+    for link_name in LINK_REL_PATHS:
         link = UsdGeom.Xform.Define(stage, f"/Robot/{link_name}").GetPrim()
         UsdPhysics.RigidBodyAPI.Apply(link)
         UsdPhysics.MassAPI.Apply(link)
@@ -70,10 +75,10 @@ def _spawn_robot(tmp_path, prim_path: str, **cfg_kwargs):
 def test_rigid_body_fragments_target_existing_bodies_on_usd_asset(tmp_path):
     """Fragment ``rigid_props`` on a USD robot must modify the existing link bodies in place.
 
-    Force-applying ``RigidBodyAPI`` on the spawn prim (which already carries the articulation
-    root) turns the asset's links into nested rigid bodies, and the PhysX parser then drops the
-    articulation's joints. The fragment path must match the legacy nested writer: author onto the
-    prims that already carry the API and leave the spawn prim untouched.
+    Force-applying ``RigidBodyAPI`` on the spawn prim would invent a body the asset's joints
+    never reference and change the asset's dynamics. The fragment path must match the legacy
+    nested writer: author onto the prims that already carry the API and leave the spawn prim
+    untouched.
     """
     stage = _spawn_robot(
         tmp_path,
@@ -85,11 +90,11 @@ def test_rigid_body_fragments_target_existing_bodies_on_usd_asset(tmp_path):
     assert spawn_prim.HasAPI(UsdPhysics.ArticulationRootAPI)
     assert not spawn_prim.HasAPI(UsdPhysics.RigidBodyAPI)
     assert not spawn_prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
-    # every existing link body received the fragment's attribute
-    for link_name in ("link1", "link2"):
+    # every existing link body received the fragment's attribute, including the nested one
+    for link_name in LINK_REL_PATHS:
         link = stage.GetPrimAtPath(f"/World/RobotA/{link_name}")
         assert link.HasAPI(UsdPhysics.RigidBodyAPI)
-        assert link.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
+        assert link.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0), link_name
 
 
 def test_collision_fragments_target_existing_colliders_on_usd_asset(tmp_path):
@@ -102,10 +107,10 @@ def test_collision_fragments_target_existing_colliders_on_usd_asset(tmp_path):
     spawn_prim = stage.GetPrimAtPath("/World/RobotB")
     assert not spawn_prim.HasAPI(UsdPhysics.CollisionAPI)
     assert not spawn_prim.GetAttribute("physxCollision:contactOffset").HasAuthoredValue()
-    for link_name in ("link1", "link2"):
+    for link_name in LINK_REL_PATHS:
         collider = stage.GetPrimAtPath(f"/World/RobotB/{link_name}/collider")
         assert collider.HasAPI(UsdPhysics.CollisionAPI)
-        assert collider.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
+        assert collider.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02), link_name
 
 
 def test_mass_fragments_target_existing_mass_prims_on_usd_asset(tmp_path):
@@ -118,9 +123,9 @@ def test_mass_fragments_target_existing_mass_prims_on_usd_asset(tmp_path):
     spawn_prim = stage.GetPrimAtPath("/World/RobotC")
     assert not spawn_prim.HasAPI(UsdPhysics.MassAPI)
     assert not spawn_prim.GetAttribute("physics:mass").HasAuthoredValue()
-    for link_name in ("link1", "link2"):
+    for link_name in LINK_REL_PATHS:
         link = stage.GetPrimAtPath(f"/World/RobotC/{link_name}")
-        assert link.GetAttribute("physics:mass").Get() == pytest.approx(2.0)
+        assert link.GetAttribute("physics:mass").Get() == pytest.approx(2.0), link_name
 
 
 def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path):
@@ -159,8 +164,8 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
 
 
 # -------------------------------------------------------------------------------------
-# Preserved behavior: bare prims (shape/mesh spawners) still get a fresh anchor,
-# and traversal does not descend past an existing schema-bearing prim.
+# Preserved behavior: bare prims (shape/mesh spawners) still get a fresh anchor, and
+# nested rigid-body trees (URDF-importer layouts) have every body modified.
 # -------------------------------------------------------------------------------------
 
 
@@ -179,26 +184,36 @@ def test_rigid_body_fragments_define_fresh_on_bare_prim():
     assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0)
 
 
-def test_rigid_body_fragments_do_not_descend_past_existing_body():
-    """Traversal stops at the first schema-bearing prim on each branch (nested bodies are
-    illegal in physics), matching the legacy nested writer's stop-on-success behavior."""
-    from isaaclab.sim.schemas import apply_rigid_body_properties
+def test_rigid_body_and_mass_fragments_modify_nested_bodies():
+    """Every body in a nested rigid-body tree is modified, not just the outermost one.
+
+    The URDF importer authors child links under their parent link prims, so carriers of
+    ``RigidBodyAPI`` (and ``MassAPI``) legitimately nest. The fragment writers must reach all
+    of them, matching the legacy writers' full-subtree traversal for these families.
+    """
+    from isaaclab.sim.schemas import apply_mass_properties, apply_rigid_body_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    UsdGeom.Xform.Define(stage, "/World/Top")
-    outer = UsdGeom.Xform.Define(stage, "/World/Top/outer").GetPrim()
-    inner = UsdGeom.Xform.Define(stage, "/World/Top/outer/inner").GetPrim()
-    UsdPhysics.RigidBodyAPI.Apply(outer)
-    UsdPhysics.RigidBodyAPI.Apply(inner)  # ill-formed nesting in the source asset
+    body_paths = ["/World/Robot/pelvis", "/World/Robot/pelvis/hip", "/World/Robot/pelvis/hip/knee"]
+    UsdGeom.Xform.Define(stage, "/World/Robot")
+    for body_path in body_paths:
+        body = UsdGeom.Xform.Define(stage, body_path).GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.MassAPI.Apply(body)
 
-    result = apply_rigid_body_properties("/World/Top", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage)
+    rigid_result = apply_rigid_body_properties(
+        "/World/Robot", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage
+    )
+    mass_result = apply_mass_properties("/World/Robot", [MassCfg(mass=2.5)], stage)
 
-    assert result is True
-    assert outer.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(7.0)
-    # the nested body is not modified: legacy stops descending once a prim succeeds
-    assert not inner.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+    assert rigid_result is True
+    assert mass_result is True
+    for body_path in body_paths:
+        body = stage.GetPrimAtPath(body_path)
+        assert body.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(7.0), body_path
+        assert body.GetAttribute("physics:mass").Get() == pytest.approx(2.5), body_path
 
 
 def test_rigid_body_fragments_skip_instanced_carriers(caplog):

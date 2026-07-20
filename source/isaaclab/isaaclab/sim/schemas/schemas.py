@@ -552,15 +552,17 @@ def _resolve_fragment_targets(
     api_type,
     stage: Usd.Stage,
     apply_fresh: bool,
+    stop_at_carrier: bool,
 ) -> tuple[list, bool]:
     """Resolve the prims that a fragment family writer should author on.
 
     This mirrors the legacy nested writers: prims under ``prim_path`` that already carry
-    ``api_type`` are modified in place, and the search does not descend past a match, since
-    nested applications of the same physics schema are not allowed. Only when the subtree
-    carries no such prim is the defining API applied freshly to ``prim_path`` itself -- the
-    bare-prim case used by the shape and mesh spawners. Instanced prims cannot be edited, so
-    they are skipped with a warning.
+    ``api_type`` are modified in place. Rigid-body and mass carriers legitimately nest -- the
+    URDF importer authors child links under their parent link prims -- so those families search
+    the entire subtree; collision keeps the legacy stop-at-carrier traversal. Only when the
+    subtree carries no such prim is the defining API applied freshly to ``prim_path`` itself --
+    the bare-prim case used by the shape and mesh spawners. Instanced prims cannot be edited,
+    so they are skipped with a warning.
 
     Args:
         prim_path: The prim path whose subtree is searched.
@@ -568,6 +570,9 @@ def _resolve_fragment_targets(
         stage: The stage containing the prim.
         apply_fresh: Whether to apply ``api_type`` to ``prim_path`` when the subtree contains
             no carrier of it.
+        stop_at_carrier: Whether to skip the descendants of a found carrier instead of also
+            collecting nested carriers, mirroring :paramref:`~isaaclab.sim.utils.apply_nested.stop_on_success`
+            of the corresponding legacy writer.
 
     Returns:
         A tuple ``(targets, any_skipped)`` holding the writable target prims and whether any
@@ -579,11 +584,9 @@ def _resolve_fragment_targets(
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # breadth-first search that stops descending at the first carrier on each branch, like the
-    # legacy nested writers: nested applications of the same physics schema are not allowed, so
-    # nothing below a carrier is ever a target. This keeps the search linear in the subtree size
-    # instead of collecting every carrier and pruning afterwards. Carriers on instanced prims are
-    # read-only and collected separately so they can be reported.
+    # breadth-first search over the subtree. Carriers on instanced prims are read-only and
+    # collected separately so they can be reported. With ``stop_at_carrier`` the search does not
+    # descend past a found carrier, matching the legacy writer's stop-on-success traversal.
     targets = []
     skipped = []
     prims_queue = [prim]
@@ -596,7 +599,8 @@ def _resolve_fragment_targets(
                 skipped.append(candidate)
             else:
                 targets.append(candidate)
-            continue
+            if stop_at_carrier:
+                continue
         prims_queue += candidate.GetFilteredChildren(Usd.TraverseInstanceProxies())
     if not targets and not skipped and apply_fresh:
         if prim.IsInstance() or prim.IsInstanceProxy():
@@ -624,13 +628,15 @@ def apply_rigid_body_properties(
     """Apply a list of rigid-body fragments to the rigid bodies under a prim.
 
     Existing rigid bodies in the subtree are modified in place, matching the legacy nested
-    writer. Real assets author ``UsdPhysics.RigidBodyAPI`` on their link prims, so anchoring a
-    fresh rigid body on the spawn prim instead would nest those links under a new body and the
-    PhysX parser would drop the articulation's joint graph. Only when the subtree carries no
-    rigid body is ``UsdPhysics.RigidBodyAPI`` applied to ``prim_path`` itself -- the bare-prim
-    case used by the shape and mesh spawners. Each fragment is dispatched to every resolved
-    target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry
-    backend-specific funcs, so core never imports a backend.
+    writer. This includes nested bodies: the URDF importer authors child links under their
+    parent link prims, so every carrier in the subtree is a target. Real assets author
+    ``UsdPhysics.RigidBodyAPI`` on their link prims, so anchoring a fresh rigid body on the
+    spawn prim instead would invent a body the asset's joints never reference. Only when the
+    subtree carries no rigid body is ``UsdPhysics.RigidBodyAPI`` applied to ``prim_path``
+    itself -- the bare-prim case used by the shape and mesh spawners. Each fragment is
+    dispatched to every resolved target via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
+    funcs, so core never imports a backend.
 
     Args:
         prim_path: The prim path whose subtree is searched for rigid bodies.
@@ -648,7 +654,7 @@ def apply_rigid_body_properties(
     if stage is None:
         stage = get_current_stage()
     targets, any_skipped = _resolve_fragment_targets(
-        prim_path, UsdPhysics.RigidBodyAPI, stage, apply_fresh=bool(fragments)
+        prim_path, UsdPhysics.RigidBodyAPI, stage, apply_fresh=bool(fragments), stop_at_carrier=False
     )
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
@@ -858,7 +864,8 @@ def apply_collision_properties(
 ) -> bool:
     """Apply a list of collision fragments to the colliders under a prim.
 
-    Existing colliders in the subtree are modified in place, matching the legacy nested writer.
+    Existing colliders in the subtree are modified in place, and the search does not descend
+    below a found collider, matching the legacy nested writer's stop-on-success traversal.
     Real assets author ``UsdPhysics.CollisionAPI`` on their collider prims, so anchoring a fresh
     collider on the spawn prim would change the scene's collision geometry. Only when the
     subtree carries no collider is ``UsdPhysics.CollisionAPI`` applied to ``prim_path`` itself
@@ -882,7 +889,7 @@ def apply_collision_properties(
     if stage is None:
         stage = get_current_stage()
     targets, any_skipped = _resolve_fragment_targets(
-        prim_path, UsdPhysics.CollisionAPI, stage, apply_fresh=bool(fragments)
+        prim_path, UsdPhysics.CollisionAPI, stage, apply_fresh=bool(fragments), stop_at_carrier=True
     )
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
@@ -993,10 +1000,12 @@ def apply_mass_properties(
     """Apply a list of mass fragments to the mass-bearing prims under a prim.
 
     Existing mass-bearing prims in the subtree are modified in place, matching the legacy nested
-    writer, since real assets author ``UsdPhysics.MassAPI`` on their link prims. Only when the
-    subtree carries none is ``UsdPhysics.MassAPI`` applied to ``prim_path`` itself -- the
-    bare-prim case used by the shape and mesh spawners. Each fragment is dispatched to every
-    resolved target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    writer, since real assets author ``UsdPhysics.MassAPI`` on their link prims. This includes
+    nested carriers: the URDF importer authors child links under their parent link prims, so
+    every carrier in the subtree is a target. Only when the subtree carries none is
+    ``UsdPhysics.MassAPI`` applied to ``prim_path`` itself -- the bare-prim case used by the
+    shape and mesh spawners. Each fragment is dispatched to every resolved target via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
 
     Args:
         prim_path: The prim path whose subtree is searched for mass-bearing prims.
@@ -1013,7 +1022,9 @@ def apply_mass_properties(
     fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    targets, any_skipped = _resolve_fragment_targets(prim_path, UsdPhysics.MassAPI, stage, apply_fresh=bool(fragments))
+    targets, any_skipped = _resolve_fragment_targets(
+        prim_path, UsdPhysics.MassAPI, stage, apply_fresh=bool(fragments), stop_at_carrier=False
+    )
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
     for target in targets:
