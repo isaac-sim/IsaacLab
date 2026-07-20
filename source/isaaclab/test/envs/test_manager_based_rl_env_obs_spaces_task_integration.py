@@ -78,7 +78,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     ids=["RGB", "Depth", "RayCaster"],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_contraint(env_cfg_cls, presets, device):
+def test_obs_space_follows_clip_constraint(env_cfg_cls, presets, device):
     """Ensure observation space bounds reflect the clip constraint on each term."""
     # new USD stage
     sim_utils.create_new_stage()

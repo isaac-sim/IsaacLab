@@ -1,1 +1,2 @@
-Test-only observation-space coverage split
+Split manager-based RL observation-space coverage into simulator-free unit tests and task-backed integration
+tests. Preserved CPU and CUDA coverage for reset/step, camera, and ray-caster observations.

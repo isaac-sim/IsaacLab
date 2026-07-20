@@ -57,9 +57,9 @@ def test_non_concatenated_obs_groups_contain_all_terms():
     in the observation space Dict. This test ensures all terms are correctly included.
     """
     terms = [
-        ("vector", (3,), None),
-        ("matrix", (2, 3), (-2.0, 2.0)),
         ("image", (4, 5, 3), (0.0, 1.0)),
+        ("matrix", (2, 3), (-2.0, 2.0)),
+        ("vector", (3,), None),
     ]
     env = _make_env_with_policy_obs_terms(num_envs=2, terms=terms)
     ManagerBasedRLEnv._configure_gym_env_spaces(env)
@@ -68,8 +68,8 @@ def test_non_concatenated_obs_groups_contain_all_terms():
     policy_space = env.observation_space.spaces["policy"]
     assert isinstance(policy_space, gym.spaces.Dict)
 
-    expected_policy_terms = {"vector", "matrix", "image"}
-    assert set(policy_space.spaces) == expected_policy_terms
+    expected_policy_terms = ["image", "matrix", "vector"]
+    assert list(policy_space.spaces) == expected_policy_terms
     for term_name in expected_policy_terms:
         assert isinstance(policy_space.spaces[term_name], gym.spaces.Box)
 
