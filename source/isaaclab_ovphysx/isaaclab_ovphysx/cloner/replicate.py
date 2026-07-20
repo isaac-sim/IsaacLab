@@ -26,7 +26,7 @@ import torch
 
 from pxr import Sdf, Usd
 
-from isaaclab.cloner.cloner_utils import split_clone_template
+import isaaclab.cloner as cloner
 
 
 def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
@@ -90,7 +90,7 @@ class OvPhysxReplicateContext:
             active_env_ids = _select_env_ids(env_ids, mapping, i).tolist()
 
             self_env_id: int | None = None
-            pre, suf = split_clone_template(destinations[i])
+            pre, suf = cloner.path.split(destinations[i])
             candidate = src.removeprefix(pre).removesuffix(suf)
             if candidate.isdigit():
                 self_env_id = int(candidate)

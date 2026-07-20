@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 import torch
 import warp as wp
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
@@ -32,7 +32,7 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab.cloner.cloner_utils import num_spawn_variants
+from isaaclab.cloner.util.instance import num_spawn_variants
 from isaaclab.physics.scene_data_requirements import aggregate_requirements, resolve_scene_data_requirements
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
@@ -110,14 +110,14 @@ class InteractiveScene:
 
     .. code-block:: python
 
-        from isaaclab import cloner
+        import isaaclab.cloner as cloner
         from isaaclab.assets import Articulation
 
         scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))
         robot = Articulation(robot_cfg)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing, device=scene.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, scene.num_envs, scene.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, scene.device, pos)
         cloner.replicate(plan, stage=scene.stage)
 
     .. note::

@@ -17,6 +17,7 @@ from isaaclab.utils.version import has_kit
 
 from .cloner_strategies import sequential
 from .usd import UsdReplicateContext
+from .util.instance import make_clone_plan
 
 if TYPE_CHECKING:
     import torch
@@ -167,8 +168,6 @@ class ReplicateSession:
         self._plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:
-        from .cloner_utils import make_clone_plan  # noqa: PLC0415
-
         self._plan = make_clone_plan(self._cfgs, **self._kwargs)
         return self
 

@@ -12,7 +12,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
+import isaaclab.cloner as cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import ContactSensor, RayCaster
@@ -66,7 +66,7 @@ class AnymalCEnv(DirectRLEnv):
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])

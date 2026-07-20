@@ -11,8 +11,8 @@ from collections.abc import Sequence
 import numpy as np
 import torch
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.markers import VisualizationMarkers
@@ -94,7 +94,7 @@ class HandoverEnv(DirectMARLEnv):
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["right_robot"] = self.right_hand

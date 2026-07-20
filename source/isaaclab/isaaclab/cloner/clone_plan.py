@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import torch
@@ -26,8 +27,8 @@ class ClonePlan:
     env_ids: torch.Tensor | None = None
     """Long tensor ``[num_clones]`` of target env ids.
 
-    Optional for plans used only with :func:`~isaaclab.cloner.iter_clone_plan_matches` or
-    :func:`~isaaclab.cloner.resolve_clone_plan_source`; required by :func:`~isaaclab.cloner.replicate`.
+    Optional for plans used only with :func:`~isaaclab.cloner.query.iter_sources` or
+    :func:`~isaaclab.cloner.query.path_to_source`; required by :func:`~isaaclab.cloner.replicate`.
     """
 
     positions: torch.Tensor | None = None
@@ -36,43 +37,54 @@ class ClonePlan:
     cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """``id(cfg)`` to the row indices the cfg owns."""
 
-    @classmethod
-    def from_env_0(
-        cls,
-        source: str,
-        destination: str,
-        num_clones: int,
-        device: str,
-        positions: torch.Tensor | None = None,
-    ) -> ClonePlan:
-        """Build a single-source clone plan that targets every env from one source row.
 
-        Auto-populates :attr:`cfg_rows` from
-        :data:`~isaaclab.cloner.REPLICATION_QUEUE`, including only cfgs whose
-        ``prim_path`` falls under the env-root prefix of ``destination``. Must be
-        called *after* all asset constructors have run, so their cfgs are already
-        registered in the queue; otherwise those assets will be skipped by the
-        subsequent :func:`~isaaclab.cloner.replicate` call.
+def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cpu"):
+    """Create a centered grid of transforms for ``N`` instances.
 
-        Args:
-            source: Source prim path (typically ``/World/envs/env_0``).
-            destination: Destination template with ``"{}"`` for the env id.
-            num_clones: Number of target envs.
-            device: Torch device for the mask and env id buffers.
-            positions: Optional per-env world positions [m], shape ``[num_clones, 3]``.
-        """
-        from .cloner_utils import split_clone_template  # noqa: PLC0415
-        from .replicate_session import REPLICATION_QUEUE  # noqa: PLC0415
+    Computes ``(x, y)`` coordinates in a roughly square grid centered at the origin
+    with the provided spacing, places the third coordinate according to ``up_axis``,
+    and returns identity orientations. This matches the grid layout used by
+    :class:`isaaclab.terrains.TerrainImporter` for consistent environment positioning.
 
-        prefix, _ = split_clone_template(destination)
-        cfg_rows: dict[int, tuple[int, ...]] = {
-            id(cfg): (0,) for cfg in REPLICATION_QUEUE if cfg.prim_path.startswith(prefix)
-        }
-        return cls(
-            sources=(source,),
-            destinations=(destination,),
-            clone_mask=torch.ones((1, num_clones), dtype=torch.bool, device=device),
-            env_ids=torch.arange(num_clones, dtype=torch.long, device=device),
-            positions=positions,
-            cfg_rows=cfg_rows,
-        )
+    Args:
+        N: Number of instances.
+        spacing: Distance between neighboring grid positions.
+        up_axis: Up axis for positions ("z", "y", or "x").
+        device: Torch device for returned tensors.
+
+    Returns:
+        A tuple ``(pos, ori)`` where:
+            - ``pos`` is a tensor of shape ``(N, 3)`` with positions.
+            - ``ori`` is a tensor of shape ``(N, 4)`` with identity quaternions in ``(x, y, z, w)``.
+    """
+    # Match terrain_importer._compute_env_origins_grid layout for consistency
+    num_rows = int(math.ceil(N / math.sqrt(N)))
+    num_cols = int(math.ceil(N / num_rows))
+
+    # Create meshgrid matching terrain's "ij" indexing
+    ii, jj = torch.meshgrid(
+        torch.arange(num_rows, device=device, dtype=torch.float32),
+        torch.arange(num_cols, device=device, dtype=torch.float32),
+        indexing="ij",
+    )
+    # Flatten and take first N elements
+    ii = ii.flatten()[:N]
+    jj = jj.flatten()[:N]
+
+    # Match terrain's coordinate system: X from rows (negated), Y from cols
+    x = -(ii - (num_rows - 1) / 2) * spacing
+    y = (jj - (num_cols - 1) / 2) * spacing
+    z0 = torch.zeros(N, device=device)
+
+    # place on plane based on up_axis
+    if up_axis.lower() == "z":
+        pos = torch.stack([x, y, z0], dim=1)
+    elif up_axis.lower() == "y":
+        pos = torch.stack([x, z0, y], dim=1)
+    else:  # up_axis == "x"
+        pos = torch.stack([z0, x, y], dim=1)
+
+    # identity orientations (x,y,z,w)
+    ori = torch.zeros((N, 4), device=device)
+    ori[:, 3] = 1.0  # w=1 for identity quaternion
+    return pos, ori

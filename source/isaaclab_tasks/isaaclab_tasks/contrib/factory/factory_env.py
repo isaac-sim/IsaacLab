@@ -8,8 +8,8 @@ import torch
 
 import carb
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
@@ -100,7 +100,7 @@ class FactoryEnv(DirectRLEnv):
             self._large_gear_asset = Articulation(self.cfg_task.large_gear_cfg)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
 
         if self.device == "cpu":

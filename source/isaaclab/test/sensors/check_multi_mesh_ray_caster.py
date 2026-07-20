@@ -46,9 +46,9 @@ import random
 
 import torch
 
+import isaaclab.cloner as lab_cloner
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
-from isaaclab import cloner as lab_cloner
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, SimulationContext

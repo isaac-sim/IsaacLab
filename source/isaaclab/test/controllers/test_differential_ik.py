@@ -15,8 +15,8 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 

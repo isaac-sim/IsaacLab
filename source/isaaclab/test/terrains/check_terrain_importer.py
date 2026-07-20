@@ -64,9 +64,9 @@ simulation_app = app_launcher.app
 
 import torch
 
+import isaaclab.cloner as lab_cloner
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
-from isaaclab import cloner as lab_cloner
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter

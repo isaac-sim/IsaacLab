@@ -41,9 +41,9 @@ import traceback
 import torch
 from isaaclab_physx.renderers.kit_viewport_utils import _set_kit_camera_view
 
+import isaaclab.cloner as lab_cloner
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
-from isaaclab import cloner as lab_cloner
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.sim import SimulationCfg, SimulationContext

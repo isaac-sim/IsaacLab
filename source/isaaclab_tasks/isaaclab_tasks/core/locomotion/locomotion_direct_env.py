@@ -11,8 +11,8 @@ from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.utils.math import (
@@ -119,7 +119,7 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
         # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":

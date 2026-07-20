@@ -8,39 +8,29 @@ __all__ = [
     "ClonePlan",
     "InclusionSet",
     "add",
+    "clone_plan_from_env_0",
     "disabled_fabric_change_notifies",
     "filter_collisions",
-    "get_suffix",
     "grid_transforms",
-    "iter_clone_plan_matches",
     "make_clone_plan",
     "make_valid_clone_combinations",
+    "path",
+    "query",
     "random",
     "ReplicateSession",
     "REPLICATION_QUEUE",
     "replicate",
     "queue_replication",
-    "resolve_clone_plan_source",
-    "split_clone_template",
     "sequential",
     "UsdReplicateContext",
     "usd_replicate",
 ]
 
-from .clone_plan import ClonePlan
+from ._fabric_notices import disabled_fabric_change_notifies
+from .clone_plan import ClonePlan, grid_transforms
 from .cloner_cfg import CloneCfg, InclusionSet, add
 from .cloner_strategies import random, sequential
-from ._fabric_notices import disabled_fabric_change_notifies
-from .cloner_utils import (
-    filter_collisions,
-    get_suffix,
-    grid_transforms,
-    iter_clone_plan_matches,
-    make_clone_plan,
-    make_valid_clone_combinations,
-    resolve_clone_plan_source,
-    split_clone_template,
-)
+from .collision_filter import filter_collisions
 from .replicate_session import (
     REPLICATION_QUEUE,
     ReplicateSession,
@@ -51,3 +41,5 @@ from .usd import (
     UsdReplicateContext,
     usd_replicate,
 )
+from .util import path, query
+from .util.instance import clone_plan_from_env_0, make_clone_plan, make_valid_clone_combinations
