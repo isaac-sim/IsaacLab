@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.assets import ArticulationCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
@@ -54,8 +55,8 @@ class KukaAllegroRelJointPosActionCfg:
 class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
     good_finger_contact = RewTerm(
         func=mdp.contacts,
-        weight=0.5,
-        params={"threshold": 0.1, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
+        weight=1.0,
+        params={"threshold": 0.01, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
     )
 
     contact_count = RewTerm(
@@ -88,6 +89,30 @@ class KukaAllegroMixinCfg:
     def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
         super().__post_init__()
         self.commands.object_pose.body_name = "palm_link"
+        events = self.events.conditional_reset.params["terms"]
+        events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")
+        events["reset_object_to_target"].params["target_cfg"] = SceneEntityCfg("robot", body_names="palm_link")
+        events["reset_object_to_target"].params["pose_range"] = {
+            "x": [0.03, 0.07],
+            "y": [-0.04, 0.04],
+            "z": [0.02, 0.08],
+        }
+        # table/ground clearance: everything but the ground-mounted arm base (allegro finger links
+        # are also named *_link_N, so exclude exactly iiwa7_link_0)
+        self.events.conditional_reset.params["valid_criteria"][
+            "robot_table_clearance"
+        ].body_names = "(?!iiwa7_link_0$).*"
+        # finger closing-speed DR: armature sets tau/M.
+        self.events.finger_closing_speed = EventTerm(
+            func=mdp.randomize_joint_parameters,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names="(index|middle|ring|thumb)_joint_(0|1|2|3)"),
+                "armature_distribution_params": (0.1, 1.0),
+                "operation": "scale",
+                "distribution": "log_uniform",
+            },
+        )
 
 
 @configclass

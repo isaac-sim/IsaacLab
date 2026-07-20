@@ -22,6 +22,7 @@ class TrainingRequest:
     Args:
         backend: Reinforcement learning backend to run.
         task: Registered Gym task identifier.
+        checkpoint: Checkpoint path or a backend-supported selector to resume training from.
         agent: Optional task agent configuration entry point.
         num_envs: Number of environments to simulate.
         seed: Environment and agent seed.
@@ -35,6 +36,7 @@ class TrainingRequest:
 
     backend: BackendName
     task: str
+    checkpoint: str | None = None
     agent: str | None = None
     num_envs: int | None = None
     seed: int | None = None
@@ -101,6 +103,7 @@ def play(request: PlaybackRequest) -> int:
 
 def _training_argv(request: TrainingRequest) -> list[str]:
     argv = ["--rl_library", request.backend, "--task", request.task]
+    _append_value(argv, "--model_path" if request.backend == "rlinf" else "--checkpoint", request.checkpoint)
     _append_value(argv, "--agent", request.agent)
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--seed", request.seed)
@@ -108,7 +111,8 @@ def _training_argv(request: TrainingRequest) -> list[str]:
     _append_value(argv, "--device", request.device)
     if request.video:
         argv.append("--video")
-    if request.distributed:
+    # SB3 does not support distributed training; skip the flag for that backend.
+    if request.distributed and request.backend != "sb3":
         argv.append("--distributed")
     return argv + list(request.backend_args) + list(request.hydra_args)
 

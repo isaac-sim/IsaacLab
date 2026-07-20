@@ -7,6 +7,10 @@
 
 from __future__ import annotations
 
+import importlib
+import sys
+import types
+
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
 
 
@@ -44,6 +48,41 @@ def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:
         "--distributed",
         "physics=newton_mjwarp",
     ]
+
+
+def test_train_request_maps_checkpoint_to_backend_argument(monkeypatch) -> None:
+    """Training requests forward a checkpoint so training can resume from it."""
+    received: list[str] = []
+
+    def fake_run_train_cli(argv: list[str]) -> int:
+        received.extend(argv)
+        return 0
+
+    monkeypatch.setattr(api, "run_train_cli", fake_run_train_cli)
+
+    api.train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", checkpoint="latest"))
+    assert received == ["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole", "--checkpoint", "latest"]
+
+    received.clear()
+    api.train(TrainingRequest(backend="rlinf", task="Isaac-Task", checkpoint="model"))
+    assert received == ["--rl_library", "rlinf", "--task", "Isaac-Task", "--model_path", "model"]
+
+
+def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
+    """A training backend that mutates ``sys.argv`` must not leak the change to the caller."""
+    module = types.ModuleType("fake_train_backend")
+
+    def run(argv: list[str]) -> None:
+        # backends call set_hydra_args, which overwrites sys.argv while parsing
+        sys.argv = [sys.argv[0]] + argv
+
+    module.run = run
+    monkeypatch.setattr(importlib, "import_module", lambda name: module)
+
+    original_argv = list(sys.argv)
+    dispatch._run_backend("fake_train_backend", ["physics=newton_mjwarp"], run_as_script=False)
+
+    assert sys.argv == original_argv
 
 
 def test_play_request_uses_rlinf_argument_names(monkeypatch) -> None:

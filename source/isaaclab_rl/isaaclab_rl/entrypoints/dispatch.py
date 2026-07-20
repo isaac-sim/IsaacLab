@@ -89,7 +89,11 @@ def _run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> N
         runner = getattr(module, "run", None)
         if not callable(runner):
             raise TypeError(f"Training backend {module_name!r} does not define run(argv).")
-        runner(argv)
+        original_argv = sys.argv
+        try:
+            runner(argv)
+        finally:
+            sys.argv = original_argv
         return
     original_argv = sys.argv
     try:
