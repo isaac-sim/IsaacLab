@@ -48,14 +48,12 @@ Example usage:
 
 from __future__ import annotations
 
-import contextlib
+import inspect
 import logging
+import statistics
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
-
-import numpy as np
-import torch
+from dataclasses import dataclass
 
 from .benchmark_core import BaseIsaacLabBenchmark
 from .measurements import StatisticalMeasurement
@@ -85,6 +83,14 @@ class MethodBenchmarkRunnerConfig:
     device: str = "cuda:0"
     mode: str | list[str] = "all"
 
+    def __post_init__(self) -> None:
+        """Validate benchmark workload sizes."""
+        for field_name in ("num_iterations", "num_instances", "num_bodies", "num_joints"):
+            if getattr(self, field_name) <= 0:
+                raise ValueError(f"{field_name} must be greater than zero")
+        if self.warmup_steps < 0:
+            raise ValueError("warmup_steps must be non-negative")
+
 
 @dataclass
 class MethodBenchmarkDefinition:
@@ -95,14 +101,12 @@ class MethodBenchmarkDefinition:
         method_name: Name of the method to benchmark on the target object.
         input_generators: Dict mapping mode names to input generator functions.
         category: Category for grouping results into phases.
-        dependencies: List of method names that must be called first.
     """
 
     name: str
     method_name: str
     input_generators: dict[str, Callable]
     category: str = "default"
-    dependencies: list[str] = field(default_factory=list)
 
 
 class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
@@ -171,17 +175,13 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         self,
         benchmarks: list[MethodBenchmarkDefinition],
         target_object: object,
-        dependencies: dict[str, list[str]] | None = None,
     ) -> None:
         """Run all defined benchmarks on the target object.
 
         Args:
             benchmarks: List of benchmark definitions to run.
             target_object: Object containing the methods to benchmark.
-            dependencies: Optional dict mapping method names to their dependencies.
         """
-        if dependencies is None:
-            dependencies = {}
 
         print(f"\nBenchmarking {len(benchmarks)} methods...")
         print(f"Config: {self._config.num_iterations} iterations, {self._config.warmup_steps} warmup steps")
@@ -201,9 +201,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             current_modes = self._modes_to_run if self._modes_to_run is not None else available_modes
             current_modes = [m for m in current_modes if m in available_modes]
 
-            # Get dependencies for this method
-            method_deps = benchmark.dependencies or dependencies.get(benchmark.method_name, [])
-
             for mode in current_modes:
                 # Update manual recorders
                 self.update_manual_recorders()
@@ -216,7 +213,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
                     method=method,
                     method_name=bench_name,
                     generator=generator,
-                    dependencies=method_deps,
                 )
 
                 if result is None:
@@ -243,7 +239,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         method: Callable | None,
         method_name: str,
         generator: Callable,
-        dependencies: list[str],
     ) -> dict | None:
         """Benchmark a single method.
 
@@ -251,7 +246,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             method: The method to benchmark (or None if not found).
             method_name: Name of the method for reporting.
             generator: Function that generates input arguments.
-            dependencies: List of dependency method names to call first.
 
         Returns:
             Dict with timing results, or None if method not found.
@@ -259,69 +253,83 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         if method is None:
             return None
 
-        # Try to call the method once to check for NotImplementedError
-        try:
+        inputs: dict = {}
+
+        def prepare() -> None:
+            nonlocal inputs
             inputs = generator(self._config)
-            _ = method(**inputs)
+
+        def operation() -> object:
+            return method(**inputs)
+
+        try:
+            prepare()
+            operation()
         except NotImplementedError as e:
             return {"skipped": True, "skip_reason": f"NotImplementedError: {e}"}
         except Exception as e:
-            return {"skipped": True, "skip_reason": f"Error: {type(e).__name__}: {e}"}
+            raise RuntimeError(f"{method_name} failed during preflight") from e
 
-        # Warmup phase
-        for _ in range(self._config.warmup_steps):
+        return self._collect_samples(method_name, prepare, operation)
+
+    def _collect_samples(
+        self,
+        workload_name: str,
+        prepare: Callable[[], None],
+        operation: Callable[[], object],
+    ) -> dict:
+        """Collect synchronized latency samples for one workload.
+
+        Args:
+            workload_name: Name included in contextual failures.
+            prepare: Untimed callable that prepares one operation.
+            operation: Callable measured after preparation.
+
+        Returns:
+            Timing statistics in microseconds.
+        """
+        for iteration in range(self._config.warmup_steps):
             try:
-                inputs = generator(self._config)
-                _ = method(**inputs)
-            except Exception:
-                pass
-            # Sync GPU
+                prepare()
+                operation()
+            except Exception as e:
+                raise RuntimeError(f"{workload_name} failed during warmup iteration {iteration}") from e
             if self._config.device.startswith("cuda"):
                 self._sync_device()
 
-        # Timing phase
-        times = []
-        for _ in range(self._config.num_iterations):
-            inputs = generator(self._config)
-
-            # Sync before timing
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
-
-            # Time the method
-            start_time = time.perf_counter()
+        times: list[float] = []
+        for iteration in range(self._config.num_iterations):
             try:
-                _ = method(**inputs)
-            except Exception:
-                continue
+                prepare()
+            except Exception as e:
+                raise RuntimeError(f"{workload_name} failed during timed preparation iteration {iteration}") from e
 
-            # Sync after to ensure kernel completion
             if self._config.device.startswith("cuda"):
                 self._sync_device()
 
-            end_time = time.perf_counter()
-            times.append((end_time - start_time) * 1e6)  # Convert to microseconds
+            start_time = time.perf_counter_ns()
+            try:
+                operation()
+            except Exception as e:
+                raise RuntimeError(f"{workload_name} failed during timed iteration {iteration}") from e
 
-        if not times:
-            return {"skipped": True, "skip_reason": "No successful iterations"}
+            if self._config.device.startswith("cuda"):
+                self._sync_device()
+
+            end_time = time.perf_counter_ns()
+            times.append((end_time - start_time) / 1e3)
 
         return {
-            "mean": float(np.mean(times)),
-            "std": float(np.std(times)),
+            "mean": statistics.mean(times),
+            "std": statistics.stdev(times) if len(times) > 1 else 0.0,
             "n": len(times),
         }
 
     def _sync_device(self) -> None:
         """Synchronize GPU device."""
-        try:
-            import warp as wp
+        import warp as wp
 
-            wp.synchronize()
-        except ImportError:
-            pass
-
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
+        wp.synchronize_device(self._config.device)
 
     def run_property_benchmarks(
         self,
@@ -408,66 +416,23 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             Dict with timing results, or None if property not found.
         """
         # Check if property exists
-        if not hasattr(target_data, prop_name):
+        if inspect.getattr_static(target_data, prop_name, None) is None:
             return None
 
-        # Try to access the property once to check for errors
+        def prepare() -> None:
+            gen_mock_data(self._config)
+            for dependency in dependencies:
+                getattr(target_data, dependency)
+
+        def operation() -> object:
+            return getattr(target_data, prop_name)
+
         try:
             gen_mock_data(self._config)
-            _ = getattr(target_data, prop_name)
+            operation()
         except NotImplementedError as e:
             return {"skipped": True, "skip_reason": f"NotImplementedError: {e}"}
         except Exception as e:
-            return {"skipped": True, "skip_reason": f"Error: {type(e).__name__}: {e}"}
+            raise RuntimeError(f"{prop_name} failed during preflight") from e
 
-        # Warmup phase
-        for _ in range(self._config.warmup_steps):
-            try:
-                gen_mock_data(self._config)
-                # Access dependencies first
-                for dep in dependencies:
-                    with contextlib.suppress(Exception):
-                        _ = getattr(target_data, dep)
-                _ = getattr(target_data, prop_name)
-            except Exception:
-                pass
-            # Sync GPU
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
-
-        # Timing phase
-        times = []
-        for _ in range(self._config.num_iterations):
-            gen_mock_data(self._config)
-
-            # Access dependencies first (not timed)
-            for dep in dependencies:
-                with contextlib.suppress(Exception):
-                    _ = getattr(target_data, dep)
-
-            # Sync before timing
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
-
-            # Time the property access
-            start_time = time.perf_counter()
-            try:
-                _ = getattr(target_data, prop_name)
-            except Exception:
-                continue
-
-            # Sync after
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
-
-            end_time = time.perf_counter()
-            times.append((end_time - start_time) * 1e6)  # microseconds
-
-        if not times:
-            return {"skipped": True, "skip_reason": "No successful iterations"}
-
-        return {
-            "mean": float(np.mean(times)),
-            "std": float(np.std(times)),
-            "n": len(times),
-        }
+        return self._collect_samples(prop_name, prepare, operation)
