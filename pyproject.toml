@@ -84,7 +84,9 @@ dependencies = [
     # ----- newton (default physics engine) -----
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
     # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
-    "newton[sim]>=1.2.0",
+    # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
+    # ...) that honoring USD-authored ``physics:approximation`` requires.
+    "newton[sim,importers]>=1.2.0",
     # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
@@ -123,7 +125,7 @@ rerun = [
 # Isaac Sim (PhysX backend); co-resolves with the base install via the [tool.uv] conflicts table.
 isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 # Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
-ov = ["ovphysx==0.5.2+head.f62c22207c"]
+ov = ["ovphysx>=0.4.13"]
 rtx = ["ovrtx>=0.3.0,<0.4.0"]
 mimic = [
     "isaaclab-mimic",
@@ -164,7 +166,7 @@ isaacsim = "6.0.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.2+head.f62c22207c"
+ovphysx = ">=0.4.13"
 ovrtx = ">=0.3.0,<0.4.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
 newton = "81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9"
@@ -335,7 +337,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.10.0",
     "mujoco-warp~=3.10.0,>=3.10.0.2",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.0",
     "torch==2.11.0",
