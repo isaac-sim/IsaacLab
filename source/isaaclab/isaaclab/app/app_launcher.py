@@ -331,6 +331,7 @@ class AppLauncher:
         atexit.register(_atexit_close)
 
         # Set up signal handlers for graceful shutdown
+        self._abort_in_progress = False
         # -- during explicit `kill` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
         # -- during aborts
@@ -1433,7 +1434,17 @@ class AppLauncher:
         print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
         print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
 
-    def _abort_signal_handle_callback(self, signal, frame):
+    def _abort_signal_handle_callback(self, signum, frame):
         """Handle the abort/segmentation/kill signals."""
+        # A signal delivered while the app is already closing (e.g. a repeated SIGTERM from a
+        # distributed launcher, or a fault raised inside :meth:`SimulationApp.close`) must not
+        # re-enter `close()`: the nested calls recurse until the stack overflows, so the process
+        # neither shuts down cleanly nor reports the original failure. Fall back to the default
+        # signal action so the process terminates with the original signal.
+        if self._abort_in_progress:
+            signal.signal(signum, signal.SIG_DFL)
+            signal.raise_signal(signum)
+            return
+        self._abort_in_progress = True
         # close the app
         self._app.close()
