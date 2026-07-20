@@ -114,7 +114,7 @@ All benchmarks are located in ``source/isaaclab_physx/benchmark/assets/``.
 Sensor Update Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The OVPhysX sensor benchmarks build kitless simulation scenes and measure sensor
+The PhysX and OVPhysX sensor benchmarks build simulation scenes and measure sensor
 updates separately from physics stepping:
 
 .. list-table::
@@ -134,17 +134,23 @@ updates separately from physics stepping:
    * - ``benchmark_ray_caster.py``
      - Rigid-body tracking and ray casting
 
-They are located in ``source/isaaclab_ovphysx/benchmark/sensors/``. Each script
-reports synchronized update latency, asynchronous submission latency, and the
-blocking backend read latency measured without sensor Warp processing.
-Physics ``sim.step()`` calls occur outside all timed regions.
+They are located in the ``benchmark/sensors/`` directories of ``isaaclab_physx``
+and ``isaaclab_ovphysx``. Each script reports synchronized completion latency,
+host submission latency, and a synchronized no-op observer floor. OVPhysX scripts
+also isolate supported native reads and report the full-update-minus-read result
+as an estimate. Physics ``sim.step()`` calls occur outside all timed regions.
+
+The default ``summary`` formatter prints the aggregate results and writes a JSON
+file containing the mean, sample standard deviation, sample count, p50, and p95.
+The observer floor is reported but is not subtracted from the measurements.
 
 For example:
 
 .. code-block:: bash
 
    ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/sensors/benchmark_contact_sensor.py \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500
+       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
+       --benchmark_formatter summary --output_path artifacts/micro_benchmarks
 
 Command Line Arguments
 ----------------------
