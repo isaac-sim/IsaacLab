@@ -140,9 +140,9 @@ def _run_simulation(
         dt: Physics timestep [s].
         newton_cfg: Newton physics configuration.
         num_steps: Number of policy-level steps.
-        decimation: Actuator steps per policy step (Newton's CUDA-graph
-            d-loop is used when all-graphable; otherwise an explicit Python
-            inner loop).
+        decimation: Actuator steps per policy step (the manager's internal
+            d-loop is used when it owns the decimation loop; otherwise an
+            explicit Python inner loop).
         feedforward: When not ``None``, set a constant per-DOF feedforward
             effort target. Used by the implicit-FF equivalence test.
         joint_ordering: Optional explicit public joint-name order.
@@ -175,12 +175,9 @@ def _run_simulation(
         if use_newton_actuators and decimation > 1:
             SimulationManager.set_decimation(decimation)
 
-        handles_dec = (
-            use_newton_actuators
-            and decimation > 1
-            and SimulationManager._is_all_graphable()
-            and SimulationManager._decimation > 1
-        )
+        # Mirror the env gate: fold the decimation loop into one step() call
+        # whenever the manager owns it (Newton actuator path active).
+        handles_dec = SimulationManager.handles_decimation() and SimulationManager._decimation > 1
 
         joint_names = tuple(articulation.joint_names)
         backend_joint_names = tuple(articulation.backend_joint_names)

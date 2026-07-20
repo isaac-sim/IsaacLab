@@ -423,7 +423,7 @@ def test_mpm_cuda_graph_capture_supports_only_fixed_grid(monkeypatch, grid_type,
 
 
 def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
-    """Sparse/dense MPM should not enter a CUDA graph capture window."""
+    """Sparse/dense MPM invalidation must not arm a CUDA graph capture."""
     from isaaclab.physics import PhysicsManager
 
     monkeypatch.setattr(
@@ -437,42 +437,58 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
     monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
 
-    NewtonMPMManager._capture_or_defer_graph()
+    NewtonMPMManager._invalidate_graph()
 
     assert NewtonManager._graph is None
     assert NewtonManager._graph_capture_pending is False
 
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
-    """CUDA graph capture should use the simulation device instead of Warp's default device."""
+    """The capture site in step() uses the simulation device, and its warmup counts as the step."""
     from isaaclab.physics import PhysicsManager
 
     captured_devices = []
     captured_graph = object()
+    launches = []
 
-    class FakeScopedCapture:
-        def __init__(self, device=None):
-            captured_devices.append(device)
-            self.graph = captured_graph
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            return False
-
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(is_playing=lambda: True), raising=False)
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
+    monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0, raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_iteration_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "_model_changes", set(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_particle_visual_prims", {}, raising=False)
+    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False, raising=False)
+    monkeypatch.setattr(NewtonManager, "_use_newton_actuators_active", False, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver_dt", 0.005, raising=False)
+    monkeypatch.setattr(NewtonManager, "_num_substeps", 2, raising=False)
+    monkeypatch.setattr(NewtonManager, "_reset_solver_internals", classmethod(lambda cls, mask: None))
+    monkeypatch.setattr(NewtonManager, "forward", classmethod(lambda cls: None))
     monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
-    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
-    monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
+    monkeypatch.setattr(NewtonManager, "_log_solver_debug", classmethod(lambda cls: None))
+    monkeypatch.setattr(
+        NewtonManager,
+        "_capture_relaxed_graph",
+        classmethod(lambda cls, device, warmup, capture: (captured_devices.append(device), captured_graph)[1]),
+    )
+    monkeypatch.setattr(wp, "capture_launch", lambda graph: launches.append(graph))
 
-    NewtonManager._capture_or_defer_graph()
+    NewtonManager.step()
 
     assert captured_devices == ["cuda:1"]
-    assert NewtonManager._graph is captured_graph
+    # Mixed scene (not all-graphable): the capture lands in the per-iteration slot.
+    assert NewtonManager._iteration_graph is captured_graph
+    assert NewtonManager._graph is None
+    assert NewtonManager._graph_capture_pending is False
+    # The capture warmup already advanced physics: the capturing tick must not
+    # also replay the fresh graph (double-advance), yet sim time advances by
+    # one sub-step (loop not owned: _use_newton_actuators_active is False).
+    assert launches == []
+    assert PhysicsManager._sim_time == pytest.approx(0.005 * 2)
 
 
 # ---------------------------------------------------------------------------
