@@ -23,13 +23,20 @@ pytestmark = pytest.mark.benchmark
         ("warmup_steps", -1),
         ("num_instances", 0),
         ("num_bodies", 0),
-        ("num_joints", 0),
+        ("num_joints", -1),
     ),
 )
 def test_config_rejects_invalid_workload_sizes(field: str, value: int) -> None:
     """Invalid workload sizes should fail before benchmark setup."""
     with pytest.raises(ValueError, match=field):
         MethodBenchmarkRunnerConfig(**{field: value})
+
+
+def test_config_accepts_zero_joints_for_rigid_assets() -> None:
+    """Rigid-object benchmarks should represent their zero-joint workload accurately."""
+    config = MethodBenchmarkRunnerConfig(num_joints=0)
+
+    assert config.num_joints == 0
 
 
 def _runner(*, num_iterations: int = 3, warmup_steps: int = 0) -> MethodBenchmarkRunner:

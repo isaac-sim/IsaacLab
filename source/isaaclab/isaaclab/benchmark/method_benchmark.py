@@ -85,9 +85,11 @@ class MethodBenchmarkRunnerConfig:
 
     def __post_init__(self) -> None:
         """Validate benchmark workload sizes."""
-        for field_name in ("num_iterations", "num_instances", "num_bodies", "num_joints"):
+        for field_name in ("num_iterations", "num_instances", "num_bodies"):
             if getattr(self, field_name) <= 0:
                 raise ValueError(f"{field_name} must be greater than zero")
+        if self.num_joints < 0:
+            raise ValueError("num_joints must be non-negative")
         if self.warmup_steps < 0:
             raise ValueError("warmup_steps must be non-negative")
 
