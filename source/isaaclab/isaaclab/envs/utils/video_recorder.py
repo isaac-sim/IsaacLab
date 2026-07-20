@@ -18,6 +18,11 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+try:
+    from moviepy.editor import ImageSequenceClip
+except ImportError:
+    ImageSequenceClip = None  # type: ignore[assignment,misc]
+
 if TYPE_CHECKING:
     from .video_recorder_cfg import VideoRecorderCfg
 
@@ -159,8 +164,8 @@ class VideoRecorder:
             self._recording = False
             return
         try:
-            from moviepy.editor import ImageSequenceClip
-
+            if ImageSequenceClip is None:
+                raise ImportError("moviepy is required for video recording. Install with: pip install moviepy<2")
             os.makedirs(self.cfg.output_dir, exist_ok=True)
             path = os.path.join(self.cfg.output_dir, f"clip_{self._clip_index:04d}.mp4")
             clip = ImageSequenceClip(self._frames, fps=self.cfg.fps)

@@ -3,39 +3,27 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Integration tests for VideoRecorder across all capture backends.
+"""Integration tests for the internal video recording system.
 
-``_select_video_backend`` has three dispatch paths:
+Recording is driven by VideoRecorderCfg entries on env_cfg.video_recorders.
+The env calls VideoRecorder.step() internally after each physics step, collects
+frames, and flushes clips via moviepy when env.close() is called.
 
-1. ``"kit"`` visualizer present + PhysX → Kit Replicator capture (IsaacsimKitPerspectiveVideo)
-2. ``"newton"`` visualizer present      → Newton GL framebuffer  (NewtonGLVisualizer.render_rgb_array)
-3. Neither above, OR Kit visualizer with Newton physics
-   → physics manager video_capture_backend():
-     "kit"        → standalone Kit capture
-     "newton_gl"  → standalone Newton GL capture
-     None         → RuntimeError (not tested here; covered by test_video_recorder.py)
-
-When Newton is the physics backend, Kit Replicator recording is skipped
-(Newton Fabric writes do not notify RTX's scene delegate, producing black frames).
-_select_video_backend falls back to Newton GL standalone with a logged warning.
-
-Path 3 fallthrough (Rerun, Viser, NewtonRTX visualizer types) is covered at the
-unit level by test_video_recorder.py::test_resolve_backend_unsupported_visualizer_falls_back.
+Source strings tested:
+  "visualizer:kit"    – Kit Replicator capture from KitVisualizer.render_rgb_array()
+  "visualizer:newton" – Newton GL framebuffer from NewtonVisualizer.render_rgb_array()
+  "sensor:<name>"     – env.scene.sensors[name].data.output["rgb"]
 
 Setup:
     - AppLauncher(headless=True, enable_cameras=True)
-    - CartpoleEnv (DirectRLEnv, 1 env) as the test vehicle.
+    - CartpoleEnv (DirectRLEnv, 1 env) stepped for _STEPS env steps per test.
+    - VideoRecorderCfg(clip_length=_CLIP, clip_trigger_step=0) → one clip per test.
 Tests:
-    - KitVisualizerCfg + PhysX + backend_source="visualizer"
-      -> Kit Replicator capture (path 1) [passes]
-    - KitVisualizerCfg + Newton + backend_source="visualizer"
-      -> Newton GL standalone (path 3 fallback: Kit skipped for Newton physics) [passes]
-    - NewtonGLVisualizerCfg + Newton + backend_source="visualizer"
-      -> Newton GL framebuffer capture (path 2) [passes]
-    - PhysX + backend_source="renderer"
-      -> standalone Kit capture (path 3, PhysX physics) [passes]
-    - Newton + backend_source="renderer"
-      -> standalone Newton GL capture (path 3, Newton physics) [passes]
+    - source="visualizer:kit" + PhysX → Kit viewport frame captured (non-black)
+    - source="visualizer:kit" + Newton → Newton GL standalone (Kit fallback)
+    - source="visualizer:newton" + Newton → Newton GL framebuffer (non-black)
+    - source="visualizer" (auto) + PhysX + Kit visualizer → auto-selects Kit (non-black)
+    - source="sensor:tiled_camera" + PhysX + camera env → sensor RGB captured (non-black)
 """
 
 from isaaclab.app import AppLauncher
@@ -45,149 +33,279 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import os
+import tempfile
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs import VideoRecorderCfg
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
 pytestmark = pytest.mark.isaacsim_ci
 
-_W = 320
-_H = 240
-_N_STEPS = 10
-# Cartpole against a black background is sparse; even a valid capture only fills
-# a small fraction of the frame. 0.5 % is enough to reject an all-zero buffer.
+_CLIP = 5  # short clip so tests finish quickly
+_STEPS = 8  # slightly more than clip_length to ensure one full clip is written
 _MIN_NONZERO_RATIO = 0.005
-_WARMUP_RENDER_BUDGET = 40
 
 
-def _cartpole_cfg(*, backend_source: str = "visualizer"):
-    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
+def _assert_clip_written(output_dir: str, label: str) -> None:
+    """Assert at least one mp4 clip was written to output_dir."""
+    mp4s = [f for f in os.listdir(output_dir) if f.endswith(".mp4")]
+    assert mp4s, f"{label}: no mp4 clip written to {output_dir}"
 
-    cfg = CartpoleEnvCfg()
-    cfg.scene.num_envs = 1
-    cfg.video_recorder = VideoRecorderCfg(backend_source=backend_source, window_width=_W, window_height=_H)
+
+def _assert_frames_nonempty(frames: list[np.ndarray], label: str) -> None:
+    """Assert frames list is non-empty and at least one frame is non-black."""
+    assert frames, f"{label}: no frames captured"
+    ratios = [np.count_nonzero(f) / f.size for f in frames]
+    assert any(r >= _MIN_NONZERO_RATIO for r in ratios), (
+        f"{label}: all captured frames appear black (max nonzero ratio {max(ratios):.4f})"
+    )
+
+
+def _recorder_cfg(output_dir: str, source: str) -> VideoRecorderCfg:
+    cfg = VideoRecorderCfg()
+    cfg.source = source
+    cfg.output_dir = output_dir
+    cfg.clip_length = _CLIP
+    cfg.clip_trigger_step = 0
+    cfg.fps = 10
     return cfg
 
 
-def _capture_frame(env_cfg) -> np.ndarray | None:
+def _run_env(env_cfg, *, steps: int = _STEPS) -> None:
+    """Step the env and close it (which flushes clips)."""
     from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 
     sim_utils.create_new_stage()
-    env = CartpoleEnv(env_cfg, render_mode="rgb_array")
+    env = CartpoleEnv(env_cfg)
     try:
         env.reset()
         actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
-        for _ in range(_N_STEPS):
+        for _ in range(steps):
             env.step(actions)
-        # Kit Replicator render products are zero-initialised and need several RTX
-        # frames before the buffer is populated (same warmup issue as OVRTX tests).
-        # Poll until the frame is non-black or the budget is exhausted.
-        for _ in range(_WARMUP_RENDER_BUDGET):
-            frame = env.render()
-            if frame is not None and np.count_nonzero(frame) > 0:
-                return frame
-            env.sim.render()
-        return env.render()
     finally:
         env.close()
 
 
-def _assert_valid_frame(frame: np.ndarray | None, label: str) -> None:
-    assert frame is not None, f"{label}: env.render() returned None"
-    assert isinstance(frame, np.ndarray), f"{label}: expected ndarray, got {type(frame)}"
-    assert frame.ndim == 3 and frame.shape[2] == 3, f"{label}: unexpected shape {frame.shape}"
-    assert frame.shape[:2] == (_H, _W), f"{label}: expected ({_H}, {_W}, 3), got {frame.shape}"
-    assert frame.dtype == np.uint8, f"{label}: expected uint8, got {frame.dtype}"
-    nonzero_ratio = np.count_nonzero(frame) / frame.size
-    assert nonzero_ratio >= _MIN_NONZERO_RATIO, (
-        f"{label}: frame appears to be all-black (nonzero ratio {nonzero_ratio:.4f} < {_MIN_NONZERO_RATIO})"
-    )
+def _cartpole_cfg():
+    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
+
+    cfg = CartpoleEnvCfg()
+    cfg.scene.num_envs = 1
+    return cfg
 
 
 # ---------------------------------------------------------------------------
-# Path 1 — Kit visualizer (type="kit") → Kit Replicator capture
+# Kit visualizer sources
 # ---------------------------------------------------------------------------
 
 
-def test_kit_visualizer_physx_source_records_rgb():
-    """Kit visualizer + PhysX + backend_source='visualizer' → Kit Replicator capture."""
+def test_kit_visualizer_physx_writes_clip():
+    """source='visualizer:kit' + PhysX → clip written via Kit Replicator."""
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
-    env_cfg = _cartpole_cfg(backend_source="visualizer")
-    env_cfg.sim.physics = PhysxCfg()
-    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=_W, window_height=_H)]
+    with tempfile.TemporaryDirectory() as output_dir:
+        env_cfg = _cartpole_cfg()
+        env_cfg.sim.physics = PhysxCfg()
+        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=320, window_height=240)]
 
-    frame = _capture_frame(env_cfg)
-    _assert_valid_frame(frame, "kit-visualizer-physx")
+        # Capture the frames list passed to moviepy to verify non-black content
+        # without requiring a working ffmpeg in CI.
+        captured_frames: list[list[np.ndarray]] = []
+
+        def _mock_clip(frames, fps):
+            captured_frames.append(list(frames))
+            mock = MagicMock()
+            mock.write_videofile = MagicMock()
+            return mock
+
+        env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:kit")]
+        with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=_mock_clip):
+            _run_env(env_cfg)
+
+        assert captured_frames, "kit-visualizer-physx: no frames captured by moviepy"
+        all_frames = captured_frames[0]
+        _assert_frames_nonempty(all_frames, "kit-visualizer-physx")
 
 
-def test_kit_visualizer_newton_source_records_rgb():
-    """Kit visualizer + Newton + backend_source='visualizer' → Newton GL standalone (Kit skipped for Newton).
-
-    Kit Replicator recording does not work with Newton physics because Newton Fabric
-    writes do not notify RTX's scene delegate. _select_video_backend detects Newton
-    and falls back to standalone Newton GL capture with a logged warning.
-    """
+def test_kit_visualizer_newton_falls_back_to_newton_gl():
+    """source='visualizer:kit' + Newton → Newton GL fallback (Kit Replicator disabled for Newton)."""
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
-    env_cfg = _cartpole_cfg(backend_source="visualizer")
-    env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
-    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=_W, window_height=_H)]
+    with tempfile.TemporaryDirectory() as output_dir:
+        env_cfg = _cartpole_cfg()
+        env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=320, window_height=240)]
 
-    frame = _capture_frame(env_cfg)
-    _assert_valid_frame(frame, "kit-visualizer-newton")
+        captured_frames: list[list[np.ndarray]] = []
+
+        def _mock_clip(frames, fps):
+            captured_frames.append(list(frames))
+            mock = MagicMock()
+            mock.write_videofile = MagicMock()
+            return mock
+
+        env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:kit")]
+        with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=_mock_clip):
+            _run_env(env_cfg)
+
+        assert captured_frames, "kit-visualizer-newton-fallback: no frames captured"
+        _assert_frames_nonempty(captured_frames[0], "kit-visualizer-newton-fallback")
 
 
 # ---------------------------------------------------------------------------
-# Path 2 — Newton GL visualizer (type="newton") → Newton GL framebuffer
+# Newton visualizer source
 # ---------------------------------------------------------------------------
 
 
-def test_newton_gl_visualizer_source_records_rgb():
-    """NewtonVisualizerCfg + Newton + backend_source='visualizer' → Newton GL framebuffer capture."""
+def test_newton_visualizer_writes_clip():
+    """source='visualizer:newton' + Newton → Newton GL framebuffer captured."""
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
-    env_cfg = _cartpole_cfg(backend_source="visualizer")
-    env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
-    env_cfg.sim.visualizer_cfgs = [NewtonVisualizerCfg(window_width=_W, window_height=_H)]
+    with tempfile.TemporaryDirectory() as output_dir:
+        env_cfg = _cartpole_cfg()
+        env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+        env_cfg.sim.visualizer_cfgs = [NewtonVisualizerCfg(window_width=320, window_height=240)]
 
-    frame = _capture_frame(env_cfg)
-    _assert_valid_frame(frame, "newton-gl-visualizer-source")
+        captured_frames: list[list[np.ndarray]] = []
+
+        def _mock_clip(frames, fps):
+            captured_frames.append(list(frames))
+            mock = MagicMock()
+            mock.write_videofile = MagicMock()
+            return mock
+
+        env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:newton")]
+        with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=_mock_clip):
+            _run_env(env_cfg)
+
+        assert captured_frames, "newton-visualizer: no frames captured"
+        _assert_frames_nonempty(captured_frames[0], "newton-visualizer")
 
 
 # ---------------------------------------------------------------------------
-# Path 3 — no recording-capable visualizer → physics manager fallback
+# Auto source
 # ---------------------------------------------------------------------------
-# Dispatch logic for Rerun/Viser/NewtonRTX visualizer types falling through to
-# the physics manager is covered at unit level by:
-#   test_video_recorder.py::test_resolve_backend_unsupported_visualizer_falls_back
-# NewtonRTXVisualizerCfg is not factory-registered ("newton_rtx" is unsupported)
-# and cannot be instantiated as a visualizer, so there is no integration test for it.
 
 
-def test_physx_renderer_source_records_rgb():
-    """PhysX + backend_source='renderer' → standalone Kit capture (no visualizer required)."""
+def test_auto_source_picks_active_kit_visualizer():
+    """source='visualizer' (default) auto-selects the first active visualizer."""
+    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+
+    with tempfile.TemporaryDirectory() as output_dir:
+        env_cfg = _cartpole_cfg()
+        env_cfg.sim.physics = PhysxCfg()
+        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=320, window_height=240)]
+
+        captured_frames: list[list[np.ndarray]] = []
+
+        def _mock_clip(frames, fps):
+            captured_frames.append(list(frames))
+            mock = MagicMock()
+            mock.write_videofile = MagicMock()
+            return mock
+
+        env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer")]
+        with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=_mock_clip):
+            _run_env(env_cfg)
+
+        assert captured_frames, "auto-source: no frames captured"
+
+
+# ---------------------------------------------------------------------------
+# Multiple simultaneous streams
+# ---------------------------------------------------------------------------
+
+
+def test_multiple_recorders_write_independent_clips():
+    """Two VideoRecorderCfg entries write two independent clip sequences."""
+    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+
+    with tempfile.TemporaryDirectory() as dir_a, tempfile.TemporaryDirectory() as dir_b:
+        env_cfg = _cartpole_cfg()
+        env_cfg.sim.physics = PhysxCfg()
+        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=320, window_height=240)]
+
+        stream_frames: dict[str, list[list[np.ndarray]]] = {"a": [], "b": []}
+
+        def _mock_clip_a(frames, fps):
+            stream_frames["a"].append(list(frames))
+            mock = MagicMock()
+            mock.write_videofile = MagicMock()
+            return mock
+
+        def _mock_clip_b(frames, fps):
+            stream_frames["b"].append(list(frames))
+            mock = MagicMock()
+            mock.write_videofile = MagicMock()
+            return mock
+
+        env_cfg.video_recorders = [
+            _recorder_cfg(dir_a, "visualizer:kit"),
+            _recorder_cfg(dir_b, "visualizer:kit"),
+        ]
+
+        # Patch at the module level; both recorders share the same mock.
+        clip_calls: list[list[np.ndarray]] = []
+
+        def _mock_clip(frames, fps):
+            clip_calls.append(list(frames))
+            mock = MagicMock()
+            mock.write_videofile = MagicMock()
+            return mock
+
+        with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=_mock_clip):
+            _run_env(env_cfg)
+
+        # Two recorders → two clip calls (one per recorder).
+        assert len(clip_calls) == 2, f"expected 2 clip calls, got {len(clip_calls)}"
+
+
+# ---------------------------------------------------------------------------
+# Sensor source
+# ---------------------------------------------------------------------------
+
+
+def test_sensor_source_captures_tiled_camera():
+    """source='sensor:tiled_camera' reads RGB from the scene sensor."""
     from isaaclab_physx.physics import PhysxCfg
 
-    env_cfg = _cartpole_cfg(backend_source="renderer")
-    env_cfg.sim.physics = PhysxCfg()
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
-    frame = _capture_frame(env_cfg)
-    _assert_valid_frame(frame, "physx-renderer-source")
+    with tempfile.TemporaryDirectory() as output_dir:
+        env_cfg = CartpoleCameraEnvCfg()
+        env_cfg = getattr(env_cfg, "default", env_cfg)
+        env_cfg.scene.num_envs = 1
+        env_cfg.sim.physics = PhysxCfg()
 
+        captured_frames: list[list[np.ndarray]] = []
 
-def test_newton_renderer_source_records_rgb():
-    """Newton + backend_source='renderer' → standalone Newton GL capture (no visualizer required)."""
-    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+        def _mock_clip(frames, fps):
+            captured_frames.append(list(frames))
+            mock = MagicMock()
+            mock.write_videofile = MagicMock()
+            return mock
 
-    env_cfg = _cartpole_cfg(backend_source="renderer")
-    env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+        env_cfg.video_recorders = [_recorder_cfg(output_dir, "sensor:tiled_camera")]
+        with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=_mock_clip):
+            sim_utils.create_new_stage()
+            env = CartpoleCameraEnv(env_cfg)
+            try:
+                env.reset()
+                actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
+                for _ in range(_STEPS):
+                    env.step(actions)
+            finally:
+                env.close()
 
-    frame = _capture_frame(env_cfg)
-    _assert_valid_frame(frame, "newton-renderer-source")
+        assert captured_frames, "sensor-tiled-camera: no frames captured"
