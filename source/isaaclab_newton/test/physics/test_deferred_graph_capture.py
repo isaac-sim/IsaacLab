@@ -46,7 +46,7 @@ IMPLICIT_ACTUATORS = {
 
 def test_first_step_captures_deferred_graph():
     """A fast-path scene that never sets a decimation gets its graph on the first step."""
-    sim_cfg = SimulationCfg(dt=1.0 / 120.0, physics=NEWTON_CFG, use_newton_actuators=True)
+    sim_cfg = SimulationCfg(dt=1.0 / 120.0, physics=NEWTON_CFG)
     with build_simulation_context(
         device="cuda:0",
         gravity_enabled=True,

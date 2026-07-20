@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import logging
 import warnings
 from collections.abc import Sequence
@@ -27,14 +26,10 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
-
-_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
-
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
-from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -124,15 +119,10 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
         super().__init__(cfg)
         if has_kit():
             queue_usd_replication(cfg)
         queue_newton_physics_replication(cfg)
-
-        sim_ctx = SimulationContext.instance()
-        self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
 
     """
     Properties
@@ -289,8 +279,8 @@ class Articulation(BaseArticulation):
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
 
-        If any explicit actuators are present, then the actuator models are used to compute the
-        joint commands. Otherwise, the joint commands are directly set into the simulation.
+        Joint targets are forwarded raw to the simulation; the Newton-native
+        actuators (stepped by the physics engine) turn them into joint efforts.
 
         .. note::
             We write external wrench to the simulation here since this function is called before the simulation step.
@@ -306,9 +296,8 @@ class Articulation(BaseArticulation):
             composer.compose_to_body_frame()
             # Kept separate from the joint-target gather below: this scatter runs
             # over bodies while the target gather runs over joints (mismatched
-            # item axes), and it must precede ``_apply_actuator_model``, which
-            # produces the target inputs. A merged kernel would need a divergent
-            # max-dim launch and would break that ordering, so there is no win.
+            # item axes). A merged kernel would need a divergent max-dim launch,
+            # so there is no win.
             wp.launch(
                 articulation_kernels.update_wrench_array_with_force_and_torque_ordered,
                 dim=(self.num_instances, self.num_bodies),
@@ -326,70 +315,40 @@ class Articulation(BaseArticulation):
         if self._instantaneous_wrench_composer.active:
             self._instantaneous_wrench_composer.reset()
 
-        if getattr(self, "_has_newton_actuators", False):
-            # Raw targets go directly to Newton's control object. Newton PD
-            # consumes ``joint_act`` for explicit (Newton-managed) joints; the
-            # solver's built-in joint drive does the PD for implicit joints
-            # (whose stiffness/damping are non-zero in sim) and adds whatever
-            # is in ``joint_f`` as feedforward. We pre-fill ``joint_f`` with
-            # the user's effort target across all DOFs here; the adapter step
-            # will zero it at explicit DOFs and overwrite them with each
-            # actuator's computed effort, while implicit DOFs keep the FF.
-            # Gather the four per-step targets into backend order in one launch;
-            # the effort source is read once and feeds both joint_act and
-            # joint_effort. Under identity ordering ``_joint_backend_to_user_map``
-            # returns the identity arange, so this single gather also serves the
-            # no-reorder case without a dedicated per-buffer copy.
-            wp.launch(
-                ordering_kernels.reorder_joint_targets_user_to_backend,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    self._data._joint_effort_target,
-                    self._data._joint_pos_target,
-                    self._data._joint_vel_target,
-                    self._joint_backend_to_user_map(),
-                    True,
-                    True,
-                    True,
-                    True,
-                ],
-                outputs=[
-                    self.data._sim_bind_joint_effort,
-                    self.data._sim_bind_joint_position_target,
-                    self.data._sim_bind_joint_velocity_target,
-                    self.data._sim_bind_joint_act,
-                ],
-                device=self.device,
-            )
-        else:
-            # Standard Lab actuator path
-            self._apply_actuator_model()
-            # Gather the effort target with the optional position/velocity targets
-            # in one launch. The last output aliases the effort buffer because
-            # write_joint_act is off, so it is never indexed. Under identity
-            # ordering ``_joint_backend_to_user_map`` returns the identity arange,
-            # so this single gather also serves the no-reorder case.
-            wp.launch(
-                ordering_kernels.reorder_joint_targets_user_to_backend,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    self._joint_effort_target_sim,
-                    self._joint_pos_target_sim,
-                    self._joint_vel_target_sim,
-                    self._joint_backend_to_user_map(),
-                    True,
-                    self._has_implicit_actuators,
-                    self._has_implicit_actuators,
-                    False,
-                ],
-                outputs=[
-                    self.data._sim_bind_joint_effort,
-                    self.data._sim_bind_joint_position_target,
-                    self.data._sim_bind_joint_velocity_target,
-                    self.data._sim_bind_joint_effort,
-                ],
-                device=self.device,
-            )
+        # Raw targets go directly to Newton's control object. Newton PD
+        # consumes ``joint_act`` for explicit (Newton-managed) joints; the
+        # solver's built-in joint drive does the PD for implicit joints
+        # (whose stiffness/damping are non-zero in sim) and adds whatever
+        # is in ``joint_f`` as feedforward. We pre-fill ``joint_f`` with
+        # the user's effort target across all DOFs here; the adapter step
+        # will zero it at explicit DOFs and overwrite them with each
+        # actuator's computed effort, while implicit DOFs keep the FF.
+        # Gather the four per-step targets into backend order in one launch;
+        # the effort source is read once and feeds both joint_act and
+        # joint_effort. Under identity ordering ``_joint_backend_to_user_map``
+        # returns the identity arange, so this single gather also serves the
+        # no-reorder case without a dedicated per-buffer copy.
+        wp.launch(
+            ordering_kernels.reorder_joint_targets_user_to_backend,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self._data._joint_effort_target,
+                self._data._joint_pos_target,
+                self._data._joint_vel_target,
+                self._joint_backend_to_user_map(),
+                True,
+                True,
+                True,
+                True,
+            ],
+            outputs=[
+                self.data._sim_bind_joint_effort,
+                self.data._sim_bind_joint_position_target,
+                self.data._sim_bind_joint_velocity_target,
+                self.data._sim_bind_joint_act,
+            ],
+            device=self.device,
+        )
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -3547,15 +3506,31 @@ class Articulation(BaseArticulation):
     """
 
     def _process_actuators_cfg(self):
-        """Process and apply articulation joint properties."""
+        """Process and apply articulation joint properties.
+
+        The Newton backend always uses Newton-native actuators: explicit Lab
+        actuator configs are authored as ``NewtonActuator`` USD prims at spawn
+        time and stepped by the physics engine through the sim-level
+        :class:`~isaaclab_newton.actuators.NewtonActuatorAdapter`; implicit
+        configs are written to the solver's built-in joint drives.
+        """
+        from newton import Model as NewtonModel  # noqa: PLC0415
+
+        from isaaclab_newton.actuators import build_implicit_dof_mask  # noqa: PLC0415
+        from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
+
         # create actuators
         self.actuators = dict()
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
-        self._has_newton_actuators = False
+        # Marks articulations whose actuators are stepped by the Newton-native
+        # path. Subclasses that override ``_process_actuators_cfg`` (e.g.
+        # ``Multirotor``) never set it, which keeps :meth:`reset` from touching
+        # the sim-level actuator adapter for them.
+        self._has_newton_actuators = True
         # Per-DOF implicit/explicit mask consumed by the in-graph kernel
-        # ``sync_torque_telemetry``. ``None`` when no Newton fast path is active.
+        # ``sync_torque_telemetry``.
         self._implicit_dof_mask: wp.array | None = None
         # Reference to the global Newton actuator adapter (or ``None``
         # when this articulation has no explicit Newton actuators) and a
@@ -3566,189 +3541,135 @@ class Articulation(BaseArticulation):
         self.newton_default_damping: torch.Tensor | None = None
         self.newton_managed_local_joints: torch.Tensor | slice | None = None
 
-        _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
+        # Opt this articulation into the Newton actuator path and (idempotently)
+        # build the single sim-level actuator adapter from ``model.actuators``.
+        # All-implicit articulations take the same route: the solver runs PD
+        # internally; Lab only forwards targets.
+        SimulationManager.activate_newton_actuator_path()
 
-        if _use_newton_actuators and not _HAS_NEWTON_ACTUATORS:
-            logger.warning(
-                "use_newton_actuators is enabled but 'newton.actuators' is not available. "
-                "Newton-native actuators will be disabled. Upgrade Newton to >= 1.2.0rc1."
+        # Zero the simulator's joint-drive PD on DOFs covered by an explicit
+        # Lab actuator config in *this* articulation. The global Newton
+        # adapter's actuator step writes their effort to ``joint_f``
+        # directly; the joint drive shouldn't add its own PD on top.
+        explicit_joint_ids: list[int] = []
+        for actuator_cfg in self.cfg.actuators.values():
+            cls_type = actuator_cfg.class_type
+            if "ImplicitActuator" in cls_type if isinstance(cls_type, str) else issubclass(cls_type, ImplicitActuator):
+                continue
+            joint_ids, _ = self.find_joints(actuator_cfg.joint_names_expr)
+            explicit_joint_ids.extend(int(j) for j in joint_ids)
+        if explicit_joint_ids:
+            explicit_ids_t = torch.tensor(
+                sorted(set(explicit_joint_ids)),
+                dtype=torch.int32,
+                device=self.device,
             )
+            self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=explicit_ids_t)
+            self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=explicit_ids_t)
 
-        if _use_newton_actuators and _HAS_NEWTON_ACTUATORS:
-            from newton import Model as NewtonModel  # noqa: PLC0415
-
-            from isaaclab_newton.actuators import build_implicit_dof_mask  # noqa: PLC0415
-            from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
-
-            # Enable the fast path even for all-implicit articulations:
-            # the solver runs PD internally; Lab only forwards targets.
-            self._has_newton_actuators = True
-            # Opt this articulation into the Newton fast path and (idempotently)
-            # build the single sim-level actuator adapter from ``model.actuators``.
-            SimulationManager.activate_newton_actuator_path()
-
-            # Zero the simulator's joint-drive PD on DOFs covered by an explicit
-            # Lab actuator config in *this* articulation. The global Newton
-            # adapter's actuator step writes their effort to ``joint_f``
-            # directly; the joint drive shouldn't add its own PD on top.
-            explicit_joint_ids: list[int] = []
-            for actuator_cfg in self.cfg.actuators.values():
-                cls_type = actuator_cfg.class_type
-                if (
-                    "ImplicitActuator" in cls_type
-                    if isinstance(cls_type, str)
-                    else issubclass(cls_type, ImplicitActuator)
-                ):
-                    continue
-                joint_ids, _ = self.find_joints(actuator_cfg.joint_names_expr)
-                explicit_joint_ids.extend(int(j) for j in joint_ids)
-            if explicit_joint_ids:
-                explicit_ids_t = torch.tensor(
-                    sorted(set(explicit_joint_ids)),
-                    dtype=torch.int32,
-                    device=self.device,
-                )
-                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=explicit_ids_t)
-                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=explicit_ids_t)
-
-            for actuator_name, actuator_cfg in self.cfg.actuators.items():
-                cls_type = actuator_cfg.class_type
-                is_implicit = (
-                    "ImplicitActuator" in cls_type
-                    if isinstance(cls_type, str)
-                    else issubclass(cls_type, ImplicitActuator)
-                )
-                if is_implicit:
-                    self._create_lab_actuator(actuator_name, actuator_cfg)
-                else:
-                    self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
-
-            # Run the implicit-DOF FF-routing + telemetry kernel inside the
-            # captured graph, right after the actuator step. Closure captures
-            # the buffers we need via ``self._data``.
-
-            # Bind this articulation to the global adapter (already built by
-            # ``activate_newton_actuator_path``): one call snapshots the initial
-            # gains, builds the implicit-DOF mask, and slices the adapter's
-            # computed-effort buffer to this articulation's columns.
-            # ``_implicit_dof_mask_owner`` is retained as an instance attribute
-            # so the torch tensor backing ``_implicit_dof_mask`` isn't freed
-            # while a captured CUDA graph holds a pointer into it. Falls back to
-            # a zero computed-effort buffer for all-implicit scenes where no
-            # global adapter exists — the kernel only reads it on explicit DOFs.
-            adapter = SimulationManager._adapter
-            if adapter is not None:
-                # Materialize this articulation's (instance, backend joint) ->
-                # flat-DOF map from the view layout; the adapter derives every
-                # per-articulation quantity from it, with no per-env stride
-                # assumption (heterogeneous layouts included). The layout's
-                # ``indices``/``slice`` are relative to ``offset``, the view's
-                # global base in the flat attribute array — for any articulation
-                # that is not first in its world the offset is non-zero.
-                dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
-                if dof_layout.indices is not None:
-                    base_dof_ids = wp.to_torch(dof_layout.indices).to(device=self.device, dtype=torch.long)
-                else:
-                    layout_slice = dof_layout.slice
-                    base_dof_ids = torch.arange(
-                        layout_slice.start, layout_slice.stop, layout_slice.step or 1, device=self.device
-                    )
-                base_dof_ids = base_dof_ids + dof_layout.offset
-                if base_dof_ids.numel() != self.num_joints:
-                    raise RuntimeError(
-                        f"Articulation '{self.cfg.prim_path}': joint-DOF layout holds"
-                        f" {base_dof_ids.numel()} DOFs per instance, expected num_joints = {self.num_joints}."
-                    )
-                instance_starts = (
-                    torch.arange(self.num_instances, device=self.device, dtype=torch.long)
-                    * dof_layout.stride_between_worlds
-                )
-                joint_ordering = self.joint_ordering
-                binding = adapter.bind_articulation(
-                    lab_actuators=self.actuators,
-                    dof_index_map=instance_starts[:, None] + base_dof_ids[None, :],
-                    joint_user_to_backend_indices=(
-                        joint_ordering.user_to_backend_indices if joint_ordering is not None else None
-                    ),
-                )
-                self.newton_actuator_adapter = adapter
-                self.newton_default_stiffness = binding.stiffness
-                self.newton_default_damping = binding.damping
-                self.newton_managed_local_joints = binding.joint_indices
-                self._implicit_dof_mask = binding.implicit_dof_mask
-                self._implicit_dof_mask_owner = binding.implicit_dof_mask_owner
-                self._data._sim_bind_joint_computed_effort = binding.computed_effort_view
-            else:
-                self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
-                    self.actuators,
-                    self.num_joints,
-                    self.device,
-                )
-                self._data._sim_bind_joint_computed_effort = wp.zeros(
-                    (self.num_instances, self.num_joints),
-                    dtype=wp.float32,
-                    device=self.device,
-                )
-
-            def _post_actuator() -> None:
-                wp.launch(
-                    actuator_kernels.sync_torque_telemetry,
-                    dim=(self.num_instances, self.num_joints),
-                    inputs=[
-                        self._data._sim_bind_joint_pos,
-                        self._data._sim_bind_joint_vel,
-                        self._data._joint_pos_target,
-                        self._data._joint_vel_target,
-                        self._data.joint_stiffness.warp,
-                        self._data.joint_damping.warp,
-                        self._data.joint_effort_limits.warp,
-                        self._implicit_dof_mask,
-                        self._data._sim_bind_joint_effort,
-                        self._data._sim_bind_joint_computed_effort,
-                        self._joint_user_to_backend_map(),
-                        self.data.has_joint_ordering,
-                    ],
-                    outputs=[
-                        self._data._computed_torque,
-                        self._data._applied_torque,
-                    ],
-                    device=self.device,
-                )
-
-            SimulationManager.register_post_actuator_callback(_post_actuator)
-
-            return
-
-        # --- Standard Isaac Lab actuator path ---
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
-            self._create_lab_actuator(actuator_name, actuator_cfg)
+            cls_type = actuator_cfg.class_type
+            is_implicit = (
+                "ImplicitActuator" in cls_type if isinstance(cls_type, str) else issubclass(cls_type, ImplicitActuator)
+            )
+            if is_implicit:
+                self._create_lab_actuator(actuator_name, actuator_cfg)
+            else:
+                self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
-        # perform some sanity checks to ensure actuators are prepared correctly
-        total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
-        if total_act_joints != (self.num_joints - self.num_fixed_tendons):
-            logger.warning(
-                "Not all actuators are configured! Total number of actuated joints not equal to number of"
-                f" joints available: {total_act_joints} != {self.num_joints - self.num_fixed_tendons}."
+        # Run the implicit-DOF FF-routing + telemetry kernel inside the
+        # captured graph, right after the actuator step. Closure captures
+        # the buffers we need via ``self._data``.
+
+        # Bind this articulation to the global adapter (already built by
+        # ``activate_newton_actuator_path``): one call snapshots the initial
+        # gains, builds the implicit-DOF mask, and slices the adapter's
+        # computed-effort buffer to this articulation's columns.
+        # ``_implicit_dof_mask_owner`` is retained as an instance attribute
+        # so the torch tensor backing ``_implicit_dof_mask`` isn't freed
+        # while a captured CUDA graph holds a pointer into it. Falls back to
+        # a zero computed-effort buffer for all-implicit scenes where no
+        # global adapter exists — the kernel only reads it on explicit DOFs.
+        adapter = SimulationManager._adapter
+        if adapter is not None:
+            # Materialize this articulation's (instance, backend joint) ->
+            # flat-DOF map from the view layout; the adapter derives every
+            # per-articulation quantity from it, with no per-env stride
+            # assumption (heterogeneous layouts included). The layout's
+            # ``indices``/``slice`` are relative to ``offset``, the view's
+            # global base in the flat attribute array — for any articulation
+            # that is not first in its world the offset is non-zero.
+            dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
+            if dof_layout.indices is not None:
+                base_dof_ids = wp.to_torch(dof_layout.indices).to(device=self.device, dtype=torch.long)
+            else:
+                layout_slice = dof_layout.slice
+                base_dof_ids = torch.arange(
+                    layout_slice.start, layout_slice.stop, layout_slice.step or 1, device=self.device
+                )
+            base_dof_ids = base_dof_ids + dof_layout.offset
+            if base_dof_ids.numel() != self.num_joints:
+                raise RuntimeError(
+                    f"Articulation '{self.cfg.prim_path}': joint-DOF layout holds"
+                    f" {base_dof_ids.numel()} DOFs per instance, expected num_joints = {self.num_joints}."
+                )
+            instance_starts = (
+                torch.arange(self.num_instances, device=self.device, dtype=torch.long)
+                * dof_layout.stride_between_worlds
+            )
+            joint_ordering = self.joint_ordering
+            binding = adapter.bind_articulation(
+                lab_actuators=self.actuators,
+                dof_index_map=instance_starts[:, None] + base_dof_ids[None, :],
+                joint_user_to_backend_indices=(
+                    joint_ordering.user_to_backend_indices if joint_ordering is not None else None
+                ),
+            )
+            self.newton_actuator_adapter = adapter
+            self.newton_default_stiffness = binding.stiffness
+            self.newton_default_damping = binding.damping
+            self.newton_managed_local_joints = binding.joint_indices
+            self._implicit_dof_mask = binding.implicit_dof_mask
+            self._implicit_dof_mask_owner = binding.implicit_dof_mask_owner
+            self._data._sim_bind_joint_computed_effort = binding.computed_effort_view
+        else:
+            self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
+                self.actuators,
+                self.num_joints,
+                self.device,
+            )
+            self._data._sim_bind_joint_computed_effort = wp.zeros(
+                (self.num_instances, self.num_joints),
+                dtype=wp.float32,
+                device=self.device,
             )
 
-        if self.cfg.actuator_value_resolution_debug_print:
-            if _HAS_NEWTON_ACTUATORS:
-                from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
-            else:
-                NewtonActuatorAdapter = None  # type: ignore[assignment]
-            t = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActutatorCfg Value", "Applied"])
-            for actuator_group, actuator in self.actuators.items():
-                if NewtonActuatorAdapter is not None and isinstance(actuator, NewtonActuatorAdapter):
-                    continue
-                group_count = 0
-                for property, resolution_details in actuator.joint_property_resolution_table.items():
-                    for prop_idx, resolution_detail in enumerate(resolution_details):
-                        actuator_group_str = actuator_group if group_count == 0 else ""
-                        property_str = property if prop_idx == 0 else ""
-                        fmt = [f"{v:.2e}" if isinstance(v, float) else str(v) for v in resolution_detail]
-                        t.add_row([actuator_group_str, property_str, *fmt])
-                        group_count += 1
-            logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
+        def _post_actuator() -> None:
+            wp.launch(
+                actuator_kernels.sync_torque_telemetry,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    self._data._sim_bind_joint_pos,
+                    self._data._sim_bind_joint_vel,
+                    self._data._joint_pos_target,
+                    self._data._joint_vel_target,
+                    self._data.joint_stiffness.warp,
+                    self._data.joint_damping.warp,
+                    self._data.joint_effort_limits.warp,
+                    self._implicit_dof_mask,
+                    self._data._sim_bind_joint_effort,
+                    self._data._sim_bind_joint_computed_effort,
+                    self._joint_user_to_backend_map(),
+                    self.data.has_joint_ordering,
+                ],
+                outputs=[
+                    self._data._computed_torque,
+                    self._data._applied_torque,
+                ],
+                device=self.device,
+            )
+
+        SimulationManager.register_post_actuator_callback(_post_actuator)
 
     def _create_lab_actuator(
         self,
@@ -3885,72 +3806,6 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-
-    def _apply_actuator_model(self):
-        """Processes joint commands for the articulation by forwarding them to the actuators.
-
-        The actions are first processed using actuator models. Depending on the robot configuration,
-        the actuator models compute the joint level simulation commands and sets them into the PhysX buffers.
-        """
-        # process actions per group
-        for actuator in self.actuators.values():
-            # prepare input for actuator model based on cached data
-            # TODO : A tensor dict would be nice to do the indexing of all tensors together
-            control_action = ArticulationActions(
-                joint_positions=self._data.joint_pos_target.torch[:, actuator.joint_indices],
-                joint_velocities=self._data.joint_vel_target.torch[:, actuator.joint_indices],
-                joint_efforts=self._data.joint_effort_target.torch[:, actuator.joint_indices],
-                joint_indices=actuator.joint_indices,
-            )
-            # compute joint command from the actuator model
-            control_action = actuator.compute(
-                control_action,
-                joint_pos=self._data.joint_pos.torch[:, actuator.joint_indices],
-                joint_vel=self._data.joint_vel.torch[:, actuator.joint_indices],
-            )
-            # update targets (these are set into the simulation)
-            joint_indices = actuator.joint_indices
-            if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
-                joint_indices = self._ALL_JOINT_INDICES
-            if hasattr(actuator, "gear_ratio"):
-                gear_ratio = actuator.gear_ratio
-            else:
-                gear_ratio = None
-            wp.launch(
-                articulation_kernels.update_targets,
-                dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=[
-                    control_action.joint_positions,
-                    control_action.joint_velocities,
-                    control_action.joint_efforts,
-                    joint_indices,
-                ],
-                outputs=[
-                    self._joint_pos_target_sim,
-                    self._joint_vel_target_sim,
-                    self._joint_effort_target_sim,
-                ],
-                device=self.device,
-            )
-            # update state of the actuator model
-            wp.launch(
-                articulation_kernels.update_actuator_state_model,
-                dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=[
-                    actuator.computed_effort,
-                    actuator.applied_effort,
-                    gear_ratio,
-                    actuator.velocity_limit,
-                    joint_indices,
-                ],
-                outputs=[
-                    self._data.computed_torque,
-                    self._data.applied_torque,
-                    self._data.gear_ratio,
-                    self._data.soft_joint_vel_limits,
-                ],
-                device=self.device,
-            )
 
     """
     Internal helpers -- Debugging.

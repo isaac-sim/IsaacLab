@@ -886,12 +886,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
         NewtonManager._post_step_callbacks = []
-        # Set by an articulation that took the ``use_newton_actuators=True``
-        # branch in ``_process_actuators_cfg``.  Makes the manager own the
-        # decimation loop (see :meth:`handles_decimation`); together with the
-        # adapter check it also gates whole-program graph capture
-        # (see :meth:`_is_all_graphable`).
-        NewtonManager._use_newton_actuators_active = False
         NewtonManager._decimation = 1
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
@@ -1319,7 +1313,6 @@ class NewtonManager(PhysicsManager):
         # class so external readers (which import ``NewtonManager`` directly)
         # observe the canonical state regardless of which subclass is active.
         NewtonManager._adapter = None
-        NewtonManager._use_newton_actuators_active = False
 
         # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset).
         NewtonManager._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.bool, device=device)
@@ -2163,35 +2156,22 @@ class NewtonManager(PhysicsManager):
     def _is_all_graphable(cls) -> bool:
         """``True`` when the decimation loop can be captured into a CUDA graph.
 
-        Requires:
-          1. An articulation took the ``use_newton_actuators=True`` branch
-             (signalled via :meth:`activate_newton_actuator_path`).
-          2. Either no actuator adapter was needed (all-implicit) or every
-             actuator in the adapter is CUDA-graph-safe.
+        Derived from adapter presence: either no actuator adapter was needed
+        (all-implicit or no articulations) or every actuator in the adapter
+        is CUDA-graph-safe.
         """
-        if not cls._use_newton_actuators_active:
-            return False
         return cls._adapter is None or cls._adapter.is_all_graphable
 
     @classmethod
     def activate_newton_actuator_path(cls) -> None:
-        """Opt an articulation into the Newton actuator fast path.
+        """Build the sim-level Newton actuator adapter.
 
-        Idempotent — called by every Newton-fast-path articulation's
-        ``_process_actuators_cfg``:
-
-        1. Sets :attr:`_use_newton_actuators_active`, which
-           :meth:`_is_all_graphable` checks (adapter presence alone
-           cannot distinguish the fast path from the standard Lab path).
-        2. On first call, builds the single sim-level
-           :class:`NewtonActuatorAdapter` over the full flat DOF layout;
-           later calls reuse it.
+        Idempotent — called by every Newton articulation's
+        ``_process_actuators_cfg``. On first call, builds the single
+        sim-level :class:`NewtonActuatorAdapter` over the full flat DOF
+        layout; later calls reuse it. No adapter is built when the model
+        has no Newton actuators (all-implicit scenes).
         """
-        # Shared state lives on the base class so all readers (including
-        # framework code that imports ``NewtonManager`` directly) see the
-        # same flag regardless of which solver subclass is active.
-        NewtonManager._use_newton_actuators_active = True
-
         if cls._adapter is not None:
             return
         if cls._model is None or not cls._model.actuators:
@@ -2275,13 +2255,12 @@ class NewtonManager(PhysicsManager):
     def handles_decimation(cls) -> bool:
         """``True`` when :meth:`step` executes the full decimation loop internally.
 
-        Loop ownership follows the Newton actuator fast path: whenever an
-        articulation activated it (including mixed scenes whose non-graph-safe
-        actuators are stepped eagerly), one :meth:`step` call runs the env's
-        full decimation loop. On the standard Lab actuator path the env drives
-        the loop and one call covers exactly one sub-step.
+        Newton actuators run inside the physics step, so the manager always
+        owns the env's decimation loop: one :meth:`step` call runs the full
+        loop (including the trivial ``decimation=1`` case), with any
+        non-graph-safe actuators stepped eagerly per iteration.
         """
-        return cls._use_newton_actuators_active
+        return True
 
     @classmethod
     def add_contact_sensor(

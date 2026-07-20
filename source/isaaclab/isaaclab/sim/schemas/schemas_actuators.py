@@ -6,11 +6,9 @@
 """USD schema authoring for Newton-native actuators.
 
 :func:`define_actuator_properties` translates IsaacLab actuator configs
-into ``NewtonActuator`` USD prims. Both the Newton ``ModelBuilder.add_usd``
-path and the PhysX adapter's
-:meth:`~isaaclab_newton.actuators.adapter.NewtonActuatorAdapter.from_usd`
-read the same authored prims, ensuring both backends construct
-:class:`~newton.actuators.Actuator` instances with matching parameters.
+into ``NewtonActuator`` USD prims, which Newton's ``ModelBuilder.add_usd``
+reads to construct :class:`~newton.actuators.Actuator` instances. The
+authoring runs only when the active physics backend is Newton.
 
 This module lives on the schema side so that authoring is a regular
 ``define_*_properties`` step in the spawner pipeline, alongside
@@ -95,8 +93,8 @@ def define_actuator_properties(
 
     No-ops (returns immediately) when:
 
-    * the active :class:`~isaaclab.sim.SimulationContext` was configured
-      with ``use_newton_actuators=False`` (or no context is active), or
+    * the active :class:`~isaaclab.sim.SimulationContext` does not use the
+      Newton physics backend (or no context is active), or
     * *prim_path* does not resolve to a valid prim on the stage.
 
     Must be called **after** the articulation is spawned (joint prims
@@ -114,9 +112,10 @@ def define_actuator_properties(
     """
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
+    # Authored prims are only consumed by Newton's ``ModelBuilder.add_usd``;
+    # skip authoring entirely on non-Newton backends (e.g. PhysX).
     sim_ctx = SimulationContext.instance()
-    sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
-    if sim_cfg is None or not getattr(sim_cfg, "use_newton_actuators", False):
+    if sim_ctx is None or "newton" not in sim_ctx.physics_manager.__name__.lower():
         return
 
     from isaaclab.sim.utils.queries import find_first_matching_prim  # noqa: PLC0415

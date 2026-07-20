@@ -102,7 +102,7 @@ def _record(channels: dict, anymal, cartpole) -> None:
 
 def _run_golden_scenario() -> dict[str, np.ndarray]:
     """Run the fixed scenario and return the per-tick engine channels."""
-    sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
+    sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG)
     with build_simulation_context(
         device="cuda:0",
         gravity_enabled=True,

@@ -463,7 +463,7 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_use_newton_actuators_active", False, raising=False)
+    monkeypatch.setattr(NewtonManager, "_decimation", 1, raising=False)
     monkeypatch.setattr(NewtonManager, "_solver_dt", 0.005, raising=False)
     monkeypatch.setattr(NewtonManager, "_num_substeps", 2, raising=False)
     monkeypatch.setattr(NewtonManager, "_reset_solver_internals", classmethod(lambda cls, mask: None))
@@ -486,7 +486,7 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     assert NewtonManager._graph_capture_pending is False
     # The capture warmup already advanced physics: the capturing tick must not
     # also replay the fresh graph (double-advance), yet sim time advances by
-    # one sub-step (loop not owned: _use_newton_actuators_active is False).
+    # one iteration (the manager owns the loop; decimation is 1).
     assert launches == []
     assert PhysicsManager._sim_time == pytest.approx(0.005 * 2)
 

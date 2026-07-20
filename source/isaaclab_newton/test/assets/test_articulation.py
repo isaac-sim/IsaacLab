@@ -540,8 +540,6 @@ def sim(request):
     articulation_type = request.getfixturevalue("articulation_type")
     sim_cfg = deepcopy(SIM_CFGs[articulation_type])
     sim_cfg.device = device
-    if "use_newton_actuators" in request.fixturenames:
-        sim_cfg.use_newton_actuators = request.getfixturevalue("use_newton_actuators")
     # ``gravity_enabled`` is silently ignored by ``build_simulation_context``
     # when an explicit ``sim_cfg`` is also passed; apply it here so the
     # fixture honors what its parameter advertises.
@@ -702,9 +700,8 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.parametrize("use_newton_actuators", [True])
 def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
-    sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators
+    sim, num_articulations, device, gravity_enabled, articulation_type
 ):
     """Map partial public-order gain writes to Newton controller backend columns."""
     articulation_cfg = generate_articulation_cfg(articulation_type).replace(
@@ -721,7 +718,6 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     sim.reset()
 
-    assert use_newton_actuators
     assert articulation.joint_ordering is not None
     assert articulation.newton_actuator_adapter is not None
 

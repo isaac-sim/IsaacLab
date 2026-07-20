@@ -1,6 +1,12 @@
 Changed
 ^^^^^^^
 
+* **Breaking:** Removed the legacy Isaac Lab actuator compute path from the Newton
+  :class:`~isaaclab_newton.assets.Articulation`. The Newton backend always steps actuators
+  through the physics engine now (``SimulationCfg.use_newton_actuators`` is removed);
+  remove the flag from your ``SimulationCfg`` — no other migration is needed. Whether the
+  decimation loop is folded into a single CUDA graph is now derived from actuator-adapter
+  presence instead of the flag.
 * **Breaking:** Changed :class:`~isaaclab_newton.actuators.NewtonActuatorAdapter` to a flat
   DOF layout so heterogeneous scenes (different articulations per environment) are supported.
   The constructor now takes keyword-only ``dof_count`` (total flat DOF count of the model) and
