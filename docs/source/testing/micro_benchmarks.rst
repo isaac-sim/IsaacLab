@@ -281,7 +281,8 @@ For other sensors, set ``BACKEND`` to ``physx``, ``newton``, or ``ovphysx``:
        --sensor pva --num_envs 4096 --warmup_steps 50 --num_steps 500
 
    ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_joint_wrench.py \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500
+       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
+       --benchmark_formatter summary --output_path results/sensors
 
    ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_ray_caster.py \
        --num_envs 4096 --grid_size 1.0 --grid_resolution 0.25 \
@@ -309,9 +310,15 @@ Sensor Arguments
    * - ``--device``
      - ``cuda:0``
      - Simulation and sensor device
+   * - ``--benchmark_formatter``
+     - ``summary``
+     - Output formatter: ``summary``, ``json``, ``osmo``, or ``omniperf``
+   * - ``--output_path``
+     - current directory
+     - Directory for timestamped result files
    * - ``--label``
      - ``current``
-     - Label printed by scripts that support it
+     - Run label stored in metadata by scripts that support it
    * - ``--sensor``
      - required
      - Select ``imu`` or ``pva`` in ``benchmark_imu_pva.py``
@@ -325,9 +332,11 @@ Sensor Arguments
      - 0.25
      - Ray-grid spacing [m]
 
+The default ``summary`` formatter prints a terminal report and writes JSON. Add
+``--output_path results/sensors`` to keep artifacts outside the repository root.
 PhysX scripts also expose ``--disable_graph`` or
 ``--disable_recorded_launch`` where applicable. These are diagnostic controls
-for comparing production cached/graph paths with eager launches; leave them
+for comparing production cached or graph paths with eager launches; leave them
 disabled when measuring default production behavior.
 
 Understanding the Outputs
@@ -352,73 +361,112 @@ those ingestion formats. The script prints the exact output path at completion.
 Sensor Output
 ~~~~~~~~~~~~~
 
-Sensor scripts currently report human-readable statistics to standard output:
+The default ``summary`` formatter prints the aggregate result and writes the
+same phases to a timestamped JSON file. An abbreviated report looks like:
 
 .. code-block:: text
 
-   synchronized mean      : 0.041 ms
-   synchronized p50       : 0.040 ms
-   synchronized p95       : 0.043 ms
-   submission mean        : 0.037 ms
-   finite target frames   : 16384 / 16384
+   Results written to: results/sensors/newton_joint_wrench_sensor_2026-07-20_16-09-38.json
+   +------------------------------------------------------------------------------------+
+   |                                   Summary Report                                   |
+   +------------------------------------------------------------------------------------+
+   | workflow_name: newton_joint_wrench_sensor                                         |
+   | num_envs: 4096                                                                    |
+   +------------------------------------------------------------------------------------+
+   | Phase: sensor_update                                                              |
+   | Synchronized Completion: 0.120 ms                                                 |
+   | Synchronized Completion p50: 0.118 ms                                             |
+   | Synchronized Completion p95: 0.126 ms                                             |
+   | Host Submission: 0.115 ms                                                         |
+   | Host Submission p50: 0.113 ms                                                     |
+   | Host Submission p95: 0.122 ms                                                     |
+   +------------------------------------------------------------------------------------+
+   | Phase: observer                                                                   |
+   | Synchronized Observer Floor: 0.002 ms                                             |
+   +------------------------------------------------------------------------------------+
+   | Phase: validation                                                                 |
+   | Finite Wrenches: 8192 count                                                       |
+   | Nonzero Wrenches: 8192 count                                                      |
+   +------------------------------------------------------------------------------------+
 
-``synchronized`` latency
-   Wall-clock latency from immediately before ``sensor.update()`` until all
-   submitted device work completes. A device synchronization before the timer
-   prevents earlier simulation or policy kernels from being charged to the
-   sensor.
+The numbers above illustrate the output shape; they are not reference
+performance values. Use the generated artifact for analysis. Its statistical
+measurements contain ``mean``, sample ``std``, ``n``, and ``unit`` fields, while
+p50 and p95 are separate measurements in the same phase. For example:
 
-``submission`` latency
-   Host time spent issuing ``sensor.update()`` before post-update device
-   synchronization. This is enqueue/dispatch cost, not pure GPU execution time.
+.. code-block:: json
+
+   {
+       "name": "newton_joint_wrench_sensor sensor_update Synchronized Completion",
+       "mean": 0.038223,
+       "std": 0.00010748023074035611,
+       "n": 2,
+       "unit": "ms",
+       "type": "statistical"
+   }
+
+``Synchronized Completion``
+   Wall-clock latency from immediately before the sensor operation until all
+   work it submitted completes. A device synchronization before the timer
+   excludes earlier simulation, policy, or unrelated kernels. The matching
+   post-boundary synchronization makes this the primary comparison metric.
+
+``Host Submission``
+   Host time until the sensor operation returns, before the post-boundary
+   synchronization. This measures enqueue and dispatch cost, not GPU execution.
+
+``Synchronized Observer Floor``
+   Cost of the same synchronized timing boundary around a no-op. It quantifies
+   measurement overhead and is never subtracted automatically. Contact cadence
+   reports an observer sample with the same ``decimation + 1`` boundaries as its
+   sensor sample.
 
 ``p50`` and ``p95``
-   Median and 95th-percentile latency within one process. They expose jitter
-   that a mean can hide.
-   Most workloads report both; the PhysX/Newton contact cadence reports p50 and
-   minimum instead.
+   Median and 95th-percentile latency within one process. They expose jitter that
+   a mean can hide. Use the JSON ``std`` to quantify within-process variation.
 
-``read-only`` latency
-   OVPhysX scripts also time the blocking backend fetch without sensor Warp
-   processing. Newton sensor inputs are already Warp arrays, and PhysX scripts
-   do not consistently expose an equivalent phase.
+``Synchronized Native Read``
+   OVPhysX scripts report this phase when the blocking backend read can be
+   isolated. A missing phase means that backend does not expose an equivalent
+   read, not that the read costs zero.
 
-``implied kernel tail``
-   OVPhysX reports ``synchronized mean - read-only mean`` as an estimate of
-   remaining processing. It derives from separately measured phases, so treat
-   small differences as noise rather than direct kernel timing.
+``Estimated Synchronized Non-read Time``
+   OVPhysX may report full synchronized update mean minus native-read mean. It is
+   derived from separately sampled phases and can be dominated by noise when the
+   values are close; it is not direct kernel timing.
 
-Validation counts
-   Final lines prove that the workload produced expected contacts, finite
-   frames, sensor outputs, nonzero wrenches, or ray hits. Never use a result
-   whose validation failed.
+``validation``
+   Counts prove that the workload produced expected contacts, finite frames,
+   sensor outputs, nonzero wrenches, or ray hits. The script exits with an error
+   instead of writing a valid-looking result when these checks fail.
 
-Sensor scripts do not currently write a structured result file. Redirect stdout
-to retain raw runs:
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p source/isaaclab_newton/benchmark/sensors/benchmark_ray_caster.py \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
-       > results/newton_ray_caster_run_1.log 2>&1
+Use ``--benchmark_formatter json`` for JSON without the terminal summary, or
+``osmo`` and ``omniperf`` for their ingestion formats.
 
 Making Fair Comparisons
 -----------------------
 
 For a performance claim:
 
-1. Use the same workstation, GPU conditions, environment, device, benchmark
-   file, dimensions, warm-up count, and timed count.
+1. Use the same workstation, GPU and CPU conditions, software environment,
+   device, benchmark file, dimensions, warm-up count, and timed count. CPU model,
+   frequency, and load still affect Python, dispatch, and synchronization costs
+   when the measured tensors live on the GPU.
 2. Run baseline and candidate configurations from separate clean processes.
 3. Use at least three repetitions per configuration and report the mean plus
    between-run standard deviation.
-4. Check validation output and retain raw logs or JSON files.
+4. Check validation output and retain the raw JSON files.
 5. Compare the same metric. Do not compare asset microseconds with sensor
    milliseconds, submission with synchronized latency, or sensor latency with
    environment FPS.
 6. Treat startup separately. Compilation, scene creation, physics initialization,
    and CUDA graph construction occur outside reported sensor update latency but
    still affect total command duration.
+
+Published Isaac Lab performance comparisons must be collected on the project
+designated benchmark workstation with complete hardware and run provenance.
+Local runs are appropriate for correctness checks and investigation, but should
+not be presented as official reference numbers.
 
 .. important::
 
@@ -442,14 +490,18 @@ Sensor benchmarks isolate a live sensor update from simulation:
 .. code-block:: text
 
    sim.step() [untimed]
-       -> synchronize [timing boundary]
-       -> sensor.update() [timed]
-       -> synchronize [timing boundary]
+       -> synchronize [exclude earlier device work]
+       -> start clock
+       -> sensor operation [record host-return time]
+       -> synchronize [wait for submitted device work]
+       -> stop clock
        -> validate output [untimed]
 
-The pre-boundary synchronization is intentional. GPU work is asynchronous; if
-the timer started while earlier work was pending, synchronized sensor latency
-could incorrectly include that work.
+The shared :func:`~isaaclab.benchmark.measure_latency` helper enforces both
+boundaries and returns paired host-submission and synchronized-completion times.
+The runner measures a synchronized no-op separately to expose observer cost.
+The pre-boundary synchronization is intentional: without it, pending simulation,
+policy, or unrelated kernels could be charged to the sensor sample.
 
 Adding New Benchmarks
 ---------------------
@@ -458,7 +510,7 @@ Adding an Asset Method or Property
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Add input generators and a
-:class:`~isaaclab.test.benchmark.MethodBenchmarkDefinition` to the corresponding
+:class:`~isaaclab.benchmark.MethodBenchmarkDefinition` to the corresponding
 backend script. Allocate inputs before the timed call. For a data property, list
 prerequisite properties through ``derived_from`` so dependencies are populated
 before timing.
@@ -472,10 +524,15 @@ Adding a Sensor Workload
 1. Build the smallest live scene that exercises the production sensor path.
 2. Warm simulation and sensor updates before collecting samples.
 3. Keep ``sim.step()`` and validation outside the timed region.
-4. Synchronize the device immediately before and after ``sensor.update()``.
-5. Report synchronized and submission distributions with clear units.
-6. Fail when output shapes, finite values, or physical signals are invalid.
-7. Document every backend-specific timing phase or protocol difference.
+4. Collect samples with :func:`~isaaclab.benchmark.measure_latency`; do not
+   duplicate clock, synchronization, percentile, or unit-conversion logic.
+5. Publish the samples through
+   :class:`~isaaclab.benchmark.LatencyBenchmarkRunner` and include a matched
+   synchronized observer floor.
+6. Add workload dimensions and modes as metadata, and validation values as
+   measurements.
+7. Fail when output shapes, finite values, or physical signals are invalid.
+8. Document every backend-specific timing phase or protocol difference.
 
 Troubleshooting
 ---------------
