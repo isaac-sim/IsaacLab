@@ -358,6 +358,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
         container-name: isaac-lab-tasks-1-test
@@ -383,6 +384,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
         container-name: isaac-lab-tasks-2-test
@@ -543,6 +545,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -648,6 +651,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -822,6 +826,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_dexsuite_kuka_hetero.py,
@@ -859,7 +864,9 @@ jobs:
         # from the NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip
         # index and keep the newton/ovrtx kitless rendering coverage.
         test-k-expr: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'not ovphysx' }}
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        extra-pip-packages: >-
+          pytetwild[all]>=0.3.0,<0.4
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
