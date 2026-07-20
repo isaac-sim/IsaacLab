@@ -22,13 +22,13 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.handover.handover_task_base import (
+from isaaclab_tasks.core.handover.handover_common import (
     ACTUATED_JOINT_NAMES_PRESET,
     FINGERTIP_BODY_NAMES,
     GOAL_MARKER_CFG,
     OBJECT_RADIUS,
 )
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import ShadowHandRobotCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
@@ -337,24 +337,8 @@ class PhysicsCfg(PresetCfg):
     default = physx
 
 
-# Simulation settings shared by the Direct and manager variants (configclass
-# deep-copies these defaults per cfg instance). The solver-common base material
-# is sufficient: only friction values are set, so no PhysX-specific
-# ``physxMaterial`` attributes are authored.
 @configclass
-class HandoverTaskCfgBase:
-    """Shared handover task settings inherited by both the Direct and the manager configurations."""
-
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
-        render_interval=2,
-        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
-
-
-@configclass
-class HandoverEnvCfg(HandoverTaskCfgBase, DirectMARLEnvCfg):
+class HandoverEnvCfg(DirectMARLEnvCfg):
     # env
     decimation = 2
     episode_length_s = 7.5
@@ -362,6 +346,14 @@ class HandoverEnvCfg(HandoverTaskCfgBase, DirectMARLEnvCfg):
     action_spaces = {"right_hand": 20, "left_hand": 20}
     observation_spaces = {"right_hand": 157, "left_hand": 157}
     state_space = 290
+
+    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=2,
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+        physics=PhysicsCfg(),
+    )
 
     # robot
     right_robot_cfg: PresetCfg = RIGHT_HAND_CFG

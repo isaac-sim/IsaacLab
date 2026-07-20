@@ -15,10 +15,10 @@ marker templates) stay module-level constants.
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkersCfg
 
-from isaaclab_tasks.core.reorient.reorient_task_base import (
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     SHADOW_ACTUATED_JOINT_NAMES as ACTUATED_JOINT_NAMES,
 )
-from isaaclab_tasks.core.reorient.reorient_task_base import (
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     SHADOW_FINGERTIP_BODY_NAMES as FINGERTIP_BODY_NAMES,
 )
 from isaaclab_tasks.utils.hydra import preset

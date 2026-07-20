@@ -18,8 +18,8 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
+from isaaclab_tasks.core.handover.handover_common import GOAL_POSITION_OFFSET
 from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg
-from isaaclab_tasks.core.handover.handover_task_base import GOAL_POSITION_OFFSET
 from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
 from isaaclab_tasks.core.utils import EpisodeErrorRecorder, randomize_rotation, sample_joint_positions_within_limits
 

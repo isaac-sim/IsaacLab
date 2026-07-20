@@ -19,11 +19,11 @@ from isaaclab.utils.math import scale_transform
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints
+from isaaclab_tasks.core.reorient.reorient_common import CAMERA_GOAL_MARKER_POSITION
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
-from isaaclab_tasks.core.reorient.reorient_task_base import CAMERA_GOAL_MARKER_POSITION
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
 
 
 class ShadowHandCameraEnv(ReorientDirectEnv):
