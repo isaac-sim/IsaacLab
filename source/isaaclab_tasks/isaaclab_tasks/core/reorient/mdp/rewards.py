@@ -101,21 +101,6 @@ def track_orientation_inv_l2(
 
 
 @torch.jit.script
-def direct_reorient_rotation_distance(object_quat: torch.Tensor, target_quat: torch.Tensor) -> torch.Tensor:
-    """Compute the Direct reorientation orientation distance [rad].
-
-    Args:
-        object_quat: Object ``(x, y, z, w)`` orientations.
-        target_quat: Target ``(x, y, z, w)`` orientations.
-
-    Returns:
-        Per-environment orientation distances [rad], in ``[0, pi]``.
-    """
-    quat_diff = math_utils.quat_mul(object_quat, math_utils.quat_conjugate(target_quat))
-    return 2.0 * torch.asin(torch.clamp(torch.linalg.norm(quat_diff[:, 0:3], ord=2, dim=-1), max=1.0))
-
-
-@torch.jit.script
 def evaluate_reorient_success(
     object_quat: torch.Tensor, target_quat: torch.Tensor, success_tolerance: float
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -133,12 +118,12 @@ def evaluate_reorient_success(
     Returns:
         Per-environment success flags and orientation errors [rad].
     """
-    orientation_error = direct_reorient_rotation_distance(object_quat, target_quat)
+    orientation_error = math_utils.quat_error_magnitude(object_quat, target_quat)
     return orientation_error <= success_tolerance, orientation_error
 
 
 @torch.jit.script
-def direct_reorient_reward(
+def reorient_reward(
     reset_buf: torch.Tensor,
     reset_goal_buf: torch.Tensor,
     successes: torch.Tensor,

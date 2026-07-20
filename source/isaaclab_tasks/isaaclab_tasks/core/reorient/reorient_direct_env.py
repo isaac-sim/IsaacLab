@@ -20,13 +20,13 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
-from isaaclab_tasks.core.reorient.mdp.rewards import direct_reorient_reward, evaluate_reorient_success
-from isaaclab_tasks.core.reorient.reorient_task_base import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
+from isaaclab_tasks.core.reorient.mdp.rewards import evaluate_reorient_success, reorient_reward
+from isaaclab_tasks.core.reorient.reorient_common import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
 from isaaclab_tasks.core.utils import EpisodeErrorRecorder, randomize_rotation, sample_joint_positions_within_limits
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
 
 class ReorientDirectEnv(DirectRLEnv):
@@ -185,7 +185,7 @@ class ReorientDirectEnv(DirectRLEnv):
         # the success flags and orientation errors were computed this step by
         # :meth:`_get_dones`; the recorder and the reward reuse them
         self._orientation_error.update(self._orientation_error_buf)
-        total_reward, goal_resets, successes, consecutive_successes = direct_reorient_reward(
+        total_reward, goal_resets, successes, consecutive_successes = reorient_reward(
             self.reset_buf,
             self.reset_goal_buf,
             self.successes,

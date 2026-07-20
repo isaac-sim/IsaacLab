@@ -19,7 +19,7 @@ import isaaclab.utils.math as math_utils
 
 from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints, cube_keypoints_from_quat
-from isaaclab_tasks.core.reorient.mdp.rewards import direct_reorient_rotation_distance, evaluate_reorient_success
+from isaaclab_tasks.core.reorient.mdp.rewards import evaluate_reorient_success
 
 _DEVICES = ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else [])
 
@@ -37,8 +37,8 @@ def _quats(device, *quats):
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_rotation_distance_recovers_known_angles(device):
-    distance = direct_reorient_rotation_distance(
-        _quats(device, _IDENTITY, _ROT90_X, _ROT180_Z), _quats(device, _IDENTITY, _IDENTITY, _IDENTITY)
+    _, distance = evaluate_reorient_success(
+        _quats(device, _IDENTITY, _ROT90_X, _ROT180_Z), _quats(device, _IDENTITY, _IDENTITY, _IDENTITY), 0.4
     )
     torch.testing.assert_close(distance, torch.tensor([0.0, math.pi / 2, math.pi], device=device), atol=1e-5, rtol=0.0)
 
@@ -131,7 +131,7 @@ def test_goal_keypoints_are_rotation_only_offsets(device):
 def test_cube_keypoints_deprecated_shim_delegates_and_warns(device):
     import warnings
 
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import compute_keypoints
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import compute_keypoints
 
     pose = torch.zeros(2, 7, device=device)
     pose[:, 6] = 1.0
