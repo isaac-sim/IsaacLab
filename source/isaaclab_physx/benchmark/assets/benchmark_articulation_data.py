@@ -5,8 +5,8 @@
 
 """Micro-benchmarking framework for ArticulationData class.
 
-This module provides a benchmarking framework to measure the performance of all functions
-in the ArticulationData class. Each function is run multiple times with randomized mock data,
+This module provides a benchmarking framework to measure the performance of all properties
+in the ArticulationData class. Each property is run multiple times against preallocated mock data,
 and timing statistics (mean and standard deviation) are reported.
 
 Usage:
@@ -22,6 +22,7 @@ from __future__ import annotations
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import traceback
 
 from isaaclab.app import AppLauncher
 
@@ -51,8 +52,6 @@ simulation_app = app_launcher.app
 
 import warnings
 from unittest.mock import MagicMock
-
-import torch
 
 # Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
 # This is needed because the Data classes call SimulationManager.get_physics_sim_view().get_gravity()
@@ -186,12 +185,12 @@ INTERNAL_PROPERTIES = {
 PROPERTY_DEPENDENCIES = {
     "root_link_lin_vel_w": ["root_link_vel_w"],
     "root_link_ang_vel_w": ["root_link_vel_w"],
-    "root_link_lin_vel_b": ["root_link_vel_b"],
-    "root_link_ang_vel_b": ["root_link_vel_b"],
+    "root_link_lin_vel_b": ["root_link_lin_vel_w", "root_link_quat_w"],
+    "root_link_ang_vel_b": ["root_link_ang_vel_w", "root_link_quat_w"],
     "root_com_pos_w": ["root_com_pose_w"],
     "root_com_quat_w": ["root_com_pose_w"],
-    "root_com_lin_vel_b": ["root_com_vel_b"],
-    "root_com_ang_vel_b": ["root_com_vel_b"],
+    "root_com_lin_vel_b": ["root_com_lin_vel_w", "root_link_quat_w"],
+    "root_com_ang_vel_b": ["root_com_ang_vel_w", "root_link_quat_w"],
     "root_com_lin_vel_w": ["root_com_vel_w"],
     "root_com_ang_vel_w": ["root_com_vel_w"],
     "root_link_pos_w": ["root_link_pose_w"],
@@ -252,6 +251,38 @@ def setup_mock_environment(config: MethodBenchmarkRunnerConfig) -> MockArticulat
     return mock_view
 
 
+def configure_stable_state_views(mock_view: MockArticulationViewWarp) -> None:
+    """Configure zero-copy state getters matching the PhysX tensor API."""
+    mock_view.get_root_transforms = lambda: mock_view._as_structured(
+        mock_view._root_transforms, wp.transformf, (mock_view._count,)
+    )
+    mock_view.get_root_velocities = lambda: mock_view._as_structured(
+        mock_view._root_velocities, wp.spatial_vectorf, (mock_view._count,)
+    )
+    mock_view.get_link_transforms = lambda: mock_view._as_structured(
+        mock_view._link_transforms, wp.transformf, (mock_view._count, mock_view._num_links)
+    )
+    mock_view.get_link_velocities = lambda: mock_view._as_structured(
+        mock_view._link_velocities, wp.spatial_vectorf, (mock_view._count, mock_view._num_links)
+    )
+    mock_view.get_link_accelerations = lambda: mock_view._as_structured(
+        mock_view._link_accelerations, wp.spatial_vectorf, (mock_view._count, mock_view._num_links)
+    )
+    mock_view.get_dof_positions = lambda: mock_view._dof_positions
+    mock_view.get_dof_velocities = lambda: mock_view._dof_velocities
+
+
+def configure_dynamics_views(mock_view: MockArticulationViewWarp, config: MethodBenchmarkRunnerConfig) -> None:
+    """Configure stable buffers for solver-provided dynamics data."""
+    num_dofs = config.num_joints + 6
+    jacobians = wp.zeros((config.num_instances, config.num_bodies, 6, num_dofs), dtype=wp.float32, device=config.device)
+    mass_matrices = wp.zeros((config.num_instances, num_dofs, num_dofs), dtype=wp.float32, device=config.device)
+    gravity_forces = wp.zeros((config.num_instances, num_dofs), dtype=wp.float32, device=config.device)
+    mock_view.get_jacobians = lambda: jacobians
+    mock_view.get_generalized_mass_matrices = lambda: mass_matrices
+    mock_view.get_gravity_compensation_forces = lambda: gravity_forces
+
+
 def main():
     """Main entry point for the benchmarking script."""
     config = MethodBenchmarkRunnerConfig(
@@ -266,43 +297,20 @@ def main():
     # Setup mock environment
     mock_view = setup_mock_environment(config)
     mock_view.set_random_mock_data()
+    configure_stable_state_views(mock_view)
+    configure_dynamics_views(mock_view, config)
 
     # Create ArticulationData instance
     articulation_data = ArticulationData(mock_view, config.device)
+    articulation_data._apply_ordering_maps_after_resolve()
 
     # Get list of properties to benchmark
     properties = get_benchmarkable_properties(articulation_data)
 
-    # Generator that updates mock data and invalidates timestamp
-    def gen_mock_data(cfg: MethodBenchmarkRunnerConfig) -> dict:
-        mock_view.set_mock_coms(
-            wp.from_torch(torch.randn(cfg.num_instances, cfg.num_bodies, 7, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_inertias(
-            wp.from_torch(torch.randn(cfg.num_instances, cfg.num_bodies, 9, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_root_transforms(
-            wp.from_torch(torch.randn(cfg.num_instances, 7, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_root_velocities(
-            wp.from_torch(torch.randn(cfg.num_instances, 6, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_link_transforms(
-            wp.from_torch(torch.randn(cfg.num_instances, cfg.num_bodies, 7, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_link_velocities(
-            wp.from_torch(torch.randn(cfg.num_instances, cfg.num_bodies, 6, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_link_accelerations(
-            wp.from_torch(torch.randn(cfg.num_instances, cfg.num_bodies, 6, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_dof_positions(
-            wp.from_torch(torch.randn(cfg.num_instances, cfg.num_joints, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_dof_velocities(
-            wp.from_torch(torch.randn(cfg.num_instances, cfg.num_joints, device=cfg.device), dtype=wp.float32)
-        )
+    # Advance the simulated step without allocating replacement state buffers.
+    def gen_mock_data(_cfg: MethodBenchmarkRunnerConfig) -> dict:
         articulation_data._sim_timestamp += 1.0
+        articulation_data._fk_timestamp = articulation_data._sim_timestamp
         return {}
 
     # Create runner
@@ -325,9 +333,14 @@ def main():
 
     runner.finalize()
 
-    # Close the simulation app
-    simulation_app.close()
-
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BaseException:
+        if simulation_app.config.get("fast_shutdown", False):
+            traceback.print_exc()
+        simulation_app.close(exit_code=1)
+        raise
+    else:
+        simulation_app.close()

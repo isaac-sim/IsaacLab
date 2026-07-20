@@ -6,7 +6,7 @@
 """Micro-benchmarking framework for ArticulationData class (Newton backend).
 
 This module provides a benchmarking framework to measure the performance of all properties
-in the Newton ArticulationData class. Each property is run multiple times with randomized mock data,
+in the Newton ArticulationData class. Each property is run multiple times against preallocated mock data,
 and timing statistics (mean and standard deviation) are reported.
 
 Usage:
@@ -22,6 +22,7 @@ from __future__ import annotations
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import traceback
 
 from isaaclab.app import AppLauncher
 
@@ -51,8 +52,6 @@ simulation_app = app_launcher.app
 
 import warnings
 
-import numpy as np
-import warp as wp
 from isaaclab_newton.test.mock_interfaces import MockNewtonArticulationView, create_mock_newton_manager
 
 from isaaclab.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
@@ -68,6 +67,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # List of deprecated properties - skip these
 DEPRECATED_PROPERTIES = {
+    "default_root_state",
     "root_pose_w",
     "root_pos_w",
     "root_quat_w",
@@ -118,6 +118,7 @@ NOT_IMPLEMENTED_PROPERTIES = {
     "spatial_tendon_limit_stiffness",
     "spatial_tendon_offset",
     "body_incoming_joint_wrench_b",
+    "gravity_compensation_forces",
 }
 
 # Removed default_* properties that raise RuntimeError
@@ -173,12 +174,12 @@ INTERNAL_PROPERTIES = {
 PROPERTY_DEPENDENCIES = {
     "root_link_lin_vel_w": ["root_link_vel_w"],
     "root_link_ang_vel_w": ["root_link_vel_w"],
-    "root_link_lin_vel_b": ["root_link_vel_b"],
-    "root_link_ang_vel_b": ["root_link_vel_b"],
+    "root_link_lin_vel_b": ["root_link_lin_vel_w", "root_link_quat_w"],
+    "root_link_ang_vel_b": ["root_link_ang_vel_w", "root_link_quat_w"],
     "root_com_pos_w": ["root_com_pose_w"],
     "root_com_quat_w": ["root_com_pose_w"],
-    "root_com_lin_vel_b": ["root_com_vel_b"],
-    "root_com_ang_vel_b": ["root_com_vel_b"],
+    "root_com_lin_vel_b": ["root_com_lin_vel_w", "root_link_quat_w"],
+    "root_com_ang_vel_b": ["root_com_ang_vel_w", "root_link_quat_w"],
     "root_com_lin_vel_w": ["root_com_vel_w"],
     "root_com_ang_vel_w": ["root_com_vel_w"],
     "root_link_pos_w": ["root_link_pose_w"],
@@ -255,63 +256,34 @@ def main():
         "isaaclab_newton.assets.articulation.articulation_data.SimulationManager",
         gravity=(0.0, 0.0, -9.81),
     ):
+        from isaaclab_newton.assets.articulation import articulation_data as articulation_data_module
+
+        model = articulation_data_module.SimulationManager.get_model()
+        model.articulation_count = config.num_instances
+        model.max_joints_per_articulation = config.num_bodies
+        model.max_dofs_per_articulation = config.num_joints + 6
+        model.joint_dof_count = config.num_instances * (config.num_joints + 6)
+        model.body_count = config.num_instances * config.num_bodies
+
         # Setup mock environment
         mock_view = setup_mock_environment(config)
         mock_view.set_random_mock_data()
-
-        # Import ArticulationData inside the patch context
-        from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
+        # Stub solver evaluation so these samples isolate Isaac Lab accessor and gather overhead.
+        # End-to-end dynamics cost requires a backend-integrated benchmark.
+        mock_view.eval_jacobian = lambda state, *, J, joint_S_s: None
+        mock_view.eval_mass_matrix = lambda state, *, H, J, body_I_s, joint_S_s: None
 
         # Create ArticulationData instance
-        articulation_data = ArticulationData(mock_view, config.device)
+        articulation_data = articulation_data_module.ArticulationData(mock_view, config.device)
+        articulation_data._apply_ordering_maps_after_resolve()
 
         # Get list of properties to benchmark
         properties = get_benchmarkable_properties(articulation_data)
 
-        # Generator that updates mock data and invalidates timestamp
-        def gen_mock_data(cfg: MethodBenchmarkRunnerConfig) -> dict:
-            N, L, J = cfg.num_instances, cfg.num_bodies, cfg.num_joints
-            dev = cfg.device
-
-            # Update root transforms
-            root_tf_np = np.random.randn(N, 1, 7).astype(np.float32)
-            root_tf_np[..., 3:7] /= np.linalg.norm(root_tf_np[..., 3:7], axis=-1, keepdims=True)
-            mock_view.set_mock_root_transforms(wp.array(root_tf_np, dtype=wp.transformf, device=dev))
-
-            # Update root velocities
-            root_vel_np = np.random.randn(N, 1, 6).astype(np.float32)
-            mock_view.set_mock_root_velocities(wp.array(root_vel_np, dtype=wp.spatial_vectorf, device=dev))
-
-            # Update link transforms
-            link_tf_np = np.random.randn(N, 1, L, 7).astype(np.float32)
-            link_tf_np[..., 3:7] /= np.linalg.norm(link_tf_np[..., 3:7], axis=-1, keepdims=True)
-            mock_view.set_mock_link_transforms(wp.array(link_tf_np, dtype=wp.transformf, device=dev))
-
-            # Update link velocities
-            link_vel_np = np.random.randn(N, 1, L, 6).astype(np.float32)
-            mock_view.set_mock_link_velocities(wp.array(link_vel_np, dtype=wp.spatial_vectorf, device=dev))
-
-            # Update DOF state
-            mock_view.set_mock_dof_positions(
-                wp.array(np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev)
-            )
-            mock_view.set_mock_dof_velocities(
-                wp.array(np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev)
-            )
-
-            # Update body properties
-            mock_view.set_mock_coms(
-                wp.array(np.random.randn(N, 1, L, 3).astype(np.float32), dtype=wp.vec3f, device=dev)
-            )
-            mock_view.set_mock_inertias(
-                wp.array(np.random.randn(N, 1, L, 9).astype(np.float32), dtype=wp.mat33f, device=dev)
-            )
-            mock_view.set_mock_masses(
-                wp.array((np.random.rand(N, 1, L) * 10 + 0.1).astype(np.float32), dtype=wp.float32, device=dev)
-            )
-
-            # Invalidate timestamp to trigger recomputation
+        # Advance the simulated step without allocating replacement state buffers.
+        def gen_mock_data(_cfg: MethodBenchmarkRunnerConfig) -> dict:
             articulation_data._sim_timestamp += 1.0
+            articulation_data._fk_timestamp = articulation_data._sim_timestamp
             return {}
 
         # Create runner
@@ -334,9 +306,14 @@ def main():
 
         runner.finalize()
 
-    # Close the simulation app
-    simulation_app.close()
-
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BaseException:
+        if simulation_app.config.get("fast_shutdown", False):
+            traceback.print_exc()
+        simulation_app.close(exit_code=1)
+        raise
+    else:
+        simulation_app.close()
