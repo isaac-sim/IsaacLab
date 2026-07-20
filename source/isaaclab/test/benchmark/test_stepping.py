@@ -202,6 +202,25 @@ def test_environment_step_timer_excludes_pending_work_before_step(monkeypatch):
     assert timer.step_times_s == [0.0]
 
 
+def test_environment_step_timer_synchronizes_torch_action_device(monkeypatch):
+    import warp as wp
+
+    events = []
+    env = _Env()
+
+    class _CudaAction:
+        device = "cuda:1"
+
+    env.step = lambda actions: events.append("environment")
+    monkeypatch.setattr(wp, "synchronize", lambda: events.append("warp"))
+    monkeypatch.setattr(torch.cuda, "synchronize", lambda device=None: events.append(f"torch:{device}"))
+
+    with EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True):
+        env.step(_CudaAction())
+
+    assert events == ["torch:cuda:1", "warp", "environment", "torch:cuda:1", "warp"]
+
+
 def test_environment_step_timer_attributes_queued_work_to_its_boundary(monkeypatch):
     import warp as wp
 

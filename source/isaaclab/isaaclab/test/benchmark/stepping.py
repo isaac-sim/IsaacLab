@@ -60,6 +60,35 @@ def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:
         return 2.0 * torch.rand(u.num_envs, u.single_action_space.shape[0], device=u.device) - 1.0
 
 
+def _find_cuda_devices(value) -> set[str]:
+    """Collect CUDA device names from nested tensor-like values."""
+    import torch  # noqa: PLC0415
+
+    devices: set[str] = set()
+
+    def collect(item) -> None:
+        if isinstance(item, dict):
+            for nested in item.values():
+                collect(nested)
+            return
+        if isinstance(item, (list, tuple)):
+            for nested in item:
+                collect(nested)
+            return
+        device = item if isinstance(item, (str, torch.device)) else getattr(item, "device", None)
+        if device is None:
+            return
+        try:
+            device = torch.device(device)
+        except (RuntimeError, TypeError):
+            return
+        if device.type == "cuda":
+            devices.add(str(device))
+
+    collect(value)
+    return devices
+
+
 class EnvironmentStepTimingRecorder(AbstractContextManager):
     """Record host-return step time or an optional synchronized step breakdown.
 
@@ -119,6 +148,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         self._original_env_step = self._env.step
 
         if self._measure_synchronized_step_breakdown:
+            import torch  # noqa: PLC0415
             import warp as wp  # noqa: PLC0415
 
             from isaaclab.utils.timer import Timer  # noqa: PLC0415
@@ -130,34 +160,50 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             self._simulation_step_calls = 0
             assert self._simulation_context is not None
             self._original_sim_step = self._simulation_context.step
+            environment_cuda_devices = _find_cuda_devices(getattr(self._env.unwrapped, "device", None))
+            active_cuda_devices = environment_cuda_devices
+
+            def synchronize_torch(devices: set[str]) -> None:
+                for device in sorted(devices):
+                    torch.cuda.synchronize(device)
 
             def timed_simulation_step(*args, **kwargs):
                 if not self._inside_environment_step:
                     return self._original_sim_step(*args, **kwargs)
+                synchronize_torch(active_cuda_devices)
                 wp.synchronize()
                 timer = Timer()
+                timer.start()
                 try:
-                    with timer:
-                        return self._original_sim_step(*args, **kwargs)
+                    return self._original_sim_step(*args, **kwargs)
                 finally:
+                    synchronize_torch(active_cuda_devices)
+                    timer.stop()
                     self._simulation_total_time_s += timer.total_run_time
                     self._simulation_step_calls += 1
 
             self._simulation_context.step = timed_simulation_step
 
             def timed_environment_step(*args, **kwargs):
+                nonlocal active_cuda_devices
                 recording = self._environment_step_index >= self._warmup_steps
                 self._environment_step_index += 1
                 simulation_start_time_s = self._simulation_total_time_s
                 simulation_start_calls = self._simulation_step_calls
+                previous_cuda_devices = active_cuda_devices
+                active_cuda_devices = environment_cuda_devices | _find_cuda_devices(args) | _find_cuda_devices(kwargs)
+                synchronize_torch(active_cuda_devices)
                 wp.synchronize()
                 timer = Timer()
+                timer.start()
                 self._inside_environment_step = True
                 try:
-                    with timer:
-                        return self._original_env_step(*args, **kwargs)
+                    return self._original_env_step(*args, **kwargs)
                 finally:
                     self._inside_environment_step = False
+                    synchronize_torch(active_cuda_devices)
+                    timer.stop()
+                    active_cuda_devices = previous_cuda_devices
                     if recording:
                         self.step_times_s.append(timer.total_run_time)
                         self.simulation_step_times_s.append(self._simulation_total_time_s - simulation_start_time_s)

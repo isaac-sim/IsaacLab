@@ -107,6 +107,8 @@ def _parse_args(argv: list[str]):
         parser.error("--num_frames must be greater than zero")
     if args_cli.warmup_steps < 0:
         parser.error("--warmup_steps must be non-negative")
+    if args_cli.warmup_steps >= args_cli.num_frames:
+        parser.error("--warmup_steps must be less than --num_frames")
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args

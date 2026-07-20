@@ -221,6 +221,25 @@ def test_build_runtime_rejects_non_positive_environment_step_times(environment_s
         )
 
 
+@pytest.mark.parametrize(
+    ("simulation_step_times_s", "simulation_step_calls"),
+    [([0.5], None), (None, 1), ([0.5], 1)],
+)
+def test_build_runtime_rejects_simulation_timing_without_environment_timing(
+    simulation_step_times_s, simulation_step_calls
+):
+    with pytest.raises(ValueError, match="environment_step_times_s is required with simulation timing"):
+        builders.build_runtime(
+            startup_time_s=StartupTime(0.1, 0.2, 0.3),
+            iteration_times_s=[1.0],
+            collection_fps=[8.0],
+            total_fps=[8.0],
+            steps_per_iteration=8,
+            simulation_step_times_s=simulation_step_times_s,
+            simulation_step_calls=simulation_step_calls,
+        )
+
+
 def test_build_training_bundle_round_trips(tmp_path):
     run = builders.build_run_identity(
         run_id="x",

@@ -246,6 +246,13 @@ class EnvironmentStepTiming:
         """Validate that the timing fields form one consistent measurement mode."""
         if self.environment_step_calls <= 0:
             raise ValueError("environment_step_calls must be greater than zero")
+        if not (
+            math.isfinite(self.environment_step_time_s.mean)
+            and self.environment_step_time_s.mean > 0.0
+            and math.isfinite(self.environment_step_fps.mean)
+            and self.environment_step_fps.mean > 0.0
+        ):
+            raise ValueError("environment step time and FPS must be greater than zero")
 
         breakdown = (
             self.simulation_step_time_s,

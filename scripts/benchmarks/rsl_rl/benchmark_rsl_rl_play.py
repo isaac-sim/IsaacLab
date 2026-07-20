@@ -88,6 +88,8 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         parser.error("--num_frames must be greater than zero")
     if args.warmup_steps < 0:
         parser.error("--warmup_steps must be non-negative")
+    if args.warmup_steps >= args.num_frames:
+        parser.error("--warmup_steps must be less than --num_frames")
     sys.argv = [sys.argv[0]] + remaining
     return args, remaining
 
