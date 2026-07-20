@@ -237,7 +237,9 @@ class TestArticulationFinders:
 # ---------------------------------------------------------------------------
 
 
-_non_mock_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "mock"], indirect=False)
+_non_mock_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in BACKENDS if backend.lower() != "mock"], indirect=False
+)
 
 
 class TestResolveMatchingNamesCache:
