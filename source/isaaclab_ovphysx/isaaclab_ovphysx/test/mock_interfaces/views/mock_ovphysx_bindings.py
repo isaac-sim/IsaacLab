@@ -108,13 +108,20 @@ class MockTensorBinding:
             import warp as wp
 
             if isinstance(tensor, wp.array):
-                tmp = wp.from_numpy(self._data, dtype=wp.float32, device=tensor.device)
                 scalar = getattr(tensor.dtype, "_wp_scalar_type_", tensor.dtype)
                 if scalar is not wp.float32:
                     raise RuntimeError(
                         f"incompatible destination dtype: expected float32 scalar elements, got {tensor.dtype}"
                     )
                 destination = tensor if tensor.dtype == wp.float32 else tensor.view(wp.float32)
+                if self._benchmark_mode:
+                    key = (str(tensor.device), str(tensor.dtype))
+                    tmp = self._warp_sources.get(key)
+                    if tmp is None:
+                        tmp = wp.from_numpy(self._data, dtype=wp.float32, device=tensor.device)
+                        self._warp_sources[key] = tmp
+                else:
+                    tmp = wp.from_numpy(self._data, dtype=wp.float32, device=tensor.device)
                 wp.copy(destination, tmp)
                 return
         except ImportError:
