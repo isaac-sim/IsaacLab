@@ -89,9 +89,27 @@ def test_version_single_source_matches_literal_pins():
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
-    # OV extras mirror the table (ovphysx exact pin in ``ov``, ovrtx range spec in ``rtx``).
-    assert f"ovphysx=={versions['ovphysx']}" in optional["ov"]
-    assert f"ovrtx{versions['ovrtx']}" in optional["rtx"]
+    # OV extras mirror the table. Table values may be an exact version ("1.2.3",
+    # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
+    def spec(package: str) -> str:
+        value = versions[package]
+        return f"{package}=={value}" if value[0].isdigit() else f"{package}{value}"
+
+    assert spec("ovphysx") in optional["ov"]
+    assert spec("ovrtx") in optional["rtx"]
+
+    # CI installs OVRTX through a generic pip-package input (a bare ``pip install
+    # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:
+    # either by carrying the literal range, or by referencing the ``resolve-ov-pins``
+    # action output, which reads the pin from this same table. Never a bare ``ovrtx``.
+    build_workflow = (_repo_root() / ".github/workflows/build.yaml").read_text(encoding="utf-8")
+    ovrtx_install_lines = [
+        line.strip() for line in build_workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
+    ]
+    assert ovrtx_install_lines
+    assert all(
+        f"ovrtx{versions['ovrtx']}" in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines
+    )
 
     # uv torch-stack overrides mirror the table.
     for package in ("torch", "torchvision", "torchaudio"):
