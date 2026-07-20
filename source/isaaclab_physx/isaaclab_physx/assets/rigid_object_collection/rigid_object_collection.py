@@ -170,8 +170,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            object_mask: Object mask. Not used currently.
         """
         # resolve all indices
         if env_ids is None:
@@ -179,8 +177,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if object_ids is None:
             object_ids = self._ALL_BODY_INDICES
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
-        self._permanent_wrench_composer.reset(env_ids, env_mask)
+        self._instantaneous_wrench_composer.reset(env_ids)
+        self._permanent_wrench_composer.reset(env_ids)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.

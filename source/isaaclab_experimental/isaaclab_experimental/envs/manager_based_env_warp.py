@@ -16,11 +16,9 @@ from __future__ import annotations
 
 # import builtins
 import contextlib
-import importlib
 import logging
 import warnings
 from collections.abc import Sequence
-from copy import deepcopy
 from typing import Any
 
 import torch
@@ -38,8 +36,9 @@ from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
-from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
+from isaaclab_experimental.utils.manager_call_switch import ManagerCallSwitch
 from isaaclab_experimental.utils.warp import resolve_1d_mask
+from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -79,11 +78,18 @@ class ManagerBasedEnvWarp:
         self.cfg = cfg
         # initialize internal variables
         self._is_closed = False
-        # temporary debug runtime config for manager source/call switching.
-        cfg_source: dict | str | None = getattr(self.cfg, "manager_call_config", None)
+        # Keep the execution policy on the environment. ManagerCallSwitch is a
+        # compatibility router that can be removed without replacing this owner.
+        self._warp_graph_cache = WarpGraphCache(enabled=True)
+        # Temporary runtime config for stable/Warp manager routing.
+        cfg_source: dict[str, int] | str | None = getattr(self.cfg, "manager_call_config", None)
         max_modes: dict[str, int] | None = getattr(self.cfg, "manager_call_max_mode", None)
-        self._manager_call_switch = ManagerCallSwitch(cfg_source, max_modes=max_modes)
-        self._apply_manager_term_cfg_profile()
+        self._manager_call_switch = ManagerCallSwitch(
+            cfg_source,
+            max_modes=max_modes,
+            graph_cache=self._warp_graph_cache,
+        )
+        self._manager_call_switch.apply_term_cfg_profile(self.cfg)
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -273,15 +279,9 @@ class ManagerBasedEnvWarp:
         return self.sim.device
 
     @property
-    def env_origins_wp(self) -> wp.array:
-        """Scene env origins as a warp ``vec3f`` array. Cached on first access."""
-        if not hasattr(self, "_env_origins_wp"):
-            origins = self.scene.env_origins
-            if isinstance(origins, wp.array):
-                self._env_origins_wp = origins
-            else:
-                self._env_origins_wp = wp.from_torch(origins, dtype=wp.vec3f)
-        return self._env_origins_wp
+    def env_origins_wp(self) -> wp.array(dtype=wp.vec3f):
+        """Warp-owned environment origins [m] provided by the scene."""
+        return self.scene.env_origins_wp
 
     def resolve_env_mask(
         self,
@@ -444,7 +444,7 @@ class ManagerBasedEnvWarp:
                 device=self.device,
             )
 
-        self._reset_idx(env_mask=reset_mask, env_ids=host_env_ids)
+        self._reset_idx(env_mask=reset_mask)
         if host_env_ids is not None:
             self.extras["log"].update(self._reset_host_post(host_env_ids))
 
@@ -502,7 +502,7 @@ class ManagerBasedEnvWarp:
 
         env_mask = self.resolve_env_mask(env_ids=env_ids)
         self._reset_host_pre(env_ids)
-        self._reset_idx(env_mask=env_mask, env_ids=env_ids)
+        self._reset_idx(env_mask=env_mask)
         self.extras["log"].update(self._reset_host_post(env_ids))
 
         # set the state
@@ -629,94 +629,16 @@ class ManagerBasedEnvWarp:
     Helper functions.
     """
 
-    def _resolve_stable_cfg_counterpart(self) -> ManagerBasedEnvCfg | None:
-        """Resolve the legacy stable task config counterpart."""
-        cfg_cls = self.cfg.__class__
-        cfg_module_name = cfg_cls.__module__
-        if "isaaclab_tasks_experimental" not in cfg_module_name:
-            return None
-
-        stable_module_name = cfg_module_name.replace("isaaclab_tasks_experimental", "isaaclab_tasks", 1)
-        try:
-            stable_module = importlib.import_module(stable_module_name)
-        except Exception as exc:
-            logger.warning(
-                "Failed to import stable task cfg module '%s' for manager_call_config stable mode: %s",
-                stable_module_name,
-                exc,
-            )
-            return None
-
-        stable_cfg_cls = getattr(stable_module, cfg_cls.__name__, None)
-        if stable_cfg_cls is None:
-            logger.warning("Stable task cfg class '%s' not found in module '%s'.", cfg_cls.__name__, stable_module_name)
-            return None
-
-        try:
-            return stable_cfg_cls()
-        except Exception as exc:
-            logger.warning(
-                "Failed to instantiate stable task cfg '%s.%s': %s",
-                stable_module_name,
-                cfg_cls.__name__,
-                exc,
-            )
-            return None
-
-    def _apply_manager_term_cfg_profile(self) -> None:
-        """Preserve the deprecated mixed stable-manager configuration path."""
-        manager_to_cfg_attr = {
-            "ActionManager": "actions",
-            "ObservationManager": "observations",
-            "EventManager": "events",
-            "RecorderManager": "recorders",
-            "CommandManager": "commands",
-            "TerminationManager": "terminations",
-            "RewardManager": "rewards",
-            "CurriculumManager": "curriculum",
-        }
-        stable_managers = [
-            name
-            for name in manager_to_cfg_attr
-            if self._manager_call_switch.get_mode_for_manager(name) == ManagerCallMode.STABLE
-        ]
-        if not stable_managers:
-            return
-
-        warnings.warn(
-            "Selecting STABLE managers inside ManagerBasedEnvWarp is deprecated. Use ManagerBasedEnv for Torch "
-            "managers or WARP_NOT_CAPTURED for the Warp frontend.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        stable_cfg = self._resolve_stable_cfg_counterpart()
-        if stable_cfg is None:
-            logger.warning(
-                "Stable managers requested (%s), but no stable cfg counterpart could be resolved. Keeping "
-                "experimental term configs.",
-                ", ".join(stable_managers),
-            )
-            return
-
-        for manager_name, cfg_attr in manager_to_cfg_attr.items():
-            if self._manager_call_switch.get_mode_for_manager(manager_name) != ManagerCallMode.STABLE:
-                continue
-            if hasattr(self.cfg, cfg_attr) and hasattr(stable_cfg, cfg_attr):
-                setattr(self.cfg, cfg_attr, deepcopy(getattr(stable_cfg, cfg_attr)))
-
     def _reset_idx(
         self,
         *,
         env_mask: wp.array(dtype=wp.bool),
-        env_ids: Sequence[int] | torch.Tensor | None = None,
     ) -> None:
         """Reset Warp-owned state for selected environments.
 
         Args:
             env_mask: Boolean Warp mask selecting environments to reset.
-            env_ids: Optional compact IDs for explicit host-only terms.
         """
-        del env_ids
         # reset the internal buffers of the scene elements
         self.scene.reset(env_mask=env_mask)
 

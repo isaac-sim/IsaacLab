@@ -205,7 +205,7 @@ class AnymalCEnv(DirectRLEnv):
         joint_vel = self._robot.data.default_joint_vel.torch[env_ids]
         default_root_pose = self._robot.data.default_root_pose.torch[env_ids]
         default_root_vel = self._robot.data.default_root_vel.torch[env_ids]
-        default_root_pose[:, :3] += self._terrain.env_origins[env_ids]
+        default_root_pose[:, :3] += self._terrain.env_origins.torch[env_ids]
         self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
         self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)

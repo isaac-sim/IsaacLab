@@ -9,14 +9,22 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import os
+import warnings
 from collections.abc import Callable
+from copy import deepcopy
 from enum import IntEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnvCfg
+
+logger = logging.getLogger(__name__)
 
 
 class ManagerCallMode(IntEnum):
@@ -34,11 +42,12 @@ class ManagerCallMode(IntEnum):
 
 
 class ManagerCallSwitch:
-    """Per-manager call switch for stable/warp/captured execution.
+    """Compatibility router for stable and Warp manager implementations.
 
-    Routes each manager stage call through the configured execution path:
-    stable Python, Warp (eager), or Warp (captured CUDA graph). Optionally
-    wraps each call in a :class:`Timer` context for profiling.
+    This temporary layer selects stable or Warp manager classes and forwards
+    Warp stages to an environment-owned :class:`WarpGraphCache`. Execution and
+    capture policy therefore remain reusable after mixed stable-manager routing
+    is removed. Calls may optionally use a :class:`Timer` for profiling.
     """
 
     # Warp eager is the correctness-first default. Capture remains an explicit
@@ -70,12 +79,14 @@ class ManagerCallSwitch:
 
     def __init__(
         self,
-        cfg_source: dict | str | None = None,
+        cfg_source: dict[str, int] | str | None = None,
         *,
         max_modes: dict[str, int] | None = None,
+        graph_cache: WarpGraphCache | None = None,
     ):
-        # The graph cache is reached only for an explicit WARP_CAPTURED mode.
-        self._graph_cache = WarpGraphCache(enabled=True)
+        # The environment normally owns this durable executor. Creating one here
+        # keeps the compatibility router independently usable in tests and tools.
+        self._graph_cache = graph_cache if graph_cache is not None else WarpGraphCache(enabled=True)
         # Merge caller-supplied max_modes with the class-level MAX_MODE_OVERRIDES.
         self._max_modes = dict(self.MAX_MODE_OVERRIDES)
         if max_modes is not None:
@@ -99,6 +110,53 @@ class ManagerCallSwitch:
     def invalidate_graphs(self) -> None:
         """Invalidate cached capture graphs and their cached return values."""
         self._graph_cache.invalidate()
+
+    def apply_term_cfg_profile(self, cfg: ManagerBasedEnvCfg) -> None:
+        """Apply the deprecated mixed stable-manager configuration profile.
+
+        This compatibility hook is intentionally isolated from the Warp
+        environment. It can be removed together with stable manager routing
+        once all task configurations use the Warp frontend natively.
+
+        Args:
+            cfg: Experimental environment configuration to update in place.
+        """
+        manager_to_cfg_attr = {
+            "ActionManager": "actions",
+            "ObservationManager": "observations",
+            "EventManager": "events",
+            "RecorderManager": "recorders",
+            "CommandManager": "commands",
+            "TerminationManager": "terminations",
+            "RewardManager": "rewards",
+            "CurriculumManager": "curriculum",
+        }
+        stable_managers = [
+            name for name in manager_to_cfg_attr if self.get_mode_for_manager(name) == ManagerCallMode.STABLE
+        ]
+        if not stable_managers:
+            return
+
+        warnings.warn(
+            "Selecting STABLE managers inside ManagerBasedEnvWarp is deprecated. Use ManagerBasedEnv for Torch "
+            "managers or WARP_NOT_CAPTURED for the Warp frontend.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        stable_cfg = self._resolve_stable_cfg_counterpart(cfg)
+        if stable_cfg is None:
+            logger.warning(
+                "Stable managers requested (%s), but no stable cfg counterpart could be resolved. Keeping "
+                "experimental term configs.",
+                ", ".join(stable_managers),
+            )
+            return
+
+        for manager_name, cfg_attr in manager_to_cfg_attr.items():
+            if self.get_mode_for_manager(manager_name) != ManagerCallMode.STABLE:
+                continue
+            if hasattr(cfg, cfg_attr) and hasattr(stable_cfg, cfg_attr):
+                setattr(cfg, cfg_attr, deepcopy(getattr(stable_cfg, cfg_attr)))
 
     # ------------------------------------------------------------------
     # Stage dispatch
@@ -131,11 +189,16 @@ class ManagerCallSwitch:
             The stage result, optionally transformed by :paramref:`_output`.
         """
         with Timer(name=stage, msg=f"{stage} took:", enable=_timer, time_unit="us"):
-            mode = self.get_mode_for_manager(self._manager_name_from_stage(stage))
-            if mode == ManagerCallMode.WARP_CAPTURED:
-                result = self._graph_cache.capture_or_replay(stage, fn, args=args, kwargs=kwargs)
-            else:
-                result = fn(*args, **kwargs)
+            manager_name = self._manager_name_from_stage(stage)
+            mode = self.get_mode_for_manager(manager_name)
+            result = self._graph_cache.call(
+                stage,
+                fn,
+                args=args,
+                kwargs=kwargs,
+                capture=mode == ManagerCallMode.WARP_CAPTURED,
+                group=manager_name,
+            )
         return _output(result) if _output is not None else result
 
     def call_stage(
@@ -161,7 +224,7 @@ class ManagerCallSwitch:
             stage: Stage identifier in the form ``"ManagerName_function_name"``.
             warp_call: Call spec for the warp path (eager or captured).
             stable_call: Call spec for the stable (torch) path. Defaults to ``None``.
-            timer: Whether to wrap execution in a :class:`Timer`. Defaults to ``True``
+            timer: Whether to wrap execution in a :class:`Timer`. Defaults to ``False``
                 (controlled by the global :attr:`Timer.enable` class-level toggle).
                 Pass a module-level flag like ``TIMER_ENABLED_STEP`` to make timing
                 conditional on that flag.
@@ -169,28 +232,21 @@ class ManagerCallSwitch:
         Returns:
             The (possibly transformed) return value of the stage.
         """
-        with Timer(name=stage, msg=f"{stage} took:", enable=timer, time_unit="us"):
-            return self._dispatch(stage, stable_call, warp_call)
-
-    def _dispatch(
-        self,
-        stage: str,
-        stable_call: dict[str, Any] | None,
-        warp_call: dict[str, Any],
-    ) -> Any:
-        """Select call path based on mode, execute, and apply output."""
         mode = self.get_mode_for_manager(self._manager_name_from_stage(stage))
         if mode == ManagerCallMode.STABLE:
             if stable_call is None:
                 raise ValueError(f"Stage '{stage}' is configured as STABLE (mode=0) but no stable_call was provided.")
-            call, result = stable_call, self._run_call(stable_call)
-        elif mode == ManagerCallMode.WARP_CAPTURED:
-            call, result = warp_call, self._wp_capture_or_launch(stage, warp_call)
+            call = stable_call
         else:
-            call, result = warp_call, self._run_call(warp_call)
-
-        output_fn = call.get("output")
-        return output_fn(result) if output_fn is not None else result
+            call = warp_call
+        return self.call(
+            stage,
+            call["fn"],
+            *call.get("args", ()),
+            _output=call.get("output"),
+            _timer=timer,
+            **call.get("kwargs", {}),
+        )
 
     # ------------------------------------------------------------------
     # Manager resolution
@@ -212,6 +268,8 @@ class ManagerCallSwitch:
         cap = self._max_modes.get(manager_name)
         if cap is not None:
             mode_value = min(mode_value, cap)
+        if mode_value == ManagerCallMode.WARP_CAPTURED and not self._graph_cache.is_capturable(manager_name):
+            mode_value = ManagerCallMode.WARP_NOT_CAPTURED
         return ManagerCallMode(mode_value)
 
     def resolve_manager_class(self, manager_name: str, mode_override: ManagerCallMode | int | None = None) -> type:
@@ -229,34 +287,13 @@ class ManagerCallSwitch:
         Called by :class:`ManagerBase` during term preparation when a term
         is decorated with ``@warp_capturable(False)``.
         """
-        if not capturable:
-            self._max_modes[manager_name] = min(
-                self._max_modes.get(manager_name, ManagerCallMode.WARP_CAPTURED),
-                ManagerCallMode.WARP_NOT_CAPTURED,
-            )
+        self._graph_cache.register_capturability(manager_name, capturable)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _run_call(self, call: dict[str, Any]) -> Any:
-        """Execute a single call spec eagerly."""
-        return call["fn"](*call.get("args", ()), **call.get("kwargs", {}))
-
-    def _wp_capture_or_launch(self, stage: str, call: dict[str, Any]) -> Any:
-        """Capture Warp CUDA graph on first call, then replay.
-
-        Delegates to :class:`WarpGraphCache` which handles warm-up, capture,
-        caching the return value, and replay.
-        """
-        return self._graph_cache.capture_or_replay(
-            stage,
-            call["fn"],
-            args=call.get("args", ()),
-            kwargs=call.get("kwargs", {}),
-        )
-
-    def _load_cfg(self, cfg_source: dict | str | None) -> dict[str, int]:
+    def _load_cfg(self, cfg_source: dict[str, int] | str | None) -> dict[str, int]:
         if cfg_source is None:
             cfg = dict(self.DEFAULT_CONFIG)
         elif isinstance(cfg_source, dict):
@@ -298,3 +335,38 @@ class ManagerCallSwitch:
                 cfg[name] = max_mode
 
         return cfg
+
+    @staticmethod
+    def _resolve_stable_cfg_counterpart(cfg: ManagerBasedEnvCfg) -> ManagerBasedEnvCfg | None:
+        """Resolve the legacy stable task configuration counterpart."""
+        cfg_cls = cfg.__class__
+        cfg_module_name = cfg_cls.__module__
+        if "isaaclab_tasks_experimental" not in cfg_module_name:
+            return None
+
+        stable_module_name = cfg_module_name.replace("isaaclab_tasks_experimental", "isaaclab_tasks", 1)
+        try:
+            stable_module = importlib.import_module(stable_module_name)
+        except Exception as exc:
+            logger.warning(
+                "Failed to import stable task cfg module '%s' for manager_call_config stable mode: %s",
+                stable_module_name,
+                exc,
+            )
+            return None
+
+        stable_cfg_cls = getattr(stable_module, cfg_cls.__name__, None)
+        if stable_cfg_cls is None:
+            logger.warning("Stable task cfg class '%s' not found in module '%s'.", cfg_cls.__name__, stable_module_name)
+            return None
+
+        try:
+            return stable_cfg_cls()
+        except Exception as exc:
+            logger.warning(
+                "Failed to instantiate stable task cfg '%s.%s': %s",
+                stable_module_name,
+                cfg_cls.__name__,
+                exc,
+            )
+            return None

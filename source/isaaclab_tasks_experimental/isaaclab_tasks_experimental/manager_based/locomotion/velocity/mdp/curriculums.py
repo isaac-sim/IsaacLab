@@ -77,7 +77,7 @@ class TerrainLevelsVel(ManagerTermBase):
         self._root_pos_w_wp = self._asset.data.root_pos_w.warp
         self._env_origins_wp = env.env_origins_wp
         self._command_wp = env.command_manager.get_command_wp("base_velocity")
-        self._terrain_levels_wp = self._terrain.terrain_levels_wp
+        self._terrain_levels_wp = self._terrain.terrain_levels.warp
         self._move_up_wp = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self._move_down_wp = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self._terrain_half_length = float(self._terrain.cfg.terrain_generator.size[0]) * 0.5
@@ -141,4 +141,4 @@ def terrain_levels_vel(
     move_down = distance < torch.norm(command[env_ids, :2], dim=1) * env.max_episode_length_s * 0.5
     move_down *= ~move_up
     terrain.update_env_origins(env_ids, move_up, move_down)
-    return torch.mean(terrain.terrain_levels.float())
+    return torch.mean(terrain.terrain_levels.torch.float())

@@ -385,7 +385,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         self.rpy = wp.zeros((self.num_envs), dtype=wp.vec3f, device=self.sim.device)
         self.angle_to_target = wp.zeros((self.num_envs), dtype=wp.float32, device=self.sim.device)
         self.dof_pos_scaled = wp.zeros((self.num_envs, self.robot.num_joints), dtype=wp.float32, device=self.sim.device)
-        self.env_origins = wp.from_torch(self.scene.env_origins, dtype=wp.vec3f)
+        self.env_origins = self.scene.env_origins_wp
         self.actions_mapped = wp.zeros((self.num_envs, self.robot.num_joints), dtype=wp.float32, device=self.sim.device)
 
         # Initial states and targets

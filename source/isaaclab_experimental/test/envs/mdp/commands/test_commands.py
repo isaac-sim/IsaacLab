@@ -22,9 +22,7 @@ from isaaclab_experimental.envs.mdp.commands import (
 )
 from isaaclab_experimental.managers import CommandManager, CommandTerm
 
-from isaaclab.envs.mdp.commands import UniformPoseCommand as StableUniformPoseCommand
 from isaaclab.envs.mdp.commands import UniformPoseCommandCfg as StableUniformPoseCommandCfg
-from isaaclab.envs.mdp.commands import UniformVelocityCommand as StableUniformVelocityCommand
 from isaaclab.envs.mdp.commands import UniformVelocityCommandCfg as StableUniformVelocityCommandCfg
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
@@ -43,7 +41,11 @@ class _Robot:
     def __init__(self, num_envs: int):
         identity_quat = np.zeros((num_envs, 4), dtype=np.float32)
         identity_quat[:, 3] = 1.0
+        identity_pose = np.zeros((num_envs, 7), dtype=np.float32)
+        identity_pose[:, 6] = 1.0
         self.data = SimpleNamespace(
+            root_pose_w=_ArrayProxy(identity_pose, wp.transformf),
+            root_vel_w=_ArrayProxy(np.zeros((num_envs, 6), dtype=np.float32), wp.spatial_vectorf),
             root_pos_w=_ArrayProxy(np.zeros((num_envs, 3), dtype=np.float32), wp.vec3f),
             root_quat_w=_ArrayProxy(identity_quat, wp.quatf),
             root_lin_vel_b=_ArrayProxy(np.zeros((num_envs, 3), dtype=np.float32), wp.vec3f),
@@ -115,20 +117,19 @@ def _pose_cfg() -> UniformPoseCommandCfg:
 
 
 def test_configs_exports_and_command_accessors_preserve_shared_contracts():
-    """Configs should inherit stable fields and terms should expose shared debug UI and persistent storage."""
+    """Configs should inherit stable fields and terms should expose debug UI and persistent storage."""
     assert issubclass(UniformVelocityCommandCfg, StableUniformVelocityCommandCfg)
     assert issubclass(UniformPoseCommandCfg, StableUniformPoseCommandCfg)
     assert experimental_mdp.UniformVelocityCommandCfg is UniformVelocityCommandCfg
     assert experimental_mdp.UniformPoseCommandCfg is UniformPoseCommandCfg
     assert str(_velocity_cfg().class_type).endswith(".commands.velocity_command:UniformVelocityCommand")
     assert str(_pose_cfg().class_type).endswith(".commands.pose_command:UniformPoseCommand")
-    assert UniformVelocityCommand._set_debug_vis_impl is StableUniformVelocityCommand._set_debug_vis_impl
-    assert UniformPoseCommand._set_debug_vis_impl is StableUniformPoseCommand._set_debug_vis_impl
+    assert UniformVelocityCommand._set_debug_vis_impl.__module__.endswith(".commands._debug_vis")
+    assert UniformPoseCommand._set_debug_vis_impl.__module__.endswith(".commands._debug_vis")
 
     env = _Env()
     velocity_term = UniformVelocityCommand(_velocity_cfg(), env)
     pose_term = UniformPoseCommand(_pose_cfg(), env)
-    stable_pose_term = StableUniformPoseCommand(_pose_cfg(), env)
     manager = CommandManager.__new__(CommandManager)
     manager._terms = {"velocity": velocity_term, "pose": pose_term}
 
@@ -140,8 +141,6 @@ def test_configs_exports_and_command_accessors_preserve_shared_contracts():
     assert manager.get_command("pose") is pose_term.command
     torch.testing.assert_close(pose_term.command[:, :6], torch.zeros(4, 6))
     torch.testing.assert_close(pose_term.command[:, 6], torch.ones(4))
-    torch.testing.assert_close(stable_pose_term.command[:, :6], torch.zeros(4, 6))
-    torch.testing.assert_close(stable_pose_term.command[:, 6], torch.ones(4))
 
 
 def test_debug_visualization_uses_current_simulation_registry():
@@ -174,10 +173,10 @@ def test_uniform_velocity_command_updates_and_resets_selected_rows():
     command_wp = term.command_wp
 
     term.command[:] = torch.tensor([[1.0, 2.0, 0.3], [2.0, -1.0, -0.2], [0.0, 0.5, 0.1], [-1.0, -2.0, 0.0]])
-    env.scene["robot"].data.root_lin_vel_b.torch[:] = torch.tensor(
+    env.scene["robot"].data.root_vel_w.torch[:, :3] = torch.tensor(
         [[0.0, 0.0, 0.0], [1.0, -1.0, 0.0], [0.0, 0.0, 0.0], [-2.0, -2.0, 0.0]]
     )
-    env.scene["robot"].data.root_ang_vel_b.torch[:, 2] = torch.tensor([0.1, -0.1, 0.4, 0.0])
+    env.scene["robot"].data.root_vel_w.torch[:, 5] = torch.tensor([0.1, -0.1, 0.4, 0.0])
     term._update_metrics()
     wp.synchronize()
     torch.testing.assert_close(
@@ -213,13 +212,46 @@ def test_uniform_velocity_command_updates_and_resets_selected_rows():
     term.heading_target[:] = torch.tensor([np.pi / 2, 0.0, np.pi / 2, 0.0])
     term.is_heading_env[:] = torch.tensor([True, False, True, False])
     term.is_standing_env[:] = torch.tensor([False, False, True, True])
-    env.scene["robot"].data.heading_w.torch.zero_()
     term._update_command()
     wp.synchronize()
     torch.testing.assert_close(
         term.command,
         torch.tensor([[1.0, 2.0, 0.3], [1.0, 2.0, 0.4], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]),
     )
+
+
+def test_uniform_velocity_command_replay_reads_current_root_state():
+    """Captured command kernels should read current Tier-1 root state on every replay."""
+    env = _Env()
+    cfg = _velocity_cfg()
+    cfg.ranges.ang_vel_z = (-2.0, 2.0)
+    term = UniformVelocityCommand(cfg, env)
+    robot_data = env.scene["robot"].data
+
+    term.command.zero_()
+    term.command[:, 0] = 1.0
+    term.heading_target.fill_(np.pi / 2)
+    term.is_heading_env.fill_(True)
+    term.is_standing_env.fill_(False)
+
+    with wp.ScopedCapture(device=env.device) as metrics_capture:
+        term._update_metrics()
+    with wp.ScopedCapture(device=env.device) as command_capture:
+        term._update_command()
+
+    # Identity pose with matching world-frame velocity has zero body-frame XY error.
+    robot_data.root_vel_w.torch[:, 0] = 1.0
+    wp.capture_launch(metrics_capture.graph)
+    wp.synchronize()
+    torch.testing.assert_close(wp.to_torch(term._error_xy_sum_wp), torch.zeros(env.num_envs))
+
+    # A 90-degree root yaw exactly matches the heading target, so replay should command zero yaw rate.
+    half_sqrt = np.sqrt(0.5)
+    robot_data.root_pose_w.torch[:, 5] = half_sqrt
+    robot_data.root_pose_w.torch[:, 6] = half_sqrt
+    wp.capture_launch(command_capture.graph)
+    wp.synchronize()
+    torch.testing.assert_close(term.command[:, 2], torch.zeros(env.num_envs), atol=1.0e-6, rtol=1.0e-6)
 
 
 def test_uniform_pose_command_matches_stable_math_and_tracks_sticky_success():

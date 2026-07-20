@@ -11,12 +11,42 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+import torch
 import warp as wp
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
+
+from isaaclab.scene import InteractiveScene
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils.warp import ProxyArray
 
 
 class TestInteractiveSceneWarp:
     """Tests for :class:`InteractiveSceneWarp`."""
+
+    def test_frontend_uses_canonical_terrain_storage_without_mutating_cfg(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Warp scenes should inherit canonical origin storage without replacing the configured class."""
+        terrain_cfg = TerrainImporterCfg(prim_path="/World/Ground", terrain_type="plane")
+        cfg = SimpleNamespace(terrain=terrain_cfg)
+        class_type = terrain_cfg.class_type
+        origins_wp = wp.zeros(2, dtype=wp.vec3f, device="cpu")
+        terrain = SimpleNamespace(env_origins=ProxyArray(origins_wp))
+
+        def initialize_scene(scene: InteractiveScene, scene_cfg: SimpleNamespace) -> None:
+            scene.cfg = scene_cfg
+            scene._terrain = terrain
+
+        monkeypatch.setattr(InteractiveScene, "__init__", initialize_scene)
+
+        scene = InteractiveSceneWarp(cfg)
+
+        assert terrain_cfg.class_type is class_type
+        assert isinstance(scene.env_origins, torch.Tensor)
+        assert scene.env_origins is terrain.env_origins.torch
+        assert scene.env_origins_wp is origins_wp
+        assert InteractiveSceneWarp.env_origins is InteractiveScene.env_origins
+        assert InteractiveSceneWarp.env_origins_wp is InteractiveScene.env_origins_wp
 
     def test_mask_reset_stays_mask_based_for_supported_entities(self):
         """Mask-based reset should not pass environment IDs to Warp-capable entities."""

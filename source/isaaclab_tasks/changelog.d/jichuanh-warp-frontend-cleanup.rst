@@ -1,4 +1,5 @@
 Fixed
 ^^^^^
 
-* Fixed identity quaternion initialization for Dexsuite uniform pose commands.
+* Fixed DexSuite slab-clearance setup to reuse pointer-stable scene origin
+  storage.

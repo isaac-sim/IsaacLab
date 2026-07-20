@@ -91,30 +91,28 @@ class CurriculumManager(ManagerBase):
     def reset(
         self,
         env_mask: wp.array(dtype=wp.bool),
-        *,
-        env_ids: Sequence[int] | torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         """Reset selected class terms and return persistent curriculum logging outputs.
 
         Args:
             env_mask: Boolean Warp mask selecting environments to reset.
-            env_ids: Compact environment IDs for legacy class terms that explicitly require them.
 
         Returns:
             Persistent scalar curriculum states keyed by their logging paths.
         """
         env_mask = self._resolve_reset_mask(None, env_mask)
+        compact_env_ids = None
         for term_cfg, mode in zip(self._term_cfgs, self._term_modes):
             if isinstance(term_cfg.func, ManagerTermBase):
                 term_cfg.func.reset(env_mask=env_mask)
             elif isinstance(term_cfg.func, StableManagerTermBase):
                 if mode == "legacy_ids":
-                    if env_ids is None:
-                        raise RuntimeError("Legacy curriculum reset requires compact env_ids.")
-                    legacy_env_ids = env_ids
+                    if compact_env_ids is None:
+                        compact_env_ids = self._compact_legacy_env_ids(env_mask)
+                    term_env_ids = compact_env_ids
                 else:
-                    legacy_env_ids = slice(None)
-                term_cfg.func.reset(env_ids=legacy_env_ids)
+                    term_env_ids = slice(None)
+                term_cfg.func.reset(env_ids=term_env_ids)
         return self._reset_extras
 
     @property
@@ -130,31 +128,26 @@ class CurriculumManager(ManagerBase):
     def compute(
         self,
         env_mask: wp.array(dtype=wp.bool),
-        *,
-        env_ids: Sequence[int] | torch.Tensor | None = None,
     ) -> None:
         """Update curriculum terms for selected environments.
 
         Args:
             env_mask: Boolean Warp mask selecting environments to update.
-            env_ids: Compact environment IDs for legacy terms that explicitly require them.
-
-        Raises:
-            RuntimeError: If a legacy ID term is active and ``env_ids`` is not provided.
         """
         env_mask = self._resolve_reset_mask(None, env_mask)
         self._term_states_wp.zero_()
+        compact_env_ids = None
         for term_idx, (term_cfg, mode) in enumerate(zip(self._term_cfgs, self._term_modes)):
             if mode == "mask":
                 term_cfg.func(self._env, env_mask, term_cfg.out, **term_cfg.params)
                 continue
             if mode == "legacy_ids":
-                if env_ids is None:
-                    raise RuntimeError(f"Curriculum term '{self._term_names[term_idx]}' requires compact env_ids.")
-                legacy_env_ids = env_ids
+                if compact_env_ids is None:
+                    compact_env_ids = self._compact_legacy_env_ids(env_mask)
+                term_env_ids = compact_env_ids
             else:
-                legacy_env_ids = slice(None)
-            state = term_cfg.func(self._env, legacy_env_ids, **term_cfg.params)
+                term_env_ids = slice(None)
+            state = term_cfg.func(self._env, term_env_ids, **term_cfg.params)
             if state is not None:
                 if isinstance(state, torch.Tensor) and state.numel() != 1:
                     raise TypeError(
@@ -238,8 +231,13 @@ class CurriculumManager(ManagerBase):
                 f"The legacy curriculum term '{term_name}' expects parameters {sorted(accepted)},"
                 f" but received {sorted(provided)}."
             )
-        switch = getattr(self._env, "_manager_call_switch", None)
-        if switch is not None:
-            switch.register_manager_capturability(type(self).__name__, False)
+        graph_cache = getattr(self._env, "_warp_graph_cache", None)
+        if graph_cache is not None:
+            graph_cache.register_capturability(type(self).__name__, False)
         if self._env.sim.is_playing():
             self._process_term_cfg_at_play(term_name, term_cfg)
+
+    @staticmethod
+    def _compact_legacy_env_ids(env_mask: wp.array(dtype=wp.bool)) -> torch.Tensor:
+        """Materialize compact Torch IDs at the legacy curriculum boundary."""
+        return wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared debug-visualization helpers for command terms."""
+"""Private debug-visualization helpers for Warp-native command terms."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from isaaclab.markers import VisualizationMarkers
 
 
 class _VelocityCommandDebugVis:
-    """Debug visualization shared by stable and Warp velocity commands."""
+    """Debug visualization for Warp-native velocity commands."""
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:
@@ -52,7 +52,7 @@ class _VelocityCommandDebugVis:
 
 
 class _PoseCommandDebugVis:
-    """Debug visualization shared by stable and Warp pose commands."""
+    """Debug visualization for Warp-native pose commands."""
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:

@@ -204,7 +204,7 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
         # sample new position targets from the terrain
         ids = torch.randint(0, self.valid_targets.shape[2], size=(len(env_ids),), device=self.device)
         self.pos_command_w[env_ids] = self.valid_targets[
-            self.terrain.terrain_levels[env_ids], self.terrain.terrain_types[env_ids], ids
+            self.terrain.terrain_levels.torch[env_ids], self.terrain.terrain_types.torch[env_ids], ids
         ]
         # offset the position command by the current root height
         self.pos_command_w[env_ids, 2] += self.robot.data.default_root_pose.torch[env_ids, 2]

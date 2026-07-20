@@ -17,7 +17,7 @@ wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
 import isaaclab_experimental.envs.mdp.events as warp_evt
-from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from parity_helpers import (
     DEVICE,
     NUM_ACTIONS,
@@ -81,6 +81,7 @@ def warp_env(scene, action_wp, episode_length_buf):
     env.action_manager = MockActionManagerWarp(action_wp[0], action_wp[1])
     env.num_envs = NUM_ENVS
     env.device = DEVICE
+    env.env_origins_wp = scene.env_origins_wp
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
@@ -125,9 +126,22 @@ def _make_event_env(seed: int, *, num_bodies: int = 1):
     env.scene = MockScene({"robot": asset}, origins)
     env.num_envs = NUM_ENVS
     env.device = DEVICE
-    env.env_origins_wp = origins
+    env.env_origins_wp = env.scene.env_origins_wp
     env.rng_state_wp = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + seed, device=DEVICE)
     return env, data, asset
+
+
+def _make_event_term(
+    term_type: type[ManagerTermBase],
+    env: object,
+    *,
+    mode: str = "reset",
+    **params: object,
+) -> ManagerTermBase:
+    """Create a persistent Warp event term for a mock environment."""
+    params.setdefault("asset_cfg", SceneEntityCfg("robot"))
+    cfg = EventTermCfg(func=term_type, mode=mode, params=params)
+    return term_type(cfg, env)
 
 
 # ============================================================================
@@ -278,10 +292,16 @@ class TestEventCapturedDataMutation:
             "pitch": (0.0, 0.0),
             "yaw": (0.0, 0.0),
         }
+        term = _make_event_term(
+            warp_evt.PushBySettingVelocity,
+            warp_env,
+            mode="interval",
+            velocity_range=zero_range,
+        )
 
-        warp_evt.push_by_setting_velocity(warp_env, mask, velocity_range=zero_range)
+        term(warp_env, mask, **term.cfg.params)
         with wp.ScopedCapture() as cap:
-            warp_evt.push_by_setting_velocity(warp_env, mask, velocity_range=zero_range)
+            term(warp_env, mask, **term.cfg.params)
 
         # Mutate root_vel_w
         new_vel = np.tile([1.0, 2.0, 3.0, 0.1, 0.2, 0.3], (NUM_ENVS, 1)).astype(np.float32)
@@ -304,11 +324,17 @@ class TestEventCapturedDataMutation:
             lambda **kwargs: captured.update(kwargs)
         )
         zero_range = (0.0, 0.0)
+        term = _make_event_term(
+            warp_evt.ApplyExternalForceTorque,
+            warp_env,
+            force_range=zero_range,
+            torque_range=zero_range,
+        )
 
         # Zero-range: forces and torques should be zero
-        warp_evt.apply_external_force_torque(warp_env, mask, force_range=zero_range, torque_range=zero_range)
+        term(warp_env, mask, **term.cfg.params)
         with wp.ScopedCapture() as cap:
-            warp_evt.apply_external_force_torque(warp_env, mask, force_range=zero_range, torque_range=zero_range)
+            term(warp_env, mask, **term.cfg.params)
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
@@ -350,6 +376,29 @@ class TestEventCapturedDataMutation:
 class TestEventStateOwnership:
     """Verify event scratch and parsed ranges are owned by one environment configuration."""
 
+    def test_com_term_is_marked_non_capturable(self):
+        assert warp_evt.RandomizeRigidBodyCom._warp_capturable is False
+
+    def test_lowercase_adapter_warns_and_forwards(self):
+        env, data, asset = _make_event_env(88)
+        copy_np_to_wp(data.root_vel_w, np.zeros((NUM_ENVS, 6), dtype=np.float32))
+        captured = {}
+        asset.write_root_velocity_to_sim_mask = lambda **kwargs: captured.update(kwargs)
+        env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
+        asset_cfg = SceneEntityCfg("robot")
+        asset_cfg.body_ids_wp = wp.array([0], dtype=wp.int32, device=DEVICE)
+
+        with pytest.warns(DeprecationWarning, match="PushBySettingVelocity"):
+            warp_evt.push_by_setting_velocity(
+                env,
+                env_mask,
+                velocity_range={"x": (1.0, 1.0)},
+                asset_cfg=asset_cfg,
+            )
+        wp.synchronize()
+
+        assert_close(wp.to_torch(captured["root_velocity"])[:, 0], torch.ones(NUM_ENVS, device=DEVICE))
+
     def test_push_state_is_not_shared_between_environments(self):
         env_a, data_a, asset_a = _make_event_env(101)
         env_b, data_b, asset_b = _make_event_env(202)
@@ -362,9 +411,11 @@ class TestEventStateOwnership:
         env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
         range_a = {"x": (1.0, 1.0)}
         range_b = {"x": (2.0, 2.0)}
+        term_a = _make_event_term(warp_evt.PushBySettingVelocity, env_a, mode="interval", velocity_range=range_a)
+        term_b = _make_event_term(warp_evt.PushBySettingVelocity, env_b, mode="interval", velocity_range=range_b)
 
-        warp_evt.push_by_setting_velocity(env_a, env_mask, velocity_range=range_a)
-        warp_evt.push_by_setting_velocity(env_b, env_mask, velocity_range=range_b)
+        term_a(env_a, env_mask, **term_a.cfg.params)
+        term_b(env_b, env_mask, **term_b.cfg.params)
         wp.synchronize()
 
         velocity_a = captured_a["root_velocity"]
@@ -381,9 +432,11 @@ class TestEventStateOwnership:
         env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
         range_a = {"x": (1.0, 1.0)}
         range_b = {"x": (2.0, 2.0)}
+        term_a = _make_event_term(warp_evt.PushBySettingVelocity, env, mode="interval", velocity_range=range_a)
+        term_b = _make_event_term(warp_evt.PushBySettingVelocity, env, mode="interval", velocity_range=range_b)
 
-        warp_evt.push_by_setting_velocity(env, env_mask, velocity_range=range_a)
-        warp_evt.push_by_setting_velocity(env, env_mask, velocity_range=range_b)
+        term_a(env, env_mask, **term_a.cfg.params)
+        term_b(env, env_mask, **term_b.cfg.params)
         wp.synchronize()
 
         velocity_a = captured[0]["root_velocity"]
@@ -392,23 +445,29 @@ class TestEventStateOwnership:
         assert_close(wp.to_torch(velocity_a)[:, 0], torch.ones(NUM_ENVS, device=DEVICE))
         assert_close(wp.to_torch(velocity_b)[:, 0], torch.full((NUM_ENVS,), 2.0, device=DEVICE))
 
-    def test_push_state_updates_after_in_place_range_mutation(self):
+    def test_push_term_snapshots_range_during_initialization(self):
         env, data, asset = _make_event_env(277)
         copy_np_to_wp(data.root_vel_w, np.zeros((NUM_ENVS, 6), dtype=np.float32))
         captured = {}
         asset.write_root_velocity_to_sim_mask = lambda **kwargs: captured.update(kwargs)
         env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
         velocity_range = {"x": (1.0, 1.0)}
+        term = _make_event_term(
+            warp_evt.PushBySettingVelocity,
+            env,
+            mode="interval",
+            velocity_range=velocity_range,
+        )
 
-        warp_evt.push_by_setting_velocity(env, env_mask, velocity_range=velocity_range)
+        term(env, env_mask, **term.cfg.params)
         wp.synchronize()
         assert_close(wp.to_torch(captured["root_velocity"])[:, 0], torch.ones(NUM_ENVS, device=DEVICE))
 
         velocity_range["x"] = (4.0, 4.0)
-        warp_evt.push_by_setting_velocity(env, env_mask, velocity_range=velocity_range)
+        term(env, env_mask, **term.cfg.params)
         wp.synchronize()
 
-        assert_close(wp.to_torch(captured["root_velocity"])[:, 0], torch.full((NUM_ENVS,), 4.0, device=DEVICE))
+        assert_close(wp.to_torch(captured["root_velocity"])[:, 0], torch.ones(NUM_ENVS, device=DEVICE))
 
     def test_push_state_respects_sparse_mask(self):
         env, data, asset = _make_event_env(303)
@@ -417,8 +476,14 @@ class TestEventStateOwnership:
         asset.write_root_velocity_to_sim_mask = lambda **kwargs: captured.update(kwargs)
         mask_np = np.arange(NUM_ENVS) % 3 == 0
         env_mask = wp.array(mask_np, dtype=wp.bool, device=DEVICE)
+        term = _make_event_term(
+            warp_evt.PushBySettingVelocity,
+            env,
+            mode="interval",
+            velocity_range={"x": (3.0, 3.0)},
+        )
 
-        warp_evt.push_by_setting_velocity(env, env_mask, velocity_range={"x": (3.0, 3.0)})
+        term(env, env_mask, **term.cfg.params)
         wp.synchronize()
 
         velocity = wp.to_torch(captured["root_velocity"])
@@ -437,9 +502,21 @@ class TestEventStateOwnership:
         force_range_a = (1.0, 1.0)
         force_range_b = (2.0, 2.0)
         torque_range = (0.0, 0.0)
+        term_a = _make_event_term(
+            warp_evt.ApplyExternalForceTorque,
+            env_a,
+            force_range=force_range_a,
+            torque_range=torque_range,
+        )
+        term_b = _make_event_term(
+            warp_evt.ApplyExternalForceTorque,
+            env_b,
+            force_range=force_range_b,
+            torque_range=torque_range,
+        )
 
-        warp_evt.apply_external_force_torque(env_a, env_mask, force_range=force_range_a, torque_range=torque_range)
-        warp_evt.apply_external_force_torque(env_b, env_mask, force_range=force_range_b, torque_range=torque_range)
+        term_a(env_a, env_mask, **term_a.cfg.params)
+        term_b(env_b, env_mask, **term_b.cfg.params)
         wp.synchronize()
 
         forces_a = captured_a["forces"]
@@ -454,14 +531,15 @@ class TestEventStateOwnership:
         asset.permanent_wrench_composer.set_forces_and_torques_mask = lambda **kwargs: captured.update(kwargs)
         asset_cfg = SceneEntityCfg("robot", body_ids=[1])
         env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
-
-        warp_evt.apply_external_force_torque(
+        term = _make_event_term(
+            warp_evt.ApplyExternalForceTorque,
             env,
-            env_mask,
             force_range=(2.0, 2.0),
             torque_range=(0.0, 0.0),
             asset_cfg=asset_cfg,
         )
+
+        term(env, env_mask, **term.cfg.params)
         wp.synchronize()
 
         expected_body_mask = torch.tensor([False, True, False], dtype=torch.bool, device=DEVICE)
@@ -488,9 +566,21 @@ class TestEventStateOwnership:
         pose_range_a = {"x": (1.0, 1.0)}
         pose_range_b = {"x": (2.0, 2.0)}
         velocity_range = {}
+        term_a = _make_event_term(
+            warp_evt.ResetRootStateUniform,
+            env_a,
+            pose_range=pose_range_a,
+            velocity_range=velocity_range,
+        )
+        term_b = _make_event_term(
+            warp_evt.ResetRootStateUniform,
+            env_b,
+            pose_range=pose_range_b,
+            velocity_range=velocity_range,
+        )
 
-        warp_evt.reset_root_state_uniform(env_a, env_mask, pose_range=pose_range_a, velocity_range=velocity_range)
-        warp_evt.reset_root_state_uniform(env_b, env_mask, pose_range=pose_range_b, velocity_range=velocity_range)
+        term_a(env_a, env_mask, **term_a.cfg.params)
+        term_b(env_b, env_mask, **term_b.cfg.params)
         wp.synchronize()
 
         pose_a = captured_a["root_pose"]
@@ -508,36 +598,51 @@ class TestEventStateOwnership:
         asset_b.set_coms_mask = lambda **kwargs: None
         asset_cfg_a = SceneEntityCfg("robot")
         asset_cfg_b = SceneEntityCfg("robot")
-        asset_cfg_a.body_ids_wp = wp.array([0, 1], dtype=wp.int32, device=DEVICE)
-        asset_cfg_b.body_ids_wp = wp.array([0, 1], dtype=wp.int32, device=DEVICE)
         env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
         com_range_a = {"x": (1.0, 1.0)}
         com_range_b = {"x": (2.0, 2.0)}
+        term_a = _make_event_term(
+            warp_evt.RandomizeRigidBodyCom,
+            env_a,
+            com_range=com_range_a,
+            asset_cfg=asset_cfg_a,
+        )
+        term_b = _make_event_term(
+            warp_evt.RandomizeRigidBodyCom,
+            env_b,
+            com_range=com_range_b,
+            asset_cfg=asset_cfg_b,
+        )
 
-        warp_evt.randomize_rigid_body_com(env_a, env_mask, com_range=com_range_a, asset_cfg=asset_cfg_a)
-        warp_evt.randomize_rigid_body_com(env_b, env_mask, com_range=com_range_b, asset_cfg=asset_cfg_b)
+        term_a(env_a, env_mask, **term_a.cfg.params)
+        term_b(env_b, env_mask, **term_b.cfg.params)
         wp.synchronize()
 
-        assert env_a._warp_event_state_cache is not env_b._warp_event_state_cache
+        assert term_a._default_com.ptr != term_b._default_com.ptr
         assert_close(data_a.body_com_pos_b.torch[..., 0], torch.ones((NUM_ENVS, 2), device=DEVICE))
         assert_close(data_b.body_com_pos_b.torch[..., 0], torch.full((NUM_ENVS, 2), 2.0, device=DEVICE))
 
-    def test_com_randomization_uses_cached_baseline(self):
+    def test_com_randomization_uses_persistent_baseline(self):
         env, data, asset = _make_event_env(1001, num_bodies=2)
         baseline = np.zeros((NUM_ENVS, 2, 3), dtype=np.float32)
         baseline[..., 0] = 0.25
         copy_np_to_wp(data.body_com_pos_b, baseline)
         asset.set_coms_mask = lambda **kwargs: None
         asset_cfg = SceneEntityCfg("robot", body_ids=[0, 1])
-        asset_cfg.body_ids_wp = wp.array([0, 1], dtype=wp.int32, device=DEVICE)
         env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
         com_range = {"x": (1.0, 1.0)}
+        term = _make_event_term(
+            warp_evt.RandomizeRigidBodyCom,
+            env,
+            com_range=com_range,
+            asset_cfg=asset_cfg,
+        )
 
-        warp_evt.randomize_rigid_body_com(env, env_mask, com_range=com_range, asset_cfg=asset_cfg)
+        term(env, env_mask, **term.cfg.params)
         wp.synchronize()
         assert_close(data.body_com_pos_b.torch[..., 0], torch.full((NUM_ENVS, 2), 1.25, device=DEVICE))
 
-        warp_evt.randomize_rigid_body_com(env, env_mask, com_range=com_range, asset_cfg=asset_cfg)
+        term(env, env_mask, **term.cfg.params)
         wp.synchronize()
         assert_close(data.body_com_pos_b.torch[..., 0], torch.full((NUM_ENVS, 2), 1.25, device=DEVICE))
 
@@ -547,15 +652,15 @@ class TestEventStateOwnership:
         copy_np_to_wp(data.body_com_pos_b, baseline)
         asset.set_coms_mask = lambda **kwargs: None
         asset_cfg = SceneEntityCfg("robot", body_ids=[0, 2])
-        asset_cfg.body_ids_wp = wp.array([0, 2], dtype=wp.int32, device=DEVICE)
         env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
-
-        warp_evt.randomize_rigid_body_com(
+        term = _make_event_term(
+            warp_evt.RandomizeRigidBodyCom,
             env,
-            env_mask,
             com_range={"x": (-1.0, 1.0), "y": (-2.0, 2.0), "z": (-3.0, 3.0)},
             asset_cfg=asset_cfg,
         )
+
+        term(env, env_mask, **term.cfg.params)
         wp.synchronize()
 
         assert_close(data.body_com_pos_b.torch[:, 0], data.body_com_pos_b.torch[:, 2])

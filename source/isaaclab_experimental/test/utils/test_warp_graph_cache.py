@@ -41,6 +41,27 @@ class TestWarpGraphCache(unittest.TestCase):
         self.assertEqual(cache.capture_or_replay("stage", counted_call, args=(2,)), 2)
         self.assertEqual(call_count, 2)
 
+    def test_non_capturable_group_stays_eager(self):
+        """A group-level safety decision should keep every member stage eager."""
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        self.cache.register_capturability("RewardManager", False)
+        self.cache.call("RewardManager_compute", counted_call, capture=True, group="RewardManager")
+        self.cache.call("RewardManager_reset", counted_call, capture=True, group="RewardManager")
+
+        self.assertEqual(call_count, 2)
+
+    def test_capturability_registration_is_conservative(self):
+        """A later positive registration must not override a known unsafe operation."""
+        self.cache.register_capturability("EventManager", False)
+        self.cache.register_capturability("EventManager", True)
+
+        self.assertFalse(self.cache.is_capturable("EventManager"))
+
     # ------------------------------------------------------------------
     # Warm-up
     # ------------------------------------------------------------------

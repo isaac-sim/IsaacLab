@@ -2000,7 +2000,7 @@ def reset_root_state_from_terrain(
 
     # sample random valid poses
     ids = torch.randint(0, valid_positions.shape[2], size=(len(env_ids),), device=env.device)
-    positions = valid_positions[terrain.terrain_levels[env_ids], terrain.terrain_types[env_ids], ids]
+    positions = valid_positions[terrain.terrain_levels.torch[env_ids], terrain.terrain_types.torch[env_ids], ids]
     positions += asset.data.default_root_pose.torch[env_ids, :3]
 
     # sample random orientations

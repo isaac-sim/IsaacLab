@@ -54,9 +54,6 @@ DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
 DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
 """Enable all fine-grained inner timers (adds wp.synchronize per sub-phase). Set DEBUG_TIMERS=1 env var to enable."""
 
-WARP_DIRECT_CAPTURE = os.environ.get("ISAACLAB_WARP_DIRECT_CAPTURE", "0") == "1"
-"""Enable direct-environment stage capture. Eager execution is the correctness-first default."""
-
 
 class DirectRLEnvWarp(DirectRLEnv):
     """The superclass for the direct workflow to design environments.
@@ -228,10 +225,10 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Direct stages are Warp eager by default. The owner-held cache keeps
-        # execution dispatch out of call sites and can enable capture later once
-        # stateful warm-up semantics are defined.
-        self._graph_cache = WarpGraphCache(enabled=WARP_DIRECT_CAPTURE)
+        # Direct stages stay eager until their complete backend boundaries are
+        # verified capture-safe. The owner-held executor keeps that policy out of
+        # individual stage call sites.
+        self._warp_graph_cache = WarpGraphCache(enabled=False)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -414,7 +411,7 @@ class DirectRLEnvWarp(DirectRLEnv):
                 # set actions into buffers
                 # simulate
                 with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
-                    self._graph_cache.capture_or_replay("action", self.step_warp_action)
+                    self._warp_graph_cache.call("action", self.step_warp_action)
 
                 # Keep scene writes outside the task graph until scene, sensor, and
                 # actuator capturability have been validated as one backend boundary.
@@ -434,12 +431,12 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
-            self._graph_cache.capture_or_replay("end_pre", self._step_warp_end_pre)
+            self._warp_graph_cache.call("end_pre", self._step_warp_end_pre)
         # Keep the post-reset scene write at the explicit backend boundary.
         with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
             self.scene.write_data_to_sim()
         with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
-            self._graph_cache.capture_or_replay("end_post", self._step_warp_end_post)
+            self._warp_graph_cache.call("end_post", self._step_warp_end_post)
 
         # Visualization hook — runs after CUDA graph scope. Override in subclass
         # to update markers or other non-graphable visual elements.

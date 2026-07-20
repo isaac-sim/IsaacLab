@@ -1269,6 +1269,11 @@ change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
 (:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
 :class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
 
+The terrain-origin fields on :class:`~isaaclab.terrains.TerrainImporter` follow the same
+interface. :attr:`~isaaclab.scene.InteractiveScene.env_origins` remains a ``torch.Tensor``
+compatibility boundary; use :attr:`~isaaclab.scene.InteractiveScene.env_origins_wp` for its
+Warp view.
+
 To use a data property as a ``torch.Tensor``, append ``.torch``:
 
 .. code-block:: python

@@ -6,14 +6,16 @@ Added
 * Added :class:`~isaaclab_experimental.managers.CurriculumManager` and a
   boolean-mask reset path for Warp manager-based environments, retaining compact
   environment IDs only for legacy host consumers.
+* Added Warp-native terrain curricula backed by the canonical Warp-owned
+  terrain and scene origins.
 
 Changed
 ^^^^^^^
 
-* Changed Warp manager and direct-environment stages to execute eagerly by
-  default while stateful capture semantics are validated. Set
-  ``MANAGER_CALL_CONFIG='{"default": 2}'`` for manager capture or
-  ``ISAACLAB_WARP_DIRECT_CAPTURE=1`` for the legacy direct capture path.
+* Changed Warp manager stages to execute eagerly by default while stateful
+  capture semantics are validated. Set
+  ``MANAGER_CALL_CONFIG='{"default": 2}'`` to opt eligible manager stages into
+  CUDA graph capture. Direct-environment stages remained eager.
 
 Deprecated
 ^^^^^^^^^^
@@ -26,3 +28,5 @@ Fixed
 
 * Fixed Warp event state leaking across environments and configurations, and
   corrected center-of-mass sampling and termination metrics for partial resets.
+* Fixed captured velocity-command terms to read current root state on every
+  replay instead of stale lazy-derived buffers.

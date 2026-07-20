@@ -383,7 +383,12 @@ class MockScene:
 
     def __init__(self, assets: dict, env_origins, sensors=None):
         self._assets = assets
-        self.env_origins = env_origins
+        if isinstance(env_origins, wp.array):
+            self.env_origins_wp = env_origins
+            self.env_origins = wp.to_torch(env_origins)
+        else:
+            self.env_origins = env_origins
+            self.env_origins_wp = wp.from_torch(env_origins, dtype=wp.vec3f)
         self.sensors = sensors or {}
         self.articulations = dict(assets)
         self.rigid_objects = {}

@@ -446,11 +446,12 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        # register non-capturable terms with the call switch for mode=2 fallback
+        # Register capture safety with the environment-owned executor. The
+        # manager call switch only consumes this policy while it still exists.
         if not is_warp_capturable(term_cfg.func):
-            switch = getattr(self._env, "_manager_call_switch", None)
-            if switch is not None:
-                switch.register_manager_capturability(type(self).__name__, False)
+            graph_cache = getattr(self._env, "_warp_graph_cache", None)
+            if graph_cache is not None:
+                graph_cache.register_capturability(type(self).__name__, False)
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing

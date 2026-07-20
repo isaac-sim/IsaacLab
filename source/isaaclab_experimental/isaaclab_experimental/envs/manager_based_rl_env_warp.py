@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import math
 import os
-from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -203,7 +202,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         Call this if the captured launch topology changes (e.g. different term list, shapes, etc.).
         """
-        self._manager_call_switch.invalidate_graphs()
+        self._warp_graph_cache.invalidate()
 
     def step_warp_termination_compute(self) -> None:
         """Captured stage: compute terminations (env-step frequency)."""
@@ -466,14 +465,11 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self,
         *,
         env_mask: wp.array(dtype=wp.bool),
-        env_ids: Sequence[int] | torch.Tensor | None = None,
     ) -> None:
         """Reset Warp-owned RL state for selected environments.
 
         Args:
             env_mask: Boolean Warp mask selecting environments to reset.
-            env_ids: Optional compact IDs for legacy curriculum terms that
-                explicitly require a host selection.
         """
         if env_mask is not self.reset_mask_wp:
             wp.copy(self.reset_mask_wp, env_mask)
@@ -483,7 +479,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             "CurriculumManager_compute",
             self.curriculum_manager.compute,
             env_mask=env_mask,
-            env_ids=env_ids,
             _timer=DEBUG_TIMER_RESET,
         )
 
@@ -531,7 +526,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             "CurriculumManager_reset",
             self.curriculum_manager.reset,
             env_mask=env_mask,
-            env_ids=env_ids,
             _timer=DEBUG_TIMER_RESET,
         )
 
@@ -607,29 +601,12 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             enable=DEBUG_TIMER_STEP,
             time_unit="us",
         ):
-            self._reset_idx(env_mask=reset_mask, env_ids=reset_env_ids)
+            self._reset_idx(env_mask=reset_mask)
 
         if reset_env_ids is not None and reset_env_ids.numel() > 0:
             self.extras["log"].update(self._reset_host_post(reset_env_ids))
-            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
-                for _ in range(self.cfg.num_rerenders_on_reset):
-                    self.sim.render()
             if self._has_recorders:
                 self.recorder_manager.record_post_reset(reset_env_ids)
-
-    def _reset_host_pre(self, env_ids: Sequence[int] | torch.Tensor) -> None:
-        """Run host-only pre-reset work for selected environments."""
-        super()._reset_host_pre(env_ids)
-
-    def _reset_host_post(self, env_ids: Sequence[int] | torch.Tensor) -> dict[str, Any]:
-        """Run host-only manager resets and return their logging values."""
-        return super()._reset_host_post(env_ids)
-
-    def _reset_requires_host_selection(self) -> bool:
-        """Return whether enabled reset features require a host-visible selection."""
-        return bool(
-            self.curriculum_manager.requires_host_boundary
-            or self._has_recorders
-            or self.scene.surface_grippers
-            or (self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0)
-        )
+        if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()

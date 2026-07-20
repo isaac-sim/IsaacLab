@@ -36,6 +36,7 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, 
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.sim.views import FrameView
+from isaaclab.utils.warp import ProxyArray
 
 # Note: This is a temporary import for the VisuoTactileSensorCfg class.
 # It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
@@ -187,6 +188,11 @@ class InteractiveScene:
         ):
             if self._is_scene_setup_from_cfg():
                 self._add_entities_from_cfg()
+
+        if self._terrain is None:
+            # Scene origins are immutable after construction, so one ProxyArray safely serves both frontends.
+            positions = self.sim.get_clone_plan().positions
+            self._env_origins = ProxyArray(wp.from_torch(positions.contiguous(), dtype=wp.vec3f))
 
         self._aggregate_scene_data_requirements(requested_viz_types)
 
@@ -364,12 +370,19 @@ class InteractiveScene:
 
     @property
     def env_origins(self) -> torch.Tensor:
-        """Per-env world origins, shape ``(num_envs, 3)``. From the terrain when registered,
+        """Per-environment world origins [m], shape ``(num_envs, 3)``. From the terrain when registered,
         else from the published :class:`~isaaclab.cloner.ClonePlan`.
         """
         if self._terrain is not None:
-            return self._terrain.env_origins
-        return self.sim.get_clone_plan().positions
+            return self._terrain.env_origins.torch
+        return self._env_origins.torch
+
+    @property
+    def env_origins_wp(self) -> wp.array(dtype=wp.vec3f):
+        """Zero-copy Warp view of environment world origins [m], shape ``(num_envs,)`` of ``wp.vec3f``."""
+        if self._terrain is not None:
+            return self._terrain.env_origins.warp
+        return self._env_origins.warp
 
     @property
     def terrain(self) -> TerrainImporter | None:

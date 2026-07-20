@@ -13,10 +13,11 @@ import torch
 import warp as wp
 
 from isaaclab.assets import Articulation
-from isaaclab.envs.mdp.commands._debug_vis import _PoseCommandDebugVis
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 
 from isaaclab_experimental.managers import CommandTerm
+
+from ._debug_vis import _PoseCommandDebugVis
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
