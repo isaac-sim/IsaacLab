@@ -20,6 +20,7 @@ from packaging import version
 
 from isaaclab.app import add_launcher_args
 
+from isaaclab_rl.entrypoints._state import scoped_torch_backend_flags
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
@@ -96,8 +97,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def run(argv: list[str]) -> None:
-    """Train an RSL-RL agent."""
+    """Train an RSL-RL agent while restoring the caller's Torch backend settings."""
     import torch
+
+    args_cli = _parse_args(argv)
+    with scoped_torch_backend_flags(torch):
+        _run(args_cli)
+
+
+def _run(args_cli: argparse.Namespace) -> None:
+    """Execute RSL-RL training with parsed arguments."""
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
@@ -108,12 +117,6 @@ def run(argv: list[str]) -> None:
 
     from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = False
-
-    args_cli = _parse_args(argv)
     installed_version = _check_rsl_rl_version()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
 
