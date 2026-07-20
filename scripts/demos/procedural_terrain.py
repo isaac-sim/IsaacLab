@@ -145,7 +145,7 @@ def design_scene() -> tuple[dict, torch.Tensor]:
 
     # return the scene information
     scene_entities = {"terrain": terrain_importer}
-    return scene_entities, terrain_importer.env_origins.torch
+    return scene_entities, terrain_importer.env_origins
 
 
 def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBase], origins: torch.Tensor):

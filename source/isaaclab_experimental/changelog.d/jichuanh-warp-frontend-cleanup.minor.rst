@@ -6,7 +6,7 @@ Added
 * Added :class:`~isaaclab_experimental.managers.CurriculumManager` and a
   boolean-mask reset path for Warp manager-based environments, retaining compact
   environment IDs only for legacy host consumers.
-* Added Warp-native terrain curricula backed by the canonical Warp-owned
+* Added Warp-native terrain curricula backed by cached zero-copy Warp views of
   terrain and scene origins.
 
 Changed

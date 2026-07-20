@@ -16,7 +16,6 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.utils.warp import ProxyArray
 
 from .utils import create_prim_from_mesh
 
@@ -75,6 +74,16 @@ class TerrainImporter:
     terrain_prim_paths: list[str]
     """A list containing the USD prim paths to the imported terrains."""
 
+    terrain_origins: torch.Tensor | None
+    """Sub-terrain origins [m], shape ``(num_rows, num_cols, 3)``.
+
+    If terrain origins is not None, the environment origins are computed based on the terrain origins.
+    Otherwise, the environment origins are computed based on the grid spacing.
+    """
+
+    env_origins: torch.Tensor
+    """Environment origins [m], shape ``(num_envs, 3)``."""
+
     def __init__(self, cfg: TerrainImporterCfg):
         """Initialize the terrain importer.
 
@@ -95,10 +104,12 @@ class TerrainImporter:
 
         # create buffers for the terrains
         self.terrain_prim_paths = list()
-        self._terrain_origins: ProxyArray | None = None
-        self._env_origins: ProxyArray
-        self._terrain_levels: ProxyArray | None = None
-        self._terrain_types: ProxyArray | None = None
+        self.terrain_origins = None
+        self.env_origins = None  # assigned later when `configure_env_origins` is called
+        self._terrain_levels_wp = None
+        self._terrain_types_wp = None
+        self._terrain_origins_wp = None
+        self._env_origins_wp = None
         # private variables
         self._terrain_flat_patches = dict()
 
@@ -167,37 +178,16 @@ class TerrainImporter:
         return [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
 
     @property
-    def terrain_origins(self) -> ProxyArray | None:
-        """Sub-terrain origins [m], shape ``(num_rows, num_cols)`` of ``wp.vec3f``.
-
-        The :attr:`~isaaclab.utils.warp.ProxyArray.torch` view has shape ``(num_rows, num_cols, 3)``.
-        This is ``None`` when environment origins are configured from grid spacing.
-        """
-        return self._terrain_origins
+    def terrain_levels_wp(self) -> wp.array(dtype=wp.int64):
+        """Cached zero-copy Warp view of terrain levels, shape ``(num_envs,)``."""
+        if self._terrain_levels_wp is None:
+            raise RuntimeError("Terrain levels are unavailable for grid-like environment origins.")
+        return self._terrain_levels_wp
 
     @property
-    def env_origins(self) -> ProxyArray:
-        """Environment origins [m], shape ``(num_envs,)`` of ``wp.vec3f``.
-
-        The :attr:`~isaaclab.utils.warp.ProxyArray.torch` view has shape ``(num_envs, 3)``.
-        """
-        return self._env_origins
-
-    @property
-    def terrain_levels(self) -> ProxyArray | None:
-        """Terrain level per environment, shape ``(num_envs,)`` of ``wp.int64``.
-
-        This is ``None`` when environment origins are configured from grid spacing.
-        """
-        return self._terrain_levels
-
-    @property
-    def terrain_types(self) -> ProxyArray | None:
-        """Terrain type per environment, shape ``(num_envs,)`` of ``wp.int64``.
-
-        This is ``None`` when environment origins are configured from grid spacing.
-        """
-        return self._terrain_types
+    def env_origins_wp(self) -> wp.array(dtype=wp.vec3f):
+        """Cached zero-copy Warp view of environment origins [m], shape ``(num_envs,)``."""
+        return self._env_origins_wp
 
     """
     Operations - Visibility.
@@ -223,9 +213,11 @@ class TerrainImporter:
                     cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/TerrainOrigin")
                 )
                 if self.terrain_origins is not None:
-                    self.origin_visualizer.visualize(self.terrain_origins.torch.reshape(-1, 3))
+                    self.origin_visualizer.visualize(self.terrain_origins.reshape(-1, 3))
+                elif self.env_origins is not None:
+                    self.origin_visualizer.visualize(self.env_origins.reshape(-1, 3))
                 else:
-                    self.origin_visualizer.visualize(self.env_origins.torch.reshape(-1, 3))
+                    raise RuntimeError("Terrain origins are not configured.")
             # set visibility
             self.origin_visualizer.set_visibility(True)
         else:
@@ -346,19 +338,24 @@ class TerrainImporter:
 
         Args:
             origins: The origins [m] of the sub-terrains. Shape is (num_rows, num_cols, 3).
-
-        Note:
-            This setup operation replaces the :class:`~isaaclab.utils.warp.ProxyArray` instances. Call it before
-            managers or kernels cache their ``.warp`` views.
         """
         # decide whether to compute origins in a grid or based on curriculum
         if origins is not None:
-            self._configure_env_origins_curriculum(self.cfg.num_envs, origins)
+            # convert to torch
+            if isinstance(origins, np.ndarray):
+                origins = torch.from_numpy(origins)
+            # store the origins
+            self.terrain_origins = origins.to(self.device, dtype=torch.float).contiguous()
+            # compute environment origins
+            self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
         else:
+            self.terrain_origins = None
             # check if env spacing is valid
             if self.cfg.env_spacing is None:
                 raise ValueError("Environment spacing must be specified for configuring grid-like origins.")
-            self._configure_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
+            # compute environment origins
+            self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
+        self._configure_warp_origin_views()
 
     def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor) -> None:
         """Update environment origins through the Torch ID-based interface.
@@ -369,23 +366,19 @@ class TerrainImporter:
             move_down: Flags that decrement the selected terrain levels.
         """
         # check if grid-like spawning
-        if self.terrain_origins is None or self.terrain_levels is None or self.terrain_types is None:
+        if self.terrain_origins is None:
             return
-        terrain_origins = self.terrain_origins.torch
-        terrain_levels = self.terrain_levels.torch
-        terrain_types = self.terrain_types.torch
-        env_origins = self.env_origins.torch
         # update terrain level for the envs
-        terrain_levels[env_ids] += 1 * move_up - 1 * move_down
+        self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
         # robots that solve the last level are sent to a random one
         # the minimum level is zero
-        terrain_levels[env_ids] = torch.where(
-            terrain_levels[env_ids] >= self.max_terrain_level,
-            torch.randint_like(terrain_levels[env_ids], self.max_terrain_level),
-            torch.clip(terrain_levels[env_ids], 0),
+        self.terrain_levels[env_ids] = torch.where(
+            self.terrain_levels[env_ids] >= self.max_terrain_level,
+            torch.randint_like(self.terrain_levels[env_ids], self.max_terrain_level),
+            torch.clip(self.terrain_levels[env_ids], 0),
         )
         # update the env origins
-        env_origins[env_ids] = terrain_origins[terrain_levels[env_ids], terrain_types[env_ids]]
+        self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
 
     def update_env_origins_mask(
         self,
@@ -409,7 +402,7 @@ class TerrainImporter:
             TypeError: If an input is not a Warp array with the required data type.
             ValueError: If an input has the wrong shape or device.
         """
-        if self.terrain_origins is None or self.terrain_levels is None or self.terrain_types is None:
+        if self.terrain_origins is None:
             return
         num_envs = self.terrain_levels.shape[0]
         arrays = {
@@ -434,10 +427,10 @@ class TerrainImporter:
                 move_up,
                 move_down,
                 rng_state,
-                self.terrain_levels.warp,
-                self.terrain_types.warp,
-                self.terrain_origins.warp,
-                self.env_origins.warp,
+                self._terrain_levels_wp,
+                self._terrain_types_wp,
+                self._terrain_origins_wp,
+                self._env_origins_wp,
                 self.max_terrain_level,
             ],
             device=self.device,
@@ -447,13 +440,22 @@ class TerrainImporter:
     Internal helpers.
     """
 
-    def _configure_env_origins_curriculum(self, num_envs: int, origins: np.ndarray | torch.Tensor) -> None:
-        """Allocate and initialize origin buffers from sub-terrain origins."""
-        origins_torch = torch.as_tensor(origins, dtype=torch.float32, device=self.device).contiguous()
-        # ``wp.from_torch`` is zero-copy and keeps the source tensor alive through the Warp array.
-        self._terrain_origins = ProxyArray(wp.from_torch(origins_torch, dtype=wp.vec3f))
+    def _configure_warp_origin_views(self) -> None:
+        """Create persistent zero-copy Warp views after configuring the Torch buffers."""
+        self._env_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
+        if self.terrain_origins is None:
+            self._terrain_levels_wp = None
+            self._terrain_types_wp = None
+            self._terrain_origins_wp = None
+            return
+        self._terrain_levels_wp = wp.from_torch(self.terrain_levels, dtype=wp.int64)
+        self._terrain_types_wp = wp.from_torch(self.terrain_types, dtype=wp.int64)
+        self._terrain_origins_wp = wp.from_torch(self.terrain_origins, dtype=wp.vec3f)
+
+    def _compute_env_origins_curriculum(self, num_envs: int, origins: torch.Tensor) -> torch.Tensor:
+        """Compute the origins of the environments defined by the sub-terrains origins."""
         # extract number of rows and cols
-        num_rows, num_cols = self._terrain_origins.shape[:2]
+        num_rows, num_cols = origins.shape[:2]
         # maximum initial level possible for the terrains
         if self.cfg.max_init_terrain_level is None:
             max_init_level = num_rows - 1
@@ -462,25 +464,21 @@ class TerrainImporter:
         # store maximum terrain level possible
         self.max_terrain_level = num_rows
         # define all terrain levels and types available
-        terrain_levels = torch.randint(0, max_init_level + 1, (num_envs,), device=self.device)
-        terrain_types = torch.div(
+        self.terrain_levels = torch.randint(0, max_init_level + 1, (num_envs,), device=self.device)
+        self.terrain_types = torch.div(
             torch.arange(num_envs, device=self.device), (num_envs / num_cols), rounding_mode="floor"
         ).to(torch.long)
-        env_origins = self._terrain_origins.torch[terrain_levels, terrain_types].contiguous()
+        # create tensor based on number of environments
+        env_origins = torch.zeros(num_envs, 3, device=self.device)
+        env_origins[:] = origins[self.terrain_levels, self.terrain_types]
+        return env_origins
 
-        self._terrain_levels = ProxyArray(wp.from_torch(terrain_levels, dtype=wp.int64))
-        self._terrain_types = ProxyArray(wp.from_torch(terrain_types, dtype=wp.int64))
-        self._env_origins = ProxyArray(wp.from_torch(env_origins, dtype=wp.vec3f))
-
-    def _configure_env_origins_grid(self, num_envs: int, env_spacing: float) -> None:
-        """Allocate and initialize origin buffers from grid spacing."""
+    def _compute_env_origins_grid(self, num_envs: int, env_spacing: float) -> torch.Tensor:
+        """Compute the origins of the environments in a grid based on configured spacing."""
         from isaaclab.cloner import grid_transforms
 
         env_origins, _ = grid_transforms(num_envs, env_spacing, device=self.device)
-        self._terrain_origins = None
-        self._terrain_levels = None
-        self._terrain_types = None
-        self._env_origins = ProxyArray(wp.from_torch(env_origins.contiguous(), dtype=wp.vec3f))
+        return env_origins
 
     """
     Deprecated.

@@ -29,7 +29,6 @@ from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.integration
 
@@ -51,15 +50,15 @@ def test_terrain_importer_env_origins(device, env_spacing, num_envs):
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
         # obtain env origins using terrain importer
-        terrain_importer_origins = terrain_importer.env_origins.torch
+        terrain_importer_origins = terrain_importer.env_origins
 
-        # check that the canonical Warp storage and Torch view share memory
-        assert isinstance(terrain_importer.env_origins, ProxyArray)
-        assert terrain_importer.env_origins.warp.dtype == wp.vec3f
-        assert terrain_importer.env_origins.warp.shape == (num_envs,)
+        # check that the cached Warp view shares the canonical Torch storage
+        assert isinstance(terrain_importer.env_origins, torch.Tensor)
+        assert terrain_importer.env_origins_wp.dtype == wp.vec3f
+        assert terrain_importer.env_origins_wp.shape == (num_envs,)
         assert terrain_importer_origins.shape == (num_envs, 3)
-        assert terrain_importer.env_origins.warp is terrain_importer.env_origins.warp
-        assert terrain_importer_origins.data_ptr() == terrain_importer.env_origins.warp.ptr
+        assert terrain_importer.env_origins_wp is terrain_importer.env_origins_wp
+        assert terrain_importer_origins.data_ptr() == terrain_importer.env_origins_wp.ptr
 
         # obtain env origins using Lab's grid_transforms
         lab_grid_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=env_spacing, device=sim.device)
@@ -323,7 +322,7 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
     # Create a view over all the balls using Isaac Lab's FrameView
     ball_view = sim_utils.FrameView("/World/envs/env_.*/ball")
     # cache initial state of the balls
-    ball_initial_positions = terrain_importer.env_origins.torch.clone()
+    ball_initial_positions = terrain_importer.env_origins.clone()
     ball_initial_positions[:, 2] += 5.0
     # set initial poses
     # note: setting here writes to USD :)

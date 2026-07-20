@@ -17,7 +17,6 @@ from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWa
 
 from isaaclab.scene import InteractiveScene
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.warp import ProxyArray
 
 
 class TestInteractiveSceneWarp:
@@ -30,8 +29,9 @@ class TestInteractiveSceneWarp:
         terrain_cfg = TerrainImporterCfg(prim_path="/World/Ground", terrain_type="plane")
         cfg = SimpleNamespace(terrain=terrain_cfg)
         class_type = terrain_cfg.class_type
-        origins_wp = wp.zeros(2, dtype=wp.vec3f, device="cpu")
-        terrain = SimpleNamespace(env_origins=ProxyArray(origins_wp))
+        origins = torch.zeros((2, 3), dtype=torch.float32)
+        origins_wp = wp.from_torch(origins, dtype=wp.vec3f)
+        terrain = SimpleNamespace(env_origins=origins, env_origins_wp=origins_wp)
 
         def initialize_scene(scene: InteractiveScene, scene_cfg: SimpleNamespace) -> None:
             scene.cfg = scene_cfg
@@ -43,10 +43,10 @@ class TestInteractiveSceneWarp:
 
         assert terrain_cfg.class_type is class_type
         assert isinstance(scene.env_origins, torch.Tensor)
-        assert scene.env_origins is terrain.env_origins.torch
+        assert scene.env_origins is terrain.env_origins
         assert scene.env_origins_wp is origins_wp
         assert InteractiveSceneWarp.env_origins is InteractiveScene.env_origins
-        assert InteractiveSceneWarp.env_origins_wp is InteractiveScene.env_origins_wp
+        assert "env_origins_wp" not in InteractiveScene.__dict__
 
     def test_mask_reset_stays_mask_based_for_supported_entities(self):
         """Mask-based reset should not pass environment IDs to Warp-capable entities."""

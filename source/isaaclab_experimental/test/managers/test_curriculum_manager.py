@@ -21,7 +21,6 @@ from isaaclab_tasks_experimental.manager_based.manipulation.reach.reach_env_cfg 
 
 from isaaclab.managers import ManagerTermBase as StableManagerTermBase
 from isaaclab.terrains import TerrainImporter
-from isaaclab.utils.warp import ProxyArray
 
 
 class _GlobalCurriculumTerm(StableManagerTermBase):
@@ -124,11 +123,11 @@ class _Scene:
 
     @property
     def env_origins(self) -> torch.Tensor:
-        return self.terrain.env_origins.torch
+        return self.terrain.env_origins
 
     @property
     def env_origins_wp(self) -> wp.array(dtype=wp.vec3f):
-        return self.terrain.env_origins.warp
+        return self.terrain.env_origins_wp
 
     def __getitem__(self, name: str):
         return self._entities[name]
@@ -175,53 +174,48 @@ def _make_terrain(levels: list[int]) -> TerrainImporter:
                 float(terrain_type),
             ]
     terrain.configure_env_origins(origin_values)
-    terrain.terrain_levels.torch.copy_(torch.from_numpy(level_values))
-    terrain.terrain_types.torch.copy_(torch.from_numpy(type_values))
-    terrain.env_origins.torch.copy_(
-        terrain.terrain_origins.torch[terrain.terrain_levels.torch, terrain.terrain_types.torch]
-    )
+    terrain.terrain_levels.copy_(torch.from_numpy(level_values))
+    terrain.terrain_types.copy_(torch.from_numpy(type_values))
+    terrain.env_origins.copy_(terrain.terrain_origins[terrain.terrain_levels, terrain.terrain_types])
     return terrain
 
 
-def test_terrain_importer_exposes_persistent_proxy_array_views():
-    """Canonical terrain storage should expose persistent zero-copy Torch and Warp views."""
+def test_terrain_importer_exposes_persistent_warp_views():
+    """Terrain importer should retain one zero-copy Warp view for each Torch buffer."""
     terrain = _make_terrain([0, 1, 2, 1])
 
-    assert isinstance(terrain.terrain_origins, ProxyArray)
-    assert isinstance(terrain.env_origins, ProxyArray)
-    assert isinstance(terrain.terrain_levels, ProxyArray)
-    assert isinstance(terrain.terrain_types, ProxyArray)
-    assert terrain.terrain_origins.dtype == wp.vec3f
-    assert terrain.env_origins.dtype == wp.vec3f
-    assert terrain.terrain_levels.dtype == wp.int64
-    assert terrain.terrain_types.dtype == wp.int64
-    assert terrain.terrain_origins.torch.data_ptr() == terrain.terrain_origins.warp.ptr
-    assert terrain.env_origins.torch.data_ptr() == terrain.env_origins.warp.ptr
-    assert terrain.terrain_levels.torch.data_ptr() == terrain.terrain_levels.warp.ptr
-    assert terrain.terrain_types.torch.data_ptr() == terrain.terrain_types.warp.ptr
+    assert isinstance(terrain.terrain_origins, torch.Tensor)
+    assert isinstance(terrain.env_origins, torch.Tensor)
+    assert isinstance(terrain.terrain_levels, torch.Tensor)
+    assert isinstance(terrain.terrain_types, torch.Tensor)
+    assert terrain.terrain_origins.data_ptr() == terrain._terrain_origins_wp.ptr
+    assert terrain.env_origins.data_ptr() == terrain.env_origins_wp.ptr
+    assert terrain.terrain_levels.data_ptr() == terrain.terrain_levels_wp.ptr
+    assert terrain.terrain_types.data_ptr() == terrain._terrain_types_wp.ptr
 
-    terrain.terrain_levels.torch[0] = 2
-    assert terrain.terrain_levels.warp.numpy()[0] == 2
+    terrain.terrain_levels[0] = 2
+    assert terrain.terrain_levels_wp.numpy()[0] == 2
     replacement_levels = wp.array([1, 0, 2, 1], dtype=wp.int64, device="cpu")
-    wp.copy(terrain.terrain_levels.warp, replacement_levels)
+    wp.copy(terrain.terrain_levels_wp, replacement_levels)
     wp.synchronize()
-    torch.testing.assert_close(terrain.terrain_levels.torch, torch.tensor([1, 0, 2, 1]))
+    torch.testing.assert_close(terrain.terrain_levels, torch.tensor([1, 0, 2, 1]))
 
 
-def test_terrain_importer_grid_origins_use_proxy_array_without_curriculum_buffers():
-    """Grid origins should use the same proxy contract without curriculum buffers."""
+def test_terrain_importer_grid_origins_cache_only_environment_view():
+    """Grid origins should cache a Warp view without allocating curriculum buffers."""
     terrain = TerrainImporter.__new__(TerrainImporter)
     terrain.device = "cpu"
     terrain.cfg = SimpleNamespace(num_envs=4, env_spacing=2.0)
     terrain.configure_env_origins()
 
     assert terrain.terrain_origins is None
-    assert isinstance(terrain.env_origins, ProxyArray)
-    assert terrain.env_origins.shape == (4,)
-    assert terrain.env_origins.torch.shape == (4, 3)
-    assert terrain.env_origins.torch.data_ptr() == terrain.env_origins.warp.ptr
-    assert terrain.terrain_levels is None
-    assert terrain.terrain_types is None
+    assert isinstance(terrain.env_origins, torch.Tensor)
+    assert terrain.env_origins.shape == (4, 3)
+    assert terrain.env_origins_wp.shape == (4,)
+    assert terrain.env_origins.data_ptr() == terrain.env_origins_wp.ptr
+    assert terrain._terrain_levels_wp is None
+    assert terrain._terrain_types_wp is None
+    assert terrain._terrain_origins_wp is None
 
 
 def test_terrain_importer_mask_update_preserves_sparse_and_stable_semantics():
@@ -232,36 +226,36 @@ def test_terrain_importer_mask_update_preserves_sparse_and_stable_semantics():
     move_down = wp.array([True, False, False, True, False, True], dtype=wp.bool, device="cpu")
     rng_state = wp.array(np.arange(6, dtype=np.uint32) + 71, device="cpu")
     rng_before = rng_state.numpy().copy()
-    origins_before = terrain.env_origins.torch.clone()
-    levels_wp = terrain.terrain_levels.warp
-    origins_wp = terrain.env_origins.warp
+    origins_before = terrain.env_origins.clone()
+    levels_wp = terrain.terrain_levels_wp
+    origins_wp = terrain.env_origins_wp
     levels_ptr = levels_wp.ptr
     origins_ptr = origins_wp.ptr
-    assert terrain.terrain_levels.torch.data_ptr() == levels_ptr
-    assert terrain.env_origins.torch.data_ptr() == origins_ptr
+    assert terrain.terrain_levels.data_ptr() == levels_ptr
+    assert terrain.env_origins.data_ptr() == origins_ptr
 
     terrain.update_env_origins_mask(env_mask, move_up, move_down, rng_state)
     wp.synchronize()
 
-    levels = terrain.terrain_levels.torch.tolist()
+    levels = terrain.terrain_levels.tolist()
     assert levels[0] == 0
     assert levels[1] == 2
     assert 0 <= levels[2] < terrain.max_terrain_level
     assert levels[3] == 1
     assert levels[4:] == [1, 0]
     torch.testing.assert_close(
-        terrain.env_origins.torch[:4],
-        terrain.terrain_origins.torch[terrain.terrain_levels.torch[:4], terrain.terrain_types.torch[:4]],
+        terrain.env_origins[:4],
+        terrain.terrain_origins[terrain.terrain_levels[:4], terrain.terrain_types[:4]],
     )
-    torch.testing.assert_close(terrain.env_origins.torch[4:], origins_before[4:])
+    torch.testing.assert_close(terrain.env_origins[4:], origins_before[4:])
     assert np.all(rng_state.numpy()[:4] != rng_before[:4])
     np.testing.assert_array_equal(rng_state.numpy()[4:], rng_before[4:])
-    assert terrain.terrain_levels.warp is levels_wp
-    assert terrain.env_origins.warp is origins_wp
-    assert terrain.terrain_levels.warp.ptr == levels_ptr
-    assert terrain.env_origins.warp.ptr == origins_ptr
+    assert terrain.terrain_levels_wp is levels_wp
+    assert terrain.env_origins_wp is origins_wp
+    assert terrain.terrain_levels_wp.ptr == levels_ptr
+    assert terrain.env_origins_wp.ptr == origins_ptr
 
-    levels_before_stable_update = terrain.terrain_levels.torch.clone()
+    levels_before_stable_update = terrain.terrain_levels.clone()
     env_ids = torch.tensor([1, 3], dtype=torch.int64)
     terrain.update_env_origins(
         env_ids,
@@ -270,18 +264,18 @@ def test_terrain_importer_mask_update_preserves_sparse_and_stable_semantics():
     )
     expected_levels = levels_before_stable_update.clone()
     expected_levels[env_ids] -= 1
-    torch.testing.assert_close(terrain.terrain_levels.torch, expected_levels)
-    assert terrain.terrain_levels.warp is levels_wp
-    assert terrain.env_origins.warp is origins_wp
-    assert terrain.terrain_levels.warp.ptr == levels_ptr
-    assert terrain.env_origins.warp.ptr == origins_ptr
+    torch.testing.assert_close(terrain.terrain_levels, expected_levels)
+    assert terrain.terrain_levels_wp is levels_wp
+    assert terrain.env_origins_wp is origins_wp
+    assert terrain.terrain_levels_wp.ptr == levels_ptr
+    assert terrain.env_origins_wp.ptr == origins_ptr
 
 
 def test_curriculum_manager_updates_masked_levels_and_logs_without_host_compaction(monkeypatch: pytest.MonkeyPatch):
     """Manager compute/reset should remain mask-native and expose persistent scalar logging."""
     assert terrain_levels_vel is not TerrainLevelsVel
     terrain = _make_terrain([0, 1, 2, 2, 1, 0])
-    root_positions = terrain.env_origins.torch.numpy().copy()
+    root_positions = terrain.env_origins.numpy().copy()
     root_positions[:, 0] += np.array([5.0, 1.0, 3.0, 5.0, 9.0, 0.0], dtype=np.float32)
     commands = np.array(
         [[0.1, 0.0, 0.0], [1.0, 0.0, 0.0], [0.2, 0.0, 0.0], [2.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.1, 0.0, 0.0]],
@@ -318,7 +312,7 @@ def test_curriculum_manager_updates_masked_levels_and_logs_without_host_compacti
         extras = manager.reset(env_mask)
         wp.synchronize()
 
-    levels = terrain.terrain_levels.torch.tolist()
+    levels = terrain.terrain_levels.tolist()
     assert levels[0] == 1
     assert levels[1] == 0
     assert levels[2] == 2
@@ -328,7 +322,7 @@ def test_curriculum_manager_updates_masked_levels_and_logs_without_host_compacti
     np.testing.assert_array_equal(term._move_down_wp.numpy(), [False, True, False, False, False, False])
     assert extras is extras_ref
     assert extras["Curriculum/terrain_levels"] is manager.reset_extras["Curriculum/terrain_levels"]
-    torch.testing.assert_close(extras["Curriculum/terrain_levels"], terrain.terrain_levels.torch.float().mean())
+    torch.testing.assert_close(extras["Curriculum/terrain_levels"], terrain.terrain_levels.float().mean())
     torch.testing.assert_close(extras["Curriculum/global_state"], torch.tensor(7.0))
     assert term._move_up_wp.ptr == move_up_ptr
     assert term._move_down_wp.ptr == move_down_ptr
@@ -364,7 +358,7 @@ def test_registered_reach_curricula_update_weights_without_a_host_boundary():
     terrain = _make_terrain([0, 1, 2, 2])
     env = _Env(
         terrain,
-        terrain.env_origins.torch.numpy().copy(),
+        terrain.env_origins.numpy().copy(),
         np.zeros((4, 3), dtype=np.float32),
     )
     env.reward_manager = _RewardManager()
@@ -394,7 +388,7 @@ def test_registered_reach_curricula_update_weights_without_a_host_boundary():
 def test_curriculum_manager_rejects_structured_legacy_state() -> None:
     """Unsupported fallback logging should fail explicitly instead of narrowing silently."""
     terrain = _make_terrain([0, 1])
-    env = _Env(terrain, terrain.env_origins.torch.numpy().copy(), np.zeros((2, 3), dtype=np.float32))
+    env = _Env(terrain, terrain.env_origins.numpy().copy(), np.zeros((2, 3), dtype=np.float32))
     manager = CurriculumManager(
         {"structured": CurriculumTermCfg(func=_structured_state, requires_host_ids=False)},
         env,

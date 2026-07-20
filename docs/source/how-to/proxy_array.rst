@@ -5,9 +5,9 @@ Working with ProxyArray
 
 .. currentmodule:: isaaclab.utils.warp
 
-Isaac Lab data classes and :class:`~isaaclab.terrains.TerrainImporter` buffers return
-:class:`ProxyArray` — a lightweight, warp-first wrapper that provides zero-copy access as either a
-:class:`warp.array` or a :class:`torch.Tensor`.
+Isaac Lab data classes return :class:`ProxyArray` — a lightweight, warp-first wrapper that
+provides zero-copy access to simulation data as either a :class:`warp.array` or a
+:class:`torch.Tensor`.
 
 .. note::
 
@@ -20,9 +20,7 @@ Quick Start
 ~~~~~~~~~~~
 
 Every property on asset and sensor data classes (e.g., ``robot.data.joint_pos``,
-``sensor.data.net_forces_w``) returns a ``ProxyArray``. The ``terrain_origins``,
-``env_origins``, ``terrain_levels``, and ``terrain_types`` buffers on ``TerrainImporter`` follow
-the same interface:
+``sensor.data.net_forces_w``) returns a ``ProxyArray``:
 
 .. code-block:: python
 
@@ -37,9 +35,6 @@ the same interface:
 
    # Pass directly to warp kernels — no unwrapping needed
    wp.launch(my_kernel, inputs=[robot.data.joint_pos], ...)  # works via __cuda_array_interface__
-
-   # Terrain buffers use the same explicit accessors
-   terrain_levels = env.scene.terrain.terrain_levels.torch
 
 
 The ``.torch`` and ``.warp`` Accessors

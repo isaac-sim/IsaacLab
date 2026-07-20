@@ -580,7 +580,7 @@ class slab_clearance(ManagerTermBase):
             wp.array(np.array([x is not None for x, _, _ in slabs], dtype=np.int32), device=device),
             wp.array(np.array([y is not None for _, y, _ in slabs], dtype=np.int32), device=device),
         ]
-        self._env_origins = env.scene.env_origins_wp
+        self._env_origins = wp.from_torch(env.scene.env_origins.contiguous(), dtype=wp.vec3)
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
         num = len(env_ids)

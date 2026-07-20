@@ -11,7 +11,7 @@ from collections.abc import Sequence
 
 import warp as wp
 
-from isaaclab.scene import InteractiveScene
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 
 class InteractiveSceneWarp(InteractiveScene):
@@ -20,6 +20,23 @@ class InteractiveSceneWarp(InteractiveScene):
     Extends :class:`InteractiveScene` to accept a boolean warp mask for selective resets,
     avoiding the need to convert between env_ids and masks.
     """
+
+    def __init__(self, cfg: InteractiveSceneCfg):
+        """Initialize the Warp scene and cache non-terrain environment origins.
+
+        Args:
+            cfg: Configuration for the interactive scene.
+        """
+        super().__init__(cfg)
+        if self.terrain is None:
+            self._env_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
+
+    @property
+    def env_origins_wp(self) -> wp.array(dtype=wp.vec3f):
+        """Cached zero-copy Warp view of environment origins [m], shape ``(num_envs,)``."""
+        if self.terrain is not None:
+            return self.terrain.env_origins_wp
+        return self._env_origins_wp
 
     def reset(
         self,
