@@ -350,8 +350,15 @@ def matches_path_expr_prefix(path_expr: str, prim_path: str) -> bool:
 def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[Usd.Prim]:
     """Find all the matching prims in the stage based on input regex expression.
 
+    Each '/'-separated token of the expression is matched as a regular expression against prim
+    names at the corresponding depth. Additionally, the expression may end with the special token
+    ``**``, which matches the anchor prim (the prim matched by the preceding tokens) itself as
+    well as all its descendants at any depth. The recursive expansion traverses into instanceable
+    prims, so instance proxy prims are included in the result.
+
     Args:
-        prim_path_regex: The regex expression for prim path.
+        prim_path_regex: The regex expression for prim path. It may end with a ``**`` token to
+            also match all descendants of the matched prims.
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
 
     Returns:
@@ -359,20 +366,31 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
 
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
+        ValueError: If the ``**`` token appears anywhere except as the final token.
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # normalize legacy wildcard pattern
-    prim_path_regex = _normalize_legacy_wildcard_pattern(prim_path_regex)
-
     # check prim path is global
     if not prim_path_regex.startswith("/"):
         raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
-    # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
     tokens = prim_path_regex.split("/")[1:]
-    tokens = [f"^{token}$" for token in tokens]
+    # a trailing '**' matches the anchor prim itself and all its descendants (any depth).
+    # it is handled before the legacy wildcard normalization so it is not treated as a regex.
+    if "**" in tokens[:-1]:
+        raise ValueError(
+            f"Prim path expression '{prim_path_regex}' uses '**' before the end. The recursive"
+            " token is only supported as the final token."
+        )
+    recursive = bool(tokens) and tokens[-1] == "**"
+    if recursive:
+        tokens = tokens[:-1]
+    # normalize legacy wildcard patterns and wrap the token patterns in '^' and '$'
+    # to prevent matching anywhere in the string
+    tokens = [f"^{_normalize_legacy_wildcard_pattern(token)}$" for token in tokens]
     # iterate over all prims in stage (breath-first search)
     all_prims = [stage.GetPseudoRoot()]
     output_prims = []
@@ -385,6 +403,15 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
         if index < len(tokens) - 1:
             all_prims = output_prims
             output_prims = []
+    if not tokens:
+        output_prims = all_prims
+    if recursive:
+        # expand each anchor to itself plus all descendants, traversing into instances so
+        # callers can detect read-only proxy prims
+        expanded = []
+        for prim in output_prims:
+            expanded.extend(Usd.PrimRange(prim, Usd.TraverseInstanceProxies()))
+        output_prims = expanded
     return output_prims
 
 
@@ -484,8 +511,12 @@ def resolve_matching_prims_from_source(
 def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[str]:
     """Find all the matching prim paths in the stage based on input regex expression.
 
+    The expression follows the same rules as :func:`find_matching_prims`, including the trailing
+    ``**`` token that matches the anchor prim itself and all its descendants at any depth.
+
     Args:
-        prim_path_regex: The regex expression for prim path.
+        prim_path_regex: The regex expression for prim path. It may end with a ``**`` token to
+            also match all descendants of the matched prims.
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
 
     Returns:

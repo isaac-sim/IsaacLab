@@ -175,6 +175,48 @@ def test_get_first_matching_child_prim():
     assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka/panda_link0/visuals/panda_link0"
 
 
+def test_find_matching_prims_recursive_token_matches_self_and_all_descendants():
+    """A trailing ``**`` matches the anchor prim itself and every descendant, any depth."""
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Robot", "/World/Robot/link1", "/World/Robot/link1/collider", "/World/Other"):
+        stage.DefinePrim(path, "Xform")
+    matched = sim_utils.find_matching_prims("/World/Robot/**")
+    matched_paths = sorted(p.GetPath().pathString for p in matched)
+    assert matched_paths == ["/World/Robot", "/World/Robot/link1", "/World/Robot/link1/collider"]
+
+
+def test_find_matching_prims_recursive_token_composes_with_regex_levels():
+    """``**`` composes with regex tokens before it."""
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/env_0/Robot/link", "/World/env_1/Robot/link", "/World/env_1/Box"):
+        stage.DefinePrim(path, "Xform")
+    matched_paths = sorted(sim_utils.find_matching_prim_paths("/World/env_.*/Robot/**"))
+    assert matched_paths == [
+        "/World/env_0/Robot",
+        "/World/env_0/Robot/link",
+        "/World/env_1/Robot",
+        "/World/env_1/Robot/link",
+    ]
+
+
+def test_find_matching_prims_recursive_token_traverses_instance_proxies():
+    """``**`` descends into instanceable prims so callers can detect (and skip) proxy carriers."""
+    stage = sim_utils.get_current_stage()
+    stage.DefinePrim("/World/Source", "Xform")
+    stage.DefinePrim("/World/Source/body", "Xform")
+    instance = stage.DefinePrim("/World/Asset", "Xform")
+    instance.GetReferences().AddInternalReference("/World/Source")
+    instance.SetInstanceable(True)
+    matched_paths = sim_utils.find_matching_prim_paths("/World/Asset/**")
+    assert "/World/Asset/body" in matched_paths
+
+
+def test_find_matching_prims_mid_pattern_recursive_token_raises():
+    """``**`` is only supported as the final token."""
+    with pytest.raises(ValueError, match="final token"):
+        sim_utils.find_matching_prims("/World/**/collider")
+
+
 def test_find_global_fixed_joint_prim():
     """Test find_global_fixed_joint_prim() function."""
     # create scene
