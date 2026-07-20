@@ -1019,6 +1019,7 @@ def _capture_kit_viewport_with_pose_reapply(
     kit_visualizer: KitVisualizer,
     resolution: tuple[int, int] | None = None,
     physics_backend: str = "",
+    prior_physics_steps: int = 0,
 ) -> np.ndarray:
     """Set the configured eye/lookat, warm RTX, then capture.
 
@@ -1029,27 +1030,51 @@ def _capture_kit_viewport_with_pose_reapply(
       the shadow hand test captures the wrist from below).  Setting the camera
       before warmup corrects the drift without any extra ``env.sim.render()``
       calls that would otherwise advance physics and change the robot pose.
-    * **Newton backend**: Newton stage init resets the viewport camera to a
-      default position before the warmup.  The warmup render loop can also
-      trigger additional Newton camera resets, so the pose is reapplied *after*
-      warmup as well (same workaround as :func:`_run_kit_viewport_frame_motion_test`).
-      Pass ``physics_backend="newton"`` to enable the post-warmup reapply.
+    * **Newton backend (zero prior steps)**: Newton stage init resets the
+      viewport camera during the warmup render loop, because the first warmup
+      render is also the first Kit render after stage init.  Setting the camera
+      before warmup is not enough — the warmup itself triggers the reset.  We
+      re-apply the camera before *each* warmup render so that any mid-render
+      reset is overwritten before the next render.  This is robust even when
+      prior tests leave pending Kit events that cause extra resets during the
+      warmup loop.
+    * **Newton backend (prior steps > 0)**: When :func:`env.step` was called
+      before capture, each step pumped RTX via ``sim.render()``, so Newton's
+      stage-init camera reset already occurred during those renders.  Setting
+      the camera before the standard warmup is sufficient; per-render reapply
+      must be skipped because extra ``sim.render()`` calls can interact with
+      residual Newton state from earlier tests and display the wrong robot pose.
+
+    Args:
+        env: The simulation environment.
+        kit_visualizer: The active :class:`KitVisualizer` instance.
+        resolution: Optional ``(width, height)`` override for the render product.
+        physics_backend: ``"newton"`` to enable the per-render camera reapply
+            when ``prior_physics_steps == 0``.
+        prior_physics_steps: Number of ``env.step()`` calls already executed
+            before this capture.  When > 0 the per-render reapply is suppressed.
     """
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
     assert camera_path, "KitVisualizer did not expose a controlled camera path."
     annotator, render_product = _build_rgb_annotator_for_camera(camera_path, resolution=resolution)
     try:
-        _warm_kit_rtx_render_product(env, annotator)
-        if physics_backend == "newton":
-            # Newton render loop resets the Kit viewport camera during warmup.  Reapply
-            # and drain the async RTX pipeline so the annotator reflects the new camera.
-            kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
-            for _ in range(_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS // 4):
+        if physics_backend == "newton" and prior_physics_steps == 0:
+            # Newton stage init resets the Kit viewport camera during warmup.
+            # env.sim.render() calls app.update() once (inside KitVisualizer.step()),
+            # which may trigger the Newton camera reset.  The follow-up
+            # _update_active_simulation_app() is a second app.update() whose output
+            # the annotator captures — so we reapply the camera between the two
+            # calls to ensure that second render uses the correct position.
+            for _ in range(_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS):
+                kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
                 env.sim.render()
+                kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
                 _update_active_simulation_app()
                 with contextlib.suppress(Exception):
                     annotator.get_data()
+        else:
+            _warm_kit_rtx_render_product(env, annotator)
         return _capture_kit_viewport_rgb(annotator)
     finally:
         with contextlib.suppress(Exception):
