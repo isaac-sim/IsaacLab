@@ -17,6 +17,7 @@ import isaaclab.benchmark.recorders as benchmark_recorders
 from isaaclab.benchmark import (
     BenchmarkLauncherConfig,
     BenchmarkOutputConfig,
+    BenchmarkPlayRequest,
     BenchmarkResult,
     BenchmarkRuntimeRequest,
     BenchmarkTrainingRequest,
@@ -35,6 +36,7 @@ def test_training_request_builds_complete_cli() -> None:
         num_envs=64,
         seed=7,
         max_iterations=10,
+        warmup_steps=12,
         ray_proc_id=4,
         video=True,
         video_length=100,
@@ -70,6 +72,8 @@ def test_training_request_builds_complete_cli() -> None:
         "custom_agent",
         "--max_iterations",
         "10",
+        "--warmup_steps",
+        "12",
         "--ray-proc-id",
         "4",
         "--video",
@@ -121,6 +125,14 @@ def test_runtime_request_uses_runtime_defaults() -> None:
         "--benchmark_formatter",
         "schema",
     ]
+
+
+def test_play_request_includes_warmup_steps() -> None:
+    request = BenchmarkPlayRequest(backend="rsl_rl", task="Isaac-Cartpole-Direct", warmup_steps=12)
+
+    argv = dispatch._request_argv(request)
+
+    assert argv[argv.index("--warmup_steps") + 1] == "12"
 
 
 @pytest.mark.parametrize("workflow", ["runtime", "startup"])

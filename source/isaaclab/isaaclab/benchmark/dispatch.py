@@ -135,6 +135,7 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
     elif request.workflow == "training":
         _append_value(argv, "--agent", request.agent)
         _append_value(argv, "--max_iterations", request.max_iterations)
+        _append_value(argv, "--warmup_steps", request.warmup_steps)
         _append_value(argv, "--ray-proc-id", request.ray_proc_id)
         if request.video:
             argv.append("--video")
@@ -160,6 +161,7 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
         _append_value(argv, "--checkpoint", request.checkpoint)
         _append_value(argv, "--agent", request.agent)
         _append_value(argv, "--num_frames", request.num_frames)
+        _append_value(argv, "--warmup_steps", request.warmup_steps)
 
     if getattr(request, "measure_synchronized_step_breakdown", False):
         argv.append("--measure_synchronized_step_breakdown")

@@ -153,6 +153,7 @@ class BenchmarkTrainingRequest:
         num_envs: Number of parallel environments.
         seed: Environment and agent seed.
         max_iterations: Maximum training iterations.
+        warmup_steps: Number of initial environment steps excluded from environment-step timing.
         ray_proc_id: Ray worker process identifier.
         video: Whether to record training videos.
         video_length: Recorded video length [steps].
@@ -182,6 +183,7 @@ class BenchmarkTrainingRequest:
     num_envs: int | None = None
     seed: int | None = None
     max_iterations: int | None = None
+    warmup_steps: int = 0
     ray_proc_id: int | None = None
     video: bool = False
     video_length: int = 200
@@ -221,6 +223,7 @@ class BenchmarkPlayRequest:
         agent: Optional task agent configuration entry point.
         num_envs: Number of parallel environments.
         num_frames: Number of measured inference steps.
+        warmup_steps: Number of initial environment steps excluded from environment-step timing.
         seed: Environment seed.
         measure_synchronized_step_breakdown: Whether to collect serialized synchronized
             environment/simulation step diagnostics.
@@ -237,6 +240,7 @@ class BenchmarkPlayRequest:
     agent: str | None = None
     num_envs: int | None = None
     num_frames: int = 100
+    warmup_steps: int = 0
     seed: int | None = None
     measure_synchronized_step_breakdown: bool = False
     presets: tuple[str, ...] = field(default_factory=tuple)
