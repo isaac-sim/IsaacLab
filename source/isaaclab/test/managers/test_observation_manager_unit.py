@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for observation history update semantics."""
+"""Unit tests for observation managers."""
 
 from __future__ import annotations
 
