@@ -462,6 +462,9 @@ class BaseIsaacLabBenchmark:
         return self._finalize_impl()
 
     def _finalize_impl(self) -> tuple[Path, ...]:
+        if self._bundle is None and any(key == "schema" for key, _ in self._metrics):
+            raise RuntimeError("The schema formatter requires an attached benchmark bundle.")
+
         # Stop collecting frametime recorders.
         for recorder in self._frametime_recorders.values():
             recorder.stop_collecting()

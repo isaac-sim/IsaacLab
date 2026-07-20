@@ -8,6 +8,7 @@ import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import get_type_hints
 
 import pytest
 
@@ -21,7 +22,10 @@ from isaaclab.benchmark import (
     BenchmarkResult,
     BenchmarkRuntimeRequest,
     BenchmarkTrainingRequest,
+    PlayBundle,
     RuntimeBundle,
+    StartupBundle,
+    TrainingBundle,
     dispatch,
 )
 from isaaclab.benchmark.entrypoints import startup
@@ -365,3 +369,83 @@ def test_late_bound_environment_cleanup_closes_base_when_wrapping_fails() -> Non
             env = fail_to_wrap(env)
 
     assert base_environment.closed
+
+
+@pytest.mark.parametrize(
+    ("helper", "bundle_type"),
+    [
+        (benchmark.run_runtime_benchmark, RuntimeBundle),
+        (benchmark.run_startup_benchmark, StartupBundle),
+        (benchmark.run_training_benchmark, TrainingBundle),
+        (benchmark.run_play_benchmark, PlayBundle),
+    ],
+)
+def test_workflow_helpers_return_bundle_specific_results(helper, bundle_type) -> None:
+    """Workflow helpers expose their concrete bundle type to static type checkers."""
+    assert get_type_hints(helper)["return"] == BenchmarkResult[bundle_type]
+
+
+def test_scoped_backend_state_restores_values_after_exception() -> None:
+    """Backend-global settings are restored when an in-process benchmark fails."""
+    import torch
+
+    from isaaclab.benchmark.entrypoints.backends._state import scoped_attribute, scoped_torch_backend_flags
+
+    original = (
+        torch.backends.cuda.matmul.allow_tf32,
+        torch.backends.cudnn.allow_tf32,
+        torch.backends.cudnn.deterministic,
+        torch.backends.cudnn.benchmark,
+    )
+    holder = SimpleNamespace(value="original")
+
+    with pytest.raises(RuntimeError, match="failed"):
+        with scoped_torch_backend_flags(torch), scoped_attribute(holder, "value", "temporary"):
+            assert torch.backends.cuda.matmul.allow_tf32 is True
+            assert torch.backends.cudnn.allow_tf32 is True
+            assert torch.backends.cudnn.deterministic is False
+            assert torch.backends.cudnn.benchmark is False
+            assert holder.value == "temporary"
+            raise RuntimeError("failed")
+
+    assert (
+        torch.backends.cuda.matmul.allow_tf32,
+        torch.backends.cudnn.allow_tf32,
+        torch.backends.cudnn.deterministic,
+        torch.backends.cudnn.benchmark,
+    ) == original
+    assert holder.value == "original"
+
+
+def test_invalid_rsl_request_preserves_torch_backend_state() -> None:
+    """A rejected in-process request does not mutate its caller's Torch configuration."""
+    import torch
+
+    original = (
+        torch.backends.cuda.matmul.allow_tf32,
+        torch.backends.cudnn.allow_tf32,
+        torch.backends.cudnn.deterministic,
+        torch.backends.cudnn.benchmark,
+    )
+    caller_state = (False, False, True, True)
+    try:
+        torch.backends.cuda.matmul.allow_tf32 = caller_state[0]
+        torch.backends.cudnn.allow_tf32 = caller_state[1]
+        torch.backends.cudnn.deterministic = caller_state[2]
+        torch.backends.cudnn.benchmark = caller_state[3]
+        request = BenchmarkTrainingRequest(backend="rsl_rl", task="Isaac-Cartpole-Direct", warmup_steps=-1)
+
+        with pytest.raises(ValueError, match="rejected the benchmark request"):
+            dispatch.run_benchmark_request(request)
+
+        assert (
+            torch.backends.cuda.matmul.allow_tf32,
+            torch.backends.cudnn.allow_tf32,
+            torch.backends.cudnn.deterministic,
+            torch.backends.cudnn.benchmark,
+        ) == caller_state
+    finally:
+        torch.backends.cuda.matmul.allow_tf32 = original[0]
+        torch.backends.cudnn.allow_tf32 = original[1]
+        torch.backends.cudnn.deterministic = original[2]
+        torch.backends.cudnn.benchmark = original[3]

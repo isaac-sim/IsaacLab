@@ -259,6 +259,7 @@ autodoc_mock_imports = [
     "h5py",
     "hid",
     "prettytable",
+    "psutil",
     "tqdm",
     "tensordict",
     "trimesh",

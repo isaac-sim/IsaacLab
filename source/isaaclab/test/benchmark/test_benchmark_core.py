@@ -354,3 +354,18 @@ def test_metrics_formatter_factory_registration_cache_and_errors():
 
     with pytest.raises(ValueError, match="Unknown formatter type"):
         formatters.MetricsFormatter.get_instance("invalid_type")
+
+
+def test_schema_benchmark_without_bundle_fails_before_writing(tmp_path):
+    benchmark = BaseIsaacLabBenchmark(
+        "missing_bundle",
+        formatter_type="schema",
+        output_path=str(tmp_path),
+        use_recorders=False,
+        output_prefix="missing_bundle",
+    )
+
+    with pytest.raises(RuntimeError, match="requires an attached benchmark bundle"):
+        benchmark.finalize()
+
+    assert not (tmp_path / f"{benchmark.output_prefix}.json").exists()

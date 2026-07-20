@@ -6,7 +6,6 @@
 """Tests for metrics formatters."""
 
 import json
-import logging
 import os
 
 import pytest
@@ -90,7 +89,7 @@ def reset_formatters():
     formatters.MetricsFormatter.reset_instances()
 
 
-def test_schema_bundle_file_serializes_bundle_and_handles_missing_bundle(tmp_path, caplog):
+def test_schema_bundle_file_serializes_bundle_and_rejects_missing_bundle(tmp_path):
     formatter = formatters.MetricsFormatter.get_instance("schema")
     phase = TestPhase(phase_name="runtime")
     phase.measurements.append(SingleMeasurement(name="Test FPS", value=60.0, unit="FPS"))
@@ -107,10 +106,9 @@ def test_schema_bundle_file_serializes_bundle_and_handles_missing_bundle(tmp_pat
     assert data["schema_version"]
     assert "Test FPS" not in json.dumps(data)
 
-    with caplog.at_level(logging.WARNING, logger="isaaclab.benchmark.formatters"):
+    with pytest.raises(RuntimeError, match="requires a benchmark bundle"):
         formatter.finalize(str(tmp_path), "missing", bundle=None)
     assert not os.path.exists(os.path.join(str(tmp_path), "missing.json"))
-    assert any("no bundle" in record.message.lower() for record in caplog.records)
 
 
 @pytest.mark.parametrize("formatter_cls", [formatters.OsmoKPIFile, formatters.OmniPerfKPIFile])

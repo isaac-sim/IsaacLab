@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Generic, Literal, TypeVar, overload
 
 from .dispatch import run_benchmark_request
 from .schema import PlayBundle, RuntimeBundle, StartupBundle, TrainingBundle
 
 BenchmarkBundle = RuntimeBundle | StartupBundle | TrainingBundle | PlayBundle
+_BenchmarkBundleT = TypeVar("BenchmarkBundleT", RuntimeBundle, StartupBundle, TrainingBundle, PlayBundle)
 BenchmarkFormatter = Literal["schema", "omniperf", "osmo", "json", "summary"]
 BenchmarkRlLibrary = Literal["rl_games", "rsl_rl", "sb3", "skrl"]
 BenchmarkVisualizer = Literal["kit", "newton", "rerun", "viser"]
@@ -259,7 +260,7 @@ BenchmarkRequest = BenchmarkRuntimeRequest | BenchmarkStartupRequest | Benchmark
 
 
 @dataclass(frozen=True)
-class BenchmarkResult:
+class BenchmarkResult(Generic[_BenchmarkBundleT]):
     """Completed benchmark result.
 
     Args:
@@ -267,8 +268,24 @@ class BenchmarkResult:
         output_paths: Files written by the selected formatters.
     """
 
-    bundle: BenchmarkBundle
+    bundle: _BenchmarkBundleT
     output_paths: tuple[Path, ...]
+
+
+@overload
+def run_benchmark(request: BenchmarkRuntimeRequest) -> BenchmarkResult[RuntimeBundle]: ...
+
+
+@overload
+def run_benchmark(request: BenchmarkStartupRequest) -> BenchmarkResult[StartupBundle]: ...
+
+
+@overload
+def run_benchmark(request: BenchmarkTrainingRequest) -> BenchmarkResult[TrainingBundle]: ...
+
+
+@overload
+def run_benchmark(request: BenchmarkPlayRequest) -> BenchmarkResult[PlayBundle]: ...
 
 
 def run_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
@@ -283,7 +300,7 @@ def run_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
     return run_benchmark_request(request)
 
 
-def run_runtime_benchmark(request: BenchmarkRuntimeRequest) -> BenchmarkResult:
+def run_runtime_benchmark(request: BenchmarkRuntimeRequest) -> BenchmarkResult[RuntimeBundle]:
     """Run an environment runtime benchmark.
 
     Args:
@@ -295,7 +312,7 @@ def run_runtime_benchmark(request: BenchmarkRuntimeRequest) -> BenchmarkResult:
     return run_benchmark(request)
 
 
-def run_startup_benchmark(request: BenchmarkStartupRequest) -> BenchmarkResult:
+def run_startup_benchmark(request: BenchmarkStartupRequest) -> BenchmarkResult[StartupBundle]:
     """Run a startup profiling benchmark.
 
     Args:
@@ -307,7 +324,7 @@ def run_startup_benchmark(request: BenchmarkStartupRequest) -> BenchmarkResult:
     return run_benchmark(request)
 
 
-def run_training_benchmark(request: BenchmarkTrainingRequest) -> BenchmarkResult:
+def run_training_benchmark(request: BenchmarkTrainingRequest) -> BenchmarkResult[TrainingBundle]:
     """Run an RL training benchmark.
 
     Args:
@@ -319,7 +336,7 @@ def run_training_benchmark(request: BenchmarkTrainingRequest) -> BenchmarkResult
     return run_benchmark(request)
 
 
-def run_play_benchmark(request: BenchmarkPlayRequest) -> BenchmarkResult:
+def run_play_benchmark(request: BenchmarkPlayRequest) -> BenchmarkResult[PlayBundle]:
     """Run an RL checkpoint playback benchmark.
 
     Args:

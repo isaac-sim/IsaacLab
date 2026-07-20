@@ -669,13 +669,11 @@ class SchemaBundleFile(MetricsFormatterInterface):
         Args:
             output_path: Output path in which the schema file will be stored.
             output_filename: Output filename (without extension).
-            bundle: Typed benchmark bundle to serialize. When ``None``, no file
-                is written.
+            bundle: Typed benchmark bundle to serialize.
             **kwargs: Additional formatter-specific options (ignored).
         """
         if bundle is None:
-            logger.warning("SchemaBundleFile selected but no bundle was attached; skipping schema file.")
-            return
+            raise RuntimeError("The schema formatter requires a benchmark bundle.")
 
         # Lazy import keeps formatters.py free of the schema layer at module import time.
         from isaaclab.benchmark.serialize import write_bundle_file

@@ -128,6 +128,12 @@ def _parse_args(argv: list[str]):
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
+        "--warmup_steps",
+        type=int,
+        default=0,
+        help="Exclude the first N env.step() calls from environment-step timing (cold-start). Opt-in; default 0.",
+    )
+    parser.add_argument(
         "--benchmark_formatter",
         type=str,
         default="schema",
@@ -158,6 +164,8 @@ def _parse_args(argv: list[str]):
     args_cli, remaining_args = setup_preset_cli(parser, argv)
     if args_cli.max_iterations is not None and args_cli.max_iterations <= 0:
         parser.error("--max_iterations must be greater than zero")
+    if args_cli.warmup_steps < 0:
+        parser.error("--warmup_steps must be non-negative")
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
@@ -257,6 +265,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                                 else "host_return"
                             ),
                         },
+                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                         {"name": "presets", "data": ",".join(cfg.presets)},
                     ]
                 },
@@ -314,7 +323,9 @@ def run(argv: list[str]) -> BenchmarkResult:
             checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
 
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-                env, measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown
+                env,
+                measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown,
+                warmup_steps=args_cli.warmup_steps,
             )
             with (
                 contextlib.suppress(KeyboardInterrupt),

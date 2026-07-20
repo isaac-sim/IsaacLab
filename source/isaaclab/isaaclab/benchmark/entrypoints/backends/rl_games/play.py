@@ -63,6 +63,12 @@ def _parse_args(argv: list[str]):
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
+        "--warmup_steps",
+        type=int,
+        default=0,
+        help="Exclude the first N env.step() calls from environment-step timing (cold-start). Opt-in; default 0.",
+    )
+    parser.add_argument(
         "--benchmark_formatter",
         type=str,
         default="schema",
@@ -77,6 +83,10 @@ def _parse_args(argv: list[str]):
     args_cli, remaining_args = setup_preset_cli(parser, argv)
     if args_cli.num_frames <= 0:
         parser.error("--num_frames must be greater than zero")
+    if args_cli.warmup_steps >= args_cli.num_frames:
+        parser.error("--warmup_steps must be less than --num_frames")
+    if args_cli.warmup_steps < 0:
+        parser.error("--warmup_steps must be non-negative")
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args
@@ -172,6 +182,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                                 else "host_return"
                             ),
                         },
+                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                         {"name": "presets", "data": ",".join(cfg.presets)},
                     ]
                 },
@@ -237,7 +248,9 @@ def run(argv: list[str]) -> BenchmarkResult:
                 return agent.get_action(obs, is_deterministic=agent.is_deterministic)
 
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-                env, measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown
+                env,
+                measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown,
+                warmup_steps=args_cli.warmup_steps,
             )
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
                 step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args_cli.num_frames)

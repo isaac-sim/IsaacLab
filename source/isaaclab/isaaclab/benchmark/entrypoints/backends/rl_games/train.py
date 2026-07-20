@@ -68,6 +68,12 @@ def _parse_args(argv: list[str]):
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
+        "--warmup_steps",
+        type=int,
+        default=0,
+        help="Exclude the first N env.step() calls from environment-step timing (cold-start). Opt-in; default 0.",
+    )
+    parser.add_argument(
         "--benchmark_formatter",
         type=str,
         default="schema",
@@ -100,6 +106,8 @@ def _parse_args(argv: list[str]):
     args_cli, remaining_args = setup_preset_cli(parser, argv)
     if args_cli.max_iterations is not None and args_cli.max_iterations <= 0:
         parser.error("--max_iterations must be greater than zero")
+    if args_cli.warmup_steps < 0:
+        parser.error("--warmup_steps must be non-negative")
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
@@ -128,6 +136,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark.entrypoints.backends._state import scoped_torch_backend_flags
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -150,11 +159,6 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     imports_t1 = time.perf_counter_ns()
 
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = False
-
     args_cli, remaining_args = _parse_args(argv)
 
     config_t0 = time.perf_counter_ns()
@@ -166,6 +170,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     with launch_simulation(env_cfg, args_cli):
         with contextlib.ExitStack() as cleanup:
+            cleanup.enter_context(scoped_torch_backend_flags(torch))
             app_t1 = time.perf_counter_ns()
 
             apply_env_overrides(args_cli, env_cfg)
@@ -204,6 +209,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                                 else "host_return"
                             ),
                         },
+                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                         {"name": "presets", "data": ",".join(cfg.presets)},
                     ]
                 },
@@ -254,7 +260,9 @@ def run(argv: list[str]) -> BenchmarkResult:
             runner.reset()
 
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-                env, measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown
+                env,
+                measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown,
+                warmup_steps=args_cli.warmup_steps,
             )
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
                 runner.run({"train": True, "play": False, "sigma": None})
