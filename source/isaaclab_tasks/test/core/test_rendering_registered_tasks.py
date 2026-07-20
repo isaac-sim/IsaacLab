@@ -82,6 +82,12 @@ _RENDER_CORRECTNESS_TASK_IDS = [
         # require at least one pass while we tighten the validation tolerances for this scene.
         marks=pytest.mark.flaky(max_runs=3, min_passes=1),
     ),
+    pytest.param(
+        "Isaac-Reorient-Cube-Shadow-Camera",
+        None,
+        "shadow_hand",
+        marks=pytest.mark.flaky(max_runs=3, min_passes=1),
+    ),
 ]
 
 
