@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# ignore private usage of variables warning
+# pyright: reportPrivateUsage=none
+
 """Shared mocked articulation backend factories for interface tests."""
 
 import importlib.util
@@ -16,10 +19,7 @@ import warp as wp
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
-# ---------------------------------------------------------------------------
-# Check which backends are available.
-# ---------------------------------------------------------------------------
-BACKENDS = ["mock"]  # Mock backend is always available.
+BACKENDS = ["Mock"]  # Mock backend is always available.
 
 if importlib.util.find_spec("isaaclab_physx") is not None:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation

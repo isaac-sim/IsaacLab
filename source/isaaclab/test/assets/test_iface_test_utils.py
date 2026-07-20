@@ -78,6 +78,21 @@ assert all(not any(backend.lower() == "physx" for backend in module.BACKENDS) fo
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_iface_utilities_use_same_mock_backend_label() -> None:
+    script = f"""
+import importlib
+import sys
+
+sys.path.insert(0, {_ASSET_TEST_DIR.as_posix()!r})
+modules = [importlib.import_module(name) for name in {_IFACE_UTIL_MODULES!r}]
+assert all(module.BACKENDS[0] == "Mock" for module in modules)
+"""
+
+    result = _run_probe(script)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_discoverable_backend_internal_import_error_propagates() -> None:
     script = f"""
 import builtins
