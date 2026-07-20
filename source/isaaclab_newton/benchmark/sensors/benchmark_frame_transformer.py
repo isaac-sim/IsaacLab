@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from functools import partial
 
 parser = argparse.ArgumentParser(description="Benchmark the Newton FrameTransformer update path.")
 parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments.")
@@ -24,10 +25,23 @@ parser.add_argument("--num_steps", type=int, default=500, help="Number of timed 
 parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up updates.")
 parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
 parser.add_argument("--device", type=str, default="cuda:0", help="Simulation device.")
+parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
+parser.add_argument(
+    "--benchmark_formatter",
+    type=str,
+    default="summary",
+    choices=["json", "osmo", "omniperf", "summary"],
+    help="Formatter used for benchmark results.",
+)
 args_cli = parser.parse_args()
-
-import statistics
-import time
+if args_cli.num_envs <= 0:
+    parser.error("--num_envs must be greater than zero")
+if args_cli.num_target_frames <= 0:
+    parser.error("--num_target_frames must be greater than zero")
+if args_cli.num_steps <= 0:
+    parser.error("--num_steps must be greater than zero")
+if args_cli.warmup_steps < 0:
+    parser.error("--warmup_steps must be non-negative")
 
 import torch
 import warp as wp
@@ -35,6 +49,8 @@ from isaaclab_newton.physics import NewtonCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
+from isaaclab.benchmark.micro import measure_latency
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.utils.configclass import configclass
@@ -65,16 +81,6 @@ class FrameTransformerBenchmarkSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.5)),
     )
     frame_transformer: FrameTransformerCfg = None
-
-
-def _percentile(samples: list[float], percentile: float) -> float:
-    """Return a linearly interpolated percentile for sorted scalar samples."""
-    ordered = sorted(samples)
-    position = (len(ordered) - 1) * percentile
-    lower = int(position)
-    upper = min(lower + 1, len(ordered) - 1)
-    fraction = position - lower
-    return ordered[lower] + fraction * (ordered[upper] - ordered[lower])
 
 
 def main() -> None:
@@ -109,18 +115,20 @@ def main() -> None:
             sensor.update(sim_dt, force_recompute=True)
         wp.synchronize_device(sim.device)
 
-        synchronized_ms: list[float] = []
-        submission_ms: list[float] = []
+        synchronize = partial(wp.synchronize_device, sim.device)
+        samples = []
         for _ in range(args_cli.num_steps):
             sim.step(render=False)
-            wp.synchronize_device(sim.device)
-            start = time.perf_counter()
-            sensor.update(sim_dt, force_recompute=True)
-            submitted = time.perf_counter()
-            wp.synchronize_device(sim.device)
-            finished = time.perf_counter()
-            synchronized_ms.append((finished - start) * 1000.0)
-            submission_ms.append((submitted - start) * 1000.0)
+            samples.append(
+                measure_latency(
+                    operation=lambda: sensor.update(sim_dt, force_recompute=True),
+                    synchronize=synchronize,
+                )
+            )
+
+        observer_samples = [
+            measure_latency(operation=lambda: None, synchronize=synchronize) for _ in range(args_cli.num_steps)
+        ]
 
         target_positions = sensor.data.target_pos_w.torch
         finite_frames = int(torch.isfinite(target_positions).all(dim=-1).sum().item())
@@ -128,21 +136,31 @@ def main() -> None:
         if finite_frames != expected_frames:
             raise RuntimeError(f"Expected {expected_frames} finite target frames, received {finite_frames}.")
 
-        print("-" * 80)
-        print("FrameTransformer update benchmark (Newton)")
-        print(f"  label                  : {args_cli.label}")
-        print(f"  device                 : {sim.device}")
-        print(f"  num_envs               : {args_cli.num_envs}")
-        print(f"  target_frames_per_env  : {args_cli.num_target_frames}")
-        print(f"  num_steps              : {args_cli.num_steps}")
-        print(f"  synchronized mean      : {statistics.mean(synchronized_ms):.3f} ms")
-        print(f"  synchronized p50       : {_percentile(synchronized_ms, 0.50):.3f} ms")
-        print(f"  synchronized p95       : {_percentile(synchronized_ms, 0.95):.3f} ms")
-        print(f"  submission mean        : {statistics.mean(submission_ms):.3f} ms")
-        print(f"  submission p50         : {_percentile(submission_ms, 0.50):.3f} ms")
-        print(f"  submission p95         : {_percentile(submission_ms, 0.95):.3f} ms")
-        print("-" * 80)
-        print(f"  finite target frames   : {finite_frames} / {expected_frames}")
+        benchmark = LatencyBenchmarkRunner(
+            benchmark_name="newton_frame_transformer_sensor",
+            formatter_type=args_cli.benchmark_formatter,
+            output_path=args_cli.output_path,
+            metadata={
+                "label": args_cli.label,
+                "device": str(sim.device),
+                "num_envs": args_cli.num_envs,
+                "target_frames_per_env": args_cli.num_target_frames,
+                "num_steps": args_cli.num_steps,
+                "warmup_steps": args_cli.warmup_steps,
+            },
+        )
+        benchmark.add_latency_samples("sensor_update", samples)
+        benchmark.add_synchronized_samples(
+            "observer", "Synchronized Observer Floor", [sample.synchronized_s for sample in observer_samples]
+        )
+        benchmark.add_measurement(
+            "validation",
+            measurement=[
+                SingleMeasurement(name="Finite Target Frames", value=finite_frames, unit="count"),
+                SingleMeasurement(name="Expected Target Frames", value=expected_frames, unit="count"),
+            ],
+        )
+        benchmark.finalize()
 
 
 if __name__ == "__main__":

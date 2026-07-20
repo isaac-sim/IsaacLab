@@ -176,16 +176,17 @@ stepping:
      - Rigid-body tracking and ray casting
 
 They are located in ``source/isaaclab_newton/benchmark/sensors/``. Each script
-reports synchronized sensor update latency and asynchronous host submission
-latency. Physics ``sim.step()`` calls use the normal Newton configuration but
-occur outside all timed regions.
+reports synchronized completion latency, host submission latency, and a synchronized
+no-op observer floor. Physics ``sim.step()`` calls use the normal Newton configuration
+but occur outside all timed regions.
 
 For example:
 
 .. code-block:: bash
 
    ./isaaclab.sh -p source/isaaclab_newton/benchmark/sensors/benchmark_contact_sensor.py \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500
+       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
+       --benchmark_formatter summary --output_path artifacts/micro_benchmarks
 
 Command Line Arguments
 ----------------------
