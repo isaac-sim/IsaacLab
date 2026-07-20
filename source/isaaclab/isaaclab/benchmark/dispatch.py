@@ -50,9 +50,11 @@ def run_benchmark_request(request: BenchmarkRequest) -> BenchmarkResult:
     module_name = _workflow_module(request.workflow, getattr(request, "backend", None))
     module = importlib.import_module(module_name)
     original_argv = sys.argv
+    request_argv = _request_argv(request)
+    sys.argv = [original_argv[0], *request_argv]
     try:
         try:
-            result = module.run(_request_argv(request))
+            result = module.run(request_argv)
         except SystemExit as exc:
             raise ValueError(f"Benchmark workflow {module_name!r} rejected the benchmark request") from exc
     finally:

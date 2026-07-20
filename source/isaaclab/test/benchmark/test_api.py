@@ -152,12 +152,15 @@ def test_request_dispatches_to_library_module(monkeypatch) -> None:
     expected = BenchmarkResult(bundle=object(), output_paths=(Path("result.json"),))
     received: list[str] = []
     caller_argv = ["caller.py", "--unrelated"]
+    expected_argv = dispatch._request_argv(request)
     monkeypatch.setattr(dispatch.sys, "argv", caller_argv)
 
     def fake_import_module(module_name: str):
         assert module_name == "isaaclab.benchmark.entrypoints.runtime"
 
         def fake_run(argv: list[str]):
+            assert argv == expected_argv
+            assert dispatch.sys.argv == [caller_argv[0], *expected_argv]
             received.extend(argv)
             dispatch.sys.argv = ["benchmark.py", "hydra.override=true"]
             return expected
