@@ -190,6 +190,10 @@ class InteractiveScene:
 
         self._aggregate_scene_data_requirements(requested_viz_types)
 
+        # The clone plan and terrain importer own the Torch origins buffer. Cache
+        # one zero-copy Warp view so frontend code does not rebuild it per access.
+        self._env_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
+
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
             self.filter_collisions(self._global_prim_paths)
@@ -372,6 +376,11 @@ class InteractiveScene:
         return self.sim.get_clone_plan().positions
 
     @property
+    def env_origins_wp(self) -> wp.array(dtype=wp.vec3f):
+        """Cached zero-copy Warp view of environment origins [m], shape ``(num_envs,)``."""
+        return self._env_origins_wp
+
+    @property
     def terrain(self) -> TerrainImporter | None:
         """The terrain in the scene. If None, then the scene has no terrain.
 
@@ -450,27 +459,39 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(
+        self,
+        env_ids: Sequence[int] | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ):
         """Resets the scene entities.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
+            env_mask: Boolean Warp mask selecting environments. When provided,
+                it takes precedence over :paramref:`env_ids`.
+
         """
+        reset_kwargs = {"env_mask": env_mask} if env_mask is not None else {"env_ids": env_ids}
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(env_ids)
+            articulation.reset(**reset_kwargs)
         for deformable_object in self._deformable_objects.values():
-            deformable_object.reset(env_ids)
+            deformable_object.reset(**reset_kwargs)
         for rigid_object in self._rigid_objects.values():
-            rigid_object.reset(env_ids)
+            rigid_object.reset(**reset_kwargs)
+        if env_mask is not None and self._surface_grippers:
+            # Surface grippers expose only the legacy ID API. Materialize IDs at
+            # this optional PhysX boundary without penalizing Warp-native scenes.
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         for surface_gripper in self._surface_grippers.values():
             surface_gripper.reset(env_ids)
         for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.reset(env_ids)
+            rigid_object_collection.reset(**reset_kwargs)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+            sensor.reset(**reset_kwargs)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

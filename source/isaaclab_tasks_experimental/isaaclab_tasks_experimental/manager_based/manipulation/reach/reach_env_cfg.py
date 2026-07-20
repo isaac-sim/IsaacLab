@@ -109,7 +109,7 @@ class EventCfg:
     """Configuration for events."""
 
     reset_base = EventTerm(
-        func=mdp.ResetRootStateUniform,
+        func=mdp.reset_root_state_uniform,
         mode="reset",
         params={"pose_range": {}, "velocity_range": {}},
     )

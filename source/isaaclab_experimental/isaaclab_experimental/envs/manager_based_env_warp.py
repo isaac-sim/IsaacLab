@@ -28,6 +28,8 @@ from isaaclab.envs.common import VecEnvObs
 from isaaclab.envs.manager_based_env_cfg import ManagerBasedEnvCfg
 from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
+from isaaclab.managers import RecorderManager
+from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
@@ -35,8 +37,8 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
-from isaaclab_experimental.utils.manager_call_switch import ManagerCallSwitch
+from isaaclab_experimental.managers import ActionManager, EventManager, ObservationManager
+from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 from isaaclab_experimental.utils.warp import resolve_1d_mask
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
@@ -78,18 +80,8 @@ class ManagerBasedEnvWarp:
         self.cfg = cfg
         # initialize internal variables
         self._is_closed = False
-        # Keep the execution policy on the environment. ManagerCallSwitch is a
-        # compatibility router that can be removed without replacing this owner.
-        self._warp_graph_cache = WarpGraphCache(enabled=True)
-        # Temporary runtime config for stable/Warp manager routing.
-        cfg_source: dict[str, int] | str | None = getattr(self.cfg, "manager_call_config", None)
-        max_modes: dict[str, int] | None = getattr(self.cfg, "manager_call_max_mode", None)
-        self._manager_call_switch = ManagerCallSwitch(
-            cfg_source,
-            max_modes=max_modes,
-            graph_cache=self._warp_graph_cache,
-        )
-        self._manager_call_switch.apply_term_cfg_profile(self.cfg)
+        # Manager stages register their capture safety with this environment-owned cache.
+        self._warp_graph_cache = WarpGraphCache(device=self.cfg.sim.device)
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -160,6 +152,9 @@ class ManagerBasedEnvWarp:
         # Pre-allocated env masks (shared across managers/terms via `env`).
         self.ALL_ENV_MASK = wp.ones((self.num_envs,), dtype=wp.bool, device=self.device)
         self.ENV_MASK = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
+        # Reset graphs always read this owner-held pointer, while callers may
+        # provide a different mask object on each reset.
+        self.reset_mask_wp = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
 
         # Persistent scalar buffer for global env step count (stable pointer for capture).
         self._global_env_step_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
@@ -178,7 +173,7 @@ class ManagerBasedEnvWarp:
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
-        self.event_manager = self._manager_call_switch.resolve_manager_class("EventManager")(self.cfg.events, self)
+        self.event_manager = EventManager(self.cfg.events, self)
 
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
@@ -360,22 +355,23 @@ class ManagerBasedEnvWarp:
             :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
 
         """
+        # Reloading managers replaces pointer-stable buffers captured by prior stages.
+        self._warp_graph_cache.invalidate()
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
         print("[INFO] Event Manager: ", self.event_manager)
         # -- recorder manager
-        self.recorder_manager = self._manager_call_switch.resolve_manager_class("RecorderManager")(
-            self.cfg.recorders, self
-        )
+        self.recorder_manager = RecorderManager(self.cfg.recorders, self)
         self._has_recorders = bool(self.recorder_manager.active_terms)
         print("[INFO] Recorder Manager: ", self.recorder_manager)
         # -- action manager
-        self.action_manager = self._manager_call_switch.resolve_manager_class("ActionManager")(self.cfg.actions, self)
+        self.action_manager = ActionManager(self.cfg.actions, self)
+        self._action_in_wp = wp.zeros(
+            (self.num_envs, self.action_manager.total_action_dim), dtype=wp.float32, device=self.device
+        )
         print("[INFO] Action Manager: ", self.action_manager)
         # -- observation manager
-        self.observation_manager = self._manager_call_switch.resolve_manager_class("ObservationManager")(
-            self.cfg.observations, self
-        )
+        self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
 
         # perform events at the start of the simulation
@@ -425,11 +421,11 @@ class ManagerBasedEnvWarp:
             A tuple containing the observations and extras.
         """
         reset_mask = self.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
-        host_env_ids = self._resolve_reset_host_ids(env_ids=env_ids, env_mask=reset_mask)
-        if host_env_ids is not None:
-            if self._has_recorders:
-                self.recorder_manager.record_pre_reset(host_env_ids)
-            self._reset_host_pre(host_env_ids)
+        if self._has_recorders:
+            recorder_env_ids = env_ids
+            if recorder_env_ids is None or isinstance(recorder_env_ids, wp.array):
+                recorder_env_ids = wp.to_torch(reset_mask).nonzero(as_tuple=False).squeeze(-1)
+            self.recorder_manager.record_pre_reset(recorder_env_ids)
 
         # set the seed
         if seed is not None:
@@ -445,8 +441,8 @@ class ManagerBasedEnvWarp:
             )
 
         self._reset_idx(env_mask=reset_mask)
-        if host_env_ids is not None:
-            self.extras["log"].update(self._reset_host_post(host_env_ids))
+        if self._has_recorders:
+            self.extras["log"].update(self.recorder_manager.reset(recorder_env_ids))
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -456,11 +452,17 @@ class ManagerBasedEnvWarp:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 
-        if self._has_recorders and host_env_ids is not None:
-            self.recorder_manager.record_post_reset(host_env_ids)
+        if self._has_recorders:
+            self.recorder_manager.record_post_reset(recorder_env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self._warp_graph_cache.call(
+            "ObservationManager_compute_reset",
+            self.observation_manager.compute,
+            update_history=True,
+            return_cloned_output=False,
+            output=clone_obs_buffer,
+        )
 
         # return observations
         return self.obs_buf, self.extras
@@ -501,9 +503,9 @@ class ManagerBasedEnvWarp:
             self.seed(seed)
 
         env_mask = self.resolve_env_mask(env_ids=env_ids)
-        self._reset_host_pre(env_ids)
         self._reset_idx(env_mask=env_mask)
-        self.extras["log"].update(self._reset_host_post(env_ids))
+        if self._has_recorders:
+            self.extras["log"].update(self.recorder_manager.reset(env_ids))
 
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
@@ -520,7 +522,13 @@ class ManagerBasedEnvWarp:
             self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self._warp_graph_cache.call(
+            "ObservationManager_compute_reset",
+            self.observation_manager.compute,
+            update_history=True,
+            return_cloned_output=False,
+            output=clone_obs_buffer,
+        )
 
         # return observations
         return self.obs_buf, self.extras
@@ -541,13 +549,13 @@ class ManagerBasedEnvWarp:
             A tuple containing the observations and extras.
         """
         # process actions
-        action_device = action.to(self.device)
-        if action_device.dtype != torch.float32:
-            action_device = action_device.float()
-        if not action_device.is_contiguous():
-            action_device = action_device.contiguous()
-        action_wp = wp.from_torch(action_device, dtype=wp.float32)
-        self.action_manager.process_action(action_wp)
+        action_device = action.to(device=self.device, dtype=torch.float32).contiguous()
+        wp.copy(self._action_in_wp, wp.from_torch(action_device, dtype=wp.float32))
+        self._warp_graph_cache.call(
+            "ActionManager_process_action",
+            self.action_manager.process_action,
+            action=self._action_in_wp,
+        )
 
         if self._has_recorders:
             self.recorder_manager.record_pre_step()
@@ -560,7 +568,7 @@ class ManagerBasedEnvWarp:
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self.action_manager.apply_action()
+            self._warp_graph_cache.call("ActionManager_apply_action", self.action_manager.apply_action)
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
@@ -575,10 +583,21 @@ class ManagerBasedEnvWarp:
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:
-            self.event_manager.apply(mode="interval", dt=self.step_dt)
+            self._warp_graph_cache.call(
+                "EventManager_apply_interval",
+                self.event_manager.apply,
+                mode="interval",
+                dt=self.step_dt,
+            )
 
         # -- compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self._warp_graph_cache.call(
+            "ObservationManager_compute_update_history",
+            self.observation_manager.compute,
+            update_history=True,
+            return_cloned_output=False,
+            output=clone_obs_buffer,
+        )
         if self._has_recorders:
             self.recorder_manager.record_post_step()
 
@@ -639,6 +658,10 @@ class ManagerBasedEnvWarp:
         Args:
             env_mask: Boolean Warp mask selecting environments to reset.
         """
+        if env_mask is not self.reset_mask_wp:
+            wp.copy(self.reset_mask_wp, env_mask)
+        env_mask = self.reset_mask_wp
+
         # reset the internal buffers of the scene elements
         self.scene.reset(env_mask=env_mask)
 
@@ -646,8 +669,12 @@ class ManagerBasedEnvWarp:
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self._global_env_step_count_wp.fill_(env_step_count)
-            self.event_manager.apply(
-                mode="reset", env_mask_wp=env_mask, global_env_step_count=self._global_env_step_count_wp
+            self._warp_graph_cache.call(
+                "EventManager_apply_reset",
+                self.event_manager.apply,
+                mode="reset",
+                env_mask_wp=env_mask,
+                global_env_step_count=self._global_env_step_count_wp,
             )
 
         # iterate over all managers and reset them
@@ -655,47 +682,13 @@ class ManagerBasedEnvWarp:
         # note: This is order-sensitive! Certain things need be reset before others.
         self.extras["log"] = dict()
         # -- observation manager
-        info = self.observation_manager.reset(env_mask=env_mask)
+        info = self._warp_graph_cache.call(
+            "ObservationManager_reset", self.observation_manager.reset, env_mask=env_mask
+        )
         self.extras["log"].update(info)
         # -- action manager
-        info = self.action_manager.reset(env_mask=env_mask)
+        info = self._warp_graph_cache.call("ActionManager_reset", self.action_manager.reset, env_mask=env_mask)
         self.extras["log"].update(info)
         # -- event manager
-        info = self.event_manager.reset(env_mask=env_mask)
+        info = self._warp_graph_cache.call("EventManager_reset", self.event_manager.reset, env_mask=env_mask)
         self.extras["log"].update(info)
-
-    def _reset_host_pre(self, env_ids: Sequence[int] | torch.Tensor) -> None:
-        """Reset ID-only scene state before the Warp reset stage."""
-        self.scene.reset_host(env_ids)
-
-    def _reset_host_post(self, env_ids: Sequence[int] | torch.Tensor) -> dict[str, Any]:
-        """Reset host-only managers after the Warp reset stage."""
-        if self._has_recorders:
-            return self.recorder_manager.reset(env_ids)
-        return {}
-
-    def _reset_requires_host_selection(self) -> bool:
-        """Return whether configured reset features require a host-visible selection."""
-        return bool(self._has_recorders or self.scene.surface_grippers)
-
-    def _resolve_reset_host_ids(
-        self,
-        *,
-        env_ids: Sequence[int] | wp.array | torch.Tensor | None,
-        env_mask: wp.array(dtype=wp.bool),
-    ) -> Sequence[int] | torch.Tensor | None:
-        """Materialize reset IDs only when a configured host feature consumes them.
-
-        Args:
-            env_ids: Original environment ID selection, if provided.
-            env_mask: Canonical Warp reset mask.
-
-        Returns:
-            Host-readable environment IDs, or ``None`` when the reset remains
-            entirely on the Warp data path.
-        """
-        if not self._reset_requires_host_selection():
-            return None
-        if env_ids is not None and not isinstance(env_ids, wp.array):
-            return env_ids
-        return wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)

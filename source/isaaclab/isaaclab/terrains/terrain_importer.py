@@ -345,7 +345,7 @@ class TerrainImporter:
             if isinstance(origins, np.ndarray):
                 origins = torch.from_numpy(origins)
             # store the origins
-            self.terrain_origins = origins.to(self.device, dtype=torch.float).contiguous()
+            self.terrain_origins = origins.to(self.device, dtype=torch.float)
             # compute environment origins
             self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
         else:

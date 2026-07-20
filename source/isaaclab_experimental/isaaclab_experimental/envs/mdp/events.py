@@ -27,7 +27,6 @@ Notes:
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -36,10 +35,6 @@ from isaaclab_experimental.managers import EventTermCfg, ManagerTermBase, SceneE
 from isaaclab_experimental.utils.warp import WarpCapturable, warp_capturable
 
 __all__ = [
-    "ApplyExternalForceTorque",
-    "PushBySettingVelocity",
-    "RandomizeRigidBodyCom",
-    "ResetRootStateUniform",
     "apply_external_force_torque",
     "push_by_setting_velocity",
     "randomize_rigid_body_com",
@@ -94,7 +89,7 @@ def _randomize_com_kernel(
 
 
 @warp_capturable(False)
-class RandomizeRigidBodyCom(ManagerTermBase):
+class randomize_rigid_body_com(ManagerTermBase):
     """Randomize rigid-body centers of mass from a persistent default baseline.
 
     This term is not CUDA-graph capturable because notifying the solver of changed
@@ -154,26 +149,6 @@ class RandomizeRigidBodyCom(ManagerTermBase):
         self._asset.set_coms_mask(coms=self._asset.data.body_com_pos_b.warp, env_mask=env_mask)
 
 
-@WarpCapturable(False, reason="set_coms_mask calls SimulationManager.add_model_change")
-def randomize_rigid_body_com(
-    env: ManagerBasedEnv,
-    env_mask: wp.array(dtype=wp.bool),
-    com_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-) -> None:
-    """Deprecated compatibility adapter for :class:`RandomizeRigidBodyCom`."""
-    warnings.warn(
-        "'randomize_rigid_body_com' is deprecated; use 'RandomizeRigidBodyCom' in event configurations.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    params = {"com_range": com_range, "asset_cfg": asset_cfg}
-    cfg = EventTermCfg(func=RandomizeRigidBodyCom, mode="reset", params={})
-    cfg.params = params
-    term = RandomizeRigidBodyCom(cfg, env)
-    term(env, env_mask, **params)
-
-
 # ---------------------------------------------------------------------------
 # Apply external force and torque
 # ---------------------------------------------------------------------------
@@ -211,7 +186,7 @@ def _apply_external_force_torque_kernel(
     rng_state[env_id] = state
 
 
-class ApplyExternalForceTorque(ManagerTermBase):
+class apply_external_force_torque(ManagerTermBase):
     """Apply random external forces and torques using persistent wrench buffers."""
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
@@ -283,27 +258,6 @@ class ApplyExternalForceTorque(ManagerTermBase):
         )
 
 
-@WarpCapturable(False, reason="deprecated adapter constructs term state; use ApplyExternalForceTorque")
-def apply_external_force_torque(
-    env: ManagerBasedEnv,
-    env_mask: wp.array(dtype=wp.bool),
-    force_range: tuple[float, float],
-    torque_range: tuple[float, float],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-) -> None:
-    """Deprecated compatibility adapter for :class:`ApplyExternalForceTorque`."""
-    warnings.warn(
-        "'apply_external_force_torque' is deprecated; use 'ApplyExternalForceTorque' in event configurations.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    params = {"force_range": force_range, "torque_range": torque_range, "asset_cfg": asset_cfg}
-    cfg = EventTermCfg(func=ApplyExternalForceTorque, mode="reset", params={})
-    cfg.params = params
-    term = ApplyExternalForceTorque(cfg, env)
-    term(env, env_mask, **params)
-
-
 # ---------------------------------------------------------------------------
 # Push by velocity
 # ---------------------------------------------------------------------------
@@ -339,7 +293,7 @@ def _push_by_setting_velocity_kernel(
     rng_state[env_id] = state
 
 
-class PushBySettingVelocity(ManagerTermBase):
+class push_by_setting_velocity(ManagerTermBase):
     """Push an asset by sampling into a persistent root-velocity buffer."""
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
@@ -393,26 +347,6 @@ class PushBySettingVelocity(ManagerTermBase):
         )
 
         self._asset.write_root_velocity_to_sim_mask(root_velocity=self._velocity, env_mask=env_mask)
-
-
-@WarpCapturable(False, reason="deprecated adapter constructs term state; use PushBySettingVelocity")
-def push_by_setting_velocity(
-    env: ManagerBasedEnv,
-    env_mask: wp.array(dtype=wp.bool),
-    velocity_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-) -> None:
-    """Deprecated compatibility adapter for :class:`PushBySettingVelocity`."""
-    warnings.warn(
-        "'push_by_setting_velocity' is deprecated; use 'PushBySettingVelocity' in event configurations.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    params = {"velocity_range": velocity_range, "asset_cfg": asset_cfg}
-    cfg = EventTermCfg(func=PushBySettingVelocity, mode="interval", params={})
-    cfg.params = params
-    term = PushBySettingVelocity(cfg, env)
-    term(env, env_mask, **params)
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +418,7 @@ def _reset_root_state_uniform_kernel(
     rng_state[env_id] = state
 
 
-class ResetRootStateUniform(ManagerTermBase):
+class reset_root_state_uniform(ManagerTermBase):
     """Reset root pose and velocity using persistent Warp output buffers."""
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
@@ -559,27 +493,6 @@ class ResetRootStateUniform(ManagerTermBase):
 
         self._asset.write_root_pose_to_sim_mask(root_pose=self._pose, env_mask=env_mask)
         self._asset.write_root_velocity_to_sim_mask(root_velocity=self._velocity, env_mask=env_mask)
-
-
-@WarpCapturable(False, reason="deprecated adapter constructs term state; use ResetRootStateUniform")
-def reset_root_state_uniform(
-    env: ManagerBasedEnv,
-    env_mask: wp.array(dtype=wp.bool),
-    pose_range: dict[str, tuple[float, float]],
-    velocity_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-) -> None:
-    """Deprecated compatibility adapter for :class:`ResetRootStateUniform`."""
-    warnings.warn(
-        "'reset_root_state_uniform' is deprecated; use 'ResetRootStateUniform' in event configurations.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    params = {"pose_range": pose_range, "velocity_range": velocity_range, "asset_cfg": asset_cfg}
-    cfg = EventTermCfg(func=ResetRootStateUniform, mode="reset", params={})
-    cfg.params = params
-    term = ResetRootStateUniform(cfg, env)
-    term(env, env_mask, **params)
 
 
 # ---------------------------------------------------------------------------

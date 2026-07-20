@@ -146,7 +146,7 @@ class EventCfg:
     # FIXME(warp-migration): COM randomization in exp manager-based locomotion currently causes
     #  NaNs and is temporarily disabled.
     # base_com = EventTerm(
-    #     func=mdp.RandomizeRigidBodyCom,
+    #     func=mdp.randomize_rigid_body_com,
     #     mode="startup",
     #     params={
     #         "asset_cfg": SceneEntityCfg("robot", body_names="base"),
@@ -157,7 +157,7 @@ class EventCfg:
 
     # reset
     base_external_force_torque = EventTerm(
-        func=mdp.ApplyExternalForceTorque,
+        func=mdp.apply_external_force_torque,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="base"),
@@ -167,7 +167,7 @@ class EventCfg:
     )
 
     reset_base = EventTerm(
-        func=mdp.ResetRootStateUniform,
+        func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
             "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
@@ -193,7 +193,7 @@ class EventCfg:
 
     # interval
     push_robot = EventTerm(
-        func=mdp.PushBySettingVelocity,
+        func=mdp.push_by_setting_velocity,
         mode="interval",
         interval_range_s=(10.0, 15.0),
         params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},

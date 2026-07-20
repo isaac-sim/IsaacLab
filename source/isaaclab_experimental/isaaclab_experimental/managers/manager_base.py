@@ -20,7 +20,7 @@ import copy
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
@@ -446,17 +446,19 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        # Register capture safety with the environment-owned executor. The
-        # manager call switch only consumes this policy while it still exists.
-        if not is_warp_capturable(term_cfg.func):
-            graph_cache = getattr(self._env, "_warp_graph_cache", None)
-            if graph_cache is not None:
-                graph_cache.register_capturability(type(self).__name__, False)
+        self._register_term_capturability(term_cfg.func)
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
         if self._env.sim.is_playing():
             self._process_term_cfg_at_play(term_name, term_cfg)
+
+    def _register_term_capturability(self, term: Callable) -> None:
+        """Keep the complete manager eager when a configured term is unsafe."""
+        if not is_warp_capturable(term):
+            graph_cache = getattr(self._env, "_warp_graph_cache", None)
+            if graph_cache is not None:
+                graph_cache.register_capturability(type(self).__name__, False)
 
     def _process_term_cfg_at_play(self, term_name: str, term_cfg: ManagerTermBaseCfg):
         """Process the term configuration at runtime.

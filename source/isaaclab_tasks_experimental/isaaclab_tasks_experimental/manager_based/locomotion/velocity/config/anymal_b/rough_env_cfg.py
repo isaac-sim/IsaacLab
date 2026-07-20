@@ -15,7 +15,6 @@ class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.scene.robot = ANYMAL_B_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.manager_call_max_mode = {"Scene": 1}
 
 
 @configclass

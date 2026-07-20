@@ -31,13 +31,13 @@ from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
 
 # from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
+from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 from isaaclab_experimental.utils.warp import increment_all_int32, zero_masked_int32
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
@@ -144,7 +144,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveSceneWarp(self.cfg.scene)
+                self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 self.scene.initialize_renderers()
                 # attach_stage_to_usd_context()
@@ -225,10 +225,9 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Direct stages stay eager until their complete backend boundaries are
-        # verified capture-safe. The owner-held executor keeps that policy out of
-        # individual stage call sites.
-        self._warp_graph_cache = WarpGraphCache(enabled=False)
+        # Direct-task stages include Python reset hooks and stay eager until those
+        # complete boundaries are validated for capture.
+        self._warp_graph_cache = WarpGraphCache(enabled=False, device=self.device)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()

@@ -21,7 +21,6 @@ class AnymalCRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # switch robot to anymal-c
         self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["legs"].armature = 0.01
-        self.manager_call_max_mode = {"Scene": 1}
 
 
 @configclass

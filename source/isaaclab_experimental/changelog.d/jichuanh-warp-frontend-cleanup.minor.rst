@@ -12,16 +12,10 @@ Added
 Changed
 ^^^^^^^
 
-* Changed Warp manager stages to execute eagerly by default while stateful
-  capture semantics are validated. Set
-  ``MANAGER_CALL_CONFIG='{"default": 2}'`` to opt eligible manager stages into
-  CUDA graph capture. Direct-environment stages remained eager.
-
-Deprecated
-^^^^^^^^^^
-
-* Deprecated selecting stable managers inside ``ManagerBasedEnvWarp``. Use
-  ``ManagerBasedEnv`` for Torch managers or mode ``1`` for the Warp frontend.
+* **Breaking:** Removed the experimental ``ManagerCallSwitch`` and
+  ``MANAGER_CALL_CONFIG`` interface. Warp environments now instantiate Warp
+  managers directly and automatically keep managers with non-capturable terms
+  on eager execution.
 
 Fixed
 ^^^^^
