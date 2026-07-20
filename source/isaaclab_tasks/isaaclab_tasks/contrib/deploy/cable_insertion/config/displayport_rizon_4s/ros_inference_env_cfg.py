@@ -6,7 +6,7 @@
 import math
 
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.deploy.cable_insertion.displayport_insertion_env_cfg import (
     compute_plug_pose,
