@@ -324,20 +324,31 @@ class AppLauncher:
         # Ensure SimulationApp.close() is called on normal process exit so Kit
         # shuts down cleanly instead of relying on __del__ (which logs a warning
         # and can leave GPU resources in a bad state for the next test).
-        def _atexit_close(app=self._app):
-            with contextlib.suppress(Exception):
-                app.close()
-
-        atexit.register(_atexit_close)
+        atexit.register(self._close_app_at_exit)
 
         # Set up signal handlers for graceful shutdown
         self._abort_in_progress = False
         # -- during explicit `kill` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
-        # -- during aborts
+        # -- during aborts raised as signals (e.g. ``kill -ABRT``). Native ``abort()`` calls
+        #    restore the default action before re-raising, so they terminate the process
+        #    without entering this handler.
         signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
-        # -- during segfaults
-        signal.signal(signal.SIGSEGV, self._abort_signal_handle_callback)
+        # NOTE: SIGSEGV is intentionally not handled at the Python level. For a synchronous
+        # segfault on the main thread the faulting instruction re-executes as soon as the
+        # C-level trampoline returns, so a Python handler never runs and the process spins on
+        # signal delivery forever. For a segfault on a worker thread the handler would run on
+        # the main thread and report a successful exit for a crashed process. Registering a
+        # handler here would also replace the carb crash reporter's handler and suppress
+        # minidumps for real crashes.
+        # WORKAROUND(isaac-sim): SimulationApp installs a SIGINT handler that terminates the
+        # process with exit code 0 before ``finally`` blocks or ``KeyboardInterrupt`` handlers
+        # in user code can run. Restore Python's default behavior so Ctrl-C raises
+        # :class:`KeyboardInterrupt`, unwinds user code, and exits with a failure status; the
+        # app is still closed by the ``atexit`` callback above. Remove this override once
+        # SimulationApp's SIGINT handler preserves exception semantics and a nonzero exit
+        # status.
+        signal.signal(signal.SIGINT, signal.default_int_handler)
 
     """
     Properties.
@@ -1370,13 +1381,6 @@ class AppLauncher:
             }
         )
 
-    def _interrupt_signal_handle_callback(self, signal, frame):
-        """Handle the interrupt signal from the keyboard."""
-        # close the app
-        self._app.close()
-        # raise the error for keyboard interrupt
-        raise KeyboardInterrupt
-
     def is_isaac_sim_version_5(self) -> bool:
         if not hasattr(self, "_is_sim_ver_5"):
             # 1) Try to read the VERSION file (for manual / binary installs)
@@ -1434,17 +1438,44 @@ class AppLauncher:
         print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
         print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
 
+    def _close_app_at_exit(self):
+        """Close the app on normal interpreter exit."""
+        # A signal that arrives while this close is running must take the re-entrant path of
+        # :meth:`_abort_signal_handle_callback` instead of starting a second, nested teardown
+        # of a half-closed app.
+        self._abort_in_progress = True
+        with contextlib.suppress(Exception):
+            self._app.close()
+
     def _abort_signal_handle_callback(self, signum, frame):
-        """Handle the abort/segmentation/kill signals."""
+        """Handle the abort/termination signals."""
         # A signal delivered while the app is already closing (e.g. a repeated SIGTERM from a
         # distributed launcher, or a fault raised inside :meth:`SimulationApp.close`) must not
         # re-enter `close()`: the nested calls recurse until the stack overflows, so the process
-        # neither shuts down cleanly nor reports the original failure. Fall back to the default
-        # signal action so the process terminates with the original signal.
+        # neither shuts down cleanly nor reports a meaningful failure. Fall back to the default
+        # signal action so the process terminates with the re-entrant signal.
         if self._abort_in_progress:
             signal.signal(signum, signal.SIG_DFL)
             signal.raise_signal(signum)
             return
         self._abort_in_progress = True
+        # WORKAROUND(isaac-sim): under Kit fast shutdown, :meth:`SimulationApp.close` terminates
+        # the process from inside ``app.shutdown()`` with exit code 0, so a signal-terminated
+        # worker would report success (a distributed launcher then marks the rank as succeeded
+        # and the remaining ranks block until the collective watchdog fires). Disable fast
+        # shutdown so `close()` performs the full teardown and returns control here. Remove the
+        # override once SimulationApp can propagate a nonzero exit status through its
+        # fast-shutdown path.
+        with contextlib.suppress(Exception):
+            import carb.settings
+
+            carb.settings.get_settings().set("/app/fastShutdown", False)
+        with contextlib.suppress(Exception):
+            self._app.config["fast_shutdown"] = False
         # close the app
-        self._app.close()
+        with contextlib.suppress(Exception):
+            self._app.close()
+        # Re-raise with the default action so the process exits with the conventional
+        # killed-by-signal status (128 + signum) instead of reporting success.
+        signal.signal(signum, signal.SIG_DFL)
+        signal.raise_signal(signum)

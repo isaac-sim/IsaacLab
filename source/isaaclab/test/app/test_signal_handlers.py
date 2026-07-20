@@ -11,7 +11,46 @@ import types
 from isaaclab.app.app_launcher import AppLauncher
 
 
-def test_abort_handler_closes_app_once_on_reentrant_signal(monkeypatch):
+def _make_launcher(close_fn):
+    launcher = types.SimpleNamespace(_abort_in_progress=False)
+    launcher._app = types.SimpleNamespace(close=close_fn, config={"fast_shutdown": True})
+    return launcher
+
+
+def _capture_signal_actions(monkeypatch):
+    actions = []
+    monkeypatch.setattr(
+        "isaaclab.app.app_launcher.signal.signal",
+        lambda signum, handler: actions.append(("set_handler", signum, handler)),
+    )
+    monkeypatch.setattr(
+        "isaaclab.app.app_launcher.signal.raise_signal",
+        lambda signum: actions.append(("raise", signum)),
+    )
+    return actions
+
+
+def test_abort_handler_closes_once_and_reports_killed_by_signal(monkeypatch):
+    """The first signal closes the app once, then re-raises with the default action.
+
+    The re-raise is what makes the process exit with the conventional 128 + signum
+    status instead of the exit code 0 that Kit fast shutdown reports.
+    """
+    close_calls = []
+    launcher = _make_launcher(lambda: close_calls.append(len(close_calls) + 1))
+    actions = _capture_signal_actions(monkeypatch)
+
+    AppLauncher._abort_signal_handle_callback(launcher, signal.SIGTERM, None)
+
+    # the app must be closed exactly once, with fast shutdown disabled beforehand
+    assert close_calls == [1]
+    assert launcher._app.config["fast_shutdown"] is False
+    # the handler must hand the signal back to the default action to preserve the status
+    assert ("set_handler", signal.SIGTERM, signal.SIG_DFL) in actions
+    assert ("raise", signal.SIGTERM) in actions
+
+
+def test_abort_handler_reentrant_signal_skips_nested_close(monkeypatch):
     """A signal delivered while ``close()`` is running must not re-enter ``close()``.
 
     Regression test for the infinite recursion where a SIGTERM received during
@@ -19,9 +58,6 @@ def test_abort_handler_closes_app_once_on_reentrant_signal(monkeypatch):
     stack overflowed and the process had to be SIGKILL-ed.
     """
     close_calls = []
-    fallback_actions = []
-
-    launcher = types.SimpleNamespace(_abort_in_progress=False)
 
     def _close():
         close_calls.append(len(close_calls) + 1)
@@ -29,21 +65,38 @@ def test_abort_handler_closes_app_once_on_reentrant_signal(monkeypatch):
         if len(close_calls) < 5:
             AppLauncher._abort_signal_handle_callback(launcher, signal.SIGTERM, None)
 
-    launcher._app = types.SimpleNamespace(close=_close)
-
-    monkeypatch.setattr(
-        "isaaclab.app.app_launcher.signal.signal",
-        lambda signum, handler: fallback_actions.append(("set_handler", signum, handler)),
-    )
-    monkeypatch.setattr(
-        "isaaclab.app.app_launcher.signal.raise_signal",
-        lambda signum: fallback_actions.append(("raise", signum)),
-    )
+    launcher = _make_launcher(_close)
+    actions = _capture_signal_actions(monkeypatch)
 
     AppLauncher._abort_signal_handle_callback(launcher, signal.SIGTERM, None)
 
-    # the app must be closed exactly once
+    # the app must be closed exactly once despite the nested signal
     assert close_calls == [1]
-    # the re-entrant signal must fall back to the default action and re-raise
-    assert ("set_handler", signal.SIGTERM, signal.SIG_DFL) in fallback_actions
-    assert ("raise", signal.SIGTERM) in fallback_actions
+    # both the nested and the outer path fall back to the default action and re-raise
+    assert actions.count(("set_handler", signal.SIGTERM, signal.SIG_DFL)) >= 1
+    assert actions.count(("raise", signal.SIGTERM)) >= 1
+
+
+def test_atexit_close_arms_reentrancy_guard(monkeypatch):
+    """A signal arriving during the atexit close must take the re-entrant path.
+
+    The atexit callback arms the same guard flag as the signal handler, so a SIGTERM
+    delivered mid-close falls back to the default signal action instead of starting a
+    second, nested teardown.
+    """
+    close_calls = []
+
+    def _close():
+        close_calls.append(len(close_calls) + 1)
+        # Simulate a signal delivered while the atexit close is running.
+        AppLauncher._abort_signal_handle_callback(launcher, signal.SIGTERM, None)
+
+    launcher = _make_launcher(_close)
+    actions = _capture_signal_actions(monkeypatch)
+
+    AppLauncher._close_app_at_exit(launcher)
+
+    # the guard must be armed before close, so the mid-close signal must not re-enter close()
+    assert close_calls == [1]
+    assert ("set_handler", signal.SIGTERM, signal.SIG_DFL) in actions
+    assert ("raise", signal.SIGTERM) in actions
