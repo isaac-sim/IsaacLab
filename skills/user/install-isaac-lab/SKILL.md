@@ -44,9 +44,7 @@ Use this checklist:
 5. Commands came verbatim from the routed install page in the checkout.
 6. The docs-defined minimal verification command ran before any examples, training, or rendering:
 
-```bash
-uv run python -c "import isaaclab; print('ok')"
-```
+Use the verification command documented by the chosen install page. For binary installs, use the bundled Python verification documented on the binary page. For Docker installs, run the documented verification inside the container.
 
 7. If verification fails, hand off to `isaaclab-setup-troubleshooting` with the install log path.
 
