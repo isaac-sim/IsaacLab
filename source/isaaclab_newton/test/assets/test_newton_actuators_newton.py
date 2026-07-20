@@ -3,19 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PD actuator equivalence tests on ANYmal-C (floating-base quadruped).
+"""Behavior tests for Newton-native actuators on the Newton physics backend.
 
-Compares IsaacLab-native actuators against Newton-native actuators (created
-from the same Lab configs via USD authoring) on the Newton physics backend.
-Both paths must produce identical joint trajectories within tolerance.
+The Newton backend always steps actuators through the physics engine:
+explicit Lab actuator configs (IdealPD, DCMotor, DelayedPD, RemotizedPD,
+ActuatorNet*) are authored as ``NewtonActuator`` USD prims and stepped by
+Newton; implicit configs use the solver's built-in joint drives. These
+tests assert that behavior directly:
+
+* PD tracking: commanded poses are reached and held (gravity disabled).
+* Torque telemetry: ``computed_torque`` follows the PD law and
+  ``applied_torque`` follows each clamp's exact formula (max-effort box,
+  DC-motor speed-torque curve, position-based lookup clamping).
+* Delay semantics: a target switch takes effect exactly ``delay_steps``
+  actuator steps later.
+* Decimation folding: one folded manager step covering ``d`` sub-steps
+  reproduces the trajectory of ``d`` explicit single sub-steps.
+* Ordering, reset isolation, DR gain writes, and USD authoring.
 
 Using ANYmal-C — a 12-DOF quadruped on a floating base — exercises the
 coordinate-vs-DOF index separation that is critical when free joints shift
 the mapping between ``joint_q`` (coordinate layout) and ``joint_qd``
 (DOF layout).
-
-Each test class overrides ANYmal's default actuators with a specific Lab
-config (IdealPD, DCMotor, or mixed) and verifies Lab vs Newton equivalence.
 """
 
 from isaaclab.app import AppLauncher
@@ -24,6 +33,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import json
 import os
+import re
 import tempfile
 import unittest
 
@@ -52,7 +62,10 @@ from isaaclab_assets import ANYMAL_C_CFG
 
 NUM_ENVS = 2
 NUM_STEPS = 10
-DT = 1.0 / 120.0
+# 200 Hz, the standard quadruped physics rate. At 120 Hz the explicit-Euler loop
+# is marginally unstable for the ANYdrive gains on the knee joints (the lightest
+# links): tracking runs drift 0.15-1.0 rad instead of settling.
+DT = 1.0 / 200.0
 TARGET_OFFSET = 0.1  # [rad] added to initial joint positions
 
 NEWTON_CFG = NewtonCfg(
@@ -117,46 +130,64 @@ MIXED_ACTUATORS = {
 
 def _run_simulation(
     actuators: dict,
-    use_newton_actuators: bool,
     *,
     dt: float = DT,
     newton_cfg: NewtonCfg = NEWTON_CFG,
     num_steps: int = NUM_STEPS,
     decimation: int = 1,
+    fold_decimation: bool = True,
+    gravity_enabled: bool = True,
+    add_ground_plane: bool = True,
+    target_offset: float = TARGET_OFFSET,
     feedforward: float | None = None,
+    retarget_offset: float | None = None,
+    retarget_at_step: int | None = None,
     joint_ordering: tuple[str, ...] | None = None,
     permutation_sensitive_commands: bool = False,
 ) -> dict:
-    """Run ANYmal-C and return recorded trajectories + telemetry.
+    """Run ANYmal-C on the Newton actuator path, record trajectories + telemetry.
 
     Always records ``joint_pos``, ``joint_vel``, ``computed_torque``, and
-    ``applied_torque`` so callers don't need a separate "with telemetry"
-    runner. Optionally applies a constant per-DOF feedforward effort target.
+    ``applied_torque`` (public order) plus the adapter's backend-order effort
+    buffers, the pre-run joint state, and the gain/limit snapshots that the
+    telemetry kernel reads — everything the direct behavior assertions need.
 
     Args:
         actuators: Actuator config dict overriding ANYmal's defaults.
-        use_newton_actuators: Use Newton-native actuators when ``True``.
         dt: Physics timestep [s].
         newton_cfg: Newton physics configuration.
         num_steps: Number of policy-level steps.
-        decimation: Actuator steps per policy step (the manager's internal
-            d-loop is used when it owns the decimation loop; otherwise an
-            explicit Python inner loop).
+        decimation: Actuator steps per policy step.
+        fold_decimation: When ``True`` and ``decimation > 1``, ask the physics
+            manager to fold the whole decimation loop into a single step call
+            (CUDA-graph d-loop); otherwise an explicit Python inner loop
+            drives ``decimation`` single sub-steps per policy step.
+        gravity_enabled: Whether gravity is enabled.
+        add_ground_plane: Whether a ground plane is spawned.
+        target_offset: Offset added to the initial joint positions to form
+            the position target [rad].
         feedforward: When not ``None``, set a constant per-DOF feedforward
-            effort target. Used by the implicit-FF equivalence test.
+            effort target.
+        retarget_offset: Offset for the second-phase position target [rad].
+        retarget_at_step: Policy step at which the position target switches
+            to ``init + retarget_offset``. Used by the delay-semantics test.
         joint_ordering: Optional explicit public joint-name order.
         permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
             physical joint name.
 
     Returns:
-        Recorded joint-name metadata, commands, public trajectories and torque telemetry, and backend-order
-        adapter effort traces.
+        Recorded joint-name metadata, commands, initial state, public
+        trajectories and torque telemetry, backend-order adapter effort
+        traces, and gain/limit snapshots.
     """
-    sim_cfg = SimulationCfg(dt=dt, physics=newton_cfg, use_newton_actuators=use_newton_actuators)
+    # ``build_simulation_context`` only honors ``gravity_enabled`` when it builds
+    # the config itself; with an explicit ``sim_cfg`` gravity must be set here.
+    gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
+    sim_cfg = SimulationCfg(dt=dt, physics=newton_cfg, gravity=gravity)
     with build_simulation_context(
         device="cuda:0",
-        gravity_enabled=True,
-        add_ground_plane=True,
+        gravity_enabled=gravity_enabled,
+        add_ground_plane=add_ground_plane,
         sim_cfg=sim_cfg,
     ) as sim:
         sim._app_control_on_stop_handle = None
@@ -171,12 +202,18 @@ def _run_simulation(
         sim.reset()
         assert articulation.is_initialized
 
-        if use_newton_actuators and decimation > 1:
-            SimulationManager.set_decimation(decimation)
+        # Raw articulations have no env reset event: start from the asset's
+        # default joint state instead of the USD-authored zero pose, whose
+        # ``init + offset`` targets can fall outside reachable joint ranges.
+        articulation.write_joint_position_to_sim_index(position=articulation.data.default_joint_pos.torch.clone())
+        articulation.write_joint_velocity_to_sim_index(velocity=articulation.data.default_joint_vel.torch.clone())
 
-        # Mirror the env gate: fold the decimation loop into one step() call
-        # whenever the manager owns it (Newton actuator path active).
-        handles_dec = SimulationManager.handles_decimation() and SimulationManager._decimation > 1
+        if fold_decimation and decimation > 1:
+            SimulationManager.set_decimation(decimation)
+        folds_decimation = fold_decimation and decimation > 1 and SimulationManager.handles_decimation()
+
+        adapter_exists = SimulationManager._adapter is not None
+        num_model_actuators = len(SimulationManager.get_model().actuators)
 
         joint_names = tuple(articulation.joint_names)
         backend_joint_names = tuple(articulation.backend_joint_names)
@@ -193,6 +230,10 @@ def _run_simulation(
             }
         )
         init_pos = wp.to_torch(articulation.data.joint_pos).clone()
+        init_vel = wp.to_torch(articulation.data.joint_vel).clone()
+        joint_stiffness = wp.to_torch(articulation.data.joint_stiffness).clone()
+        joint_damping = wp.to_torch(articulation.data.joint_damping).clone()
+        joint_effort_limits = wp.to_torch(articulation.data.joint_effort_limits).clone()
         if permutation_sensitive_commands:
             scale_by_name = {name: index + 1 for index, name in enumerate(backend_joint_names)}
             joint_scale = torch.tensor(
@@ -205,7 +246,7 @@ def _run_simulation(
             target_vel = 0.001 * joint_scale
             effort_target = 0.1 * joint_scale
         else:
-            target_pos = init_pos + TARGET_OFFSET
+            target_pos = init_pos + target_offset
             target_vel = torch.zeros_like(init_pos)
             effort_target = None if feedforward is None else torch.full_like(init_pos, feedforward)
 
@@ -214,11 +255,15 @@ def _run_simulation(
         if effort_target is not None:
             articulation.set_joint_effort_target_index(target=effort_target)
 
+        target_pos2 = None
         recorded_pos, recorded_vel = [], []
         recorded_computed, recorded_applied = [], []
         recorded_adapter_computed, recorded_adapter_applied = [], []
-        for _ in range(num_steps):
-            if handles_dec:
+        for step_index in range(num_steps):
+            if retarget_at_step is not None and step_index == retarget_at_step:
+                target_pos2 = init_pos + retarget_offset
+                articulation.set_joint_position_target_index(target=target_pos2)
+            if folds_decimation:
                 articulation.write_data_to_sim()
                 sim.step()
                 articulation.update(dt * decimation)
@@ -231,15 +276,22 @@ def _run_simulation(
             recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
             recorded_computed.append(wp.to_torch(articulation.data.computed_torque).clone())
             recorded_applied.append(wp.to_torch(articulation.data.applied_torque).clone())
-            if use_newton_actuators:
-                recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
-                recorded_adapter_applied.append(wp.to_torch(articulation.data._sim_bind_joint_effort).clone())
+            recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
+            recorded_adapter_applied.append(wp.to_torch(articulation.data._sim_bind_joint_effort).clone())
 
     return {
         "joint_names": joint_names,
         "backend_joint_names": backend_joint_names,
         "joint_ordering": joint_ordering_state,
         "adapter_joint_names": backend_joint_names,
+        "adapter_exists": adapter_exists,
+        "num_model_actuators": num_model_actuators,
+        "folds_decimation": folds_decimation,
+        "init_pos": init_pos.clone(),
+        "init_vel": init_vel.clone(),
+        "joint_stiffness": joint_stiffness,
+        "joint_damping": joint_damping,
+        "joint_effort_limits": joint_effort_limits,
         "joint_pos": recorded_pos,
         "joint_vel": recorded_vel,
         "computed_torque": recorded_computed,
@@ -248,6 +300,8 @@ def _run_simulation(
         "adapter_applied_effort": recorded_adapter_applied,
         "target_pos": target_pos.clone(),
         "target_vel": target_vel.clone(),
+        "target_pos2": None if target_pos2 is None else target_pos2.clone(),
+        "retarget_at_step": retarget_at_step,
         "effort_target": None if effort_target is None else effort_target.clone(),
     }
 
@@ -303,13 +357,11 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
     """Match Newton-backend actuator traces under reversed public joint ordering."""
     identity_result = _run_simulation(
         IDEAL_PD_ACTUATORS,
-        use_newton_actuators=True,
         permutation_sensitive_commands=True,
     )
     requested_joint_names = tuple(reversed(identity_result["joint_names"]))
     reversed_result = _run_simulation(
         IDEAL_PD_ACTUATORS,
-        use_newton_actuators=True,
         joint_ordering=requested_joint_names,
         permutation_sensitive_commands=True,
     )
@@ -361,113 +413,290 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Base test class
+# Telemetry formula helpers
+#
+# ``computed_torque`` / ``applied_torque`` are filled by the in-graph
+# ``sync_torque_telemetry`` kernel right after the actuator step, i.e. from
+# the joint state *before* the solver substeps of that step. With
+# ``decimation == 1`` that state is exactly the state recorded after the
+# previous policy step (or the initial state for step 0), so the recorded
+# telemetry can be checked against the exact actuator formulas.
 # ---------------------------------------------------------------------------
 
 
-class _EquivalenceTestBase(unittest.TestCase):
-    """Base for Lab-vs-Newton equivalence tests.
+def _pre_step_states(result: dict) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+    """Per-step joint state each actuator step read: the state recorded after the previous step."""
+    pos_seq = [result["init_pos"], *result["joint_pos"][:-1]]
+    vel_seq = [result["init_vel"], *result["joint_vel"][:-1]]
+    return pos_seq, vel_seq
 
-    Subclasses set ``actuators`` to the config under test.  ``setUpClass``
-    runs the simulation with both ``use_newton_actuators=False`` (Lab path)
-    and ``True`` (Newton path) and stores the results.
-    """
 
-    __test__ = False
-    actuators: dict = {}
-    feedforward: float | None = None
-    dt: float = DT
-    newton_cfg: NewtonCfg = NEWTON_CFG
-    num_steps: int = NUM_STEPS
-    decimation: int = 1
-    pos_atol: float = 2e-3
-    pos_rtol: float = 1e-3
-    vel_atol: float = 1e-2
-    vel_rtol: float = 1e-2
-    torque_atol: float = 1e-3
-    torque_rtol: float = 1e-3
+def _matching_joint_ids(result: dict, patterns: list[str] | str) -> list[int]:
+    """Public-order joint indices whose names fully match any of the given regexes."""
+    if isinstance(patterns, str):
+        patterns = [patterns]
+    ids = [
+        index
+        for index, name in enumerate(result["joint_names"])
+        if any(re.fullmatch(pattern, name) for pattern in patterns)
+    ]
+    assert ids, f"no joints matched {patterns}"
+    return ids
+
+
+def _assert_pd_computed_torque(
+    result: dict,
+    joint_ids: list[int],
+    *,
+    kp: float,
+    kd: float,
+    atol: float = 1e-3,
+    rtol: float = 1e-4,
+) -> None:
+    """``computed_torque`` must equal the PD law from the pre-step state on every step."""
+    pos_prev, vel_prev = _pre_step_states(result)
+    for step_index, computed in enumerate(result["computed_torque"]):
+        expected = kp * (result["target_pos"] - pos_prev[step_index]) + kd * (
+            result["target_vel"] - vel_prev[step_index]
+        )
+        torch.testing.assert_close(
+            computed[:, joint_ids],
+            expected[:, joint_ids],
+            atol=atol,
+            rtol=rtol,
+            msg=f"computed_torque broke the PD law at step {step_index}",
+        )
+
+
+def _assert_max_effort_clamp(
+    result: dict,
+    joint_ids: list[int],
+    *,
+    effort_limit: float,
+    atol: float = 1e-3,
+    rtol: float = 1e-4,
+) -> None:
+    """``applied_torque`` must equal ``computed_torque`` clamped to the symmetric effort box."""
+    for step_index, (computed, applied) in enumerate(zip(result["computed_torque"], result["applied_torque"])):
+        expected = torch.clamp(computed[:, joint_ids], min=-effort_limit, max=effort_limit)
+        torch.testing.assert_close(
+            applied[:, joint_ids],
+            expected,
+            atol=atol,
+            rtol=rtol,
+            msg=f"applied_torque broke the max-effort clamp at step {step_index}",
+        )
+
+
+def _dc_motor_effort_bounds(
+    vel: torch.Tensor,
+    *,
+    saturation_effort: float,
+    velocity_limit: float,
+    effort_limit: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Newton ``ClampingDCMotor`` four-quadrant effort bounds for the given velocity."""
+    corner_velocity = velocity_limit * (1.0 + effort_limit / saturation_effort)
+    vel = torch.clamp(vel, min=-corner_velocity, max=corner_velocity)
+    effort_max = torch.clamp(saturation_effort * (1.0 - vel / velocity_limit), max=effort_limit)
+    effort_min = torch.clamp(saturation_effort * (-1.0 - vel / velocity_limit), min=-effort_limit)
+    return effort_min, effort_max
+
+
+def _assert_dc_motor_clamp(
+    result: dict,
+    joint_ids: list[int],
+    *,
+    saturation_effort: float,
+    velocity_limit: float,
+    effort_limit: float,
+    atol: float = 1e-3,
+    rtol: float = 1e-4,
+) -> None:
+    """``applied_torque`` must equal ``computed_torque`` clamped by the DC-motor speed-torque curve."""
+    _, vel_prev = _pre_step_states(result)
+    for step_index, (computed, applied) in enumerate(zip(result["computed_torque"], result["applied_torque"])):
+        effort_min, effort_max = _dc_motor_effort_bounds(
+            vel_prev[step_index][:, joint_ids],
+            saturation_effort=saturation_effort,
+            velocity_limit=velocity_limit,
+            effort_limit=effort_limit,
+        )
+        expected = torch.clamp(computed[:, joint_ids], min=effort_min, max=effort_max)
+        torch.testing.assert_close(
+            applied[:, joint_ids],
+            expected,
+            atol=atol,
+            rtol=rtol,
+            msg=f"applied_torque broke the DC-motor clamp at step {step_index}",
+        )
+
+
+def _assert_implicit_drive_telemetry(
+    result: dict,
+    joint_ids: list[int],
+    *,
+    atol: float = 1e-3,
+    rtol: float = 1e-4,
+) -> None:
+    """Implicit DOFs report ``clamp(PD, ±effort_limit) + feedforward`` with computed == applied."""
+    pos_prev, vel_prev = _pre_step_states(result)
+    kp = result["joint_stiffness"][:, joint_ids]
+    kd = result["joint_damping"][:, joint_ids]
+    limit = result["joint_effort_limits"][:, joint_ids]
+    ff = 0.0 if result["effort_target"] is None else result["effort_target"][:, joint_ids]
+    for step_index, (computed, applied) in enumerate(zip(result["computed_torque"], result["applied_torque"])):
+        pd = kp * (result["target_pos"][:, joint_ids] - pos_prev[step_index][:, joint_ids]) + kd * (
+            result["target_vel"][:, joint_ids] - vel_prev[step_index][:, joint_ids]
+        )
+        expected = torch.clamp(pd, min=-limit, max=limit) + ff
+        torch.testing.assert_close(
+            computed[:, joint_ids],
+            expected,
+            atol=atol,
+            rtol=rtol,
+            msg=f"implicit computed_torque broke the drive law at step {step_index}",
+        )
+        torch.testing.assert_close(
+            applied[:, joint_ids],
+            computed[:, joint_ids],
+            atol=0.0,
+            rtol=0.0,
+            msg=f"implicit applied_torque must mirror computed_torque at step {step_index}",
+        )
+
+
+def _assert_target_reached_and_held(
+    test: unittest.TestCase,
+    result: dict,
+    *,
+    hold_steps: int,
+    tol: float,
+    joint_ids: list[int] | None = None,
+) -> None:
+    """The commanded pose is reached within *tol* [rad] and held for the last *hold_steps* steps."""
+    columns = slice(None) if joint_ids is None else joint_ids
+    first_hold_step = len(result["joint_pos"]) - hold_steps
+    for step_index, pos in enumerate(result["joint_pos"][-hold_steps:], start=first_hold_step):
+        err = (pos[:, columns] - result["target_pos"][:, columns]).abs().max().item()
+        test.assertLess(err, tol, f"pose error {err:.4f} rad exceeds {tol} rad at step {step_index}")
+
+
+# Upstream defect (Newton MJWarp): the solver's implicit joint drives are baked
+# into the MuJoCo actuator set at model finalize from the USD-authored drive
+# gains. Assets authored with zero drive gains (e.g. ANYmal) therefore get no
+# MuJoCo actuator at all, and the gains an :class:`ImplicitActuatorCfg` writes
+# at initialization land in ``model.joint_target_ke`` where the solver never
+# reads them back: the joints receive no drive torque. Reproduced identically
+# on ``develop`` (this PR does not change implicit-drive handling). Remove the
+# decorators when the solver honors post-finalize drive-gain updates.
+_implicit_drive_inert_upstream = unittest.expectedFailure
+
+
+# ---------------------------------------------------------------------------
+# Direct behavior tests per actuator type
+#
+# Tracking runs disable gravity and skip the ground plane so the joint-space
+# actuation is the only torque source and the commanded pose is the exact
+# equilibrium; telemetry-law runs are self-consistent in any environment.
+# ---------------------------------------------------------------------------
+
+TRACKING_STEPS = 150
+TRACKING_HOLD_STEPS = 30
+TRACKING_OFFSET = 0.3  # [rad]
+TRACKING_TOL = 0.05  # [rad]
+DC_SATURATION_OFFSET = 2.5  # [rad]: initial PD demand kp * offset = 100 N*m > effort_limit
+
+
+class TestIdealPDBehavior(unittest.TestCase):
+    """IdealPDActuator on all 12 joints: PD tracking + exact telemetry laws."""
 
     @classmethod
     def setUpClass(cls):
-        kwargs = dict(
-            feedforward=cls.feedforward,
-            dt=cls.dt,
-            newton_cfg=cls.newton_cfg,
-            num_steps=cls.num_steps,
-            decimation=cls.decimation,
+        cls.result = _run_simulation(
+            IDEAL_PD_ACTUATORS,
+            gravity_enabled=False,
+            add_ground_plane=False,
+            target_offset=TRACKING_OFFSET,
+            num_steps=TRACKING_STEPS,
         )
-        cls.lab_result = _run_simulation(cls.actuators, use_newton_actuators=False, **kwargs)
-        cls.newton_result = _run_simulation(cls.actuators, use_newton_actuators=True, **kwargs)
+        cls.joint_ids = _matching_joint_ids(cls.result, [".*HAA", ".*HFE", ".*KFE"])
 
-    def test_joint_positions_match(self):
-        for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])):
-            torch.testing.assert_close(
-                lab,
-                newton,
-                atol=self.pos_atol,
-                rtol=self.pos_rtol,
-                msg=f"Joint positions diverged at step {step_i}",
+    def test_commanded_pose_reached_and_held(self):
+        _assert_target_reached_and_held(self, self.result, hold_steps=TRACKING_HOLD_STEPS, tol=TRACKING_TOL)
+
+    def test_computed_torque_follows_pd_law(self):
+        _assert_pd_computed_torque(self.result, self.joint_ids, kp=40.0, kd=5.0)
+
+    def test_applied_torque_follows_max_effort_clamp(self):
+        _assert_max_effort_clamp(self.result, self.joint_ids, effort_limit=80.0)
+
+
+class TestDCMotorBehavior(unittest.TestCase):
+    """DCMotor on all 12 joints: exact speed-torque clamp semantics under saturation."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation(
+            DC_MOTOR_ACTUATORS,
+            gravity_enabled=False,
+            add_ground_plane=False,
+            target_offset=DC_SATURATION_OFFSET,
+            num_steps=20,
+        )
+        cls.joint_ids = _matching_joint_ids(cls.result, [".*HAA", ".*HFE", ".*KFE"])
+
+    def test_computed_torque_follows_pd_law(self):
+        _assert_pd_computed_torque(self.result, self.joint_ids, kp=40.0, kd=5.0)
+
+    def test_applied_torque_follows_dc_motor_clamp(self):
+        _assert_dc_motor_clamp(
+            self.result, self.joint_ids, saturation_effort=120.0, velocity_limit=7.5, effort_limit=80.0
+        )
+
+    def test_saturation_engages(self):
+        # kp * offset = 100 N*m > effort_limit = 80 N*m at step 0, so the clamp must actually cut torque.
+        computed = self.result["computed_torque"][0][:, self.joint_ids]
+        applied = self.result["applied_torque"][0][:, self.joint_ids]
+        self.assertGreater(
+            (computed - applied).abs().max().item(),
+            1.0,
+            "expected the DC-motor clamp to saturate at step 0",
+        )
+
+    def test_applied_torque_never_exceeds_effort_limit(self):
+        for step_index, applied in enumerate(self.result["applied_torque"]):
+            max_abs = applied[:, self.joint_ids].abs().max().item()
+            self.assertLessEqual(
+                max_abs, 80.0 + 1e-3, f"applied torque {max_abs:.3f} exceeds the effort limit at step {step_index}"
             )
 
-    def test_joint_velocities_match(self):
-        for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])):
-            torch.testing.assert_close(
-                lab,
-                newton,
-                atol=self.vel_atol,
-                rtol=self.vel_rtol,
-                msg=f"Joint velocities diverged at step {step_i}",
-            )
 
-    def test_applied_torque_match(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["applied_torque"], self.newton_result["applied_torque"])
-        ):
-            torch.testing.assert_close(
-                lab,
-                newton,
-                atol=self.torque_atol,
-                rtol=self.torque_rtol,
-                msg=f"applied_torque diverged at step {step_i}",
-            )
+class TestMixedActuatorBehavior(unittest.TestCase):
+    """IdealPD on HAA + DCMotor on HFE/KFE: each group follows its own clamp law."""
 
-    def test_computed_torque_match(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["computed_torque"], self.newton_result["computed_torque"])
-        ):
-            torch.testing.assert_close(
-                lab,
-                newton,
-                atol=self.torque_atol,
-                rtol=self.torque_rtol,
-                msg=f"computed_torque diverged at step {step_i}",
-            )
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation(
+            MIXED_ACTUATORS,
+            gravity_enabled=False,
+            add_ground_plane=False,
+            target_offset=DC_SATURATION_OFFSET,
+            num_steps=20,
+        )
+        cls.hip_ids = _matching_joint_ids(cls.result, ".*HAA")
+        cls.knee_ids = _matching_joint_ids(cls.result, [".*HFE", ".*KFE"])
 
+    def test_computed_torque_follows_pd_law(self):
+        _assert_pd_computed_torque(self.result, self.hip_ids + self.knee_ids, kp=40.0, kd=5.0)
 
-# ---------------------------------------------------------------------------
-# Equivalence tests with different actuator types
-# ---------------------------------------------------------------------------
+    def test_hip_group_follows_max_effort_clamp(self):
+        _assert_max_effort_clamp(self.result, self.hip_ids, effort_limit=80.0)
 
-
-class TestIdealPDEquivalence(_EquivalenceTestBase):
-    """IdealPDActuator on all 12 joints: Lab vs Newton."""
-
-    __test__ = True
-    actuators = IDEAL_PD_ACTUATORS
-
-
-class TestDCMotorEquivalence(_EquivalenceTestBase):
-    """DCMotor actuator on all 12 joints: Lab vs Newton."""
-
-    __test__ = True
-    actuators = DC_MOTOR_ACTUATORS
-
-
-class TestMixedActuatorEquivalence(_EquivalenceTestBase):
-    """Mixed actuators (IdealPD on HAA, DCMotor on HFE/KFE): Lab vs Newton."""
-
-    __test__ = True
-    actuators = MIXED_ACTUATORS
+    def test_knee_group_follows_dc_motor_clamp(self):
+        _assert_dc_motor_clamp(
+            self.result, self.knee_ids, saturation_effort=120.0, velocity_limit=7.5, effort_limit=80.0
+        )
 
 
 MIXED_WITH_IMPLICIT_ACTUATORS = {
@@ -493,19 +722,61 @@ MIXED_WITH_IMPLICIT_ACTUATORS = {
 }
 
 
-class TestMixedWithImplicitEquivalence(_EquivalenceTestBase):
-    """Implicit HAA + IdealPD HFE + DCMotor KFE: Lab vs Newton.
+class TestMixedWithImplicitBehavior(unittest.TestCase):
+    """Implicit HAA + IdealPD HFE + DCMotor KFE: all three actuation modes coexist.
 
-    Verifies that implicit actuators (handled by the physics engine's
-    built-in joint drives) coexist correctly with explicit Newton actuators.
+    The implicit joints are driven by the solver's built-in joint drive
+    (their sim gains are written; telemetry synthesizes the shadow PD),
+    the explicit joints by Newton actuators. With gravity disabled every
+    joint must reach its commanded pose regardless of actuation mode.
     """
 
-    __test__ = True
-    actuators = MIXED_WITH_IMPLICIT_ACTUATORS
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation(
+            MIXED_WITH_IMPLICIT_ACTUATORS,
+            gravity_enabled=False,
+            add_ground_plane=False,
+            target_offset=TRACKING_OFFSET,
+            num_steps=TRACKING_STEPS,
+        )
+        cls.implicit_ids = _matching_joint_ids(cls.result, ".*HAA")
+        cls.ideal_ids = _matching_joint_ids(cls.result, ".*HFE")
+        cls.dc_ids = _matching_joint_ids(cls.result, ".*KFE")
+
+    def test_explicit_joints_reach_commanded_pose(self):
+        _assert_target_reached_and_held(
+            self,
+            self.result,
+            hold_steps=TRACKING_HOLD_STEPS,
+            tol=TRACKING_TOL,
+            joint_ids=self.ideal_ids + self.dc_ids,
+        )
+
+    @_implicit_drive_inert_upstream
+    def test_implicit_joints_reach_commanded_pose(self):
+        _assert_target_reached_and_held(
+            self,
+            self.result,
+            hold_steps=TRACKING_HOLD_STEPS,
+            tol=TRACKING_TOL,
+            joint_ids=self.implicit_ids,
+        )
+
+    def test_implicit_joints_report_drive_law_telemetry(self):
+        _assert_implicit_drive_telemetry(self.result, self.implicit_ids)
+
+    def test_ideal_pd_joints_follow_pd_law_and_box_clamp(self):
+        _assert_pd_computed_torque(self.result, self.ideal_ids, kp=40.0, kd=5.0)
+        _assert_max_effort_clamp(self.result, self.ideal_ids, effort_limit=80.0)
+
+    def test_dc_motor_joints_follow_dc_clamp(self):
+        _assert_pd_computed_torque(self.result, self.dc_ids, kp=40.0, kd=5.0)
+        _assert_dc_motor_clamp(self.result, self.dc_ids, saturation_effort=120.0, velocity_limit=7.5, effort_limit=80.0)
 
 
 # ---------------------------------------------------------------------------
-# Implicit-only fast-path: enable Newton actuator branch with no explicit groups
+# Implicit-only: no Newton actuators are built, the solver PD does the work
 # ---------------------------------------------------------------------------
 
 IMPLICIT_ONLY_ACTUATORS = {
@@ -517,11 +788,30 @@ IMPLICIT_ONLY_ACTUATORS = {
 }
 
 
-class TestImplicitOnlyEquivalence(_EquivalenceTestBase):
-    """All-implicit articulation with ``use_newton_actuators=True``: Lab vs fast-path."""
+class TestImplicitOnlyBehavior(unittest.TestCase):
+    """All-implicit articulation: solver-internal PD drives, no adapter is built."""
 
-    __test__ = True
-    actuators = IMPLICIT_ONLY_ACTUATORS
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation(
+            IMPLICIT_ONLY_ACTUATORS,
+            gravity_enabled=False,
+            add_ground_plane=False,
+            target_offset=TRACKING_OFFSET,
+            num_steps=TRACKING_STEPS,
+        )
+        cls.joint_ids = _matching_joint_ids(cls.result, [".*HAA", ".*HFE", ".*KFE"])
+
+    def test_no_newton_actuators_built(self):
+        self.assertEqual(self.result["num_model_actuators"], 0)
+        self.assertFalse(self.result["adapter_exists"])
+
+    @_implicit_drive_inert_upstream
+    def test_commanded_pose_reached_and_held(self):
+        _assert_target_reached_and_held(self, self.result, hold_steps=TRACKING_HOLD_STEPS, tol=TRACKING_TOL)
+
+    def test_telemetry_reports_drive_law(self):
+        _assert_implicit_drive_telemetry(self.result, self.joint_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -529,17 +819,43 @@ class TestImplicitOnlyEquivalence(_EquivalenceTestBase):
 # ---------------------------------------------------------------------------
 
 
-class TestImplicitWithFeedforwardEquivalence(_EquivalenceTestBase):
+class TestImplicitFeedforwardBehavior(unittest.TestCase):
     """Implicit-only actuators with a non-zero feedforward effort target.
 
-    Verifies that the user's FF effort lands additively on top of the
-    simulator's joint-drive PD identically on both Lab and Newton paths.
+    The FF lands additively on top of the solver's joint-drive PD, so with
+    gravity disabled the equilibrium shifts to ``target + feedforward / kp``
+    and the telemetry reports ``PD + FF``.
     """
 
-    __test__ = True
-    actuators = IMPLICIT_ONLY_ACTUATORS
-    feedforward = 2.0
-    torque_atol = 0.5
+    FEEDFORWARD = 2.0  # [N·m]
+    KP = 40.0
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation(
+            IMPLICIT_ONLY_ACTUATORS,
+            gravity_enabled=False,
+            add_ground_plane=False,
+            target_offset=TRACKING_OFFSET,
+            feedforward=cls.FEEDFORWARD,
+            num_steps=TRACKING_STEPS,
+        )
+        cls.joint_ids = _matching_joint_ids(cls.result, [".*HAA", ".*HFE", ".*KFE"])
+
+    @_implicit_drive_inert_upstream
+    def test_steady_state_shifts_by_ff_over_kp(self):
+        expected = self.result["target_pos"] + self.FEEDFORWARD / self.KP
+        hold_mean = torch.stack(self.result["joint_pos"][-TRACKING_HOLD_STEPS:]).mean(dim=0)
+        torch.testing.assert_close(
+            hold_mean,
+            expected,
+            atol=0.02,
+            rtol=0.0,
+            msg="steady-state pose must shift by feedforward / kp on top of the commanded target",
+        )
+
+    def test_telemetry_includes_feedforward(self):
+        _assert_implicit_drive_telemetry(self.result, self.joint_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -550,22 +866,32 @@ class TestImplicitWithFeedforwardEquivalence(_EquivalenceTestBase):
 CARTPOLE_EXPLICIT_ACTUATORS = {
     "all_joints": IdealPDActuatorCfg(
         joint_names_expr=["slider_to_cart", "cart_to_pole"],
-        stiffness=10.0,
-        damping=1.0,
+        stiffness=100.0,
+        damping=20.0,
         effort_limit=100.0,
     ),
 }
 
 
-def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM_STEPS) -> dict:
-    """Spawn ANYmal-C + Cartpole per env (different DOF counts, different base types)."""
+def _run_anymal_and_cartpole(*, num_steps: int = TRACKING_STEPS) -> dict:
+    """Spawn ANYmal-C + Cartpole per env (different DOF counts, different base types).
+
+    Gravity is disabled and no ground plane is spawned so each robot's
+    joint-space PD is the only torque source and both must settle exactly on
+    their commanded targets.
+
+    Returns:
+        Mapping of robot name to a per-robot result dict shaped like
+        :func:`_run_simulation`'s output (the subset the formula helpers use).
+    """
     from isaaclab_assets import CARTPOLE_CFG  # noqa: PLC0415
 
-    sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=use_newton_actuators)
+    # Gravity must live on the explicit ``sim_cfg`` (see the note in _run_simulation).
+    sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, gravity=(0.0, 0.0, 0.0))
     with build_simulation_context(
         device="cuda:0",
-        gravity_enabled=True,
-        add_ground_plane=True,
+        gravity_enabled=False,
+        add_ground_plane=False,
         sim_cfg=sim_cfg,
     ) as sim:
         sim._app_control_on_stop_handle = None
@@ -586,66 +912,78 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
         sim.reset()
         assert anymal.is_initialized and cartpole.is_initialized
 
-        init_anymal = wp.to_torch(anymal.data.joint_pos).clone()
-        init_cartpole = wp.to_torch(cartpole.data.joint_pos).clone()
-        anymal.set_joint_position_target_index(target=init_anymal + TARGET_OFFSET)
-        anymal.set_joint_velocity_target_index(target=torch.zeros_like(init_anymal))
-        cartpole.set_joint_position_target_index(target=init_cartpole + TARGET_OFFSET)
-        cartpole.set_joint_velocity_target_index(target=torch.zeros_like(init_cartpole))
+        robots = {"anymal": anymal, "cartpole": cartpole}
+        results = {}
+        for robot in robots.values():
+            # Raw articulations have no env reset event: start from the asset's
+            # default joint state (see the same block in _run_simulation).
+            robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch.clone())
+            robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch.clone())
+        for name, robot in robots.items():
+            init_pos = wp.to_torch(robot.data.joint_pos).clone()
+            results[name] = {
+                "joint_names": tuple(robot.joint_names),
+                "init_pos": init_pos,
+                "init_vel": wp.to_torch(robot.data.joint_vel).clone(),
+                "target_pos": init_pos + TRACKING_OFFSET,
+                "target_vel": torch.zeros_like(init_pos),
+                "effort_target": None,
+                "joint_pos": [],
+                "joint_vel": [],
+                "computed_torque": [],
+                "applied_torque": [],
+            }
+            robot.set_joint_position_target_index(target=results[name]["target_pos"])
+            robot.set_joint_velocity_target_index(target=results[name]["target_vel"])
 
-        pos_anymal, pos_cartpole = [], []
         for _ in range(num_steps):
             anymal.write_data_to_sim()
             cartpole.write_data_to_sim()
             sim.step()
             anymal.update(DT)
             cartpole.update(DT)
-            pos_anymal.append(wp.to_torch(anymal.data.joint_pos).clone())
-            pos_cartpole.append(wp.to_torch(cartpole.data.joint_pos).clone())
+            for name, robot in robots.items():
+                results[name]["joint_pos"].append(wp.to_torch(robot.data.joint_pos).clone())
+                results[name]["joint_vel"].append(wp.to_torch(robot.data.joint_vel).clone())
+                results[name]["computed_torque"].append(wp.to_torch(robot.data.computed_torque).clone())
+                results[name]["applied_torque"].append(wp.to_torch(robot.data.applied_torque).clone())
 
-    return {"joint_pos_anymal": pos_anymal, "joint_pos_cartpole": pos_cartpole}
+    return results
 
 
 class TestHeterogeneousMultiArticulationNewton(unittest.TestCase):
     """Two structurally-different articulations (ANYmal floating + Cartpole fixed) on Newton.
 
     Regression for the singleton-clobber bug in ``NewtonManager._adapter``
-    / ``_post_actuator_callback`` — fixed by the global-adapter refactor
-    + callback-list multiplexing. Heterogeneous DOF counts (12 vs 2) and
-    base types (floating vs fixed) stress the global adapter's handling
-    of varied actuator index patterns. Equivalence against the Lab
-    actuator path is the meaningful end-to-end check: divergence on
-    either robot would indicate broken stepping.
+    / ``_post_actuator_callback``. Heterogeneous DOF counts (12 vs 2) and
+    base types stress the global adapter's per-articulation DOF mapping: a
+    clobbered mapping would compute one robot's torques from the other's
+    state or targets, breaking the per-robot PD law and the tracking below.
     """
 
     @classmethod
     def setUpClass(cls):
-        cls.lab_result = _run_anymal_and_cartpole(use_newton_actuators=False)
-        cls.newton_result = _run_anymal_and_cartpole(use_newton_actuators=True)
+        cls.results = _run_anymal_and_cartpole()
 
-    def test_anymal_matches_lab(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["joint_pos_anymal"], self.newton_result["joint_pos_anymal"])
-        ):
-            torch.testing.assert_close(
-                newton,
-                lab,
-                atol=2e-3,
-                rtol=1e-3,
-                msg=f"ANYmal joint_pos diverged from Lab path at step {step_i}",
-            )
+    def test_anymal_torques_follow_own_pd_law(self):
+        result = self.results["anymal"]
+        joint_ids = _matching_joint_ids(result, [".*HAA", ".*HFE", ".*KFE"])
+        _assert_pd_computed_torque(result, joint_ids, kp=40.0, kd=5.0)
+        _assert_max_effort_clamp(result, joint_ids, effort_limit=80.0)
 
-    def test_cartpole_matches_lab(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["joint_pos_cartpole"], self.newton_result["joint_pos_cartpole"])
-        ):
-            torch.testing.assert_close(
-                newton,
-                lab,
-                atol=2e-3,
-                rtol=1e-3,
-                msg=f"Cartpole joint_pos diverged from Lab path at step {step_i}",
-            )
+    def test_cartpole_torques_follow_own_pd_law(self):
+        result = self.results["cartpole"]
+        joint_ids = _matching_joint_ids(result, ["slider_to_cart", "cart_to_pole"])
+        _assert_pd_computed_torque(result, joint_ids, kp=100.0, kd=20.0)
+        _assert_max_effort_clamp(result, joint_ids, effort_limit=100.0)
+
+    def test_anymal_reaches_commanded_pose(self):
+        _assert_target_reached_and_held(self, self.results["anymal"], hold_steps=TRACKING_HOLD_STEPS, tol=TRACKING_TOL)
+
+    def test_cartpole_reaches_commanded_pose(self):
+        _assert_target_reached_and_held(
+            self, self.results["cartpole"], hold_steps=TRACKING_HOLD_STEPS, tol=TRACKING_TOL
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -739,7 +1077,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
         return out
 
     def test_single_articulation(self):
-        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
+        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG)
         with build_simulation_context(
             device="cuda:0",
             gravity_enabled=True,
@@ -757,7 +1095,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             sim.reset()
 
             adapter = SimulationManager._adapter
-            self.assertIsNotNone(adapter, "Newton adapter should exist with use_newton_actuators=True")
+            self.assertIsNotNone(adapter, "Newton adapter should exist for explicit actuator configs")
             kp_before = self._gather_param(anymal, "kp").clone()
             kd_before = self._gather_param(anymal, "kd").clone()
 
@@ -788,7 +1126,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
     def test_two_articulations(self):
         from isaaclab_assets import CARTPOLE_CFG  # noqa: PLC0415
 
-        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
+        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG)
         with build_simulation_context(
             device="cuda:0",
             gravity_enabled=True,
@@ -869,7 +1207,7 @@ class TestNewtonActuatorGainSnapshotEnvStride(unittest.TestCase):
     """
 
     def test_snapshot_matches_config_for_all_envs(self):
-        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
+        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG)
         with build_simulation_context(
             device="cuda:0",
             gravity_enabled=True,
@@ -889,8 +1227,8 @@ class TestNewtonActuatorGainSnapshotEnvStride(unittest.TestCase):
 
             stiffness = anymal.newton_default_stiffness
             damping = anymal.newton_default_damping
-            self.assertIsNotNone(stiffness, "expected a Newton kp snapshot with use_newton_actuators=True")
-            self.assertIsNotNone(damping, "expected a Newton kd snapshot with use_newton_actuators=True")
+            self.assertIsNotNone(stiffness, "expected a Newton kp snapshot for explicit actuator groups")
+            self.assertIsNotNone(damping, "expected a Newton kd snapshot for explicit actuator groups")
 
             n_j = anymal.num_joints
             self.assertEqual(tuple(stiffness.shape), (NUM_ENVS, n_j))
@@ -920,15 +1258,69 @@ DELAYED_PD_ACTUATORS = {
 }
 
 
-class TestDelayedPDEquivalence(_EquivalenceTestBase):
-    """DelayedPDActuator on all 12 joints: Lab vs Newton.
+class TestDelayedPDDelaySemantics(unittest.TestCase):
+    """DelayedPDActuator: a target switch takes effect exactly ``delay_steps`` later.
 
-    Verifies that actuator command delays are correctly authored as
-    ``NewtonActuatorDelayAPI`` and produce matching trajectories.
+    USD authoring maps ``DelayedPDActuatorCfg.max_delay`` to a fixed per-DOF
+    ``delay_steps``, so the Newton input delay is deterministic. The test
+    holds the initial pose target (the robot stays at rest with gravity
+    disabled), switches the target at step ``SWITCH_STEP``, and recovers the
+    actuator's *active* target from telemetry each step by inverting the PD
+    law::
+
+        target = (computed_torque + kd * vel) / kp + pos
+
+    The recovered target must stay at the old value for exactly
+    ``DELAY_STEPS`` steps after the switch and jump to the new value then.
     """
 
-    __test__ = True
-    actuators = DELAYED_PD_ACTUATORS
+    KP = 40.0
+    KD = 5.0
+    DELAY_STEPS = 4  # authored from DELAYED_PD_ACTUATORS["legs"].max_delay
+    SWITCH_STEP = 6
+    RETARGET_OFFSET = 0.4  # [rad]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation(
+            DELAYED_PD_ACTUATORS,
+            gravity_enabled=False,
+            add_ground_plane=False,
+            target_offset=0.0,
+            retarget_offset=cls.RETARGET_OFFSET,
+            retarget_at_step=cls.SWITCH_STEP,
+            num_steps=16,
+        )
+        cls.joint_ids = _matching_joint_ids(cls.result, [".*HAA", ".*HFE", ".*KFE"])
+
+    def _recovered_target(self, step_index: int) -> torch.Tensor:
+        pos_prev, vel_prev = _pre_step_states(self.result)
+        computed = self.result["computed_torque"][step_index][:, self.joint_ids]
+        return (computed + self.KD * vel_prev[step_index][:, self.joint_ids]) / self.KP + pos_prev[step_index][
+            :, self.joint_ids
+        ]
+
+    def test_switch_is_masked_for_delay_steps(self):
+        old_target = self.result["target_pos"][:, self.joint_ids]
+        for step_index in range(self.SWITCH_STEP + self.DELAY_STEPS):
+            torch.testing.assert_close(
+                self._recovered_target(step_index),
+                old_target,
+                atol=1e-3,
+                rtol=0.0,
+                msg=f"actuator responded to the new target too early at step {step_index}",
+            )
+
+    def test_switch_takes_effect_after_delay_steps(self):
+        new_target = self.result["target_pos2"][:, self.joint_ids]
+        for step_index in range(self.SWITCH_STEP + self.DELAY_STEPS, len(self.result["computed_torque"])):
+            torch.testing.assert_close(
+                self._recovered_target(step_index),
+                new_target,
+                atol=1e-3,
+                rtol=0.0,
+                msg=f"actuator did not track the new target at step {step_index}",
+            )
 
 
 class TestDelayedPDAuthoring(unittest.TestCase):
@@ -948,7 +1340,8 @@ class TestDelayedPDAuthoring(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Decimation tests: re-run equivalence with decimation > 1 + CUDA graph capture
+# Decimation folding: one manager step covering d sub-steps must match d
+# explicit single sub-steps of the same path (self-consistency)
 # ---------------------------------------------------------------------------
 
 NEWTON_CFG_DEC = NewtonCfg(
@@ -966,30 +1359,96 @@ NEWTON_CFG_DEC = NewtonCfg(
 )
 
 
-class _DecimationMixin:
-    """Common knobs for decimation/CUDA-graph variants of equivalence classes."""
+class _DecimationConsistencyBase(unittest.TestCase):
+    """Folded-vs-stepped decimation self-consistency for one actuator config.
+
+    Both runs drive the same Newton actuator path with identical commands;
+    the only difference is whether the physics manager owns the decimation
+    loop (a single folded ``step()`` covering ``decimation`` sub-steps,
+    captured as one CUDA graph) or the test loops ``decimation`` single
+    sub-steps itself. The reference is the same actuation path — this is
+    self-consistency of the current implementation, not a comparison
+    against a different one.
+    """
+
+    __test__ = False
+    actuators: dict = {}
+    dt: float = 1.0 / 100.0
+    num_steps: int = 5
+    decimation: int = 2
+    pos_atol: float = 2e-3
+    pos_rtol: float = 1e-3
+    vel_atol: float = 1e-2
+    vel_rtol: float = 1e-2
+    torque_atol: float = 1e-3
+    torque_rtol: float = 1e-3
+
+    @classmethod
+    def setUpClass(cls):
+        kwargs = dict(
+            dt=cls.dt,
+            newton_cfg=NEWTON_CFG_DEC,
+            num_steps=cls.num_steps,
+            decimation=cls.decimation,
+        )
+        cls.folded_result = _run_simulation(cls.actuators, fold_decimation=True, **kwargs)
+        cls.stepped_result = _run_simulation(cls.actuators, fold_decimation=False, **kwargs)
+
+    def _assert_traces_match(self, field: str, atol: float, rtol: float) -> None:
+        for step_index, (folded, stepped) in enumerate(
+            zip(self.folded_result[field], self.stepped_result[field], strict=True)
+        ):
+            torch.testing.assert_close(
+                folded,
+                stepped,
+                atol=atol,
+                rtol=rtol,
+                msg=f"{field} diverged between folded and stepped decimation at step {step_index}",
+            )
+
+    def test_manager_folds_decimation(self):
+        self.assertTrue(self.folded_result["folds_decimation"], "expected the manager to fold the decimation loop")
+        self.assertFalse(self.stepped_result["folds_decimation"])
+
+    def test_joint_positions_match(self):
+        self._assert_traces_match("joint_pos", self.pos_atol, self.pos_rtol)
+
+    def test_joint_velocities_match(self):
+        self._assert_traces_match("joint_vel", self.vel_atol, self.vel_rtol)
+
+    def test_computed_torque_match(self):
+        self._assert_traces_match("computed_torque", self.torque_atol, self.torque_rtol)
+
+    def test_applied_torque_match(self):
+        self._assert_traces_match("applied_torque", self.torque_atol, self.torque_rtol)
+
+
+class TestDecimationIdealPD(_DecimationConsistencyBase):
+    """IdealPD — folded decimation=2 + CUDA graph matches explicit sub-stepping."""
 
     __test__ = True
-    dt = 1.0 / 100.0
-    newton_cfg = NEWTON_CFG_DEC
-    num_steps = 5
-    decimation = 2
+    actuators = IDEAL_PD_ACTUATORS
 
 
-class TestDecimationDCMotor(_DecimationMixin, TestDCMotorEquivalence):
-    """DCMotor — same equivalence checks, with decimation=2 + CUDA graph."""
+class TestDecimationDCMotor(_DecimationConsistencyBase):
+    """DCMotor — folded decimation=2 + CUDA graph matches explicit sub-stepping."""
+
+    __test__ = True
+    actuators = DC_MOTOR_ACTUATORS
 
 
-class TestDecimationIdealPD(_DecimationMixin, TestIdealPDEquivalence):
-    """IdealPD — decimation=2 + CUDA graph."""
+class TestDecimationDelayedPD(_DecimationConsistencyBase):
+    """DelayedPD — the delay queue is stepped once per sub-step in both modes."""
+
+    __test__ = True
+    actuators = DELAYED_PD_ACTUATORS
 
 
-class TestDecimationDelayedPD(_DecimationMixin, TestDelayedPDEquivalence):
-    """DelayedPD — decimation=2 + CUDA graph (delay queue stepped inside the captured graph)."""
+class TestDecimationMixed(_DecimationConsistencyBase):
+    """Mixed (IdealPD + DCMotor) — folded decimation=2 matches explicit sub-stepping."""
 
-
-class TestDecimationMixed(_DecimationMixin, TestMixedActuatorEquivalence):
-    """Mixed (IdealPD + DCMotor) — decimation=2 + CUDA graph."""
+    __test__ = True
+    actuators = MIXED_ACTUATORS
 
 
 # ---------------------------------------------------------------------------
@@ -1007,21 +1466,12 @@ class TestActuatorStateReset(unittest.TestCase):
     * After warmup, ``num_pushes > 0`` for every DOF (buffer was populated).
     * After ``articulation.reset(env_ids=[0])``, the entries for env 0's DOFs
       must be ``0`` and the entries for env 1's DOFs must remain ``> 0``.
-
-    Done independently on Lab and Newton paths. Lab inspects the
-    ``positions_delay_buffer._circular_buffer`` of its DelayedPDActuator;
-    Newton inspects the model-wide adapter's per-actuator state.
     """
 
     RESET_ENV: int = 0
-    UNCHANGED_ENV: int = 1
 
-    def _build_and_warm(self, *, use_newton_actuators: bool):
-        sim_cfg = SimulationCfg(
-            dt=DT,
-            physics=NEWTON_CFG,
-            use_newton_actuators=use_newton_actuators,
-        )
+    def _build_and_warm(self):
+        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG)
         ctx = build_simulation_context(
             device="cuda:0",
             gravity_enabled=True,
@@ -1052,7 +1502,7 @@ class TestActuatorStateReset(unittest.TestCase):
 
     def test_newton_state_reset_isolated_to_reset_env(self):
         """Newton: ``num_pushes`` zeroes for env 0's DOFs only after reset of [0]."""
-        ctx, sim, articulation = self._build_and_warm(use_newton_actuators=True)
+        ctx, sim, articulation = self._build_and_warm()
         try:
             adapter = SimulationManager._adapter
             self.assertIsNotNone(adapter)
@@ -1097,36 +1547,6 @@ class TestActuatorStateReset(unittest.TestCase):
                             0,
                             f"DOF {i} (env {env}) was NOT in reset env_ids but num_pushes is 0",
                         )
-        finally:
-            ctx.__exit__(None, None, None)
-
-    def test_lab_state_reset_isolated_to_reset_env(self):
-        """Lab: DelayedPDActuator circular buffer zeroed for env 0 only."""
-        ctx, sim, articulation = self._build_and_warm(use_newton_actuators=False)
-        try:
-            from isaaclab.actuators import DelayedPDActuator  # noqa: PLC0415
-
-            delayed = [a for a in articulation.actuators.values() if isinstance(a, DelayedPDActuator)]
-            self.assertGreater(len(delayed), 0, "expected at least one Lab DelayedPDActuator")
-            actuator = delayed[0]
-            buf = actuator.positions_delay_buffer._circular_buffer._buffer
-            # ``_buffer`` shape: (max_length, batch_size, num_joints).
-            self.assertIsNotNone(buf, "delay buffer should be populated after warmup")
-            self.assertTrue(
-                (buf[:, self.UNCHANGED_ENV] != 0).any().item(),
-                "expected non-zero buffer entries for env 1 after warmup",
-            )
-
-            articulation.reset(env_ids=torch.tensor([self.RESET_ENV], device=articulation.device, dtype=torch.long))
-
-            self.assertTrue(
-                torch.all(buf[:, self.RESET_ENV] == 0).item(),
-                f"Lab: env {self.RESET_ENV} buffer not zeroed after reset.",
-            )
-            self.assertTrue(
-                (buf[:, self.UNCHANGED_ENV] != 0).any().item(),
-                f"Lab: env {self.UNCHANGED_ENV} buffer was zeroed — reset leaked into an unselected env.",
-            )
         finally:
             ctx.__exit__(None, None, None)
 
@@ -1255,7 +1675,7 @@ def _run_authoring_introspection(actuator_cfgs: dict) -> dict:
         Dict with ``num_actuators``, ``actuator_info`` (list of per-actuator
         dicts), and ``joint_pos`` (recorded trajectories).
     """
-    sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
+    sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG)
 
     with build_simulation_context(
         device="cuda:0",
@@ -1361,36 +1781,85 @@ class TestRemotizedPDAuthoring(unittest.TestCase):
             self.assertTrue(a["has_delay"], "Delay not found on remotized KFE actuator")
 
 
-class TestRemotizedPDEquivalence(_EquivalenceTestBase):
-    """RemotizedPD (PD + delay + position-based clamping): Lab vs Newton."""
+def _remotized_actuators() -> dict:
+    """IdealPD hips + RemotizedPD knees (Spot lookup table on the KFE joints)."""
+    from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+
+    return {
+        "hips": IdealPDActuatorCfg(
+            joint_names_expr=[".*HAA", ".*HFE"],
+            stiffness=40.0,
+            damping=5.0,
+            effort_limit=80.0,
+        ),
+        "knees": RemotizedPDActuatorCfg(
+            joint_names_expr=[".*KFE"],
+            stiffness=60.0,
+            damping=1.5,
+            effort_limit=80.0,
+            max_delay=3,
+            joint_parameter_lookup=SPOT_KNEE_LOOKUP,
+        ),
+    }
+
+
+class TestRemotizedPDBehavior(unittest.TestCase):
+    """RemotizedPD (PD + delay + position-based clamping): exact clamp law on the knees.
+
+    Targets are constant, so the authored input delay is transparent and the
+    PD law holds on every step; the knee ``applied_torque`` must equal
+    ``computed_torque`` clamped to ``±min(effort_limit, interp(pos))`` with
+    the Spot lookup table, matching Newton's ``ClampingPositionBased``
+    boundary-clamped linear interpolation.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation(
+            _remotized_actuators(),
+            gravity_enabled=False,
+            add_ground_plane=False,
+            target_offset=0.4,
+            num_steps=20,
+        )
+        cls.hip_ids = _matching_joint_ids(cls.result, [".*HAA", ".*HFE"])
+        cls.knee_ids = _matching_joint_ids(cls.result, ".*KFE")
+
+    def test_hips_follow_pd_law_and_box_clamp(self):
+        _assert_pd_computed_torque(self.result, self.hip_ids, kp=40.0, kd=5.0)
+        _assert_max_effort_clamp(self.result, self.hip_ids, effort_limit=80.0)
+
+    def test_knees_follow_pd_law(self):
+        _assert_pd_computed_torque(self.result, self.knee_ids, kp=60.0, kd=1.5)
+
+    def test_knees_follow_position_based_clamp(self):
+        lookup = np.asarray(SPOT_KNEE_LOOKUP, dtype=np.float32)
+        pos_prev, _ = _pre_step_states(self.result)
+        for step_index, (computed, applied) in enumerate(
+            zip(self.result["computed_torque"], self.result["applied_torque"])
+        ):
+            knee_pos = pos_prev[step_index][:, self.knee_ids].cpu().numpy()
+            limit_np = np.interp(knee_pos.ravel(), lookup[:, 0], lookup[:, 2]).reshape(knee_pos.shape)
+            limit = torch.from_numpy(np.minimum(limit_np, 80.0).astype(np.float32)).to(computed.device)
+            expected = torch.clamp(computed[:, self.knee_ids], min=-limit, max=limit)
+            torch.testing.assert_close(
+                applied[:, self.knee_ids],
+                expected,
+                atol=1e-3,
+                rtol=1e-4,
+                msg=f"applied_torque broke the position-based clamp at step {step_index}",
+            )
+
+
+class TestDecimationRemotizedPD(_DecimationConsistencyBase):
+    """RemotizedPD — folded decimation=2 + CUDA graph matches explicit sub-stepping."""
 
     __test__ = True
 
     @classmethod
     def setUpClass(cls):
-        from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
-
-        cls.actuators = {
-            "hips": IdealPDActuatorCfg(
-                joint_names_expr=[".*HAA", ".*HFE"],
-                stiffness=40.0,
-                damping=5.0,
-                effort_limit=80.0,
-            ),
-            "knees": RemotizedPDActuatorCfg(
-                joint_names_expr=[".*KFE"],
-                stiffness=60.0,
-                damping=1.5,
-                effort_limit=80.0,
-                max_delay=3,
-                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
-            ),
-        }
+        cls.actuators = _remotized_actuators()
         super().setUpClass()
-
-
-class TestDecimationRemotizedPD(_DecimationMixin, TestRemotizedPDEquivalence):
-    """RemotizedPD — decimation=2 + CUDA graph."""
 
 
 class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
@@ -1421,7 +1890,6 @@ class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
             num_substeps=1,
             debug_mode=False,
         )
-        env_cfg.sim.use_newton_actuators = True
         env_cfg.scene.robot.actuators = {
             "legs": DCMotorCfg(
                 joint_names_expr=[
@@ -1472,7 +1940,7 @@ class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
             self.assertGreater(
                 len(SimulationManager.get_model().actuators),
                 0,
-                "Expected Newton model actuators to be non-empty with use_newton_actuators=True.",
+                "Expected Newton model actuators to be non-empty on the Newton backend.",
             )
         finally:
             env.close()
