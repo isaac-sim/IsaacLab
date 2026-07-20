@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+12.0.0 (2026-07-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added articulation ordering utilities and optional :class:`~isaaclab.assets.ArticulationCfg`
+  fields for public joint/body ordering presets.
+* Added :meth:`~isaaclab.assets.Articulation.map_body_ids_to_backend` and
+  :meth:`~isaaclab.assets.Articulation.map_joint_ids_to_backend` to translate
+  public-order body/joint indices into backend view order for raw-view interop.
+* Added the ``__backend_native_orderings__`` class attribute on
+  :class:`~isaaclab.assets.BaseArticulation` so backends declare which symbolic
+  ordering conventions their native order satisfies, enabling the identity
+  fast path without editing the core resolvers.
+* Added :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries` as a renderer
+  lifecycle hook for syncing mutable geometry attributes before rendering.
+
+Changed
+^^^^^^^
+
+* Changed custom :class:`~isaaclab.assets.BaseArticulation` backends to expose
+  backend joint/body names and ordering maps. Existing backends continue to
+  work through deprecated fallbacks; override
+  :attr:`~isaaclab.assets.BaseArticulation.backend_joint_names` and
+  :attr:`~isaaclab.assets.BaseArticulation.backend_body_names` before these
+  properties become abstract in a future release.
+* Renamed :meth:`~isaaclab.renderers.render_context.RenderContext.update_transforms` to
+  :meth:`~isaaclab.renderers.render_context.RenderContext.update_scene_state`, which invokes
+  both :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms` and
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries`.
+* Renamed :meth:`~isaaclab.renderers.render_context.RenderContext.reset_transform_cadence` to
+  :meth:`~isaaclab.renderers.render_context.RenderContext.reset_scene_state_cadence`.
+
+
 11.3.0 (2026-07-14)
 ~~~~~~~~~~~~~~~~~~~
 

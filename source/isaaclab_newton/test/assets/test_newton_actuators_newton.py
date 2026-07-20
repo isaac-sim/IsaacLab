@@ -25,10 +25,14 @@ simulation_app = AppLauncher(headless=True).app
 import json
 import os
 import tempfile
+import types
 import unittest
 
+import numpy as np
+import pytest
 import torch
 import warp as wp
+from isaaclab_newton.actuators.kernels import sync_torque_telemetry
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -121,6 +125,8 @@ def _run_simulation(
     num_steps: int = NUM_STEPS,
     decimation: int = 1,
     feedforward: float | None = None,
+    joint_ordering: tuple[str, ...] | None = None,
+    permutation_sensitive_commands: bool = False,
 ) -> dict:
     """Run ANYmal-C and return recorded trajectories + telemetry.
 
@@ -139,11 +145,13 @@ def _run_simulation(
             inner loop).
         feedforward: When not ``None``, set a constant per-DOF feedforward
             effort target. Used by the implicit-FF equivalence test.
+        joint_ordering: Optional explicit public joint-name order.
+        permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
+            physical joint name.
 
     Returns:
-        Dict with ``joint_pos``, ``joint_vel``, ``computed_torque``,
-        ``applied_torque`` (lists of per-step tensors) plus ``target_pos``
-        and ``target_vel`` snapshots.
+        Recorded joint-name metadata, commands, public trajectories and torque telemetry, and backend-order
+        adapter effort traces.
     """
     sim_cfg = SimulationCfg(dt=dt, physics=newton_cfg, use_newton_actuators=use_newton_actuators)
     with build_simulation_context(
@@ -155,7 +163,11 @@ def _run_simulation(
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-        art_cfg = ANYMAL_C_CFG.replace(actuators=actuators, prim_path="/World/Env_.*/Robot")
+        art_cfg = ANYMAL_C_CFG.replace(
+            actuators=actuators,
+            prim_path="/World/Env_.*/Robot",
+            joint_ordering=joint_ordering,
+        )
         articulation = Articulation(art_cfg)
         sim.reset()
         assert articulation.is_initialized
@@ -170,18 +182,45 @@ def _run_simulation(
             and SimulationManager._decimation > 1
         )
 
+        joint_names = tuple(articulation.joint_names)
+        backend_joint_names = tuple(articulation.backend_joint_names)
+        installed_ordering = articulation.joint_ordering
+        joint_ordering_state = (
+            None
+            if installed_ordering is None
+            else {
+                "user_names": joint_names,
+                "backend_names": backend_joint_names,
+                "user_to_backend_indices": installed_ordering.user_to_backend_indices,
+                "backend_to_user_indices": installed_ordering.backend_to_user_indices,
+                "is_identity": False,
+            }
+        )
         init_pos = wp.to_torch(articulation.data.joint_pos).clone()
-        target_pos = init_pos + TARGET_OFFSET
-        target_vel = torch.zeros_like(init_pos)
+        if permutation_sensitive_commands:
+            scale_by_name = {name: index + 1 for index, name in enumerate(backend_joint_names)}
+            joint_scale = torch.tensor(
+                [scale_by_name[name] for name in joint_names],
+                device=articulation.device,
+                dtype=init_pos.dtype,
+            ).unsqueeze(0)
+            joint_scale = joint_scale.expand_as(init_pos)
+            target_pos = init_pos + 0.01 * joint_scale
+            target_vel = 0.001 * joint_scale
+            effort_target = 0.1 * joint_scale
+        else:
+            target_pos = init_pos + TARGET_OFFSET
+            target_vel = torch.zeros_like(init_pos)
+            effort_target = None if feedforward is None else torch.full_like(init_pos, feedforward)
+
         articulation.set_joint_position_target_index(target=target_pos)
         articulation.set_joint_velocity_target_index(target=target_vel)
-        if feedforward is not None:
-            articulation.set_joint_effort_target_index(
-                target=torch.full_like(init_pos, feedforward),
-            )
+        if effort_target is not None:
+            articulation.set_joint_effort_target_index(target=effort_target)
 
         recorded_pos, recorded_vel = [], []
         recorded_computed, recorded_applied = [], []
+        recorded_adapter_computed, recorded_adapter_applied = [], []
         for _ in range(num_steps):
             if handles_dec:
                 articulation.write_data_to_sim()
@@ -196,15 +235,133 @@ def _run_simulation(
             recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
             recorded_computed.append(wp.to_torch(articulation.data.computed_torque).clone())
             recorded_applied.append(wp.to_torch(articulation.data.applied_torque).clone())
+            if use_newton_actuators:
+                recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
+                recorded_adapter_applied.append(wp.to_torch(articulation.data._sim_bind_joint_effort).clone())
 
     return {
+        "joint_names": joint_names,
+        "backend_joint_names": backend_joint_names,
+        "joint_ordering": joint_ordering_state,
+        "adapter_joint_names": backend_joint_names,
         "joint_pos": recorded_pos,
         "joint_vel": recorded_vel,
         "computed_torque": recorded_computed,
         "applied_torque": recorded_applied,
+        "adapter_computed_effort": recorded_adapter_computed,
+        "adapter_applied_effort": recorded_adapter_applied,
         "target_pos": target_pos.clone(),
         "target_vel": target_vel.clone(),
+        "effort_target": None if effort_target is None else effort_target.clone(),
     }
+
+
+_ORDERING_TRACE_FIELDS = (
+    "joint_pos",
+    "joint_vel",
+    "computed_torque",
+    "applied_torque",
+    "adapter_computed_effort",
+    "adapter_applied_effort",
+)
+_ORDERING_TRACE_TOLERANCES = {
+    "joint_pos": (2e-3, 1e-3),
+    "joint_vel": (1e-2, 1e-2),
+    "computed_torque": (1e-3, 1e-3),
+    "applied_torque": (1e-3, 1e-3),
+    "adapter_computed_effort": (1e-3, 1e-3),
+    "adapter_applied_effort": (1e-3, 1e-3),
+}
+
+
+def _canonicalize_ordering_result(result: dict, canonical_joint_names: tuple[str, ...]) -> dict:
+    """Gather public and adapter traces into one physical joint-name order."""
+    canonical_result = dict(result)
+    for field_name in _ORDERING_TRACE_FIELDS:
+        source_names = result["adapter_joint_names"] if field_name.startswith("adapter_") else result["joint_names"]
+        source_indices = tuple(source_names.index(name) for name in canonical_joint_names)
+        canonical_result[field_name] = [
+            values.index_select(
+                1,
+                torch.tensor(source_indices, dtype=torch.long, device=values.device),
+            )
+            for values in result[field_name]
+        ]
+
+    public_indices = tuple(result["joint_names"].index(name) for name in canonical_joint_names)
+    for field_name in ("target_pos", "target_vel", "effort_target"):
+        values = result[field_name]
+        if values is not None:
+            canonical_result[field_name] = values.index_select(
+                1,
+                torch.tensor(public_indices, dtype=torch.long, device=values.device),
+            )
+
+    canonical_result["joint_names"] = canonical_joint_names
+    canonical_result["backend_joint_names"] = canonical_joint_names
+    canonical_result["adapter_joint_names"] = canonical_joint_names
+    return canonical_result
+
+
+def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
+    """Match Newton-backend actuator traces under reversed public joint ordering."""
+    identity_result = _run_simulation(
+        IDEAL_PD_ACTUATORS,
+        use_newton_actuators=True,
+        permutation_sensitive_commands=True,
+    )
+    requested_joint_names = tuple(reversed(identity_result["joint_names"]))
+    reversed_result = _run_simulation(
+        IDEAL_PD_ACTUATORS,
+        use_newton_actuators=True,
+        joint_ordering=requested_joint_names,
+        permutation_sensitive_commands=True,
+    )
+
+    assert identity_result["joint_names"] == identity_result["backend_joint_names"]
+    assert reversed_result["joint_names"] == requested_joint_names
+    assert reversed_result["backend_joint_names"] == identity_result["backend_joint_names"]
+
+    installed_ordering = reversed_result["joint_ordering"]
+    assert installed_ordering is not None
+    assert not installed_ordering["is_identity"]
+    assert installed_ordering["user_names"] == requested_joint_names
+    assert installed_ordering["backend_names"] == identity_result["backend_joint_names"]
+    expected_user_to_backend = tuple(
+        identity_result["backend_joint_names"].index(name) for name in requested_joint_names
+    )
+    expected_backend_to_user = tuple(
+        requested_joint_names.index(name) for name in identity_result["backend_joint_names"]
+    )
+    assert installed_ordering["user_to_backend_indices"] == expected_user_to_backend
+    assert installed_ordering["backend_to_user_indices"] == expected_backend_to_user
+
+    canonical_joint_names = tuple(identity_result["backend_joint_names"])
+    identity_result = _canonicalize_ordering_result(identity_result, canonical_joint_names)
+    reversed_result = _canonicalize_ordering_result(reversed_result, canonical_joint_names)
+
+    assert identity_result["joint_names"] == reversed_result["joint_names"] == canonical_joint_names
+    for field_name in ("target_pos", "target_vel", "effort_target"):
+        torch.testing.assert_close(
+            identity_result[field_name],
+            reversed_result[field_name],
+            rtol=0.0,
+            atol=0.0,
+            msg=f"{field_name} does not request the same physical command",
+        )
+
+    for field_name in _ORDERING_TRACE_FIELDS:
+        atol, rtol = _ORDERING_TRACE_TOLERANCES[field_name]
+        for step_index, (identity_values, reversed_values) in enumerate(
+            zip(identity_result[field_name], reversed_result[field_name], strict=True)
+        ):
+            torch.testing.assert_close(
+                identity_values,
+                reversed_values,
+                atol=atol,
+                rtol=rtol,
+                msg=f"{field_name} diverged at step {step_index}",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1488,6 +1645,140 @@ class TestNeuralLSTMAuthoring(unittest.TestCase):
         lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralLSTM"]
         for a in lstm_acts:
             self.assertIn("ClampingDCMotor", a["clamping_types"])
+
+
+def test_sync_torque_telemetry_reads_backend_effort_buffers_in_user_order() -> None:
+    """Report torque telemetry in public joint order from backend-order effort buffers."""
+    joint_pos = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
+    joint_vel = wp.zeros_like(joint_pos)
+    joint_pos_target = wp.zeros_like(joint_pos)
+    joint_vel_target = wp.zeros_like(joint_pos)
+    joint_stiffness = wp.zeros_like(joint_pos)
+    joint_damping = wp.zeros_like(joint_pos)
+    effort_limit = wp.full((1, 3), 1000.0, dtype=wp.float32, device="cpu")
+    joint_modes = wp.array(np.asarray([0, 1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array(np.asarray([2, 0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    sim_bind_joint_effort = wp.array(
+        np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+    actuator_computed_effort = wp.array(
+        np.asarray([[10.0, 20.0, 30.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+    computed = wp.zeros_like(joint_pos)
+    applied = wp.zeros_like(joint_pos)
+
+    wp.launch(
+        sync_torque_telemetry,
+        dim=joint_pos.shape,
+        inputs=[
+            joint_pos,
+            joint_vel,
+            joint_pos_target,
+            joint_vel_target,
+            joint_stiffness,
+            joint_damping,
+            effort_limit,
+            joint_modes,
+            sim_bind_joint_effort,
+            actuator_computed_effort,
+            user_to_backend,
+            True,
+        ],
+        outputs=[computed, applied],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(computed.numpy(), np.asarray([[30.0, 100.0, 20.0]], dtype=np.float32))
+    np.testing.assert_allclose(applied.numpy(), np.asarray([[300.0, 100.0, 200.0]], dtype=np.float32))
+
+
+def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> None:
+    """Report torque telemetry directly from user-order actuator buffers."""
+    joint_pos = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
+    joint_modes = wp.array(np.asarray([0, 1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array(np.asarray([2, 0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_effort = wp.array(np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    user_computed_effort = wp.array(np.asarray([[10.0, 20.0, 30.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    computed = wp.zeros_like(joint_pos)
+    applied = wp.zeros_like(joint_pos)
+
+    wp.launch(
+        sync_torque_telemetry,
+        dim=joint_pos.shape,
+        inputs=[
+            joint_pos,
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.full((1, 3), 1000.0, dtype=wp.float32, device="cpu"),
+            joint_modes,
+            user_effort,
+            user_computed_effort,
+            user_to_backend,
+            False,
+        ],
+        outputs=[computed, applied],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(computed.numpy(), np.asarray([[10.0, 200.0, 30.0]], dtype=np.float32))
+    np.testing.assert_allclose(applied.numpy(), np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32))
+
+
+def test_newton_actuator_defaults_follow_requested_public_joint_order() -> None:
+    """Convert Newton actuator gain snapshots and managed IDs into public joint order."""
+    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
+
+    controller = types.SimpleNamespace(
+        kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
+        kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
+    )
+    actuator = types.SimpleNamespace(
+        controller=controller,
+        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
+    )
+
+    stiffness, damping, managed = build_newton_actuator_defaults(
+        actuators=[actuator],
+        num_envs=2,
+        num_joints=3,
+        dof_offset=0,
+        env_stride=3,
+        device="cpu",
+        joint_user_to_backend_indices=(2, 0, 1),
+    )
+
+    torch.testing.assert_close(stiffness, torch.tensor([[30.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
+    torch.testing.assert_close(damping, torch.tensor([[3.0, 1.0, 0.0], [3.1, 1.1, 0.0]]))
+    torch.testing.assert_close(managed, torch.tensor([0, 1], dtype=torch.int32))
+
+
+def test_newton_actuator_defaults_reject_incomplete_joint_permutation() -> None:
+    """Reject malformed actuator-default ordering maps with an actionable error."""
+    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"joint_user_to_backend_indices must contain each backend joint index exactly once; "
+            r"expected a permutation of 0\.\.2, got \(0, 0, 2\)\."
+        ),
+    ):
+        build_newton_actuator_defaults(
+            actuators=[],
+            num_envs=1,
+            num_joints=3,
+            dof_offset=0,
+            env_stride=3,
+            device="cpu",
+            joint_user_to_backend_indices=(0, 0, 2),
+        )
 
 
 if __name__ == "__main__":

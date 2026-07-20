@@ -138,18 +138,16 @@ In a different terminal, run the following.
     --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
     --run_mode local \
-    --workflow scripts/reinforcement_learning/rl_games/train.py \
+    --workflow scripts/reinforcement_learning/train.py \
     --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
-The Ray tuner currently launches training through its ``--workflow`` script path. The built-in
-example configs still use the library-specific RL-Games workflow shown above. Custom Ray configs
-can use the unified training entrypoint by setting:
+The Ray tuner launches training through its ``--workflow`` script path. The built-in
+example configurations use the unified training entrypoint and select RL-Games with:
 
 .. code-block:: python
 
   cfg["runner_args"]["--rl_library"] = "rl_games"
 
-and passing ``--workflow scripts/reinforcement_learning/train.py``.
 
 
 To view the training logs, in a different terminal, run the following and visit ``localhost:6006`` in a browser afterwards.

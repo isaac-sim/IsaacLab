@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.7.1 (2026-07-15)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deformable body rendering support in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for Newton surface and volume
+  deformables. :meth:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer.update_geometries`
+  syncs ``particle_q`` mesh points into OVRTX bindings each frame through
+  asynchronous zero-copy handoffs.
+
+Fixed
+^^^^^
+
+* Fixed deprecation warnings emitted during OVRTX rendering by replacing uses
+  of the deprecated ``MappedRenderVar.tensor`` accessor with direct DLPack
+  reads in :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+
+
 0.7.0 (2026-07-09)
 ~~~~~~~~~~~~~~~~~~
 

@@ -95,10 +95,8 @@ def test_skrl_scripts_min_version_matches_source_package():
     """skrl runtime guards must match the package metadata lower bound."""
     expected_version = _source_skrl_min_version()
     skrl_scripts = [
-        "scripts/reinforcement_learning/skrl/play.py",
-        "scripts/reinforcement_learning/skrl/play_skrl.py",
-        "scripts/reinforcement_learning/skrl/train.py",
-        "scripts/reinforcement_learning/skrl/train_skrl.py",
+        "source/isaaclab_rl/isaaclab_rl/entrypoints/backends/play_skrl.py",
+        "source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_skrl.py",
     ]
 
     for relative_path in skrl_scripts:
@@ -106,52 +104,67 @@ def test_skrl_scripts_min_version_matches_source_package():
         assert Version(_module_string_constant(tree, "SKRL_VERSION")) == expected_version, relative_path
 
 
-def test_train_scripts_call_configure_seed_after_runner_or_agent_construction():
-    """RL train scripts wire strict PyTorch determinism after runner / agent construction."""
-    train_scripts = {
-        "scripts/reinforcement_learning/rl_games/train.py": {"Runner"},
-        "scripts/reinforcement_learning/skrl/train.py": {"Runner"},
-        "scripts/reinforcement_learning/rsl_rl/train.py": {"OnPolicyRunner", "DistillationRunner"},
-        "scripts/reinforcement_learning/sb3/train.py": {"PPO"},
-    }
-
-    for relative_path, constructors in train_scripts.items():
-        tree = _load_tree(relative_path)
-        configure_seed_lines = _call_lines(tree, {"configure_seed"})
-        constructor_lines = _call_lines(tree, constructors)
-        launcher_hook_lines = _call_lines(tree, {"add_launcher_args"})
-
-        assert launcher_hook_lines, f"{relative_path}: expected add_launcher_args(parser) call."
-        assert configure_seed_lines, f"{relative_path}: expected configure_seed(...) call."
-        assert constructor_lines, f"{relative_path}: expected runner/agent constructor call {constructors}."
-        assert min(configure_seed_lines) > max(constructor_lines), (
-            f"{relative_path}: configure_seed must be called after runner/agent construction. "
-            f"configure_seed lines={configure_seed_lines}, constructor lines={constructor_lines}"
-        )
+def test_unified_scripts_delegate_to_package_entrypoints():
+    """Unified executables must remain thin delegates to isaaclab_rl."""
+    for action, function_name in (("train", "run_train_cli"), ("play", "run_play_cli")):
+        source = (REPO_ROOT / "scripts" / "reinforcement_learning" / f"{action}.py").read_text(encoding="utf-8")
+        assert f"from isaaclab_rl.entrypoints import {function_name}" in source
+        assert f"return {function_name}(argv)" in source
 
 
-def test_play_scripts_call_configure_seed_after_runner_or_agent_construction():
-    """RL play scripts wire strict PyTorch determinism after runner / agent construction."""
-    play_scripts = {
-        "scripts/reinforcement_learning/rl_games/play.py": {"Runner"},
-        "scripts/reinforcement_learning/skrl/play.py": {"Runner"},
-        "scripts/reinforcement_learning/rsl_rl/play.py": {"OnPolicyRunner", "DistillationRunner"},
-        "scripts/reinforcement_learning/sb3/play.py": {"PPO.load"},
-    }
+def test_backend_implementations_are_package_owned():
+    """Backend code must not remain below the executable scripts directory."""
+    for backend in ("rl_games", "rsl_rl", "sb3", "skrl", "rlinf"):
+        for action in ("train", "play"):
+            assert (
+                REPO_ROOT
+                / "source"
+                / "isaaclab_rl"
+                / "isaaclab_rl"
+                / "entrypoints"
+                / "backends"
+                / f"{action}_{backend}.py"
+            ).is_file()
+            assert not (REPO_ROOT / "scripts" / "reinforcement_learning" / backend / f"{action}.py").exists()
 
-    for relative_path, constructors in play_scripts.items():
-        tree = _load_tree(relative_path)
-        configure_seed_lines = _call_lines(tree, {"configure_seed"})
-        constructor_lines = _call_lines(tree, constructors)
-        launcher_hook_lines = _call_lines(tree, {"add_launcher_args"})
 
-        assert launcher_hook_lines, f"{relative_path}: expected add_launcher_args(parser) call."
-        assert configure_seed_lines, f"{relative_path}: expected configure_seed(...) call."
-        assert constructor_lines, f"{relative_path}: expected runner/agent constructor call {constructors}."
-        assert min(configure_seed_lines) > max(constructor_lines), (
-            f"{relative_path}: configure_seed must be called after runner/agent construction. "
-            f"configure_seed lines={configure_seed_lines}, constructor lines={constructor_lines}"
-        )
+_BACKEND_CONSTRUCTORS = {
+    "rl_games": {"Runner"},
+    "skrl": {"Runner"},
+    "rsl_rl": {"OnPolicyRunner", "DistillationRunner"},
+}
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "constructors"),
+    [
+        *[
+            (f"source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_{backend}.py", constructors)
+            for backend, constructors in {**_BACKEND_CONSTRUCTORS, "sb3": {"PPO"}}.items()
+        ],
+        *[
+            (f"source/isaaclab_rl/isaaclab_rl/entrypoints/backends/play_{backend}.py", constructors)
+            for backend, constructors in {**_BACKEND_CONSTRUCTORS, "sb3": {"PPO.load"}}.items()
+        ],
+    ],
+)
+def test_backends_configure_deterministic_torch_after_runner_or_agent_creation(
+    relative_path: str, constructors: set[str]
+):
+    """Backends must enable deterministic torch operations after runner / agent construction."""
+    tree = _load_tree(relative_path)
+
+    configure_seed_lines = _call_lines(tree, {"configure_seed"})
+    constructor_lines = _call_lines(tree, constructors)
+    launcher_hook_lines = _call_lines(tree, {"add_launcher_args"})
+
+    assert launcher_hook_lines, f"{relative_path}: expected a launcher-argument registration call."
+    assert configure_seed_lines, f"{relative_path}: expected configure_seed(...) call."
+    assert constructor_lines, f"{relative_path}: expected runner/agent constructor call {constructors}."
+    assert min(configure_seed_lines) > max(constructor_lines), (
+        f"{relative_path}: configure_seed must be called after runner/agent construction. "
+        f"configure_seed lines={configure_seed_lines}, constructor lines={constructor_lines}"
+    )
 
 
 def _latest_event_file(before: set[Path], logs_root: Path) -> Path:
@@ -198,6 +211,8 @@ def _run_train_once(
         "./isaaclab.sh",
         "-p",
         train_script,
+        "--rl_library",
+        "rl_games",
         "--task",
         task_name,
         "--enable_cameras",
@@ -242,7 +257,7 @@ def _aligned_rewards(a: list[float], b: list[float]) -> tuple[np.ndarray, np.nda
 )
 def test_rl_games_deterministic_flag_affects_rewards_reproducibility():
     """Non-deterministic runs should diverge; deterministic runs should match (RL-Games tensorboard)."""
-    train_script = "scripts/reinforcement_learning/rl_games/train.py"
+    train_script = "scripts/reinforcement_learning/train.py"
     log_subdir = "rl_games"
     preferred_reward_tags = ["rewards/iter"]
     task_name = "Isaac-Cartpole-Camera"
