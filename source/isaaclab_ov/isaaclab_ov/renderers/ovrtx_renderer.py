@@ -119,7 +119,10 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
 
 def _read_gpu_transforms_enabled() -> bool:
     """Return whether OVRTX should read GPU transforms from its internal transform cache."""
-    value = os.environ.get(_READ_GPU_TRANSFORMS_ENV, "1").strip()
+    # RTX geometry streaming can drop dynamic geometry when Fabric transform reads are enabled. Keep the safe
+    # CPU-read path as the default until that renderer-side incompatibility is resolved, while preserving an
+    # explicit opt-in for workloads that have validated the GPU path.
+    value = os.environ.get(_READ_GPU_TRANSFORMS_ENV, "0").strip()
     if value not in {"0", "1"}:
         raise ValueError(
             f"Invalid value for environment variable `{_READ_GPU_TRANSFORMS_ENV}`: {value}. Expected 0 or 1."

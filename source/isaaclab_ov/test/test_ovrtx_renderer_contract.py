@@ -28,11 +28,16 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderData, OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
+        OVRTXRenderData,
+        OVRTXRenderer,
+        _read_gpu_transforms_enabled,
+    )
 else:
     OVRTXRenderData = None
     OVRTXRenderer = None
     OVRTXRendererCfg = None
+    _read_gpu_transforms_enabled = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -67,6 +72,20 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     return renderer
+
+
+def test_ovrtx_gpu_transform_reads_default_to_disabled(monkeypatch):
+    """OVRTX avoids the unsafe Fabric transform and geometry streaming combination by default."""
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", raising=False)
+
+    assert not _read_gpu_transforms_enabled()
+
+
+def test_ovrtx_gpu_transform_reads_allow_explicit_opt_in(monkeypatch):
+    """OVRTX preserves an explicit opt-in for validated GPU transform workloads."""
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1")
+
+    assert _read_gpu_transforms_enabled()
 
 
 def test_ovrtx_supported_output_types_key_set():
