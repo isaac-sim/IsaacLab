@@ -163,7 +163,7 @@ def test_format_presets_rst_keeps_ovphysx_on_physics():
 
 def test_physics_names_for_docs_infers_physx_from_default():
     names = _physics_names_for_docs(
-        "Isaac-Velocity-Flat-G1-v0",
+        "Isaac-Velocity-Flat-G1",
         {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
     )
     assert names == ["newton_mjwarp", "physx"]
@@ -194,6 +194,28 @@ def test_collect_environment_doc_rows_from_mock_specs():
     assert rows[0].inference_task_name == "Isaac-Cartpole-Direct-Play-v0"
     assert rows[0].workflow == "Direct"
     assert "sb3" in rows[0].rl_libraries
+
+
+def test_collect_environment_doc_rows_excludes_deprecated_task_aliases():
+    specs = [
+        EnvSpec(
+            id="Isaac-Example",
+            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            kwargs={"env_cfg_entry_point": "cfg:ExampleEnvCfg"},
+        ),
+        EnvSpec(
+            id="Isaac-Example-v0",
+            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            kwargs={
+                "env_cfg_entry_point": "cfg:ExampleEnvCfg",
+                "deprecated": {"alias": "--task Isaac-Example"},
+            },
+        ),
+    ]
+
+    rows = collect_environment_doc_rows(specs)
+
+    assert [row.task_name for row in rows] == ["Isaac-Example"]
 
 
 def test_collect_environment_doc_rows_applies_rlinf_override():
