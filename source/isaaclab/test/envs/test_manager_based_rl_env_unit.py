@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for manager-based RL environment observation space construction."""
+"""Unit tests for manager-based RL environments."""
 
 from __future__ import annotations
 
