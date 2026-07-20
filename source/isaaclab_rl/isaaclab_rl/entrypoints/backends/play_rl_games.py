@@ -23,13 +23,11 @@ from rl_games.torch_runner import Runner
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
-    add_frontend_args,
-    create_isaaclab_env,
+    apply_video_recording,
     resolve_checkpoint_selector,
     resolve_play_task_name,
 )
@@ -56,7 +54,6 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-add_frontend_args(parser)
 parser.add_argument(
     "--agent", type=str, default="rl_games_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
@@ -133,6 +130,7 @@ def main():
         log_dir = os.path.dirname(os.path.dirname(resume_path))
 
         env_cfg.log_dir = log_dir
+        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
         rl_device = agent_cfg["params"]["config"]["device"]
         clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
@@ -140,23 +138,12 @@ def main():
         obs_groups = agent_cfg["params"]["env"].get("obs_groups")
         concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
-        )
+        env = gym.make(args_cli.task, cfg=env_cfg)
 
-        if args_cli.video:
-            video_kwargs = {
-                "video_folder": os.path.join(log_root_path, log_dir, "videos", "play"),
-                "step_trigger": lambda step: step == 0,
-                "video_length": args_cli.video_length,
-                "disable_logger": True,
-            }
-            print("[INFO] Recording videos during play.")
-            print_dict(video_kwargs, nesting=4)
-            env = gym.wrappers.RecordVideo(env, **video_kwargs)
+        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+            from isaaclab.envs import multi_agent_to_single_agent
+
+            env = multi_agent_to_single_agent(env)
 
         env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
 

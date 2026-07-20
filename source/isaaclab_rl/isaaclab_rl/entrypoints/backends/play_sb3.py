@@ -20,13 +20,11 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
-    add_frontend_args,
-    create_isaaclab_env,
+    apply_video_recording,
     resolve_checkpoint_selector,
     resolve_play_task_name,
 )
@@ -53,7 +51,6 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-add_frontend_args(parser)
 parser.add_argument(
     "--agent", type=str, default="sb3_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
@@ -129,26 +126,17 @@ def main():
         log_dir = os.path.dirname(checkpoint_path)
 
         env_cfg.log_dir = log_dir
+        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
-        )
+        env = gym.make(args_cli.task, cfg=env_cfg)
 
         agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
 
-        if args_cli.video:
-            video_kwargs = {
-                "video_folder": os.path.join(log_dir, "videos", "play"),
-                "step_trigger": lambda step: step == 0,
-                "video_length": args_cli.video_length,
-                "disable_logger": True,
-            }
-            print("[INFO] Recording videos during play.")
-            print_dict(video_kwargs, nesting=4)
-            env = gym.wrappers.RecordVideo(env, **video_kwargs)
+        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+            from isaaclab.envs import multi_agent_to_single_agent
+
+            env = multi_agent_to_single_agent(env)
+
         env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
         vec_norm_path = checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl")

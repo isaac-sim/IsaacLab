@@ -24,12 +24,12 @@ from packaging import version
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_frontend_args,
+    apply_video_recording,
     create_isaaclab_env,
     preserve_attribute,
     resolve_checkpoint_selector,
@@ -59,7 +59,6 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-add_frontend_args(parser)
 parser.add_argument(
     "--agent",
     type=str,
@@ -193,29 +192,19 @@ def _main():
         log_dir = os.path.dirname(os.path.dirname(resume_path))
 
         env_cfg.log_dir = log_dir
+        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
-        )
+        env = gym.make(args_cli.task, cfg=env_cfg)
+
+        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and algorithm in ["ppo"]:
+            from isaaclab.envs import multi_agent_to_single_agent
+
+            env = multi_agent_to_single_agent(env)
 
         try:
             dt = env.step_dt
         except AttributeError:
             dt = env.unwrapped.step_dt
-
-        if args_cli.video:
-            video_kwargs = {
-                "video_folder": os.path.join(log_dir, "videos", "play"),
-                "step_trigger": lambda step: step == 0,
-                "video_length": args_cli.video_length,
-                "disable_logger": True,
-            }
-            print("[INFO] Recording videos during play.")
-            print_dict(video_kwargs, nesting=4)
-            env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
         env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
 
