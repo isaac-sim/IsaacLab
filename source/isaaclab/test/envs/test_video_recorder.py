@@ -269,15 +269,28 @@ def test_sensor_source_reads_specified_data_type():
     assert frame is not None
 
 
-def test_sensor_source_missing_logs_warning(caplog):
-    """source='sensor:missing' with no matching sensor logs a warning and returns None."""
+def test_sensor_source_missing_logs_error_with_available_list(caplog):
+    """source='sensor:missing' logs an error listing available sensors."""
     import logging
 
-    recorder = VideoRecorder(_cfg(source="sensor:missing"), _make_env(sensors={}))
-    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
+    sensors = {"tiled_camera": MagicMock(), "wrist_cam": MagicMock()}
+    recorder = VideoRecorder(_cfg(source="sensor:missing"), _make_env(sensors=sensors))
+    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
         frame = recorder._get_frame()
     assert frame is None
     assert any("missing" in r.message for r in caplog.records)
+    assert any("tiled_camera" in r.message for r in caplog.records)  # available sensors listed
+
+
+def test_sensor_source_missing_suggests_adding_camera_when_none_exist(caplog):
+    """source='sensor:cam' with no sensors at all logs a helpful hint."""
+    import logging
+
+    recorder = VideoRecorder(_cfg(source="sensor:cam"), _make_env(sensors={}))
+    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
+        frame = recorder._get_frame()
+    assert frame is None
+    assert any("CameraCfg" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------

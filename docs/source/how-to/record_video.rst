@@ -1,211 +1,178 @@
-Recording video clips during training
-=====================================
+.. _how_to_record_video:
 
-Isaac Lab supports recording video clips during training using the
-`gymnasium.wrappers.RecordVideo <https://gymnasium.farama.org/main/_modules/gymnasium/wrappers/record_video/>`_ class.
-When the ``--video`` flag is enabled, Isaac Lab captures a perspective view of the scene. If a Kit or
-Newton visualizer is active, that visualizer selects the video backend by default. Otherwise, the
-backend is chosen automatically from the active physics and renderer stack: an Isaac Sim Kit camera or
-a Newton GL headless viewer.
+Recording Video
+===============
 
-.. warning::
-
-   Video recording requires MoviePy and its ``imageio-ffmpeg`` backend, which are not installed by default.
-   For uv commands, add ``--extra video`` to install them for that invocation. For the legacy
-   installation, install MoviePy into the Isaac Lab Python environment before passing ``--video``:
-
-   .. tab-set::
-
-      .. tab-item:: Linux
-
-         .. code-block:: bash
-
-            ./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"
-
-      .. tab-item:: Windows
-
-         .. code-block:: batch
-
-            isaaclab.bat -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"
-
-Use the following command line arguments with the training script:
-
-* ``--video``: enables video recording during training
-* ``--video_length``: length of each recorded video (in steps)
-* ``--video_interval``: interval between each video recording (in steps)
-
-Note that enabling recording is equivalent to enabling rendering during training, which will slow down both startup and runtime performance.
-
-Example usage:
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: shell
-
-          uv run --extra video isaaclab train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: shell
-
-          ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
-
-
-The recorded videos will be saved in the same directory as the training checkpoints, under
-``IsaacLab/logs/<rl_workflow>/<task>/<run>/videos/train``.
-
-
-Overview
---------
-
-The video recording feature is implemented using the ``VideoRecorder`` class. This class is responsible for resolving the video backend from the scene, capturing the video frames, and saving them to a file.
-
-* ``VideoRecorderCfg`` (``isaaclab.envs.utils.video_recorder_cfg``) holds resolution, backend source,
-  and world-space perspective parameters ``eye`` and ``lookat`` (defaults to a diagonal view of the
-  scene).
-* ``VideoRecorder`` (``isaaclab.envs.utils.video_recorder``) picks a video backend from the scene
-  (Kit vs Newton GL), reuses an active Newton visualizer when available, and returns RGB frames via
-  ``render_rgb_array()``.
-* Direct RL, Direct MARL and manager-based RL environments copy the task's
-  :class:`~isaaclab.envs.common.ViewerCfg` ``eye`` and ``lookat`` into those fields before the
-  recorder is constructed, so training clips align with the task's intended viewport when
-  ``origin_type`` is ``"world"``.
-
-
-Configuration: ``VideoRecorderCfg``
-------------------------------------
-
-The dataclass lives in ``isaaclab.envs.utils.video_recorder_cfg``. Fields ``eye`` and ``lookat`` are
-the perspective camera position and target in meters.
-
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder_cfg.py
-   :language: python
-   :lines: 20-58
-
-
-Task framing: ``ViewerCfg``
-----------------------------
-
-Tasks define the interactive viewer with :class:`~isaaclab.envs.common.ViewerCfg`. The ``eye`` and
-``lookat`` tuples are the same values the RL base classes copy into ``VideoRecorderCfg`` (see below).
-If your task uses ``origin_type="world"``, those tuples are world-space positions and match what the
-perspective recorder expects.
-
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/common.py
-   :language: python
-   :lines: 20-28
-
-
-Backend selection: Kit vs Newton GL
--------------------------------------
-
-``VideoRecorder`` resolves the implementation from the live :class:`~isaaclab.scene.InteractiveScene`.
-With the default ``VideoRecorderCfg.backend_source = "visualizer"``, an active ``--visualizer kit``
-selects the Kit path (``omni.replicator`` on ``/OmniverseKit_Persp``), and an active
-``--visualizer newton`` selects the Newton GL path. If both visualizers are active, Kit takes
-precedence and only one ``--video`` stream is recorded. Rerun records ``.rrd`` replay data through
-the Rerun visualizer rather than producing ``--video`` clips, and Viser does not currently provide a
-``--video`` recording backend.
-
-When the Newton visualizer selects the backend, video capture reuses its framebuffer directly. For
-example,
-``visible_env_indices=[0, 1, 2, 3]`` makes both the live Newton view and the recorded clip contain
-only those four simulation worlds. The same framebuffer also preserves the live camera and
-viewer-side scene markers without a second Newton rendering pass. Newton UI panels, including the
-tiled camera panel, are not part of the recorded scene framebuffer. This does not apply when
-``VideoRecorderCfg.backend_source = "renderer"``, because renderer-selected capture is independent
-of active visualizers.
-
-Set ``VideoRecorderCfg.backend_source = "renderer"`` to ignore active visualizers and choose from the
-physics/renderer stack instead. In that mode, PhysX physics (``physics=physx``) or Isaac RTX
-(``renderer=isaacsim_rtx``) selects the Kit path. Newton physics (``physics=newton_mjwarp``) or
-the Newton Warp renderer (``renderer=newton_renderer``) selects the Newton GL path when no Kit
-signal is present. OVRTX (``renderer=ovrtx`` from ``isaaclab_ov``) can pair with IsaacSim
-or Newton physics; in that case the video backend is selected via the physics preset. If both Kit and
-Newton GL signals are present, the Kit path is chosen.
-
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder.py
-   :language: python
-   :pyobject: _select_video_backend
-
-
-Construction and dispatch
---------------------------
-
-When ``env_render_mode`` is ``"rgb_array"`` (as when wrappers or scripts request RGB frames for
-video), Kit and renderer-selected Newton captures are created before simulation reset. This lets the
-Kit path register its fallback camera before physics initializes. Visualizer-selected Newton capture
-instead binds to the initialized visualizer on the first frame and reuses its framebuffer.
-
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder.py
-   :language: python
-   :pyobject: VideoRecorder.__init__
-
-
-Customising the camera view
-----------------------------
-
-When ``--video`` is passed, active Newton visualization supplies the camera and framebuffer used by
-the recording, including the visualizer's configured resolution. The Kit path copies the active Kit
-visualizer's configured position and look-at target when it drives backend selection. Otherwise, the
-defaults come from
-:class:`~isaaclab.envs.common.ViewerCfg`:
-
-* ``eye = (7.5, 7.5, 7.5)`` — camera position in world space (metres)
-* ``lookat = (0.0, 0.0, 0.0)`` — camera look-at target in world space (metres)
-* Resolution ``1280x720``
-
-To change the recording angle without a visualizer, override the ``viewer`` field in your task's
-environment config. The RL base classes automatically copy ``eye`` and ``lookat`` into
-``VideoRecorderCfg`` before recording starts (when ``origin_type`` is ``"world"``), so the video clip
-uses the same configured viewpoint as the interactive viewport:
+Isaac Lab records video by driving :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`
+entries inside ``env.step()`` — no gym wrapper or ``render_mode`` argument required.
+Add one or more :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries to
+``env_cfg.video_recorders`` and the env handles the rest.
 
 .. code-block:: python
 
-    from isaaclab.envs import ManagerBasedRLEnvCfg
-    from isaaclab.envs.common import ViewerCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-    @configclass
-    class MyTaskCfg(ManagerBasedRLEnvCfg):
-        viewer: ViewerCfg = ViewerCfg(
-            eye=(5.0, 5.0, 5.0),
-            lookat=(0.0, 0.0, 1.0),
-        )
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="visualizer:kit", output_dir="videos/")
+    ]
+
+Clips are written to ``output_dir/clip_NNNN.mp4`` via `moviepy <https://pypi.org/project/moviepy/>`_
+when the clip reaches ``clip_length`` steps or when ``env.close()`` is called.
 
 
-Summary
--------
+Source types
+------------
+
+The ``source`` string selects what to capture:
 
 .. list-table::
-   :widths: 40 22 38
+   :widths: 38 62
    :header-rows: 1
 
-   * - Stack example (``physics=`` / ``renderer=``)
-     - Video backend
-     - Capture mechanism
-   * - ``physics=physx`` or ``renderer=isaacsim_rtx``
-     - Kit (``"kit"``)
-     - ``/OmniverseKit_Persp`` + Replicator RGB
-   * - ``physics=newton_mjwarp`` or ``renderer=newton_renderer`` (no Kit signals)
-     - Newton GL (``"newton_gl"``)
-     - ``newton.viewer.ViewerGL`` on the SDP Newton model
-   * - ``physics=newton_mjwarp`` + ``renderer=ovrtx`` (OVRTX + Newton physics)
-     - Newton GL (``"newton_gl"``)
-     - ``newton.viewer.ViewerGL`` on the SDP Newton model
-   * - ``--visualizer kit`` with default ``backend_source``
-     - Kit (``"kit"``)
-     - Visualizer ``eye`` / ``lookat`` copied to ``/OmniverseKit_Persp`` + Replicator RGB
-   * - ``--visualizer newton`` with default ``backend_source``
-     - Newton GL (``"newton_gl"``)
-     - Active visualizer framebuffer (live camera, selected worlds, and markers)
+   * - Source string
+     - Captures from
+   * - ``"visualizer"``
+     - First active recording-capable visualizer (auto)
+   * - ``"visualizer:kit"``
+     - Kit viewport camera (PhysX only — errors with Newton physics)
+   * - ``"visualizer:newton"``
+     - Newton GL visualizer framebuffer
+   * - ``"visualizer:newton/tiled"``
+     - Newton tiled camera panel
+   * - ``"sensor:<name>"``
+     - ``env.scene.sensors[name]``, RGB channel
+   * - ``"sensor:<name>/depth"``
+     - ``env.scene.sensors[name]``, depth channel
+
+The camera angle, resolution and other visualizer settings are configured on the
+corresponding :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
+:class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`, not on the recorder.
+
+.. note::
+
+   ``source="visualizer:kit"`` does not work with Newton physics — Kit Replicator
+   cannot read Newton Fabric transforms and the recorder logs an error.
+   Use ``source="visualizer:newton"`` instead when Newton is active.
+
+
+Common use cases
+----------------
+
+**Record the Kit viewport during PhysX training**
+
+Configure a Kit visualizer and point the recorder at it:
+
+.. code-block:: python
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+
+    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=(8.0, 0.0, 5.0))]
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="visualizer:kit", output_dir="videos/")
+    ]
+
+**Record with Newton physics**
+
+.. code-block:: python
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    env_cfg.sim.visualizer_cfgs = [NewtonVisualizerCfg(window_width=1280, window_height=720)]
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="visualizer:newton", output_dir="videos/")
+    ]
+
+**Record from a scene camera sensor**
+
+Any ``CameraCfg`` field on the scene can be used as a recording source by name:
+
+.. code-block:: python
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    # Assumes env_cfg.scene.tiled_camera is configured with data_types=["rgb"]
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="sensor:tiled_camera", output_dir="videos/")
+    ]
+
+For depth or other AOVs, append the channel name:
+
+.. code-block:: python
+
+    VideoRecorderCfg(source="sensor:wrist_cam/depth", output_dir="videos/depth/")
+
+**Multiple simultaneous streams**
+
+Each entry in ``video_recorders`` is independent — different sources, different output dirs:
+
+.. code-block:: python
+
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="visualizer:kit",       output_dir="videos/viewport/"),
+        VideoRecorderCfg(source="sensor:wrist_cam",     output_dir="videos/wrist/"),
+        VideoRecorderCfg(source="sensor:tiled_camera",  output_dir="videos/overhead/"),
+    ]
+
+
+Clip control
+------------
+
+.. list-table::
+   :widths: 30 15 55
+   :header-rows: 1
+
+   * - Field
+     - Default
+     - Meaning
+   * - ``clip_length``
+     - ``200``
+     - Env steps per clip
+   * - ``clip_trigger_step``
+     - ``0``
+     - ``0`` = one clip starting at step 1; ``N > 0`` = new clip every N steps
+   * - ``fps``
+     - ``30``
+     - Output frame rate
+   * - ``output_dir``
+     - ``"videos"``
+     - Directory for ``clip_NNNN.mp4`` files (created on demand)
+
+**Record one clip at the start of training:**
+
+.. code-block:: python
+
+    VideoRecorderCfg(source="visualizer:kit", clip_length=500, clip_trigger_step=0)
+
+**Record a 200-step clip every 1 000 env steps:**
+
+.. code-block:: python
+
+    VideoRecorderCfg(source="visualizer:kit", clip_length=200, clip_trigger_step=1000)
+
+
+Requirements
+------------
+
+* `moviepy <https://pypi.org/project/moviepy/>`_ 1.x and ``ffmpeg`` must be installed:
+
+  .. code-block:: bash
+
+      pip install "moviepy<2"  # already in Isaac Lab's dependencies
+
+* For ``source="visualizer:kit"``: the Kit app must be launched with ``--enable_cameras``
+  (done automatically by :class:`~isaaclab.app.AppLauncher` when a Kit visualizer is configured).
+
+* For ``source="visualizer:newton"``: an active :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`
+  must be in ``env_cfg.sim.visualizer_cfgs``.
+
+* For ``source="sensor:<name>"``: the named field must exist on the scene config and have ``"rgb"``
+  (or the specified channel) in its ``data_types``.
 
 
 See also
 --------
 
-* :doc:`capture_sensor_frames` - save image-like scene sensor outputs during training
-* :doc:`/source/overview/core-concepts/visualization` - interactive visualizers
+* :doc:`/source/overview/core-concepts/visualization` — configuring interactive visualizers
+* :doc:`capture_sensor_frames` — saving per-frame sensor outputs as images

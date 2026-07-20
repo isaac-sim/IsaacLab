@@ -169,7 +169,22 @@ class VideoRecorder:
         sensors = getattr(scene, "sensors", {})
         sensor = sensors.get(name)
         if sensor is None:
-            logger.warning("[VideoRecorder] Sensor '%s' not found in env.scene.sensors.", name)
+            available = sorted(sensors.keys())
+            truncated = available[:8]
+            suffix = f" … and {len(available) - 8} more" if len(available) > 8 else ""
+            hint = (
+                "Add a CameraCfg to your scene (e.g. InteractiveSceneCfg.tiled_camera) "
+                "to enable sensor-based recording."
+                if not available
+                else ""
+            )
+            logger.error(
+                "[VideoRecorder] Sensor '%s' not found in env.scene.sensors (available: [%s]%s). %s",
+                name,
+                ", ".join(f"'{s}'" for s in truncated),
+                suffix,
+                hint,
+            )
             return None
         output = getattr(getattr(sensor, "data", None), "output", None)
         if output is None or data_type not in output:

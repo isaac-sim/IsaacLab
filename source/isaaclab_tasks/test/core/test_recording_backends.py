@@ -20,7 +20,7 @@ Setup:
     - VideoRecorderCfg(clip_length=_CLIP, clip_trigger_step=0) → one clip per test.
 Tests:
     - source="visualizer:kit" + PhysX → Kit viewport frame captured (non-black)
-    - source="visualizer:kit" + Newton → Newton GL standalone (Kit fallback)
+    - source="visualizer:kit" + Newton → logs error, no clip written
     - source="visualizer:newton" + Newton → Newton GL framebuffer (non-black)
     - source="visualizer" (auto) + PhysX + Kit visualizer → auto-selects Kit (non-black)
     - source="sensor:tiled_camera" + PhysX + camera env → sensor RGB captured (non-black)
@@ -33,7 +33,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
@@ -49,12 +48,6 @@ pytestmark = pytest.mark.isaacsim_ci
 _CLIP = 5  # short clip so tests finish quickly
 _STEPS = 8  # slightly more than clip_length to ensure one full clip is written
 _MIN_NONZERO_RATIO = 0.005
-
-
-def _assert_clip_written(output_dir: str, label: str) -> None:
-    """Assert at least one mp4 clip was written to output_dir."""
-    mp4s = [f for f in os.listdir(output_dir) if f.endswith(".mp4")]
-    assert mp4s, f"{label}: no mp4 clip written to {output_dir}"
 
 
 def _assert_frames_nonempty(frames: list[np.ndarray], label: str) -> None:
