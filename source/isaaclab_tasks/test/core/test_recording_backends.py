@@ -133,39 +133,42 @@ def test_kit_visualizer_physx_writes_clip():
         _assert_frames_nonempty(all_frames, "kit-visualizer-physx")
 
 
-def test_kit_visualizer_newton_falls_back_to_newton_gl():
-    """source='visualizer:kit' + Newton + Newton GL visualizer → falls back to Newton GL for recording.
+def test_kit_visualizer_newton_logs_error_and_produces_no_clip(caplog):
+    """source='visualizer:kit' + Newton → logs an error and produces no clip.
 
-    Kit Replicator doesn't work with Newton physics. When a Newton GL visualizer is also
-    active, the recorder automatically falls back to it and logs a warning.
+    Kit Replicator is not supported with Newton physics. The recorder logs a
+    clear error pointing to 'visualizer:newton' and captures no frames rather
+    than silently writing a black video.
     """
+    import logging
+
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_cfg()
         env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
-        # Both visualizers: Kit for interactive viewing, Newton GL for recording fallback.
-        env_cfg.sim.visualizer_cfgs = [
-            KitVisualizerCfg(window_width=320, window_height=240),
-            NewtonVisualizerCfg(window_width=320, window_height=240),
-        ]
+        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=320, window_height=240)]
 
-        captured_frames: list[list[np.ndarray]] = []
+        clip_calls = []
 
         def _mock_clip(frames, fps):
-            captured_frames.append(list(frames))
+            clip_calls.append(list(frames))
             mock = MagicMock()
             mock.write_videofile = MagicMock()
             return mock
 
         env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:kit")]
-        with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=_mock_clip):
+        with (
+            patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=_mock_clip),
+            caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"),
+        ):
             _run_env(env_cfg)
 
-        assert captured_frames, "kit-visualizer-newton-fallback: no frames captured"
-        _assert_frames_nonempty(captured_frames[0], "kit-visualizer-newton-fallback")
+        assert not clip_calls, "kit+newton should produce no clip"
+        assert any("source='visualizer:newton'" in r.message for r in caplog.records), (
+            "error message should suggest visualizer:newton"
+        )
 
 
 # ---------------------------------------------------------------------------

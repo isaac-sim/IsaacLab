@@ -199,27 +199,8 @@ def test_visualizer_source_missing_logs_error_and_returns_none(caplog):
     assert any("newton" in r.message for r in caplog.records)  # active types listed
 
 
-def test_kit_visualizer_falls_back_to_newton_when_newton_physics(caplog):
-    """source='visualizer:kit' + Newton physics warns and falls back to Newton GL visualizer."""
-    import logging
-
-    kit_viz = _FakeViz("kit")
-    newton_viz = _FakeViz("newton")
-    env = _make_env(visualizers=[kit_viz, newton_viz])
-    env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
-
-    recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
-
-    assert frame is not None
-    assert kit_viz.render_calls == 0  # Kit was skipped
-    assert newton_viz.render_calls == 1  # Newton GL was used as fallback
-    assert any("Newton" in r.message for r in caplog.records)
-
-
-def test_kit_visualizer_newton_physics_no_newton_fallback_warns(caplog):
-    """source='visualizer:kit' + Newton physics + no Newton GL visualizer → warns and returns None."""
+def test_kit_visualizer_newton_physics_logs_error_and_returns_none(caplog):
+    """source='visualizer:kit' with Newton physics logs an error and returns None — no fallback."""
     import logging
 
     kit_viz = _FakeViz("kit")
@@ -227,11 +208,12 @@ def test_kit_visualizer_newton_physics_no_newton_fallback_warns(caplog):
     env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
 
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
+    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
         frame = recorder._get_frame()
 
     assert frame is None
-    assert kit_viz.render_calls == 0
+    assert kit_viz.render_calls == 0  # Kit was never called
+    assert any("source='visualizer:newton'" in r.message for r in caplog.records)
 
 
 def test_visualizer_tiled_calls_render_tiled_rgb_array():

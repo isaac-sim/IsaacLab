@@ -128,22 +128,17 @@ class VideoRecorder:
                 return None
 
             # Kit Replicator produces black frames with Newton physics because Newton Fabric writes
-            # do not notify RTX's scene delegate. Fall back to Newton GL if one is active.
+            # do not notify RTX's scene delegate. Fail fast with a clear message rather than
+            # silently producing a black video.
             if viz_type == "kit":
                 physics_backend = getattr(
                     getattr(sim, "physics_manager", None), "video_capture_backend", lambda: None
                 )()
                 if physics_backend == "newton_gl":
-                    logger.warning(
-                        "[VideoRecorder] Kit Replicator recording is not supported with Newton physics. "
-                        "Falling back to Newton GL visualizer. Use source='visualizer:newton' to silence this."
-                    )
-                    newton = next((v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == "newton"), None)
-                    if newton is not None:
-                        return newton.render_rgb_array()
-                    logger.warning(
-                        "[VideoRecorder] No Newton GL visualizer configured as fallback. "
-                        "Add NewtonVisualizerCfg to sim.visualizer_cfgs for video capture with Newton physics."
+                    logger.error(
+                        "[VideoRecorder] source='visualizer:kit' is not supported with Newton physics — "
+                        "Kit Replicator cannot read Newton Fabric transforms. "
+                        "Use source='visualizer:newton' and add NewtonVisualizerCfg to sim.visualizer_cfgs."
                     )
                     return None
         else:
