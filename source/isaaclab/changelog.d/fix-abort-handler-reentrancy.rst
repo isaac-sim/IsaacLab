@@ -17,6 +17,9 @@ Fixed
 * Fixed ``Ctrl-C`` terminating the process with exit code 0 before ``finally`` blocks
   or ``KeyboardInterrupt`` handlers in user code could run. ``SIGINT`` is restored to
   Python's default handler; the app is still closed by the ``atexit`` callback.
+* Fixed the ``atexit`` close replacing the exit status of an unhandled exception with
+  a successful exit code 0 under Kit fast shutdown. The close now passes a failure
+  exit code when an exception is pending.
 
 Changed
 ^^^^^^^

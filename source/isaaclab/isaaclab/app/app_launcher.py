@@ -313,42 +313,13 @@ class AppLauncher:
                 int(omni.timeline.TimelineEventType.PLAY), lambda e: self._hide_play_button(False)
             )
         )
-        # Signal to the CI test runner that Kit initialization is complete.
-        # stdout may be redirected to /dev/null during _create_app(), so we
-        # use __stderr__ which is never suppressed.
-        print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
-
-        # Log Kit/runtime version information for diagnostics.
-        self._log_kit_version_info()
-
-        # Ensure SimulationApp.close() is called on normal process exit so Kit
-        # shuts down cleanly instead of relying on __del__ (which logs a warning
-        # and can leave GPU resources in a bad state for the next test).
-        atexit.register(self._close_app_at_exit)
-
-        # Set up signal handlers for graceful shutdown
-        self._abort_in_progress = False
-        # -- during explicit `kill` commands
-        signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
-        # -- during aborts raised as signals (e.g. ``kill -ABRT``). Native ``abort()`` calls
-        #    restore the default action before re-raising, so they terminate the process
-        #    without entering this handler.
-        signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
-        # NOTE: SIGSEGV is intentionally not handled at the Python level. For a synchronous
-        # segfault on the main thread the faulting instruction re-executes as soon as the
-        # C-level trampoline returns, so a Python handler never runs and the process spins on
-        # signal delivery forever. For a segfault on a worker thread the handler would run on
-        # the main thread and report a successful exit for a crashed process. Registering a
-        # handler here would also replace the carb crash reporter's handler and suppress
-        # minidumps for real crashes.
-        # WORKAROUND(isaac-sim): SimulationApp installs a SIGINT handler that terminates the
-        # process with exit code 0 before ``finally`` blocks or ``KeyboardInterrupt`` handlers
-        # in user code can run. Restore Python's default behavior so Ctrl-C raises
-        # :class:`KeyboardInterrupt`, unwinds user code, and exits with a failure status; the
-        # app is still closed by the ``atexit`` callback above. Remove this override once
-        # SimulationApp's SIGINT handler preserves exception semantics and a nonzero exit
-        # status.
-        signal.signal(signal.SIGINT, signal.default_int_handler)
+        # Report this process's lifecycle to whatever supervises it: the CI runner watches
+        # the startup announcements, and distributed launchers/schedulers/CI read the exit
+        # status. See the class docstring of :class:`_SimulationAppLifecycle` for the full
+        # exit-path policy and its rationale.
+        self._lifecycle = AppLauncher._SimulationAppLifecycle(self._app)
+        self._lifecycle.announce_startup()
+        self._lifecycle.install_exit_handlers()
 
     """
     Properties.
@@ -1422,60 +1393,117 @@ class AppLauncher:
                 play_button_group._play_button.visible = not flag  # type: ignore
                 play_button_group._play_button.enabled = not flag  # type: ignore
 
-    def _log_kit_version_info(self):
-        """Log Kit and runtime version information."""
-        import carb
-        import omni.kit.app
+    class _SimulationAppLifecycle:
+        """Reports the lifecycle of the Kit-based :class:`SimulationApp` process.
 
-        app = omni.kit.app.get_app()
-        tokens = carb.tokens.get_tokens_interface()
+        Everything a supervisor learns about this process flows through here: the CI
+        test runner watches the startup announcements, and distributed launchers,
+        schedulers, and CI read the exit status. The exit-path policy exists because
+        Kit fast shutdown terminates the process with exit code 0 from inside
+        :meth:`SimulationApp.close`, so any death funneled through an unqualified
+        ``close()`` is reported as success.
 
-        kit_version = app.get_kit_version()
-        kernel_version = app.get_kernel_version()
-        kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
+        Exit paths and policy:
 
-        print(f"[ISAACLAB] Kit version: {kit_version}", file=sys.__stderr__, flush=True)
-        print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
-        print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
+        * Normal interpreter exit: the ``atexit`` hook closes the app once, passing a
+          nonzero exit code when an unhandled exception is pending so the failure
+          status survives Kit fast shutdown.
+        * ``SIGTERM`` and signal-delivered ``SIGABRT``: close once with full teardown,
+          then re-raise the signal with the default action so the process dies with
+          the conventional killed-by-signal status (128 + signum). Native ``abort()``
+          calls bypass Python handlers and already terminate correctly.
+        * Any signal while a close is running: never re-enter ``close()`` (the nested
+          calls previously recursed until the stack overflowed, leaving workers that
+          only SIGKILL could stop); fall back to the default signal action.
+        * ``SIGSEGV``: intentionally not handled. A Python handler never runs for a
+          synchronous main-thread segfault (the process would spin on signal
+          delivery), reports a successful exit for worker-thread segfaults, and
+          replaces the carb crash reporter's handler, suppressing minidumps.
+        * ``SIGINT``: Python's default handler, so Ctrl-C raises
+          :class:`KeyboardInterrupt`, unwinds user code (``finally`` blocks run), and
+          exits with a failure status.
 
-    def _close_app_at_exit(self):
-        """Close the app on normal interpreter exit."""
-        # A signal that arrives while this close is running must take the re-entrant path of
-        # :meth:`_abort_signal_handle_callback` instead of starting a second, nested teardown
-        # of a half-closed app.
-        self._abort_in_progress = True
-        with contextlib.suppress(Exception):
-            self._app.close()
+        WORKAROUND(isaac-sim): two pieces below exist only because of upstream
+        SimulationApp behavior and can be removed once it is fixed: fast shutdown is
+        disabled during a signal close (so ``close()`` returns and the
+        killed-by-signal status can be reported), and ``SIGINT`` is re-registered
+        over SimulationApp's own handler (which exits 0 before user code unwinds).
+        """
 
-    def _abort_signal_handle_callback(self, signum, frame):
-        """Handle the abort/termination signals."""
-        # A signal delivered while the app is already closing (e.g. a repeated SIGTERM from a
-        # distributed launcher, or a fault raised inside :meth:`SimulationApp.close`) must not
-        # re-enter `close()`: the nested calls recurse until the stack overflows, so the process
-        # neither shuts down cleanly nor reports a meaningful failure. Fall back to the default
-        # signal action so the process terminates with the re-entrant signal.
-        if self._abort_in_progress:
+        def __init__(self, app: SimulationApp):
+            self._app = app
+            # True once any close has started; a signal arriving after that must not
+            # start a second, nested teardown of a half-closed app.
+            self._closing = False
+
+        def announce_startup(self):
+            """Print the CI startup marker and Kit version diagnostics."""
+            import carb
+            import omni.kit.app
+
+            # The CI test runner watches for this marker to distinguish a Kit that is
+            # still starting from one that hung. stdout may be redirected to /dev/null
+            # during app creation, so use __stderr__, which is never suppressed.
+            print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
+
+            kit_app = omni.kit.app.get_app()
+            tokens = carb.tokens.get_tokens_interface()
+            kit_version = kit_app.get_kit_version()
+            kernel_version = kit_app.get_kernel_version()
+            kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
+            print(f"[ISAACLAB] Kit version: {kit_version}", file=sys.__stderr__, flush=True)
+            print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
+            print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
+
+        def install_exit_handlers(self):
+            """Register the ``atexit`` hook and signal handlers implementing the exit policy."""
+            # Close the app on normal process exit so Kit shuts down cleanly instead
+            # of relying on __del__ (which logs a warning and can leave GPU resources
+            # in a bad state for the next test).
+            atexit.register(self._close_at_exit)
+            # Explicit `kill` and signal-delivered aborts take the truthful-close path.
+            signal.signal(signal.SIGTERM, self._on_abort_signal)
+            signal.signal(signal.SIGABRT, self._on_abort_signal)
+            # SIGSEGV is intentionally absent and SIGINT uses Python's default handler;
+            # the class docstring explains both decisions.
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+
+        def _close_at_exit(self):
+            """Close the app on normal interpreter exit, preserving a pending failure status."""
+            self._closing = True
+            with contextlib.suppress(Exception):
+                # The interpreter sets ``sys.last_exc`` before atexit callbacks run for
+                # an unhandled exception; pass a nonzero code so Kit fast shutdown does
+                # not replace the pending failure status with 0. Note that ``SystemExit``
+                # (e.g. ``sys.exit(1)``) does not set ``sys.last_exc`` and is not yet
+                # detected here.
+                exit_code = 1 if getattr(sys, "last_exc", None) is not None else 0
+                self._app.close(exit_code=exit_code)
+
+        def _on_abort_signal(self, signum, frame):
+            """Handle SIGTERM/SIGABRT: close the app once, then die by the signal."""
+            if self._closing:
+                # A signal during a running close must not re-enter ``close()``: the
+                # nested calls recurse until the stack overflows, so the process can
+                # neither shut down cleanly nor report a meaningful failure.
+                signal.signal(signum, signal.SIG_DFL)
+                signal.raise_signal(signum)
+                return
+            self._closing = True
+            # WORKAROUND(isaac-sim): under fast shutdown, ``close()`` terminates the
+            # process with exit code 0 from inside ``app.shutdown()``; a killed worker
+            # would then be recorded as successful by its launcher, and the remaining
+            # ranks would block until the collective watchdog fires. Disable fast
+            # shutdown so ``close()`` performs the full teardown and returns here.
+            with contextlib.suppress(Exception):
+                import carb.settings
+
+                carb.settings.get_settings().set("/app/fastShutdown", False)
+            with contextlib.suppress(Exception):
+                self._app.config["fast_shutdown"] = False
+            with contextlib.suppress(Exception):
+                self._app.close()
+            # Die by the signal so the exit status is the conventional 128 + signum
+            # instead of reporting success.
             signal.signal(signum, signal.SIG_DFL)
             signal.raise_signal(signum)
-            return
-        self._abort_in_progress = True
-        # WORKAROUND(isaac-sim): under Kit fast shutdown, :meth:`SimulationApp.close` terminates
-        # the process from inside ``app.shutdown()`` with exit code 0, so a signal-terminated
-        # worker would report success (a distributed launcher then marks the rank as succeeded
-        # and the remaining ranks block until the collective watchdog fires). Disable fast
-        # shutdown so `close()` performs the full teardown and returns control here. Remove the
-        # override once SimulationApp can propagate a nonzero exit status through its
-        # fast-shutdown path.
-        with contextlib.suppress(Exception):
-            import carb.settings
-
-            carb.settings.get_settings().set("/app/fastShutdown", False)
-        with contextlib.suppress(Exception):
-            self._app.config["fast_shutdown"] = False
-        # close the app
-        with contextlib.suppress(Exception):
-            self._app.close()
-        # Re-raise with the default action so the process exits with the conventional
-        # killed-by-signal status (128 + signum) instead of reporting success.
-        signal.signal(signum, signal.SIG_DFL)
-        signal.raise_signal(signum)

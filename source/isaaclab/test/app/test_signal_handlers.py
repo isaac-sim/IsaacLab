@@ -3,18 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kitless unit tests for the AppLauncher signal handlers."""
+"""Kitless unit tests for the AppLauncher process-lifecycle exit policy."""
 
 import signal
+import sys
 import types
 
 from isaaclab.app.app_launcher import AppLauncher
 
 
-def _make_launcher(close_fn):
-    launcher = types.SimpleNamespace(_abort_in_progress=False)
-    launcher._app = types.SimpleNamespace(close=close_fn, config={"fast_shutdown": True})
-    return launcher
+def _make_lifecycle(close_fn):
+    app = types.SimpleNamespace(close=close_fn, config={"fast_shutdown": True})
+    return AppLauncher._SimulationAppLifecycle(app)
 
 
 def _capture_signal_actions(monkeypatch):
@@ -30,27 +30,27 @@ def _capture_signal_actions(monkeypatch):
     return actions
 
 
-def test_abort_handler_closes_once_and_reports_killed_by_signal(monkeypatch):
+def test_abort_signal_closes_once_and_reports_killed_by_signal(monkeypatch):
     """The first signal closes the app once, then re-raises with the default action.
 
     The re-raise is what makes the process exit with the conventional 128 + signum
     status instead of the exit code 0 that Kit fast shutdown reports.
     """
     close_calls = []
-    launcher = _make_launcher(lambda: close_calls.append(len(close_calls) + 1))
+    lifecycle = _make_lifecycle(lambda: close_calls.append(len(close_calls) + 1))
     actions = _capture_signal_actions(monkeypatch)
 
-    AppLauncher._abort_signal_handle_callback(launcher, signal.SIGTERM, None)
+    lifecycle._on_abort_signal(signal.SIGTERM, None)
 
     # the app must be closed exactly once, with fast shutdown disabled beforehand
     assert close_calls == [1]
-    assert launcher._app.config["fast_shutdown"] is False
+    assert lifecycle._app.config["fast_shutdown"] is False
     # the handler must hand the signal back to the default action to preserve the status
     assert ("set_handler", signal.SIGTERM, signal.SIG_DFL) in actions
     assert ("raise", signal.SIGTERM) in actions
 
 
-def test_abort_handler_reentrant_signal_skips_nested_close(monkeypatch):
+def test_abort_signal_reentrant_signal_skips_nested_close(monkeypatch):
     """A signal delivered while ``close()`` is running must not re-enter ``close()``.
 
     Regression test for the infinite recursion where a SIGTERM received during
@@ -63,12 +63,12 @@ def test_abort_handler_reentrant_signal_skips_nested_close(monkeypatch):
         close_calls.append(len(close_calls) + 1)
         # Simulate further signals delivered while the app is still closing.
         if len(close_calls) < 5:
-            AppLauncher._abort_signal_handle_callback(launcher, signal.SIGTERM, None)
+            lifecycle._on_abort_signal(signal.SIGTERM, None)
 
-    launcher = _make_launcher(_close)
+    lifecycle = _make_lifecycle(_close)
     actions = _capture_signal_actions(monkeypatch)
 
-    AppLauncher._abort_signal_handle_callback(launcher, signal.SIGTERM, None)
+    lifecycle._on_abort_signal(signal.SIGTERM, None)
 
     # the app must be closed exactly once despite the nested signal
     assert close_calls == [1]
@@ -80,23 +80,43 @@ def test_abort_handler_reentrant_signal_skips_nested_close(monkeypatch):
 def test_atexit_close_arms_reentrancy_guard(monkeypatch):
     """A signal arriving during the atexit close must take the re-entrant path.
 
-    The atexit callback arms the same guard flag as the signal handler, so a SIGTERM
-    delivered mid-close falls back to the default signal action instead of starting a
-    second, nested teardown.
+    The atexit hook arms the same guard flag as the signal handler, so a SIGTERM
+    delivered mid-close falls back to the default signal action instead of starting
+    a second, nested teardown.
     """
     close_calls = []
 
-    def _close():
+    def _close(exit_code=0):
         close_calls.append(len(close_calls) + 1)
         # Simulate a signal delivered while the atexit close is running.
-        AppLauncher._abort_signal_handle_callback(launcher, signal.SIGTERM, None)
+        lifecycle._on_abort_signal(signal.SIGTERM, None)
 
-    launcher = _make_launcher(_close)
+    lifecycle = _make_lifecycle(_close)
     actions = _capture_signal_actions(monkeypatch)
 
-    AppLauncher._close_app_at_exit(launcher)
+    lifecycle._close_at_exit()
 
     # the guard must be armed before close, so the mid-close signal must not re-enter close()
     assert close_calls == [1]
     assert ("set_handler", signal.SIGTERM, signal.SIG_DFL) in actions
     assert ("raise", signal.SIGTERM) in actions
+
+
+def test_atexit_close_preserves_pending_failure_status(monkeypatch):
+    """The atexit close passes a nonzero exit code when an unhandled exception is pending.
+
+    Kit fast shutdown would otherwise replace the interpreter's pending failure
+    status with a successful exit code 0.
+    """
+    codes = []
+    lifecycle = _make_lifecycle(lambda exit_code=0: codes.append(exit_code))
+
+    # normal interpreter exit: no pending exception, close with exit code 0
+    monkeypatch.delattr(sys, "last_exc", raising=False)
+    lifecycle._close_at_exit()
+    # unhandled exception pending: close with a failure exit code
+    lifecycle._closing = False
+    monkeypatch.setattr(sys, "last_exc", RuntimeError("pending failure"), raising=False)
+    lifecycle._close_at_exit()
+
+    assert codes == [0, 1]
