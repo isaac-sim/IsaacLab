@@ -23,6 +23,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import traceback
+from functools import partial
 
 from isaaclab.app import AppLauncher
 
@@ -32,23 +34,40 @@ parser.add_argument("--num_steps", type=int, default=500, help="Number of timed 
 parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up steps.")
 parser.add_argument("--decimation", type=int, default=4, help="Physics steps per timed sensor cadence.")
 parser.add_argument("--history_length", type=int, default=0, help="Number of contact history frames.")
+parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
+parser.add_argument(
+    "--benchmark_formatter",
+    type=str,
+    default="summary",
+    choices=["json", "osmo", "omniperf", "summary"],
+    help="Formatter used for benchmark results.",
+)
 parser.add_argument("--disable_graph", action="store_true", help="Disable CUDA graph capture of the sensor update.")
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+if args_cli.num_envs <= 0:
+    parser.error("--num_envs must be greater than zero")
+if args_cli.num_steps <= 0:
+    parser.error("--num_steps must be greater than zero")
+if args_cli.warmup_steps < 0:
+    parser.error("--warmup_steps must be non-negative")
+if args_cli.decimation <= 0:
+    parser.error("--decimation must be greater than zero")
+if args_cli.history_length < 0:
+    parser.error("--history_length must be non-negative")
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import statistics
-import time
-
 import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.benchmark import LatencyBenchmarkRunner, LatencySample, SingleMeasurement
+from isaaclab.benchmark.micro import measure_latency
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -103,52 +122,71 @@ def main():
     wp.synchronize_device(sim.device)
 
     # Time only sensor work. Physics steps happen outside the timed regions.
-    cadence_times_ms = []
-    submit_times_ms = []
+    synchronize = partial(wp.synchronize_device, sim.device)
+    cadence_samples: list[LatencySample] = []
     for _ in range(args_cli.num_steps):
-        cadence_time_ms = 0.0
-        submit_time_ms = 0.0
+        cadence_synchronized = 0.0
+        cadence_submission = 0.0
         for _ in range(args_cli.decimation):
             sim.step(render=False)
-            wp.synchronize_device(sim.device)
-            t_start = time.perf_counter()
-            sensor.update(sim_dt)
-            t_submit = time.perf_counter()
-            wp.synchronize_device(sim.device)
-            cadence_time_ms += (time.perf_counter() - t_start) * 1000.0
-            submit_time_ms += (t_submit - t_start) * 1000.0
+            sample = measure_latency(operation=lambda: sensor.update(sim_dt), synchronize=synchronize)
+            cadence_synchronized += sample.synchronized_s
+            cadence_submission += sample.submission_s
 
-        wp.synchronize_device(sim.device)
-        t_start = time.perf_counter()
-        _ = sensor.data
-        t_submit = time.perf_counter()
-        wp.synchronize_device(sim.device)
-        cadence_time_ms += (time.perf_counter() - t_start) * 1000.0
-        submit_time_ms += (t_submit - t_start) * 1000.0
-        cadence_times_ms.append(cadence_time_ms)
-        submit_times_ms.append(submit_time_ms)
+        sample = measure_latency(operation=lambda: getattr(sensor, "data"), synchronize=synchronize)
+        cadence_synchronized += sample.synchronized_s
+        cadence_submission += sample.submission_s
+        cadence_samples.append(LatencySample(submission_s=cadence_submission, synchronized_s=cadence_synchronized))
+
+    observer_synchronized_s = [
+        sum(
+            measure_latency(operation=lambda: None, synchronize=synchronize).synchronized_s
+            for _ in range(args_cli.decimation + 1)
+        )
+        for _ in range(args_cli.num_steps)
+    ]
 
     mode = "eager" if args_cli.disable_graph else "graph"
-    print("-" * 80)
-    print("Contact sensor cadence benchmark (PhysX)")
-    print(f"  mode                    : {mode}")
-    print(f"  device                  : {sim.device}")
-    print(f"  num_envs                : {args_cli.num_envs}")
-    print(f"  num_steps               : {args_cli.num_steps}")
-    print(f"  decimation              : {args_cli.decimation}")
-    print(f"  history_length          : {args_cli.history_length}")
-    print(f"  cadence mean (sync)     : {statistics.mean(cadence_times_ms):.3f} ms")
-    print(f"  cadence p50  (sync)     : {statistics.median(cadence_times_ms):.3f} ms")
-    print(f"  cadence min  (sync)     : {min(cadence_times_ms):.3f} ms")
-    print(f"  cadence submit mean     : {statistics.mean(submit_times_ms):.3f} ms")
-    print("-" * 80)
-
-    # sanity check: cubes rest on the ground, so every sensor must report an upward net force
+    # Cubes rest on the ground, so every sensor must report an upward net force.
     net_forces = sensor.data.net_forces_w.torch
     num_in_contact = int((net_forces.norm(dim=-1) > 0.1).sum().item())
-    print(f"  sensors in contact: {num_in_contact} / {args_cli.num_envs}")
+
+    if num_in_contact != args_cli.num_envs:
+        raise RuntimeError(f"Expected {args_cli.num_envs} contacting sensors, received {num_in_contact}.")
+
+    benchmark = LatencyBenchmarkRunner(
+        benchmark_name="physx_contact_sensor",
+        formatter_type=args_cli.benchmark_formatter,
+        output_path=args_cli.output_path,
+        metadata={
+            "mode": mode,
+            "device": str(sim.device),
+            "num_envs": args_cli.num_envs,
+            "num_steps": args_cli.num_steps,
+            "warmup_steps": args_cli.warmup_steps,
+            "decimation": args_cli.decimation,
+            "history_length": args_cli.history_length,
+        },
+    )
+    benchmark.add_latency_samples("sensor_cadence", cadence_samples)
+    benchmark.add_synchronized_samples("observer", "Synchronized Observer Floor", observer_synchronized_s)
+    benchmark.add_measurement(
+        "validation",
+        measurement=[
+            SingleMeasurement(name="Sensors in Contact", value=num_in_contact, unit="count"),
+            SingleMeasurement(name="Expected Sensors", value=args_cli.num_envs, unit="count"),
+        ],
+    )
+    benchmark.finalize()
 
 
 if __name__ == "__main__":
-    main()
-    simulation_app.close()
+    try:
+        main()
+    except BaseException:
+        if simulation_app.config.get("fast_shutdown", False):
+            traceback.print_exc()
+        simulation_app.close(exit_code=1)
+        raise
+    else:
+        simulation_app.close()

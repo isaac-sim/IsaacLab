@@ -15,6 +15,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import traceback
+from functools import partial
 
 from isaaclab.app import AppLauncher
 
@@ -24,6 +26,14 @@ parser.add_argument("--num_envs", type=int, default=4096, help="Number of enviro
 parser.add_argument("--num_steps", type=int, default=500, help="Number of timed updates.")
 parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up updates.")
 parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
+parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
+parser.add_argument(
+    "--benchmark_formatter",
+    type=str,
+    default="summary",
+    choices=["json", "osmo", "omniperf", "summary"],
+    help="Formatter used for benchmark results.",
+)
 parser.add_argument(
     "--disable_recorded_launch",
     action="store_true",
@@ -31,20 +41,25 @@ parser.add_argument(
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+if args_cli.num_envs <= 0:
+    parser.error("--num_envs must be greater than zero")
+if args_cli.num_steps <= 0:
+    parser.error("--num_steps must be greater than zero")
+if args_cli.warmup_steps < 0:
+    parser.error("--warmup_steps must be non-negative")
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Everything below follows application launch."""
 
-import statistics
-import time
-
 import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
+from isaaclab.benchmark.micro import measure_latency
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ImuCfg, PvaCfg
 from isaaclab.utils.configclass import configclass
@@ -64,16 +79,6 @@ class ImuPvaBenchmarkSceneCfg(InteractiveSceneCfg):
     )
     imu: ImuCfg | None = None
     pva: PvaCfg | None = None
-
-
-def _percentile(samples: list[float], percentile: float) -> float:
-    """Return a linearly interpolated percentile for scalar samples."""
-    ordered = sorted(samples)
-    position = (len(ordered) - 1) * percentile
-    lower = int(position)
-    upper = min(lower + 1, len(ordered) - 1)
-    fraction = position - lower
-    return ordered[lower] + fraction * (ordered[upper] - ordered[lower])
 
 
 def main() -> None:
@@ -104,39 +109,63 @@ def main() -> None:
         sensor.update(sim_dt, force_recompute=True)
     wp.synchronize_device(sim.device)
 
-    synchronized_ms: list[float] = []
-    submission_ms: list[float] = []
+    synchronize = partial(wp.synchronize_device, sim.device)
+    samples = []
     for _ in range(args_cli.num_steps):
         sim.step(render=False)
-        wp.synchronize_device(sim.device)
-        start = time.perf_counter()
-        sensor.update(sim_dt, force_recompute=True)
-        submitted = time.perf_counter()
-        wp.synchronize_device(sim.device)
-        finished = time.perf_counter()
-        synchronized_ms.append((finished - start) * 1000.0)
-        submission_ms.append((submitted - start) * 1000.0)
+        samples.append(
+            measure_latency(
+                operation=lambda: sensor.update(sim_dt, force_recompute=True),
+                synchronize=synchronize,
+            )
+        )
+
+    observer_samples = [
+        measure_latency(operation=lambda: None, synchronize=synchronize) for _ in range(args_cli.num_steps)
+    ]
 
     lin_acc_b = sensor.data.lin_acc_b.torch
     ang_vel_b = sensor.data.ang_vel_b.torch
     finite_instances = int((torch.isfinite(lin_acc_b).all(dim=-1) & torch.isfinite(ang_vel_b).all(dim=-1)).sum())
 
-    print("-" * 80)
-    print(f"{args_cli.sensor.upper()} update benchmark (PhysX)")
-    print(f"  label                  : {args_cli.label}")
-    print(f"  device                 : {sim.device}")
-    print(f"  num_envs               : {args_cli.num_envs}")
-    print(f"  num_steps              : {args_cli.num_steps}")
-    print(f"  synchronized mean      : {statistics.mean(synchronized_ms):.3f} ms")
-    print(f"  synchronized p50       : {_percentile(synchronized_ms, 0.50):.3f} ms")
-    print(f"  synchronized p95       : {_percentile(synchronized_ms, 0.95):.3f} ms")
-    print(f"  submission mean        : {statistics.mean(submission_ms):.3f} ms")
-    print(f"  submission p50         : {_percentile(submission_ms, 0.50):.3f} ms")
-    print(f"  submission p95         : {_percentile(submission_ms, 0.95):.3f} ms")
-    print("-" * 80)
-    print(f"  finite sensor outputs  : {finite_instances} / {args_cli.num_envs}")
+    if finite_instances != args_cli.num_envs:
+        raise RuntimeError(f"Expected {args_cli.num_envs} finite sensor outputs, received {finite_instances}.")
+
+    benchmark_name = f"physx_{args_cli.sensor}_sensor"
+    benchmark = LatencyBenchmarkRunner(
+        benchmark_name=benchmark_name,
+        formatter_type=args_cli.benchmark_formatter,
+        output_path=args_cli.output_path,
+        metadata={
+            "label": args_cli.label,
+            "sensor": args_cli.sensor,
+            "device": str(sim.device),
+            "num_envs": args_cli.num_envs,
+            "num_steps": args_cli.num_steps,
+            "warmup_steps": args_cli.warmup_steps,
+        },
+    )
+    benchmark.add_latency_samples("sensor_update", samples)
+    benchmark.add_synchronized_samples(
+        "observer", "Synchronized Observer Floor", [s.synchronized_s for s in observer_samples]
+    )
+    benchmark.add_measurement(
+        "validation",
+        measurement=[
+            SingleMeasurement(name="Finite Sensor Outputs", value=finite_instances, unit="count"),
+            SingleMeasurement(name="Expected Sensor Outputs", value=args_cli.num_envs, unit="count"),
+        ],
+    )
+    benchmark.finalize()
 
 
 if __name__ == "__main__":
-    main()
-    simulation_app.close()
+    try:
+        main()
+    except BaseException:
+        if simulation_app.config.get("fast_shutdown", False):
+            traceback.print_exc()
+        simulation_app.close(exit_code=1)
+        raise
+    else:
+        simulation_app.close()
