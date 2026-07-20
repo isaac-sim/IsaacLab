@@ -1,18 +1,45 @@
 # Installing Isaac Lab Reference
 
-## Install Method Routing
+## Preflight Detection
 
-Consult `docs/source/setup/installation/index.rst` from the Isaac Lab checkout first, then route the user to the specific install page for the chosen method.
+Read-only commands to gather routing facts on Linux; nothing changes system state:
 
-| User context | Docs page |
+```bash
+grep PRETTY_NAME /etc/os-release && uname -m && ldd --version | head -1
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
+command -v python3.12 uv conda; free -g | head -2; df -h .
+```
+
+Also note existing install artifacts: `.venv/` or an env directory in the checkout, and `~/.isaaclab/install_profile.yaml`. On Windows, collect the equivalents (driver via `nvidia-smi`, Python version, free disk).
+
+## Express Route Mapping
+
+After preflight detection, read the minimums from `docs/source/setup/installation/index.rst` in the checkout, then route on the detected facts:
+
+| Detected facts | Route | Docs page |
+| --- | --- | --- |
+| Linux, NVIDIA GPU, GLIBC at or above the documented pip minimum | pip (docs-Recommended) | `docs/source/setup/installation/pip_installation.rst` |
+| Linux, NVIDIA GPU, GLIBC below the pip minimum or undetectable | binary Isaac Sim | `docs/source/setup/installation/binaries_installation.rst` |
+| Windows 11 | guided per-tab flow | `docs/source/setup/installation/index.rst` |
+| No NVIDIA GPU/driver, driver below minimum, or insufficient disk | blocked — report fixes, offer kit-less | `docs/source/setup/installation/index.rst` |
+
+User-stated preferences override the routing and map directly:
+
+| Stated preference | Docs page |
 | --- | --- |
-| First-time full-feature user (docs-Recommended) | `docs/source/setup/installation/pip_installation.rst` |
-| Older Linux distro (GLIBC below the pip minimum) | `docs/source/setup/installation/binaries_installation.rst` |
 | Isaac Sim contributor building from source | `docs/source/setup/installation/source_installation.rst` |
-| External Isaac Lab extension author using pip only | `docs/source/setup/installation/isaaclab_pip_installation.rst` |
+| External extension author, Isaac Lab pip package only | `docs/source/setup/installation/isaaclab_pip_installation.rst` |
 | Newton physics only, no Isaac Sim | `docs/source/setup/installation/kitless_installation.rst` |
 | Zero-env experimental workflow | `docs/source/setup/installation/uv_run.rst` |
 | Containerized deployment | `docs/source/deployment/docker.rst` |
+
+## Express Flow Rules
+
+- At most one question: the consolidated go/no-go before execution. The binary route adds one pause for the manual Isaac Sim download.
+- Env manager: uv if present, else conda if present, else install uv via the docs pip page step. Never ask.
+- Defaults: install into the current checkout, docs-default env name, docs-Recommended options. Never ask.
+- Log every executed command and its output to `~/.isaaclab/logs/install-<timestamp>.log`.
+- After success, write facts, route, and commands run to `~/.isaaclab/install_profile.yaml`.
 
 ## Prerequisite Minimums
 
@@ -36,17 +63,20 @@ uv run python -c "import isaaclab; print('ok')"
 
 For the binary Isaac Sim path with bundled Python, use the install page's documented verification instead. For Docker, run verification inside the container as documented in `docs/source/deployment/docker.rst`.
 
-## Common Install-Time Failure Routing
+## Install-Time Failure Routing
+
+Apply at most one documented fix per failed step, retry once, then stop and hand off with the log path.
 
 | Symptom during install | First reference |
 | --- | --- |
 | `GLIBC` version too low | `docs/source/setup/installation/binaries_installation.rst` (switch install method) |
 | `nvidia-smi` missing or driver too old | `docs/source/setup/installation/index.rst` (driver minimums) |
+| Network timeout fetching wheels | Retry the step once; then check proxy/firewall for github.com, pypi.org, pypi.nvidia.com, download.pytorch.org |
 | Windows path-too-long errors | Windows tab of the chosen install page (long-path support) |
 | Docker step fails with runtime error | `docs/source/deployment/docker.rst` (NVIDIA Container Toolkit setup) |
 | Import fails after install completes | Hand off to `isaaclab-setup-troubleshooting` |
 
 ## Cross-Skill Routing
 
-- Post-install import failures, backend setup, or other setup diagnostics belong in `isaaclab-setup-troubleshooting`. Route there as soon as the install commands finish and the failure is not in a documented install step.
+- Existing install artifacts detected by preflight, post-install import failures, backend setup, or other setup diagnostics belong in `isaaclab-setup-troubleshooting`.
 - Environment authoring, task creation, and RL training belong in the environment and training skills. Route there after verification passes.

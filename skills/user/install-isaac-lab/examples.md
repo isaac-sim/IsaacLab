@@ -1,58 +1,55 @@
 # Installing Isaac Lab Examples
 
-## Example 1: Recommended Pip Install On Ubuntu 22.04
+## Example 1: Express Install On Ubuntu 22.04 (Default Flow)
 
-User: "Install Isaac Lab on my Ubuntu 22.04 desktop."
-
-Suggested agent response:
-
-1. Confirm the NVIDIA driver is at or above the minimum in `docs/source/setup/installation/index.rst`.
-2. Route to `docs/source/setup/installation/pip_installation.rst`.
-3. Prescribe the install page's commands in order without paraphrasing.
-4. After install, run `uv run python -c "import isaaclab; print('ok')"`.
-
-## Example 2: Binary Install On Ubuntu 20.04
-
-User: "Install Isaac Lab on Ubuntu 20.04. My GLIBC is 2.31."
+User: "Install Isaac Lab."
 
 Suggested agent response:
 
-1. Confirm GLIBC is below the pip Isaac Sim minimum documented in `docs/source/setup/installation/pip_installation.rst`.
-2. Route to `docs/source/setup/installation/binaries_installation.rst` instead of the pip page.
-3. Confirm the user is prepared to download the Isaac Sim binary manually.
-4. Follow the binary install page's steps and use the docs-defined verification once done.
+1. Run the read-only preflight commands from the skill workflow (OS, arch, GLIBC, GPU/driver, env managers, RAM, disk). No blockers; facts point to the pip route with uv.
+2. Confirm the minimums against `docs/source/setup/installation/index.rst`, then read `docs/source/setup/installation/pip_installation.rst` and extract its commands verbatim.
+3. Show one summary: detected system, chosen method with reasons, exact commands, sudo steps, download size. Ask a single go/no-go.
+4. On yes, execute every step unattended, logging to `~/.isaaclab/logs/`, then run `uv run python -c "import isaaclab; print('ok')"`.
+5. Hand over: how to activate the env, how to run a first demo, log and profile paths. No other questions asked at any point.
 
-## Example 3: Windows 11 Install
+## Example 2: Preflight Routes To Binary On Ubuntu 20.04
+
+User: "Install Isaac Lab on my Ubuntu 20.04 box."
+
+Suggested agent response:
+
+1. Preflight detection reports GLIBC 2.31; the pip minimum read from `docs/source/setup/installation/pip_installation.rst` is higher, so route to binary.
+2. Build the plan from `docs/source/setup/installation/binaries_installation.rst`.
+3. Single confirmation summary notes the one manual step: downloading and extracting the Isaac Sim binary.
+4. Execute unattended, pausing only at the download step with the URL from the docs page; resume when the user confirms.
+5. Verify with the binary path's docs-defined verification command.
+
+## Example 3: User Preference Overrides Auto-Pick
+
+User: "Install Isaac Lab with conda, env name lab3."
+
+Suggested agent response:
+
+1. Run preflight as usual. Even if uv is present, the stated preference wins: conda with env name `lab3`, no re-asking.
+2. Follow the conda instructions on the routed install page verbatim.
+3. Single go/no-go, unattended execution, docs verification, handover.
+
+## Example 4: Preflight Finds A Blocker
+
+User: "Set up Isaac Lab."
+
+Suggested agent response:
+
+1. Preflight detection finds no NVIDIA GPU/driver.
+2. Do not install. Report the blocker and its fix line (driver install per `docs/source/setup/installation/index.rst`), and offer the kit-less path from `docs/source/setup/installation/kitless_installation.rst` as the documented no-RTX alternative.
+3. Resume the express flow after the user resolves the blocker.
+
+## Example 5: Windows 11 Falls Back To Guided Mode
 
 User: "Install Isaac Lab on Windows 11."
 
 Suggested agent response:
 
-1. Confirm the Windows tab in `docs/source/setup/installation/index.rst` and the checkout's chosen install page.
-2. Confirm NVIDIA Windows driver, Python 3.12, and any Windows extras named in the page.
-3. Enable Windows long-path support per the install page before starting the install.
-4. Prescribe the Windows tab commands from the install page verbatim.
-5. Run the docs-defined verification command.
-
-## Example 4: Docker Deployment
-
-User: "Set up Isaac Lab in Docker."
-
-Suggested agent response:
-
-1. Confirm Docker Engine, Docker Compose, and NVIDIA Container Toolkit are installed before running any install command.
-2. Route to `docs/source/deployment/docker.rst`.
-3. Use the container launch command from that page.
-4. Run the verification command inside the container as documented.
-
-## Example 5: Isaac Sim Contributor Building From Source
-
-User: "I want to modify Isaac Sim itself. Set me up with a source build alongside Isaac Lab."
-
-Suggested agent response:
-
-1. Confirm the user needs to modify Isaac Sim source (not just clone Isaac Lab).
-2. Route to `docs/source/setup/installation/source_installation.rst`.
-3. Confirm disk headroom and the build prerequisites listed on that page. On Windows, confirm Visual Studio Build Tools.
-4. Prescribe the source-build commands verbatim, including the Isaac Sim build step before the Isaac Lab install commands.
-5. Run the docs-defined verification command for the source path after the build completes.
+1. The platform is not Linux, so use the guided per-tab flow instead of unattended express mode.
+2. Follow the Windows tab in `docs/source/setup/installation/index.rst` and the chosen install page interactively: confirm driver, Python 3.12, long-path support, then prescribe the Windows commands verbatim.
+3. Keep questions minimal; verify with the docs-defined command.

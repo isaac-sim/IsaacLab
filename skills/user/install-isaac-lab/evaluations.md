@@ -1,47 +1,80 @@
 # Installing Isaac Lab Evaluations
 
-## Scenario 1: Fresh Install On Ubuntu 22.04
+## Scenario 1: Express Install On Ubuntu 22.04
 
-Query: "Help me install Isaac Lab on my Ubuntu 22.04 machine."
+Query: "Install Isaac Lab."
 
 Expected behavior:
 
-- Confirms Ubuntu 22.04 with an NVIDIA GPU and driver against the minimums in `docs/source/setup/installation/index.rst`.
-- Routes to `docs/source/setup/installation/pip_installation.rst` (the docs-Recommended path) using uv.
-- Reads the pip install page's commands verbatim before prescribing.
-- Ends with the docs-defined minimal verification command.
+- Runs the read-only preflight detection commands before anything else; no interview questions about use case, env manager, or method.
+- Reads the minimums from `docs/source/setup/installation/index.rst`, routes to the pip path, then reads `docs/source/setup/installation/pip_installation.rst` and uses its commands verbatim.
+- Shows one consolidated plan (system facts, method, exact commands, sudo steps) and asks exactly one go/no-go question.
+- Executes all steps unattended after yes, logs to `~/.isaaclab/logs/`, ends with the docs-defined minimal verification command, and tells the user how to activate and use the environment.
 
 Known failure modes:
 
-- Copies pip install commands or version pins from memory without reading the current install page.
-- Prescribes source or binary paths when the user has no reason to depart from the Recommended path.
-- Skips the verification step or substitutes a paraphrased verification command.
+- Interviews the user (use case, env manager, install directory) instead of auto-picking.
+- Asks for confirmation again at each step after the go/no-go.
+- Copies install commands or version pins from memory without reading the current install page.
+- Skips preflight and starts executing install commands directly.
 
-## Scenario 2: Older Distro With GLIBC Below The Pip Minimum
+## Scenario 2: Older Distro Routed To Binary
 
 Query: "I want to install Isaac Lab on Ubuntu 20.04. My GLIBC is 2.31."
 
 Expected behavior:
 
-- Confirms GLIBC before recommending any pip path.
-- Routes to `docs/source/setup/installation/binaries_installation.rst` because pip Isaac Sim needs the GLIBC minimum documented in `docs/source/setup/installation/pip_installation.rst`.
-- Notes the manual Isaac Sim binary download step and confirms the user is prepared for it.
+- The stated GLIBC is compared against the pip minimum read from `docs/source/setup/installation/pip_installation.rst` (not memory), routing to `docs/source/setup/installation/binaries_installation.rst`.
+- The single confirmation summary calls out the manual Isaac Sim binary download as the one manual step.
+- Execution pauses only at the download step with the URL from the docs page, then continues unattended.
 - Ends with the binary path's verification command from the docs.
 
 Known failure modes:
 
 - Recommends the pip path anyway and lets the user hit a `GLIBC` version error at install time.
-- Copies old GLIBC minimums from memory rather than reading `docs/source/setup/installation/index.rst` from the checkout.
-- Sends the user to the pip page and then improvises a binary workaround if pip fails.
+- Copies old GLIBC minimums from memory rather than reading the checkout docs.
+- Treats the download pause as a second interview and starts re-asking preferences.
 
-## Scenario 3: Windows 11 Install
+## Scenario 3: Stated Preferences Override Auto-Pick
+
+Query: "Install Isaac Lab using conda into env lab3."
+
+Expected behavior:
+
+- Honors conda and `lab3` without re-asking, even if preflight suggests uv.
+- Uses the conda variant of the routed install page's commands verbatim.
+- Still exactly one go/no-go question, unattended execution, docs verification.
+
+Known failure modes:
+
+- Re-asks the user to choose an env manager the request already specified.
+- Silently substitutes uv because it is the docs-Recommended default.
+- Uses a different env name than the one requested.
+
+## Scenario 4: Preflight Blocker Stops The Flow
+
+Query: "Set up Isaac Lab on this machine" (machine has no NVIDIA GPU).
+
+Expected behavior:
+
+- Preflight detection finds no NVIDIA GPU/driver; no state-changing command runs.
+- Reports the blocker with a fix and offers the documented kit-less alternative (`docs/source/setup/installation/kitless_installation.rst`).
+- If detection instead finds existing install artifacts, hands off to `isaaclab-setup-troubleshooting` rather than reinstalling over them.
+
+Known failure modes:
+
+- Proceeds with the pip install and fails midway at the Isaac Sim step.
+- Attempts to install an NVIDIA driver unattended.
+- Reinstalls over an existing broken environment instead of routing to troubleshooting.
+
+## Scenario 5: Windows 11 Guided Fallback
 
 Query: "Install Isaac Lab on Windows 11."
 
 Expected behavior:
 
-- Confirms the NVIDIA Windows driver meets the checkout's minimum, Python 3.12 is present, and Visual Studio Build Tools are installed if the user picks the source build.
-- Follows the Windows tab in the install page for command form and long-path support.
+- The non-Linux platform routes to the guided flow: the agent follows the Windows tab in `docs/source/setup/installation/index.rst` and the chosen install page interactively.
+- Confirms the NVIDIA Windows driver, Python 3.12, and long-path support before prescribing commands.
 - Uses the Windows-specific commands from the install page rather than paraphrasing shell equivalents.
 - Verifies with the docs-defined verification command.
 
@@ -49,38 +82,4 @@ Known failure modes:
 
 - Prescribes bash commands on Windows or paraphrases them into cmd form.
 - Skips the long-path support step documented for Windows.
-- Recommends the source build without checking for Visual Studio Build Tools.
-
-## Scenario 4: Docker Deployment
-
-Query: "Run Isaac Lab in a Docker container."
-
-Expected behavior:
-
-- Confirms Docker Engine, Docker Compose, and NVIDIA Container Toolkit are installed before prescribing container commands.
-- Routes to `docs/source/deployment/docker.rst`.
-- Uses the container launch command from that page and does not paraphrase image tags.
-- Runs verification inside the container as documented.
-
-Known failure modes:
-
-- Prescribes container commands without checking that NVIDIA Container Toolkit is installed.
-- Copies container image tags from memory instead of reading the deployment doc.
-- Recommends the Docker path on Windows without confirming Docker Desktop with the WSL2 GPU stack is set up.
-
-## Scenario 5: Isaac Sim Contributor Building From Source
-
-Query: "I want to modify Isaac Sim itself. Set me up with a source build alongside Isaac Lab."
-
-Expected behavior:
-
-- Confirms the user needs Isaac Sim source (not just Isaac Lab source), then routes to `docs/source/setup/installation/source_installation.rst`.
-- Confirms disk headroom, the Isaac Sim source-build prerequisites documented on that page, and Visual Studio Build Tools if the user is on Windows.
-- Prescribes the source-build commands verbatim in the order documented, including the build step for Isaac Sim.
-- Runs the docs-defined verification command for the source path after the build completes.
-
-Known failure modes:
-
-- Confuses "Isaac Lab from source" (git-clone install of Isaac Lab) with "Isaac Sim from source" (build Isaac Sim itself). This skill routes to the source_installation page only when the user genuinely needs to modify Isaac Sim.
-- Recommends the pip path when the user explicitly needs to modify Isaac Sim source.
-- Skips the Isaac Sim build step and jumps to the Isaac Lab install commands.
+- Applies the Linux express unattended flow where the docs require Windows-specific handling.
