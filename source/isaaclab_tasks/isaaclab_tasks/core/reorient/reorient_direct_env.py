@@ -21,12 +21,12 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
 from isaaclab_tasks.core.reorient.mdp.rewards import evaluate_reorient_success, reorient_reward
-from isaaclab_tasks.core.reorient.reorient_task_base import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
+from isaaclab_tasks.core.reorient.reorient_common import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
 from isaaclab_tasks.core.utils import EpisodeErrorRecorder, randomize_rotation, sample_joint_positions_within_limits
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
 
 class ReorientDirectEnv(DirectRLEnv):

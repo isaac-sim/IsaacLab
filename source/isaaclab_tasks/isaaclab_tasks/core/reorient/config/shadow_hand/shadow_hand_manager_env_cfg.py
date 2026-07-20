@@ -8,37 +8,30 @@
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import JointWrenchSensorCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import (
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     GOAL_OBJECT_CFG,
     OBJECT_CFG,
-    OPENAI_ACTION_NOISE_CFG,
-    OPENAI_OBSERVATION_NOISE_CFG,
     ROBOT_CFG,
-    NewtonEventCfg,
-    ObjectCfg,
-    PhysxEventCfg,
-    ShadowHandOpenAITaskCfgBase,
-    ShadowHandTaskCfgBase,
-)
-from isaaclab_tasks.core.reorient.reorient_task_base import (
     SHADOW_ACTUATED_JOINT_NAMES,
     SHADOW_FINGERTIP_BODY_NAMES,
-    ReorientTerminationsCfg,
-    reorient_goal_command,
-    reorient_joint_action,
-    reorient_reset_event,
-    reorient_reward_term,
+    ObjectCfg,
+    PhysicsCfg,
 )
+from isaaclab_tasks.core.reorient.reorient_common import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
 from isaaclab_tasks.utils import PresetCfg
+
+# ---------------------------------- state task ----------------------------------
 
 
 @configclass
@@ -70,10 +63,31 @@ class ShadowHandManagerSceneCfg(PresetCfg):
 
 
 @configclass
+class CommandsCfg:
+    """Object pose goal matching the Direct in-hand target."""
+
+    object_pose = mdp.ReorientEpisodeCommandCfg(
+        asset_name="object",
+        init_pos_offset=IN_HAND_POS_OFFSET,
+        update_goal_on_success=True,
+        orientation_success_threshold=0.1,
+        make_quat_unique=False,
+        fixed_marker_pos=GOAL_MARKER_POSITION,
+        goal_pose_visualizer_cfg=GOAL_OBJECT_CFG,
+        debug_vis=True,
+    )
+
+
+@configclass
 class ActionsCfg:
     """Twenty actuated Shadow Hand joints."""
 
-    joint_pos = reorient_joint_action(SHADOW_ACTUATED_JOINT_NAMES)
+    joint_pos = mdp.EMAJointPositionToLimitsActionCfg(
+        asset_name="robot",
+        joint_names=SHADOW_ACTUATED_JOINT_NAMES,
+        alpha=1.0,
+        rescale_to_limits=True,
+    )
 
 
 @configclass
@@ -138,153 +152,45 @@ class ObservationsCfg:
 class EventCfg:
     """Reset distributions matching the Direct task."""
 
-    reset_state = reorient_reset_event()
-
-
-@configclass
-class CommandsCfg:
-    """The reorient goal command with the Shadow Hand goal marker."""
-
-    object_pose = reorient_goal_command(goal_pose_visualizer_cfg=GOAL_OBJECT_CFG)
-
-
-@configclass
-class RewardsCfg:
-    """Direct-compatible reward and success accounting (the factory defaults)."""
-
-    reorient = reorient_reward_term()
-
-
-@configclass
-class ShadowHandManagerEnvCfg(ShadowHandTaskCfgBase, ManagerBasedRLEnvCfg):
-    """Manager-based state Shadow Hand task with Direct-compatible semantics."""
-
-    scene: ShadowHandManagerSceneCfg = ShadowHandManagerSceneCfg()
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
-    rewards: RewardsCfg = RewardsCfg()
-    # the shared termination section from isaaclab_tasks.core.reorient.reorient_task_base
-    terminations: ReorientTerminationsCfg = ReorientTerminationsCfg()
-    events: EventCfg = EventCfg()
-
-    def __post_init__(self):
-        self.decimation = 2
-        self.episode_length_s = 10.0
-        self.sim.render_interval = self.decimation
-        self.viewer.eye = (2.0, 2.0, 2.0)
-
-
-@configclass
-class OpenAIActionsCfg:
-    """OpenAI actions with Direct-compatible EMA and stateful noise."""
-
-    joint_pos = mdp.NoisyEMAJointPositionToLimitsActionCfg(
-        asset_name="robot",
-        joint_names=SHADOW_ACTUATED_JOINT_NAMES,
-        alpha=0.3,
-        rescale_to_limits=True,
-        noise_model=OPENAI_ACTION_NOISE_CFG,
+    reset_state = EventTerm(
+        func=mdp.reset_reorient_state,
+        mode="reset",
+        params={
+            "position_noise": 0.01,
+            "joint_position_noise": 0.2,
+            "joint_velocity_noise": 0.0,
+            "action_name": "joint_pos",
+        },
     )
 
 
 @configclass
-class OpenAIObservationsCfg:
-    """OpenAI 42-dimensional actor and 187-dimensional critic observations."""
+class RewardsCfg:
+    """Direct-compatible reward and success accounting."""
 
-    @configclass
-    class PolicyCfg(ObsGroup):
-        openai = ObsTerm(
-            func=mdp.OpenAIPolicyObservation,
-            params={
-                "command_name": "object_pose",
-                "action_name": "joint_pos",
-                "noise_model": OPENAI_OBSERVATION_NOISE_CFG,
-                "robot_cfg": SceneEntityCfg("robot", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False),
-                "object_cfg": SceneEntityCfg("object"),
-            },
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = True
-
-    @configclass
-    class CriticCfg(FullStateWithoutActionCfg):
-        fingertip_wrench = ObsTerm(
-            func=mdp.fingertip_wrench,
-            scale=10.0,
-            params={
-                "sensor_cfg": SceneEntityCfg(
-                    "joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False
-                )
-            },
-        )
-        last_action = ObsTerm(func=mdp.reorient_last_action, params={"action_name": "joint_pos"})
-
-    policy: PolicyCfg = PolicyCfg()
-    critic: CriticCfg = CriticCfg()
+    reorient = RewTerm(
+        func=mdp.ReorientReward,
+        weight=1.0,
+        params={
+            "command_name": "object_pose",
+            "distance_scale": -10.0,
+            "rotation_scale": 1.0,
+            "rotation_epsilon": 0.1,
+            "action_penalty_scale": -0.0002,
+            "success_tolerance": 0.1,
+            "success_bonus": 250.0,
+            "fall_distance": 0.24,
+            "fall_penalty": 0.0,
+            "averaging_factor": 0.1,
+            "success_count_threshold": 1,
+            "object_cfg": SceneEntityCfg("object"),
+        },
+    )
 
 
 @configclass
-class ShadowHandOpenAIManagerSceneCfg(PresetCfg):
-    """Backend-specific OpenAI scene alternatives."""
-
-    @configclass
-    class SceneCfg(_ShadowHandManagerSceneCfg):
-        """Shadow Hand scene with fingertip joint-wrench sensing."""
-
-        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-
-    physx = SceneCfg(clone_in_fabric=True)
-    newton_mjwarp = SceneCfg(clone_in_fabric=False)
-    ovphysx = physx
-    newton_kamino = newton_mjwarp
-    default = physx
-
-
-@configclass
-class OpenAIPhysxEventCfg(PhysxEventCfg):
-    """PhysX OpenAI randomization and state reset events."""
-
-    reset_state = reorient_reset_event()
-
-
-@configclass
-class OpenAINewtonEventCfg(NewtonEventCfg):
-    """Newton OpenAI randomization and state reset events."""
-
-    reset_state = reorient_reset_event()
-
-
-@configclass
-class OpenAIEventCfg(PresetCfg):
-    """Backend-specific OpenAI event alternatives."""
-
-    physx = OpenAIPhysxEventCfg()
-    newton_mjwarp = OpenAINewtonEventCfg()
-    ovphysx = physx
-    newton_kamino = newton_mjwarp
-    default = physx
-
-
-@configclass
-class OpenAICommandsCfg:
-    """OpenAI goal command with its wider success tolerance."""
-
-    object_pose = reorient_goal_command(orientation_success_threshold=0.4, goal_pose_visualizer_cfg=GOAL_OBJECT_CFG)
-
-
-@configclass
-class OpenAIRewardsCfg:
-    """OpenAI reward: wider tolerance, fall penalty, and noisy-EMA action source."""
-
-    reorient = reorient_reward_term(success_tolerance=0.4, fall_penalty=-50.0, action_name="joint_pos")
-
-
-@configclass
-class OpenAITerminationsCfg:
-    """Direct-compatible OpenAI termination conditions."""
+class TerminationsCfg:
+    """Termination conditions matching the Direct task."""
 
     object_out_of_reach = DoneTerm(
         func=mdp.object_reorientation_out_of_reach,
@@ -294,32 +200,27 @@ class OpenAITerminationsCfg:
             "object_cfg": SceneEntityCfg("object"),
         },
     )
-    time_out = DoneTerm(
-        func=mdp.ReorientTimeout,
-        time_out=True,
-        params={
-            "command_name": "object_pose",
-            "reward_name": "reorient",
-            "success_tolerance": 0.4,
-            "max_successes": 50,
-            "object_cfg": SceneEntityCfg("object"),
-        },
-    )
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
 @configclass
-class ShadowHandOpenAIManagerEnvCfg(ShadowHandOpenAITaskCfgBase, ShadowHandManagerEnvCfg):
-    """Manager counterpart shared by the OpenAI FF and LSTM variants."""
+class ShadowHandManagerEnvCfg(ManagerBasedRLEnvCfg):
+    """Manager-based state Shadow Hand task with Direct-compatible semantics."""
 
-    scene: ShadowHandOpenAIManagerSceneCfg = ShadowHandOpenAIManagerSceneCfg()
-    observations: OpenAIObservationsCfg = OpenAIObservationsCfg()
-    actions: OpenAIActionsCfg = OpenAIActionsCfg()
-    commands: OpenAICommandsCfg = OpenAICommandsCfg()
-    rewards: OpenAIRewardsCfg = OpenAIRewardsCfg()
-    terminations: OpenAITerminationsCfg = OpenAITerminationsCfg()
-    events: OpenAIEventCfg = OpenAIEventCfg()
+    scene: ShadowHandManagerSceneCfg = ShadowHandManagerSceneCfg()
+    observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
+    commands: CommandsCfg = CommandsCfg()
+    rewards: RewardsCfg = RewardsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
 
     def __post_init__(self):
-        super().__post_init__()
-        self.decimation = 3
-        self.episode_length_s = 8.0
+        self.decimation = 2
+        self.episode_length_s = 10.0
+        # simulation — mirrors the Direct cfg (guarded by the value-parity test)
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
+        self.sim.physics_material = RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0)
+        self.sim.physics = PhysicsCfg()
+        self.viewer.eye = (2.0, 2.0, 2.0)

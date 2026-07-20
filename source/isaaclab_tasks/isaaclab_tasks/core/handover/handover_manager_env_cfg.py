@@ -15,18 +15,19 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.handover.mdp as mdp
+from isaaclab_tasks.core.handover.handover_common import (
+    ACTUATED_JOINT_NAMES_PRESET,
+    FINGERTIP_BODY_NAMES,
+)
 from isaaclab_tasks.core.handover.handover_env_cfg import (
     LEFT_HAND_CFG,
     RIGHT_HAND_CFG,
-    HandoverTaskCfgBase,
     ObjectCfg,
-)
-from isaaclab_tasks.core.handover.handover_task_base import (
-    ACTUATED_JOINT_NAMES_PRESET,
-    FINGERTIP_BODY_NAMES,
+    PhysicsCfg,
 )
 from isaaclab_tasks.utils import PresetCfg
 
@@ -177,7 +178,7 @@ class TerminationsCfg:
 
 
 @configclass
-class HandoverManagerEnvCfg(HandoverTaskCfgBase, ManagerBasedRLEnvCfg):
+class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based handover environment matching the Direct RSL-RL view."""
 
     scene: HandoverManagerSceneCfg = HandoverManagerSceneCfg()
@@ -191,5 +192,9 @@ class HandoverManagerEnvCfg(HandoverTaskCfgBase, ManagerBasedRLEnvCfg):
     def __post_init__(self):
         self.decimation = 2
         self.episode_length_s = 7.5
+        # simulation — mirrors the Direct cfg (guarded by the value-parity test)
+        self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
+        self.sim.physics_material = RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0)
+        self.sim.physics = PhysicsCfg()
         self.viewer.eye = (2.0, 2.0, 2.0)

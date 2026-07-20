@@ -3,6 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Shadow Hand identity shared by the Direct and manager-based reorientation tasks.
+
+Asset and marker configurations, joint/body name lists, backend physics and
+domain-randomization presets, and the sim mixins. No task tunables: reward
+scales and thresholds live inline in the workflow configuration files.
+"""
+
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -11,24 +18,49 @@ import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
-from isaaclab_tasks.core.reorient.reorient_task_base import (
-    SHADOW_ACTUATED_JOINT_NAMES,
-    SHADOW_FINGERTIP_BODY_NAMES,
-)
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
+
+SHADOW_FINGERTIP_BODY_NAMES: list[str] = [
+    "robot0_ffdistal",
+    "robot0_mfdistal",
+    "robot0_rfdistal",
+    "robot0_lfdistal",
+    "robot0_thdistal",
+]
+"""Shadow Hand fingertip body names (identical on every backend asset)."""
+
+SHADOW_ACTUATED_JOINT_NAMES: list[str] = [
+    "robot0_WRJ1",
+    "robot0_WRJ0",
+    "robot0_FFJ3",
+    "robot0_FFJ2",
+    "robot0_FFJ1",
+    "robot0_MFJ3",
+    "robot0_MFJ2",
+    "robot0_MFJ1",
+    "robot0_RFJ3",
+    "robot0_RFJ2",
+    "robot0_RFJ1",
+    "robot0_LFJ4",
+    "robot0_LFJ3",
+    "robot0_LFJ2",
+    "robot0_LFJ1",
+    "robot0_THJ4",
+    "robot0_THJ3",
+    "robot0_THJ2",
+    "robot0_THJ1",
+    "robot0_THJ0",
+]
+"""Shadow Hand actuated joint names, in the Direct task's actuation order."""
 
 
 @configclass
@@ -267,28 +299,6 @@ class ObjectCfg(PresetCfg):
 
 
 @configclass
-class ShadowHandSceneCfg(PresetCfg):
-    """Scene configuration presets for the shadow hand environment.
-
-    PhysX supports ``clone_in_fabric=True`` for faster scene cloning via the Fabric layer.
-    Newton does not support Fabric cloning, so ``clone_in_fabric`` must be ``False``.
-    """
-
-    @configclass
-    class SceneCfg(InteractiveSceneCfg):
-        """Shadow Direct scene defaults; backend presets only set ``clone_in_fabric``."""
-
-        num_envs = 8192
-        env_spacing = 0.75
-        replicate_physics = True
-
-    physx: InteractiveSceneCfg = SceneCfg(clone_in_fabric=True)
-    newton_mjwarp: InteractiveSceneCfg = SceneCfg(clone_in_fabric=False)
-    default: InteractiveSceneCfg = physx
-    newton_kamino = newton_mjwarp
-
-
-@configclass
 class PhysicsCfg(PresetCfg):
     physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
@@ -328,79 +338,6 @@ GOAL_OBJECT_CFG = VisualizationMarkersCfg(
 )
 
 
-# Simulation settings shared by the Direct and manager variants (configclass
-# deep-copies these defaults per cfg instance). The solver-common base material
-# is sufficient: only friction values are set, so no PhysX-specific
-# ``physxMaterial`` attributes are authored.
-@configclass
-class ShadowHandTaskCfgBase:
-    """Shared Shadow task settings inherited by both the Direct and the manager configurations."""
-
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
-        render_interval=2,
-        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
-
-
-@configclass
-class ShadowHandOpenAITaskCfgBase(ShadowHandTaskCfgBase):
-    """Shared OpenAI-variant task settings (60 Hz stepping) for both paradigms."""
-
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        render_interval=3,
-        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
-
-
-@configclass
-class ShadowHandEnvCfg(ShadowHandTaskCfgBase, DirectRLEnvCfg):
-    # env
-    decimation = 2
-    episode_length_s = 10.0
-    action_space = 20
-    observation_space = 157  # (full)
-    state_space = 0
-    asymmetric_obs = False
-    obs_type = "full"
-
-    # robot
-    robot_cfg: ShadowHandRobotCfg = ROBOT_CFG
-    actuated_joint_names = SHADOW_ACTUATED_JOINT_NAMES
-    fingertip_body_names = SHADOW_FINGERTIP_BODY_NAMES
-
-    # in-hand object
-    object_cfg: ObjectCfg = OBJECT_CFG
-    # goal object
-    goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
-    # scene — use ShadowHandSceneCfg so that presets=newton_mjwarp disables clone_in_fabric automatically
-    scene: ShadowHandSceneCfg = ShadowHandSceneCfg()
-
-    # reset
-    reset_position_noise = 0.01  # range of position at reset
-    reset_dof_pos_noise = 0.2  # range of dof pos at reset
-    reset_dof_vel_noise = 0.0  # range of dof vel at reset
-    # reward scales
-    dist_reward_scale = -10.0
-    rot_reward_scale = 1.0
-    rot_eps = 0.1
-    action_penalty_scale = -0.0002
-    reach_goal_bonus = 250.0
-    fall_penalty = 0.0
-    fall_dist = 0.24
-    vel_obs_scale = 0.2
-    success_tolerance = 0.1
-    max_consecutive_success = 0
-    success_count_threshold: int = 1
-    """Minimum number of goals reached in an episode to count it as a successful episode."""
-    av_factor = 0.1
-    act_moving_average = 1.0
-    force_torque_obs_scale = 10.0
-
-
 # Per-step gaussian noise + reset-sampled bias, shared verbatim by the manager-based variant.
 OPENAI_ACTION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
     noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),
@@ -410,38 +347,3 @@ OPENAI_OBSERVATION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
     noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
     bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
 )
-
-
-@configclass
-class ShadowHandOpenAIEnvCfg(ShadowHandOpenAITaskCfgBase, ShadowHandEnvCfg):
-    # env
-    decimation = 3
-    episode_length_s = 8.0
-    action_space = 20
-    observation_space = 42
-    state_space = 187
-    asymmetric_obs = True
-    obs_type = "openai"
-    # reset
-    reset_position_noise = 0.01  # range of position at reset
-    reset_dof_pos_noise = 0.2  # range of dof pos at reset
-    reset_dof_vel_noise = 0.0  # range of dof vel at reset
-    # reward scales
-    dist_reward_scale = -10.0
-    rot_reward_scale = 1.0
-    rot_eps = 0.1
-    action_penalty_scale = -0.0002
-    reach_goal_bonus = 250.0
-    fall_penalty = -50.0
-    vel_obs_scale = 0.2
-    success_tolerance = 0.4
-    max_consecutive_success = 50
-    av_factor = 0.1
-    act_moving_average = 0.3
-    force_torque_obs_scale = 10.0
-    # domain randomization config
-    events: ShadowHandEventCfg = ShadowHandEventCfg()
-    # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
-    action_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_ACTION_NOISE_CFG
-    # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
-    observation_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_OBSERVATION_NOISE_CFG

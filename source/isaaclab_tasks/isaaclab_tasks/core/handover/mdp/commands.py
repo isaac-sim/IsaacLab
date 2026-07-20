@@ -18,7 +18,7 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.handover.handover_task_base import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET
+from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject

@@ -12,22 +12,17 @@ from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import SHADOW_FINGERTIP_BODY_NAMES
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandTiledCameraCfg,
     validate_shadow_hand_camera_settings,
 )
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg import (
-    ActionsCfg,
-    EventCfg,
     FullStateWithoutActionCfg,
     ShadowHandManagerEnvCfg,
     _ShadowHandManagerSceneCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_task_base import (
-    CAMERA_GOAL_MARKER_POSITION,
-    CAMERA_PLAY_NUM_ENVS,
-    SHADOW_FINGERTIP_BODY_NAMES,
-)
+from isaaclab_tasks.core.reorient.reorient_common import CAMERA_GOAL_MARKER_POSITION, CAMERA_PLAY_NUM_ENVS
 from isaaclab_tasks.utils import PresetCfg
 
 
@@ -116,12 +111,9 @@ class CameraObservationsCfg:
 class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
     """Manager-based camera task with exact Direct dynamics and observations."""
 
+    # only the fields that differ from ShadowHandManagerEnvCfg are overridden
     scene: ShadowHandCameraManagerSceneCfg = ShadowHandCameraManagerSceneCfg()
     observations: CameraObservationsCfg = CameraObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    # commands/rewards/terminations are inherited from ShadowHandManagerEnvCfg (the
-    # shared sections from isaaclab_tasks.core.reorient.reorient_task_base)
-    events: EventCfg = EventCfg()
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg()
 
     def __post_init__(self):

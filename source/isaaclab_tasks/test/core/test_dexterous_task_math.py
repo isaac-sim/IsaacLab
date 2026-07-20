@@ -131,7 +131,7 @@ def test_goal_keypoints_are_rotation_only_offsets(device):
 def test_cube_keypoints_deprecated_shim_delegates_and_warns(device):
     import warnings
 
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import compute_keypoints
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import compute_keypoints
 
     pose = torch.zeros(2, 7, device=device)
     pose[:, 6] = 1.0

@@ -23,6 +23,8 @@ def _resolve(obj, path: str):
 def _reorient_cases(direct_cfg, manager_cfg):
     """Field-to-term mapping shared by the Shadow, OpenAI, and Allegro pairs."""
     return [
+        (direct_cfg.sim.dt, manager_cfg.sim.dt),
+        (direct_cfg.sim.render_interval, manager_cfg.sim.render_interval),
         (direct_cfg.success_tolerance, manager_cfg.commands.object_pose.orientation_success_threshold),
         (direct_cfg.success_tolerance, _resolve(manager_cfg, "rewards.reorient.params.success_tolerance")),
         (direct_cfg.dist_reward_scale, _resolve(manager_cfg, "rewards.reorient.params.distance_scale")),
@@ -65,12 +67,12 @@ def _pairs():
     from isaaclab_tasks.core.handover.handover_manager_env_cfg import HandoverManagerEnvCfg
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_manager_env_cfg import AllegroCubeEnvCfg
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import (
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import (
         ShadowHandEnvCfg,
         ShadowHandOpenAIEnvCfg,
     )
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg import (
-        ShadowHandManagerEnvCfg,
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg import ShadowHandManagerEnvCfg
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_openai_manager_env_cfg import (
         ShadowHandOpenAIManagerEnvCfg,
     )
 
@@ -95,6 +97,8 @@ def test_handover_direct_manager_scalars_match():
     direct_cfg, manager_cfg = _pairs()["handover"]
     obs = manager_cfg.observations
     cases = [
+        (direct_cfg.sim.dt, manager_cfg.sim.dt),
+        (direct_cfg.sim.render_interval, manager_cfg.sim.render_interval),
         (direct_cfg.dist_reward_scale, _resolve(manager_cfg, "rewards.handover.params.distance_scale")),
         (
             direct_cfg.success_distance_threshold,
