@@ -1235,25 +1235,25 @@ def rendering_test_cartpole(
         # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
         # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
         semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         normals = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         motion_vectors = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[2, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[2, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
     env_cfg = _CartpoleCameraTestEnvCfg()
