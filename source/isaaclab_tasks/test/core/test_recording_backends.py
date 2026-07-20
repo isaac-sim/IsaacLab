@@ -17,7 +17,7 @@ Source strings tested:
 Setup:
     - AppLauncher(headless=True, enable_cameras=True)
     - CartpoleEnv (DirectRLEnv, 1 env) stepped for _STEPS env steps per test.
-    - VideoRecorderCfg(clip_length=_CLIP, clip_trigger_step=0) → one clip per test.
+    - VideoRecorderCfg(video_length=_CLIP, video_interval=0) → one clip per test.
 Tests:
     - source="visualizer:kit" + PhysX → Kit viewport frame captured (non-black)
     - source="visualizer:kit" + Newton → logs error, no clip written
@@ -46,7 +46,7 @@ from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 pytestmark = pytest.mark.isaacsim_ci
 
 _CLIP = 5  # short clip so tests finish quickly
-_STEPS = 8  # slightly more than clip_length to ensure one full clip is written
+_STEPS = 8  # slightly more than video_length to ensure one full clip is written
 _MIN_NONZERO_RATIO = 0.005
 
 
@@ -63,8 +63,8 @@ def _recorder_cfg(output_dir: str, source: str) -> VideoRecorderCfg:
     cfg = VideoRecorderCfg()
     cfg.source = source
     cfg.output_dir = output_dir
-    cfg.clip_length = _CLIP
-    cfg.clip_trigger_step = 0
+    cfg.video_length = _CLIP
+    cfg.video_interval = 0
     cfg.fps = 10
     return cfg
 

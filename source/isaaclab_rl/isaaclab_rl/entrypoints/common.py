@@ -573,8 +573,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
     Maps CLI flags:
 
     * ``--video``            → enables recording (source ``"visualizer"`` auto-selects the active visualizer)
-    * ``--video_length``     → :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.clip_length`
-    * ``--video_interval``   → :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.clip_trigger_step`
+    * ``--video_length``     → :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_length`
+    * ``--video_interval``   → :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_interval`
 
     Args:
         env_cfg: Isaac Lab environment config to modify in-place.
@@ -591,8 +591,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
     cfg = VideoRecorderCfg()
     cfg.source = "visualizer"
     cfg.output_dir = os.path.join(log_dir, "videos", subdir)
-    cfg.clip_length = args_cli.video_length
-    cfg.clip_trigger_step = getattr(args_cli, "video_interval", 0)
+    cfg.video_length = args_cli.video_length
+    cfg.video_interval = getattr(args_cli, "video_interval", 0)
     env_cfg.video_recorders = [cfg]
 
     print("[INFO] Video recording enabled.")
@@ -600,8 +600,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         {
             "source": cfg.source,
             "output_dir": cfg.output_dir,
-            "clip_length": cfg.clip_length,
-            "clip_trigger_step": cfg.clip_trigger_step,
+            "video_length": cfg.video_length,
+            "video_interval": cfg.video_interval,
         },
         nesting=4,
     )

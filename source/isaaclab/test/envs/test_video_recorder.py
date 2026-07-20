@@ -27,7 +27,7 @@ _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
 
 def _cfg(**overrides) -> VideoRecorderCfg:
-    defaults = dict(source="visualizer", output_dir="/tmp/test_videos", fps=30, clip_length=4, clip_trigger_step=0)
+    defaults = dict(source="visualizer", output_dir="/tmp/test_videos", fps=30, video_length=4, video_interval=0)
     cfg = VideoRecorderCfg()
     for k, v in {**defaults, **overrides}.items():
         setattr(cfg, k, v)
@@ -89,18 +89,18 @@ def test_parse_source_strips_whitespace():
 
 
 def test_trigger_step_zero_fires_at_first_step():
-    """clip_trigger_step=0 → single clip starts at step 1."""
-    recorder = VideoRecorder(_cfg(clip_length=100, clip_trigger_step=0), _make_env())
+    """video_interval=0 → single clip starts at step 1."""
+    recorder = VideoRecorder(_cfg(video_length=100, video_interval=0), _make_env())
     assert not recorder._recording
     recorder.step()
     assert recorder._recording
 
 
 def test_trigger_step_zero_does_not_retrigger():
-    """clip_trigger_step=0 → single clip, no re-trigger after it closes."""
+    """video_interval=0 → single clip, no re-trigger after it closes."""
     viz = _FakeViz("kit")  # provide frames so clip actually closes
     recorder = VideoRecorder(
-        _cfg(source="visualizer:kit", clip_length=2, clip_trigger_step=0), _make_env(visualizers=[viz])
+        _cfg(source="visualizer:kit", video_length=2, video_interval=0), _make_env(visualizers=[viz])
     )
     closed_count = [0]
 
@@ -117,10 +117,10 @@ def test_trigger_step_zero_does_not_retrigger():
 
 
 def test_trigger_step_positive_fires_periodically():
-    """clip_trigger_step=3 + clip_length=1 → exactly 3 clips written over 9 steps."""
+    """video_interval=3 + video_length=1 → exactly 3 clips written over 9 steps."""
     viz = _FakeViz("kit")
     recorder = VideoRecorder(
-        _cfg(source="visualizer:kit", clip_length=1, clip_trigger_step=3), _make_env(visualizers=[viz])
+        _cfg(source="visualizer:kit", video_length=1, video_interval=3), _make_env(visualizers=[viz])
     )
     close_count = [0]
 
@@ -141,10 +141,10 @@ def test_trigger_step_positive_fires_periodically():
 # ---------------------------------------------------------------------------
 
 
-def test_step_accumulates_frames_until_clip_length():
-    """Recorder accumulates frames and closes clip after clip_length steps."""
+def test_step_accumulates_frames_until_video_length():
+    """Recorder accumulates frames and closes clip after video_length steps."""
     viz = _FakeViz("kit")
-    recorder = VideoRecorder(_cfg(source="visualizer:kit", clip_length=3), _make_env(visualizers=[viz]))
+    recorder = VideoRecorder(_cfg(source="visualizer:kit", video_length=3), _make_env(visualizers=[viz]))
 
     with patch.object(recorder, "_close_clip") as mock_close:
         for _ in range(3):
@@ -158,7 +158,7 @@ def test_step_accumulates_frames_until_clip_length():
 def test_step_does_not_collect_when_no_trigger():
     """No frames collected before the first trigger."""
     viz = _FakeViz("kit")
-    recorder = VideoRecorder(_cfg(source="visualizer:kit", clip_trigger_step=10), _make_env(visualizers=[viz]))
+    recorder = VideoRecorder(_cfg(source="visualizer:kit", video_interval=10), _make_env(visualizers=[viz]))
     for _ in range(5):
         recorder.step()
     assert viz.render_calls == 0
@@ -337,7 +337,7 @@ def test_close_clip_increments_clip_index():
 def test_close_flushes_partial_clip():
     """VideoRecorder.close() writes any buffered frames before teardown."""
     viz = _FakeViz("kit")
-    recorder = VideoRecorder(_cfg(clip_length=100), _make_env(visualizers=[viz]))
+    recorder = VideoRecorder(_cfg(video_length=100), _make_env(visualizers=[viz]))
     # Manually inject some frames mid-clip.
     recorder._frames = [_FRAME, _FRAME]
     recorder._recording = True

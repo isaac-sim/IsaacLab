@@ -80,7 +80,7 @@ class VideoRecorder:
             frame = self._get_frame()
             if frame is not None:
                 self._frames.append(frame)
-                if len(self._frames) >= self.cfg.clip_length:
+                if len(self._frames) >= self.cfg.video_length:
                     self._close_clip()
 
     def close(self) -> None:
@@ -93,9 +93,9 @@ class VideoRecorder:
     # ------------------------------------------------------------------
 
     def _check_trigger(self) -> bool:
-        if self.cfg.clip_trigger_step <= 0:
+        if self.cfg.video_interval <= 0:
             return self._step_count == 1
-        return self._step_count % self.cfg.clip_trigger_step == 0
+        return self._step_count % self.cfg.video_interval == 0
 
     def _get_frame(self) -> np.ndarray | None:
         kind, type_or_name, sub = _parse_source(self.cfg.source)

@@ -17,7 +17,7 @@ Add one or more :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg
     ]
 
 Clips are written to ``output_dir/clip_NNNN.mp4`` via `moviepy <https://pypi.org/project/moviepy/>`_
-when the clip reaches ``clip_length`` steps or when ``env.close()`` is called.
+when the clip reaches ``video_length`` steps or when ``env.close()`` is called.
 
 
 Source types
@@ -126,10 +126,10 @@ Clip control
    * - Field
      - Default
      - Meaning
-   * - ``clip_length``
+   * - ``video_length``
      - ``200``
      - Env steps per clip
-   * - ``clip_trigger_step``
+   * - ``video_interval``
      - ``0``
      - ``0`` = one clip starting at step 1; ``N > 0`` = new clip every N steps
    * - ``fps``
@@ -143,13 +143,13 @@ Clip control
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="visualizer:kit", clip_length=500, clip_trigger_step=0)
+    VideoRecorderCfg(source="visualizer:kit", video_length=500, video_interval=0)
 
 **Record a 200-step clip every 1 000 env steps:**
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="visualizer:kit", clip_length=200, clip_trigger_step=1000)
+    VideoRecorderCfg(source="visualizer:kit", video_length=200, video_interval=1000)
 
 
 Requirements

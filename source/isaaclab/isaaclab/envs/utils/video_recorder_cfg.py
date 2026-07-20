@@ -41,11 +41,11 @@ class VideoRecorderCfg:
     fps: int = 30
     """Output video frame rate in frames per second."""
 
-    clip_length: int = 200
+    video_length: int = 200
     """Number of env steps captured per clip."""
 
-    clip_trigger_step: int = 0
-    """Start a new clip every ``clip_trigger_step`` env steps.
+    video_interval: int = 0
+    """Start a new clip every ``video_interval`` env steps.
 
     ``0`` means a single clip is started at the first step and the recorder is inactive
     afterwards (useful for fixed-length episode captures).  Set to a positive integer to
