@@ -90,10 +90,6 @@ class _NewtonRayCasterPoseMixin:
         super().__init__(cfg)  # pyright: ignore[reportCallIssue]
         self._sensor_site_labels = self._register_sites_for_expr(self.cfg.prim_path)
 
-    def _initialize_impl(self: Any) -> None:
-        """Bind the sensor to the finalized Newton model before base initialization."""
-        super()._initialize_impl()  # pyright: ignore[reportCallIssue]
-
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
         """Register Newton sites for a prim expression."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()

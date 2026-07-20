@@ -493,11 +493,8 @@ class NewtonWarpRenderer(BaseRenderer):
         )
 
         if _depth_kinds & render_data._PLANE_DEPTH_KINDS:
-            # Derive planar depth (``depth`` / ``distance_to_image_plane``) from Newton's ray-hit
-            # distance, then apply far-plane clipping. We cannot use ``clear_depth`` here because
-            # the ray-depth buffer feeds ``convert_plane_depth``; pre-clearing to ``far_clip`` would
-            # produce ``far_clip * cos(θ)`` per pixel in the planar outputs instead of ``0.0``,
-            # breaking the ``<= 0`` sentinel that ``apply_depth_clipping`` relies on.
+            # Derive planar depth from the ray-hit distance, then clip. Deliberately no clear_depth
+            # here: the ray-depth buffer feeds convert_plane_depth() (see the _use_depth_clear note).
             render_data.convert_plane_depth()
             render_data.apply_depth_clipping(self.cfg.depth_clipping_behavior)
 
