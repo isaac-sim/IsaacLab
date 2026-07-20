@@ -26,19 +26,30 @@ runs:
       id: resolve
       shell: bash
       run: |
-        python3 <<'PY' >> "$GITHUB_OUTPUT"
+        set -euo pipefail
+        # Capture first, write second: a missing/renamed key (or a moved section) must
+        # fail the step with a clear error, never leave $GITHUB_OUTPUT with a partial or
+        # empty value that would silently reintroduce an unconstrained ``pip install ovrtx``.
+        pins="$(python3 <<'PY'
         import re
+        import sys
 
         text = open("pyproject.toml", encoding="utf-8").read()
-        block = re.search(r"^\[tool\.isaaclab\.versions\]\n(.*?)(?:\n\[|\Z)", text, re.S | re.M).group(1)
-        vals = dict(re.findall(r'(\w+)\s*=\s*"([^"]+)"', block))
+        match = re.search(r"^\[tool\.isaaclab\.versions\]\n(.*?)(?:\n\[|\Z)", text, re.S | re.M)
+        if match is None:
+            sys.exit("pyproject.toml is missing the [tool.isaaclab.versions] section")
+        vals = dict(re.findall(r'(\w+)\s*=\s*"([^"]+)"', match.group(1)))
 
         def spec(pkg: str) -> str:
             # Mirror pyproject's convention: exact versions map to ``pkg==x.y.z``,
             # range specs (">=...", "<...") map to ``pkg>=...``.
+            if not vals.get(pkg):
+                sys.exit(f"[tool.isaaclab.versions] is missing a value for required key '{pkg}'")
             value = vals[pkg]
             return f"{pkg}=={value}" if value[0].isdigit() else f"{pkg}{value}"
 
-        print(f"ovrtx={spec('ovrtx')}")
-        print(f"ovphysx={spec('ovphysx')}")
+        for pkg in ("ovrtx", "ovphysx"):
+            print(f"{pkg}={spec(pkg)}")
         PY
+        )"
+        echo "$pins" >> "$GITHUB_OUTPUT"
