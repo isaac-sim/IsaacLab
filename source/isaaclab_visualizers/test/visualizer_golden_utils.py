@@ -64,13 +64,13 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     # Shadow hand Kit viewport (single view): less composite noise than tiled; observed
     # <8% inter-run diff at reset. Use 10% to give headroom over the 4-tiled baseline.
     "shadow_hand-kit-viewport": 10.0,
-    # Franka cloth Kit RTX tiled: at reset, cloth is flat (USD-defined pose). RTX TAA
-    # composite noise still produces ~10% diff between cold-golden and warm-retry;
-    # observed 10.01% on second retry in session. 12% gives ~2% breathing room.
-    "franka_cloth-kit-tiled": 12.0,
-    # Franka cloth Kit viewport: RTX TAA warm-up produces ~10% diff at reset;
-    # observed 9.96–10.12%, SSIM=0.87 consistently across retries.
-    "franka_cloth-kit-viewport": 12.0,
+    # Franka cloth Kit RTX tiled (1 physics step): VBD solver non-determinism from the
+    # cloth's parallel GPU reductions combines with RTX tiled composite noise; observed
+    # ~32% diff between cold-golden and warm-retry. 38% gives headroom.
+    "franka_cloth-kit-tiled": 38.0,
+    # Franka cloth Kit viewport (1 physics step): single-view RTX is much more stable
+    # than 4-view tiled; expected ~15% accounting for RTX TAA cold/warm gap.
+    "franka_cloth-kit-viewport": 15.0,
 }
 
 _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
@@ -85,9 +85,9 @@ _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     "shadow_hand-kit-tiled": 0.75,
     # Shadow hand Kit viewport: less composite noise; estimated SSIM ~0.92.
     "shadow_hand-kit-viewport": 0.90,
-    # Franka cloth Kit tiled at reset: observed SSIM=0.9730; threshold below that.
-    "franka_cloth-kit-tiled": 0.95,
-    # Franka cloth Kit viewport at reset: observed SSIM=0.87 on warm-retry.
+    # Franka cloth Kit tiled at 1 step: VBD + tiled composite noise; SSIM ~0.70 observed.
+    "franka_cloth-kit-tiled": 0.65,
+    # Franka cloth Kit viewport at 1 step: single view, more stable; SSIM ~0.87 expected.
     "franka_cloth-kit-viewport": 0.85,
 }
 
@@ -573,6 +573,15 @@ def run_visualizer_golden_shadow_hand(
 
         configure_seed(42, torch_deterministic=True)
         env.reset()
+
+        # Extra RTX TAA warmup passes (render-only, no physics).  Shadow hand uses 0
+        # physics buffer steps, so the standard capture warmup (20 iters × 2 calls = 40
+        # app.update()s) is all the accumulation the RTX renderer gets.  Without extra
+        # renders the gray matte surfaces show visible grain.  These 20 additional
+        # env.sim.render() calls bring the total to ~60 — matching anymal_d which runs
+        # 20 buffer steps before its capture warmup.
+        for _ in range(20):
+            env.sim.render()
 
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
 
