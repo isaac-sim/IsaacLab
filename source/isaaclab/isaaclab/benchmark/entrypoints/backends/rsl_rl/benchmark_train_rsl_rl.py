@@ -287,14 +287,14 @@ def run(argv: list[str]) -> BenchmarkResult:
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
+            tracker = get_success_tracker(args_cli, early.tracker, log_data)
             learning = builders.build_learning(
                 reward_series=log_data.get(desc.reward_tag, []),
                 ep_length_series=log_data.get(desc.ep_length_tag, []),
+                success_rate_series=tracker.history if tracker is not None else None,
                 ema_alpha=args_cli.ema_alpha,
                 keep_series=not args_cli.no_series,
             )
-
-            tracker = get_success_tracker(args_cli, early.tracker, log_data)
             success_rate = round(tracker.tail_mean, 4) if (tracker and tracker.history) else None
 
             versions = capture.capture_versions(benchmark)
