@@ -16,6 +16,22 @@ def _selector(values: list[int], dtype: type) -> wp.array:
     return wp.array(values, dtype=dtype, device="cpu")
 
 
+def test_public_joint_velocity_kernel_rejects_int16_direct_launch() -> None:
+    """The deprecated public raw symbol remains a concrete int32 compatibility kernel."""
+    data = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
+    env_ids = _selector([0], wp.int16)
+    joint_ids = _selector([0], wp.int32)
+    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
+    with pytest.raises(RuntimeError):
+        wp.launch(
+            articulation_kernels.write_joint_vel_data_index,
+            dim=(1, 1),
+            inputs=[data, env_ids, joint_ids],
+            outputs=outputs,
+            device="cpu",
+        )
+
+
 @pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
 @pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
 def test_write_joint_limit_data_to_user_and_backend_index_accepts_index_dtypes(
@@ -37,9 +53,12 @@ def test_write_joint_limit_data_to_user_and_backend_index_accepts_index_dtypes(
         np.asarray([[0.0, 0.0, 4.0], [0.0, 0.0, 0.0]], dtype=np.float32), dtype=wp.float32, device="cpu"
     )
     clamped_defaults = wp.zeros(1, dtype=wp.int32, device="cpu")
+    kernel = articulation_kernels.write_joint_limit_data_to_user_and_backend_index
+    if env_dtype != wp.int32 or joint_dtype != wp.int32:
+        kernel = articulation_kernels.write_joint_limit_data_to_user_and_backend_index_kernel(env_ids, user_ids)
 
     wp.launch(
-        articulation_kernels.write_joint_limit_data_to_user_and_backend_index,
+        kernel,
         dim=limits.shape,
         inputs=[limits, 1.0, env_ids, user_ids, user_to_backend, True],
         outputs=[
@@ -124,9 +143,12 @@ def test_deprecated_write_joint_vel_data_index_accepts_index_dtypes(env_dtype: t
     joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     prev_joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     joint_acc = wp.array(np.ones((2, 3), dtype=np.float32), dtype=wp.float32, device="cpu")
+    kernel = articulation_kernels.write_joint_vel_data_index
+    if env_dtype != wp.int32 or joint_dtype != wp.int32:
+        kernel = articulation_kernels.write_joint_vel_data_index_kernel(env_ids, joint_ids)
 
     wp.launch(
-        articulation_kernels.write_joint_vel_data_index,
+        kernel,
         dim=in_data.shape,
         inputs=[in_data, env_ids, joint_ids],
         outputs=[joint_vel, prev_joint_vel, joint_acc],
@@ -177,8 +199,11 @@ def test_deprecated_write_joint_state_data_index_accepts_index_dtypes(env_dtype:
     prev_joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     joint_acc = wp.array(np.ones((2, 3), dtype=np.float32), dtype=wp.float32, device="cpu")
 
+    kernel = articulation_kernels.write_joint_state_data_index
+    if env_dtype != wp.int32 or joint_dtype != wp.int32:
+        kernel = articulation_kernels.write_joint_state_data_index_kernel(env_ids, joint_ids)
     wp.launch(
-        articulation_kernels.write_joint_state_data_index,
+        kernel,
         dim=pos_data.shape,
         inputs=[pos_data, vel_data, env_ids, joint_ids],
         outputs=[joint_pos, joint_vel, prev_joint_vel, joint_acc],
@@ -253,3 +278,19 @@ def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> 
 
     np.testing.assert_array_equal(world_mask.numpy(), np.asarray([True, False, True]))
     np.testing.assert_array_equal(fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))
+
+
+def test_public_joint_velocity_kernel_factory_launches_int64_specialization() -> None:
+    """Launch the deprecated Newton worker's validated int64 specialization."""
+    data = wp.array([[3.0]], dtype=wp.float32, device="cpu")
+    env_ids = _selector([0], wp.int64)
+    joint_ids = _selector([0], wp.int64)
+    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
+    wp.launch(
+        articulation_kernels.write_joint_vel_data_index_kernel(env_ids, joint_ids),
+        dim=(1, 1),
+        inputs=[data, env_ids, joint_ids],
+        outputs=outputs,
+        device="cpu",
+    )
+    assert outputs[0].numpy()[0, 0] == 3.0

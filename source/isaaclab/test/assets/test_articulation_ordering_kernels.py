@@ -23,8 +23,10 @@ from isaaclab.assets.articulation.ordering_kernels import (
     write_float_user_to_backend_with_indices,
     write_float_user_to_backend_with_mask,
     write_joint_state_user_to_backend_with_indices,
+    write_joint_state_user_to_backend_with_indices_kernel,
     write_joint_state_user_to_backend_with_mask,
     write_joint_vel_user_to_backend_with_indices,
+    write_joint_vel_user_to_backend_with_indices_kernel,
     write_joint_vel_user_to_backend_with_mask,
 )
 
@@ -730,8 +732,11 @@ def test_index_writers_accept_signed_selector_widths(index_dtype, writer: str) -
     backend_velocity = wp.zeros_like(user_velocity)
 
     if writer == "velocity":
+        kernel = write_joint_vel_user_to_backend_with_indices
+        if index_dtype == wp.int64:
+            kernel = write_joint_vel_user_to_backend_with_indices_kernel(env_ids, user_ids)
         wp.launch(
-            write_joint_vel_user_to_backend_with_indices,
+            kernel,
             dim=(env_ids.shape[0], user_ids.shape[0]),
             inputs=[input_data, env_ids, user_ids, user_to_backend, True, False],
             outputs=[user_velocity, previous_velocity, acceleration, backend_velocity],
@@ -746,8 +751,11 @@ def test_index_writers_accept_signed_selector_widths(index_dtype, writer: str) -
     position_data = wp.array(input_data_np + 100.0, dtype=wp.float32, device="cpu")
     user_position = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     backend_position = wp.zeros_like(user_position)
+    kernel = write_joint_state_user_to_backend_with_indices
+    if index_dtype == wp.int64:
+        kernel = write_joint_state_user_to_backend_with_indices_kernel(env_ids, user_ids)
     wp.launch(
-        write_joint_state_user_to_backend_with_indices,
+        kernel,
         dim=(env_ids.shape[0], user_ids.shape[0]),
         inputs=[position_data, input_data, env_ids, user_ids, user_to_backend, True, False],
         outputs=[
@@ -768,3 +776,44 @@ def test_index_writers_accept_signed_selector_widths(index_dtype, writer: str) -
     np.testing.assert_array_equal(acceleration.numpy()[[0, 1]][:, [0, 2]], np.zeros((2, 2), dtype=np.float32))
     np.testing.assert_array_equal(backend_position.numpy(), expected_backend_position)
     np.testing.assert_array_equal(backend_velocity.numpy(), expected_backend)
+
+
+@pytest.mark.parametrize("index_dtype", [wp.int16, wp.int64])
+def test_public_joint_velocity_kernel_rejects_non_int32_direct_launch(index_dtype: type) -> None:
+    """The legacy public raw symbol is a concrete int32 compatibility kernel."""
+    data = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
+    selector = wp.array([0], dtype=index_dtype, device="cpu")
+    user_to_backend = wp.array([0], dtype=wp.int32, device="cpu")
+    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(4)]
+    with pytest.raises(RuntimeError):
+        wp.launch(
+            write_joint_vel_user_to_backend_with_indices,
+            dim=(1, 1),
+            inputs=[data, selector, selector, user_to_backend, False, False],
+            outputs=outputs,
+            device="cpu",
+        )
+
+
+def test_public_joint_velocity_kernel_factory_launches_int64_specialization() -> None:
+    """The public factory exposes the validated int64 raw-kernel specialization."""
+    data = wp.array([[3.0]], dtype=wp.float32, device="cpu")
+    selector = wp.array([0], dtype=wp.int64, device="cpu")
+    user_to_backend = wp.array([0], dtype=wp.int32, device="cpu")
+    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(4)]
+    wp.launch(
+        write_joint_vel_user_to_backend_with_indices_kernel(selector, selector),
+        dim=(1, 1),
+        inputs=[data, selector, selector, user_to_backend, False, False],
+        outputs=outputs,
+        device="cpu",
+    )
+    assert outputs[0].numpy()[0, 0] == 3.0
+
+
+def test_public_joint_velocity_kernel_factory_rejects_int16_before_launch() -> None:
+    """Reject unsupported selector dtypes during public factory selection."""
+    env_ids = wp.array([0], dtype=wp.int16, device="cpu")
+    user_ids = wp.array([0], dtype=wp.int32, device="cpu")
+    with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit"):
+        write_joint_vel_user_to_backend_with_indices_kernel(env_ids, user_ids)

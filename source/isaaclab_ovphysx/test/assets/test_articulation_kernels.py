@@ -21,6 +21,21 @@ def _selector(values: list[int], dtype: type) -> wp.array:
     return wp.array(values, dtype=dtype, device="cpu")
 
 
+def test_public_root_pose_kernel_rejects_int16_direct_launch() -> None:
+    """The public OVPhysX raw symbol remains a concrete int32 compatibility kernel."""
+    data = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    env_ids = _selector([0], wp.int16)
+    output = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    with pytest.raises(RuntimeError):
+        wp.launch(
+            shared_kernels.set_root_link_pose_to_sim_index,
+            dim=1,
+            inputs=[data, env_ids],
+            outputs=[output],
+            device="cpu",
+        )
+
+
 def _articulation_class():
     """Import the OVPhysX articulation class without unrelated config deprecations."""
     with warnings.catch_warnings():
@@ -52,6 +67,9 @@ def _articulation_class():
 def test_root_index_workers_accept_selector_widths(kernel_name: str, env_dtype: type) -> None:
     """Launch every root-index worker with either supported environment selector width."""
     env_ids = _selector([1, 0], env_dtype)
+    kernel = getattr(shared_kernels, kernel_name)
+    if env_dtype != wp.int32:
+        kernel = getattr(shared_kernels, f"{kernel_name}_kernel")(env_ids)
     if "pose" in kernel_name:
         data = wp.array(
             np.asarray([[11.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [21.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]),
@@ -61,7 +79,7 @@ def test_root_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
         root_link_pose = wp.zeros(2, dtype=wp.transformf, device="cpu")
         if kernel_name == "set_root_link_pose_to_sim_index":
             wp.launch(
-                getattr(shared_kernels, kernel_name),
+                kernel,
                 dim=2,
                 inputs=[data, env_ids],
                 outputs=[root_link_pose],
@@ -76,7 +94,7 @@ def test_root_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
             )
             root_com_pose = wp.zeros(2, dtype=wp.transformf, device="cpu")
             wp.launch(
-                getattr(shared_kernels, kernel_name),
+                kernel,
                 dim=2,
                 inputs=[data, body_com_pose, env_ids],
                 outputs=[root_com_pose, root_link_pose],
@@ -93,7 +111,7 @@ def test_root_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
         body_acceleration = wp.zeros((2, 1), dtype=wp.spatial_vectorf, device="cpu")
         if kernel_name == "set_root_com_velocity_to_sim_index":
             wp.launch(
-                getattr(shared_kernels, kernel_name),
+                kernel,
                 dim=2,
                 inputs=[data, env_ids, 1],
                 outputs=[root_com_velocity, body_acceleration],
@@ -113,7 +131,7 @@ def test_root_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
             )
             root_link_velocity = wp.zeros(2, dtype=wp.spatial_vectorf, device="cpu")
             wp.launch(
-                getattr(shared_kernels, kernel_name),
+                kernel,
                 dim=2,
                 inputs=[data, body_com_pose, root_link_pose, env_ids, 1],
                 outputs=[root_link_velocity, root_com_velocity, body_acceleration],
@@ -140,11 +158,21 @@ def test_item_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
     """Launch every item-index worker with all supported selector-width combinations."""
     env_ids = _selector([1, 0], env_dtype)
     item_ids = _selector([2, 0], item_dtype)
+    if kernel_name in {
+        "clamp_default_joint_pos_and_update_soft_limits_index",
+        "write_joint_friction_data_to_buffer_index",
+    }:
+        kernel_module = articulation_kernels
+    else:
+        kernel_module = shared_kernels
+    kernel = getattr(kernel_module, kernel_name)
+    if env_dtype != wp.int32 or item_dtype != wp.int32:
+        kernel = getattr(kernel_module, f"{kernel_name}_kernel")(env_ids, item_ids)
     if kernel_name == "write_2d_data_to_buffer_with_indices":
         data = wp.array(np.asarray([[11.0, 12.0], [21.0, 22.0]], dtype=np.float32), device="cpu")
         output = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            kernel,
             dim=(2, 2),
             inputs=[data, env_ids, item_ids],
             outputs=[output],
@@ -157,7 +185,7 @@ def test_item_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
         velocity = wp.array(np.asarray([[111.0, 112.0], [121.0, 122.0]], dtype=np.float32), device="cpu")
         outputs = [wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu") for _ in range(4)]
         wp.launch(
-            shared_kernels.write_joint_state_to_buffer_with_indices,
+            kernel,
             dim=(2, 2),
             inputs=[position, velocity, env_ids, item_ids],
             outputs=outputs,
@@ -176,7 +204,7 @@ def test_item_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
         )
         output = wp.zeros((2, 3), dtype=wp.vec2f, device="cpu")
         wp.launch(
-            shared_kernels.write_joint_position_limit_to_buffer_index,
+            kernel,
             dim=(2, 2),
             inputs=[data, env_ids, item_ids],
             outputs=[output],
@@ -194,7 +222,7 @@ def test_item_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
         soft_limits = wp.zeros((2, 3), dtype=wp.vec2f, device="cpu")
         clamped_count = wp.zeros(1, dtype=wp.int32, device="cpu")
         wp.launch(
-            articulation_kernels.clamp_default_joint_pos_and_update_soft_limits_index,
+            kernel,
             dim=(2, 2),
             inputs=[limits, env_ids, item_ids, 0.5],
             outputs=[defaults, soft_limits, clamped_count],
@@ -209,7 +237,7 @@ def test_item_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
         viscous = wp.array(np.asarray([[211.0, 212.0], [221.0, 222.0]], dtype=np.float32), device="cpu")
         output = wp.full((2, 3, 3), value=-1.0, dtype=wp.float32, device="cpu")
         wp.launch(
-            articulation_kernels.write_joint_friction_data_to_buffer_index,
+            kernel,
             dim=(2, 2),
             inputs=[static, dynamic, viscous, env_ids, item_ids],
             outputs=[output],
@@ -277,3 +305,18 @@ def test_ordered_joint_writes_reject_unsupported_selector_before_launch(monkeypa
                 articulation.write_joint_state_to_sim(position, velocity, joint_ids=joint_ids, env_ids=env_ids)
         else:
             articulation.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+
+
+def test_public_root_pose_kernel_factory_launches_int64_specialization() -> None:
+    """Launch the OVPhysX root-pose worker's validated int64 specialization."""
+    data = wp.array([[3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transformf, device="cpu")
+    env_ids = _selector([0], wp.int64)
+    output = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    wp.launch(
+        shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
+        dim=1,
+        inputs=[data, env_ids],
+        outputs=[output],
+        device="cpu",
+    )
+    np.testing.assert_array_equal(output.numpy(), data.numpy())

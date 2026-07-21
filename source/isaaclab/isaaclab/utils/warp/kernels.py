@@ -7,7 +7,10 @@
 
 from typing import Any
 
+import torch
 import warp as wp
+
+from .index_kernel import IndexKernelDispatcher
 
 ##
 # Raycasting
@@ -678,6 +681,65 @@ def reset_wrench_composer_index(
     local_torque_b[ei, tid_body] = z
     out_force_b[ei, tid_body] = z
     out_torque_b[ei, tid_body] = z
+
+
+_SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER = IndexKernelDispatcher(
+    set_forces_to_dual_buffers_index, ("env_ids", "body_ids")
+)
+_ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER = IndexKernelDispatcher(
+    add_forces_to_dual_buffers_index, ("env_ids", "body_ids")
+)
+_RESET_WRENCH_COMPOSER_INDEX_DISPATCHER = IndexKernelDispatcher(reset_wrench_composer_index, ("env_ids",))
+
+
+def set_forces_to_dual_buffers_index_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the indexed Wrench set worker matching the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        body_ids: Body index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
+
+
+def add_forces_to_dual_buffers_index_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the indexed Wrench add worker matching the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        body_ids: Body index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
+
+
+def reset_wrench_composer_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the indexed Wrench reset worker matching the selector dtype.
+
+    Args:
+        env_ids: Environment index selector.
+
+    Returns:
+        Concrete Warp kernel matching the selector dtype.
+    """
+    return _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select(env_ids)
+
+
+_SET_FORCES_TO_DUAL_BUFFERS_INDEX_GENERIC = set_forces_to_dual_buffers_index
+_ADD_FORCES_TO_DUAL_BUFFERS_INDEX_GENERIC = add_forces_to_dual_buffers_index
+_RESET_WRENCH_COMPOSER_INDEX_GENERIC = reset_wrench_composer_index
+set_forces_to_dual_buffers_index = _SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select_dtypes(wp.int32, wp.int32)
+add_forces_to_dual_buffers_index = _ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select_dtypes(wp.int32, wp.int32)
+reset_wrench_composer_index = _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select_dtypes(wp.int32)
 
 
 ##

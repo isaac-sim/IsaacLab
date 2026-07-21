@@ -915,3 +915,10 @@ def write_body_com_pose_to_buffer(
         out_data[env_ids[i], body_ids[j]] = in_data[env_ids[i], body_ids[j]]
     else:
         out_data[env_ids[i], body_ids[j]] = in_data[i, j]
+
+
+# Keep the generic body private while preserving the legacy direct-launch int32 symbol.
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_GENERIC = write_2d_data_to_buffer_with_indices
+write_2d_data_to_buffer_with_indices = _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)

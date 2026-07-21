@@ -10,9 +10,38 @@ import warp as wp
 
 from isaaclab.test.mock_interfaces.assets import MockRigidObjectCollection
 from isaaclab.test.utils import test_devices
+from isaaclab.utils.warp import kernels as warp_kernels
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize("index_dtype", [wp.int16, wp.int64])
+def test_public_wrench_reset_kernel_rejects_non_int32_direct_launch(index_dtype: type) -> None:
+    """The public Wrench raw symbol accepts direct launches only with int32 selectors."""
+    env_ids = wp.array([0], dtype=index_dtype, device="cpu")
+    buffers = [wp.zeros((1, 1), dtype=wp.vec3f, device="cpu") for _ in range(7)]
+    with pytest.raises(RuntimeError):
+        wp.launch(
+            warp_kernels.reset_wrench_composer_index,
+            dim=(1, 1),
+            inputs=[env_ids, *buffers],
+            device="cpu",
+        )
+
+
+def test_public_wrench_reset_kernel_factory_launches_int64_specialization() -> None:
+    """The public Wrench factory exposes the validated int64 specialization."""
+    env_ids = wp.array([0], dtype=wp.int64, device="cpu")
+    buffers = [wp.ones((1, 1), dtype=wp.vec3f, device="cpu") for _ in range(7)]
+    wp.launch(
+        warp_kernels.reset_wrench_composer_index_kernel(env_ids),
+        dim=(1, 1),
+        inputs=[env_ids, *buffers],
+        device="cpu",
+    )
+    for buffer in buffers:
+        np.testing.assert_array_equal(buffer.numpy(), np.zeros((1, 1, 3), dtype=np.float32))
 
 
 def create_mock_asset(

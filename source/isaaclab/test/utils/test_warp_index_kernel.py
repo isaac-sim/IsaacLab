@@ -64,6 +64,27 @@ def test_dispatcher_rejects_unsupported_index_dtype() -> None:
         _SCATTER_DISPATCHER.select(env_ids, item_ids)
 
 
+def test_dispatcher_selects_explicit_index_dtypes() -> None:
+    """Select registered specializations without constructing selector arrays."""
+    output = wp.zeros((2, 3), dtype=wp.int32, device="cpu")
+    env_ids = wp.array([1, 0], dtype=wp.int64, device="cpu")
+    item_ids = wp.array([2, 0], dtype=wp.int32, device="cpu")
+    wp.launch(
+        _SCATTER_DISPATCHER.select_dtypes(wp.int64, wp.int32),
+        dim=(2, 2),
+        inputs=[env_ids, item_ids],
+        outputs=[output],
+        device="cpu",
+    )
+    np.testing.assert_array_equal(output.numpy(), np.asarray([[1, 0, 1], [1, 0, 1]], dtype=np.int32))
+
+
+def test_dispatcher_rejects_unsupported_explicit_index_dtype() -> None:
+    """Reject unsupported explicit selector dtypes before a Warp launch."""
+    with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit"):
+        _SCATTER_DISPATCHER.select_dtypes(wp.int16, wp.int32)
+
+
 def test_dispatcher_supports_fixed_non_selector_generic_types() -> None:
     dispatcher = IndexKernelDispatcher(
         _scatter_values,

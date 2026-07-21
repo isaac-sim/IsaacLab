@@ -14,21 +14,16 @@ import torch
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 from isaaclab.utils.warp.kernels import (
-    add_forces_to_dual_buffers_index,
+    add_forces_to_dual_buffers_index_kernel,
     add_forces_to_dual_buffers_mask,
     add_raw_wrench_buffers,
     compose_wrench_to_body_frame,
-    reset_wrench_composer_index,
+    reset_wrench_composer_index_kernel,
     reset_wrench_composer_mask,
-    set_forces_to_dual_buffers_index,
+    set_forces_to_dual_buffers_index_kernel,
     set_forces_to_dual_buffers_mask,
 )
-
-_SET_FORCES_INDEX_DISPATCHER = IndexKernelDispatcher(set_forces_to_dual_buffers_index, ("env_ids", "body_ids"))
-_ADD_FORCES_INDEX_DISPATCHER = IndexKernelDispatcher(add_forces_to_dual_buffers_index, ("env_ids", "body_ids"))
-_RESET_WRENCH_COMPOSER_INDEX_DISPATCHER = IndexKernelDispatcher(reset_wrench_composer_index, ("env_ids",))
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
@@ -272,7 +267,7 @@ class WrenchComposer:
         self._dirty = True
 
         wp.launch(
-            _ADD_FORCES_INDEX_DISPATCHER.select(env_ids, body_ids),
+            add_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -335,7 +330,7 @@ class WrenchComposer:
         self._dirty = True
 
         wp.launch(
-            _SET_FORCES_INDEX_DISPATCHER.select(env_ids, body_ids),
+            set_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -602,7 +597,7 @@ class WrenchComposer:
                 env_ids = wp.from_torch(env_ids)
 
             wp.launch(
-                _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select(env_ids),
+                reset_wrench_composer_index_kernel(env_ids),
                 dim=(env_ids.shape[0], self.num_bodies),
                 inputs=[
                     env_ids,

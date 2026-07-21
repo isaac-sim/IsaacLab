@@ -53,11 +53,34 @@ class IndexKernelDispatcher:
             names = ", ".join(sorted(overlapping_names))
             raise ValueError(f"argument_types must not redefine selector arguments: {names}.")
         self._selector_names = selector_names
+        self._kernel = kernel
         self._overloads = {}
         for dtypes in product(_INDEX_DTYPES, repeat=len(selector_names)):
             signature = argument_types.copy()
             signature.update({name: wp.array(dtype=dtype) for name, dtype in zip(selector_names, dtypes, strict=True)})
             self._overloads[dtypes] = wp.overload(kernel, signature)
+
+    def select_dtypes(self, *dtypes: type[wp.int32] | type[wp.int64]) -> wp.Kernel:
+        """Select a specialization from explicit index selector dtypes.
+
+        Args:
+            dtypes: Signed 32-bit or 64-bit Warp integer dtypes, one per selector argument.
+
+        Returns:
+            The concrete Warp kernel specialized for the selector dtypes.
+
+        Raises:
+            TypeError: If a dtype is not a supported signed integer dtype.
+            ValueError: If the number of dtypes does not match the number of selector argument names.
+        """
+        if len(dtypes) != len(self._selector_names):
+            raise ValueError(
+                f"Expected {len(self._selector_names)} selector dtypes for {self._selector_names}, got {len(dtypes)}."
+            )
+        for dtype in dtypes:
+            if dtype not in _INDEX_DTYPES:
+                raise TypeError(f"Index selector must use signed 32-bit or signed 64-bit integers, got {dtype}.")
+        return self._overloads[dtypes]
 
     def select(self, *selectors: torch.Tensor | wp.array) -> wp.Kernel:
         """Select the specialization matching the index selector dtypes.
@@ -77,4 +100,4 @@ class IndexKernelDispatcher:
                 f"Expected {len(self._selector_names)} selectors for {self._selector_names}, got {len(selectors)}."
             )
         dtypes = tuple(_selector_dtype(selector) for selector in selectors)
-        return self._overloads[dtypes]
+        return self.select_dtypes(*dtypes)

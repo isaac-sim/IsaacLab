@@ -315,3 +315,14 @@ def write_joint_friction_data_to_buffer_mask(
         out_buffer[i, j, 1] = in_dynamic[i, j]
     if in_viscous:
         out_buffer[i, j, 2] = in_viscous[i, j]
+
+
+# Keep generic bodies private while preserving the legacy direct-launch int32 symbols.
+_CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_GENERIC = clamp_default_joint_pos_and_update_soft_limits_index
+_WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_GENERIC = write_joint_friction_data_to_buffer_index
+clamp_default_joint_pos_and_update_soft_limits_index = (
+    _CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER.select_dtypes(wp.int32, wp.int32)
+)
+write_joint_friction_data_to_buffer_index = _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)

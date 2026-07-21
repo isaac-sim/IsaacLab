@@ -689,3 +689,20 @@ def write_joint_state_data_kernel(env_ids: wp.array | torch.Tensor, joint_ids: w
         Concrete Warp kernel matching both selector dtypes.
     """
     return _WRITE_JOINT_STATE_DATA_DISPATCHER.select(env_ids, joint_ids)
+
+
+# Keep generic bodies private while preserving the legacy direct-launch int32 symbols.
+_WRITE_JOINT_LIMIT_DATA_TO_BUFFER_GENERIC = write_joint_limit_data_to_buffer
+_WRITE_JOINT_FRICTION_DATA_TO_BUFFER_GENERIC = write_joint_friction_data_to_buffer
+_WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_GENERIC = write_joint_friction_param_to_buffer
+_FLOAT_DATA_TO_BUFFER_WITH_INDICES_GENERIC = float_data_to_buffer_with_indices
+_WRITE_JOINT_VEL_DATA_GENERIC = write_joint_vel_data
+_WRITE_JOINT_STATE_DATA_GENERIC = write_joint_state_data
+write_joint_limit_data_to_buffer = _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_DISPATCHER.select_dtypes(wp.int32, wp.int32)
+write_joint_friction_data_to_buffer = _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER.select_dtypes(wp.int32, wp.int32)
+write_joint_friction_param_to_buffer = _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)
+float_data_to_buffer_with_indices = _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select_dtypes(wp.int32, wp.int32)
+write_joint_vel_data = _WRITE_JOINT_VEL_DATA_DISPATCHER.select_dtypes(wp.int32, wp.int32)
+write_joint_state_data = _WRITE_JOINT_STATE_DATA_DISPATCHER.select_dtypes(wp.int32, wp.int32)

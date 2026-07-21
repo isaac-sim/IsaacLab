@@ -8,12 +8,33 @@
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_physx.assets.articulation.kernels import write_joint_state_data, write_joint_vel_data
+from isaaclab_physx.assets.articulation.kernels import (
+    write_joint_state_data,
+    write_joint_state_data_kernel,
+    write_joint_vel_data,
+    write_joint_vel_data_kernel,
+)
 
 
 def _selector(values: list[int], dtype: type) -> wp.array:
     """Create a CPU Warp selector with the requested integer width."""
     return wp.array(values, dtype=dtype, device="cpu")
+
+
+def test_public_joint_velocity_kernel_rejects_int16_direct_launch() -> None:
+    """The deprecated public raw symbol remains a concrete int32 compatibility kernel."""
+    data = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
+    env_ids = _selector([0], wp.int16)
+    joint_ids = _selector([0], wp.int32)
+    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
+    with pytest.raises(RuntimeError):
+        wp.launch(
+            write_joint_vel_data,
+            dim=(1, 1),
+            inputs=[data, env_ids, joint_ids, False],
+            outputs=outputs,
+            device="cpu",
+        )
 
 
 @pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
@@ -26,9 +47,12 @@ def test_write_joint_vel_data_scatters_nonidentity_selectors(env_dtype: type, jo
     joint_vel = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
     prev_joint_vel = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
     joint_acc = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
+    kernel = write_joint_vel_data
+    if env_dtype != wp.int32 or joint_dtype != wp.int32:
+        kernel = write_joint_vel_data_kernel(env_ids, joint_ids)
 
     wp.launch(
-        write_joint_vel_data,
+        kernel,
         dim=(2, 2),
         inputs=[in_data, env_ids, joint_ids, False],
         outputs=[joint_vel, prev_joint_vel, joint_acc],
@@ -54,9 +78,12 @@ def test_write_joint_state_data_scatters_nonidentity_selectors(env_dtype: type, 
     joint_vel = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
     prev_joint_vel = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
     joint_acc = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
+    kernel = write_joint_state_data
+    if env_dtype != wp.int32 or joint_dtype != wp.int32:
+        kernel = write_joint_state_data_kernel(env_ids, joint_ids)
 
     wp.launch(
-        write_joint_state_data,
+        kernel,
         dim=(2, 2),
         inputs=[pos_data, vel_data, env_ids, joint_ids, False],
         outputs=[joint_pos, joint_vel, prev_joint_vel, joint_acc],
@@ -70,3 +97,19 @@ def test_write_joint_state_data_scatters_nonidentity_selectors(env_dtype: type, 
     np.testing.assert_array_equal(joint_vel.numpy(), expected_velocity)
     np.testing.assert_array_equal(prev_joint_vel.numpy(), expected_velocity)
     np.testing.assert_array_equal(joint_acc.numpy(), expected_acceleration)
+
+
+def test_public_joint_velocity_kernel_factory_launches_int64_specialization() -> None:
+    """Launch the deprecated PhysX worker's validated int64 specialization."""
+    data = wp.array([[3.0]], dtype=wp.float32, device="cpu")
+    env_ids = _selector([0], wp.int64)
+    joint_ids = _selector([0], wp.int64)
+    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
+    wp.launch(
+        write_joint_vel_data_kernel(env_ids, joint_ids),
+        dim=(1, 1),
+        inputs=[data, env_ids, joint_ids, False],
+        outputs=outputs,
+        device="cpu",
+    )
+    assert outputs[0].numpy()[0, 0] == 3.0

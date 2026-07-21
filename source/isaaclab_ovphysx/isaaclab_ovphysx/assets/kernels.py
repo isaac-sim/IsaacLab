@@ -1634,3 +1634,26 @@ def write_joint_friction_to_buffer_mask(
         out_data[i, j, 0] = val
         out_data[i, j, 1] = val
         out_data[i, j, 2] = val
+
+
+# Keep generic bodies private while preserving the legacy direct-launch int32 symbols.
+_SET_ROOT_LINK_POSE_TO_SIM_INDEX_GENERIC = set_root_link_pose_to_sim_index
+_SET_ROOT_COM_POSE_TO_SIM_INDEX_GENERIC = set_root_com_pose_to_sim_index
+_SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_GENERIC = set_root_com_velocity_to_sim_index
+_SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_GENERIC = set_root_link_velocity_to_sim_index
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_GENERIC = write_2d_data_to_buffer_with_indices
+_WRITE_JOINT_STATE_TO_BUFFER_WITH_INDICES_GENERIC = write_joint_state_to_buffer_with_indices
+_WRITE_JOINT_POSITION_LIMIT_TO_BUFFER_INDEX_GENERIC = write_joint_position_limit_to_buffer_index
+set_root_link_pose_to_sim_index = _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_com_pose_to_sim_index = _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_com_velocity_to_sim_index = _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_link_velocity_to_sim_index = _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+write_2d_data_to_buffer_with_indices = _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)
+write_joint_state_to_buffer_with_indices = _WRITE_JOINT_STATE_TO_BUFFER_WITH_INDICES_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)
+write_joint_position_limit_to_buffer_index = _WRITE_JOINT_POSITION_LIMIT_TO_BUFFER_INDEX_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)

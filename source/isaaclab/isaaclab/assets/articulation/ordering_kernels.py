@@ -564,6 +564,16 @@ def write_joint_state_user_to_backend_with_indices_kernel(
     return _WRITE_JOINT_STATE_USER_TO_BACKEND_WITH_INDICES_DISPATCHER.select(env_ids, user_ids)
 
 
+_WRITE_JOINT_VEL_USER_TO_BACKEND_WITH_INDICES_GENERIC = write_joint_vel_user_to_backend_with_indices
+_WRITE_JOINT_STATE_USER_TO_BACKEND_WITH_INDICES_GENERIC = write_joint_state_user_to_backend_with_indices
+write_joint_vel_user_to_backend_with_indices = _WRITE_JOINT_VEL_USER_TO_BACKEND_WITH_INDICES_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)
+write_joint_state_user_to_backend_with_indices = (
+    _WRITE_JOINT_STATE_USER_TO_BACKEND_WITH_INDICES_DISPATCHER.select_dtypes(wp.int32, wp.int32)
+)
+
+
 @wp.kernel
 def write_joint_vel_user_to_backend_with_mask(
     in_data: wp.array2d(dtype=wp.float32),

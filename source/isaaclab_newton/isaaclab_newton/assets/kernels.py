@@ -1321,3 +1321,18 @@ def update_wrench_array_with_force_and_torque(
             forces[env_index, body_index],
             torques[env_index, body_index],
         )
+
+
+# Keep generic bodies private while preserving the legacy direct-launch int32 symbols.
+_SET_ROOT_LINK_POSE_TO_SIM_INDEX_GENERIC = set_root_link_pose_to_sim_index
+_SET_ROOT_COM_POSE_TO_SIM_INDEX_GENERIC = set_root_com_pose_to_sim_index
+_SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_GENERIC = set_root_com_velocity_to_sim_index
+_SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_GENERIC = set_root_link_velocity_to_sim_index
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_GENERIC = write_2d_data_to_buffer_with_indices
+set_root_link_pose_to_sim_index = _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_com_pose_to_sim_index = _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_com_velocity_to_sim_index = _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_link_velocity_to_sim_index = _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+write_2d_data_to_buffer_with_indices = _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)
