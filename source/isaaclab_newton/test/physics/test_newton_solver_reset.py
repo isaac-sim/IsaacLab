@@ -117,10 +117,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         warm_start[1].fill_(29.0)
         wp.synchronize_device(device)
 
-        with (
-            patch.object(SimulationManager, "_simulate_full", classmethod(lambda cls: None)),
-            patch.object(SimulationManager, "_simulate_physics_only", classmethod(lambda cls: None)),
-        ):
+        with patch.object(SimulationManager, "_simulate", classmethod(lambda cls: None)):
             sim.step(render=False)
         wp.synchronize_device(device)
 

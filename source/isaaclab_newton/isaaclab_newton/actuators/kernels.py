@@ -5,6 +5,8 @@
 
 """Shared Warp kernels for the Newton actuator fast path."""
 
+from typing import Any
+
 import torch
 import warp as wp
 
@@ -21,82 +23,57 @@ from isaaclab.actuators import ActuatorBase, ImplicitActuator
 
 
 @wp.kernel(enable_backward=False)
-def zero_at_indices_kernel(data: wp.array(dtype=wp.float32), indices: wp.array(dtype=wp.uint32)):
-    """Zero a flat ``data`` buffer at the given flat ``indices``."""
+def fill_at_indices_kernel(dst: wp.array(dtype=Any), indices: wp.array(dtype=Any), value: Any):
+    """Write ``value`` into a flat ``dst`` buffer at the given flat ``indices``.
+
+    The one fill-shaped scatter: zeroing effort slots, setting mask bits, and
+    marking managed DOFs are all instances (see the overloads below).
+    """
     i = wp.tid()
-    data[indices[i]] = 0.0
+    dst[indices[i]] = value
+
+
+wp.overload(
+    fill_at_indices_kernel,
+    {"dst": wp.array(dtype=wp.float32), "indices": wp.array(dtype=wp.uint32), "value": wp.float32},
+)
+wp.overload(
+    fill_at_indices_kernel, {"dst": wp.array(dtype=wp.bool), "indices": wp.array(dtype=wp.int32), "value": wp.bool}
+)
+wp.overload(
+    fill_at_indices_kernel, {"dst": wp.array(dtype=wp.bool), "indices": wp.array(dtype=wp.uint32), "value": wp.bool}
+)
 
 
 @wp.kernel(enable_backward=False)
-def set_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
-    """Set ``mask[indices[i]] = True`` for each ``i``. The mask must be pre-zeroed."""
+def scatter_flat_kernel(
+    src: wp.array(dtype=wp.float32),
+    indices: wp.array(dtype=wp.uint32),
+    dst: wp.array(dtype=wp.float32),
+):
+    """Scatter per-actuator values into a flat global-DOF buffer: ``dst[indices[i]] = src[i]``."""
     i = wp.tid()
-    mask[indices[i]] = True
+    dst[indices[i]] = src[i]
 
 
 @wp.kernel(enable_backward=False)
-def build_per_dof_env_mask_kernel(
+def gather_env_mask_kernel(
     indices: wp.array(dtype=wp.uint32),
     env_mask: wp.array(dtype=wp.bool),
-    dof_offset: int,
-    num_joints: int,
+    dof_env_id: wp.array(dtype=wp.int32),
     out_mask: wp.array(dtype=wp.bool),
 ):
-    """Build a per-DOF mask from a per-env mask, for one Newton actuator.
+    """Map a per-env mask onto one actuator's per-DOF layout via the flat DOF->env table.
 
-    Newton's :meth:`Actuator.State.reset` expects a mask of length
-    ``num_actuators`` (= ``num_envs * dofs_per_actuator``). Each entry
-    gates the corresponding column of the actuator's state buffers. This
-    kernel maps a per-env boolean mask onto that per-DOF layout via the
-    actuator's flat ``indices``.
+    Replaces stride arithmetic: works for any flat layout, homogeneous or
+    heterogeneous. DOFs outside any environment (``dof_env_id < 0``) never match.
     """
     i = wp.tid()
-    global_dof = int(indices[i]) - dof_offset
-    env = global_dof // num_joints
-    out_mask[i] = env_mask[env]
-
-
-@wp.kernel(enable_backward=False)
-def scatter_gain_kernel(
-    src: wp.array(dtype=wp.float32),
-    dst: wp.array(dtype=wp.float32),
-    indices: wp.array(dtype=wp.uint32),
-    dof_offset: int,
-    num_joints: int,
-    env_stride: int,
-):
-    """Scatter per-actuator ``src`` values into a flat per-env-per-DOF ``dst``.
-
-    Used at adapter finalize to snapshot each ``controller.kp`` /
-    ``controller.kd`` into the ``(num_envs, num_joints)`` torch tensor
-    that ``randomize_actuator_gains`` reads as
-    ``actuator.stiffness`` / ``.damping`` for its
-    ``default_joint_stiffness`` / ``default_joint_damping`` baseline.
-
-    The actuator's ``indices`` are global DOF ids laid out env-major with a
-    per-env stride of ``env_stride`` — the *whole model's* per-env DOF count,
-    which on a floating-base articulation exceeds ``num_joints`` (the
-    articulation-local, actuated joint count) by the free-root DOFs. The env
-    index must therefore be decoded with ``env_stride``, not ``num_joints``;
-    the articulation-local joint offset is what remains after removing the
-    env's block and lands in ``[0, num_joints)`` because ``indices`` only ever
-    holds this articulation's joints.
-
-    Args:
-        src: Per-actuator parameter values (e.g. ``controller.kp``).
-        dst: Flat ``(num_envs * num_joints)`` articulation-local snapshot buffer.
-        indices: Actuator's flat env-major global DOF indices.
-        dof_offset: Offset of this articulation's DOFs in the env-major
-            global index space (``0`` on PhysX, view-dependent on Newton).
-        num_joints: Articulation-local joint count (``dst``'s inner stride).
-        env_stride: Whole-model per-env DOF count (the stride used to build
-            ``indices``).
-    """
-    i = wp.tid()
-    global_dof = int(indices[i]) - dof_offset
-    env = global_dof // env_stride
-    local_dof = global_dof - env * env_stride
-    dst[env * num_joints + local_dof] = src[i]
+    env = dof_env_id[wp.int32(indices[i])]
+    if env >= 0:
+        out_mask[i] = env_mask[env]
+    else:
+        out_mask[i] = False
 
 
 @wp.kernel(enable_backward=False)

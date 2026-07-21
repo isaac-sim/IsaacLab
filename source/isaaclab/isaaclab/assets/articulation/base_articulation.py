@@ -2589,14 +2589,12 @@ class BaseArticulation(AssetBase):
         """Process fixed and spatial tendons."""
         raise NotImplementedError()
 
-    @abstractmethod
     def _apply_actuator_model(self) -> None:
-        """Processes joint commands for the articulation by forwarding them to the actuators.
+        """Process joint commands by forwarding them to backend actuator models.
 
-        The actions are first processed using actuator models. Depending on the robot configuration,
-        the actuator models compute the joint level simulation commands and sets them into the PhysX buffers.
+        Backends that compute actuator models on the host (PhysX) override this;
+        backends whose actuators run inside the physics step (Newton) do not.
         """
-        raise NotImplementedError()
 
     """
     Internal helpers -- Debugging.

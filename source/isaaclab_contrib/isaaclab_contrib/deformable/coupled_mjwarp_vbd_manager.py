@@ -92,11 +92,11 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
             raise ValueError(f"Unknown coupling_mode={cls._coupling_mode!r}; expected one of {{'one_way', 'two_way'}}.")
 
     @classmethod
-    def _simulate_physics_only(cls) -> None:
+    def _simulate(cls) -> None:
         # Rebuild BVH once per step for solvers that require it (e.g. VBD cloth).
         if hasattr(cls._soft_solver, "rebuild_bvh"):
             cls._soft_solver.rebuild_bvh(cls._state_0)
-        super()._simulate_physics_only()
+        super()._simulate()
 
     @classmethod
     def _step_one_way(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:

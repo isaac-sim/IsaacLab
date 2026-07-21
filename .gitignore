@@ -85,3 +85,4 @@ _build
 
 # Superpowers (Claude Code plugin artifacts)
 docs/superpowers/
+source/isaaclab_newton/test/assets/data/actuator_adapter_golden.npz
