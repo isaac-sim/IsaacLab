@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import dataclasses
-import math
 
 from pxr import Usd, UsdPhysics, UsdShade
 
@@ -16,47 +15,6 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import string_to_callable
 
 from . import physics_materials_cfg
-
-
-def _validate_cable_material(cfg: physics_materials_cfg.CableMaterialCfg) -> None:
-    """Validate cable material values before USD authoring."""
-    for field_name in ("thickness", "density"):
-        value = getattr(cfg, field_name)
-        if not math.isfinite(value) or value <= 0.0:
-            raise ValueError(f"CableMaterialCfg.{field_name} must be finite and greater than zero.")
-    for field_name in ("stretch_stiffness", "bend_stiffness"):
-        value = getattr(cfg, field_name)
-        if not math.isfinite(value) or value < 0.0:
-            raise ValueError(f"CableMaterialCfg.{field_name} must be finite and non-negative.")
-
-
-@clone
-def spawn_cable_material(prim_path: str, cfg: physics_materials_cfg.CableMaterialCfg) -> Usd.Prim:
-    """Create a physics material for deformable curves.
-
-    Args:
-        prim_path: The prim path or pattern to spawn the material at.
-        cfg: The cable material configuration.
-
-    Returns:
-        The spawned cable material prim.
-
-    Raises:
-        ValueError: When a material value is invalid or a prim at the path is not a material.
-    """
-    _validate_cable_material(cfg)
-    stage = get_current_stage()
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        UsdShade.Material.Define(stage, prim_path)
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsA(UsdShade.Material):
-        raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
-
-    if not UsdPhysics.MaterialAPI(prim):
-        UsdPhysics.MaterialAPI.Apply(prim)
-    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg) if f.name != "func"}
-    _apply_namespaced_schemas(prim, cfg, cfg_dict)
-    return prim
 
 
 def spawn_rigid_body_material_from_fragments(
@@ -248,13 +206,12 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
 
 @clone
 def spawn_deformable_body_material(
-    prim_path: str, cfg: physics_materials_cfg.DeformableBodyMaterialBaseCfg
+    prim_path: str,
+    cfg: physics_materials_cfg.CableMaterialCfg | physics_materials_cfg.DeformableBodyMaterialBaseCfg,
 ) -> Usd.Prim:
-    """Create material with deformable-body physics properties.
+    """Create material with deformable physics properties.
 
-    Deformable body materials are used to define the physical properties to meshes of a deformable body. These
-    include the friction and deformable body properties. For more information on deformable body material,
-    please refer to the documentation on `PxFEMSoftBodyMaterial`_.
+    Deformable materials define the physical properties of curves, surfaces, and volume meshes.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
@@ -272,7 +229,6 @@ def spawn_deformable_body_material(
     Raises:
         ValueError: When a prim already exists at the specified prim path and is not a material.
 
-    .. _PxFEMSoftBodyMaterial: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxFEMSoftBodyMaterialModel.html
     """
     # get stage handle
     stage = get_current_stage()
@@ -286,6 +242,8 @@ def spawn_deformable_body_material(
     # check if prim is a material
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
+    if not UsdPhysics.MaterialAPI(prim):
+        UsdPhysics.MaterialAPI.Apply(prim)
     cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg) if f.name != "func"}
     _apply_namespaced_schemas(prim, cfg, cfg_dict)
     # return the prim

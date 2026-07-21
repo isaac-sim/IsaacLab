@@ -314,8 +314,6 @@ Physical Materials
     :members:
     :exclude-members: __init__, func
 
-.. autofunction:: spawn_cable_material
-
 .. autoclass:: CableMaterialCfg
     :members:
     :exclude-members: __init__, func

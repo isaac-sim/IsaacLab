@@ -24,7 +24,6 @@ __all__ = [
     "DomeLightCfg",
     "LightCfg",
     "SphereLightCfg",
-    "spawn_cable_material",
     "spawn_rigid_body_material",
     "spawn_deformable_body_material",
     "CableMaterialCfg",
@@ -100,7 +99,6 @@ from .lights import (
     SphereLightCfg,
 )
 from .materials import (
-    spawn_cable_material,
     spawn_rigid_body_material,
     spawn_deformable_body_material,
     CableMaterialCfg,

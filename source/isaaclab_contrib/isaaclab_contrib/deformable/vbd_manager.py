@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model, ModelBuilder
+from newton import Model
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -240,17 +240,6 @@ class NewtonVBDManager(NewtonManager):
         return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))
 
     @classmethod
-    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Ensure every VBD system has the coloring required by Newton."""
-        super()._prepare_builder_for_finalize(builder)
-        # The replication path finalizes without coloring, so color cable rigid bodies here.
-        # The particle branch keeps parity for other VBD systems sharing this manager.
-        needs_body_coloring = builder.body_count > 0 and not builder.body_color_groups
-        needs_particle_coloring = builder.particle_count > 0 and not builder.particle_color_groups
-        if needs_body_coloring or needs_particle_coloring:
-            builder.color()
-
-    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> None:
         """Construct :class:`SolverVBD` and populate the base-class slots.
 
@@ -264,6 +253,6 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _simulate_physics_only(cls) -> None:
         # Rebuild BVH once per step for solvers that require it (e.g. VBD cloth).
-        if cls._model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
+        if hasattr(cls._solver, "rebuild_bvh"):
             cls._solver.rebuild_bvh(cls._state_0)
         super()._simulate_physics_only()

@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "spawn_cable_material",
     "spawn_rigid_body_material",
     "spawn_rigid_body_material_from_fragments",
     "spawn_physics_material",
@@ -27,7 +26,6 @@ __all__ = [
 ]
 
 from .physics_materials import (
-    spawn_cable_material,
     spawn_deformable_body_material,
     spawn_physics_material,
     spawn_rigid_body_material,

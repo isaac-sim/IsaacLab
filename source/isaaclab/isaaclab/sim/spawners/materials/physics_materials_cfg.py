@@ -64,19 +64,19 @@ class CableMaterialCfg(PhysicsMaterialCfg):
     _usd_namespace: ClassVar[str | None] = "physics"
     _usd_applied_schema: ClassVar[str | None] = "PhysicsCurvesDeformableMaterialAPI"
 
-    func: Callable | str = "{DIR}.physics_materials:spawn_cable_material"
+    func: Callable | str = "{DIR}.physics_materials:spawn_deformable_body_material"
 
-    thickness: float = 0.01
-    """The full cable thickness (diameter) [m]. Must be finite and positive. Defaults to 0.01 m."""
+    thickness: float = 0.001
+    """The full cable thickness (diameter) [m]. Must be finite and positive. Defaults to 0.001 m."""
 
-    density: float = 1500.0
-    """The cable density [kg/m^3]. Must be finite and positive. Defaults to 1500 kg/m^3."""
+    density: float = 1000.0
+    """The cable density [kg/m^3]. Must be finite and positive. Defaults to 1000 kg/m^3."""
 
     stretch_stiffness: float = 1.0e9
     """The cable stretch elastic modulus [Pa]. Must be finite and non-negative. Defaults to 1e9 Pa."""
 
-    bend_stiffness: float = 0.0
-    """The cable bend elastic modulus [Pa]. Must be finite and non-negative. Defaults to 0.0 Pa."""
+    bend_stiffness: float = 1.0e6
+    """The cable bend elastic modulus [Pa]. Must be finite and non-negative. Defaults to 1e6 Pa."""
 
 
 @configclass

@@ -1,5 +1,5 @@
 Added
 ^^^^^
 
-* Added :class:`~isaaclab.assets.CableObjectCfg`, cable USD authoring, and
-  :class:`~isaaclab.scene.InteractiveScene` integration for Newton VBD simulations.
+* Added :class:`~isaaclab.sim.CableCfg` and :class:`~isaaclab.sim.CableMaterialCfg` for
+  authoring Newton-compatible cable USD.

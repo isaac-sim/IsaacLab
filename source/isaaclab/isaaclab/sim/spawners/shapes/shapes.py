@@ -5,17 +5,12 @@
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdGeom, UsdShade
+from pxr import Usd, UsdGeom
 
 from isaaclab.sim import schemas
-from isaaclab.sim.spawners.materials.physics_materials import (
-    _validate_cable_material,
-    spawn_cable_material,
-    spawn_physics_material,
-)
+from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
 if TYPE_CHECKING:
@@ -258,70 +253,27 @@ def spawn_cable(
 
     Returns:
         The created cable root prim.
-
-    Raises:
-        TypeError: If the physics material is not a cable material.
-        ValueError: If the cable geometry or material is invalid, or unsupported settings are configured.
     """
-    from isaaclab.sim.spawners.materials import CableMaterialCfg
-
-    if len(cfg.positions) < 3:
-        raise ValueError(f"CableCfg.positions must contain at least three points, got {len(cfg.positions)}.")
-    if any(len(point) != 3 or not all(math.isfinite(value) for value in point) for point in cfg.positions):
-        raise ValueError("CableCfg.positions must contain finite 3D points.")
-    if any(math.dist(start, end) <= 1.0e-8 for start, end in zip(cfg.positions, cfg.positions[1:])):
-        raise ValueError("CableCfg.positions must define segments longer than 1e-8 m.")
-    if not isinstance(cfg.physics_material, CableMaterialCfg):
-        raise TypeError("CableCfg.physics_material must be a CableMaterialCfg.")
-    if cfg.rigid_props is not None or cfg.mass_props is not None:
-        raise ValueError("CableCfg does not support rigid or mass properties.")
-    if cfg.activate_contact_sensors:
-        raise ValueError("CableCfg does not support activate_contact_sensors.")
-    if cfg.visual_material is not None:
-        raise ValueError("CableCfg does not support visual materials.")
-    _validate_cable_material(cfg.physics_material)
-
     stage = get_current_stage()
-    if stage.GetPrimAtPath(prim_path).IsValid():
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
-
-    create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation, stage=stage)
-    geom_prim_path = f"{prim_path}/geometry"
-    curve_prim_path = f"{geom_prim_path}/mesh"
-    curves = UsdGeom.BasisCurves.Define(stage, curve_prim_path)
-    curves.CreatePointsAttr(cfg.positions)
-    curves.CreateCurveVertexCountsAttr([len(cfg.positions)])
-    curves.CreateTypeAttr(UsdGeom.Tokens.linear)
-    curves.CreateWrapAttr(UsdGeom.Tokens.nonperiodic)
-    curves.CreateWidthsAttr([cfg.physics_material.thickness])
-    curves.SetWidthsInterpolation(UsdGeom.Tokens.constant)
-
-    curve_prim = curves.GetPrim()
-    curve_prim.AddAppliedSchema("PhysicsCurvesDeformableSimAPI")
-    if cfg.collision_props is not None:
-        collision_cfgs = (
-            cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-        )
-        if collision_cfgs and all(
-            isinstance(collision_cfg, schemas.SchemaFragment) for collision_cfg in collision_cfgs
-        ):
-            schemas.apply_collision_properties(curve_prim_path, collision_cfgs, stage=stage)
-        else:
-            schemas.define_collision_properties(curve_prim_path, cfg.collision_props, stage=stage)
-
-    physics_material_path = (
-        cfg.physics_material_path
-        if cfg.physics_material_path.startswith("/")
-        else f"{geom_prim_path}/{cfg.physics_material_path}"
+    attributes = {
+        "points": cfg.positions,
+        "curveVertexCounts": [len(cfg.positions)],
+        "type": UsdGeom.Tokens.linear,
+        "wrap": UsdGeom.Tokens.nonperiodic,
+        "widths": [cfg.physics_material.thickness],
+    }
+    _spawn_geom_from_prim_type(
+        prim_path,
+        cfg,
+        "BasisCurves",
+        attributes,
+        translation,
+        orientation,
+        stage=stage,
+        applied_schema="PhysicsCurvesDeformableSimAPI",
     )
-    physics_material_prim = spawn_cable_material(physics_material_path, cfg.physics_material)
-    material_binding_api = UsdShade.MaterialBindingAPI.Apply(curve_prim)
-    material_binding_api.Bind(
-        UsdShade.Material(physics_material_prim),
-        bindingStrength=UsdShade.Tokens.strongerThanDescendants,
-        materialPurpose="physics",
-    )
-
+    curve_prim = stage.GetPrimAtPath(f"{prim_path}/geometry/mesh")
+    UsdGeom.BasisCurves(curve_prim).SetWidthsInterpolation(UsdGeom.Tokens.constant)
     return stage.GetPrimAtPath(prim_path)
 
 
@@ -339,6 +291,7 @@ def _spawn_geom_from_prim_type(
     orientation: tuple[float, float, float, float] | None = None,
     scale: tuple[float, float, float] | None = None,
     stage: Usd.Stage | None = None,
+    applied_schema: str | None = None,
 ):
     """Create a USDGeom-based prim with the given attributes.
 
@@ -365,6 +318,7 @@ def _spawn_geom_from_prim_type(
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
         stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.
+        applied_schema: An applied API schema to add to the geometry prim.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -384,6 +338,8 @@ def _spawn_geom_from_prim_type(
 
     # create the geometry prim
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
+    if applied_schema is not None:
+        stage.GetPrimAtPath(mesh_prim_path).AddAppliedSchema(applied_schema)
     # apply collision properties
     if cfg.collision_props is not None:
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
