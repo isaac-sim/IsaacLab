@@ -1,0 +1,4 @@
+Test-only: added Kamino joint-property dynamics integration tests that reconstruct a single Kamino
+integration step analytically and verify stiffness, damping, position-limit, and armature values
+authored via USD, actuator config, and the runtime write API on procedurally built revolute and
+prismatic single-DOF articulations.
