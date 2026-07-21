@@ -8,12 +8,15 @@
 import sys
 import warnings
 from types import ModuleType, SimpleNamespace
+from typing import get_args, get_type_hints
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 import torch
 import warp as wp
+
+from isaaclab.utils.warp import ProxyArray
 from isaaclab_physx.assets.articulation.kernels import (
     write_joint_state_data,
     write_joint_state_data_kernel,
@@ -115,6 +118,36 @@ def test_external_env_resolvers_reject_numpy_inputs_before_boundary(resolver_nam
         getattr(Articulation, resolver_name)(articulation, selector)
 
 
+@pytest.mark.parametrize(
+    "resolver_name",
+    [
+        "_resolve_env_ids",
+        "_resolve_joint_ids",
+        "_resolve_body_ids",
+        "_resolve_fixed_tendon_ids",
+        "_resolve_spatial_tendon_ids",
+    ],
+)
+def test_selector_resolvers_unwrap_proxy_array_without_copy(resolver_name: str) -> None:
+    """Return the exact Warp allocation cached by a proxy selector."""
+    Articulation = _articulation_class()
+    selector_array = _selector([1, 0], wp.int32)
+    selector = ProxyArray(selector_array)
+    articulation = SimpleNamespace(
+        _ALL_INDICES=_selector([0, 1], wp.int32),
+        _ALL_JOINT_INDICES=_selector([0, 1], wp.int32),
+        _ALL_BODY_INDICES=_selector([0, 1], wp.int32),
+        _ALL_FIXED_TENDON_INDICES=_selector([0, 1], wp.int32),
+        _ALL_SPATIAL_TENDON_INDICES=_selector([0, 1], wp.int32),
+        device="cpu",
+    )
+
+    resolved = getattr(Articulation, resolver_name)(articulation, selector)
+
+    assert resolved is selector_array
+    assert selector._torch_cache is None  # noqa: SLF001
+
+
 def test_public_joint_velocity_kernel_rejects_int16_direct_launch() -> None:
     """The deprecated public raw symbol remains a concrete int32 compatibility kernel."""
     data = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
@@ -206,4 +239,24 @@ def test_public_joint_velocity_kernel_factory_launches_int64_specialization() ->
         outputs=outputs,
         device="cpu",
     )
+    assert outputs[0].numpy()[0, 0] == 3.0
+
+def test_public_joint_velocity_kernel_factory_launches_proxy_specialization() -> None:
+    """Launch the deprecated PhysX worker from exact proxy Warp allocations."""
+    env_array = _selector([0], wp.int32)
+    joint_array = _selector([0], wp.int32)
+    env_ids = ProxyArray(env_array)
+    joint_ids = ProxyArray(joint_array)
+    assert ProxyArray in get_args(get_type_hints(write_joint_vel_data_kernel)["env_ids"])
+    data = wp.array([[3.0]], dtype=wp.float32, device="cpu")
+    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
+    wp.launch(
+        write_joint_vel_data_kernel(env_ids, joint_ids),
+        dim=(1, 1),
+        inputs=[data, env_ids.warp, joint_ids.warp, False],
+        outputs=outputs,
+        device="cpu",
+    )
+    assert env_ids.warp is env_array
+    assert joint_ids.warp is joint_array
     assert outputs[0].numpy()[0, 0] == 3.0

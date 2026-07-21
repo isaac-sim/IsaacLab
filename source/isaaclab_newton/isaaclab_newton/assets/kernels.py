@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 if TYPE_CHECKING:
@@ -766,22 +767,22 @@ _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(
 )
 
 
-def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
     """Select the root-link pose writer matching the environment selector dtype."""
     return _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
-def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
     """Select the root-COM pose writer matching the environment selector dtype."""
     return _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
-def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
     """Select the root-COM velocity writer matching the environment selector dtype."""
     return _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
-def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
     """Select the root-link velocity writer matching the environment selector dtype."""
     return _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
@@ -980,7 +981,7 @@ _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
 
 
 def write_2d_data_to_buffer_with_indices_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the 2-D buffer writer matching the selector dtypes."""
     return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)

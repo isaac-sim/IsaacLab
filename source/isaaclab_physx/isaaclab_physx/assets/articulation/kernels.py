@@ -10,6 +10,7 @@ from typing import Any
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 """
@@ -275,7 +276,7 @@ _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
 
 
 def write_joint_limit_data_to_buffer_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the joint-limit writer matching the selector dtypes.
 
@@ -290,7 +291,7 @@ def write_joint_limit_data_to_buffer_kernel(
 
 
 def write_joint_friction_data_to_buffer_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the joint-friction writer matching the selector dtypes.
 
@@ -305,7 +306,7 @@ def write_joint_friction_data_to_buffer_kernel(
 
 
 def write_joint_friction_param_to_buffer_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the joint-friction parameter writer matching the selector dtypes.
 
@@ -320,7 +321,7 @@ def write_joint_friction_param_to_buffer_kernel(
 
 
 def float_data_to_buffer_with_indices_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the scalar buffer writer matching the selector dtypes.
 
@@ -665,7 +666,9 @@ _WRITE_JOINT_VEL_DATA_DISPATCHER = IndexKernelDispatcher(write_joint_vel_data, (
 _WRITE_JOINT_STATE_DATA_DISPATCHER = IndexKernelDispatcher(write_joint_state_data, ("env_ids", "joint_ids"))
 
 
-def write_joint_vel_data_kernel(env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor) -> wp.Kernel:
+def write_joint_vel_data_kernel(
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
+) -> wp.Kernel:
     """Select the deprecated joint-velocity writer matching the selector dtypes.
 
     Args:
@@ -678,7 +681,9 @@ def write_joint_vel_data_kernel(env_ids: wp.array | torch.Tensor, joint_ids: wp.
     return _WRITE_JOINT_VEL_DATA_DISPATCHER.select(env_ids, joint_ids)
 
 
-def write_joint_state_data_kernel(env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor) -> wp.Kernel:
+def write_joint_state_data_kernel(
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
+) -> wp.Kernel:
     """Select the deprecated joint-state writer matching the selector dtypes.
 
     Args:

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 if TYPE_CHECKING:
@@ -476,35 +477,35 @@ _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
 
 
 def write_joint_limit_data_to_buffer_index_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the joint-limit buffer writer matching the selector dtypes."""
     return _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
 def write_joint_limit_data_to_user_and_backend_index_kernel(
-    env_ids: wp.array | torch.Tensor, user_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, user_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the ordered joint-limit writer matching the selector dtypes."""
     return _WRITE_JOINT_LIMIT_DATA_TO_USER_AND_BACKEND_INDEX_DISPATCHER.select(env_ids, user_ids)
 
 
 def write_joint_friction_data_to_buffer_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the joint-friction writer matching the selector dtypes."""
     return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
 
 
 def write_joint_friction_param_to_buffer_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the joint-friction parameter writer matching the selector dtypes."""
     return _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
 
 
 def float_data_to_buffer_with_indices_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the scalar buffer writer matching the selector dtypes."""
     return _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
@@ -1008,14 +1009,14 @@ _WRITE_JOINT_STATE_DATA_INDEX_DISPATCHER = IndexKernelDispatcher(write_joint_sta
 
 
 def write_joint_vel_data_index_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the deprecated joint-velocity writer matching the selector dtypes."""
     return _WRITE_JOINT_VEL_DATA_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
 def write_joint_state_data_index_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
 ) -> wp.Kernel:
     """Select the deprecated joint-state writer matching the selector dtypes."""
     return _WRITE_JOINT_STATE_DATA_INDEX_DISPATCHER.select(env_ids, joint_ids)

@@ -26,6 +26,7 @@ from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -47,13 +48,17 @@ from .kernels import (
 logger = logging.getLogger(__name__)
 
 
-def _normalize_external_env_ids(env_ids: torch.Tensor | wp.array, target_device: str | None = None) -> wp.array:
+def _normalize_external_env_ids(
+    env_ids: torch.Tensor | wp.array | ProxyArray, target_device: str | None = None
+) -> wp.array:
     """Normalize environment indices to wp.int32 at an external API boundary.
 
     Every selector value must fit in the signed 32-bit range. Out-of-range int64
     selectors are invalid input by design; callers must satisfy this precondition
     because this boundary helper does not scan or synchronize device values.
     """
+    if isinstance(env_ids, ProxyArray):
+        env_ids = env_ids.warp
     if isinstance(env_ids, torch.Tensor):
         if env_ids.dtype not in (torch.int32, torch.int64):
             raise TypeError(
@@ -4481,7 +4486,7 @@ class Articulation(BaseArticulation):
     def _log_articulation_info(self) -> None:
         pass
 
-    def _resolve_env_ids(self, env_ids) -> wp.array:
+    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None) -> wp.array:
         """Resolve environment indices to a warp int32 array on ``self._device`` (mirrors PhysX).
 
         Tests sometimes hand us indices on CPU even when the sim runs on GPU; we move the
@@ -4494,8 +4499,10 @@ class Articulation(BaseArticulation):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         return _normalize_external_env_ids(env_ids, target_device=self._device)
 
-    def _resolve_body_ids(self, body_ids) -> wp.array:
+    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None) -> wp.array:
         """Resolve body indices to a Warp signed-integer array on ``self._device``."""
+        if isinstance(body_ids, ProxyArray):
+            body_ids = body_ids.warp
         if body_ids is None or body_ids == slice(None):
             return self._ALL_BODY_INDICES
         if isinstance(body_ids, list):
@@ -4506,8 +4513,10 @@ class Articulation(BaseArticulation):
             body_ids = wp.clone(body_ids, device=self._device)
         return body_ids
 
-    def _resolve_joint_ids(self, joint_ids) -> wp.array:
+    def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None) -> wp.array:
         """Resolve joint indices to a Warp signed-integer array on ``self._device``."""
+        if isinstance(joint_ids, ProxyArray):
+            joint_ids = joint_ids.warp
         if joint_ids is None or joint_ids == slice(None):
             return self._ALL_JOINT_INDICES
         if isinstance(joint_ids, list):
@@ -4518,8 +4527,12 @@ class Articulation(BaseArticulation):
             joint_ids = wp.clone(joint_ids, device=self._device)
         return joint_ids
 
-    def _resolve_fixed_tendon_ids(self, tendon_ids) -> wp.array:
+    def _resolve_fixed_tendon_ids(
+        self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
+    ) -> wp.array:
         """Resolve fixed-tendon indices to a Warp signed-integer array on ``self._device``."""
+        if isinstance(tendon_ids, ProxyArray):
+            tendon_ids = tendon_ids.warp
         if tendon_ids is None or tendon_ids == slice(None):
             return self._ALL_FIXED_TENDON_INDICES
         if isinstance(tendon_ids, list):
@@ -4530,8 +4543,12 @@ class Articulation(BaseArticulation):
             tendon_ids = wp.clone(tendon_ids, device=self._device)
         return tendon_ids
 
-    def _resolve_spatial_tendon_ids(self, tendon_ids) -> wp.array:
+    def _resolve_spatial_tendon_ids(
+        self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
+    ) -> wp.array:
         """Resolve spatial-tendon indices to a Warp signed-integer array on ``self._device``."""
+        if isinstance(tendon_ids, ProxyArray):
+            tendon_ids = tendon_ids.warp
         if tendon_ids is None or tendon_ids == slice(None):
             return self._ALL_SPATIAL_TENDON_INDICES
         if isinstance(tendon_ids, list):

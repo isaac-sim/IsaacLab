@@ -29,6 +29,7 @@ from isaaclab.sim.utils.queries import find_first_matching_prim, resolve_matchin
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
@@ -52,13 +53,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _normalize_external_env_ids(env_ids: torch.Tensor | wp.array, target_device: str | None = None) -> wp.array:
+def _normalize_external_env_ids(
+    env_ids: torch.Tensor | wp.array | ProxyArray, target_device: str | None = None
+) -> wp.array:
     """Normalize environment indices to wp.int32 at an external API boundary.
 
     Every selector value must fit in the signed 32-bit range. Out-of-range int64
     selectors are invalid input by design; callers must satisfy this precondition
     because this boundary helper does not scan or synchronize device values.
     """
+    if isinstance(env_ids, ProxyArray):
+        env_ids = env_ids.warp
     if isinstance(env_ids, torch.Tensor):
         if env_ids.dtype not in (torch.int32, torch.int64):
             raise TypeError(
@@ -4847,7 +4852,9 @@ class Articulation(BaseArticulation):
             env_ids = self._ALL_INDICES
         return env_ids
 
-    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
+    def _resolve_env_ids(
+        self, env_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
+    ) -> wp.array:
         """Resolve environment indices to a warp array.
 
         .. note::
@@ -4882,7 +4889,9 @@ class Articulation(BaseArticulation):
             joint_ids = self._ALL_JOINT_INDICES
         return joint_ids
 
-    def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+    def _resolve_joint_ids(
+        self, joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
+    ) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
 
         .. note::
@@ -4894,6 +4903,8 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of joint indices or a tensor of joint indices.
         """
+        if isinstance(joint_ids, ProxyArray):
+            joint_ids = joint_ids.warp
         if isinstance(joint_ids, list):
             return wp.array(joint_ids, dtype=wp.int32, device=self.device)
         if (joint_ids is None) or (joint_ids == slice(None)):
@@ -4917,7 +4928,9 @@ class Articulation(BaseArticulation):
             body_ids = self._ALL_BODY_INDICES
         return body_ids
 
-    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+    def _resolve_body_ids(
+        self, body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
+    ) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
 
         Args:
@@ -4926,6 +4939,8 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
+        if isinstance(body_ids, ProxyArray):
+            body_ids = body_ids.warp
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
@@ -4950,7 +4965,7 @@ class Articulation(BaseArticulation):
         return fixed_tendon_ids
 
     def _resolve_fixed_tendon_ids(
-        self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
+        self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
     ) -> wp.array | torch.Tensor:
         """Resolve tendon indices to a warp array or tensor.
 
@@ -4960,6 +4975,8 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
         """
+        if isinstance(tendon_ids, ProxyArray):
+            tendon_ids = tendon_ids.warp
         if isinstance(tendon_ids, list):
             return wp.array(tendon_ids, dtype=wp.int32, device=self.device)
         if (tendon_ids is None) or (tendon_ids == slice(None)):
@@ -4984,7 +5001,7 @@ class Articulation(BaseArticulation):
         return spatial_tendon_ids
 
     def _resolve_spatial_tendon_ids(
-        self, spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
+        self, spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
     ) -> wp.array | torch.Tensor:
         """Resolve spatial tendon indices to a warp array or tensor.
 
@@ -4994,6 +5011,8 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
         """
+        if isinstance(spatial_tendon_ids, ProxyArray):
+            spatial_tendon_ids = spatial_tendon_ids.warp
         if isinstance(spatial_tendon_ids, list):
             return wp.array(spatial_tendon_ids, dtype=wp.int32, device=self.device)
         if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):

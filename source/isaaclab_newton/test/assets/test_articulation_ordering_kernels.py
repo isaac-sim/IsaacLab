@@ -4,16 +4,72 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import warnings
+from typing import get_args, get_type_hints
 
 import numpy as np
 import pytest
 import warp as wp
+
+from isaaclab.utils.warp import ProxyArray
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 
 
 def _selector(values: list[int], dtype: type) -> wp.array:
     """Create a CPU Warp selector with the requested integer width."""
     return wp.array(values, dtype=dtype, device="cpu")
+
+
+def _articulation_class():
+    """Import the Newton articulation class without unrelated config deprecations."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=(
+                "^'RigidBodyMaterialCfg' is deprecated and will be removed in 5\\.0\\. Use "
+                "'isaaclab_physx\\.sim\\.spawners\\.materials\\.PhysxRigidBodyMaterialCfg' for PhysX properties, "
+                "or 'isaaclab\\.sim\\.spawners\\.materials\\.RigidBodyMaterialBaseCfg' for solver-common properties "
+                "only\\.$"
+            ),
+            category=DeprecationWarning,
+        )
+        from isaaclab_newton.assets.articulation.articulation import Articulation
+
+    return Articulation
+
+
+@pytest.mark.parametrize(
+    "resolver_name",
+    [
+        "_resolve_env_ids",
+        "_resolve_joint_ids",
+        "_resolve_body_ids",
+        "_resolve_fixed_tendon_ids",
+        "_resolve_spatial_tendon_ids",
+    ],
+)
+def test_selector_resolvers_unwrap_proxy_array_without_copy(resolver_name: str) -> None:
+    """Return the exact Warp allocation cached by a proxy selector."""
+    Articulation = _articulation_class()
+
+    selector_array = _selector([1, 0], wp.int32)
+    selector = ProxyArray(selector_array)
+    articulation = type(
+        "ResolverStub",
+        (),
+        {
+            "_ALL_INDICES": _selector([0, 1], wp.int32),
+            "_ALL_JOINT_INDICES": _selector([0, 1], wp.int32),
+            "_ALL_BODY_INDICES": _selector([0, 1], wp.int32),
+            "_ALL_FIXED_TENDON_INDICES": _selector([0, 1], wp.int32),
+            "_ALL_SPATIAL_TENDON_INDICES": _selector([0, 1], wp.int32),
+            "device": "cpu",
+        },
+    )()
+
+    resolved = getattr(Articulation, resolver_name)(articulation, selector)
+
+    assert resolved is selector_array
+    assert selector._torch_cache is None  # noqa: SLF001
 
 
 def test_public_joint_velocity_kernel_rejects_int16_direct_launch() -> None:
@@ -293,4 +349,25 @@ def test_public_joint_velocity_kernel_factory_launches_int64_specialization() ->
         outputs=outputs,
         device="cpu",
     )
+    assert outputs[0].numpy()[0, 0] == 3.0
+
+def test_public_joint_velocity_kernel_factory_launches_proxy_specialization() -> None:
+    """Launch the deprecated Newton worker from exact proxy Warp allocations."""
+    env_array = _selector([0], wp.int32)
+    joint_array = _selector([0], wp.int32)
+    env_ids = ProxyArray(env_array)
+    joint_ids = ProxyArray(joint_array)
+    factory = articulation_kernels.write_joint_vel_data_index_kernel
+    assert ProxyArray in get_args(get_type_hints(factory)["env_ids"])
+    data = wp.array([[3.0]], dtype=wp.float32, device="cpu")
+    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
+    wp.launch(
+        factory(env_ids, joint_ids),
+        dim=(1, 1),
+        inputs=[data, env_ids.warp, joint_ids.warp],
+        outputs=outputs,
+        device="cpu",
+    )
+    assert env_ids.warp is env_array
+    assert joint_ids.warp is joint_array
     assert outputs[0].numpy()[0, 0] == 3.0

@@ -11,16 +11,25 @@ from typing import Any
 import torch
 import warp as wp
 
+from .proxy_array import ProxyArray
+
 _INDEX_DTYPES = (wp.int32, wp.int64)
 
 
-def _selector_dtype(selector: torch.Tensor | wp.array) -> type[wp.int32] | type[wp.int64]:
+def _selector_array(selector: torch.Tensor | wp.array | ProxyArray) -> wp.array:
+    if isinstance(selector, ProxyArray):
+        return selector.warp
     if isinstance(selector, torch.Tensor):
-        dtype = wp.dtype_from_torch(selector.dtype)
-    elif isinstance(selector, wp.array):
-        dtype = selector.dtype
-    else:
-        raise TypeError(f"Index selector must be a torch.Tensor or wp.array, got {type(selector).__name__}.")
+        return wp.from_torch(selector)
+    if isinstance(selector, wp.array):
+        return selector
+    raise TypeError(
+        f"Index selector must be a torch.Tensor, wp.array, or ProxyArray, got {type(selector).__name__}."
+    )
+
+
+def _selector_dtype(selector: torch.Tensor | wp.array | ProxyArray) -> type[wp.int32] | type[wp.int64]:
+    dtype = _selector_array(selector).dtype
     if dtype not in _INDEX_DTYPES:
         raise TypeError(f"Index selector must use signed 32-bit or signed 64-bit integers, got {dtype}.")
     return dtype
@@ -82,17 +91,17 @@ class IndexKernelDispatcher:
                 raise TypeError(f"Index selector must use signed 32-bit or signed 64-bit integers, got {dtype}.")
         return self._overloads[dtypes]
 
-    def select(self, *selectors: torch.Tensor | wp.array) -> wp.Kernel:
+    def select(self, *selectors: torch.Tensor | wp.array | ProxyArray) -> wp.Kernel:
         """Select the specialization matching the index selector dtypes.
 
         Args:
-            selectors: Torch tensors or Warp arrays with signed 32-bit or 64-bit integer dtypes.
+            selectors: Torch tensors, Warp arrays, or proxies with signed 32-bit or 64-bit integer dtypes.
 
         Returns:
             The concrete Warp kernel specialized for the selector dtypes.
 
         Raises:
-            TypeError: If a selector is not a Torch tensor or Warp array with a supported integer dtype.
+            TypeError: If a selector is not a Torch tensor, Warp array, or proxy with a supported integer dtype.
             ValueError: If the number of selectors does not match the number of selector argument names.
         """
         if len(selectors) != len(self._selector_names):

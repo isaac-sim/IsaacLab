@@ -7,11 +7,14 @@
 
 import warnings
 from types import SimpleNamespace
+from typing import get_args, get_type_hints
 
 import numpy as np
 import pytest
 import torch
 import warp as wp
+
+from isaaclab.utils.warp import ProxyArray
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.articulation import kernels as articulation_kernels
 
@@ -344,6 +347,37 @@ def test_external_env_resolvers_reject_numpy_inputs_before_boundary(resolver_nam
         getattr(Articulation, resolver_name)(articulation, selector)
 
 
+@pytest.mark.parametrize(
+    "resolver_name",
+    [
+        "_resolve_env_ids",
+        "_resolve_joint_ids",
+        "_resolve_body_ids",
+        "_resolve_fixed_tendon_ids",
+        "_resolve_spatial_tendon_ids",
+    ],
+)
+def test_selector_resolvers_unwrap_proxy_array_without_copy(resolver_name: str) -> None:
+    """Return the exact Warp allocation cached by a proxy selector."""
+    Articulation = _articulation_class()
+    selector_array = _selector([1, 0], wp.int32)
+    selector = ProxyArray(selector_array)
+    articulation = SimpleNamespace(
+        _ALL_INDICES=_selector([0, 1], wp.int32),
+        _ALL_JOINT_INDICES=_selector([0, 1], wp.int32),
+        _ALL_BODY_INDICES=_selector([0, 1], wp.int32),
+        _ALL_FIXED_TENDON_INDICES=_selector([0, 1], wp.int32),
+        _ALL_SPATIAL_TENDON_INDICES=_selector([0, 1], wp.int32),
+        _cpu_env_ids_all=_selector([0, 1], wp.int32),
+        _device="cpu",
+    )
+
+    resolved = getattr(Articulation, resolver_name)(articulation, selector)
+
+    assert resolved is selector_array
+    assert selector._torch_cache is None  # noqa: SLF001
+
+
 def test_cpu_env_ids_all_returns_pinned_fast_path() -> None:
     """Return the pre-allocated pinned CPU selector for OVPhysX all-environment writes."""
     Articulation = _articulation_class()
@@ -415,4 +449,16 @@ def test_public_root_pose_kernel_factory_launches_int64_specialization() -> None
         outputs=[output],
         device="cpu",
     )
+    np.testing.assert_array_equal(output.numpy(), data.numpy())
+
+def test_public_root_pose_kernel_factory_launches_proxy_specialization() -> None:
+    """Launch the OVPhysX root-pose worker from the exact proxy Warp allocation."""
+    env_array = _selector([0], wp.int32)
+    env_ids = ProxyArray(env_array)
+    factory = shared_kernels.set_root_link_pose_to_sim_index_kernel
+    assert ProxyArray in get_args(get_type_hints(factory)["env_ids"])
+    data = wp.array([[3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transformf, device="cpu")
+    output = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    wp.launch(factory(env_ids), dim=1, inputs=[data, env_ids.warp], outputs=[output], device="cpu")
+    assert env_ids.warp is env_array
     np.testing.assert_array_equal(output.numpy(), data.numpy())
