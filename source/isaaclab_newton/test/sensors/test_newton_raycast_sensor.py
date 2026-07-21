@@ -77,7 +77,11 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class GenericRaycastTestSceneCfg(RaycastTestSceneCfg):
-    """Scene using the backend-dispatching ray-caster configuration."""
+    """Scene using the backend-dispatching ray-caster configuration.
+
+    Sets the Newton-only ``global_world_only`` field on the base
+    :class:`~isaaclab.sensors.RayCasterCfg` to verify it is honored after backend dispatch.
+    """
 
     raycast = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/SensorBody",
@@ -86,6 +90,7 @@ class GenericRaycastTestSceneCfg(RaycastTestSceneCfg):
         ray_alignment="yaw",
         max_distance=100.0,
         mesh_prim_paths=["/World/ground"],
+        global_world_only=True,
     )
 
 

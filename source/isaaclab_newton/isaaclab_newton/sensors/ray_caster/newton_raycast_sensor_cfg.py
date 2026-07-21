@@ -29,13 +29,3 @@ class NewtonRaycastSensorCfg(RayCasterCfg):
 
     mesh_prim_paths: list[str] = []
     """Unused. Rays hit every shape in the Newton scene BVH."""
-
-    global_world_only: bool = False
-    """Cast rays against Newton's global world only. Defaults to False.
-
-    The global world holds shapes shared by all environments (e.g. terrain).
-    When False, rays additionally hit the shapes of the sensor's own
-    environment — including the sensor's carrier body when it lies in the ray
-    path; use :attr:`~isaaclab.sensors.RayCasterCfg.offset` to start the rays
-    outside the carrier's geometry in that case.
-    """

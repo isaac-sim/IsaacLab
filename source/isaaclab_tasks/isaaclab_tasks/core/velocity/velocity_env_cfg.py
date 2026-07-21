@@ -7,12 +7,8 @@ import math
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
-from isaaclab_newton.sensors import NewtonRaycastSensorCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
-from isaaclab_ovphysx.sensors import ContactSensorCfg as OvPhysXContactSensorCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -25,7 +21,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import RayCasterCfg, patterns
+from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -78,40 +74,6 @@ class RoughPhysicsCfg(PresetCfg):
 
 
 @configclass
-class VelocityEnvContactSensorCfg(PresetCfg):
-    default = PhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
-    newton_mjwarp = NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
-    newton_kamino = newton_mjwarp
-    physx = default
-    ovphysx = OvPhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
-
-
-@configclass
-class VelocityEnvHeightScannerCfg(PresetCfg):
-    """Height-scanner preset for supported physics backends."""
-
-    default = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"],
-    )
-    newton_mjwarp = NewtonRaycastSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        global_world_only=True,
-    )
-    newton_kamino = newton_mjwarp
-    physx = default
-    ovphysx = default
-
-
-@configclass
 class MySceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
 
@@ -137,9 +99,19 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     # robots
     robot: ArticulationCfg = MISSING
-    # sensors
-    height_scanner = VelocityEnvHeightScannerCfg()
-    contact_forces = VelocityEnvContactSensorCfg()
+    # sensors -- the concrete implementation is selected automatically from the active physics
+    # backend (Newton / PhysX / OvPhysX); backend-specific fields such as ``global_world_only`` are
+    # documented on the config and ignored by the backends that do not use them.
+    height_scanner = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        ray_alignment="yaw",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+        debug_vis=False,
+        mesh_prim_paths=["/World/ground"],
+        global_world_only=True,
+    )
+    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
