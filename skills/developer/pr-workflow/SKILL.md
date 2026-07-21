@@ -21,11 +21,12 @@ Do not use this skill to bypass repository checks or to push to `origin`.
 2. Confirm the branch is focused on one logical change.
 3. Run targeted tests for the touched behavior.
 4. For skill changes, inspect the changed skill's adjacent `evaluations.md` when present, plus directly linked `examples.md` or `reference.md`, and confirm the representative scenarios still match the skill guidance.
-5. Run formatting and lint checks with `./isaaclab.sh -f`.
-6. Add package changelog fragments when `source/<package>/` code changes.
-7. Check whether `CONTRIBUTORS.md` needs an update for a new contributor.
-8. Draft a commit message in imperative mood with no AI attribution.
-9. Use the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`.
+5. If the PR changes documentation, run `./isaaclab.sh -d` and require a successful build with no warnings or errors. The docs target treats Sphinx warnings as errors.
+6. Run formatting and lint checks with `./isaaclab.sh -f`.
+7. Add package changelog fragments when `source/<package>/` code changes.
+8. Check whether `CONTRIBUTORS.md` needs an update for a new contributor.
+9. Draft a commit message in imperative mood with no AI attribution.
+10. Use the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`.
 
 ## Validation
 
@@ -39,6 +40,12 @@ For targeted tests, use:
 
 ```bash
 ./isaaclab.sh -p -m pytest PATH_TO_TEST
+```
+
+If documentation changed, require a warning-free build:
+
+```bash
+./isaaclab.sh -d
 ```
 
 If skills changed, run:

@@ -43,11 +43,6 @@ _spec = importlib.util.spec_from_file_location("train_multigpu", _TRAIN_MULTIGPU
 train_multigpu = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(train_multigpu)
 
-_COMMON_PATH = _REPO_ROOT / "scripts" / "reinforcement_learning" / "common.py"
-_common_spec = importlib.util.spec_from_file_location("rl_common", _COMMON_PATH)
-rl_common = importlib.util.module_from_spec(_common_spec)
-_common_spec.loader.exec_module(rl_common)
-
 
 def _build_command(argv: list[str]) -> list[str]:
     """Build the distributed launcher command the same way ``main`` does."""
@@ -136,14 +131,15 @@ class TestAddAppLauncherArgsNormalization:
 class TestDispatchLibraryEntrypoint:
     """Tests for the ``--kit_args`` normalization in ``dispatch_library_entrypoint``.
 
-    The unified ``train.py``/``play.py`` dispatchers hand the per-library scripts an
-    explicit argv list (not ``sys.argv``), so the normalization must also run on that
-    list before it is forwarded.
+    The benchmark dispatchers hand the per-library scripts an explicit argv list
+    (not ``sys.argv``), so the normalization must also run on that list before it
+    is forwarded.
     """
 
     @staticmethod
     def _dispatch(tmp_path: Path, argv: list[str]) -> list[str]:
         """Dispatch to a stub library entry point and return the argv it received."""
+        rl_common = pytest.importorskip("isaaclab_rl.entrypoints.common")
         stub = tmp_path / "stub_train.py"
         stub.write_text(
             "received = None\n\n\ndef run(argv):\n    global received\n    globals()['received'] = list(argv)\n"

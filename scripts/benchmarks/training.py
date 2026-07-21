@@ -11,15 +11,12 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+# the benchmark adapters import ``scripts.benchmarks.early_stop``, so the repo root must be importable
 _REPO_ROOT = _SCRIPT_DIR.parents[1]
-_RL_SCRIPTS = _SCRIPT_DIR.parent / "reinforcement_learning"
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-if str(_RL_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_RL_SCRIPTS))
-
-from common import dispatch_library_entrypoint  # noqa: E402
+from isaaclab_rl.entrypoints.common import dispatch_library_entrypoint
 
 LIBRARY_ENTRYPOINTS = {
     "rsl_rl": _SCRIPT_DIR / "rsl_rl" / "benchmark_rsl_rl_train.py",
