@@ -29,5 +29,5 @@ Changed
   ``articulation_props_prim_path=""`` together with
   ``articulation_props_create_if_missing=True`` on the spawner configuration.
 * **Breaking:** Changed :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
-  to raise ``ValueError`` when the expression matches nested articulation roots,
-  instead of silently pruning them; author a single root per articulation.
+  to author on every matched articulation root, warning when they nest, instead of
+  silently pruning nested roots; asset validity is the author's responsibility.

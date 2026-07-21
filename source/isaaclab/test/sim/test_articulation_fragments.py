@@ -183,8 +183,13 @@ def test_apply_articulation_root_properties_processes_siblings_and_aggregates_re
     assert result is False
 
 
-def test_apply_articulation_root_properties_errors_on_nested_roots():
-    """Nested articulation roots corrupt the articulation; the writer refuses them."""
+def test_apply_articulation_root_properties_warns_on_nested_roots(caplog):
+    """Nested roots matched by the expression are all authored, with a warning.
+
+    The writer trusts the expression; asset validity is the author's responsibility.
+    """
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
     sim_utils.create_new_stage()
@@ -194,8 +199,16 @@ def test_apply_articulation_root_properties_errors_on_nested_roots():
     inner = UsdGeom.Xform.Define(stage, "/World/Bot/base").GetPrim()
     UsdPhysics.ArticulationRootAPI.Apply(outer)
     UsdPhysics.ArticulationRootAPI.Apply(inner)
-    with pytest.raises(ValueError, match="[Nn]ested"):
-        apply_articulation_root_properties("/World/Bot/**", [], stage=stage, fix_root_link=False)
+
+    with caplog.at_level("WARNING"):
+        result = apply_articulation_root_properties(
+            "/World/Bot/**", [PhysxArticulationCfg(solver_position_iteration_count=8)], stage=stage
+        )
+
+    assert result is True
+    for prim in (outer, inner):
+        assert prim.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 8
+    assert "nested" in caplog.text.lower()
 
 
 def test_apply_articulation_root_properties_processes_sibling_roots_via_expression():

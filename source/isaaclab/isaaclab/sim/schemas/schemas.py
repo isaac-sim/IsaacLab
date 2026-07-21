@@ -291,16 +291,12 @@ def apply_articulation_root_properties(
     trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
     already carry ``UsdPhysics.ArticulationRootAPI`` are the targets: each fragment is
     dispatched to every target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
-    Sibling roots (independent articulations matched by one expression) are all processed, but
-    a target nested under another target raises a :class:`ValueError` -- nested roots corrupt
-    the articulation and must be resolved by the asset author.
+    Sibling roots (independent articulations matched by one expression) are all processed.
+    Nested targets are authored as matched, with a warning -- resolving nested roots is the
+    asset author's responsibility.
 
-    When :paramref:`create_if_missing` is set and no matched prim carries the API, the API is
-    applied to the single matched prim lacking it; more than one such prim raises a
-    :class:`ValueError`. Creation is explicit because anchoring a fresh articulation root on
-    an arbitrary prim changes how the physics parser builds the articulation. When no target
-    remains, a warning is emitted and False is returned without authoring anything. Matched
-    prims inside instances cannot be authored on and are skipped with a warning.
+    With :paramref:`create_if_missing`, the API is applied to every matched prim that lacks
+    it. Zero targets warn and return False. Instanced matches are skipped with a warning.
 
     An empty fragment list is an authoring no-op: it returns True immediately when
     :paramref:`fix_root_link` is None, but still resolves targets and adjusts topology when the
@@ -314,17 +310,14 @@ def apply_articulation_root_properties(
         stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
         fix_root_link: Whether to fix the root link. None leaves topology unchanged.
-        create_if_missing: Whether to apply ``UsdPhysics.ArticulationRootAPI`` when no matched
-            prim carries it and a single matched prim can take it. Defaults to False.
+        create_if_missing: Whether to apply ``UsdPhysics.ArticulationRootAPI`` to every
+            matched prim that does not carry it. Defaults to False.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
 
     Raises:
         TypeError: If fragments contains a non-articulation fragment.
-        ValueError: When the expression matches nested articulation roots, or when
-            :paramref:`create_if_missing` is set and the expression matches more than one prim
-            without ``UsdPhysics.ArticulationRootAPI``.
         RuntimeError: If fixing cannot resolve the active backend or relocate the root.
         NotImplementedError: If the backend cannot fix the resolved root.
     """
@@ -346,23 +339,17 @@ def apply_articulation_root_properties(
     targets, creation_candidates, any_skipped = _match_fragment_targets(
         prim_path_expr, lambda p: p.HasAPI(UsdPhysics.ArticulationRootAPI), stage
     )
-    if create_if_missing and not targets and creation_candidates:
-        if len(creation_candidates) > 1:
-            raise ValueError(
-                f"Expression '{prim_path_expr}' matches {len(creation_candidates)} prims without"
-                " UsdPhysics.ArticulationRootAPI. Creating articulation roots on multiple prims"
-                " is not supported; narrow the expression to a single prim."
-            )
-        UsdPhysics.ArticulationRootAPI.Apply(creation_candidates[0])
-        targets.append(creation_candidates[0])
+    if create_if_missing:
+        for prim in creation_candidates:
+            UsdPhysics.ArticulationRootAPI.Apply(prim)
+            targets.append(prim)
     target_paths = [t.GetPath() for t in targets]
-    for path in target_paths:
-        if any(path != other and path.HasPrefix(other) for other in target_paths):
-            raise ValueError(
-                f"Expression '{prim_path_expr}' matched nested articulation roots"
-                f" ({[p.pathString for p in target_paths]}). Nested roots are not allowed;"
-                " author a single root per articulation."
-            )
+    if any(path != other and path.HasPrefix(other) for path in target_paths for other in target_paths):
+        logger.warning(
+            "Expression '%s' targets nested articulation roots (%s); authoring on all of them.",
+            prim_path_expr,
+            [p.pathString for p in target_paths],
+        )
     if not targets:
         logger.warning("No articulation-root targets matched expression '%s'; nothing was authored.", prim_path_expr)
         return False
@@ -622,28 +609,22 @@ def apply_rigid_body_properties(
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
     funcs, so core never imports a backend.
 
-    An empty fragment list is an authoring no-op and returns True. When
-    :paramref:`create_if_missing` is set and exactly one matched prim lacks the API, the API is
-    applied to that prim and it becomes a target; more than one such prim raises a
-    :class:`ValueError`. Creation is explicit because anchoring a fresh rigid body on a prim
-    the asset's joints never reference changes the asset's dynamics. When no target remains, a
-    warning is emitted and False is returned without authoring anything. Matched prims inside
-    instances cannot be authored on and are skipped with a warning.
+    An empty fragment list is an authoring no-op and returns True. With
+    :paramref:`create_if_missing`, ``UsdPhysics.RigidBodyAPI`` is applied to every matched
+    prim that lacks it; only the asset's joints decide which bodies participate in the
+    articulation, so the expression is trusted as written. Zero targets warn and return
+    False. Instanced matches are skipped with a warning.
 
     Args:
         prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.RigidBodyFragment` instances.
-        create_if_missing: Whether to apply ``UsdPhysics.RigidBodyAPI`` when a single matched
-            prim does not carry it. Defaults to False.
+        create_if_missing: Whether to apply ``UsdPhysics.RigidBodyAPI`` to every matched
+            prim that does not carry it. Defaults to False.
         stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
-
-    Raises:
-        ValueError: When :paramref:`create_if_missing` is set and the expression matches more
-            than one prim without ``UsdPhysics.RigidBodyAPI``.
     """
     fragments = list(fragments)
     if stage is None:
@@ -653,15 +634,10 @@ def apply_rigid_body_properties(
     targets, creation_candidates, any_skipped = _match_fragment_targets(
         prim_path_expr, lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI), stage
     )
-    if create_if_missing and creation_candidates:
-        if len(creation_candidates) > 1:
-            raise ValueError(
-                f"Expression '{prim_path_expr}' matches {len(creation_candidates)} prims without"
-                " UsdPhysics.RigidBodyAPI. Creating rigid bodies on multiple prims is not"
-                " supported; narrow the expression to a single prim."
-            )
-        UsdPhysics.RigidBodyAPI.Apply(creation_candidates[0])
-        targets.append(creation_candidates[0])
+    if create_if_missing:
+        for prim in creation_candidates:
+            UsdPhysics.RigidBodyAPI.Apply(prim)
+            targets.append(prim)
     if not targets:
         logger.warning("No rigid-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
         return False
@@ -884,15 +860,9 @@ def apply_collision_properties(
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
     funcs, so core never imports a backend.
 
-    Mesh-collision fragments author cooking attributes and the approximation token, which are
-    only meaningful on geometry prims, so they are skipped on targets that are not
-    ``UsdGeom.Gprim`` (e.g. aggregate ``Xform`` colliders).
-
-    An empty fragment list is an authoring no-op and returns True. When
-    :paramref:`create_if_missing` is set, ``UsdPhysics.CollisionAPI`` is applied to every
-    matched prim that lacks it and those prims become targets; unlike rigid bodies, creating
-    colliders on multiple prims is supported -- this covers the bare-prim case used by the
-    shape and mesh spawners. When no target remains, a warning is emitted and False is
+    An empty fragment list is an authoring no-op and returns True. With
+    :paramref:`create_if_missing`, ``UsdPhysics.CollisionAPI`` is applied to every matched
+    prim that lacks it. When no target remains, a warning is emitted and False is
     returned without authoring anything. Matched prims inside instances cannot be authored on
     and are skipped with a warning.
 
@@ -926,11 +896,7 @@ def apply_collision_properties(
     success = not any_skipped
     for target in targets:
         target_path = target.GetPath().pathString
-        target_is_gprim = target.IsA(UsdGeom.Gprim)
         for cfg in fragments:
-            # cooking attrs and the approximation token only make sense on geometry prims
-            if isinstance(cfg, schemas_cfg.MeshCollisionFragment) and not target_is_gprim:
-                continue
             success = bool(cfg.func(cfg, target_path, stage)) and success
     return success
 

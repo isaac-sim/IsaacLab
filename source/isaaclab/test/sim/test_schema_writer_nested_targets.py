@@ -202,8 +202,8 @@ def test_rigid_body_fragments_create_on_bare_prim():
     assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0)
 
 
-def test_rigid_body_fragments_create_errors_on_multiple_candidates():
-    """Creating rigid bodies on more than one matched prim is never intentional."""
+def test_rigid_body_fragments_create_on_every_matched_prim():
+    """Creation applies ``RigidBodyAPI`` to every matched prim lacking it; the expression is trusted."""
     from isaaclab.sim.schemas import apply_rigid_body_properties
 
     sim_utils.create_new_stage()
@@ -211,10 +211,14 @@ def test_rigid_body_fragments_create_errors_on_multiple_candidates():
     stage = sim_utils.get_current_stage()
     for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
         UsdGeom.Xform.Define(stage, path)
-    with pytest.raises(ValueError, match="RigidBodyAPI"):
-        apply_rigid_body_properties(
-            "/World/Grp/**", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], create_if_missing=True, stage=stage
-        )
+    result = apply_rigid_body_properties(
+        "/World/Grp/**", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], create_if_missing=True, stage=stage
+    )
+    assert result is True
+    for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
+        prim = stage.GetPrimAtPath(path)
+        assert prim.HasAPI(UsdPhysics.RigidBodyAPI), path
+        assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0), path
 
 
 def test_rigid_body_fragments_pattern_narrows_targets():

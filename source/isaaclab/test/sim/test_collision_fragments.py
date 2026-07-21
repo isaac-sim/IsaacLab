@@ -140,8 +140,8 @@ def test_apply_collision_properties_composes_namespaces():
 # -------------------------------------------------------------------------------------
 
 
-def test_mesh_collision_fragments_skip_non_gprim_targets():
-    """The approximation token is meaningless on non-geometry prims; only gprims receive it."""
+def test_mesh_collision_fragments_author_on_every_matched_collider():
+    """Mesh-collision fragments author on all matched colliders; the expression is trusted."""
     from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_collision_properties
 
     sim_utils.create_new_stage()
@@ -157,10 +157,9 @@ def test_mesh_collision_fragments_skip_non_gprim_targets():
     )
 
     assert result is True
-    assert mesh_collider.HasAPI(UsdPhysics.MeshCollisionAPI)
-    assert mesh_collider.GetAttribute("physics:approximation").HasAuthoredValue()
-    assert not xform_collider.HasAPI(UsdPhysics.MeshCollisionAPI)
-    assert not xform_collider.GetAttribute("physics:approximation").HasAuthoredValue()
+    for prim in (xform_collider, mesh_collider):
+        assert prim.HasAPI(UsdPhysics.MeshCollisionAPI), prim.GetPath()
+        assert prim.GetAttribute("physics:approximation").HasAuthoredValue(), prim.GetPath()
 
 
 def test_collision_fragments_pattern_narrows_targets():
