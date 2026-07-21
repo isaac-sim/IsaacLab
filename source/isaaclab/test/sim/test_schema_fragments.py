@@ -119,7 +119,7 @@ def test_mujoco_rigid_body_fragment_does_not_write_gravcomp_when_none():
 
 
 # -------------------------------------------------------------------------------------
-# apply_rigid_body_properties dispatch (implicit anchor + multi-namespace)
+# apply_rigid_body_properties dispatch (explicit anchor creation + multi-namespace)
 # -------------------------------------------------------------------------------------
 
 
@@ -140,10 +140,11 @@ def test_apply_rigid_body_properties_composes_namespaces():
             PhysxRigidBodyCfg(linear_damping=0.2),
             MujocoRigidBodyCfg(gravcomp=1.0),
         ],
-        stage,
+        create_if_missing=True,
+        stage=stage,
     )
     prim = stage.GetPrimAtPath("/World/B4")
-    assert bool(UsdPhysics.RigidBodyAPI(prim))  # implicit anchor applied
+    assert bool(UsdPhysics.RigidBodyAPI(prim))  # anchor created on the bare prim
     assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
     assert abs(prim.GetAttribute("physxRigidBody:linearDamping").Get() - 0.2) < 1e-6
     assert abs(prim.GetAttribute("mjc:gravcomp").Get() - 1.0) < 1e-6
@@ -205,14 +206,18 @@ def test_apply_namespaced_raises_on_invalid_prim():
         apply_namespaced(UsdPhysicsRigidBodyCfg(rigid_body_enabled=True), "/World/DoesNotExist", stage)
 
 
-def test_apply_rigid_body_properties_raises_on_invalid_prim():
+def test_apply_rigid_body_properties_warns_on_unmatched_path(caplog):
     from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg, apply_rigid_body_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    with pytest.raises(ValueError):
-        apply_rigid_body_properties("/World/DoesNotExist", [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)], stage)
+    with caplog.at_level("WARNING"):
+        result = apply_rigid_body_properties(
+            "/World/DoesNotExist", [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)], stage=stage
+        )
+    assert result is False
+    assert "/World/DoesNotExist" in caplog.text
 
 
 def test_apply_rigid_body_properties_aggregates_fragment_results():
@@ -226,11 +231,11 @@ def test_apply_rigid_body_properties_aggregates_fragment_results():
     # a fragment whose applier reports failure must make the aggregate return False
     failing = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
     failing.func = lambda cfg, prim_path, stage=None: False
-    assert apply_rigid_body_properties("/World/Agg", [failing], stage) is False
+    assert apply_rigid_body_properties("/World/Agg", [failing], create_if_missing=True, stage=stage) is False
 
     # all-succeeding fragments return True
     ok = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
-    assert apply_rigid_body_properties("/World/Agg", [ok], stage) is True
+    assert apply_rigid_body_properties("/World/Agg", [ok], stage=stage) is True
 
 
 def test_apply_namespaced_raises_without_namespace():

@@ -9,7 +9,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 import numpy as np
 import warp as wp
@@ -23,6 +23,7 @@ from ..utils import (
     apply_nested,
     create_prim,
     find_global_fixed_joint_prim,
+    find_matching_prims,
     get_all_matching_child_prims,
     has_deformable_body_api,
     safe_set_attribute_on_usd_prim,
@@ -617,45 +618,108 @@ def _resolve_fragment_targets(
     return targets, bool(skipped)
 
 
+def _match_fragment_targets(
+    prim_path_expr: str,
+    is_target: Callable[[Usd.Prim], bool],
+    stage: Usd.Stage,
+) -> tuple[list[Usd.Prim], list[Usd.Prim], bool]:
+    """Resolve fragment-writer targets from a prim path expression.
+
+    Matches ``prim_path_expr`` with :func:`~isaaclab.sim.utils.find_matching_prims` (a trailing
+    ``**`` token selects a prim and its whole subtree) and splits the matches: writable prims
+    passing ``is_target`` are targets, writable prims failing it are creation candidates, and
+    instanced prims passing it are skipped with a warning since prototypes cannot be authored on.
+
+    Args:
+        prim_path_expr: The prim path expression to match.
+        is_target: Predicate deciding whether a matched prim is a valid family target.
+        stage: The stage to match on.
+
+    Returns:
+        A tuple ``(targets, candidates, any_skipped)``.
+    """
+    targets = []
+    candidates = []
+    skipped = []
+    for prim in find_matching_prims(prim_path_expr, stage):
+        instanced = prim.IsInstance() or prim.IsInstanceProxy()
+        if is_target(prim):
+            (skipped if instanced else targets).append(prim)
+        elif not instanced:
+            candidates.append(prim)
+    if skipped:
+        logger.warning(
+            "Skipping fragment updates on instanced prims matched by '%s': %s.",
+            prim_path_expr,
+            [p.GetPath().pathString for p in skipped],
+        )
+    return targets, candidates, bool(skipped)
+
+
 """
 Rigid body properties.
 """
 
 
 def apply_rigid_body_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.RigidBodyFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.RigidBodyFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
 ) -> bool:
-    """Apply a list of rigid-body fragments to the rigid bodies under a prim.
+    """Apply a list of rigid-body fragments to the rigid bodies matched by an expression.
 
-    Existing rigid bodies in the subtree are modified in place, matching the legacy nested
-    writer. This includes nested bodies: the URDF importer authors child links under their
-    parent link prims, so every carrier in the subtree is a target. Real assets author
-    ``UsdPhysics.RigidBodyAPI`` on their link prims, so anchoring a fresh rigid body on the
-    spawn prim instead would invent a body the asset's joints never reference. Only when the
-    subtree carries no rigid body is ``UsdPhysics.RigidBodyAPI`` applied to ``prim_path``
-    itself -- the bare-prim case used by the shape and mesh spawners. Each fragment is
-    dispatched to every resolved target via its
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
+    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    already carry ``UsdPhysics.RigidBodyAPI`` are modified in place: each fragment is
+    dispatched to every such target via its
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
     funcs, so core never imports a backend.
 
+    An empty fragment list is an authoring no-op and returns True. When
+    :paramref:`create_if_missing` is set and exactly one matched prim lacks the API, the API is
+    applied to that prim and it becomes a target; more than one such prim raises a
+    :class:`ValueError`. Creation is explicit because anchoring a fresh rigid body on a prim
+    the asset's joints never reference changes the asset's dynamics. When no target remains, a
+    warning is emitted and False is returned without authoring anything. Matched prims inside
+    instances cannot be authored on and are skipped with a warning.
+
     Args:
-        prim_path: The prim path whose subtree is searched for rigid bodies.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.RigidBodyFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        create_if_missing: Whether to apply ``UsdPhysics.RigidBodyAPI`` when a single matched
+            prim does not carry it. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
 
     Raises:
-        ValueError: When the prim path is not valid.
+        ValueError: When :paramref:`create_if_missing` is set and the expression matches more
+            than one prim without ``UsdPhysics.RigidBodyAPI``.
     """
     fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    targets, any_skipped = _resolve_fragment_targets(
-        prim_path, UsdPhysics.RigidBodyAPI, stage, apply_fresh=bool(fragments), stop_at_carrier=False
+    if not fragments:
+        return True
+    targets, candidates, any_skipped = _match_fragment_targets(
+        prim_path_expr, lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI), stage
     )
+    if create_if_missing and candidates:
+        if len(candidates) > 1:
+            raise ValueError(
+                f"Expression '{prim_path_expr}' matches {len(candidates)} prims without"
+                " UsdPhysics.RigidBodyAPI. Creating rigid bodies on multiple prims is not"
+                " supported; narrow the expression to a single prim."
+            )
+        UsdPhysics.RigidBodyAPI.Apply(candidates[0])
+        targets.append(candidates[0])
+    if not targets:
+        logger.warning("No rigid-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
     for target in targets:

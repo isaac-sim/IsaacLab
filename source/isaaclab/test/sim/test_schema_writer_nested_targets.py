@@ -169,27 +169,81 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
 # -------------------------------------------------------------------------------------
 
 
-def test_rigid_body_fragments_define_fresh_on_bare_prim():
-    """With no rigid body anywhere in the subtree, the writer anchors the input prim itself."""
+def test_rigid_body_fragments_create_on_bare_prim():
+    """With ``create_if_missing`` and one non-carrier match, the writer anchors that prim."""
     from isaaclab.sim.schemas import apply_rigid_body_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     UsdGeom.Xform.Define(stage, "/World/Bare")
-    result = apply_rigid_body_properties("/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], stage)
+    result = apply_rigid_body_properties(
+        "/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], create_if_missing=True, stage=stage
+    )
     prim = stage.GetPrimAtPath("/World/Bare")
     assert result is True
     assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
     assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0)
 
 
+def test_rigid_body_fragments_create_errors_on_multiple_candidates():
+    """Creating rigid bodies on more than one matched prim is never intentional."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
+        UsdGeom.Xform.Define(stage, path)
+    with pytest.raises(ValueError, match="RigidBodyAPI"):
+        apply_rigid_body_properties(
+            "/World/Grp/**", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], create_if_missing=True, stage=stage
+        )
+
+
+def test_rigid_body_fragments_pattern_narrows_targets():
+    """An expression targets only the carriers it matches."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Bot/armL", "/World/Bot/armR"):
+        prim = UsdGeom.Xform.Define(stage, path).GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+    result = apply_rigid_body_properties(
+        "/World/Bot/armL", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage=stage
+    )
+    assert result is True
+    left = stage.GetPrimAtPath("/World/Bot/armL")
+    right = stage.GetPrimAtPath("/World/Bot/armR")
+    assert left.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(7.0)
+    assert not right.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+
+
+def test_rigid_body_fragments_zero_targets_warn_and_return_false(caplog):
+    """No carrier matched and no creation requested: warn, author nothing, report failure."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Bare")
+    with caplog.at_level("WARNING"):
+        result = apply_rigid_body_properties(
+            "/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], stage=stage
+        )
+    assert result is False
+    assert not stage.GetPrimAtPath("/World/Bare").HasAPI(UsdPhysics.RigidBodyAPI)
+    assert "/World/Bare" in caplog.text
+
+
 def test_rigid_body_and_mass_fragments_modify_nested_bodies():
     """Every body in a nested rigid-body tree is modified, not just the outermost one.
 
     The URDF importer authors child links under their parent link prims, so carriers of
-    ``RigidBodyAPI`` (and ``MassAPI``) legitimately nest. The fragment writers must reach all
-    of them, matching the legacy writers' full-subtree traversal for these families.
+    ``RigidBodyAPI`` (and ``MassAPI``) legitimately nest. A trailing ``**`` expression must
+    reach all of them, matching the legacy writers' full-subtree traversal for these families.
     """
     from isaaclab.sim.schemas import apply_mass_properties, apply_rigid_body_properties
 
@@ -204,7 +258,7 @@ def test_rigid_body_and_mass_fragments_modify_nested_bodies():
         UsdPhysics.MassAPI.Apply(body)
 
     rigid_result = apply_rigid_body_properties(
-        "/World/Robot", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage
+        "/World/Robot/**", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage=stage
     )
     mass_result = apply_mass_properties("/World/Robot", [MassCfg(mass=2.5)], stage)
 
@@ -219,8 +273,7 @@ def test_rigid_body_and_mass_fragments_modify_nested_bodies():
 def test_rigid_body_fragments_skip_instanced_carriers(caplog):
     """A carrier inside an instance is a read-only proxy: skipped with a warning and a False return.
 
-    The hidden carrier also suppresses the define-fresh fallback, so the input prim gains no
-    rigid-body anchor.
+    Creation is not requested, so the instance root gains no rigid-body anchor either.
     """
     from isaaclab.sim.schemas import apply_rigid_body_properties
 
@@ -237,7 +290,9 @@ def test_rigid_body_fragments_skip_instanced_carriers(caplog):
     assert proxy_body.IsInstanceProxy() and proxy_body.HasAPI(UsdPhysics.RigidBodyAPI)
 
     with caplog.at_level("WARNING"):
-        result = apply_rigid_body_properties("/World/Asset", [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)], stage)
+        result = apply_rigid_body_properties(
+            "/World/Asset/**", [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)], stage=stage
+        )
 
     assert result is False
     assert not instance.HasAPI(UsdPhysics.RigidBodyAPI)

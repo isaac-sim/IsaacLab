@@ -506,6 +506,6 @@ def _spawn_mesh_geom_from_mesh(
         # apply rigid properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
         rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
         if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
-            schemas.apply_rigid_body_properties(prim_path, rigid_frags, stage=stage)
+            schemas.apply_rigid_body_properties(prim_path, rigid_frags, create_if_missing=True, stage=stage)
         else:
             schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

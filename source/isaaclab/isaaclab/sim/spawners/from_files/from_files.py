@@ -349,7 +349,7 @@ def _spawn_from_usd_file(
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
         rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
         if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
-            schemas.apply_rigid_body_properties(prim_path, rigid_frags)
+            schemas.apply_rigid_body_properties(f"{prim_path}/**", rigid_frags)
         else:
             schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
     # modify collision properties

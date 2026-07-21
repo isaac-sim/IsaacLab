@@ -337,6 +337,6 @@ def _spawn_geom_from_prim_type(
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
         rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
         if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
-            schemas.apply_rigid_body_properties(prim_path, rigid_frags, stage=stage)
+            schemas.apply_rigid_body_properties(prim_path, rigid_frags, create_if_missing=True, stage=stage)
         else:
             schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
