@@ -43,7 +43,8 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
-    "cartpole": 1.0,
+    # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
+    "cartpole": 1.5,
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
@@ -1235,25 +1236,25 @@ def rendering_test_cartpole(
         # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
         # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
         semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         normals = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         motion_vectors = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[2, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[2, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
     env_cfg = _CartpoleCameraTestEnvCfg()
