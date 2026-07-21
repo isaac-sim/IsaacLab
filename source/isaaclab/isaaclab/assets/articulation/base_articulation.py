@@ -524,10 +524,10 @@ class BaseArticulation(AssetBase):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Selector return mode. ``None`` is the deprecated legacy default for this release and
-                returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
                 without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
-                backed by Warp ``int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
                 of the same allocation. Callers must treat the proxy and both views as immutable because cache
                 hits share this storage.
 
@@ -556,10 +556,10 @@ class BaseArticulation(AssetBase):
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Selector return mode. ``None`` is the deprecated legacy default for this release and
-                returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
                 without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
-                backed by Warp ``int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
                 of the same allocation. Callers must treat the proxy and both views as immutable because cache
                 hits share this storage.
 
@@ -589,10 +589,10 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
                 all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Selector return mode. ``None`` is the deprecated legacy default for this release and
-                returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
                 without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
-                backed by Warp ``int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
                 of the same allocation. Callers must treat the proxy and both views as immutable because cache
                 hits share this storage.
 
@@ -621,10 +621,10 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of tendons to search for. Defaults to None, which means all tendons
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Selector return mode. ``None`` is the deprecated legacy default for this release and
-                returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
                 without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
-                backed by Warp ``int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
                 of the same allocation. Callers must treat the proxy and both views as immutable because cache
                 hits share this storage.
 

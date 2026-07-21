@@ -244,9 +244,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Selector return mode. ``None`` returns the legacy device-local ``torch.int32`` tensor
-                with a :class:`DeprecationWarning`; ``False`` returns it without that warning; ``True`` returns
-                a cached, device-local :class:`ProxyArray` backed by Warp ``int32`` storage.
+            as_proxy: Keyword-only selector return mode. ``None`` returns the legacy device-local
+                ``torch.int32`` tensor with a :class:`DeprecationWarning`; ``False`` returns it without that
+                warning; ``True`` returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32``
+                storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same allocation.
+                Callers must treat the proxy and both views as immutable because cache hits share this storage.
 
         Returns:
             A tuple containing the body indices and a fresh list of matched names. The indices are a device-local
