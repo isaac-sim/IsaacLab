@@ -34,9 +34,7 @@ class IndexKernelDispatcher:
         self._selector_names = selector_names
         self._overloads = {}
         for dtypes in product(_INDEX_DTYPES, repeat=len(selector_names)):
-            signature = {
-                name: wp.array(dtype=dtype) for name, dtype in zip(selector_names, dtypes, strict=True)
-            }
+            signature = {name: wp.array(dtype=dtype) for name, dtype in zip(selector_names, dtypes, strict=True)}
             self._overloads[dtypes] = wp.overload(kernel, signature)
 
     def select(self, *selectors: torch.Tensor | wp.array) -> wp.Kernel:
