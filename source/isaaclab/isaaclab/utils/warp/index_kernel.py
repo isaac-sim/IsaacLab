@@ -13,7 +13,7 @@ import warp as wp
 _INDEX_DTYPES = (wp.int32, wp.int64)
 
 
-def _selector_dtype(selector: torch.Tensor | wp.array):
+def _selector_dtype(selector: torch.Tensor | wp.array) -> type[wp.int32] | type[wp.int64]:
     if isinstance(selector, torch.Tensor):
         dtype = wp.dtype_from_torch(selector.dtype)
     elif isinstance(selector, wp.array):
@@ -26,9 +26,17 @@ def _selector_dtype(selector: torch.Tensor | wp.array):
 
 
 class IndexKernelDispatcher:
-    """Register and select signed-integer specializations of one Warp kernel."""
+    """Register and select signed-integer specializations of one Warp kernel.
 
-    def __init__(self, kernel: wp.Kernel, selector_names: tuple[str, ...]):
+    Args:
+        kernel: Generic Warp kernel to specialize.
+        selector_names: Names of the kernel arguments that receive index selectors.
+
+    Raises:
+        ValueError: If :paramref:`selector_names` is empty.
+    """
+
+    def __init__(self, kernel: wp.Kernel, selector_names: tuple[str, ...]) -> None:
         if not selector_names:
             raise ValueError("selector_names must contain at least one kernel argument name.")
         self._selector_names = selector_names
@@ -38,6 +46,18 @@ class IndexKernelDispatcher:
             self._overloads[dtypes] = wp.overload(kernel, signature)
 
     def select(self, *selectors: torch.Tensor | wp.array) -> wp.Kernel:
+        """Select the specialization matching the index selector dtypes.
+
+        Args:
+            selectors: Torch tensors or Warp arrays with signed 32-bit or 64-bit integer dtypes.
+
+        Returns:
+            The concrete Warp kernel specialized for the selector dtypes.
+
+        Raises:
+            TypeError: If a selector is not a Torch tensor or Warp array with a supported integer dtype.
+            ValueError: If the number of selectors does not match the number of selector argument names.
+        """
         if len(selectors) != len(self._selector_names):
             raise ValueError(
                 f"Expected {len(self._selector_names)} selectors for {self._selector_names}, got {len(selectors)}."
