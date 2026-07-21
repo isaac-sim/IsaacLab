@@ -497,11 +497,20 @@ def _skip_if_physics_preset_unsupported(env_cfg: Any, physics_preset_name: str) 
     ``env_cfg.sim.physics`` :class:`~isaaclab_tasks.utils.PresetCfg` and skips any backend whose
     Hydra preset name is not declared as a field.
 
+    Top-level env configs may themselves be a :class:`~isaaclab_tasks.utils.PresetCfg` (e.g. camera
+    data-type presets). In that case the concrete env lives under ``default``, and physics presets
+    are nested at ``default.sim.physics``.
+
     Args:
-        env_cfg: The environment config, exposing its physics presets at ``sim.physics``.
+        env_cfg: The environment config, exposing its physics presets at ``sim.physics`` (or under
+            ``default.sim.physics`` when ``env_cfg`` is itself a top-level ``PresetCfg``).
         physics_preset_name: The physics preset name (e.g. ``"newton_mjwarp"``).
     """
     from isaaclab_tasks.utils import PresetCfg
+
+    # Unwrap top-level PresetCfg wrappers (e.g. FrankaClothCameraEnvCfg) to the concrete default env.
+    if isinstance(env_cfg, PresetCfg):
+        env_cfg = getattr(env_cfg, "default", env_cfg)
 
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
     if not isinstance(physics_cfg, PresetCfg):

@@ -33,7 +33,9 @@ class FrankaClothCameraEnvCfg(PresetCfg):
     class BaseFrankaClothCameraEnvCfg(FrankaClothEnvCfg):
         """Camera variant of the Franka cloth lift environment."""
 
-        scene = FrankaClothCameraSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
+        scene: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
+            num_envs=4, env_spacing=3.0, replicate_physics=True
+        )
 
         def __post_init__(self) -> None:
             super().__post_init__()
