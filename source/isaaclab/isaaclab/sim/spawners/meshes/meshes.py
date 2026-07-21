@@ -15,6 +15,7 @@ import trimesh.transformations
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
+from isaaclab.sim.spawners._utils import props_expr
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 from isaaclab.utils.version import has_kit
 
@@ -345,15 +346,6 @@ Helper functions.
 """
 
 
-def _props_expr(prim_path: str, pattern: str | None) -> str:
-    """Join a spawn prim path with a cfg-relative target pattern (``None`` selects the whole subtree)."""
-    if pattern is None:
-        return f"{prim_path}/**"
-    if not pattern:
-        return prim_path
-    return f"{prim_path}/{pattern}"
-
-
 def _spawn_mesh_geom_from_mesh(
     prim_path: str,
     cfg: meshes_cfg.MeshCfg,
@@ -476,7 +468,7 @@ def _spawn_mesh_geom_from_mesh(
             if cfg.collision_props_prim_path is None:
                 coll_expr = mesh_prim_path
             else:
-                coll_expr = _props_expr(prim_path, cfg.collision_props_prim_path)
+                coll_expr = props_expr(prim_path, cfg.collision_props_prim_path)
             schemas.apply_collision_properties(coll_expr, coll_frags, create_if_missing=True, stage=stage)
         else:
             schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
@@ -516,7 +508,7 @@ def _spawn_mesh_geom_from_mesh(
                 if cfg.mass_props_prim_path is None:
                     mass_expr = prim_path
                 else:
-                    mass_expr = _props_expr(prim_path, cfg.mass_props_prim_path)
+                    mass_expr = props_expr(prim_path, cfg.mass_props_prim_path)
                 schemas.apply_mass_properties(mass_expr, mass_frags, create_if_missing=True, stage=stage)
             else:
                 schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
@@ -526,7 +518,7 @@ def _spawn_mesh_geom_from_mesh(
             if cfg.rigid_props_prim_path is None:
                 rigid_expr = prim_path
             else:
-                rigid_expr = _props_expr(prim_path, cfg.rigid_props_prim_path)
+                rigid_expr = props_expr(prim_path, cfg.rigid_props_prim_path)
             schemas.apply_rigid_body_properties(rigid_expr, rigid_frags, create_if_missing=True, stage=stage)
         else:
             schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
