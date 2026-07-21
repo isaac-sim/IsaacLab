@@ -120,6 +120,11 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
        --visualizer kit \
        --xr
 
+To verify that the headset and controller tracking poses are reaching Isaac Lab, add
+``--enable_debug_visualization`` to the command. The visualization draws red markers at tracked
+hand joints and RGB axes at tracked controller aim poses. See
+:ref:`isaac-teleop-tracking-debug-visualization` for details.
+
 .. attention::
 
    **First run — EULA acceptance required.**
