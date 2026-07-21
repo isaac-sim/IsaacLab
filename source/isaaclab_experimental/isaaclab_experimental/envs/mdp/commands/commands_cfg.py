@@ -9,13 +9,22 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from isaaclab.envs.mdp.commands.commands_cfg import NullCommandCfg as _NullCommandCfg
 from isaaclab.envs.mdp.commands.commands_cfg import UniformPoseCommandCfg as _UniformPoseCommandCfg
 from isaaclab.envs.mdp.commands.commands_cfg import UniformVelocityCommandCfg as _UniformVelocityCommandCfg
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
+    from .null_command import NullCommand
     from .pose_command import UniformPoseCommand
     from .velocity_command import UniformVelocityCommand
+
+
+@configclass
+class NullCommandCfg(_NullCommandCfg):
+    """Configuration for the Warp-native null command generator."""
+
+    class_type: type[NullCommand] | str = "{DIR}.null_command:NullCommand"
 
 
 @configclass

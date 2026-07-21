@@ -2,7 +2,10 @@ Added
 ^^^^^
 
 * Added Warp-native uniform pose and velocity command terms with pointer-stable
-  command arrays.
+  command arrays, and a Warp-native :class:`NullCommand` term for environments
+  without commands.
+* Added a Warp-native ``height_scan`` observation term (eager until sensor
+  capture-readiness lands) with ray-count output-dimension inference.
 * Added :class:`~isaaclab_experimental.managers.CurriculumManager` and a
   boolean-mask reset path for Warp manager-based environments, retaining compact
   environment IDs only for legacy host consumers.

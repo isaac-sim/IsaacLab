@@ -897,9 +897,17 @@ class ObservationManager(ManagerBase):
         - ``"body:N"``: ``N`` components per selected body from ``asset_cfg``.
         - ``"command"``: query ``command_manager.get_command(name).shape[-1]``.
         - ``"action"``: query ``action_manager.action.shape[-1]``.
+        - ``"sensor:rays"``: number of rays of the ray-caster sensor from ``sensor_cfg``.
         """
         if isinstance(out_dim, int):
             return out_dim
+
+        if out_dim == "sensor:rays":
+            sensor_cfg = term_cfg.params.get("sensor_cfg")
+            if sensor_cfg is None:
+                raise ValueError("out_dim='sensor:rays' requires a 'sensor_cfg' entry in the term's params.")
+            sensor = self._env.scene.sensors[sensor_cfg.name]
+            return int(sensor.num_rays)
 
         if out_dim == "joint":
             asset_cfg = term_cfg.params.get("asset_cfg")

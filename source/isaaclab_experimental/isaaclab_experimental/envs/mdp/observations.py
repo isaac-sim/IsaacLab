@@ -36,10 +36,12 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_shape,
 )
 from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.utils.warp import warp_capturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.sensors import RayCaster
 
 
 # ---------------------------------------------------------------------------
@@ -356,3 +358,40 @@ def generated_commands(env: ManagerBasedEnv, out, command_name: str) -> None:
     Reads the command manager's pointer-stable Warp storage directly.
     """
     wp.copy(out, env.command_manager.get_command_wp(command_name))
+
+
+"""
+Sensors.
+"""
+
+
+@wp.kernel
+def _height_scan_kernel(
+    pos_w: wp.array(dtype=wp.vec3f),
+    ray_hits_w: wp.array2d(dtype=wp.vec3f),
+    offset: wp.float32,
+    out: wp.array2d(dtype=wp.float32),
+):
+    env_id, ray_id = wp.tid()
+    out[env_id, ray_id] = pos_w[env_id][2] - ray_hits_w[env_id, ray_id][2] - offset
+
+
+# Sensor reads go through the lazy-update path, whose host-side timestamp bookkeeping
+# decides when rays are re-cast and has not been audited for graph capture.
+@warp_capturable(False)
+@generic_io_descriptor_warp(units="m", out_dim="sensor:rays", observation_type="SensorState", on_inspect=[record_shape])
+def height_scan(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> None:
+    """Height scan from the given sensor w.r.t. the sensor's frame [m]. Writes into ``out``.
+
+    Warp-first override of :func:`isaaclab.envs.mdp.observations.height_scan`.
+    The provided offset (Defaults to 0.5) is subtracted from the returned values.
+    Missed rays carry ``inf`` hit positions, matching the stable term's semantics
+    (the resulting ``-inf`` heights are handled by the term's ``clip`` setting).
+    """
+    sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
+    wp.launch(
+        kernel=_height_scan_kernel,
+        dim=(env.num_envs, sensor.num_rays),
+        inputs=[sensor.data.pos_w.warp, sensor.data.ray_hits_w.warp, float(offset), out],
+        device=env.device,
+    )
