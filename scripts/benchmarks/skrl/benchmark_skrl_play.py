@@ -32,6 +32,7 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
+    from isaaclab.test.benchmark._cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -39,7 +40,9 @@ def _parse_args(argv: list[str]):
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
-    parser.add_argument("--num_frames", type=int, default=100, help="Number of inference steps to benchmark.")
+    parser.add_argument(
+        "--num_frames", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
+    )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument(
         "--checkpoint",
@@ -72,15 +75,15 @@ def _parse_args(argv: list[str]):
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
-        "--measure_synchronized_step_breakdown",
+        "--measure_sync_step",
         action="store_true",
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
         "--warmup_steps",
-        type=int,
-        default=0,
-        help="Exclude the first N env.step() calls from environment-step timing (cold-start). Opt-in; default 0.",
+        type=parse_non_negative_int,
+        default=1,
+        help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
     )
     parser.add_argument(
         "--benchmark_formatter",
@@ -95,10 +98,6 @@ def _parse_args(argv: list[str]):
     add_launcher_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
-    if args_cli.num_frames <= 0:
-        parser.error("--num_frames must be greater than zero")
-    if args_cli.warmup_steps < 0:
-        parser.error("--warmup_steps must be non-negative")
     if args_cli.warmup_steps >= args_cli.num_frames:
         parser.error("--warmup_steps must be less than --num_frames")
     sys.argv = [sys.argv[0]] + remaining_args
@@ -198,9 +197,7 @@ def run(argv: list[str]) -> None:
                     {"name": "algorithm", "data": args_cli.algorithm},
                     {
                         "name": "environment_step_measurement_mode",
-                        "data": (
-                            "serialized_synchronized" if args_cli.measure_synchronized_step_breakdown else "host_return"
-                        ),
+                        "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                     },
                     {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                     {"name": "presets", "data": ",".join(cfg.presets)},
@@ -248,7 +245,7 @@ def run(argv: list[str]) -> None:
 
         environment_step_timer = stepping.EnvironmentStepTimingRecorder(
             env,
-            measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown,
+            measure_synchronized_step_breakdown=args_cli.measure_sync_step,
             warmup_steps=args_cli.warmup_steps,
         )
         with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):

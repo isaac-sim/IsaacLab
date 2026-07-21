@@ -16,10 +16,8 @@ ROOT = Path(__file__).resolve().parents[3]
 _TASK = "Isaac-Cartpole-Direct"
 
 
-@pytest.mark.parametrize(
-    "measure_synchronized_step_breakdown", [False, True], ids=["default", "synchronized_breakdown"]
-)
-def test_runtime_writes_all_requested_formats(tmp_path, measure_synchronized_step_breakdown: bool):
+@pytest.mark.parametrize("measure_sync_step", [False, True], ids=["default", "synchronized_breakdown"])
+def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool):
     """The runtime entry point writes schema and OmniPerf data in one run."""
     sh = ROOT / "isaaclab.sh"
     cmd = [
@@ -42,7 +40,7 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_synchronized_ste
         str(tmp_path),
         "--benchmark_formatter",
         "schema,omniperf",
-        *(["--measure_synchronized_step_breakdown"] if measure_synchronized_step_breakdown else []),
+        *(["--measure_sync_step"] if measure_sync_step else []),
         "presets=newton_mjwarp",
         "--headless",
     ]
@@ -66,7 +64,7 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_synchronized_ste
     timing = schema_data["runtime"]["environment_step_timing"]
     assert timing["environment_step_calls"] == 20
     assert timing["environment_step_fps"]["mean"] > 0
-    if measure_synchronized_step_breakdown:
+    if measure_sync_step:
         assert timing["simulation_step_calls"] > 0
         assert timing["simulation_step_time_s"]["mean"] > 0.0
         assert timing["outside_simulation_step_time_s"]["mean"] >= 0.0
@@ -81,7 +79,7 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_synchronized_ste
     assert timing["environment_step_time_s"]["std"] >= 0.0
     omniperf_data = json.loads(omniperf_files[0].read_text())
     assert omniperf_data["benchmark_info"]["environment_step_measurement_mode"] == timing["measurement_mode"]
-    if measure_synchronized_step_breakdown:
+    if measure_sync_step:
         assert "Mean Serialized Diagnostic Total FPS" in omniperf_data["runtime"]
         assert "Mean Total FPS" not in omniperf_data["runtime"]
     else:
