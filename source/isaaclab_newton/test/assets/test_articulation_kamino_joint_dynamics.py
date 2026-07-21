@@ -27,13 +27,14 @@ separately. Gravity is disabled and there are no collisions, so the joint reduce
 Notes on Kamino behavior exercised here:
 - Kamino allocates the per-DOF implicit-dynamics constraint at *model-build* time whenever a joint
   has a non-zero stiffness/damping/armature imported from USD. A joint built with zero gains is not
-  given a constraint, and later runtime writes to its gains are ignored. All tests therefore author a
-  non-zero drive stiffness in USD so the constraint exists; the value under test is then supplied by
-  the selected authoring path.
+  given a constraint, and later runtime writes to its gains are ignored.
+  TODO: Kamino should throw an error in case parameters are set in an incompatible way.
 - Kamino honors USD-authored joint position limits but does not honor runtime limit writes, so the
   limit test exercises the USD authoring path only.
+  TODO: Kamino should honor runtime limit writes.
 - Velocity/effort limits and joint friction are intentionally out of scope (Kamino does not enforce
   the velocity/effort limits in its step, and maps ``joint_friction`` to viscous damping).
+  TODO: Fix mapping to viscous damping.
 """
 
 from isaaclab.app import AppLauncher
@@ -443,9 +444,6 @@ def test_position_limit_usd(joint_type, upper):
     far limit (``upper=2.0``) the same drive carries the joint well past ``0.3`` toward the target,
     confirming the clamp above was due to the limit and not the drive. A gentle, damped drive keeps
     the soft-constraint penetration small.
-
-    TODO: Kamino honors USD-authored position limits but not runtime limit writes,
-    so the limit test uses the USD path only. We should fix Kamino and update this test.
     """
     target = 0.45
     with build_simulation_context(device=DEVICE, sim_cfg=_sim_cfg(alpha=0.01, beta=0.01)) as sim:
