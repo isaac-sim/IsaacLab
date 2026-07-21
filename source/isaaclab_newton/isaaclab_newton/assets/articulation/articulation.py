@@ -257,6 +257,19 @@ class Articulation(BaseArticulation):
     Operations.
     """
 
+    @property
+    def reset_capture_safe(self) -> bool:
+        """Whether :meth:`reset` consumes masks without host-side work.
+
+        Newton-native actuator state resets by mask in the global adapter. In legacy
+        mode, every Lab actuator must provide a mask-native
+        :meth:`~isaaclab.actuators.ActuatorBase.reset_mask` override; the compacting
+        base fallback keeps the reset host-bound.
+        """
+        if getattr(self, "_has_newton_actuators", False):
+            return True
+        return all(type(actuator).reset_mask is not ActuatorBase.reset_mask for actuator in self.actuators.values())
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the articulation.
 
@@ -275,13 +288,17 @@ class Articulation(BaseArticulation):
         # in the global adapter, which consumes the mask below, and the Lab
         # actuator objects only carry configuration; resetting them here would
         # touch unselected environments.
-        if not getattr(self, "_has_newton_actuators", False):
-            actuator_env_ids = env_ids
-            if self.actuators and env_mask is not None:
+        if not getattr(self, "_has_newton_actuators", False) and self.actuators:
+            if env_mask is not None:
+                # Forward the boolean view; mask-native models reset without host
+                # synchronization and legacy models compact inside their own
+                # compatibility fallback.
                 torch_mask = wp.to_torch(env_mask)
-                actuator_env_ids = torch_mask.nonzero(as_tuple=False).squeeze(-1)
-            for actuator in self.actuators.values():
-                actuator.reset(actuator_env_ids)
+                for actuator in self.actuators.values():
+                    actuator.reset_mask(torch_mask)
+            else:
+                for actuator in self.actuators.values():
+                    actuator.reset(env_ids)
         # reset the global Newton actuator adapter (its ``_states_a/_b`` buffers
         # carry per-env state — delay queues, neural hidden states — that must
         # be cleared for the resetting envs). The adapter spans the whole model,

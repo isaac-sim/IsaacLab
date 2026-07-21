@@ -169,6 +169,26 @@ def test_reset_dispatches_warp_mask_to_supported_entities() -> None:
         entity.reset.assert_called_once_with(env_mask=env_mask)
 
 
+def test_scene_reset_capture_safe_reflects_entity_composition() -> None:
+    """Capture safety should require every entity to declare a mask-native reset."""
+    scene = object.__new__(InteractiveScene)
+    safe_entity = SimpleNamespace(reset_capture_safe=True)
+    scene._articulations = {"articulation": safe_entity}
+    scene._rigid_objects = {"rigid_object": safe_entity}
+    scene._rigid_object_collections = {"collection": safe_entity}
+    scene._sensors = {"sensor": SimpleNamespace(reset_capture_safe=True)}
+    scene._deformable_objects = {}
+    scene._surface_grippers = {}
+    assert scene.reset_capture_safe
+
+    scene._sensors = {"sensor": SimpleNamespace()}
+    assert not scene.reset_capture_safe
+
+    scene._sensors = {}
+    scene._surface_grippers = {"gripper": object()}
+    assert not scene.reset_capture_safe
+
+
 def test_mask_reset_forwards_boolean_mask_to_surface_grippers() -> None:
     """Mask reset should hand surface grippers a boolean Torch view, not compact IDs."""
     scene = object.__new__(InteractiveScene)

@@ -420,7 +420,8 @@ class Camera(SensorBase):
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view; degenerate rows (eye == target) come back as NaN
         rotation_matrix = create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device)
-        valid_indices = (~torch.isnan(rotation_matrix).any(dim=(-2, -1))).nonzero(as_tuple=True)[0]
+        valid_rows = ~torch.isnan(rotation_matrix).any(dim=(-2, -1))
+        valid_indices = valid_rows.nonzero(as_tuple=True)[0]  # mask-boundary: input validation
         n_valid = valid_indices.numel()
         n_total = rotation_matrix.shape[0]
         if n_valid == 0:

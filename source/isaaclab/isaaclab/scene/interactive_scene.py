@@ -392,6 +392,24 @@ class InteractiveScene:
         return self._clone_origins_wp
 
     @property
+    def reset_capture_safe(self) -> bool:
+        """Whether :meth:`reset` dispatches only mask-native, capture-safe work.
+
+        Conservative composition query: every entity must declare itself reset
+        capture-safe. Host-side consumers (surface grippers, deformable objects,
+        legacy actuator or sensor resets) keep the scene eager.
+        """
+        if self._surface_grippers or self._deformable_objects:
+            return False
+        entities = [
+            *self._articulations.values(),
+            *self._rigid_objects.values(),
+            *self._rigid_object_collections.values(),
+            *self._sensors.values(),
+        ]
+        return all(getattr(entity, "reset_capture_safe", False) for entity in entities)
+
+    @property
     def terrain(self) -> TerrainImporter | None:
         """The terrain in the scene. If None, then the scene has no terrain.
 

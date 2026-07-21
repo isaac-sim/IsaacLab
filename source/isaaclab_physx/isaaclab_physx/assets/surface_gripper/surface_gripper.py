@@ -58,6 +58,17 @@ def fill_scalar_at_indices(
     out[env_ids[i]] = value
 
 
+@wp.kernel
+def fill_scalar_masked(
+    value: wp.float32,
+    env_mask: wp.array(dtype=wp.bool),
+    out: wp.array(dtype=wp.float32),
+):
+    i = wp.tid()
+    if env_mask[i]:
+        out[i] = value
+
+
 class SurfaceGripper(AssetBase):
     """A surface gripper actuator class.
 
@@ -416,11 +427,17 @@ class SurfaceGripper(AssetBase):
         Args:
             env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
         """
-        if env_mask is not None:
-            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
-        else:
-            env_ids = self._ALL_INDICES
-        self.reset_index(env_ids)
+        if env_mask is None:
+            self.reset_index(self._ALL_INDICES)
+            return
+        # Reset the selected grippers to an open status with an in-kernel mask test.
+        wp.launch(
+            fill_scalar_masked,
+            dim=self._gripper_state.shape[0],
+            inputs=[wp.float32(-1.0), wp.from_torch(env_mask.contiguous(), dtype=wp.bool)],
+            outputs=[self._gripper_state],
+            device=self._device,
+        )
 
     def reset(self, indices: torch.Tensor | None = None) -> None:
         """Reset the gripper command buffer.

@@ -269,6 +269,14 @@ class ActuatorBase(ABC):
     Operations.
     """
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # A model that redefines :meth:`reset` without redefining :meth:`reset_mask`
+        # must not inherit an unrelated mask override (e.g. a stateless parent's
+        # no-op), so restore the compacting base fallback for it.
+        if "reset" in cls.__dict__ and "reset_mask" not in cls.__dict__:
+            cls.reset_mask = ActuatorBase.reset_mask
+
     @abstractmethod
     def reset(self, env_ids: Sequence[int]):
         """Reset the internals within the group.
@@ -277,6 +285,19 @@ class ActuatorBase(ABC):
             env_ids: List of environment IDs to reset.
         """
         raise NotImplementedError
+
+    def reset_mask(self, env_mask: torch.Tensor) -> None:
+        """Reset the internals within the group for masked environments.
+
+        The base implementation materializes compact environment IDs and delegates to
+        :meth:`reset`, so models that only implement the ID-based interface stay
+        compatible. Mask-native models override this method with elementwise masked
+        writes, which keeps the reset free of host synchronization.
+
+        Args:
+            env_mask: Boolean mask selecting environments to reset, shape (num_envs,).
+        """
+        self.reset(env_mask.nonzero(as_tuple=False).squeeze(-1))  # mask-boundary: legacy actuator API
 
     @abstractmethod
     def compute(

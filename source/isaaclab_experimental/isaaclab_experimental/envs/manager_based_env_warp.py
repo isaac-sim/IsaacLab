@@ -140,6 +140,10 @@ class ManagerBasedEnvWarp:
                 self.scene.initialize_renderers()
         print("[INFO]: Scene manager: ", self.scene)
 
+        # Scene reset capture eligibility is a property of scene composition. The
+        # registration is forward-looking: scene resets currently run eagerly.
+        self._warp_graph_cache.register_capturability("Scene", getattr(self.scene, "reset_capture_safe", False))
+
         # Shared per-env Warp RNG state (accessible to all managers/terms via `env`).
         # This is a single stream per env (no lookup) and is initialized once when `num_envs` is known.
         self.rng_state_wp = wp.zeros((self.num_envs,), dtype=wp.uint32, device=self.device)
