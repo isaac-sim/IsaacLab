@@ -7,5 +7,5 @@ Changed
 Fixed
 ^^^^^
 
-* Worked around OVRTX 0.4 tiled RenderProducts collapsing to one camera after runtime cloning by
-  preserving camera prims in trimmed stage exports.
+* Worked around OVRTX 0.4 tiled RenderProducts retaining only cameras present at stage load by
+  rewriting the camera relationship after runtime cloning.

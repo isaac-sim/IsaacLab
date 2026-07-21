@@ -267,18 +267,18 @@ def create_scene_partition_attributes(
             logger.debug("Set scene partition '%s' on '%s'", scene_partition, attr_path.GetPrimPath())
 
 
-def _collect_prims_to_deactivate(parent_prim: Usd.Prim, preserve_paths: frozenset[Sdf.Path]) -> list[Sdf.Path]:
+def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[Sdf.Path]) -> list[Sdf.Path]:
     """Collect child prims under ``parent_prim`` for deactivation.
 
     For each child:
 
-    * If the child is preserved, keep the full subtree and stop descending.
-    * If the child is an ancestor of a preserved path, recurse to deactivate non-preserved siblings.
+    * If the child is a source, keep the full subtree and stop descending.
+    * If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
     * Otherwise, deactivate the child prim (including descendants).
 
     Args:
         parent_prim: Parent prim whose children are considered.
-        preserve_paths: Source and camera paths to preserve in the trimmed stage.
+        source_paths: The paths to the cloning sources.
 
     Returns:
         Paths of prims to deactivate on the root layer.
@@ -288,13 +288,13 @@ def _collect_prims_to_deactivate(parent_prim: Usd.Prim, preserve_paths: frozense
     for child in parent_prim.GetChildren():
         child_path = child.GetPath()
 
-        # If the child is preserved, keep it and stop walking down the tree.
-        if child_path in preserve_paths:
+        # If the child is a source, keep it and stop walking down the tree.
+        if child_path in source_paths:
             continue
 
-        # Preserve the ancestor chain while deactivating unrelated descendants.
-        if any(path.HasPrefix(child_path) for path in preserve_paths):
-            prim_paths.extend(_collect_prims_to_deactivate(child, preserve_paths))
+        # If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
+        if any(source.HasPrefix(child_path) for source in source_paths):
+            prim_paths.extend(_collect_prims_to_deactivate(child, source_paths))
             continue
 
         # Otherwise, deactivate the child prim (including descendants).
@@ -347,19 +347,14 @@ def export_stage_to_string(stage: Usd.Stage, num_envs: int, source_paths: tuple[
         raise RuntimeError(f"Failed to get prim at path: {envs_path}")
 
     source_path_set = frozenset(map(Sdf.Path, source_paths))
-    camera_path_set = frozenset(prim.GetPath() for prim in Usd.PrimRange(envs_prim) if prim.IsA(UsdGeom.Camera))
-    # OVRTX 0.4 resolves a RenderProduct's Fabric camera relationship during initial population and does not add
-    # cameras created later by clone_usd. Keep all cameras and their ancestor chains active in the trimmed stage so
-    # tiled RenderProducts discover every camera while preserving the optimized runtime-cloning path.
-    preserve_path_set = source_path_set | camera_path_set
     prim_paths: list[Sdf.Path] = []
 
     for child in envs_prim.GetChildren():
-        # All env roots remain in the stage. Keep full source subtrees and camera paths,
-        # while trimming other descendants.
+        # All env roots will be kept in the stage. If an env root is a source, keep the full subtree and don't walk down
+        # the subtree, otherwise walk down the subtree to collect descendant prims that are not sources to deactivate.
         child_path = child.GetPath()
-        if child_path not in preserve_path_set:
-            prim_paths.extend(_collect_prims_to_deactivate(child, preserve_path_set))
+        if child_path not in source_path_set:
+            prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
 
     root_layer = stage.GetRootLayer()
 

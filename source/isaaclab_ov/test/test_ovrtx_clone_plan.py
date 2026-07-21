@@ -70,16 +70,14 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
     return stage
 
 
-def _assert_export_contains_env_roots_and_children(
-    exported: str, env_indices: range | list[int], camera_count: int | None = None
-) -> None:
+def _assert_export_contains_env_roots_and_children(exported: str, env_indices: range | list[int]) -> None:
     """Listed environment roots appear in the stage export."""
     for env_idx in env_indices:
         assert f'def Xform "env_{env_idx}"' in exported
         assert f'def Xform "Object_env{env_idx}_only"' in exported
 
     assert exported.count('def Xform "Robot"') == len(env_indices)
-    assert exported.count('def Camera "Camera"') == (len(env_indices) if camera_count is None else camera_count)
+    assert exported.count('def Camera "Camera"') == len(env_indices)
 
 
 def _assert_export_contains_env_roots_but_omits_children(exported: str, env_indices: range | list[int]) -> None:
@@ -103,6 +101,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._renderer = SimpleNamespace(
         clone_usd=lambda *args, **kwargs: None,
         read_attribute=lambda *args, **kwargs: None,
+        write_array_attribute=lambda *args, **kwargs: None,
         write_attribute=lambda *args, **kwargs: None,
     )
     renderer._clone_plan = None
@@ -424,6 +423,42 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
     assert renderer._exported_usd_string is None
 
 
+def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
+    """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
+    num_envs = 4
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._exported_usd_string = "#usda 1.0\n"
+
+    call_order: list[str] = []
+    write_array_calls: list[tuple[list[str], str, list[list[str]]]] = []
+
+    renderer._renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
+    renderer._clone_sources_in_ovrtx = lambda: call_order.append("clone")
+    renderer._update_scene_partitions_after_clone = lambda _num_envs: call_order.append("partitions")
+
+    def _write_array_attribute(prim_paths: list[str], attribute_name: str, tensors: list[list[str]]) -> None:
+        call_order.append("rewrite_cameras")
+        write_array_calls.append((prim_paths, attribute_name, tensors))
+
+    renderer._renderer.write_array_attribute = _write_array_attribute
+    renderer._renderer.bind_attribute = lambda **_kwargs: object()
+    renderer._renderer.write_attribute = lambda **_kwargs: None
+    renderer._setup_xform_bindings = lambda: None
+    renderer._setup_deformable_bindings = lambda _num_envs: None
+
+    spec = _make_camera_render_spec(num_envs=num_envs)
+    renderer._initialize_from_spec(spec)
+
+    assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
+    assert write_array_calls == [
+        (
+            ["/Render/RenderProduct"],
+            "camera",
+            [[f"/World/envs/env_{env_id}/Camera" for env_id in range(num_envs)]],
+        )
+    ]
+
+
 def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyPatch):
     """prepare_stage resolves the clone plan and exports a trimmed prototype stage."""
     num_envs = 4
@@ -439,6 +474,6 @@ def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyP
     assert renderer._clone_plan is not None
     assert renderer._clone_plan.sources == published.sources
 
-    # Only the env_0 prototype geometry is exported, while all cameras remain discoverable.
-    _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0], camera_count=num_envs)
+    # Only the env_0 prototype subtree is exported.
+    _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0])
     _assert_export_contains_env_roots_but_omits_children(renderer._exported_usd_string, [1, 2, 3])
