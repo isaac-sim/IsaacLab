@@ -3,19 +3,7 @@
 # Record dataset
 
 ```
-cd ~/Stanley_ws/IsaacLab
-```
-
-```
-conda activate env_isaaclab
-```
-
-```
-cd IsaacLab/
-./isaaclab.sh --install
-```
-
-```
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/tools/record_demos_openarm.py     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0     --dataset_file logs/demos/pickup.hdf5     --enable_cameras --num_demos 1 --teleop_device keyboard
 ```
 
@@ -39,14 +27,7 @@ R	                    reset/discard
 # Replay dataset
 
 ```
-cd ~/Stanley_ws/IsaacLab
-```
-
-```
-conda activate env_isaaclab
-```
-
-```
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/tools/replay_demos.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
     --dataset_file logs/demos/pickup_test.hdf5 \
@@ -103,17 +84,10 @@ randomize_cube_2 = EventTerm(
 
 # Isaac Lab Mimic
 
-```
-cd ~/Stanley_ws/IsaacLab
-```
-
-```
-conda activate env_isaaclab
-```
-
 Record source demo (keyboard teleoperation)
 
 ```
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/tools/record_demos_openarm.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
     --dataset_file logs/demos/pickup.hdf5 \
@@ -123,6 +97,7 @@ Record source demo (keyboard teleoperation)
 Annotate with subtask signals (auto-mode uses get_subtask_term_signals)
 
 ```
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-Mimic-v0 \
     --input_file logs/demos/pickup.hdf5 \
@@ -132,6 +107,7 @@ Annotate with subtask signals (auto-mode uses get_subtask_term_signals)
 Generate augmented dataset
 
 ```
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-Mimic-v0 \
     --input_file logs/demos/pickup_annotated.hdf5 \
@@ -142,6 +118,7 @@ Generate augmented dataset
 Generate augemented dataset w domain randomization
 
 ```
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-Mimic-v0 \
     --input_file logs/demos/pickup_annotated.hdf5 \
@@ -173,11 +150,8 @@ cd ~/CSL/lerobot/ && conda activate lerobot
 Launch SmolVLA Policy Server
 
 ```
-conda activate lerobot
-```
-
-```
-python ~/Stanley_ws/IsaacLab/scripts/imitation_learning/lerobot/smolvla_server.py \
+conda activate lerobot && cd ~/Stanley_ws/IsaacLab
+python scripts/imitation_learning/lerobot/smolvla_server.py \
     --checkpoint ethanCSL/openarm_visuomotor_augmented_dataset_1000 \
     --task "Pick up the red cube." \
     --port 5556
@@ -186,11 +160,7 @@ python ~/Stanley_ws/IsaacLab/scripts/imitation_learning/lerobot/smolvla_server.p
 Run Isaac Lab Eval
 
 ```
-conda activate env_isaaclab
-```
-
-```
-cd ~/Stanley_ws/IsaacLab
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/imitation_learning/lerobot/eval_smolvla_jointspace.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
     --num_rollouts 5 --horizon 300 --enable_cameras \
@@ -210,33 +180,34 @@ sudo ./my_arm
 Deploy in joint states trained model
 
 ```
-cd ~/Stanley_ws/lerobot_openarm && conda activate lerobot-openarm
+cd ~/Stanley_ws/lerobot_openarm
+uv sync
+source .venv/bin/activate
 python deploy_smolvla_pickup_jointspace.py     --checkpoint ethanCSL/openarm_visuomotor_no_domain_randomization_1000_joints     --body-cam-index 4 --wrist-cam-index 10 --side-cam-index 12     --inference-hz 30 --max-joint-speed 1.0 --max-episode-seconds 30     --calibration calibration.json     --no-live-view --save-video rollout_v2.mp4
 ```
 
 ## OpenARM Motors Check
 
 ```
-cd lerobot_openarm
-```
-
-```
+cd ~/Stanley_ws/lerobot_openarm
 uv sync
 source .venv/bin/activate
+python safe_probe.py --side left --joint 1 --step 0.1 --max-kp 150 --skip-ctrl-mode
 ```
 
 You can change joint number and arm to different testing 
 
-```
-python safe_probe.py --side left --joint 1 --step 0.1 --max-kp 150 --skip-ctrl-mode
-```
 ## OpenARM Teleoperation Mirror Test
 
 ```
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/tools/record_demos_openarm.py     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0     --dataset_file logs/demos/pickup.hdf5     --enable_cameras --num_demos 10 --teleop_device keyboard     --mirror_udp_port 9999 --mirror_feedback_port 9998
 ```
 
 ```
+cd ~/Stanley_ws/lerobot_openarm
+uv sync
+source .venv/bin/activate
 python mirror_bridge.py --calibration calibration.json --udp-port 9999     --right-port can0 --left-port can1     --model-path model/openarm_description_leader.urdf     --max-joint-speed 0.5     --feedback-port 9998
 ```
 
@@ -245,14 +216,16 @@ python mirror_bridge.py --calibration calibration.json --udp-port 9999     --rig
 sim-to-real
 
 ```
-cd ~/lerobot_openarm
+cd ~/Stanley_ws/lerobot_openarm
+uv sync
+source .venv/bin/activate
 python replay_hf_sim_episode.py     --repo-id ethanCSL/openarm_visuomotor_sim_real_check --episode 0     --calibration calibration.json --model-path model/openarm_description_leader.urdf     --max-joint-speed 10.0 --plot sim_vs_real_20260703.png
 ```
 
 real-to-sim
 
 ```
-cd ~/Stanley_ws/IsaacLab
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/tools/replay_real_dataset_in_sim.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
     --repo-id ethanCSL/0422_stanley_red_cube --episode 0 \
