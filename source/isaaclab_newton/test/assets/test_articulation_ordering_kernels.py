@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
+
 import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
-from isaaclab_newton.physics import newton_manager
 
 
 def _selector(values: list[int], dtype: type) -> wp.array:
@@ -224,6 +225,19 @@ def test_deprecated_write_joint_state_data_mask_writes_only_masked_cells() -> No
 @pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
 def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> None:
     """Set exact world and articulation reset masks from nonidentity environment IDs."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=(
+                "^'RigidBodyMaterialCfg' is deprecated and will be removed in 5\\.0\\. Use "
+                "'isaaclab_physx\\.sim\\.spawners\\.materials\\.PhysxRigidBodyMaterialCfg' for PhysX properties, "
+                "or 'isaaclab\\.sim\\.spawners\\.materials\\.RigidBodyMaterialBaseCfg' for solver-common properties "
+                "only\\.$"
+            ),
+            category=DeprecationWarning,
+        )
+        from isaaclab_newton.physics import newton_manager
+
     env_ids = _selector([2, 0], index_dtype)
     articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
     world_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
