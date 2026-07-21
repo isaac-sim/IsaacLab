@@ -3,6 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# The root is not a real distribution, but some tooling refuses to operate unless the
+# directory looks like a buildable Python project. Declare an empty setuptools build so
+# it treats the root as a (contents-free) dist without actually packaging anything.
+# Remove this once downstream users have migrated to a uv workflow
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []
+py-modules = []
+
 [project]
 name = "isaaclab-dev"
 version = "0.1.0"
