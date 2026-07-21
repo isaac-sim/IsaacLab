@@ -15,8 +15,6 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
-from .kernels import gather_root_segment_state
-
 if TYPE_CHECKING:
     from newton.selection import ArticulationView
 
@@ -62,17 +60,8 @@ class CableObjectData(BaseCableObjectData):
             dt: The time step [s].
         """
         del dt
-        wp.launch(
-            gather_root_segment_state,
-            dim=self._num_instances,
-            inputs=[
-                self._sim_bind_root_body_ids,
-                self._sim_bind_body_pose_w,
-                self._sim_bind_body_velocity_w,
-            ],
-            outputs=[self._segment_pose_w, self._segment_velocity_w],
-            device=self.device,
-        )
+        wp.copy(self._segment_pose_w[:, 0], self._sim_bind_root_pose_w)
+        wp.copy(self._segment_velocity_w[:, 0], self._sim_bind_root_velocity_w)
         wp.copy(self._segment_pose_w[:, 1:], self._sim_bind_link_pose_w)
         wp.copy(self._segment_velocity_w[:, 1:], self._sim_bind_link_velocity_w)
 
@@ -82,11 +71,11 @@ class CableObjectData(BaseCableObjectData):
         state = SimulationManager.get_state_0()
         self._num_instances = self._root_view.count
         self._num_segments = self._root_view.link_count + 1
-        self._sim_bind_root_body_ids = self._root_view.get_attribute("joint_parent", model)[:, 0, 0]
+        self._sim_bind_root_body_ids = self._root_view.get_attribute("joint_parent", model)[:, 0, 0].contiguous()
+        self._sim_bind_root_pose_w = state.body_q[self._sim_bind_root_body_ids]
+        self._sim_bind_root_velocity_w = state.body_qd[self._sim_bind_root_body_ids]
         self._sim_bind_link_pose_w = self._root_view.get_link_transforms(state)[:, 0]
         self._sim_bind_link_velocity_w = self._root_view.get_link_velocities(state)[:, 0]
-        self._sim_bind_body_pose_w = state.body_q
-        self._sim_bind_body_velocity_w = state.body_qd
 
     def _create_buffers(self) -> None:
         """Create cable state buffers."""

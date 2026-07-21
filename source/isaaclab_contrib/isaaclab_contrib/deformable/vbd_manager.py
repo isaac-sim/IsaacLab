@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model, ModelBuilder
+from newton import Model
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -228,13 +228,8 @@ class NewtonVBDManager(NewtonManager):
             }
             NewtonManager._num_envs = len(env_paths)
 
-        cls.set_builder(builder)
-
-    @classmethod
-    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Color particles and VBD-integrated bodies before finalization."""
-        super()._prepare_builder_for_finalize(builder)
         builder.color()
+        cls.set_builder(builder)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:

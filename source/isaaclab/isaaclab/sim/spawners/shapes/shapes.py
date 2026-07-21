@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdGeom
@@ -270,7 +271,7 @@ def spawn_cable(
         translation,
         orientation,
         stage=stage,
-        applied_schema="PhysicsCurvesDeformableSimAPI",
+        geometry_schema_func=schemas.define_deformable_curve_properties,
     )
     curve_prim = stage.GetPrimAtPath(f"{prim_path}/geometry/mesh")
     UsdGeom.BasisCurves(curve_prim).SetWidthsInterpolation(UsdGeom.Tokens.constant)
@@ -291,7 +292,7 @@ def _spawn_geom_from_prim_type(
     orientation: tuple[float, float, float, float] | None = None,
     scale: tuple[float, float, float] | None = None,
     stage: Usd.Stage | None = None,
-    applied_schema: str | None = None,
+    geometry_schema_func: Callable[[str, Usd.Stage | None], None] | None = None,
 ):
     """Create a USDGeom-based prim with the given attributes.
 
@@ -318,7 +319,7 @@ def _spawn_geom_from_prim_type(
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
         stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.
-        applied_schema: An applied API schema to add to the geometry prim.
+        geometry_schema_func: A schema writer called on the geometry prim after creation.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -338,8 +339,8 @@ def _spawn_geom_from_prim_type(
 
     # create the geometry prim
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
-    if applied_schema is not None:
-        stage.GetPrimAtPath(mesh_prim_path).AddAppliedSchema(applied_schema)
+    if geometry_schema_func is not None:
+        geometry_schema_func(mesh_prim_path, stage=stage)
     # apply collision properties
     if cfg.collision_props is not None:
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*

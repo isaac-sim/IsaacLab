@@ -882,11 +882,8 @@ def bind_physics_material(
     has_physics_scene_api = "PhysxSceneAPI" in applied
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
     has_deformable_body = has_deformable_body_api(prim)
-    has_deformable_curve = "PhysicsCurvesDeformableSimAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
     has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
-    if not (
-        has_physics_scene_api or has_collider or has_deformable_body or has_deformable_curve or has_particle_system
-    ):
+    if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
         logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
             " PhysX scene, collider, deformable, or particle system."

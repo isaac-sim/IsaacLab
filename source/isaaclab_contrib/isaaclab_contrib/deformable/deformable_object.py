@@ -181,10 +181,9 @@ def add_registered_deformables_to_builder(
         add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
 
 
-def color_registered_deformables(builder) -> None:
-    """Color the Newton builder when deformables were registered."""
-    if SimulationManager._deformable_registry:
-        builder.color()
+def color_vbd_builder(builder) -> None:
+    """Color the replicated VBD builder."""
+    builder.color()
 
 
 def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
@@ -252,8 +251,8 @@ def install_deformable_builder_hooks() -> None:
         SimulationManager._post_replicate_hooks = []
     if add_registered_deformables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
-    if color_registered_deformables not in SimulationManager._post_replicate_hooks:
-        SimulationManager._post_replicate_hooks.append(color_registered_deformables)
+    if color_vbd_builder not in SimulationManager._post_replicate_hooks:
+        SimulationManager._post_replicate_hooks.append(color_vbd_builder)
 
 
 def clear_deformable_builder_hooks() -> None:
@@ -267,7 +266,7 @@ def clear_deformable_builder_hooks() -> None:
         ]
     if hasattr(SimulationManager, "_post_replicate_hooks"):
         SimulationManager._post_replicate_hooks = [
-            hook for hook in SimulationManager._post_replicate_hooks if hook is not color_registered_deformables
+            hook for hook in SimulationManager._post_replicate_hooks if hook is not color_vbd_builder
         ]
 
 

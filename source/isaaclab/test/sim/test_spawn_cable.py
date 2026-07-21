@@ -41,6 +41,7 @@ def test_spawn_cable_authors_newton_import_contract(stage):
     assert list(curves.GetWidthsAttr().Get()) == pytest.approx([material.thickness])
     assert curves.GetWidthsInterpolation() == UsdGeom.Tokens.constant
     assert "PhysicsCurvesDeformableSimAPI" in curve_prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+    assert sim_utils.has_deformable_body_api(curve_prim)
     assert not curve_prim.HasAPI(UsdPhysics.CollisionAPI)
 
     physics_binding = UsdShade.MaterialBindingAPI(curve_prim).GetDirectBinding("physics")

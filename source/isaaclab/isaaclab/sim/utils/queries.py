@@ -576,7 +576,10 @@ def has_deformable_body_api(prim: Usd.Prim) -> bool:
         prim: The USD prim to check.
 
     Returns:
-        True if ``OmniPhysicsDeformableBodyAPI`` or ``PhysicsDeformableBodyAPI`` is applied.
+        True if a deformable body or curve simulation API is applied.
     """
     applied_schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
-    return "OmniPhysicsDeformableBodyAPI" in applied_schemas or "PhysicsDeformableBodyAPI" in applied_schemas
+    return any(
+        schema in applied_schemas
+        for schema in ("OmniPhysicsDeformableBodyAPI", "PhysicsDeformableBodyAPI", "PhysicsCurvesDeformableSimAPI")
+    )
