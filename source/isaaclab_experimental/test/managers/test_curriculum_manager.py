@@ -14,10 +14,8 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental.managers import CurriculumManager, CurriculumTermCfg
-from isaaclab_tasks_experimental.manager_based.locomotion.velocity.mdp import TerrainLevelsVel, terrain_levels_vel
-from isaaclab_tasks_experimental.manager_based.manipulation.reach.reach_env_cfg import (
-    CurriculumCfg as ReachCurriculumCfg,
-)
+from isaaclab_tasks_experimental.core.reach.mdp import ModifyRewardWeight
+from isaaclab_tasks_experimental.core.velocity.mdp import TerrainLevelsVel, terrain_levels_vel
 
 from isaaclab.managers import ManagerTermBase as StableManagerTermBase
 from isaaclab.terrains import TerrainImporter
@@ -419,7 +417,19 @@ def test_registered_reach_curricula_update_weights_without_a_host_boundary():
     )
     env.reward_manager = _RewardManager()
     env.common_step_counter = 0
-    manager = CurriculumManager(ReachCurriculumCfg(), env)
+    manager = CurriculumManager(
+        {
+            "action_rate": CurriculumTermCfg(
+                func=ModifyRewardWeight,
+                params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500},
+            ),
+            "joint_vel": CurriculumTermCfg(
+                func=ModifyRewardWeight,
+                params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500},
+            ),
+        },
+        env,
+    )
     env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
 
     assert not manager.requires_host_ids

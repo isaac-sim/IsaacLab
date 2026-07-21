@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import warp as wp
-from isaaclab_tasks_experimental.manager_based.locomotion.velocity.mdp.terminations import terrain_out_of_bounds
+from isaaclab_tasks_experimental.core.velocity.mdp.terminations import terrain_out_of_bounds
 
 
 class _Scene(dict):
