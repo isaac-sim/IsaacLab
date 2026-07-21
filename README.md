@@ -153,34 +153,19 @@ Generate augemented dataset w domain randomization
 # Convert HDF5 to LeRobot format 
 
 ```
-cd ~/Stanley_ws/IsaacLab
-```
-
-```
-conda activate env_isaaclab
-```
-
-```
+cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 python -u scripts/tools/convert_hdf5_to_lerobot.py     --hdf5 logs/demos/pickup_source.hdf5     --output ~/Stanley_ws/IsaacLab/datasets/ethanCSL/openarm_visuomotor     --task "Pick up the red cube."     --fps 30 --cameras front_cam wrist_cam body_cam
 ```
 
 # Train in LeRobot format
 
 ```
-cd ~/CSL/lerobot/
-```
-
-```
-conda activate lerobot
-```
-
-```
+cd ~/CSL/lerobot/ && conda activate lerobot
  lerobot-train   --policy.path=lerobot/smolvla_base   --dataset.repo_id=ethanCSL/openarm_visuomotor   --batch_size=16   --steps=40000   --output_dir=outputs/train/openarm_visuomotor   --job_name=my_smolvla_training   --policy.device=cuda   --policy.repo_id=ethanCSL/openarm_visuomotor  --wandb.enable=false   --rename_map='{
     "observation.images.front_cam": "observation.images.camera1",
     "observation.images.body_cam":   "observation.images.camera2",
     "observation.images.wrist_cam":  "observation.images.camera3"
   }'   --dataset.video_backend=pyav
-
 ```
 
 # Deploy in Isaac Sim
@@ -225,16 +210,8 @@ sudo ./my_arm
 Deploy in joint states trained model
 
 ```
-python deploy_smolvla_pickup_jointspace.py \
-    --checkpoint ethanCSL/openarm_visuomotor_no_domain_randomization_1000_joints \
-    --body-cam-index 4 --wrist-cam-index 10 \
-    --inference-hz 10 \
-    --max-joint-speed 0.3 \
-    --max-episode-seconds 10
-```
-
-```
-python deploy_smolvla_pickup_jointspace.py     --checkpoint ethanCSL/openarm_visuomotor_no_domain_randomization_1000_joints     --body-cam-index 4 --wrist-cam-index 10     --inference-hz 30     --max-joint-speed 1.0     --max-episode-seconds 30 --calibration calibration.json
+cd ~/Stanley_ws/lerobot_openarm && conda activate lerobot-openarm
+python deploy_smolvla_pickup_jointspace.py     --checkpoint ethanCSL/openarm_visuomotor_no_domain_randomization_1000_joints     --body-cam-index 4 --wrist-cam-index 10 --side-cam-index 12     --inference-hz 30 --max-joint-speed 1.0 --max-episode-seconds 30     --calibration calibration.json     --no-live-view --save-video rollout_v2.mp4
 ```
 
 ## OpenARM Motors Check
