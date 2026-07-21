@@ -109,7 +109,8 @@ class MockTensorBinding:
 
             if isinstance(tensor, wp.array):
                 tmp = wp.from_numpy(self._data, dtype=wp.float32, device=tensor.device)
-                wp.copy(tensor, tmp)
+                destination = tensor if tensor.dtype == wp.float32 else tensor.view(wp.float32)
+                wp.copy(destination, tmp)
                 return
         except ImportError:
             pass
