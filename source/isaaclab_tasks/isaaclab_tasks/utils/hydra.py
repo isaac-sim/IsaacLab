@@ -154,6 +154,24 @@ class PresetCfg:
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
+    def __setattr__(self, name: str, value) -> None:
+        """Forward a shared-attribute write to every preset variant that accepts it.
+
+        Assigning a name that is not itself a preset field (e.g.
+        ``height_scanner.prim_path = ...``) applies it to each variant exposing
+        that attribute, so a task can customize a field shared across backends
+        without knowing which variant is later selected. This avoids the write
+        being silently dropped when the preset is later resolved to one variant.
+        Preset fields and private attributes are assigned on the wrapper as usual.
+        """
+        fields = getattr(type(self), "__dataclass_fields__", {})
+        if name.startswith("_") or name in fields:
+            object.__setattr__(self, name, value)
+            return
+        for variant in _preset_fields(self).values():
+            if variant is not None and hasattr(variant, name):
+                setattr(variant, name, value)
+
 
 def preset(**options) -> PresetCfg:
     """Create a :class:`PresetCfg` instance from keyword arguments.

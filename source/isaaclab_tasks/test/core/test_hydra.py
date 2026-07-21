@@ -411,6 +411,25 @@ def test_presetcfg_attribute_error_for_unknown_attribute():
         _ = cfg.completely_unknown
 
 
+def test_presetcfg_shared_attribute_write_forwards_to_all_variants():
+    """A shared attribute set on the wrapper reaches every variant and survives resolution.
+
+    Mirrors the task pattern ``scene.height_scanner.prim_path = ...`` where a robot customizes a
+    field shared across backends without knowing which variant is later selected.
+    """
+    cfg = SimBackendCfg()
+    cfg.dt = 0.001
+    assert cfg.default.dt == 0.001
+    assert cfg.newton_mjwarp.dt == 0.001
+
+    # The override survives resolution to either backend, and untouched instances stay default.
+    assert resolve_presets(cfg, selected=[]).dt == 0.001
+    other = SimBackendCfg()
+    other.dt = 0.001
+    assert resolve_presets(other, selected=["newton_mjwarp"]).dt == 0.001
+    assert resolve_presets(SimBackendCfg(), selected=[]).dt == PhysxCfg().dt
+
+
 def test_format_unknown_presets_error_calls_out_legacy_aliases():
     """The unknown-preset error should explicitly mention the rename for legacy aliases."""
     msg = _format_unknown_presets_error({"newton", "typo"}, {"fast": ["env"]})
