@@ -1674,6 +1674,9 @@ def rendering_test_franka_soft(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    if renderer == "isaacsim_rtx_renderer":
+        pytest.skip("The test cases will be enabled after OMPE-101977 is fixed.")
+
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
         pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
 
