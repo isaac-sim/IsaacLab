@@ -11,6 +11,7 @@ import argparse
 
 import pytest
 
+from isaaclab.benchmark.entrypoints import early_stop
 from isaaclab.benchmark.entrypoints.early_stop import (
     DEFAULT_SUCCESS_THRESHOLD,
     DEFAULT_SUCCESS_WINDOW,
@@ -22,8 +23,6 @@ from isaaclab.benchmark.entrypoints.early_stop import (
     get_success_tracker,
 )
 from isaaclab.benchmark.metrics import SUCCESS_RATE_LOG_TAGS
-
-from scripts.benchmarks import early_stop
 
 DEFAULT_SUCCESS_TAG = SUCCESS_RATE_LOG_TAGS[0]
 

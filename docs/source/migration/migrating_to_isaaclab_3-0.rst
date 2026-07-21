@@ -1887,6 +1887,11 @@ The wrapper shell runners that drove these benchmarks — ``run_non_rl_benchmark
 ``run_training_benchmarks.sh`` — were removed as well; their behavior is now expressed
 directly through command arguments and ``presets=`` tokens.
 
+The benchmark framework itself moved from :mod:`isaaclab.test.benchmark` to
+:mod:`isaaclab.benchmark`. The old namespace and the transitional runtime, startup,
+training, and play scripts were removed; update imports and invocations to the public
+module and unified command.
+
 .. note::
 
    This consolidation affects only the *environment* benchmark suite. The PhysX
@@ -1995,19 +2000,22 @@ If you have custom benchmark scripts or CI based on Isaac Lab 2.x:
    ``benchmark_startup.py`` for ``isaaclab benchmark startup``, and the per-library training scripts for
    ``isaaclab benchmark training --rl_library <lib>``.
 
-2. **Drop the wrapper runners** — ``run_non_rl_benchmarks.sh`` and
+2. **Update benchmark imports** — replace ``isaaclab.test.benchmark`` with
+   ``isaaclab.benchmark``. The old namespace is no longer available.
+
+3. **Drop the wrapper runners** — ``run_non_rl_benchmarks.sh`` and
    ``run_training_benchmarks.sh`` no longer exist; express their behavior with script
    arguments and ``presets=`` tokens. ``run_physx_benchmarks.sh`` is also gone — invoke the
    PhysX micro-benchmarks under ``source/isaaclab_physx/benchmark/`` directly instead.
 
-3. **Select the backend with** ``presets=`` — replace any per-backend script choice with a
+4. **Select the backend with** ``presets=`` — replace any per-backend script choice with a
    ``presets=`` (and, if needed, rendering) token on a single unified script. Update custom
    benchmark configs to the ``PresetCfg`` pattern.
 
-4. **Pick the output format with** ``--benchmark_formatter`` — default ``schema``; pass a
+5. **Pick the output format with** ``--benchmark_formatter`` — default ``schema``; pass a
    comma-separated list for multiple formats.
 
-5. **Test both backends** — verify your benchmarks pass with ``presets=physx`` (default) and
+6. **Test both backends** — verify your benchmarks pass with ``presets=physx`` (default) and
    ``presets=newton_mjwarp``.
 
 For a complete guide to multi-backend support, see the "Multi-Backend Support: PresetCfg

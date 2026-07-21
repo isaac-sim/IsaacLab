@@ -99,8 +99,8 @@ Running Benchmark Workflows
 The canonical runtime, startup, training, and play workflows live in
 :mod:`isaaclab.benchmark`. The ``isaaclab benchmark`` command dispatches to
 these library entrypoints and defaults to ``--benchmark_formatter schema``.
-The compatibility scripts under ``scripts/benchmarks/`` remain available
-during the deprecation period.
+The former compatibility scripts have been removed. Invoke these workflows through
+``isaaclab benchmark`` or the typed Python API.
 
 Programmatic dispatch uses typed requests and returns the result bundle together
 with every formatter output path:
