@@ -7,3 +7,9 @@ Added
   access and mask-based curriculum updates.
 * Added :attr:`~isaaclab.scene.InteractiveScene.env_origins_wp` and a boolean ``env_mask``
   option to :meth:`~isaaclab.scene.InteractiveScene.reset` for mask-based scene resets.
+
+Changed
+^^^^^^^
+
+* Changed the uniform pose and velocity command debug visualization to shared private mixins
+  reused by the Warp-native command terms.

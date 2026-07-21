@@ -24,7 +24,7 @@ def test_reset_without_host_consumers_does_not_compact_ids() -> None:
     env.reset_buf = Mock()
     env.reset_buf.any.return_value.item.return_value = True
     env.reset_buf.nonzero.side_effect = AssertionError("reset IDs should not be materialized")
-    env._reset_idx = Mock()
+    env._reset_mask = Mock()
     env._has_recorders = False
     env.has_rtx_sensors = False
     env.cfg = SimpleNamespace(compute_final_obs=False, num_rerenders_on_reset=0)
@@ -33,7 +33,7 @@ def test_reset_without_host_consumers_does_not_compact_ids() -> None:
     env._reset_terminated_envs()
 
     env.reset_buf.nonzero.assert_not_called()
-    env._reset_idx.assert_called_once_with(env_mask=reset_mask, env_ids=None)
+    env._reset_mask.assert_called_once_with(env_mask=reset_mask, env_ids=None)
 
 
 def test_curriculum_uses_mask_before_scene_reset() -> None:
@@ -64,7 +64,7 @@ def test_curriculum_uses_mask_before_scene_reset() -> None:
     env._episode_length_buf_wp = wp.ones(3, dtype=wp.int64, device="cpu")
     env.extras = {}
     reset_mask = wp.array([False, True, False], dtype=wp.bool, device="cpu")
-    env._reset_idx(env_mask=reset_mask)
+    env._reset_mask(env_mask=reset_mask)
 
     assert [stage for stage, _ in stages[:2]] == ["CurriculumManager_compute", "Scene_reset"]
     assert stages[0][1]["env_mask"] is env.reset_mask_wp
@@ -99,8 +99,8 @@ def test_reset_stages_reuse_owner_mask_for_sparse_and_empty_selections() -> None
     env._episode_length_buf_wp = wp.ones(3, dtype=wp.int64, device="cpu")
     env.extras = {}
 
-    env._reset_idx(env_mask=wp.array([False, True, False], dtype=wp.bool, device="cpu"))
-    env._reset_idx(env_mask=wp.zeros(3, dtype=wp.bool, device="cpu"))
+    env._reset_mask(env_mask=wp.array([False, True, False], dtype=wp.bool, device="cpu"))
+    env._reset_mask(env_mask=wp.zeros(3, dtype=wp.bool, device="cpu"))
 
     assert seen[0][0] is env.reset_mask_wp
     assert seen[1][0] is env.reset_mask_wp
@@ -132,7 +132,7 @@ def test_reset_threads_one_id_materialization_to_legacy_curriculum() -> None:
     env._episode_length_buf_wp = wp.ones(3, dtype=wp.int64, device="cpu")
     env.extras = {}
 
-    env._reset_idx(env_mask=wp.array([False, True, True], dtype=wp.bool, device="cpu"))
+    env._reset_mask(env_mask=wp.array([False, True, True], dtype=wp.bool, device="cpu"))
 
     compute_ids = stages["CurriculumManager_compute"]["env_ids"]
     torch.testing.assert_close(compute_ids, torch.tensor([1, 2]))
@@ -145,7 +145,7 @@ def test_reset_compacts_ids_only_for_active_recorders() -> None:
     reset_mask = wp.array([False, True, False], dtype=wp.bool, device="cpu")
     env.termination_manager = SimpleNamespace(dones_wp=reset_mask)
     env.reset_buf = torch.tensor([False, True, False])
-    env._reset_idx = Mock()
+    env._reset_mask = Mock()
     env.recorder_manager = Mock()
     env.recorder_manager.reset.return_value = {"recorder": 1.0}
     env._has_recorders = True
@@ -157,7 +157,7 @@ def test_reset_compacts_ids_only_for_active_recorders() -> None:
 
     reset_ids = env.recorder_manager.record_pre_reset.call_args.args[0]
     torch.testing.assert_close(reset_ids, torch.tensor([1]))
-    env._reset_idx.assert_called_once_with(env_mask=reset_mask, env_ids=reset_ids)
+    env._reset_mask.assert_called_once_with(env_mask=reset_mask, env_ids=reset_ids)
     env.recorder_manager.reset.assert_called_once_with(reset_ids)
     env.recorder_manager.record_post_reset.assert_called_once_with(reset_ids)
     assert env.extras["log"]["recorder"] == 1.0
@@ -169,7 +169,7 @@ def test_rtx_rerender_does_not_require_compact_reset_ids() -> None:
     reset_mask = wp.array([False, True, False], dtype=wp.bool, device="cpu")
     env.termination_manager = SimpleNamespace(dones_wp=reset_mask)
     env.reset_buf = torch.tensor([False, True, False])
-    env._reset_idx = Mock()
+    env._reset_mask = Mock()
     env._has_recorders = False
     env.has_rtx_sensors = True
     env.cfg = SimpleNamespace(compute_final_obs=False, num_rerenders_on_reset=2)
@@ -178,7 +178,7 @@ def test_rtx_rerender_does_not_require_compact_reset_ids() -> None:
 
     env._reset_terminated_envs()
 
-    env._reset_idx.assert_called_once_with(env_mask=reset_mask, env_ids=None)
+    env._reset_mask.assert_called_once_with(env_mask=reset_mask, env_ids=None)
     assert env.sim.render.call_count == 2
 
 
@@ -188,13 +188,13 @@ def test_empty_reset_skips_warp_pipeline_without_compacting_ids() -> None:
     reset_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
     env.termination_manager = SimpleNamespace(dones_wp=reset_mask)
     env.reset_buf = torch.zeros(3, dtype=torch.bool)
-    env._reset_idx = Mock()
+    env._reset_mask = Mock()
     env._has_recorders = False
     env.extras = {"log": {"previous": 1.0}}
 
     env._reset_terminated_envs()
 
-    env._reset_idx.assert_not_called()
+    env._reset_mask.assert_not_called()
     assert env.extras["log"] == {"previous": 1.0}
 
 
@@ -206,7 +206,7 @@ def test_reset_captures_final_observation_before_reset() -> None:
     env.termination_manager = SimpleNamespace(dones_wp=reset_mask)
     env.reset_buf = torch.tensor([False, True, False])
     env.observation_manager = SimpleNamespace(compute=Mock(return_value=final_obs))
-    env._reset_idx = Mock()
+    env._reset_mask = Mock()
     env._has_recorders = False
     env.has_rtx_sensors = False
     env.cfg = SimpleNamespace(compute_final_obs=True, num_rerenders_on_reset=0)
@@ -216,4 +216,4 @@ def test_reset_captures_final_observation_before_reset() -> None:
 
     assert env.extras["final_obs"] is final_obs
     env.observation_manager.compute.assert_called_once_with()
-    env._reset_idx.assert_called_once_with(env_mask=reset_mask, env_ids=None)
+    env._reset_mask.assert_called_once_with(env_mask=reset_mask, env_ids=None)

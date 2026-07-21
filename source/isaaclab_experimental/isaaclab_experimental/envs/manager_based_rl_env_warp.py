@@ -295,7 +295,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.reward_buf = self._warp_graph_cache.call(
             "RewardManager_compute",
             self.reward_manager.compute,
-            dt=float(self.step_dt),
+            dt=self.step_dt,
             timer=DEBUG_TIMER_STEP,
         )
 
@@ -315,7 +315,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self._warp_graph_cache.call(
             "CommandManager_compute",
             self.command_manager.compute,
-            dt=float(self.step_dt),
+            dt=self.step_dt,
             timer=DEBUG_TIMER_STEP,
         )
 
@@ -325,7 +325,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 "EventManager_apply_interval",
                 self.event_manager.apply,
                 mode="interval",
-                dt=float(self.step_dt),
+                dt=self.step_dt,
                 timer=DEBUG_TIMER_STEP,
             )
 
@@ -449,7 +449,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_idx(
+    def _reset_mask(
         self,
         *,
         env_mask: wp.array(dtype=wp.bool),
@@ -591,12 +591,12 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             self.recorder_manager.record_pre_reset(recorder_env_ids)
 
         with Timer(
-            name="reset_idx",
-            msg="Reset idx took:",
+            name="reset_mask",
+            msg="Reset mask took:",
             enable=DEBUG_TIMER_STEP,
             time_unit="us",
         ):
-            self._reset_idx(env_mask=reset_mask, env_ids=recorder_env_ids)
+            self._reset_mask(env_mask=reset_mask, env_ids=recorder_env_ids)
 
         if self._has_recorders:
             self.extras["log"].update(self.recorder_manager.reset(recorder_env_ids))

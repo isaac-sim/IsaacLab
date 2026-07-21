@@ -8,6 +8,9 @@ Added
   environment IDs only for legacy host consumers.
 * Added Warp-native terrain curricula backed by cached zero-copy Warp views of
   terrain and scene origins.
+* Added a boolean ``env_mask`` option to :meth:`ManagerBasedEnvWarp.reset_to`, the
+  ``ISAACLAB_WARP_CAPTURE`` environment variable to force eager execution, and
+  :attr:`WarpGraphCache.captured_stages` introspection for capture-coverage checks.
 
 Changed
 ^^^^^^^

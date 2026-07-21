@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
+import os
 import unittest
+import unittest.mock
 
 import warp as wp
-from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+from isaaclab_experimental.utils.warp_graph_cache import CAPTURE_ENV_VAR, WarpGraphCache
 
 
 @wp.kernel
@@ -36,6 +38,37 @@ class TestWarpGraphCache(unittest.TestCase):
     # ------------------------------------------------------------------
     # Capture policy
     # ------------------------------------------------------------------
+
+    def test_env_var_forces_eager(self):
+        """Setting the capture environment variable to 0 should force every stage eager."""
+        with unittest.mock.patch.dict(os.environ, {CAPTURE_ENV_VAR: "0"}):
+            cache = WarpGraphCache(device=self.device)
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        for _ in range(3):
+            cache.call("RewardManager_compute", counted_call)
+
+        self.assertEqual(call_count, 3)
+        self.assertEqual(cache.captured_stages, ())
+
+    def test_captured_stages_and_eager_groups_reflect_state(self):
+        """Introspection should report captured stages and non-capturable groups."""
+        self.cache.register_capturability("Scene", False)
+        src = wp.full(4, value=1.0, dtype=wp.float32, device=self.device)
+        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
+
+        def launch():
+            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
+
+        self.cache.call("RewardManager_compute", launch)
+        self.cache.call("RewardManager_compute", launch)
+
+        self.assertEqual(self.cache.captured_stages, ("RewardManager_compute",))
+        self.assertEqual(self.cache.eager_groups, ("Scene",))
 
     def test_non_capturable_group_stays_eager(self):
         """Every stage in a non-capturable group should execute eagerly."""

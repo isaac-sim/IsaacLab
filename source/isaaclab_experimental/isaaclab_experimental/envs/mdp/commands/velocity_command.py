@@ -16,11 +16,10 @@ import warp as wp
 from isaaclab_newton.kernels.state_kernels import body_ang_vel_from_root, body_lin_vel_from_root
 
 from isaaclab.assets import Articulation
+from isaaclab.envs.mdp.commands._debug_vis import _VelocityCommandDebugVis
 
 from isaaclab_experimental.managers import CommandTerm
 from isaaclab_experimental.utils.warp import wrap_to_pi
-
-from ._debug_vis import _VelocityCommandDebugVis
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -158,6 +157,7 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
         """
         super().__init__(cfg, env)
 
+        # -- config validation
         if cfg.heading_command and cfg.ranges.heading is None:
             raise ValueError(
                 "The velocity command has heading commands active (heading_command=True) but the `ranges.heading`"
@@ -169,26 +169,32 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
                 " but the heading command is not active. Consider setting the flag for the heading command to True."
             )
 
+        # -- robot resolution
         self.robot: Articulation = env.scene[cfg.asset_name]
 
-        self._vel_command_b_wp = wp.zeros((self.num_envs, 3), dtype=wp.float32, device=self.device)
-        self.vel_command_b = wp.to_torch(self._vel_command_b_wp)
-        self._heading_target_wp = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
-        self.heading_target = wp.to_torch(self._heading_target_wp)
-        self._is_heading_env_wp = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
-        self.is_heading_env = wp.to_torch(self._is_heading_env_wp)
-        self._is_standing_env_wp = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
-        self.is_standing_env = wp.to_torch(self._is_standing_env_wp)
+        # -- command buffers (Warp-native, pointer-stable)
+        self.vel_command_b = wp.zeros((self.num_envs, 3), dtype=wp.float32, device=self.device)
+        self.heading_target = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+        self.is_heading_env = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self.is_standing_env = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
 
+        # -- metrics buffers
         self.metrics["error_vel_xy"] = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
         self.metrics["error_vel_yaw"] = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
         self.metrics["success_rate"] = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
-        self._error_xy_sum_wp = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
-        self._error_yaw_sum_wp = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
-        self._step_count_wp = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+        self._error_xy_sum = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+        self._error_yaw_sum = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+        self._step_count = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
 
+        # adds (optional) cmd kind and element names for leapp export
         self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/velocity"
         self.cfg.element_names = self.cfg.element_names or ["lin_vel_x", "lin_vel_y", "ang_vel_z"]
+
+        # -- Torch views (zero-copy aliases for stable consumers)
+        self.vel_command_b_torch = wp.to_torch(self.vel_command_b)
+        self.heading_target_torch = wp.to_torch(self.heading_target)
+        self.is_heading_env_torch = wp.to_torch(self.is_heading_env)
+        self.is_standing_env_torch = wp.to_torch(self.is_standing_env)
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""
@@ -204,12 +210,12 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
     @property
     def command(self) -> torch.Tensor:
         """Desired base velocity command [m/s, m/s, rad/s], shape ``(num_envs, 3)``."""
-        return self.vel_command_b
+        return self.vel_command_b_torch
 
     @property
     def command_wp(self) -> wp.array(dtype=wp.float32, ndim=2):
         """Pointer-stable desired base velocity command [m/s, m/s, rad/s]."""
-        return self._vel_command_b_wp
+        return self.vel_command_b
 
     def reset(
         self,
@@ -232,9 +238,9 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
             dim=self.num_envs,
             inputs=[
                 env_mask,
-                self._error_xy_sum_wp,
-                self._error_yaw_sum_wp,
-                self._step_count_wp,
+                self._error_xy_sum,
+                self._error_yaw_sum,
+                self._step_count,
                 self.metrics["error_vel_xy"],
                 self.metrics["error_vel_yaw"],
                 self.metrics["success_rate"],
@@ -250,12 +256,12 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
             kernel=_accumulate_velocity_metrics,
             dim=self.num_envs,
             inputs=[
-                self._vel_command_b_wp,
+                self.vel_command_b,
                 self.robot.data.root_pose_w.warp,
                 self.robot.data.root_vel_w.warp,
-                self._error_xy_sum_wp,
-                self._error_yaw_sum_wp,
-                self._step_count_wp,
+                self._error_xy_sum,
+                self._error_yaw_sum,
+                self._step_count,
             ],
             device=self.device,
         )
@@ -268,10 +274,10 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
             inputs=[
                 env_mask,
                 self._env.rng_state_wp,
-                self._vel_command_b_wp,
-                self._heading_target_wp,
-                self._is_heading_env_wp,
-                self._is_standing_env_wp,
+                self.vel_command_b,
+                self.heading_target,
+                self.is_heading_env,
+                self.is_standing_env,
                 self.cfg.ranges.lin_vel_x[0],
                 self.cfg.ranges.lin_vel_x[1],
                 self.cfg.ranges.lin_vel_y[0],
@@ -292,10 +298,10 @@ class UniformVelocityCommand(_VelocityCommandDebugVis, CommandTerm):
             kernel=_update_velocity_command,
             dim=self.num_envs,
             inputs=[
-                self._vel_command_b_wp,
-                self._heading_target_wp,
-                self._is_heading_env_wp,
-                self._is_standing_env_wp,
+                self.vel_command_b,
+                self.heading_target,
+                self.is_heading_env,
+                self.is_standing_env,
                 self.robot.data.root_pose_w.warp,
                 self.cfg.heading_command,
                 self.cfg.heading_control_stiffness,

@@ -322,3 +322,22 @@ To debug Warp kernel behavior:
 1. **Write a standalone reproduction script** and run it directly with `./isaaclab.sh -p -c "..."` or `./isaaclab.sh -p script.py`. This keeps stdout visible and avoids the test framework entirely.
 2. **Use high-precision format strings** for floating-point debugging (e.g., `wp.printf("val=%.15e\n", x)`) — the default `%f` format hides values smaller than ~1e-6 that can still affect control flow.
 3. **Remove all `wp.printf` calls before committing.**
+
+### Warp mask-first boundaries
+
+Boolean environment masks are the canonical selection in Warp-first code; host-side
+mask-to-ID compaction (`nonzero()` on device data) is a GPU-to-host synchronization
+with a data-dependent shape, which both stalls the pipeline and permanently
+disqualifies the containing code path from CUDA graph capture.
+
+1. **Compaction only at reviewed boundaries.** Any production `nonzero(` in the
+   gated source trees must carry a same-line `# mask-boundary: <reason>` marker;
+   the static gate `source/isaaclab_experimental/test/utils/test_mask_boundary_gate.py`
+   fails otherwise. Legitimate boundaries are host consumers: recorders, legacy
+   compatibility fallbacks, init-time tooling, diagnostics, and debug visualization.
+2. **Mask-native Torch means elementwise masked ops.** Use `masked_fill_` or
+   `torch.where`; boolean advanced indexing (`buf[:, mask] = 0`) gathers indices
+   with a data-dependent allocation and is not capture-safe.
+3. **Dual reset APIs.** Keep the ID-based `reset(env_ids)` signature untouched and
+   add a sibling `reset_mask(env_mask)`; the base-class fallback compacts (and is
+   the marked boundary), mask-native implementations override it.

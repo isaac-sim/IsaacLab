@@ -13,11 +13,10 @@ import torch
 import warp as wp
 
 from isaaclab.assets import Articulation
+from isaaclab.envs.mdp.commands._debug_vis import _PoseCommandDebugVis
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 
 from isaaclab_experimental.managers import CommandTerm
-
-from ._debug_vis import _PoseCommandDebugVis
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -121,24 +120,30 @@ class UniformPoseCommand(_PoseCommandDebugVis, CommandTerm):
         """
         super().__init__(cfg, env)
 
+        # -- robot / body resolution
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
 
-        self._pose_command_b_wp = wp.zeros((self.num_envs, 7), dtype=wp.float32, device=self.device)
-        self.pose_command_b = wp.to_torch(self._pose_command_b_wp)
-        self.pose_command_b[:, 6] = 1.0
-        self._pose_command_w_wp = wp.zeros((self.num_envs, 7), dtype=wp.float32, device=self.device)
-        self.pose_command_w = wp.to_torch(self._pose_command_w_wp)
+        # -- command buffers (Warp-native, pointer-stable)
+        self.pose_command_b = wp.zeros((self.num_envs, 7), dtype=wp.float32, device=self.device)
+        self.pose_command_w = wp.zeros((self.num_envs, 7), dtype=wp.float32, device=self.device)
 
+        # -- metrics buffers
         self.metrics["position_error"] = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
         self.metrics["orientation_error"] = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
-        self._success_rate_wp = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+        self._success_rate = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
         self._track_success = cfg.position_success_threshold is not None
         if self._track_success:
-            self.metrics["success_rate"] = self._success_rate_wp
+            self.metrics["success_rate"] = self._success_rate
 
+        # adds (optional) cmd kind and element names for leapp export
         self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
         self.cfg.element_names = self.cfg.element_names or POSE7_ELEMENT_NAMES
+
+        # -- Torch views (zero-copy aliases for stable consumers)
+        self.pose_command_b_torch = wp.to_torch(self.pose_command_b)
+        self.pose_command_w_torch = wp.to_torch(self.pose_command_w)
+        self.pose_command_b_torch[:, 6] = 1.0
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""
@@ -150,28 +155,28 @@ class UniformPoseCommand(_PoseCommandDebugVis, CommandTerm):
     @property
     def command(self) -> torch.Tensor:
         """Desired pose command [m, m, m, quaternion xyzw], shape ``(num_envs, 7)``."""
-        return self.pose_command_b
+        return self.pose_command_b_torch
 
     @property
     def command_wp(self) -> wp.array(dtype=wp.float32, ndim=2):
         """Pointer-stable desired pose command [m, m, m, quaternion xyzw]."""
-        return self._pose_command_b_wp
+        return self.pose_command_b
 
     def _update_metrics(self):
         wp.launch(
             kernel=_update_pose_metrics,
             dim=self.num_envs,
             inputs=[
-                self._pose_command_b_wp,
+                self.pose_command_b,
                 self.robot.data.root_pos_w.warp,
                 self.robot.data.root_quat_w.warp,
                 self.robot.data.body_pos_w.warp,
                 self.robot.data.body_quat_w.warp,
                 self.body_idx,
-                self._pose_command_w_wp,
+                self.pose_command_w,
                 self.metrics["position_error"],
                 self.metrics["orientation_error"],
-                self._success_rate_wp,
+                self._success_rate,
                 self._track_success,
                 self.cfg.position_success_threshold or 0.0,
             ],
@@ -185,7 +190,7 @@ class UniformPoseCommand(_PoseCommandDebugVis, CommandTerm):
             inputs=[
                 env_mask,
                 self._env.rng_state_wp,
-                self._pose_command_b_wp,
+                self.pose_command_b,
                 self.cfg.ranges.pos_x[0],
                 self.cfg.ranges.pos_x[1],
                 self.cfg.ranges.pos_y[0],
@@ -205,3 +210,7 @@ class UniformPoseCommand(_PoseCommandDebugVis, CommandTerm):
 
     def _update_command(self):
         pass
+
+    def _debug_pose_command_w(self) -> torch.Tensor:
+        """Return the Torch alias of the pointer-stable world-frame pose command buffer."""
+        return self.pose_command_w_torch

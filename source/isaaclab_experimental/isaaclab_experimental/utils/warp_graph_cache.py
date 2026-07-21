@@ -5,12 +5,16 @@
 
 """Warp CUDA graph capture-or-replay utility."""
 
+import os
 from collections.abc import Callable
 from typing import Any
 
 import warp as wp
 
 from isaaclab.utils.timer import Timer
+
+CAPTURE_ENV_VAR = "ISAACLAB_WARP_CAPTURE"
+"""Set ``ISAACLAB_WARP_CAPTURE=0`` to force every stage eager (debug / A-B validation)."""
 
 
 class WarpGraphCache:
@@ -38,15 +42,26 @@ class WarpGraphCache:
         """Initialize the cache.
 
         Args:
-            enabled: Whether eligible stages may use CUDA graph capture.
+            enabled: Whether eligible stages may use CUDA graph capture. The
+                :data:`CAPTURE_ENV_VAR` environment variable can force this off.
             device: Warp device used by cached stages. CPU devices always run eagerly.
         """
-        self._enabled = enabled
+        self._enabled = enabled and os.environ.get(CAPTURE_ENV_VAR, "1") != "0"
         self._device = wp.get_device(device) if device is not None else None
         self._graphs: dict[str, Any] = {}
         self._results: dict[str, Any] = {}
         self._capturable: dict[str, bool] = {}
         self._warmed: set[str] = set()
+
+    @property
+    def captured_stages(self) -> tuple[str, ...]:
+        """Stages currently backed by a captured CUDA graph, sorted by name."""
+        return tuple(sorted(self._graphs))
+
+    @property
+    def eager_groups(self) -> tuple[str, ...]:
+        """Stage groups registered as non-capturable, sorted by name."""
+        return tuple(sorted(group for group, capturable in self._capturable.items() if not capturable))
 
     def call(
         self,
@@ -140,6 +155,8 @@ class WarpGraphCache:
         self._graphs[stage] = capture.graph
         self._results[stage] = result
         self._warmed.add(stage)
+        # One grep-able line per stage so runs can assert capture coverage.
+        print(f"[INFO] WarpGraphCache: captured stage '{stage}'")
         return result
 
     def register_capturability(self, key: str, capturable: bool) -> None:

@@ -366,9 +366,14 @@ class ManagerBasedEnvWarp:
         print("[INFO] Recorder Manager: ", self.recorder_manager)
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
-        self._action_in_wp = wp.zeros(
-            (self.num_envs, self.action_manager.total_action_dim), dtype=wp.float32, device=self.device
-        )
+        # Manager-dependent persistent buffer: reuse the storage across manager
+        # reloads when the action dimension is unchanged so captured graphs keep
+        # reading the same pointer.
+        action_shape = (self.num_envs, self.action_manager.total_action_dim)
+        if getattr(self, "_action_in_wp", None) is None or tuple(self._action_in_wp.shape) != action_shape:
+            self._action_in_wp = wp.zeros(action_shape, dtype=wp.float32, device=self.device)
+        else:
+            self._action_in_wp.zero_()
         print("[INFO] Action Manager: ", self.action_manager)
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
@@ -401,7 +406,7 @@ class ManagerBasedEnvWarp:
     ) -> tuple[VecEnvObs, dict]:
         """Resets the specified environments and returns observations.
 
-        This function calls the :meth:`_reset_idx` function to reset the specified environments.
+        This function calls the :meth:`_reset_mask` function to reset the specified environments.
         However, certain operations, such as procedural terrain generation, that happened during initialization
         are not repeated.
 
@@ -441,7 +446,7 @@ class ManagerBasedEnvWarp:
                 device=self.device,
             )
 
-        self._reset_idx(env_mask=reset_mask)
+        self._reset_mask(env_mask=reset_mask)
         if self._has_recorders:
             self.extras["log"].update(self.recorder_manager.reset(recorder_env_ids))
 
@@ -474,6 +479,7 @@ class ManagerBasedEnvWarp:
         env_ids: Sequence[int] | None,
         seed: int | None = None,
         is_relative: bool = False,
+        env_mask: wp.array | None = None,
     ):
         """Resets specified environments to provided states.
 
@@ -491,9 +497,14 @@ class ManagerBasedEnvWarp:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
+            env_mask: Boolean Warp mask selecting environments. Takes precedence over
+                :paramref:`env_ids`. State setting and recorders are host consumers, so
+                compact IDs are still materialized once inside this method.
         """
         # reset all envs in the scene if env_ids is None
-        if env_ids is None:
+        if env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: host state dict
+        elif env_ids is None:
             env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
 
         if self._has_recorders:
@@ -503,8 +514,8 @@ class ManagerBasedEnvWarp:
         if seed is not None:
             self.seed(seed)
 
-        env_mask = self.resolve_env_mask(env_ids=env_ids)
-        self._reset_idx(env_mask=env_mask)
+        env_mask = self.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        self._reset_mask(env_mask=env_mask)
         if self._has_recorders:
             self.extras["log"].update(self.recorder_manager.reset(env_ids))
 
@@ -649,7 +660,7 @@ class ManagerBasedEnvWarp:
     Helper functions.
     """
 
-    def _reset_idx(
+    def _reset_mask(
         self,
         *,
         env_mask: wp.array(dtype=wp.bool),

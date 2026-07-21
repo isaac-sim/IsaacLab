@@ -124,8 +124,8 @@ def test_configs_exports_and_command_accessors_preserve_shared_contracts():
     assert experimental_mdp.UniformPoseCommandCfg is UniformPoseCommandCfg
     assert str(_velocity_cfg().class_type).endswith(".commands.velocity_command:UniformVelocityCommand")
     assert str(_pose_cfg().class_type).endswith(".commands.pose_command:UniformPoseCommand")
-    assert UniformVelocityCommand._set_debug_vis_impl.__module__.endswith(".commands._debug_vis")
-    assert UniformPoseCommand._set_debug_vis_impl.__module__.endswith(".commands._debug_vis")
+    assert UniformVelocityCommand._set_debug_vis_impl.__module__ == "isaaclab.envs.mdp.commands._debug_vis"
+    assert UniformPoseCommand._set_debug_vis_impl.__module__ == "isaaclab.envs.mdp.commands._debug_vis"
 
     env = _Env()
     velocity_term = UniformVelocityCommand(_velocity_cfg(), env)
@@ -180,15 +180,15 @@ def test_uniform_velocity_command_updates_and_resets_selected_rows():
     term._update_metrics()
     wp.synchronize()
     torch.testing.assert_close(
-        wp.to_torch(term._error_xy_sum_wp),
+        wp.to_torch(term._error_xy_sum),
         torch.tensor([np.sqrt(5.0), 1.0, 0.5, 1.0], dtype=torch.float32),
     )
-    torch.testing.assert_close(wp.to_torch(term._error_yaw_sum_wp), torch.tensor([0.2, 0.1, 0.3, 0.0]))
+    torch.testing.assert_close(wp.to_torch(term._error_yaw_sum), torch.tensor([0.2, 0.1, 0.3, 0.0]))
 
     term.command.fill_(-9.0)
-    wp.to_torch(term._error_xy_sum_wp)[:] = torch.tensor([0.2, 9.0, 2.0, 8.0])
-    wp.to_torch(term._error_yaw_sum_wp)[:] = torch.tensor([0.1, 9.0, 2.0, 8.0])
-    wp.to_torch(term._step_count_wp)[:] = torch.tensor([1.0, 1.0, 2.0, 1.0])
+    wp.to_torch(term._error_xy_sum)[:] = torch.tensor([0.2, 9.0, 2.0, 8.0])
+    wp.to_torch(term._error_yaw_sum)[:] = torch.tensor([0.1, 9.0, 2.0, 8.0])
+    wp.to_torch(term._step_count)[:] = torch.tensor([1.0, 1.0, 2.0, 1.0])
     wp.to_torch(term.time_left_wp)[:] = torch.tensor([-1.0, 6.0, -1.0, 8.0])
     wp.to_torch(term.command_counter_wp)[:] = torch.tensor([5, 6, 7, 8], dtype=torch.int32)
     env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
@@ -205,13 +205,13 @@ def test_uniform_velocity_command_updates_and_resets_selected_rows():
     torch.testing.assert_close(extras["error_vel_xy"], torch.tensor(0.6))
     torch.testing.assert_close(extras["error_vel_yaw"], torch.tensor(0.55))
     torch.testing.assert_close(extras["success_rate"], torch.tensor(0.5))
-    torch.testing.assert_close(wp.to_torch(term._error_xy_sum_wp), torch.tensor([0.0, 9.0, 0.0, 8.0]))
-    torch.testing.assert_close(wp.to_torch(term._step_count_wp), torch.tensor([0.0, 1.0, 0.0, 1.0]))
+    torch.testing.assert_close(wp.to_torch(term._error_xy_sum), torch.tensor([0.0, 9.0, 0.0, 8.0]))
+    torch.testing.assert_close(wp.to_torch(term._step_count), torch.tensor([0.0, 1.0, 0.0, 1.0]))
 
     term.command[:] = torch.tensor([[1.0, 2.0, 0.4]]).repeat(4, 1)
-    term.heading_target[:] = torch.tensor([np.pi / 2, 0.0, np.pi / 2, 0.0])
-    term.is_heading_env[:] = torch.tensor([True, False, True, False])
-    term.is_standing_env[:] = torch.tensor([False, False, True, True])
+    term.heading_target_torch[:] = torch.tensor([np.pi / 2, 0.0, np.pi / 2, 0.0])
+    term.is_heading_env_torch[:] = torch.tensor([True, False, True, False])
+    term.is_standing_env_torch[:] = torch.tensor([False, False, True, True])
     term._update_command()
     wp.synchronize()
     torch.testing.assert_close(
@@ -230,9 +230,9 @@ def test_uniform_velocity_command_replay_reads_current_root_state():
 
     term.command.zero_()
     term.command[:, 0] = 1.0
-    term.heading_target.fill_(np.pi / 2)
-    term.is_heading_env.fill_(True)
-    term.is_standing_env.fill_(False)
+    term.heading_target_torch.fill_(np.pi / 2)
+    term.is_heading_env_torch.fill_(True)
+    term.is_standing_env_torch.fill_(False)
 
     with wp.ScopedCapture(device=env.device) as metrics_capture:
         term._update_metrics()
@@ -243,7 +243,7 @@ def test_uniform_velocity_command_replay_reads_current_root_state():
     robot_data.root_vel_w.torch[:, 0] = 1.0
     wp.capture_launch(metrics_capture.graph)
     wp.synchronize()
-    torch.testing.assert_close(wp.to_torch(term._error_xy_sum_wp), torch.zeros(env.num_envs))
+    torch.testing.assert_close(wp.to_torch(term._error_xy_sum), torch.zeros(env.num_envs))
 
     # A 90-degree root yaw exactly matches the heading target, so replay should command zero yaw rate.
     half_sqrt = np.sqrt(0.5)
@@ -309,8 +309,8 @@ def test_uniform_pose_command_matches_stable_math_and_tracks_sticky_success():
         env.scene["robot"].data.body_pos_w.torch[:, 0],
         env.scene["robot"].data.body_quat_w.torch[:, 0],
     )
-    torch.testing.assert_close(term.pose_command_w[:, :3], expected_position_w, atol=1.0e-5, rtol=1.0e-5)
-    torch.testing.assert_close(term.pose_command_w[:, 3:], expected_orientation_w, atol=1.0e-5, rtol=1.0e-5)
+    torch.testing.assert_close(term.pose_command_w_torch[:, :3], expected_position_w, atol=1.0e-5, rtol=1.0e-5)
+    torch.testing.assert_close(term.pose_command_w_torch[:, 3:], expected_orientation_w, atol=1.0e-5, rtol=1.0e-5)
     torch.testing.assert_close(
         wp.to_torch(term.metrics["position_error"]), torch.linalg.norm(expected_position_delta, dim=-1)
     )
@@ -320,15 +320,15 @@ def test_uniform_pose_command_matches_stable_math_and_tracks_sticky_success():
         atol=1.0e-5,
         rtol=1.0e-5,
     )
-    torch.testing.assert_close(wp.to_torch(term._success_rate_wp), torch.tensor([1.0, 0.0, 1.0, 0.0]))
+    torch.testing.assert_close(wp.to_torch(term._success_rate), torch.tensor([1.0, 0.0, 1.0, 0.0]))
 
     env.scene["robot"].data.body_pos_w.torch[0, 0] += 2.0
     term._update_metrics()
     wp.synchronize()
-    torch.testing.assert_close(wp.to_torch(term._success_rate_wp), torch.tensor([1.0, 0.0, 1.0, 0.0]))
+    torch.testing.assert_close(wp.to_torch(term._success_rate), torch.tensor([1.0, 0.0, 1.0, 0.0]))
 
     reset_mask = wp.array([True, False, False, True], dtype=wp.bool, device="cpu")
     extras = term.reset(env_mask=reset_mask)
     wp.synchronize()
     torch.testing.assert_close(extras["success_rate"], torch.tensor(0.5))
-    torch.testing.assert_close(wp.to_torch(term._success_rate_wp), torch.tensor([0.0, 0.0, 1.0, 0.0]))
+    torch.testing.assert_close(wp.to_torch(term._success_rate), torch.tensor([0.0, 0.0, 1.0, 0.0]))

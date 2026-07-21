@@ -104,6 +104,9 @@ class CurriculumManager(ManagerBase):
             Persistent scalar curriculum states keyed by their logging paths.
         """
         env_mask = self._resolve_reset_mask(None, env_mask)
+        # Dispatch by term kind: Warp class terms consume the mask directly; stable
+        # class terms receive compact IDs (materialized at most once) or a global
+        # selection, depending on their declared mode.
         compact_env_ids = env_ids
         for term_cfg, mode in zip(self._term_cfgs, self._term_modes):
             if isinstance(term_cfg.func, ManagerTermBase):
@@ -141,8 +144,13 @@ class CurriculumManager(ManagerBase):
                 When omitted, legacy terms materialize IDs once at this boundary.
         """
         env_mask = self._resolve_reset_mask(None, env_mask)
+        # Logging states are recomputed every call; mask-native terms write their
+        # scalar slot on-device through the pointer-stable ``term_cfg.out`` view.
         self._term_states_wp.zero_()
         compact_env_ids = env_ids
+        # Term modes: "mask" = Warp-native ``(env, env_mask, out)``;
+        # "legacy_ids" = stable ``(env, env_ids)``; "legacy_global" = stable term
+        # that ignores its ID argument (``requires_host_ids=False``).
         for term_idx, (term_cfg, mode) in enumerate(zip(self._term_cfgs, self._term_modes)):
             if mode == "mask":
                 term_cfg.func(self._env, env_mask, term_cfg.out, **term_cfg.params)

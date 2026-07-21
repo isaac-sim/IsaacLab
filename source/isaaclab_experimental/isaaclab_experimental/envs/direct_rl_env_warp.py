@@ -225,12 +225,13 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Direct-task stages stay eager. The end-pre stage resets through
-        # scene.reset(), whose legacy Torch actuator boundary materializes
-        # compact IDs on the host, and CUDA graph replay would silently skip
-        # that Python-side reset work. The follow-up launch-replay execution
-        # path restores capture for validated stages.
-        self._warp_graph_cache = WarpGraphCache(enabled=False, device=self.device)
+        # Pure-kernel task stages capture as on develop. Only the reset stage is
+        # registered eager: it dispatches scene.reset(), whose legacy Torch
+        # actuator boundary materializes compact IDs on the host, and CUDA graph
+        # replay would silently skip that Python-side reset work. The follow-up
+        # launch-replay execution path restores its speed correctly.
+        self._warp_graph_cache = WarpGraphCache(device=self.device)
+        self._warp_graph_cache.register_capturability("DirectReset", False)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -413,7 +414,7 @@ class DirectRLEnvWarp(DirectRLEnv):
                 # set actions into buffers
                 # simulate
                 with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
-                    self._warp_graph_cache.call("action", self.step_warp_action)
+                    self._warp_graph_cache.call("DirectAction_step", self.step_warp_action)
 
                 # Keep scene writes outside the task graph until scene, sensor, and
                 # actuator capturability have been validated as one backend boundary.
@@ -433,12 +434,16 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
-            self._warp_graph_cache.call("end_pre", self._step_warp_end_pre)
+            self._warp_graph_cache.call("DirectEndPre_compute", self._step_warp_end_pre)
+        # Reset stage: registered eager (see __init__) because its scene dispatch
+        # crosses the legacy actuator host boundary.
+        with Timer(name="reset_stage", msg="Reset stage took:", enable=DEBUG_TIMERS):
+            self._warp_graph_cache.call("DirectReset_apply", self._step_warp_reset)
         # Keep the post-reset scene write at the explicit backend boundary.
         with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
             self.scene.write_data_to_sim()
         with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
-            self._warp_graph_cache.call("end_post", self._step_warp_end_post)
+            self._warp_graph_cache.call("DirectEndPost_step", self._step_warp_end_post)
 
         # Visualization hook — runs after CUDA graph scope. Override in subclass
         # to update markers or other non-graphable visual elements.
@@ -469,7 +474,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         # task path correct without making capture support a prerequisite.
 
     def _step_warp_end_pre(self) -> None:
-        """Capturable portion before write_data_to_sim (pure warp kernels)."""
+        """Capturable portion before the reset stage (pure warp kernels)."""
         wp.launch(
             increment_all_int32,
             dim=self.num_envs,
@@ -481,7 +486,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         self._get_dones()
         self._get_rewards()
 
-        # -- reset envs that terminated/timed-out and log the episode information
+    def _step_warp_reset(self) -> None:
+        """Reset envs that terminated/timed-out (eager: crosses host boundaries)."""
         self._reset_idx(mask=self.reset_buf)
 
     def _step_warp_end_post(self) -> None:
