@@ -7,12 +7,13 @@
 
 import warnings
 from types import SimpleNamespace
+from typing import get_args, get_type_hints
 
 import pytest
 import torch
 import warp as wp
 
-from isaaclab.actuators import RemotizedPDActuator
+from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, RemotizedPDActuator, RemotizedPDActuatorCfg
 from isaaclab.assets.articulation import BaseArticulation
 from isaaclab.envs.mdp.actions import BinaryJointPositionAction, BinaryJointPositionActionCfg
 from isaaclab.managers import SceneEntityCfg
@@ -283,10 +284,20 @@ def test_actuator_selector_keeps_partial_proxy_and_optimizes_full_order():
     assert reordered_ids._torch_cache is None
 
 
-def test_remotized_pd_actuator_accepts_proxy_selector_annotation():
-    """Test the concrete actuator signature advertises cached proxy selectors."""
+@pytest.mark.parametrize("constructor", [ActuatorBase.__init__, RemotizedPDActuator.__init__])
+def test_actuator_constructor_accepts_exact_proxy_selector_annotation(constructor):
+    """Test actuator signatures advertise exactly the supported selector representations."""
 
-    assert "ProxyArray" in RemotizedPDActuator.__init__.__annotations__["joint_ids"]
+    type_globals = dict(constructor.__globals__)
+    type_globals.update(
+        ActuatorBaseCfg=ActuatorBaseCfg,
+        RemotizedPDActuatorCfg=RemotizedPDActuatorCfg,
+    )
+    joint_ids_type = get_type_hints(constructor, globalns=type_globals)["joint_ids"]
+    joint_ids_args = set(get_args(joint_ids_type))
+
+    assert joint_ids_args == {slice, torch.Tensor, ProxyArray}
+    assert object not in joint_ids_args
 
 
 def test_scene_entity_cfg_requests_legacy_list_for_joint_bookkeeping():
