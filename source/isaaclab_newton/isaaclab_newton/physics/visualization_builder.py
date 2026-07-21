@@ -17,7 +17,6 @@ from pxr import Usd
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
-    add_global_stage_to_builder,
     build_source_builders,
     rename_builder_labels,
     replicate_builder_mapping,
@@ -44,7 +43,7 @@ def build_visualization_builder_from_stage_envs(
     quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = ModelBuilder(up_axis=up_axis)
-    add_global_stage_to_builder(builder, stage, ["/World/envs", *sources], schema_resolvers)
+    builder.add_usd(stage, ignore_paths=["/World/envs", *sources], schema_resolvers=schema_resolvers)
     source_builders = build_source_builders(
         stage,
         sources,

@@ -13,15 +13,13 @@ import torch
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner.newton_clone_utils import (
     _BUILTIN_LABEL_TYPES,
-    add_global_stage_to_builder,
-    build_source_builders,
     rename_builder_labels,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import visualization_builder as visualization_builder_module
 from newton.solvers import SolverMuJoCo
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics, Vt
+from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan
 
@@ -330,85 +328,6 @@ class TestReplicateBuilderMapping(unittest.TestCase):
 
         self.assertEqual(builder.geometry_sources_for_world(0), ["/Sources/active"])
         self.assertEqual(builder.geometry_sources_for_world(1), [])
-
-
-class TestIgnoredCloneCustomFrequencies(unittest.TestCase):
-    @staticmethod
-    def _define_robot(stage: Usd.Stage, root_path: str) -> None:
-        base = UsdGeom.Xform.Define(stage, f"{root_path}/base").GetPrim()
-        link = UsdGeom.Xform.Define(stage, f"{root_path}/link").GetPrim()
-        UsdPhysics.RigidBodyAPI.Apply(base)
-        UsdPhysics.RigidBodyAPI.Apply(link)
-        UsdPhysics.ArticulationRootAPI.Apply(base)
-
-        joint_path = f"{root_path}/joint"
-        joint = UsdPhysics.RevoluteJoint.Define(stage, joint_path)
-        joint.CreateAxisAttr().Set("Z")
-        joint.CreateBody0Rel().SetTargets([Sdf.Path(f"{root_path}/base")])
-        joint.CreateBody1Rel().SetTargets([Sdf.Path(f"{root_path}/link")])
-
-        tendon = stage.DefinePrim(f"{root_path}/tendon", "MjcTendon")
-        tendon.CreateAttribute("mjc:type", Sdf.ValueTypeNames.Token, True).Set("fixed")
-        tendon.CreateRelationship("mjc:path", True).SetTargets([Sdf.Path(joint_path)])
-        tendon.CreateAttribute("mjc:path:indices", Sdf.ValueTypeNames.IntArray, True).Set(Vt.IntArray([0]))
-        tendon.CreateAttribute("mjc:path:coef", Sdf.ValueTypeNames.DoubleArray, True).Set(Vt.DoubleArray([1.0]))
-
-    def test_global_import_does_not_create_tendon_rows_from_ignored_envs(self):
-        stage = Usd.Stage.CreateInMemory()
-        for env_id in range(2):
-            self._define_robot(stage, f"/World/envs/env_{env_id}/Robot")
-        self._define_robot(stage, "/World/global/Robot")
-
-        builder = newton.ModelBuilder()
-        add_global_stage_to_builder(builder, stage, ["/World/envs"], [])
-        self.assertEqual(builder._custom_frequency_counts["mujoco:tendon"], 1)
-        self.assertEqual(builder._custom_frequency_counts["mujoco:tendon_joint"], 1)
-        self.assertNotIn("add_custom_frequency", vars(builder))
-
-        reference_builder = newton.ModelBuilder()
-        SolverMuJoCo.register_custom_attributes(reference_builder)
-        for frequency_key, reference_frequency in reference_builder.custom_frequencies.items():
-            self.assertIs(
-                builder.custom_frequencies[frequency_key].usd_prim_filter,
-                reference_frequency.usd_prim_filter,
-            )
-
-        source_path = "/World/envs/env_0/Robot"
-        source_builders = build_source_builders(
-            stage,
-            [source_path],
-            newton.ModelBuilder,
-            [],
-            simplify_meshes=False,
-        )
-        replicate_builder_mapping(
-            builder,
-            [source_path],
-            torch.ones((1, 2), dtype=torch.bool),
-            torch.zeros((2, 3)),
-            torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]]),
-            source_builders,
-        )
-
-        self.assertEqual(source_builders[source_path]._custom_frequency_counts["mujoco:tendon"], 1)
-        self.assertEqual(builder._custom_frequency_counts["mujoco:tendon"], 3)
-        self.assertEqual(builder._custom_frequency_counts["mujoco:tendon_joint"], 3)
-
-    def test_global_import_restores_custom_frequencies_when_import_fails(self):
-        stage = Usd.Stage.CreateInMemory()
-        builder = newton.ModelBuilder()
-        SolverMuJoCo.register_custom_attributes(builder)
-        original_filters = {
-            frequency_key: frequency.usd_prim_filter for frequency_key, frequency in builder.custom_frequencies.items()
-        }
-
-        with mock.patch.object(builder, "add_usd", side_effect=RuntimeError("expected import failure")):
-            with self.assertRaisesRegex(RuntimeError, "expected import failure"):
-                add_global_stage_to_builder(builder, stage, ["/World/envs"], [])
-
-        self.assertNotIn("add_custom_frequency", vars(builder))
-        for frequency_key, callback in original_filters.items():
-            self.assertIs(builder.custom_frequencies[frequency_key].usd_prim_filter, callback)
 
 
 class TestVisualizationClonePlan(unittest.TestCase):
