@@ -11,6 +11,7 @@ import ast
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 
@@ -21,6 +22,7 @@ def _load_generator_functions() -> dict:
     function_names = {
         "make_tensor_env_ids",
         "make_tensor_body_ids",
+        "gen_set_external_force_and_torque_torch_list",
         "gen_set_external_force_and_torque_torch_tensor",
         "_make_tensor_dtype_generator",
     }
@@ -34,16 +36,35 @@ def _load_generator_functions() -> dict:
     return namespace
 
 
-def test_external_wrench_int64_mode_varies_body_ids_only() -> None:
-    """Keep external environment IDs int32 while exercising WrenchComposer int64 body IDs."""
+@pytest.mark.parametrize(
+    ("item_dtype", "expected_item_dtype"),
+    [(torch.int32, torch.int32), (torch.int64, torch.int64)],
+    ids=["torch_tensor_int32", "torch_tensor_int64"],
+)
+def test_external_wrench_tensor_modes_vary_body_ids_only(
+    item_dtype: torch.dtype, expected_item_dtype: torch.dtype
+) -> None:
+    """Keep external environment IDs int32 while varying WrenchComposer body ID widths."""
     functions = _load_generator_functions()
     generator = functions["_make_tensor_dtype_generator"](
-        functions["gen_set_external_force_and_torque_torch_tensor"], torch.int64
+        functions["gen_set_external_force_and_torque_torch_tensor"], item_dtype
     )
 
     inputs = generator(SimpleNamespace(num_instances=3, num_bodies=2, device="cpu"))
 
     assert inputs["env_ids"].dtype == torch.int32
-    assert inputs["body_ids"].dtype == torch.int64
+    assert inputs["body_ids"].dtype == expected_item_dtype
     assert inputs["env_ids"].tolist() == [0, 1, 2]
     assert inputs["body_ids"].tolist() == [0, 1]
+
+
+def test_external_wrench_list_mode_includes_full_range_body_ids() -> None:
+    """Supply explicit full-range body IDs in the external-wrench list mode."""
+    functions = _load_generator_functions()
+
+    inputs = functions["gen_set_external_force_and_torque_torch_list"](
+        SimpleNamespace(num_instances=3, num_bodies=2, device="cpu")
+    )
+
+    assert inputs["env_ids"] == [0, 1, 2]
+    assert inputs["body_ids"] == [0, 1]

@@ -53,7 +53,12 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_external_env_ids(env_ids: torch.Tensor | wp.array, target_device: str | None = None) -> wp.array:
-    """Normalize environment indices to wp.int32 at an external API boundary."""
+    """Normalize environment indices to wp.int32 at an external API boundary.
+
+    Every selector value must fit in the signed 32-bit range. Out-of-range int64
+    selectors are invalid input by design; callers must satisfy this precondition
+    because this boundary helper does not scan or synchronize device values.
+    """
     if isinstance(env_ids, torch.Tensor):
         if env_ids.dtype not in (torch.int32, torch.int64):
             raise TypeError(
@@ -4854,7 +4859,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of environment indices.
         """
-        if (env_ids is None) or (env_ids == slice(None)):
+        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)

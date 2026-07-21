@@ -287,6 +287,25 @@ def test_external_env_resolvers_return_int32_with_preserved_values(resolver_name
         assert resolved.ptr == selector.ptr
 
 
+@pytest.mark.parametrize("torch_dtype", [torch.int32, torch.int64])
+@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
+def test_external_env_resolvers_normalize_torch_widths(resolver_name: str, torch_dtype: torch.dtype) -> None:
+    """Normalize every supported Torch environment selector before an OVPhysX boundary."""
+    Articulation = _articulation_class()
+    all_indices = _selector([0, 1], wp.int32)
+    articulation = SimpleNamespace(
+        _ALL_INDICES=all_indices,
+        _cpu_env_ids_all=wp.clone(all_indices, device="cpu"),
+        _device="cpu",
+    )
+    selector = torch.tensor([1, 0], dtype=torch_dtype)
+
+    resolved = getattr(Articulation, resolver_name)(articulation, selector)
+
+    assert resolved.dtype == wp.int32
+    np.testing.assert_array_equal(resolved.numpy(), [1, 0])
+
+
 @pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
 @pytest.mark.parametrize(
     "selector",
@@ -307,6 +326,40 @@ def test_external_env_resolvers_reject_unsupported_dtypes_before_boundary(resolv
 
     with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit integers"):
         getattr(Articulation, resolver_name)(articulation, selector())
+
+
+@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
+def test_external_env_resolvers_reject_numpy_inputs_before_boundary(resolver_name: str) -> None:
+    """Reject unsupported NumPy environment selectors before calling an OVPhysX binding."""
+    Articulation = _articulation_class()
+    all_indices = _selector([0, 1], wp.int32)
+    articulation = SimpleNamespace(
+        _ALL_INDICES=all_indices,
+        _cpu_env_ids_all=wp.clone(all_indices, device="cpu"),
+        _device="cpu",
+    )
+    selector = np.asarray([0, 1], dtype=np.int64)
+
+    with pytest.raises(TypeError, match="Torch tensor or Warp array"):
+        getattr(Articulation, resolver_name)(articulation, selector)
+
+
+def test_cpu_env_ids_all_returns_pinned_fast_path() -> None:
+    """Return the pre-allocated pinned CPU selector for OVPhysX all-environment writes."""
+    Articulation = _articulation_class()
+    all_indices = _selector([0, 1], wp.int32)
+    cpu_env_ids_all = wp.clone(all_indices, device="cpu")
+    articulation = SimpleNamespace(
+        _ALL_INDICES=all_indices,
+        _cpu_env_ids_all=cpu_env_ids_all,
+        _device="cpu",
+    )
+
+    resolved = Articulation._get_cpu_env_ids(articulation, all_indices)
+
+    assert resolved is cpu_env_ids_all
+    assert resolved.ptr == cpu_env_ids_all.ptr
+    np.testing.assert_array_equal(resolved.numpy(), [0, 1])
 
 
 @pytest.mark.parametrize("state_write", [False, True], ids=["velocity", "state"])

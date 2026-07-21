@@ -73,6 +73,20 @@ def test_external_env_resolvers_return_int32_with_preserved_values(resolver_name
         assert resolved.ptr == selector.ptr
 
 
+@pytest.mark.parametrize("torch_dtype", [torch.int32, torch.int64])
+@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
+def test_external_env_resolvers_normalize_torch_widths(resolver_name: str, torch_dtype: torch.dtype) -> None:
+    """Normalize every supported Torch environment selector before a PhysX boundary."""
+    Articulation = _articulation_class()
+    articulation = SimpleNamespace(_ALL_INDICES=_selector([0, 1], wp.int32), device="cpu")
+    selector = torch.tensor([1, 0], dtype=torch_dtype)
+
+    resolved = getattr(Articulation, resolver_name)(articulation, selector)
+
+    assert resolved.dtype == wp.int32
+    np.testing.assert_array_equal(resolved.numpy(), [1, 0])
+
+
 @pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
 @pytest.mark.parametrize(
     "selector",
@@ -88,6 +102,17 @@ def test_external_env_resolvers_reject_unsupported_dtypes_before_boundary(resolv
 
     with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit integers"):
         getattr(Articulation, resolver_name)(articulation, selector())
+
+
+@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
+def test_external_env_resolvers_reject_numpy_inputs_before_boundary(resolver_name: str) -> None:
+    """Reject unsupported NumPy environment selectors before calling a PhysX binding."""
+    Articulation = _articulation_class()
+    articulation = SimpleNamespace(_ALL_INDICES=_selector([0, 1], wp.int32), device="cpu")
+    selector = np.asarray([0, 1], dtype=np.int64)
+
+    with pytest.raises(TypeError, match="Torch tensor or Warp array"):
+        getattr(Articulation, resolver_name)(articulation, selector)
 
 
 def test_public_joint_velocity_kernel_rejects_int16_direct_launch() -> None:
