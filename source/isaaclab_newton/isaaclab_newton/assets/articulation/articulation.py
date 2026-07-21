@@ -2277,6 +2277,7 @@ class Articulation(BaseArticulation):
             dtype=wp.vec3f,
             device=self.device,
         )
+        self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2324,6 +2325,7 @@ class Articulation(BaseArticulation):
             dtype=wp.vec3f,
             device=self.device,
         )
+        self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 

@@ -114,6 +114,13 @@ def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
     return wp.from_torch(t.contiguous(), dtype=wp_dtype)
 
 
+def _make_com_data(backend: str, shape: tuple[int, ...], device: str) -> wp.array:
+    """Create backend-compatible center-of-mass test data."""
+    if backend == "newton":
+        return wp.zeros(shape, dtype=wp.vec3f, device=device)
+    return _make_data_warp(shape, device, wp.transformf)
+
+
 def _prime_timestamped_properties(data, property_buffer_pairs: list[tuple[str, str]]):
     """Prime public lazy properties and return their concrete timestamped buffers."""
     buffers = []
@@ -832,6 +839,47 @@ class TestCollectionCacheInvalidation:
         )
         body_velocity = _make_data_warp((obj.num_instances, obj.num_bodies), "cpu", wp.spatial_vectorf)
         obj.write_body_com_velocity_to_sim_index(body_velocities=body_velocity)
+        _assert_buffers_stale(obj.data, buffers)
+
+    @_cache_backends
+    @pytest.mark.parametrize("setter_kind", ["index", "mask"])
+    def test_set_coms_invalidates_same_timestamp_dependents(self, backend, setter_kind):
+        obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+        obj.data.update(dt=0.01)
+        common_pairs = [
+            ("body_com_pose_w", "_body_com_pose_w"),
+            ("body_link_vel_w", "_body_link_vel_w"),
+            ("body_link_lin_vel_b", "_body_link_lin_vel_b"),
+            ("body_link_ang_vel_b", "_body_link_ang_vel_b"),
+            ("body_com_lin_vel_b", "_body_com_lin_vel_b"),
+            ("body_com_ang_vel_b", "_body_com_ang_vel_b"),
+            ("body_state_w", "_body_state_w"),
+            ("body_link_state_w", "_body_link_state_w"),
+            ("body_com_state_w", "_body_com_state_w"),
+        ]
+        if backend != "newton":
+            common_pairs.append(("body_com_vel_w", "_body_com_vel_w"))
+        # Prime public properties before resolving private buffers so Newton allocates lazy caches.
+        buffers = _prime_timestamped_properties(obj.data, common_pairs)
+        if backend == "newton":
+            buffers += _prime_timestamped_properties(obj.data, [("body_com_pose_b", "_body_com_pose_b")])
+        coms = _make_com_data(backend, (obj.num_instances, obj.num_bodies), "cpu")
+
+        def set_coms() -> None:
+            if setter_kind == "index":
+                obj.set_coms_index(coms=coms)
+            else:
+                obj.set_coms_mask(coms=coms)
+
+        if backend == "newton":
+            from unittest.mock import patch
+
+            from isaaclab_newton.physics import NewtonManager
+
+            with patch.object(NewtonManager, "add_model_change"):
+                set_coms()
+        else:
+            set_coms()
         _assert_buffers_stale(obj.data, buffers)
 
 
