@@ -260,7 +260,7 @@ python safe_probe.py --side left --joint 1 --step 0.1 --max-kp 150 --skip-ctrl-m
 ```
 
 ```
-python mirror_bridge.py --calibration calibration.json --udp-port 9999     --right-port can2 --left-port can3     --model-path model/openarm_description_leader.urdf     --max-joint-speed 0.5     --feedback-port 9998
+python mirror_bridge.py --calibration calibration.json --udp-port 9999     --right-port can0 --left-port can1     --model-path model/openarm_description_leader.urdf     --max-joint-speed 0.5     --feedback-port 9998
 ```
 
 # Replay Trajectory(sim-to-real & real-to-sim)
