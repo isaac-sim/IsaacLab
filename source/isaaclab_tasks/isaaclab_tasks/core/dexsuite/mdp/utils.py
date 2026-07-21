@@ -3,18 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import hashlib
 import logging
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 import trimesh
 from trimesh.sample import sample_surface
 
-from pxr import UsdGeom
+from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
+from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnv
 
 # ---- module-scope caches ----
 _PRIM_SAMPLE_CACHE: dict[tuple[str, int], np.ndarray] = {}  # (prim_hash, num_points) -> (N,3) in root frame
@@ -254,3 +262,133 @@ def farthest_point_sampling(
         distances = torch.minimum(distances, dist)
         farthest = torch.argmax(distances)
     return sampled_idx
+
+
+def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, trimesh.Trimesh]:
+    """Collect collision meshes under ``root_prim``, grouped in caller-selected frames."""
+    mesh_types = PRIMITIVE_MESH_TYPES + ["Mesh"]
+    mesh_prims = sim_utils.get_all_matching_child_prims(
+        root_prim.GetPath(),
+        lambda prim: prim.GetTypeName() in mesh_types and prim.HasAPI(UsdPhysics.CollisionAPI),
+    )
+
+    meshes_by_owner: dict[int, list[trimesh.Trimesh]] = {}
+    for prim in mesh_prims:
+        owner_frame = owner_frame_fn(prim)
+        if owner_frame is None:
+            continue
+        owner, frame_prim = owner_frame
+        mesh = (
+            create_trimesh_from_geom_mesh(prim)
+            if prim.GetTypeName() == "Mesh"
+            else create_trimesh_from_geom_shape(prim)
+        )
+        mesh.apply_scale(sim_utils.resolve_prim_scale(prim))
+        position, quat_xyzw = sim_utils.resolve_prim_pose(prim, frame_prim)
+        transform = trimesh.transformations.quaternion_matrix([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
+        transform[:3, 3] = position
+        mesh.apply_transform(transform)
+        meshes_by_owner.setdefault(owner, []).append(mesh)
+
+    return {
+        owner: trimesh.util.concatenate(meshes) if len(meshes) > 1 else meshes[0]
+        for owner, meshes in meshes_by_owner.items()
+    }
+
+
+def collect_body_collision_meshes(robot, body_names: str | list[str]) -> tuple[dict[int, trimesh.Trimesh], list[str]]:
+    """Extract the selected bodies' collision meshes from the env_0 clone, baked body-local.
+
+    Returns ``(body_meshes, body_names)`` where ``body_meshes`` maps a body index to one
+    merged :class:`trimesh.Trimesh` in that body's frame.
+    """
+    body_ids, names = robot.find_bodies(body_names)
+    body_id_of = dict(zip(names, body_ids))
+    robot_prim = sim_utils.find_matching_prims(robot.cfg.prim_path)[0]
+
+    def body_frame(prim):
+        # links nest in converted assets: the nearest selected-body ancestor owns the collider
+        node = prim.GetParent()
+        while node.IsValid() and node.GetName() not in body_id_of:
+            node = node.GetParent()
+        if not node.IsValid():
+            return None
+        return body_id_of[node.GetName()], node
+
+    body_meshes = collect_collision_meshes(robot_prim, body_frame)
+    if not body_meshes:
+        raise RuntimeError(f"no collision meshes found under '{robot.cfg.prim_path}' for bodies {names}.")
+    return body_meshes, names
+
+
+def get_reset_state(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    reset_assets: Sequence[str],
+    is_relative: bool = False,
+) -> torch.Tensor:
+    """Read and concatenate the reset-state slices of the given scene assets.
+
+    Per articulation: root pose [m, (x, y, z, w)] (7), root center-of-mass velocity
+    [m/s, rad/s] (6), joint positions and joint velocities; per rigid object: root pose and
+    root center-of-mass velocity. With :paramref:`is_relative`, root positions are expressed
+    relative to the environment origins so states transplant across environments.
+    """
+
+    def root_state(asset) -> list[torch.Tensor]:
+        pose = asset.data.root_link_pose_w.torch[env_ids]
+        if is_relative:
+            pose = pose.clone()
+            pose[:, :3] -= env.scene.env_origins[env_ids]
+        return [pose, asset.data.root_com_vel_w.torch[env_ids]]
+
+    states: list[torch.Tensor] = []
+    for name, articulation in env.scene.articulations.items():
+        if name in reset_assets:
+            states += root_state(articulation)
+            states.append(articulation.data.joint_pos.torch[env_ids])
+            states.append(articulation.data.joint_vel.torch[env_ids])
+    for name, rigid_object in env.scene.rigid_objects.items():
+        if name in reset_assets:
+            states += root_state(rigid_object)
+    return torch.cat(states, dim=-1)
+
+
+def set_reset_state(
+    env: ManagerBasedEnv,
+    states: torch.Tensor,
+    env_ids: torch.Tensor,
+    reset_assets: Sequence[str],
+    is_relative: bool = False,
+):
+    """Split :paramref:`states` by scene asset and write the reset-state slices.
+
+    Inverse of :func:`get_reset_state`; the layout and :paramref:`is_relative` convention
+    must match the call that produced :paramref:`states`.
+    """
+    offset = 0
+
+    def write_root(asset):
+        nonlocal offset
+        pose = states[:, offset : offset + 7].clone()
+        if is_relative:
+            pose[:, :3] += env.scene.env_origins[env_ids]
+        asset.write_root_link_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
+        asset.write_root_com_velocity_to_sim_index(
+            root_velocity=states[:, offset + 7 : offset + 13].contiguous(), env_ids=env_ids
+        )
+        offset += 13
+
+    for name, articulation in env.scene.articulations.items():
+        if name in reset_assets:
+            write_root(articulation)
+            num_joints = articulation.num_joints
+            articulation.write_joint_state_to_sim_index(
+                position=states[:, offset : offset + num_joints].contiguous(),
+                velocity=states[:, offset + num_joints : offset + 2 * num_joints].contiguous(),
+                env_ids=env_ids,
+            )
+            offset += 2 * num_joints
+    for name, rigid_object in env.scene.rigid_objects.items():
+        if name in reset_assets:
+            write_root(rigid_object)
