@@ -42,10 +42,7 @@ Use this checklist:
 3. Any preference the user stated in their request was honored without re-asking.
 4. Exactly one confirmation question was asked before execution (plus the binary-download pause when on the binary route).
 5. Commands came verbatim from the routed install page in the checkout.
-6. The docs-defined minimal verification command ran before any examples, training, or rendering:
-
-Use the verification command documented by the chosen install page. For binary installs, use the bundled Python verification documented on the binary page. For Docker installs, run the documented verification inside the container.
-
+6. The docs-defined minimal verification command ran before any examples, training, or rendering. Use the command documented by the chosen install page — for binary installs, that's the bundled-Python verification on the binary page (not `uv run`); for Docker installs, run the documented verification inside the container.
 7. If verification fails, hand off to `isaaclab-setup-troubleshooting` with the install log path.
 
 For skill changes, run:

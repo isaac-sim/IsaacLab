@@ -23,6 +23,8 @@ After preflight detection, read the minimums from `docs/source/setup/installatio
 | Windows 11 | guided per-tab flow | `docs/source/setup/installation/index.rst` |
 | No NVIDIA GPU/driver, driver below minimum, or insufficient disk | blocked — report fixes, offer kit-less | `docs/source/setup/installation/index.rst` |
 
+Distro version is not a routing key — GLIBC is. Ubuntu 22.04 (GLIBC 2.35) and Ubuntu 24.04 (GLIBC 2.39) both take the pip route because they meet the pip minimum. Ubuntu 20.04 (GLIBC 2.31) falls below the minimum and routes to binary. Read the current minimum from `docs/source/setup/installation/index.rst` for the OS support matrix rather than assuming a specific distro is on or off the list.
+
 User-stated preferences override the routing and map directly:
 
 | Stated preference | Docs page |
