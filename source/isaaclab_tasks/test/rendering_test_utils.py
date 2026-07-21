@@ -732,10 +732,7 @@ def make_require_ovlibs_install_fixture():
 
     @pytest.fixture(autouse=True)
     def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
-        # Limit OpenUSD's work-thread pool to one thread so that USD stage traversal and
-        # hydra delegate dispatch are serialized. Multi-threaded USD work produces
-        # non-deterministic draw-call ordering that causes pixel-level differences between
-        # runs, causing golden-image comparisons to fail.
+        # Limit OpenUSD's work-thread pool to one thread to avoid race condition in usd-core<26.5
         monkeypatch.setenv("PXR_WORK_THREAD_LIMIT", "1")
 
         callspec = getattr(request.node, "callspec", None)
