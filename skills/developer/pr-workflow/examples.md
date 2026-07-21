@@ -23,7 +23,7 @@ Input: a PR modifies `docs/source/overview/`.
 
 Expected workflow:
 
-1. Build or preview docs when the change affects rendering.
+1. Run `./isaaclab.sh -d` and require the build to complete without warnings or errors.
 2. Run `./isaaclab.sh -f`.
 3. Do not add a package changelog fragment unless `source/<package>/` changed.
 

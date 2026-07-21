@@ -808,3 +808,89 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
+
+
+def _build_collision_scene(sim, num_boxes=8):
+    """Add ``num_boxes`` free-falling boxes over a ground plane.
+
+    Uses ``MJWarpSolverCfg(use_mujoco_contacts=False)`` so the Newton collision
+    pipeline / contacts are allocated on ``sim.reset()``.
+    """
+    builder = sim.physics_manager.create_builder()
+    for _ in range(num_boxes):
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_free(child=body)
+        builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1)
+    builder.add_ground_plane()
+    NewtonManager.set_builder(builder)
+
+
+# Model device arrays ``CollisionPipeline.collide()`` reads off its cached model.
+_COLLIDE_MODEL_ARRAYS = (
+    "shape_transform",
+    "shape_body",
+    "shape_type",
+    "shape_scale",
+    "shape_collision_radius",
+    "shape_source_ptr",
+    "shape_margin",
+    "shape_gap",
+    "shape_collision_aabb_lower",
+    "shape_collision_aabb_upper",
+)
+
+
+def _free_model_collide_arrays_and_churn(model, device):
+    """Free the arrays ``collide()`` reads off ``model``, then churn the allocator.
+
+    Reusing the freed blocks mimics the GPU memory pressure a real workload
+    applies between resets, so a stale pipeline still pointing at ``model``
+    would read overwritten memory on its next ``collide()``.
+    """
+    import gc
+
+    for attr in _COLLIDE_MODEL_ARRAYS:
+        arr = getattr(model, attr, None)
+        if isinstance(arr, wp.array) and arr.device.is_cuda:
+            setattr(model, attr, None)
+    gc.collect()
+    wp.synchronize_device(device)
+    _churn = [wp.zeros(1 << 16, dtype=wp.float32, device=device) for _ in range(128)]  # noqa: F841
+    wp.synchronize_device(device)
+
+
+@pytest.mark.parametrize("use_cuda_graph", [False, True])
+def test_hard_reset_then_step_runs(use_cuda_graph):
+    """A step after a second (hard) ``sim.reset()`` runs without a CUDA error.
+
+    Drives reset -> step -> hard reset, frees the old model's collide arrays and
+    churns the allocator to mimic GPU memory pressure, then steps and syncs.
+    Without the fix the stale pipeline reads the freed buffers and faults
+    (CUDA 700). Run with CUDA graphs off and on.
+    """
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
+            num_substeps=2,
+            use_cuda_graph=use_cuda_graph,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        _build_collision_scene(sim)
+
+        sim.reset()
+        assert NewtonManager._needs_collision_pipeline is True
+        old_model = NewtonManager._collision_pipeline.model
+        sim.step(render=False)
+
+        sim.reset()
+
+        _free_model_collide_arrays_and_churn(old_model, "cuda:0")
+
+        # A hard device sync surfaces any deferred illegal access as an exception.
+        sim.step(render=False)
+        wp.synchronize_device("cuda:0")

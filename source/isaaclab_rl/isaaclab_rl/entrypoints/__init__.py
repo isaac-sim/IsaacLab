@@ -1,0 +1,33 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Unified train and play entrypoints for Isaac Lab reinforcement learning workflows.
+
+The :func:`train` and :func:`play` functions accept typed requests, while
+:func:`run_train_cli` and :func:`run_play_cli` dispatch raw command-line arguments.
+Both select the backend implementation via the ``--rl_library`` argument or the
+:attr:`TrainingRequest.backend` field.
+
+Example:
+
+.. code-block:: python
+
+    from isaaclab_rl import TrainingRequest, train
+
+    train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", max_iterations=100))
+"""
+
+from .api import BackendName, PlaybackRequest, TrainingRequest, play, train
+from .dispatch import run_play_cli, run_train_cli
+
+__all__ = [
+    "BackendName",
+    "PlaybackRequest",
+    "TrainingRequest",
+    "play",
+    "run_play_cli",
+    "run_train_cli",
+    "train",
+]
