@@ -55,3 +55,31 @@ def test_assert_articulation_ordering_trace_matches_canonicalizes_public_and_ada
     )
 
     helper.assert_articulation_ordering_trace_matches(identity_trace, reordered_trace, ("knee", "hip"))
+
+
+def test_shared_articulation_ordering_fixtures_are_consistent() -> None:
+    helper = importlib.import_module("isaaclab.test.utils.articulation_ordering")
+
+    assert (
+        helper.PANDA_BODY_NAMES[0],
+        *reversed(helper.PANDA_BODY_NAMES[1:]),
+    ) == helper.PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES
+    assert set(helper.ANYMAL_C_PHYSX_JOINT_NAMES) == {
+        "LF_HAA",
+        "LH_HAA",
+        "RF_HAA",
+        "RH_HAA",
+        "LF_HFE",
+        "LH_HFE",
+        "RF_HFE",
+        "RH_HFE",
+        "LF_KFE",
+        "LH_KFE",
+        "RF_KFE",
+        "RH_KFE",
+    }
+    assert set(helper.BRANCHING_PHYSX_JOINT_NAMES) == set(helper.BRANCHING_MJWARP_JOINT_NAMES)
+    assert set(helper.BRANCHING_PHYSX_BODY_NAMES) == set(helper.BRANCHING_MJWARP_BODY_NAMES)
+    fixture_path = helper.articulation_ordering_branching_fixture_path()
+    assert fixture_path.name == "articulation_ordering_branching.usda"
+    assert fixture_path.is_file()
