@@ -96,8 +96,10 @@ prerelease-mode = "allow"
 
 [manifest]
 overrides = [
-    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/newton-physics/newton.git?rev=c7ae7c7648cd0717df39e5c94b95d5a02c997320" },
-    { name = "newton-usd-schemas", specifier = ">=0.3.1" },
+    { name = "mujoco", specifier = "~=3.10.0" },
+    { name = "mujoco-warp", specifier = "~=3.10.0,>=3.10.0.2" },
+    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/newton-physics/newton.git?rev=81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9" },
+    { name = "newton-usd-schemas", specifier = ">=0.4.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "torch", marker = "(platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')", specifier = "==2.11.0" },
     { name = "torch", marker = "platform_machine == 'AMD64' and sys_platform == 'linux'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu128" },
@@ -3320,9 +3322,9 @@ dependencies = [
     { name = "mpmath" },
     { name = "msal" },
     { name = "msal-extensions" },
-    { name = "mujoco", version = "3.8.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "mujoco" },
     { name = "mujoco-usd-converter" },
-    { name = "mujoco-warp", version = "3.8.0.3", source = { registry = "https://pypi.org/simple" } },
+    { name = "mujoco-warp" },
     { name = "nest-asyncio" },
     { name = "networkx" },
     { name = "newton", extra = ["importers", "sim"], marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
@@ -4350,68 +4352,24 @@ wheels = [
 
 [[package]]
 name = "mujoco"
-version = "3.8.0"
+version = "3.10.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'linux'",
-    "platform_machine == 'AMD64' and sys_platform == 'linux'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
-    "platform_machine == 'arm64' and sys_platform == 'linux'",
-    "platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 's390x' and platform_machine != 'x86_64' and sys_platform != 'win32'",
-    "platform_machine == 's390x' and sys_platform != 'win32'",
-    "(platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32')",
-    "(platform_machine == 'AMD64' and sys_platform != 'linux' and sys_platform != 'win32') or (platform_machine == 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "(platform_machine == 'aarch64' and sys_platform == 'win32') or (platform_machine == 'arm64' and sys_platform == 'win32')",
-    "(platform_machine == 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32') or (platform_machine == 'arm64' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 's390x' and platform_machine != 'x86_64' and sys_platform == 'win32'",
-    "platform_machine == 's390x' and sys_platform == 'win32'",
-]
 dependencies = [
     { name = "absl-py", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "etils", version = "1.13.0", source = { registry = "https://pypi.org/simple" }, extra = ["epath"], marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "glfw", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "numpy", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "pyopengl", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e2/d8/9aae1a021b6e15ee69d805d893e01dda71cbaae1c75d5f8ec8e12916cb7c/mujoco-3.8.0.tar.gz", hash = "sha256:250afe57458d6881b2d7659fa0029a128cb57cbbb620268d95647fb9ad742183", size = 918250, upload-time = "2026-04-24T22:59:07.531Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b4/0d/35aad24bef1f36e9ebf63367938b16abec82407338d612c37624ff20b0e3/mujoco-3.8.0-cp312-cp312-macosx_10_16_x86_64.whl", hash = "sha256:a495da0cd01aff6ac94ec97f0a1d913e1afe071daf107e220f81814435227982", size = 7265096, upload-time = "2026-04-24T22:58:33.475Z" },
-    { url = "https://files.pythonhosted.org/packages/60/d7/2ee5a123431eb50f234de2759e46f3d0c02876e0b1ffce1b26102ed388e7/mujoco-3.8.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:cc1d25b0cd47248fd39681310950b2bea0f6098f57358c0c02730d365bb80ba1", size = 7204862, upload-time = "2026-04-24T22:58:35.978Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/62/a488e6e0963e0210b8262650d25e51c4c597ff7beed4fe01a7e88e3abfc5/mujoco-3.8.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:980ab5a2210777cf766e53eb574726f9360e2a87e47d83a6c8d801fb71f2fe52", size = 6743542, upload-time = "2026-04-24T22:58:38.137Z" },
-    { url = "https://files.pythonhosted.org/packages/6f/de/bc2271210dad5c6ab73af294779226308e9cf4ed8bc2dbe59922eb8702ed/mujoco-3.8.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:323fedd14905b73cfe56ea8ff916716ccf8b57cff348a7aa6932c8983a465d64", size = 7226045, upload-time = "2026-04-24T22:58:41.117Z" },
-    { url = "https://files.pythonhosted.org/packages/65/87/198a88747ff0c01e35070c0c80ae0c05ff8d1a61d6e6f379a4e5ff3e6185/mujoco-3.8.0-cp312-cp312-win_amd64.whl", hash = "sha256:8db22dbc5a6c98241549c8161f20a2b0c2ccc5d08fa42595e7a4b594e35a70dd", size = 5813167, upload-time = "2026-04-24T22:58:43.469Z" },
-]
-
-[[package]]
-name = "mujoco"
-version = "3.8.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'linux'",
-    "platform_machine == 'AMD64' and sys_platform == 'linux'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
-    "platform_machine == 'arm64' and sys_platform == 'linux'",
-    "platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform != 'win32'",
-    "(platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32')",
-    "(platform_machine == 'AMD64' and sys_platform != 'linux' and sys_platform != 'win32') or (platform_machine == 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "(platform_machine == 'aarch64' and sys_platform == 'win32') or (platform_machine == 'arm64' and sys_platform == 'win32')",
-    "(platform_machine == 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32') or (platform_machine == 'arm64' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'win32'",
-]
-dependencies = [
     { name = "absl-py", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "etils", version = "1.13.0", source = { registry = "https://pypi.org/simple" }, extra = ["epath"], marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "etils", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, extra = ["epath"], marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "glfw", marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "numpy", marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "pyopengl", marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "glfw" },
+    { name = "numpy" },
+    { name = "pyopengl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ff/ba/ad135f7a4a71360072bc4f202f7ab3130d7d7827cff70ce3e1b382a1a410/mujoco-3.8.1.tar.gz", hash = "sha256:019a0b3406892bc98454eaf55cbd27f85d167758ad785f77c608a61f3a34ad17", size = 922269, upload-time = "2026-05-11T13:44:01.357Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/3b/c76837b7fdb007f7605ff783689a0bd23a5a49b065928bec2f1fa7ea3d67/mujoco-3.10.0.tar.gz", hash = "sha256:c9e8d5d87d82204ed5bccc87d843c0a53e75aaf381de2938ec46d04f1ac6e24e", size = 1094987, upload-time = "2026-06-22T17:40:59.904Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/4f/ccfaf99fab0042bef61da2cd21d47f41fcff069744b42bc6829d9da6b4fc/mujoco-3.8.1-cp312-cp312-macosx_10_16_x86_64.whl", hash = "sha256:b1c5213eb8fc53ee8c0713391eda5f0766088766025e8b46e1dfd3cb9f00db71", size = 7356297, upload-time = "2026-05-11T13:43:30.654Z" },
-    { url = "https://files.pythonhosted.org/packages/ec/33/64e4de2ff6f0ead6c9d204efdd68aea3ca235058829f69b957625768495d/mujoco-3.8.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:06e36128883f484e173d02e6140ae09c1ff9845dbc7fb605b02361d9d2ecaccf", size = 7245562, upload-time = "2026-05-11T13:43:32.736Z" },
-    { url = "https://files.pythonhosted.org/packages/09/a1/597263af3519b1ac1c09bb8fc8f8985e90e4990c8aff62ca1a0c035e824c/mujoco-3.8.1-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9e4e951de3ab2ba5187b4807c648ac551fd6ae27ff04c7e25304b357d35d7fe8", size = 6784316, upload-time = "2026-05-11T13:43:34.837Z" },
-    { url = "https://files.pythonhosted.org/packages/0e/2f/8a911be3ed84436bc46b5bdcf4ead6ac9590d0ddc82c006834c49ffd60c4/mujoco-3.8.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2970c90913a52b31eade56f27e5439905f08f1479e7991e257144ca829fa1267", size = 7322546, upload-time = "2026-05-11T13:43:37.074Z" },
-    { url = "https://files.pythonhosted.org/packages/83/58/d580c4abf7dda5231fed0886a626e1815e40c2d118bf7d0052a617435d6e/mujoco-3.8.1-cp312-cp312-win_amd64.whl", hash = "sha256:496b61c863d544e076990d1601555f71e522eb3b7aaae227dfbc5dea522f88a1", size = 5893327, upload-time = "2026-05-11T13:43:39.022Z" },
+    { url = "https://files.pythonhosted.org/packages/03/a2/4dd9f4cec6ce92f836a8b2de1cc799c4458af1467d7a044ef8014217bdb4/mujoco-3.10.0-cp312-cp312-macosx_10_16_x86_64.whl", hash = "sha256:47d4a22b7667c60e24e7ef6acb027c13abe9abba9acf17cc8db6fb250ba275ea", size = 7772567, upload-time = "2026-06-22T17:40:16.539Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/7d/ebe5342c136de27e0c430ba781f829df2cd66c00ed22627c1964fbd5d7fe/mujoco-3.10.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:a4d35e9d0b13ff9ad3196294a7dac363f1d0cdaa988832d0b687d42d98f4ee29", size = 19380823, upload-time = "2026-06-22T17:40:19.211Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/5d/43d1b2b9fe97676e5af03020e132ac497b45a0333a4c61de657d0d52170a/mujoco-3.10.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cb7f0d7c148a588f3633020807fc0ec3f3a9aff1f647406e3e0ffe96b05dfd57", size = 19705628, upload-time = "2026-06-22T17:40:22.549Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/11/c69199e4123935f98068ab6ab6b35955b4de0f6a91d3f9883805a5789394/mujoco-3.10.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:966d12f88e77e2b188e7530667b519d6963b9b906cff83bab534e5e4279325a0", size = 20904309, upload-time = "2026-06-22T17:40:25.861Z" },
+    { url = "https://files.pythonhosted.org/packages/47/13/07bf2550c7dcd69ee8c7fd1f5c400a4ba2e4ede0a29a463ad3ac4cc9da90/mujoco-3.10.0-cp312-cp312-win_amd64.whl", hash = "sha256:708edb5aceee96f2767b1072641523060043b2c67000e39e6e9797addf073696", size = 17865123, upload-time = "2026-06-22T17:40:28.996Z" },
 ]
 
 [[package]]
@@ -4419,7 +4377,7 @@ name = "mujoco-usd-converter"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mujoco", version = "3.8.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "mujoco" },
     { name = "newton-usd-schemas" },
     { name = "numpy-stl" },
     { name = "tinyobjloader" },
@@ -4432,60 +4390,20 @@ wheels = [
 
 [[package]]
 name = "mujoco-warp"
-version = "3.8.0.3"
+version = "3.10.0.2"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'linux'",
-    "platform_machine == 'AMD64' and sys_platform == 'linux'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
-    "platform_machine == 'arm64' and sys_platform == 'linux'",
-    "platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 's390x' and platform_machine != 'x86_64' and sys_platform != 'win32'",
-    "platform_machine == 's390x' and sys_platform != 'win32'",
-    "(platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32')",
-    "(platform_machine == 'AMD64' and sys_platform != 'linux' and sys_platform != 'win32') or (platform_machine == 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "(platform_machine == 'aarch64' and sys_platform == 'win32') or (platform_machine == 'arm64' and sys_platform == 'win32')",
-    "(platform_machine == 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32') or (platform_machine == 'arm64' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 's390x' and platform_machine != 'x86_64' and sys_platform == 'win32'",
-    "platform_machine == 's390x' and sys_platform == 'win32'",
-]
 dependencies = [
     { name = "absl-py", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "etils", version = "1.13.0", source = { registry = "https://pypi.org/simple" }, extra = ["epath"], marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "mujoco", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "numpy", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "warp-lang", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e5/63/7dabf7f487c0946894a8ec85ea5d978c19e6b1afb6d6b6f63f457dff75ee/mujoco_warp-3.8.0.3.tar.gz", hash = "sha256:ca143a82f76b8df60984ca0d3c0f269a745886621cc2168beaa58e1d2c2358b8", size = 1938832, upload-time = "2026-05-08T23:27:41.058Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/f5/30c736dfe87ad7e8f7a7f8f43b80e0ff43c6af46cef65ba95d3ba172129a/mujoco_warp-3.8.0.3-py3-none-any.whl", hash = "sha256:dfbfa24e376e0b03bf6dcebaed7ef69b4885280a020e5f0fd805c125fae3d129", size = 2019908, upload-time = "2026-05-08T23:27:39.283Z" },
-]
-
-[[package]]
-name = "mujoco-warp"
-version = "3.8.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'linux'",
-    "platform_machine == 'AMD64' and sys_platform == 'linux'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
-    "platform_machine == 'arm64' and sys_platform == 'linux'",
-    "platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform != 'win32'",
-    "(platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32')",
-    "(platform_machine == 'AMD64' and sys_platform != 'linux' and sys_platform != 'win32') or (platform_machine == 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "(platform_machine == 'aarch64' and sys_platform == 'win32') or (platform_machine == 'arm64' and sys_platform == 'win32')",
-    "(platform_machine == 'aarch64' and sys_platform != 'linux' and sys_platform != 'win32') or (platform_machine == 'arm64' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'win32'",
-]
-dependencies = [
     { name = "absl-py", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "etils", version = "1.13.0", source = { registry = "https://pypi.org/simple" }, extra = ["epath"], marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "etils", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, extra = ["epath"], marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "mujoco", version = "3.8.1", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "numpy", marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "warp-lang", marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "mujoco" },
+    { name = "numpy" },
+    { name = "warp-lang" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/a1/13004d9a034e9361675c14454b0790ab2bfbdc7695388fa1a1ff16691caa/mujoco_warp-3.8.1.tar.gz", hash = "sha256:d7a66c7e5f69b10de67d31cbfd9464b49e06b2ca142a061dd9cd79c84bc21462", size = 1938856, upload-time = "2026-05-11T14:38:39.976Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/b1/edd8743786263d756bb1ffded28ae211289334bbb1ad9729c40e6163b376/mujoco_warp-3.10.0.2.tar.gz", hash = "sha256:3fe8b5c68bd30eda31af45d1cbee42480a7d1c6e69a35733c5538445375fc570", size = 2066036, upload-time = "2026-07-13T18:24:40.645Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/52/82ebe6ffde3bcaa341109d9fcf80dfc7c12a15706188b60b67d4be60b2d7/mujoco_warp-3.8.1-py3-none-any.whl", hash = "sha256:6aef7339ba3a8bf8e69659172d2d770169096e3a341f6b5b8a909b383c2581a2", size = 2019871, upload-time = "2026-05-11T14:38:37.757Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/dc/928040ff3b95b2156dada9b4388a96fb423385c091663bb7f49f662a2d62/mujoco_warp-3.10.0.2-py3-none-any.whl", hash = "sha256:9245c952cd49761dea3f7fdb4060ee816dca0db3f2f63b561a80a02d20c40464", size = 2147055, upload-time = "2026-07-13T18:24:39.203Z" },
 ]
 
 [[package]]
@@ -4609,8 +4527,8 @@ wheels = [
 
 [[package]]
 name = "newton"
-version = "1.4.0.dev0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=c7ae7c7648cd0717df39e5c94b95d5a02c997320#c7ae7c7648cd0717df39e5c94b95d5a02c997320" }
+version = "1.5.0.dev0"
+source = { git = "https://github.com/newton-physics/newton.git?rev=81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9#81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9" }
 dependencies = [
     { name = "warp-lang" },
 ]
@@ -4635,10 +4553,8 @@ importers = [
     { name = "usd-exchange", marker = "platform_machine == 'aarch64' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
 ]
 sim = [
-    { name = "mujoco", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "mujoco", version = "3.8.1", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "mujoco-warp", version = "3.8.0.3", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "mujoco-warp", version = "3.8.1", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "mujoco" },
+    { name = "mujoco-warp" },
 ]
 
 [[package]]

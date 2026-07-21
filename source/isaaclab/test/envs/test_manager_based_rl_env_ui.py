@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# ignore private usage of variables warning
-# pyright: reportPrivateUsage=none
-
 from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
@@ -16,77 +13,60 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+from typing import ClassVar
+
 import pytest
 
 from isaacsim.core.experimental.utils.app import enable_extension
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.ui import ManagerBasedRLEnvWindow
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.test.env_cfgs import make_empty_manager_based_rl_env_cfg
 
 pytestmark = pytest.mark.integration
 
 enable_extension("isaacsim.gui.components")
 
-
-@configclass
-class EmptyManagerCfg:
-    """Empty manager specifications for the environment."""
-
-    pass
+_HAS_GUI_SETTING = "/isaaclab/has_gui"
 
 
-@configclass
-class EmptySceneCfg(InteractiveSceneCfg):
-    """Configuration for an empty scene."""
+class TrackingManagerBasedRLEnvWindow(ManagerBasedRLEnvWindow):
+    """Manager-based RL window that tracks successful construction."""
 
-    pass
+    construction_count: ClassVar[int] = 0
 
-
-def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0):
-    """Generate base environment config based on device"""
-
-    @configclass
-    class EmptyEnvCfg(ManagerBasedRLEnvCfg):
-        """Configuration for the empty test environment."""
-
-        # Scene settings
-        scene: EmptySceneCfg = EmptySceneCfg(num_envs=num_envs, env_spacing=env_spacing)
-        # Basic settings
-        actions: EmptyManagerCfg = EmptyManagerCfg()
-        observations: EmptyManagerCfg = EmptyManagerCfg()
-        rewards: EmptyManagerCfg = EmptyManagerCfg()
-        terminations: EmptyManagerCfg = EmptyManagerCfg()
-        # Define window
-        ui_window_class_type: type[ManagerBasedRLEnvWindow] = ManagerBasedRLEnvWindow
-
-        def __post_init__(self):
-            """Post initialization."""
-            # step settings
-            self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-            # simulation settings
-            self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-            self.sim.render_interval = self.decimation  # render every 4 sim steps
-            # pass device down from test
-            self.sim.device = device
-            # episode length
-            self.episode_length_s = 5.0
-
-    return EmptyEnvCfg()
+    def __init__(self, env: ManagerBasedRLEnv, window_name: str = "IsaacLab") -> None:
+        super().__init__(env, window_name=window_name)
+        type(self).construction_count += 1
 
 
-def test_ui_window():
-    """Test UI window of ManagerBasedRLEnv."""
-    device = "cuda:0"
-    # override sim setting to enable UI
-    from isaaclab.app.settings_manager import get_settings_manager
+def make_empty_manager_based_rl_env_ui_cfg(
+    device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0
+) -> ManagerBasedRLEnvCfg:
+    """Create an empty reinforcement-learning environment configuration with a UI window."""
+    cfg = make_empty_manager_based_rl_env_cfg(device=device, num_envs=num_envs, env_spacing=env_spacing)
+    cfg.ui_window_class_type = TrackingManagerBasedRLEnvWindow
+    return cfg
 
-    get_settings_manager().set_bool("/app/window/enabled", True)
-    # create a new stage
-    sim_utils.create_new_stage()
-    # create environment
-    env = ManagerBasedRLEnv(cfg=get_empty_base_env_cfg(device=device))
-    # close the environment
-    env.close()
+
+@pytest.mark.parametrize("has_gui", [False, True])
+def test_ui_window_follows_has_gui_gate(has_gui: bool):
+    """Create the RL environment window only when the GUI setting is enabled."""
+    settings = get_settings_manager()
+    previous_has_gui = bool(settings.get(_HAS_GUI_SETTING, False))
+    env = None
+    TrackingManagerBasedRLEnvWindow.construction_count = 0
+
+    try:
+        settings.set_bool(_HAS_GUI_SETTING, has_gui)
+        sim_utils.create_new_stage()
+        env = ManagerBasedRLEnv(cfg=make_empty_manager_based_rl_env_ui_cfg())
+
+        assert env.sim.has_gui is has_gui
+        assert TrackingManagerBasedRLEnvWindow.construction_count == int(has_gui)
+    finally:
+        if env is not None:
+            env.close()
+        settings.set_bool(_HAS_GUI_SETTING, previous_has_gui)
