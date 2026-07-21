@@ -278,32 +278,53 @@ Articulation root properties.
 
 
 def apply_articulation_root_properties(
-    prim_path: str,
+    prim_path_expr: str,
     fragments: Iterable[schemas_cfg.ArticulationRootFragment],
     stage: Usd.Stage | None = None,
     fix_root_link: bool | None = None,
+    create_if_missing: bool = False,
 ) -> bool:
-    """Apply fragments to every top-level articulation root under a prim.
+    """Apply a list of articulation-root fragments to the roots matched by an expression.
 
-    Existing roots are discovered before a fresh anchor is applied, including roots hidden in
-    instances. Nested roots are pruned, while sibling roots are all processed. Instance roots are
-    reported but not authored.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
+    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    already carry ``UsdPhysics.ArticulationRootAPI`` are the targets: each fragment is
+    dispatched to every target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    Sibling roots (independent articulations matched by one expression) are all processed, but
+    a target nested under another target raises a :class:`ValueError` -- nested roots corrupt
+    the articulation and must be resolved by the asset author.
 
-    When fix_root_link is True, the active physics manager creates or enables the world joint and
-    returns the backend's final root prim. False only disables an existing joint.
+    When :paramref:`create_if_missing` is set and no matched prim carries the API, the API is
+    applied to the single matched prim lacking it; more than one such prim raises a
+    :class:`ValueError`. Creation is explicit because anchoring a fresh articulation root on
+    an arbitrary prim changes how the physics parser builds the articulation. When no target
+    remains, a warning is emitted and False is returned without authoring anything. Matched
+    prims inside instances cannot be authored on and are skipped with a warning.
+
+    An empty fragment list is an authoring no-op: it returns True immediately when
+    :paramref:`fix_root_link` is None, but still resolves targets and adjusts topology when the
+    flag is set. When :paramref:`fix_root_link` is True, the active physics manager creates or
+    enables the world joint on each target and returns the backend's final root prim; False
+    only disables an existing joint.
 
     Args:
-        prim_path: The prim path whose subtree is searched for articulation roots.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: Articulation-root fragments to apply.
-        stage: The stage containing the prim. Defaults to the current stage.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
+            stage is used.
         fix_root_link: Whether to fix the root link. None leaves topology unchanged.
+        create_if_missing: Whether to apply ``UsdPhysics.ArticulationRootAPI`` when no matched
+            prim carries it and a single matched prim can take it. Defaults to False.
 
     Returns:
-        True if every writable root and fragment succeeds and no instance root is skipped.
+        True if every target and fragment succeeded and no instanced prim was skipped.
 
     Raises:
         TypeError: If fragments contains a non-articulation fragment.
-        ValueError: If prim_path is invalid.
+        ValueError: When the expression matches nested articulation roots, or when
+            :paramref:`create_if_missing` is set and the expression matches more than one prim
+            without ``UsdPhysics.ArticulationRootAPI``.
         RuntimeError: If fixing cannot resolve the active backend or relocate the root.
         NotImplementedError: If the backend cannot fix the resolved root.
     """
@@ -319,54 +340,45 @@ def apply_articulation_root_properties(
     ]
     if stage is None:
         stage = get_current_stage()
+    if not fragments and fix_root_link is None:
+        return True
 
-    roots = []
-    for candidate in get_all_matching_child_prims(
-        prim_path,
-        lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-        stage=stage,
-        traverse_instance_prims=True,
-    ):
-        if not any(candidate.GetPath().HasPrefix(root.GetPath()) for root in roots):
-            roots.append(candidate)
-
-    writable_roots = []
-    skipped_roots = []
-    for root in roots:
-        if root.IsInstance() or root.IsInstanceProxy():
-            skipped_roots.append(root)
-        else:
-            writable_roots.append(root)
-
-    if not roots and fragments:
-        root = stage.GetPrimAtPath(prim_path)
-        if root.IsInstance() or root.IsInstanceProxy():
-            skipped_roots.append(root)
-        else:
-            UsdPhysics.ArticulationRootAPI.Apply(root)
-            writable_roots.append(root)
-
-    if skipped_roots:
-        logger.warning(
-            "Skipping articulation-root updates on instanced prims: %s.",
-            [root.GetPath().pathString for root in skipped_roots],
-        )
-    if not writable_roots:
-        if fix_root_link is not None and not skipped_roots:
-            logger.warning(
-                "No articulation root found under '%s': ignoring fix_root_link=%s.", prim_path, fix_root_link
+    targets, candidates, any_skipped = _match_fragment_targets(
+        prim_path_expr, lambda p: p.HasAPI(UsdPhysics.ArticulationRootAPI), stage
+    )
+    if create_if_missing and not targets and candidates:
+        if len(candidates) > 1:
+            raise ValueError(
+                f"Expression '{prim_path_expr}' matches {len(candidates)} prims without"
+                " UsdPhysics.ArticulationRootAPI. Creating articulation roots on multiple prims"
+                " is not supported; narrow the expression to a single prim."
             )
-        return not skipped_roots and fix_root_link is None
+        UsdPhysics.ArticulationRootAPI.Apply(candidates[0])
+        targets.append(candidates[0])
+    target_paths = [t.GetPath() for t in targets]
+    for path in target_paths:
+        if any(path != other and path.HasPrefix(other) for other in target_paths):
+            raise ValueError(
+                f"Expression '{prim_path_expr}' matched nested articulation roots"
+                f" ({[p.pathString for p in target_paths]}). Nested roots are not allowed;"
+                " author a single root per articulation."
+            )
+    if not targets:
+        logger.warning("No articulation-root targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
 
     if fix_root_link:
         from isaaclab.sim import SimulationContext
 
         sim = SimulationContext.instance()
         if sim is None:
-            raise RuntimeError(f"Cannot fix articulation roots under '{prim_path}' without an active simulation.")
+            raise RuntimeError(
+                f"Cannot fix articulation roots matched by '{prim_path_expr}' without an active simulation."
+            )
 
-    success = not skipped_roots
-    for root in writable_roots:
+    # aggregate per-target, per-fragment results so a reported failure is not masked
+    success = not any_skipped
+    for root in targets:
         if fix_root_link:
             root = sim.physics_manager.fix_articulation_root(root, stage)
         elif fix_root_link is False:

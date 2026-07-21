@@ -398,7 +398,7 @@ def _spawn_from_usd_file(
         )
         if articulation_frags or articulation_fix_root_link is not None:
             schemas.apply_articulation_root_properties(
-                prim_path, articulation_frags, fix_root_link=articulation_fix_root_link
+                f"{prim_path}/**", articulation_frags, fix_root_link=articulation_fix_root_link
             )
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:

@@ -753,7 +753,7 @@ def test_fragment_fix_root_reenables_existing_joint(sim, device):
     joint.CreateBody1Rel().SetTargets([root.GetPath()])
     joint.CreateJointEnabledAttr().Set(False)
 
-    assert sim_utils.apply_articulation_root_properties(asset_path, [], stage, fix_root_link=True)
+    assert sim_utils.apply_articulation_root_properties(f"{asset_path}/**", [], stage, fix_root_link=True)
     assert joint.GetJointEnabledAttr().Get() is True
     world_joints = []
     for prim in sim_utils.get_all_matching_child_prims(
