@@ -1426,8 +1426,13 @@ class AppLauncher:
           exits with a failure status.
 
         WORKAROUND(isaac-sim): ``SIGINT`` is re-registered over SimulationApp's own
-        handler, which exits 0 before user code unwinds; remove once the upstream
-        handler preserves exception semantics and a nonzero exit status.
+        handler, which exits 0 before user code unwinds. This is handled here rather
+        than upstream because fixing the upstream handler changes user-visible Ctrl-C
+        semantics for every SimulationApp consumer (``KeyboardInterrupt`` starts
+        propagating and exit codes become nonzero), which needs its own upstream
+        review; the exit-status fix that shipped in isaacsim.simulation_app 2.18.5
+        deliberately excluded it. Remove once the upstream handler preserves
+        exception semantics and a nonzero exit status.
         """
 
         def __init__(self, app: SimulationApp):
