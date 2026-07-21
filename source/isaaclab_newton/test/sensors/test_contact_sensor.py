@@ -224,6 +224,10 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
         sim._app_control_on_stop_handle = None
 
         max_separation = max(cfg[1] for cfg in group_configs)
+        # Avoid MuJoCo-Warp #1527's symmetric zero-margin GJK edge case.
+        lateral_offset = (
+            0.01 if use_mujoco_contacts and device.startswith("cuda") and shape_type == ShapeType.MESH_CAPSULE else 0.0
+        )
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
         scene_cfg.object_a = create_shape_cfg(
             shape_type,
@@ -235,7 +239,7 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
         scene_cfg.object_b = create_shape_cfg(
             shape_type,
             "{ENV_REGEX_NS}/ObjectB",
-            pos=(max_separation / 2, 0.0, 0.5),
+            pos=(max_separation / 2, lateral_offset, 0.5),
             disable_gravity=True,
             activate_contact_sensors=True,
         )
