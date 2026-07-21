@@ -49,6 +49,25 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     fragment writes its own namespace.
     """
 
+    articulation_props_prim_path: str | None = None
+    """Target pattern selecting which prims of the spawned asset receive :attr:`articulation_props`
+    fragments. Defaults to None.
+
+    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
+    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
+    the spawner default is used (the spawn prim's whole subtree). An empty string targets the spawn
+    prim itself. Only consumed when :attr:`articulation_props` is given as fragments; legacy
+    single-cfg values ignore it.
+    """
+
+    articulation_props_create_if_missing: bool = False
+    """Whether the articulation writer may apply ``UsdPhysics.ArticulationRootAPI`` when no matched
+    prim carries it. Defaults to False.
+
+    Creation requires exactly one matched prim lacking the API. Only consumed when
+    :attr:`articulation_props` is given as fragments.
+    """
+
     fix_root_link: bool | None = None
     """Whether to fix the root link of the articulation. Defaults to None.
 
@@ -75,6 +94,17 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     or one or more :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
     """
 
+    fixed_tendons_props_prim_path: str | None = None
+    """Target pattern selecting which prims of the spawned asset receive :attr:`fixed_tendons_props`
+    fragments. Defaults to None.
+
+    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
+    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
+    the spawner default is used (the spawn prim's whole subtree). An empty string targets the spawn
+    prim itself. Only consumed when :attr:`fixed_tendons_props` is given as fragments; legacy
+    single-cfg values ignore it.
+    """
+
     spatial_tendons_props: (
         schemas.SpatialTendonPropertiesCfg | schemas.SpatialTendonFragment | list[schemas.SpatialTendonFragment] | None
     ) = None
@@ -82,6 +112,17 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Accepts either the legacy :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`
     or one or more :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
+    """
+
+    spatial_tendons_props_prim_path: str | None = None
+    """Target pattern selecting which prims of the spawned asset receive :attr:`spatial_tendons_props`
+    fragments. Defaults to None.
+
+    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
+    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
+    the spawner default is used (the spawn prim's whole subtree). An empty string targets the spawn
+    prim itself. Only consumed when :attr:`spatial_tendons_props` is given as fragments; legacy
+    single-cfg values ignore it.
     """
 
     joint_drive_props: (
@@ -101,6 +142,25 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         We recommend using this attribute sparingly and only when necessary. Instead, please use the
         :attr:`~isaaclab.assets.ArticulationCfg.actuators` parameter to set the joint drive properties
         for specific joints in an articulation.
+    """
+
+    joint_drive_props_prim_path: str | None = None
+    """Target pattern selecting which prims of the spawned asset receive :attr:`joint_drive_props`
+    fragments. Defaults to None.
+
+    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
+    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
+    the spawner default is used (the spawn prim's whole subtree). An empty string targets the spawn
+    prim itself. Only consumed when :attr:`joint_drive_props` is given as fragments; legacy
+    single-cfg values ignore it.
+    """
+
+    joint_drive_props_create_if_missing: bool = False
+    """Whether the joint-drive writer may apply the defining USD drive API to matched joint prims
+    that lack it. Defaults to False.
+
+    Only consumed when :attr:`joint_drive_props` is given as fragments. This is independent of
+    :attr:`ensure_drives_exist`, which instead patches zero-gain drives with a minimal stiffness.
     """
 
     ensure_drives_exist: bool = False

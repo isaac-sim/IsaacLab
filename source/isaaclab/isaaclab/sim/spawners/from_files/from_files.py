@@ -280,6 +280,15 @@ Helper functions.
 """
 
 
+def _props_expr(prim_path: str, pattern: str | None) -> str:
+    """Join a spawn prim path with a cfg-relative target pattern (``None`` selects the whole subtree)."""
+    if pattern is None:
+        return f"{prim_path}/**"
+    if not pattern:
+        return prim_path
+    return f"{prim_path}/{pattern}"
+
+
 def _spawn_from_usd_file(
     prim_path: str,
     usd_path: str,
@@ -349,7 +358,7 @@ def _spawn_from_usd_file(
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
         rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
         if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
-            schemas.apply_rigid_body_properties(f"{prim_path}/**", rigid_frags)
+            schemas.apply_rigid_body_properties(_props_expr(prim_path, cfg.rigid_props_prim_path), rigid_frags)
         else:
             schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
     # modify collision properties
@@ -357,7 +366,7 @@ def _spawn_from_usd_file(
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
         coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
         if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
-            schemas.apply_collision_properties(f"{prim_path}/**", coll_frags)
+            schemas.apply_collision_properties(_props_expr(prim_path, cfg.collision_props_prim_path), coll_frags)
         else:
             schemas.modify_collision_properties(prim_path, cfg.collision_props)
     # modify mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> modify_*)
@@ -365,7 +374,11 @@ def _spawn_from_usd_file(
         # normalize a single fragment to a list so the convenience form routes like a list
         mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
         if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
-            schemas.apply_mass_properties(f"{prim_path}/**", mass_frags)
+            schemas.apply_mass_properties(
+                _props_expr(prim_path, cfg.mass_props_prim_path),
+                mass_frags,
+                create_if_missing=cfg.mass_props_create_if_missing,
+            )
         else:
             schemas.modify_mass_properties(prim_path, cfg.mass_props)
 
@@ -398,7 +411,10 @@ def _spawn_from_usd_file(
         )
         if articulation_frags or articulation_fix_root_link is not None:
             schemas.apply_articulation_root_properties(
-                f"{prim_path}/**", articulation_frags, fix_root_link=articulation_fix_root_link
+                _props_expr(prim_path, cfg.articulation_props_prim_path),
+                articulation_frags,
+                fix_root_link=articulation_fix_root_link,
+                create_if_missing=cfg.articulation_props_create_if_missing,
             )
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
@@ -412,7 +428,9 @@ def _spawn_from_usd_file(
         if isinstance(fixed_tendon_frags, (list, tuple)) and all(
             isinstance(f, schemas.SchemaFragment) for f in fixed_tendon_frags
         ):
-            schemas.apply_fixed_tendon_properties(f"{prim_path}/**", fixed_tendon_frags)
+            schemas.apply_fixed_tendon_properties(
+                _props_expr(prim_path, cfg.fixed_tendons_props_prim_path), fixed_tendon_frags
+            )
         else:
             schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
     if cfg.spatial_tendons_props is not None:
@@ -426,7 +444,9 @@ def _spawn_from_usd_file(
         if isinstance(spatial_tendon_frags, (list, tuple)) and all(
             isinstance(f, schemas.SchemaFragment) for f in spatial_tendon_frags
         ):
-            schemas.apply_spatial_tendon_properties(f"{prim_path}/**", spatial_tendon_frags)
+            schemas.apply_spatial_tendon_properties(
+                _props_expr(prim_path, cfg.spatial_tendons_props_prim_path), spatial_tendon_frags
+            )
         else:
             schemas.modify_spatial_tendon_properties(prim_path, cfg.spatial_tendons_props)
     # define drive API on the joints
@@ -442,7 +462,10 @@ def _spawn_from_usd_file(
         )
         if joint_frags and all(isinstance(f, schemas.SchemaFragment) for f in joint_frags):
             schemas.apply_joint_drive_properties(
-                f"{prim_path}/**", joint_frags, ensure_drives_exist=cfg.ensure_drives_exist
+                _props_expr(prim_path, cfg.joint_drive_props_prim_path),
+                joint_frags,
+                ensure_drives_exist=cfg.ensure_drives_exist,
+                create_if_missing=cfg.joint_drive_props_create_if_missing,
             )
         else:
             # auto-enable body-level gravcomp if joint-level actuator gravcomp is requested

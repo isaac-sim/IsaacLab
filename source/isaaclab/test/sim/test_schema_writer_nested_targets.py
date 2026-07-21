@@ -163,6 +163,22 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
         assert legacy_attrs == frag_attrs, rel_path
 
 
+def test_rigid_body_pattern_cfg_narrows_spawned_targets(tmp_path):
+    """``rigid_props_prim_path`` on the spawner cfg restricts which links receive fragments."""
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/RobotD",
+        rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=5.0)],
+        rigid_props_prim_path="link2/**",
+    )
+    modified = stage.GetPrimAtPath("/World/RobotD/link2")
+    nested = stage.GetPrimAtPath("/World/RobotD/link2/link3")
+    untouched = stage.GetPrimAtPath("/World/RobotD/link1")
+    assert modified.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
+    assert nested.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
+    assert not untouched.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+
+
 # -------------------------------------------------------------------------------------
 # Preserved behavior: bare prims (shape/mesh spawners) still get a fresh anchor, and
 # nested rigid-body trees (URDF-importer layouts) have every body modified.

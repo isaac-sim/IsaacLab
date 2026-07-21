@@ -239,6 +239,15 @@ Helper functions.
 """
 
 
+def _props_expr(prim_path: str, pattern: str | None) -> str:
+    """Join a spawn prim path with a cfg-relative target pattern (``None`` selects the whole subtree)."""
+    if pattern is None:
+        return f"{prim_path}/**"
+    if not pattern:
+        return prim_path
+    return f"{prim_path}/{pattern}"
+
+
 def _spawn_geom_from_prim_type(
     prim_path: str,
     cfg: shapes_cfg.ShapeCfg,
@@ -298,7 +307,11 @@ def _spawn_geom_from_prim_type(
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
         coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
         if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
-            schemas.apply_collision_properties(mesh_prim_path, coll_frags, create_if_missing=True, stage=stage)
+            if cfg.collision_props_prim_path is None:
+                coll_expr = mesh_prim_path
+            else:
+                coll_expr = _props_expr(prim_path, cfg.collision_props_prim_path)
+            schemas.apply_collision_properties(coll_expr, coll_frags, create_if_missing=True, stage=stage)
         else:
             schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
     # apply visual material
@@ -329,7 +342,11 @@ def _spawn_geom_from_prim_type(
         # normalize a single fragment to a list so the convenience form routes like a list
         mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
         if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
-            schemas.apply_mass_properties(prim_path, mass_frags, create_if_missing=True, stage=stage)
+            if cfg.mass_props_prim_path is None:
+                mass_expr = prim_path
+            else:
+                mass_expr = _props_expr(prim_path, cfg.mass_props_prim_path)
+            schemas.apply_mass_properties(mass_expr, mass_frags, create_if_missing=True, stage=stage)
         else:
             schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
@@ -337,6 +354,10 @@ def _spawn_geom_from_prim_type(
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
         rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
         if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
-            schemas.apply_rigid_body_properties(prim_path, rigid_frags, create_if_missing=True, stage=stage)
+            if cfg.rigid_props_prim_path is None:
+                rigid_expr = prim_path
+            else:
+                rigid_expr = _props_expr(prim_path, cfg.rigid_props_prim_path)
+            schemas.apply_rigid_body_properties(rigid_expr, rigid_frags, create_if_missing=True, stage=stage)
         else:
             schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

@@ -91,6 +91,25 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     its own namespace.
     """
 
+    mass_props_prim_path: str | None = None
+    """Target pattern selecting which prims of the spawned asset receive :attr:`mass_props` fragments.
+    Defaults to None.
+
+    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
+    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
+    the spawner default is used (for USD assets: the spawn prim's whole subtree; for shapes and
+    meshes: the exact prim the spawner authors). An empty string targets the spawn prim itself.
+    Only consumed when :attr:`mass_props` is given as fragments; legacy single-cfg values ignore it.
+    """
+
+    mass_props_create_if_missing: bool = False
+    """Whether the mass writer may apply ``UsdPhysics.MassAPI`` to matched rigid bodies that lack it.
+    Defaults to False.
+
+    Only consumed when :attr:`mass_props` is given as fragments and the asset is spawned from a
+    USD file; the shape and mesh spawners always create the API on the bare prim they author.
+    """
+
     rigid_props: schemas.RigidBodyBaseCfg | schemas.RigidBodyFragment | list[schemas.RigidBodyFragment] | None = None
     """Rigid body properties.
 
@@ -105,6 +124,17 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     make the object static and will not be affected by gravity or other forces.
     """
 
+    rigid_props_prim_path: str | None = None
+    """Target pattern selecting which prims of the spawned asset receive :attr:`rigid_props` fragments.
+    Defaults to None.
+
+    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
+    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
+    the spawner default is used (for USD assets: the spawn prim's whole subtree; for shapes and
+    meshes: the exact prim the spawner authors). An empty string targets the spawn prim itself.
+    Only consumed when :attr:`rigid_props` is given as fragments; legacy single-cfg values ignore it.
+    """
+
     collision_props: (
         schemas.CollisionPropertiesCfg | schemas.CollisionFragment | list[schemas.CollisionFragment] | None
     ) = None
@@ -115,6 +145,18 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     (e.g. ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]``). When a fragment list is given,
     ``UsdPhysics.CollisionAPI`` is applied as the implicit anchor and each fragment writes its own
     namespace.
+    """
+
+    collision_props_prim_path: str | None = None
+    """Target pattern selecting which prims of the spawned asset receive :attr:`collision_props` fragments.
+    Defaults to None.
+
+    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
+    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
+    the spawner default is used (for USD assets: the spawn prim's whole subtree; for shapes and
+    meshes: the exact prim the spawner authors). An empty string targets the spawn prim itself.
+    Only consumed when :attr:`collision_props` is given as fragments; legacy single-cfg values
+    ignore it.
     """
 
     activate_contact_sensors: bool = False
