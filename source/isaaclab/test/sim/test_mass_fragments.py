@@ -157,11 +157,7 @@ def test_apply_mass_properties_aggregates_fragment_results():
 
 
 def test_apply_mass_properties_creates_on_every_matched_prim():
-    """Creation applies ``MassAPI`` to every matched prim lacking it, rigid body or not.
-
-    Pairing the mass with a rigid body is the caller's responsibility; the writer does not
-    police it, matching the legacy define path which applied the API unconditionally.
-    """
+    """Creation applies ``MassAPI`` to every matched prim lacking it, rigid body or not."""
     from isaaclab.sim.schemas import MassCfg, apply_mass_properties
 
     sim_utils.create_new_stage()

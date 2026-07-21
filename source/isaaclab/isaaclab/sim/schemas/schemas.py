@@ -1044,14 +1044,10 @@ def apply_mass_properties(
     every such target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend
     fragments carry backend-specific funcs, so core never imports a backend.
 
-    An empty fragment list is an authoring no-op and returns True. When
-    :paramref:`create_if_missing` is set, ``UsdPhysics.MassAPI`` is applied to every matched
-    prim that does not carry it, mirroring the legacy define path. The physics parsers only
-    consume a mass on a prim that is (or later becomes) a rigid body, so pairing the mass
-    with ``UsdPhysics.RigidBodyAPI`` is the caller's responsibility -- the shape and mesh
-    spawners, for instance, author mass first and the rigid body right after. When no target
-    remains, a warning is emitted and False is returned without authoring anything. Matched
-    prims inside instances cannot be authored on and are skipped with a warning.
+    An empty fragment list is an authoring no-op and returns True. With
+    :paramref:`create_if_missing`, ``UsdPhysics.MassAPI`` is applied to every matched prim
+    that lacks it; pairing the mass with a rigid body is the caller's responsibility. Zero
+    targets warn and return False. Instanced matches are skipped with a warning.
 
     Args:
         prim_path_expr: The prim path expression matched against the stage.
