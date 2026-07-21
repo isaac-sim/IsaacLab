@@ -1182,7 +1182,7 @@ def _capture_kit_viewport_with_pose_reapply(
             # frames at wrong body positions.
             _drain_until_newton_fabric_ready()
             prev: np.ndarray | None = None
-            for _ in range(_WARMUP_MAX_FRAMES):
+            for i in range(_WARMUP_MAX_FRAMES):
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
                 env.sim.render()
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
@@ -1195,7 +1195,7 @@ def _capture_kit_viewport_with_pose_reapply(
                 if curr.shape[:2] == (1, 1):
                     prev = None
                     continue
-                if prev is not None and _frames_converged(prev, curr):
+                if i >= _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS and prev is not None and _frames_converged(prev, curr):
                     break
                 prev = curr
         else:
@@ -1207,9 +1207,15 @@ def _capture_kit_viewport_with_pose_reapply(
 
 
 def _warm_kit_rtx_render_product(env, annotator) -> None:
-    """Pump Kit/RTX until two consecutive viewport frames converge or the frame cap is reached."""
+    """Pump Kit/RTX until two consecutive viewport frames converge or the frame cap is reached.
+
+    The first :data:`_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS` iterations always run so that Newton
+    body transforms have had enough frames to propagate before convergence is checked.  After that
+    minimum the loop exits as soon as two consecutive frames are stable, up to
+    :data:`_WARMUP_MAX_FRAMES` total.
+    """
     prev: np.ndarray | None = None
-    for _ in range(_WARMUP_MAX_FRAMES):
+    for i in range(_WARMUP_MAX_FRAMES):
         env.sim.render()
         _update_active_simulation_app()
         with contextlib.suppress(Exception):
@@ -1218,7 +1224,7 @@ def _warm_kit_rtx_render_product(env, annotator) -> None:
         if curr.shape[:2] == (1, 1):
             prev = None
             continue
-        if prev is not None and _frames_converged(prev, curr):
+        if i >= _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS and prev is not None and _frames_converged(prev, curr):
             return
         prev = curr
 
@@ -1354,11 +1360,11 @@ def _pump_tiled_until_stable(camera_sensor, camera_indices: list[int]) -> np.nda
     """
     prev: np.ndarray | None = None
     last: np.ndarray | None = None
-    for _ in range(_WARMUP_MAX_FRAMES):
+    for i in range(_WARMUP_MAX_FRAMES):
         camera_sensor.update(dt=0.0, force_recompute=True)
         rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
         curr = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()[..., :3]
-        if prev is not None and _frames_converged(prev, curr):
+        if i >= _TILED_CAMERA_SENSOR_WARMUP_UPDATES and prev is not None and _frames_converged(prev, curr):
             return curr
         prev = curr
         last = curr
