@@ -1,0 +1,57 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Resolve OV runtime pins'
+description: >
+  Reads the OVRTX / OVPhysX version specifiers from [tool.isaaclab.versions] in
+  the repository's pyproject.toml. CI installs these packages through a generic
+  pip-package input, so this keeps the installed versions bound to the single
+  source of truth instead of hardcoding ranges in the workflow.
+  NOTE: The calling job must check out the code before using this action.
+
+outputs:
+  ovrtx:
+    description: 'OVRTX pip requirement specifier (e.g. ovrtx>=0.3.0,<0.4.0)'
+    value: ${{ steps.resolve.outputs.ovrtx }}
+  ovphysx:
+    description: 'OVPhysX pip requirement specifier (e.g. ovphysx>=0.4.13)'
+    value: ${{ steps.resolve.outputs.ovphysx }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      with:
+        python-version: "3.12"
+
+    - name: Resolve pins from pyproject
+      id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Capture first, write second: a missing/renamed key (or a moved section) must
+        # fail the step with a clear error, never leave $GITHUB_OUTPUT with a partial or
+        # empty value that would silently reintroduce an unconstrained ``pip install ovrtx``.
+        pins="$(python3 <<'PY'
+        import sys
+        import tomllib
+
+        with open("pyproject.toml", "rb") as f:
+            vals = tomllib.load(f).get("tool", {}).get("isaaclab", {}).get("versions", {})
+
+        def spec(pkg: str) -> str:
+            # Mirror pyproject's convention: exact versions map to ``pkg==x.y.z``,
+            # range specs (">=...", "<...") map to ``pkg>=...``.
+            if not vals.get(pkg):
+                sys.exit(f"[tool.isaaclab.versions] is missing a value for required key '{pkg}'")
+            value = vals[pkg]
+            return f"{pkg}=={value}" if value[0].isdigit() else f"{pkg}{value}"
+
+        for pkg in ("ovrtx", "ovphysx"):
+            print(f"{pkg}={spec(pkg)}")
+        PY
+        )"
+        echo "$pins" >> "$GITHUB_OUTPUT"
