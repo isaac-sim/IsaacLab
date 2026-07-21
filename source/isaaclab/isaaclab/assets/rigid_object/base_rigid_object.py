@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from ..asset_base import AssetBase
@@ -162,7 +163,13 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -171,9 +178,16 @@ class BaseRigidObject(AssetBase):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` is the deprecated legacy default for this release and
+                returns a list with a :class:`DeprecationWarning`. ``False`` explicitly returns a list
+                without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
+                backed by Warp ``int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                of the same allocation. Callers must treat the proxy and both views as immutable because cache
+                hits share this storage.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a list for
+            legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         raise NotImplementedError()
 

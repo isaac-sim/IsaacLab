@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from ..asset_base import AssetBase
@@ -165,8 +166,12 @@ class BaseRigidObjectCollection(AssetBase):
 
     @abstractmethod
     def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Find bodies in the rigid body collection based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -175,9 +180,17 @@ class BaseRigidObjectCollection(AssetBase):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` is the deprecated legacy default for this release and
+                returns a device-local ``torch.int32`` tensor with a :class:`DeprecationWarning`. ``False``
+                explicitly returns that legacy tensor without the transition warning. ``True`` returns a
+                cached, device-local :class:`ProxyArray` backed by Warp ``int32`` storage. Its ``.warp`` and
+                ``.torch`` attributes are zero-copy views of the same allocation. Callers must treat the proxy
+                and both views as immutable because cache hits share this storage.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a
+            device-local ``torch.int32`` tensor for legacy modes and a cached :class:`ProxyArray` for proxy
+            mode.
         """
         raise NotImplementedError()
 
@@ -1095,12 +1108,33 @@ class BaseRigidObjectCollection(AssetBase):
         )
 
     def find_objects(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str]]:
-        """Deprecated method. Please use :meth:`find_bodies` instead."""
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
+        """Deprecated method that forwards to :meth:`find_bodies`.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the object names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` is the deprecated legacy default for this release and
+                returns a device-local ``torch.int32`` tensor with a finder-return
+                :class:`DeprecationWarning`, in addition to this method's alias deprecation warning.
+                ``False`` explicitly returns that legacy tensor without the finder-return transition warning.
+                ``True`` returns a cached, device-local :class:`ProxyArray` backed by Warp ``int32`` storage.
+                Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same allocation. Callers
+                must treat the proxy and both views as immutable because cache hits share this storage.
+
+        Returns:
+            A tuple containing the object indices and a fresh list of matched names. The indices are a
+            device-local ``torch.int32`` tensor for legacy modes and a cached :class:`ProxyArray` for proxy
+            mode.
+        """
         warnings.warn(
             "The `find_objects` method will be deprecated in a future release. Please use `find_bodies` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.find_bodies(name_keys, preserve_order)
+        return self.find_bodies(name_keys, preserve_order, as_proxy=as_proxy)
