@@ -6,6 +6,8 @@
 __all__ = [
     "Articulation",
     "ArticulationData",
+    "CableObject",
+    "CableObjectData",
     "DeformableObject",
     "DeformableObjectCfg",
     "DeformableObjectData",
@@ -18,6 +20,7 @@ __all__ = [
 ]
 
 from .articulation import Articulation, ArticulationData
+from .cable_object import CableObject, CableObjectData
 from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData
 from .rigid_object import RigidObject, RigidObjectData
 from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionData

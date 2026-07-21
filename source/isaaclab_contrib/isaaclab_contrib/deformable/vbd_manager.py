@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model
+from newton import Model, ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -228,11 +228,13 @@ class NewtonVBDManager(NewtonManager):
             }
             NewtonManager._num_envs = len(env_paths)
 
-        # Coloring is required by the VBD solver for particles and VBD-integrated bodies.
-        # Safe without particles: color() skips particle coloring when particle_count == 0.
-        builder.color()
-
         cls.set_builder(builder)
+
+    @classmethod
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Color particles and VBD-integrated bodies before finalization."""
+        super()._prepare_builder_for_finalize(builder)
+        builder.color()
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
@@ -253,6 +255,6 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _simulate_physics_only(cls) -> None:
         # Rebuild BVH once per step for solvers that require it (e.g. VBD cloth).
-        if hasattr(cls._solver, "rebuild_bvh"):
+        if cls._model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
             cls._solver.rebuild_bvh(cls._state_0)
         super()._simulate_physics_only()
