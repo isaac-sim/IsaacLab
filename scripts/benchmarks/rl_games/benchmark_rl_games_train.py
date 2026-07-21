@@ -9,16 +9,8 @@ from __future__ import annotations
 
 import sys
 import time
-from pathlib import Path
 
-_BENCH_DIR = Path(__file__).resolve().parents[1]
-_RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
-
-# Shared training utilities remain script-local, so their directory must be on sys.path.
-if str(_RL_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_RL_SCRIPTS))
-
-import common as _common  # noqa: E402
+from isaaclab_rl.entrypoints import common as _common
 
 
 def _parse_args(argv: list[str]):
@@ -34,10 +26,11 @@ def _parse_args(argv: list[str]):
     """
     import argparse
 
+    from isaaclab.app import add_launcher_args
+
     from isaaclab_tasks.utils import setup_preset_cli
 
     add_common_train_args = _common.add_common_train_args
-    add_isaaclab_launcher_args = _common.add_isaaclab_launcher_args
     enable_cameras_for_video = _common.enable_cameras_for_video
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with RL-Games.")
@@ -47,7 +40,7 @@ def _parse_args(argv: list[str]):
         agent_help="Name of the RL agent configuration entry point.",
         include_distributed=False,
     )
-    add_isaaclab_launcher_args(parser)
+    add_launcher_args(parser)
 
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(

@@ -49,13 +49,11 @@ def _patch_isaacsim_simulation_manager():
 
     This function is intentionally lazy: it only patches if
     ``isaacsim.core.simulation_manager`` is already present in ``sys.modules``.
-    In the normal production flow Kit loads that module during extension startup,
-    before any user script imports :mod:`isaaclab_physx`, so the condition is
-    true and the patch fires on time. If :mod:`isaaclab_physx` happens to be
-    imported for pure config loading before Kit has launched (e.g. in
-    ``test_env_cfg_no_forbidden_imports``), the module is absent and this
-    function is a no-op — which is correct, because no callbacks have been
-    registered yet.
+    Config loading may import :mod:`isaaclab_physx` before Kit has launched. In
+    that case, the module is absent and this function is a no-op because no
+    callbacks have been registered yet. :meth:`PhysxManager.initialize` invokes
+    this function again after Kit startup, guaranteeing that the original
+    callbacks are disabled before Isaac Lab creates PhysX tensor views.
     """
     original_module = sys.modules.get("isaacsim.core.simulation_manager")
     if original_module is None:

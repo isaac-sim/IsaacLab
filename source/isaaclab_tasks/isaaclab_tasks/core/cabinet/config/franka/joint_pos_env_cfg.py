@@ -12,6 +12,7 @@ from isaaclab_tasks.core.cabinet import mdp
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (  # isort: skip
     FRAME_MARKER_SMALL_CFG,
     CabinetEnvCfg,
+    CabinetSceneCfg,
 )
 
 ##
@@ -21,13 +22,47 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass
+class FrankaCabinetSceneCfg(CabinetSceneCfg):
+    """Cabinet scene configured for the Franka robot."""
+
+    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    ee_frame = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
+        debug_vis=False,
+        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                name="ee_tcp",
+                offset=OffsetCfg(
+                    pos=(0.0, 0.0, 0.1034),
+                ),
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
+                name="tool_leftfinger",
+                offset=OffsetCfg(
+                    pos=(0.0, 0.0, 0.046),
+                ),
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
+                name="tool_rightfinger",
+                offset=OffsetCfg(
+                    pos=(0.0, 0.0, 0.046),
+                ),
+            ),
+        ],
+    )
+
+
+@configclass
 class FrankaCabinetEnvCfg(CabinetEnvCfg):
+    scene: FrankaCabinetSceneCfg = FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0)
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-
-        # Set franka as robot
-        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set Actions for the specific robot type (franka)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -41,38 +76,6 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
             joint_names=["panda_finger.*"],
             open_command_expr={"panda_finger_.*": 0.04},
             close_command_expr={"panda_finger_.*": 0.0},
-        )
-
-        # Listens to the required transforms
-        # IMPORTANT: The order of the frames in the list is important. The first frame is the tool center point (TCP)
-        # the other frames are the fingers
-        self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
-            debug_vis=False,
-            visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
-            target_frames=[
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
-                    name="ee_tcp",
-                    offset=OffsetCfg(
-                        pos=(0.0, 0.0, 0.1034),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
-                    name="tool_leftfinger",
-                    offset=OffsetCfg(
-                        pos=(0.0, 0.0, 0.046),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
-                    name="tool_rightfinger",
-                    offset=OffsetCfg(
-                        pos=(0.0, 0.0, 0.046),
-                    ),
-                ),
-            ],
         )
 
         # override rewards

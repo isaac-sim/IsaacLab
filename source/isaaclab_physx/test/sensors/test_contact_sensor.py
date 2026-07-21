@@ -25,7 +25,10 @@ from flaky import flaky
 from isaaclab_physx.sensors.contact_sensor import contact_sensor as contact_sensor_module
 from isaaclab_physx.sensors.contact_sensor.contact_sensor import ContactSensor as PhysxContactSensor
 
+from pxr import Gf, UsdGeom, UsdPhysics
+
 import isaaclab.sim as sim_utils
+import isaaclab.sim.schemas as schemas
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -457,6 +460,86 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
 
 
+def _author_nested_chain(prim_path: str):
+    """Author a chain of kinematic rigid bodies whose link prims are nested under each other.
+
+    Mirrors the layout produced by the URDF importer in Isaac Sim 6.0+, where each child
+    link prim is authored under its parent link prim instead of as a flat sibling. The
+    bodies are kinematic so their poses stay at the authored values without joints.
+    """
+    stage = get_current_stage()
+    UsdGeom.Xform.Define(stage, prim_path)
+    # each link: an Xform with the rigid-body schema and a cube collision geometry below it
+    link_specs = [
+        ("pelvis", (0.0, 0.0, 1.25)),
+        ("pelvis/left_hip", (0.0, 0.0, -0.5)),
+        ("pelvis/left_hip/left_knee", (0.0, 0.0, -0.5)),
+    ]
+    for rel_path, offset in link_specs:
+        link_path = f"{prim_path}/{rel_path}"
+        link = UsdGeom.Xform.Define(stage, link_path)
+        link.AddTranslateOp().Set(Gf.Vec3d(*offset))
+        body_api = UsdPhysics.RigidBodyAPI.Apply(link.GetPrim())
+        body_api.CreateKinematicEnabledAttr(True)
+        geom = UsdGeom.Cube.Define(stage, f"{link_path}/geom")
+        geom.GetSizeAttr().Set(0.5)
+        UsdPhysics.CollisionAPI.Apply(geom.GetPrim())
+    # add the contact-report schema to every nested link
+    schemas.activate_contact_sensors(prim_path)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("num_envs", [1, 6])
+def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
+    """Checks contact sensor creation and per-body data ordering on nested rigid-body hierarchies.
+
+    Regression test for issue #5126: the sensor views were created from a single
+    parent-level name alternation, which cannot address bodies nested under other
+    bodies, so sensor initialization failed on URDF-importer-style assets.
+
+    The chains are authored directly under each environment prim (no scene/cloner):
+    the sensor path under test only depends on the prims existing on the stage.
+    """
+    sim_dt, durations, terrains, devices, settings = setup_simulation
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        stage = get_current_stage()
+        env_origins = [(3.0 * env_id, 0.0, 0.0) for env_id in range(num_envs)]
+        for env_id, origin in enumerate(env_origins):
+            env_xform = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+            env_xform.AddTranslateOp().Set(Gf.Vec3d(*origin))
+            _author_nested_chain(f"/World/envs/env_{env_id}/Robot")
+        contact_sensor = ContactSensor(
+            ContactSensorCfg(
+                prim_path="/World/envs/env_.*/Robot/.*",
+                track_pose=True,
+                debug_vis=False,
+                update_period=0.0,
+            )
+        )
+        sim.reset()
+
+        # all three nested bodies must be resolved into the views (pre-fix: init raised);
+        # exact order guards the body-major view convention in body_names
+        assert contact_sensor.num_sensors == 3
+        assert contact_sensor.body_names == ["pelvis", "left_hip", "left_knee"]
+
+        # step to fill the sensor buffers; kinematic bodies keep their authored poses
+        expected_body_z = {"pelvis": 1.25, "left_hip": 0.75, "left_knee": 0.25}
+        for _ in range(2):
+            sim.step()
+            contact_sensor.update(sim_dt, force_recompute=True)
+
+        # each (env, body) cell must carry that body's authored world position, which
+        # validates the body-major view ordering end-to-end through the data kernels
+        pos_w = contact_sensor.data.pos_w.torch  # (num_envs, num_bodies, 3)
+        for env_id, origin in enumerate(env_origins):
+            for body_id, body_name in enumerate(contact_sensor.body_names):
+                expected = torch.tensor([origin[0], origin[1], expected_body_z[body_name]], device=pos_w.device)
+                torch.testing.assert_close(pos_w[env_id, body_id], expected, atol=1e-4, rtol=0.0)
+
+
 def test_no_contact_reporting(setup_simulation):
     """Test that forcing the disable of contact processing results in no contact reporting.
 
@@ -572,6 +655,60 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
             "Contact sensor returned stale pre-reset data after scene.reset(): "
             f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
         )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize(
+    ("history_length", "update_period_steps", "expected_fetches", "expected_last_update"),
+    [(0, 1, 0, 0.0), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
+)
+def test_contact_history_updates_at_sensor_period(
+    setup_simulation, device, history_length, update_period_steps, expected_fetches, expected_last_update
+):
+    """History-bearing sensors update at their period even when the scene is lazy."""
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", False)
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=True)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            update_period=update_period_steps * sim_dt,
+            track_air_time=True,
+            history_length=history_length,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        contact_sensor: ContactSensor = scene["contact_sensor"]
+        fetch_count = 0
+        original_fetch = contact_sensor._fetch_physx_buffers
+
+        def count_fetches() -> None:
+            nonlocal fetch_count
+            fetch_count += 1
+            original_fetch()
+
+        contact_sensor._fetch_physx_buffers = count_fetches
+
+        for _ in range(4):
+            _perform_sim_step(sim, scene, sim_dt)
+
+        assert fetch_count == expected_fetches
+        last_update = wp.to_torch(contact_sensor._timestamp_last_update).item()
+        assert last_update == pytest.approx(expected_last_update)
+
+        _ = contact_sensor.data
+        expected_fetches_after_read = 1 if history_length == 0 else expected_fetches
+        assert fetch_count == expected_fetches_after_read
+        air_time = contact_sensor.data.current_air_time.torch.item()
+        expected_air_time = 4 * sim_dt if history_length == 0 else expected_last_update
+        assert air_time == pytest.approx(expected_air_time)
+        _ = contact_sensor.data
+        assert fetch_count == expected_fetches_after_read
 
 
 @pytest.mark.isaacsim_ci
@@ -960,13 +1097,16 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
         friction_forces_t = wp.to_torch(friction_forces)
         buffer_count_t = wp.to_torch(buffer_count).to(torch.int32)
         buffer_start_t = wp.to_torch(buffer_start_indices).to(torch.int32)
-        for i in range(sensor.num_instances * num_sensors):
+        # the raw view buffers are body-major (one view pattern per body):
+        # flat index = body_id * num_envs + env_id
+        num_envs = sensor.num_instances // num_sensors
+        for i in range(sensor.num_instances):
             for j in range(sensor.contact_view.filter_count):
                 start_index_ij = buffer_start_t[i, j]
                 count_ij = buffer_count_t[i, j]
                 force = torch.sum(friction_forces_t[start_index_ij : (start_index_ij + count_ij), :], dim=0)
-                env_idx = i // num_sensors
-                sensor_idx = i % num_sensors
+                env_idx = i % num_envs
+                sensor_idx = i // num_envs
                 assert torch.allclose(force, friction_torch[env_idx, sensor_idx, j, :], atol=1e-5)
 
     elif mode == ContactTestMode.NON_CONTACT:

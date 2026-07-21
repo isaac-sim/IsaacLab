@@ -93,7 +93,7 @@ reads the configuration instance:
 .. dropdown:: Code for train_sb3.py with SB3
     :icon: code
 
-    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train_sb3.py
+    .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_sb3.py
       :language: python
       :linenos:
       :emphasize-lines: 56-60, 97-98

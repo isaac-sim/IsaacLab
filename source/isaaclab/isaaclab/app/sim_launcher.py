@@ -36,7 +36,7 @@ from isaaclab.utils._device import set_cuda_device
 logger = logging.getLogger(__name__)
 
 # Class names of the kitless physics backends (Newton, OvPhysX). Matched by exact
-# name so subclasses with distinct names (e.g. ``DeformableNewtonCfg``) opt out.
+# name so subclasses with distinct names opt out.
 _KITLESS_PHYSICS_CFGS = ("NewtonCfg", "OvPhysxCfg")
 
 
@@ -330,8 +330,9 @@ def _has_kit_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | d
 
 
 def _uses_isaac_sim_runtime(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
-    """Return whether the scanned config requires Isaac Sim / Kit."""
-    return config_scan.needs_kit or _has_kit_visualizer(config_scan, launcher_args)
+    """Return whether the scanned config or launcher arguments require Isaac Sim / Kit."""
+    explicit_experience = bool(_get_arg(launcher_args, "experience", ""))
+    return explicit_experience or config_scan.needs_kit or _has_kit_visualizer(config_scan, launcher_args)
 
 
 def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | None) -> None:

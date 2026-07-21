@@ -33,6 +33,7 @@ Guidelines for modifications:
 * James Tigue
 * Kelly (Yunrong) Guo
 * Matthew Trepte
+* Maximilian Krause
 * Mayank Mittal
 * Mike Yan Michelis
 * Mikhail Yurasov
@@ -58,6 +59,7 @@ Guidelines for modifications:
 * Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
+* Asier Arranz
 * Bikram Pandit
 * Bingjie Tang
 * Bocheng Zou
@@ -167,6 +169,7 @@ Guidelines for modifications:
 * Rebecca Zhang
 * Renaud Poncelet
 * René Zurbrügg
+* Richard Lei
 * Richard Schmitt
 * RinZ27
 * Ritvik Singh

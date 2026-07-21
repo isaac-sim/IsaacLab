@@ -16,9 +16,16 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["kit", "robotics", "teleoperation", "xr", "isaaclab"]
 requires-python = ">=3.12"
-# Third-party requirements are centralized in the root pyproject.toml
-# (installed via the ``teleop`` extra).
-dependencies = []
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
+
+[tool.isaaclab]
+pip_upgrade_dependencies = ["isaacteleop"]
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
