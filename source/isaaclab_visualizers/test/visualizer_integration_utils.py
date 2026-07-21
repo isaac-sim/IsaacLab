@@ -119,23 +119,10 @@ enough frames to produce a valid image before sampling.
 """
 
 _VISUALIZER_STARTUP_DRAIN_UPDATES = 20
-"""Kit app updates before each flaky retry creates a fresh stage/env.
-
-Raised from 5 to 20: the Newton Fabric attribute (``_newton_index_attr``) written
-by ``start_simulation()`` may not be visible to ``SelectPrims`` immediately — it
-requires the GPU to process pending Fabric work.  Too few pre-test updates leaves
-``sync_transforms_to_usd()`` finding zero matching prims and clearing
-``_transforms_dirty`` without writing body positions, producing wrong-pose renders.
-20 updates ensures the attribute is GPU-synced before the first capture attempt.
-"""
+"""Kit app updates before each flaky retry to let the GPU sync pending Fabric work."""
 
 _VISUALIZER_SHUTDOWN_DRAIN_UPDATES = 20
-"""Kit app updates after each flaky retry closes visualizer resources.
-
-Raised from 10 to 20 to match the startup drain, giving Kit and Fabric enough
-time to fully flush pending GPU work from the just-closed scene before the next
-test's stage is created.
-"""
+"""Kit app updates after each flaky retry to flush GPU work before the next stage."""
 
 _KIT_APP_DRAIN_SLEEP_SECONDS = 0.01
 """Short sleep between app updates while draining startup/shutdown work."""
@@ -1004,11 +991,8 @@ def _prepare_visualizer_test_process() -> None:
     """Reset Python-side sim state and let Kit settle before a flaky retry starts."""
     with contextlib.suppress(Exception):
         SimulationContext.clear_instance()
-    # Fully reset Newton Manager so the next test rebuilds from the new USD stage.
-    # PhysicsManager.close() does not call NewtonManager.clear(), so stale state
-    # (_model, _state_0, _views, _scene_data_mapping, etc.) from the previous test
-    # persists and prevents subsequent ManagerBasedRLEnv environments from
-    # initializing the PhysX tensor API (create_rigid_body_view crash).
+    # NewtonManager.clear() is required: PhysicsManager.close() does not call it,
+    # leaving stale _model/_state_0 that prevents the next env from initializing.
     with contextlib.suppress(Exception):
         from isaaclab_newton.physics import NewtonManager
 
@@ -1041,14 +1025,10 @@ def _reapply_kit_camera_pose(env, kit_visualizer: KitVisualizer) -> None:
 
 
 def _force_newton_transforms_resync() -> None:
-    """Re-sync Newton body transforms and particle positions to USD Fabric.
+    """Force-mark Newton body transforms and particles dirty and re-sync to USD Fabric.
 
-    Calling ``env.sim.render()`` drives ``pre_render()`` → ``sync_transforms_to_usd()`` and
-    ``sync_particles_to_usd()``, but both early-exit when ``_transforms_dirty`` /
-    ``_particles_dirty`` are False.  In contaminated test suites both dirty flags may have
-    been cleared by a prior ``pre_render()`` that failed the Fabric ``SelectPrims`` check
-    (GPU attribute propagation delayed).  This helper force-marks both flags dirty so the
-    next sync attempt re-runs ``SelectPrims`` for bodies AND particles.
+    Needed when the Fabric SelectPrims check fails on a prior pre_render() call (GPU
+    attribute propagation delay), leaving dirty flags cleared without writing positions.
     """
     with contextlib.suppress(Exception):
         from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
@@ -1061,42 +1041,15 @@ def _force_newton_transforms_resync() -> None:
 
 
 def _drain_until_newton_fabric_ready(max_updates: int = 200, updates_per_iter: int = 2) -> None:
-    """Pump Kit updates with sleeps until Newton has written body positions to Fabric.
+    """Pump Kit updates until Newton has written body positions to Fabric.
 
-    ``sync_transforms_to_usd()`` calls ``SelectPrims`` to locate Newton body prims in GPU
-    Fabric.  The ``newton:index`` attribute written by ``start_simulation()`` is propagated
-    to the GPU asynchronously.  In heavy-test contamination scenarios (many prior Newton
-    tests), this propagation can be delayed significantly.
+    Polls ``NewtonManager._newton_fabric_ready`` (set after the first successful
+    SelectPrims call) with real-time sleeps so the GPU can process pending Fabric work.
+    Returns immediately if already ready (common case after a normal physics warmup).
 
-    This helper polls ``NewtonManager._newton_fabric_ready`` — which is set to ``True``
-    after the first successful ``SelectPrims`` call writes body positions — and drains Kit
-    updates with 10 ms sleeps between them so the GPU has real wall-clock time to process
-    pending Fabric work.
-
-    For the tiled camera path the Kit updates during the drain do NOT contaminate the tiled
-    camera's TAA history (tiled cameras are not rendered until ``camera_sensor.update()`` is
-    called), so a higher ``max_updates`` ceiling can be used safely.  For the viewport path
-    each drain iteration accumulates a viewport TAA frame; keep ``max_updates`` low there to
-    limit the number of contaminated TAA frames before the warmup loop runs.
-
-    In the non-contaminated case ``_newton_fabric_ready`` is already ``True`` (set during
-    the physics warmup step's ``pre_render()``), so this function returns immediately with
-    zero drain overhead.
-
-    Args:
-        max_updates: Maximum number of outer retry iterations.  Each iteration calls
-            :func:`_force_newton_transforms_resync` then ``updates_per_iter`` Kit app updates.
-            The tiled-camera path passes a larger value because its TAA history is unaffected
-            by the extra ``sim_app.update()`` calls.
-        updates_per_iter: Number of ``sim_app.update()`` calls per outer iteration.  More
-            calls give the GPU more wall-clock time to flush pending Fabric attribute work.
-
-    .. note::
-
-        ``sim_app.update()`` alone does *not* trigger ``NewtonManager.pre_render()``; only
-        ``SimulationContext.render()`` (called from ``env.sim.render()``) does that.  So
-        each drain iteration calls :func:`_force_newton_transforms_resync` explicitly to
-        retry ``SelectPrims`` for bodies and particles before sleeping.
+    The tiled-camera path uses ``max_updates=600`` safely (tiled cameras are not rendered
+    until ``camera_sensor.update()``); the viewport path keeps a lower ceiling to limit
+    contaminated TAA frames accumulating during the drain.
     """
     with contextlib.suppress(Exception):
         from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
@@ -1104,17 +1057,11 @@ def _drain_until_newton_fabric_ready(max_updates: int = 200, updates_per_iter: i
         for _ in range(max(0, int(max_updates))):
             if NewtonManager._newton_fabric_ready:
                 return
-            # Force CUDA to finish all pending GPU work before retrying SelectPrims.
-            # Fabric CPU-to-GPU attribute propagation may be queued as an async CUDA
-            # operation; synchronizing ensures it has completed before the next
-            # SelectPrims check.
             with contextlib.suppress(Exception):
                 import torch  # noqa: PLC0415
 
                 if torch.cuda.is_available():
                     torch.cuda.synchronize()
-            # Explicitly retry SelectPrims for bodies AND particles; sim_app.update()
-            # alone does not drive NewtonManager.pre_render().
             _force_newton_transforms_resync()
             _drain_kit_app_updates(updates_per_iter)
 
@@ -1128,43 +1075,19 @@ def _capture_kit_viewport_with_pose_reapply(
 ) -> np.ndarray:
     """Set the configured eye/lookat, warm RTX, then capture.
 
-    Setting the camera view *before* the annotator warmup fixes two classes of
-    wrong-camera golden images:
-
-    * **PhysX backend**: ``env.step()`` calls can drift the viewport camera (e.g.
-      the shadow hand test captures the wrist from below).  Setting the camera
-      before warmup corrects the drift without any extra ``env.sim.render()``
-      calls that would otherwise advance physics and change the robot pose.
-    * **Newton backend**: Newton stage init resets the viewport camera during the
-      warmup render loop.  ``env.sim.render()`` calls ``app.update()`` once (inside
-      ``KitVisualizer.step()``), which may trigger the Newton camera reset.  The
-      follow-up ``_update_active_simulation_app()`` is a second ``app.update()``
-      whose output the annotator captures — so we re-apply the camera between the
-      two calls to ensure that second render uses the correct camera position.
-
-      For scenes with prior physics steps (anymal_d, shadow_hand, franka_cloth),
-      ``forward()`` called by ``pre_render()`` inside ``env.sim.render()`` can also
-      write stale body positions to USD Fabric when prior tests contaminate Newton's
-      shared state.  We additionally force a Newton body-transform re-sync between
-      the two ``app.update()`` calls so the second render uses the correct pose.
-      This is the direct analogue of the camera-reapply fix applied to body transforms.
-
-    Note:
-        The body-transform re-sync is only applied when ``prior_physics_steps > 0``
-        because that is when ``NewtonManager._state_0.body_q`` holds confirmed-correct
-        positions (computed by the physics integrator).  At zero steps the state
-        reflects the reset pose before Newton FK has run, so syncing it would write
-        origin positions for articulation links and make things worse.
+    Re-applies the camera between the two ``app.update()`` calls in the warmup loop so
+    that Newton stage init (which resets the viewport camera) does not affect the final
+    frame.  When ``prior_physics_steps > 0``, also re-syncs Newton body transforms
+    between the two calls so the correct pose is rendered.
 
     Args:
         env: The simulation environment.
         kit_visualizer: The active :class:`KitVisualizer` instance.
         resolution: Optional ``(width, height)`` override for the render product.
-        physics_backend: ``"newton"`` to enable the per-render camera reapply
-            and body-transform re-sync between the two ``app.update()`` calls.
-        prior_physics_steps: Number of ``env.step()`` calls already executed
-            before this capture.  When > 0 a Newton body-transform re-sync is
-            also injected between the two ``app.update()`` calls.
+        physics_backend: ``"newton"`` to enable per-render camera reapply and body-
+            transform re-sync.
+        prior_physics_steps: When > 0, injects a Newton body-transform re-sync
+            between the two ``app.update()`` calls.
     """
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
@@ -1172,14 +1095,6 @@ def _capture_kit_viewport_with_pose_reapply(
     annotator, render_product = _build_rgb_annotator_for_camera(camera_path, resolution=resolution)
     try:
         if physics_backend == "newton":
-            # Newton stage init resets the Kit viewport camera during warmup.
-            # Re-apply camera between env.sim.render() (first app.update()) and
-            # _update_active_simulation_app() (second app.update()) so the second
-            # render captures the correct camera position.
-            # Wait (with real sleeps) until Newton's Fabric body positions are valid before
-            # starting RTX warmup renders.  In contaminated test suites SelectPrims may
-            # return 0 for many frames; rendering before it settles accumulates TAA ghost
-            # frames at wrong body positions.
             _drain_until_newton_fabric_ready()
             prev: np.ndarray | None = None
             for i in range(_WARMUP_MAX_FRAMES):
@@ -1380,26 +1295,10 @@ def _capture_visualizer_tiled_camera_rgb(visualizer, *, label: str = "capture") 
         visualizer._update_owned_camera_poses()
         if isinstance(visualizer, KitVisualizer):
             visualizer._sync_camera_pose_updates_to_kit()
-            # Wait (with real sleeps) until Newton's Fabric body selection is populated
-            # before app updates trigger RTX renders.  In contaminated test suites
-            # SelectPrims may return 0 for many frames; rendering before it settles
-            # accumulates wrong-pose RTX frames that corrupt the tiled camera output.
-            # Tiled cameras are unaffected by viewport TAA contamination, so use a
-            # higher iteration ceiling (600) and more Kit updates per iteration (4)
-            # to handle severely GPU-loaded states where attribute propagation is slow.
+            # Tiled cameras are not affected by viewport TAA, so a higher ceiling is safe.
             _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
             _update_active_simulation_app()
-            # Re-sync Newton body transforms after the app update.  Prior tests can leave
-            # stale Newton state that Newton's forward() writes to USD Fabric during the
-            # app update above, corrupting articulation body positions.  This mirrors the
-            # resync done between the two app.update() calls in
-            # _capture_kit_viewport_with_pose_reapply().
             _force_newton_transforms_resync()
-        # Pump until two consecutive tiled frames converge (TAA settled) or the frame
-        # cap is reached.  NewtonVisualizer skips _log_camera_sensor_image() when the
-        # Newton physics state is unavailable (e.g. PhysX backend), so owned cameras may
-        # have had zero renderer updates during physics warmup.  The convergence loop
-        # guarantees every tile has had enough frames to produce a stable image.
         return _pump_tiled_until_stable(camera_sensor, camera_indices)
     rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
     frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()

@@ -16,7 +16,6 @@ camera).
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -48,62 +47,35 @@ _SSIM_THRESHOLD_BY_VISUALIZER: dict[str, float] = {
 # Scene-specific keys take precedence over scene-agnostic ones.
 _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     "kit-tiled": 2.0,
-    # Cartpole Kit viewport runs after tiled tests which leave residual RTX TAA history;
-    # observed 1.35–5.83% diff vs the clean-state golden. The default 1% is too tight.
+    # RTX TAA history from prior tiled tests contaminates the viewport; observed 1.35–5.83%.
     "cartpole-kit-viewport": 7.0,
-    # AnymalD Kit (RTX): Newton kit-tiled cold-start diff is consistently 8–10% across
-    # sessions (golden captured warm, first attempt runs cold); observed up to 9.61%.
-    # Viewport is more stable at ~3.7%. Both pass on warm retry with <0.15%.
+    # AnymalD: golden captured warm, first attempt runs cold; observed up to 9.61%.
     "anymal_d-kit-tiled": 12.0,
     "anymal_d-kit-viewport": 4.5,
-    # Shadow hand Kit (RTX) tiled: 40 extra render-only warmup passes pre-converge
-    # RTX TAA so the cold/warm gap is small; observed 0.81% warm-retry diff.
     "shadow_hand-kit-tiled": 3.0,
-    # Shadow hand Kit viewport: observed 0.00% on warm retry; 2% gives safety margin.
     "shadow_hand-kit-viewport": 2.0,
-    # Franka cloth Kit RTX tiled: 12 prior Newton tests leave RTX global-illumination and
-    # specular-reflection state in a different phase.  The robot+cloth geometry is correct
-    # (SSIM 0.963 passes the 0.960 threshold), but the highly reflective floor produces a
-    # brightness shift: ~16% of pixels exceed the L2-norm-20 threshold (~11.5 units/channel
-    # uniform shift).  Observed warm-retry: 16.1–16.4%.  20% gives a safe margin while SSIM
-    # still catches structural regressions (wrong body pose dropped SSIM to 0.69 in earlier
-    # runs).
+    # 12 prior Newton tests leave RTX GI/specular state shifted; ~16% pixels exceed L2-norm-20.
+    # SSIM (0.960) still catches structural regressions (wrong pose → SSIM 0.69).
     "franka_cloth-kit-tiled": 20.0,
-    # Franka cloth Kit viewport: the Kit RTX viewport's TAA history accumulates frames from
-    # all 14 prior test scenes in the same process.  With ~400+ contaminated viewport frames
-    # and only 20 warmup iterations the TAA blend is ≈67% contaminated, producing a
-    # ghosted/blurred actual image.  Observed contaminated pixel diff: 10.5–10.6%.
-    # 12% gives a safe margin; SSIM (gated separately below) still catches pose regressions.
+    # Kit RTX TAA accumulates ~14 prior test scenes; image is a contaminated blend.
+    # Observed 10.5–10.6%. SSIM separately catches pose regressions.
     "franka_cloth-kit-viewport": 12.0,
 }
 
 _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
-    # Observed ~0.9650 on CI; 0.960 gives headroom without masking real regressions.
     "kit-tiled": 0.960,
-    # Observed 0.8809 for cartpole Kit viewport after prior tiled tests (TAA history contamination).
+    # TAA history contamination from prior tiled tests; observed 0.8809.
     "cartpole-kit-viewport": 0.87,
-    # AnymalD Kit tiled: RTX GI / TAA cold-start state produces SSIM ~0.920 on attempt 1
-    # regardless of warmup length (GI probe cache differs between test runs).  The
-    # convergence-based warmup ensures TAA is settled within the attempt, but the
-    # underlying GI state still varies ≈0.920 on cold start vs warm retry.  0.910 lets
-    # attempt 1 pass (0.920 > 0.910) with a large gap to wrong-pose regressions (0.69
-    # observed for a completely missing body).
-    # AnymalD Kit viewport: observed 0.9678; 0.960 retains a safety margin.
+    # RTX GI cold-start produces SSIM ~0.920 on attempt 1 regardless of warmup length.
+    # 0.910 lets attempt 1 pass with a large gap above wrong-pose regressions (~0.69).
     "anymal_d-kit-tiled": 0.910,
     "anymal_d-kit-viewport": 0.960,
-    # Shadow hand Kit tiled: observed 0.9942 SSIM on warm retry; 0.985 matches kit default.
-    # Shadow hand Kit viewport: observed 1.0000 SSIM on warm retry.
-    # Franka cloth Kit tiled: observed 0.9981 SSIM on warm retry; use kit-tiled default (0.960).
-    # Franka cloth Kit viewport: viewport TAA accumulates frames from 14 prior test scenes.
-    # Even after 20 warmup iterations, the TAA blend is ≈67% contaminated, giving a blurry
-    # image with SSIM ~0.867 vs the clean golden.  0.850 accommodates this while still
-    # catching wrong-pose regressions (a misplaced robot arm shifts the blurry ghost
-    # enough to drop SSIM below 0.80; a completely missing robot drops it further still).
+    # Kit RTX TAA accumulates 14 prior test scenes; blurry contaminated blend → SSIM ~0.867.
+    # Wrong-pose regressions drop SSIM below 0.80.
     "franka_cloth-kit-viewport": 0.850,
 }
 
 _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
-_COMPARISON_IMAGE_SUBDIR = "images"
 
 # RTX variability makes golden checks flaky on CI; match the renderer test retry count.
 FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
@@ -203,7 +175,7 @@ def _compare_images(
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
     """Save ``img`` under the comparison images directory and return the path."""
-    path = os.path.join(_COMPARISON_IMAGES_DIR, _COMPARISON_IMAGE_SUBDIR, filename)
+    path = os.path.join(_COMPARISON_IMAGES_DIR, filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
     return path
@@ -342,103 +314,19 @@ def validate_visualizer_frame(
 
 
 # ---------------------------------------------------------------------------
-# HTML report
+# Pytest fixture factories
 # ---------------------------------------------------------------------------
 
 
-def generate_html_report(comparison_scores: list[dict], report_filename: str) -> None:
-    """Write an HTML comparison report sorted by pixel-diff% descending.
+def _get_active_visualizer(env, viz_type: str):
+    """Return the first visualizer of the given type from ``env.sim.visualizers``."""
+    from isaaclab_visualizers.kit import KitVisualizer
+    from isaaclab_visualizers.newton import NewtonVisualizer
 
-    Args:
-        comparison_scores: Accumulated score entries from :func:`validate_visualizer_frame`.
-        report_filename: Output filename placed under ``tests/comparison-images/``.
-    """
-    if not comparison_scores:
-        return
-
-    os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
-    report_path = os.path.join(_COMPARISON_IMAGES_DIR, report_filename)
-    sorted_scores = sorted(comparison_scores, key=lambda e: -e["diff_pct"])
-
-    rows = []
-    for entry in sorted_scores:
-        status_class = "pass" if entry["passed"] else "fail"
-        status_text = status_class.upper()
-
-        actual_img_html = ""
-        golden_img_html = ""
-        if entry.get("img_result_path"):
-            actual_fname = os.path.relpath(entry["img_result_path"], _COMPARISON_IMAGES_DIR)
-            golden_fname = os.path.relpath(entry["img_golden_path"], _COMPARISON_IMAGES_DIR)
-            actual_img_html = f'<a href="{actual_fname}"><img src="{actual_fname}" width="120" loading="lazy"></a>'
-            golden_img_html = f'<a href="{golden_fname}"><img src="{golden_fname}" width="120" loading="lazy"></a>'
-
-        rows.append(
-            f'<tr class="{status_class}">'
-            f"<td>{entry['test']}</td>"
-            f"<td>{entry['backend']}</td>"
-            f"<td>{entry['visualizer']}</td>"
-            f"<td>{entry['mode']}</td>"
-            f"<td>{entry['diff_pct']:.2f}</td>"
-            f"<td>{entry['threshold']:.1f}</td>"
-            f"<td>{entry['ssim']:.4f}</td>"
-            f"<td>{entry['ssim_threshold']:.4f}</td>"
-            f'<td class="status-{status_class}">{status_text}</td>'
-            f"<td>{actual_img_html}</td>"
-            f"<td>{golden_img_html}</td>"
-            "</tr>"
-        )
-
-    html = (
-        "<!DOCTYPE html>\n"
-        "<html>\n"
-        "<head>\n"
-        '<meta charset="utf-8">\n'
-        "<title>Visualizer Golden Image - Comparison Report</title>\n"
-        "<style>\n"
-        "  body { font-family: sans-serif; font-size: 13px; margin: 16px; }\n"
-        "  h1 { font-size: 1.3em; margin-bottom: 4px; }\n"
-        "  p { margin-top: 4px; color: #555; }\n"
-        "  table { border-collapse: collapse; width: 100%; }\n"
-        "  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: middle; }\n"
-        "  th { background: #f0f0f0; white-space: nowrap; }\n"
-        "  tr.fail { background: #fff0f0; }\n"
-        "  tr.pass:hover, tr.fail:hover { filter: brightness(0.96); }\n"
-        "  .status-pass { color: #2a7a2a; font-weight: bold; }\n"
-        "  .status-fail { color: #cc0000; font-weight: bold; }\n"
-        "  img { display: block; max-width: 120px; height: auto; }\n"
-        "</style>\n"
-        "</head>\n"
-        "<body>\n"
-        "<h1>Visualizer Golden Image - Comparison Report</h1>\n"
-        f"<p>Sorted by PixelDiff&nbsp;% (desc) &mdash; {len(sorted_scores)}&nbsp;total.</p>\n"
-        "<table>\n"
-        "<thead><tr>"
-        "<th>Test</th>"
-        "<th>Backend</th>"
-        "<th>Visualizer</th>"
-        "<th>Mode</th>"
-        "<th>PixelDiff&nbsp;%</th>"
-        "<th>PixelDiff Threshold&nbsp;%</th>"
-        "<th>SSIM</th>"
-        "<th>SSIM Threshold</th>"
-        "<th>Status</th>"
-        "<th>ACTUAL</th>"
-        "<th>GOLDEN</th>"
-        "</tr></thead>\n"
-        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n"
-        f"<p>Generated:&nbsp;{datetime.now().astimezone().isoformat(timespec='seconds')}.</p>\n"
-        "</body>\n"
-        "</html>\n"
-    )
-
-    with open(report_path, "w", encoding="utf-8") as file:
-        file.write(html)
-
-
-# ---------------------------------------------------------------------------
-# Pytest fixture factories  (mirrors rendering_test_utils.py factories)
-# ---------------------------------------------------------------------------
+    cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
+    matches = [v for v in env.sim.visualizers if isinstance(v, cls)]
+    assert matches, f"Expected a {viz_type} visualizer in env.sim.visualizers."
+    return matches[0]
 
 
 def run_visualizer_golden_cartpole(
@@ -464,28 +352,16 @@ def run_visualizer_golden_cartpole(
     """
     import torch
     import visualizer_integration_utils as _viz_utils
-    from isaaclab_visualizers.kit import KitVisualizer
-    from isaaclab_visualizers.newton import NewtonVisualizer
 
     import isaaclab.sim as sim_utils
 
-    def _get_active_visualizer(env, viz_type: str):
-        cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
-        matches = [v for v in env.sim.visualizers if isinstance(v, cls)]
-        assert matches, f"Expected a {viz_type} visualizer in env.sim.visualizers."
-        return matches[0]
-
     def _capture_frame(env, viz_type: str, capture_mode: str, backend: str, actions: torch.Tensor):
         if capture_mode == "tiled":
-            viz = _get_active_visualizer(env, viz_type)
-            return _viz_utils._capture_visualizer_tiled_camera_rgb(viz)
-
+            return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
-            kit_viz = _get_active_visualizer(env, "kit")
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
-                env, kit_viz, physics_backend=backend, prior_physics_steps=buffer_steps
+                env, _get_active_visualizer(env, "kit"), physics_backend=backend, prior_physics_steps=buffer_steps
             )
-
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
         assert viewer is not None, "NewtonVisualizer did not create a viewer."
@@ -540,32 +416,20 @@ def run_visualizer_golden_shadow_hand(
     """
     import torch
     import visualizer_integration_utils as _viz_utils
-    from isaaclab_visualizers.kit import KitVisualizer
-    from isaaclab_visualizers.newton import NewtonVisualizer
 
     import isaaclab.sim as sim_utils
 
-    def _get_active_visualizer(env, viz_type: str):
-        cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
-        matches = [v for v in env.sim.visualizers if isinstance(v, cls)]
-        assert matches, f"Expected a {viz_type} visualizer in env.sim.visualizers."
-        return matches[0]
-
     def _capture_frame(env, viz_type: str, capture_mode: str, backend: str, actions: torch.Tensor):
         if capture_mode == "tiled":
-            viz = _get_active_visualizer(env, viz_type)
-            return _viz_utils._capture_visualizer_tiled_camera_rgb(viz)
-
+            return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
-            kit_viz = _get_active_visualizer(env, "kit")
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
                 env,
-                kit_viz,
+                _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION,
                 physics_backend=backend,
                 prior_physics_steps=0,
             )
-
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
         assert viewer is not None, "NewtonVisualizer did not create a viewer."
@@ -628,32 +492,20 @@ def run_visualizer_golden_anymal_d(
     """
     import torch
     import visualizer_integration_utils as _viz_utils
-    from isaaclab_visualizers.kit import KitVisualizer
-    from isaaclab_visualizers.newton import NewtonVisualizer
 
     import isaaclab.sim as sim_utils
 
-    def _get_active_visualizer(env, viz_type: str):
-        cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
-        matches = [v for v in env.sim.visualizers if isinstance(v, cls)]
-        assert matches, f"Expected a {viz_type} visualizer in env.sim.visualizers."
-        return matches[0]
-
     def _capture_frame(env, viz_type: str, capture_mode: str, backend: str, actions: torch.Tensor):
         if capture_mode == "tiled":
-            viz = _get_active_visualizer(env, viz_type)
-            return _viz_utils._capture_visualizer_tiled_camera_rgb(viz)
-
+            return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
-            kit_viz = _get_active_visualizer(env, "kit")
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
                 env,
-                kit_viz,
+                _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION,
                 physics_backend=backend,
                 prior_physics_steps=_viz_utils._START_BUFFER_STEPS,
             )
-
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
         assert viewer is not None, "NewtonVisualizer did not create a viewer."
@@ -708,32 +560,20 @@ def run_visualizer_golden_franka_cloth(
 
     import torch
     import visualizer_integration_utils as _viz_utils
-    from isaaclab_visualizers.kit import KitVisualizer
-    from isaaclab_visualizers.newton import NewtonVisualizer
 
     import isaaclab.sim as sim_utils
 
-    def _get_active_visualizer(env, viz_type: str):
-        cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
-        matches = [v for v in env.sim.visualizers if isinstance(v, cls)]
-        assert matches, f"Expected a {viz_type} visualizer in env.sim.visualizers."
-        return matches[0]
-
     def _capture_frame(env, viz_type: str, capture_mode: str, actions: torch.Tensor):
         if capture_mode == "tiled":
-            viz = _get_active_visualizer(env, viz_type)
-            return _viz_utils._capture_visualizer_tiled_camera_rgb(viz)
-
+            return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
-            kit_viz = _get_active_visualizer(env, "kit")
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
                 env,
-                kit_viz,
+                _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION,
                 physics_backend="newton",
                 prior_physics_steps=_viz_utils._FRANKA_CLOTH_WARMUP_STEPS,
             )
-
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
         assert viewer is not None, "NewtonVisualizer did not create a viewer."
@@ -779,22 +619,6 @@ def make_determinism_fixture():
         SimulationContext.clear_instance()
 
     return _determinism_fixture
-
-
-def make_generate_html_report_fixture(comparison_scores: list[dict], report_filename: str):
-    """Create a session-scoped fixture that writes the HTML report after all tests.
-
-    Args:
-        comparison_scores: Module-local comparison score list shared with test functions.
-        report_filename: Output filename (placed under ``tests/comparison-images/``).
-    """
-
-    @pytest.fixture(scope="session", autouse=True)
-    def _generate_html_report():
-        yield
-        generate_html_report(comparison_scores, report_filename)
-
-    return _generate_html_report
 
 
 def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
