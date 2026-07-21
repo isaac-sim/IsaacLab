@@ -4,6 +4,7 @@ Changed
 * Changed the automate and factory environments to apply the armature inertia offset through
   :meth:`~isaaclab.assets.Articulation.set_inertias_index` instead of the raw tensor view, so
   :attr:`~isaaclab.assets.ArticulationData.body_inertia` stays coherent.
+  No user migration is required.
 
 Fixed
 ^^^^^
