@@ -2070,13 +2070,21 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _mark_sensor_state_dirty(cls) -> None:
-        """Bind the current state and mark the shape BVH stale."""
-        if cls._state_0 is None:
+        """Bind the current state and mark the shape BVH stale.
+
+        Writes through :class:`NewtonManager` rather than ``cls`` because the
+        sensor-task registry and its dirty flag are singleton state owned by the
+        base class (sensors and renderers reach it via ``NewtonManager``). This
+        method is invoked from the step loop where ``cls`` is the active solver
+        subclass, so assigning through ``cls`` would shadow the base attribute
+        and the per-step refit request would never reach the sensor tasks.
+        """
+        if NewtonManager._state_0 is None:
             return
-        if cls._state_0 is not cls._sensor_state:
-            cls._sensor_state = cls._state_0
-            cls._invalidate_sensor_graph()
-        cls._sensor_state_dirty = True
+        if NewtonManager._state_0 is not NewtonManager._sensor_state:
+            NewtonManager._sensor_state = NewtonManager._state_0
+            NewtonManager._invalidate_sensor_graph()
+        NewtonManager._sensor_state_dirty = True
 
     @classmethod
     def _refit_sensor_bvh(cls) -> None:
