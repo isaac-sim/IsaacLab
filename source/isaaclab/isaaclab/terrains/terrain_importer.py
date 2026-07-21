@@ -336,6 +336,9 @@ class TerrainImporter:
     def configure_env_origins(self, origins: np.ndarray | torch.Tensor | None = None) -> None:
         """Configure the origins of the environments based on the added terrain.
 
+        Reconfiguration copies into the existing origin buffers when layouts match,
+        so cached Torch tensors and Warp views held by consumers stay valid.
+
         Args:
             origins: The origins [m] of the sub-terrains. Shape is (num_rows, num_cols, 3).
         """
@@ -345,16 +348,22 @@ class TerrainImporter:
             if isinstance(origins, np.ndarray):
                 origins = torch.from_numpy(origins)
             # store the origins
-            self.terrain_origins = origins.to(self.device, dtype=torch.float)
+            self.terrain_origins = self._assign_pointer_stable(
+                self.terrain_origins, origins.to(self.device, dtype=torch.float)
+            )
             # compute environment origins
-            self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
+            self.env_origins = self._assign_pointer_stable(
+                self.env_origins, self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
+            )
         else:
             self.terrain_origins = None
             # check if env spacing is valid
             if self.cfg.env_spacing is None:
                 raise ValueError("Environment spacing must be specified for configuring grid-like origins.")
             # compute environment origins
-            self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
+            self.env_origins = self._assign_pointer_stable(
+                self.env_origins, self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
+            )
         self._configure_warp_origin_views()
 
     def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor) -> None:
@@ -440,17 +449,38 @@ class TerrainImporter:
     Internal helpers.
     """
 
+    @staticmethod
+    def _assign_pointer_stable(current: torch.Tensor | None, new: torch.Tensor) -> torch.Tensor:
+        """Copy into the existing buffer when layouts match so cached views stay valid."""
+        if (
+            current is not None
+            and current.shape == new.shape
+            and current.dtype == new.dtype
+            and current.device == new.device
+        ):
+            current.copy_(new)
+            return current
+        return new
+
     def _configure_warp_origin_views(self) -> None:
-        """Create persistent zero-copy Warp views after configuring the Torch buffers."""
-        self._env_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
+        """Create persistent zero-copy Warp views after configuring the Torch buffers.
+
+        Existing views are kept when reconfiguration reuses the underlying Torch
+        storage, so consumers holding these views stay valid.
+        """
+        if self._env_origins_wp is None or self._env_origins_wp.ptr != self.env_origins.data_ptr():
+            self._env_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
         if self.terrain_origins is None:
             self._terrain_levels_wp = None
             self._terrain_types_wp = None
             self._terrain_origins_wp = None
             return
-        self._terrain_levels_wp = wp.from_torch(self.terrain_levels, dtype=wp.int64)
-        self._terrain_types_wp = wp.from_torch(self.terrain_types, dtype=wp.int64)
-        self._terrain_origins_wp = wp.from_torch(self.terrain_origins, dtype=wp.vec3f)
+        if self._terrain_levels_wp is None or self._terrain_levels_wp.ptr != self.terrain_levels.data_ptr():
+            self._terrain_levels_wp = wp.from_torch(self.terrain_levels, dtype=wp.int64)
+        if self._terrain_types_wp is None or self._terrain_types_wp.ptr != self.terrain_types.data_ptr():
+            self._terrain_types_wp = wp.from_torch(self.terrain_types, dtype=wp.int64)
+        if self._terrain_origins_wp is None or self._terrain_origins_wp.ptr != self.terrain_origins.data_ptr():
+            self._terrain_origins_wp = wp.from_torch(self.terrain_origins, dtype=wp.vec3f)
 
     def _compute_env_origins_curriculum(self, num_envs: int, origins: torch.Tensor) -> torch.Tensor:
         """Compute the origins of the environments defined by the sub-terrains origins."""
@@ -464,10 +494,16 @@ class TerrainImporter:
         # store maximum terrain level possible
         self.max_terrain_level = num_rows
         # define all terrain levels and types available
-        self.terrain_levels = torch.randint(0, max_init_level + 1, (num_envs,), device=self.device)
-        self.terrain_types = torch.div(
-            torch.arange(num_envs, device=self.device), (num_envs / num_cols), rounding_mode="floor"
-        ).to(torch.long)
+        self.terrain_levels = self._assign_pointer_stable(
+            getattr(self, "terrain_levels", None),
+            torch.randint(0, max_init_level + 1, (num_envs,), device=self.device),
+        )
+        self.terrain_types = self._assign_pointer_stable(
+            getattr(self, "terrain_types", None),
+            torch.div(torch.arange(num_envs, device=self.device), (num_envs / num_cols), rounding_mode="floor").to(
+                torch.long
+            ),
+        )
         # create tensor based on number of environments
         env_origins = torch.zeros(num_envs, 3, device=self.device)
         env_origins[:] = origins[self.terrain_levels, self.terrain_types]

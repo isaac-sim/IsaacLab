@@ -154,6 +154,16 @@ class _Env:
         return self.scene.env_origins_wp
 
 
+def _init_terrain_buffers(terrain: TerrainImporter) -> None:
+    """Mirror the buffer initializers of :meth:`TerrainImporter.__init__`."""
+    terrain.terrain_origins = None
+    terrain.env_origins = None
+    terrain._terrain_levels_wp = None
+    terrain._terrain_types_wp = None
+    terrain._terrain_origins_wp = None
+    terrain._env_origins_wp = None
+
+
 def _make_terrain(levels: list[int]) -> TerrainImporter:
     num_envs = len(levels)
     terrain = TerrainImporter.__new__(TerrainImporter)
@@ -163,6 +173,7 @@ def _make_terrain(levels: list[int]) -> TerrainImporter:
         max_init_terrain_level=2,
         terrain_generator=SimpleNamespace(size=(8.0, 8.0)),
     )
+    _init_terrain_buffers(terrain)
     level_values = np.asarray(levels, dtype=np.int64)
     type_values = np.asarray([index % 2 for index in range(num_envs)], dtype=np.int64)
     origin_values = np.zeros((3, 2, 3), dtype=np.float32)
@@ -206,6 +217,7 @@ def test_terrain_importer_grid_origins_cache_only_environment_view():
     terrain = TerrainImporter.__new__(TerrainImporter)
     terrain.device = "cpu"
     terrain.cfg = SimpleNamespace(num_envs=4, env_spacing=2.0)
+    _init_terrain_buffers(terrain)
     terrain.configure_env_origins()
 
     assert terrain.terrain_origins is None
@@ -216,6 +228,22 @@ def test_terrain_importer_grid_origins_cache_only_environment_view():
     assert terrain._terrain_levels_wp is None
     assert terrain._terrain_types_wp is None
     assert terrain._terrain_origins_wp is None
+
+
+def test_terrain_importer_reconfigure_preserves_cached_views():
+    """Reconfiguring origins must reuse buffer storage so cached views stay valid."""
+    terrain = _make_terrain([0, 1, 2, 1])
+    env_origins_wp = terrain.env_origins_wp
+    levels_wp = terrain.terrain_levels_wp
+    env_origins_ptr = terrain.env_origins.data_ptr()
+    shifted_origins = terrain.terrain_origins.clone() + 1.0
+
+    terrain.configure_env_origins(shifted_origins)
+
+    assert terrain.env_origins_wp is env_origins_wp
+    assert terrain.terrain_levels_wp is levels_wp
+    assert terrain.env_origins.data_ptr() == env_origins_ptr
+    torch.testing.assert_close(terrain.terrain_origins, shifted_origins)
 
 
 def test_terrain_importer_mask_update_preserves_sparse_and_stable_semantics():
@@ -350,6 +378,34 @@ def test_curriculum_manager_compacts_ids_inside_legacy_term_boundary():
 
     torch.testing.assert_close(term.compute_env_ids, torch.tensor([0, 2]))
     torch.testing.assert_close(term.reset_env_ids, torch.tensor([0, 2]))
+    torch.testing.assert_close(extras["Curriculum/id_count"], torch.tensor(4.0))
+
+
+def test_curriculum_manager_consumes_threaded_ids_without_compaction(monkeypatch: pytest.MonkeyPatch):
+    """Precomputed compact IDs should reach legacy terms without another host materialization."""
+    env = SimpleNamespace(
+        num_envs=4,
+        device="cpu",
+        sim=SimpleNamespace(is_playing=lambda: True),
+    )
+    manager = CurriculumManager(
+        {"id_count": CurriculumTermCfg(func=_LegacyIdCurriculumTerm, params={"scale": 2.0})},
+        env,
+    )
+    env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
+    precomputed_ids = torch.tensor([0, 2])
+    term = manager._term_cfgs[0].func
+
+    def _fail_host_compaction(*args, **kwargs):
+        raise AssertionError("threaded IDs must not be re-materialized")
+
+    with monkeypatch.context() as context:
+        context.setattr(torch.Tensor, "nonzero", _fail_host_compaction)
+        manager.compute(env_mask, env_ids=precomputed_ids)
+        extras = manager.reset(env_mask, env_ids=precomputed_ids)
+
+    torch.testing.assert_close(term.compute_env_ids, precomputed_ids)
+    torch.testing.assert_close(term.reset_env_ids, precomputed_ids)
     torch.testing.assert_close(extras["Curriculum/id_count"], torch.tensor(4.0))
 
 

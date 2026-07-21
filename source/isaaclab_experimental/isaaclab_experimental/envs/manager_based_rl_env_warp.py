@@ -453,21 +453,32 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self,
         *,
         env_mask: wp.array(dtype=wp.bool),
+        env_ids: torch.Tensor | None = None,
     ) -> None:
         """Reset Warp-owned RL state for selected environments.
 
         Args:
             env_mask: Boolean Warp mask selecting environments to reset.
+            env_ids: Compact environment IDs matching :paramref:`env_mask`, when a
+                host consumer (e.g. the recorder boundary) already materialized them.
         """
         if env_mask is not self.reset_mask_wp:
             wp.copy(self.reset_mask_wp, env_mask)
         env_mask = self.reset_mask_wp
 
+        # Legacy curriculum terms consume compact IDs. Materialize them at most
+        # once per reset and share the recorder boundary's IDs when available.
+        curriculum_kwargs: dict[str, Any] = {"env_mask": env_mask}
+        if self.curriculum_manager.requires_host_ids:
+            if env_ids is None:
+                env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: legacy terms
+            curriculum_kwargs["env_ids"] = env_ids
+
         self._warp_graph_cache.call(
             "CurriculumManager_compute",
             self.curriculum_manager.compute,
-            env_mask=env_mask,
             timer=DEBUG_TIMER_RESET,
+            **curriculum_kwargs,
         )
 
         with Timer(name="Scene_reset", msg="Scene reset took:", enable=DEBUG_TIMER_RESET, time_unit="us"):
@@ -509,8 +520,8 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         curriculum_info = self._warp_graph_cache.call(
             "CurriculumManager_reset",
             self.curriculum_manager.reset,
-            env_mask=env_mask,
             timer=DEBUG_TIMER_RESET,
+            **curriculum_kwargs,
         )
 
         # -- command + event + termination managers
@@ -568,6 +579,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         if self.cfg.compute_final_obs:
             self.extras["final_obs"] = self.observation_manager.compute()
 
+        recorder_env_ids = None
         if self._has_recorders:
             with Timer(
                 name="reset_selection_host",
@@ -575,7 +587,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 enable=DEBUG_TIMER_STEP,
                 time_unit="us",
             ):
-                recorder_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+                recorder_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: recorders
             self.recorder_manager.record_pre_reset(recorder_env_ids)
 
         with Timer(
@@ -584,7 +596,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             enable=DEBUG_TIMER_STEP,
             time_unit="us",
         ):
-            self._reset_idx(env_mask=reset_mask)
+            self._reset_idx(env_mask=reset_mask, env_ids=recorder_env_ids)
 
         if self._has_recorders:
             self.extras["log"].update(self.recorder_manager.reset(recorder_env_ids))

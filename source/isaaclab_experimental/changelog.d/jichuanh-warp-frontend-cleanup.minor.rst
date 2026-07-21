@@ -24,3 +24,5 @@ Fixed
   corrected center-of-mass sampling and termination metrics for partial resets.
 * Fixed captured velocity-command terms to read current root state on every
   replay instead of stale lazy-derived buffers.
+* Fixed identity quaternion initialization for the Warp-native uniform pose
+  command term.

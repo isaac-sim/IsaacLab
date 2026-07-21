@@ -91,17 +91,20 @@ class CurriculumManager(ManagerBase):
     def reset(
         self,
         env_mask: wp.array(dtype=wp.bool),
+        env_ids: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         """Reset selected class terms and return persistent curriculum logging outputs.
 
         Args:
             env_mask: Boolean Warp mask selecting environments to reset.
+            env_ids: Precomputed compact environment IDs matching :paramref:`env_mask`.
+                When omitted, legacy terms materialize IDs once at this boundary.
 
         Returns:
             Persistent scalar curriculum states keyed by their logging paths.
         """
         env_mask = self._resolve_reset_mask(None, env_mask)
-        compact_env_ids = None
+        compact_env_ids = env_ids
         for term_cfg, mode in zip(self._term_cfgs, self._term_modes):
             if isinstance(term_cfg.func, ManagerTermBase):
                 term_cfg.func.reset(env_mask=env_mask)
@@ -128,15 +131,18 @@ class CurriculumManager(ManagerBase):
     def compute(
         self,
         env_mask: wp.array(dtype=wp.bool),
+        env_ids: torch.Tensor | None = None,
     ) -> None:
         """Update curriculum terms for selected environments.
 
         Args:
             env_mask: Boolean Warp mask selecting environments to update.
+            env_ids: Precomputed compact environment IDs matching :paramref:`env_mask`.
+                When omitted, legacy terms materialize IDs once at this boundary.
         """
         env_mask = self._resolve_reset_mask(None, env_mask)
         self._term_states_wp.zero_()
-        compact_env_ids = None
+        compact_env_ids = env_ids
         for term_idx, (term_cfg, mode) in enumerate(zip(self._term_cfgs, self._term_modes)):
             if mode == "mask":
                 term_cfg.func(self._env, env_mask, term_cfg.out, **term_cfg.params)
@@ -240,4 +246,4 @@ class CurriculumManager(ManagerBase):
     @staticmethod
     def _compact_legacy_env_ids(env_mask: wp.array(dtype=wp.bool)) -> torch.Tensor:
         """Materialize compact Torch IDs at the legacy curriculum boundary."""
-        return wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        return wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: legacy curriculum terms

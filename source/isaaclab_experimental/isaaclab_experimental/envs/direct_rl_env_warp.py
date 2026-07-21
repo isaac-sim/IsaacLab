@@ -225,8 +225,11 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Direct-task stages include Python reset hooks and stay eager until those
-        # complete boundaries are validated for capture.
+        # Direct-task stages stay eager. The end-pre stage resets through
+        # scene.reset(), whose legacy Torch actuator boundary materializes
+        # compact IDs on the host, and CUDA graph replay would silently skip
+        # that Python-side reset work. The follow-up launch-replay execution
+        # path restores capture for validated stages.
         self._warp_graph_cache = WarpGraphCache(enabled=False, device=self.device)
 
         # setup the action and observation spaces for Gym

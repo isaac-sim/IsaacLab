@@ -5,8 +5,5 @@ Added
   :attr:`~isaaclab.terrains.TerrainImporter.terrain_levels_wp`, and
   :meth:`~isaaclab.terrains.TerrainImporter.update_env_origins_mask` for zero-copy Warp terrain
   access and mask-based curriculum updates.
-
-Fixed
-^^^^^
-
-* Fixed identity quaternion initialization for uniform pose commands.
+* Added :attr:`~isaaclab.scene.InteractiveScene.env_origins_wp` and a boolean ``env_mask``
+  option to :meth:`~isaaclab.scene.InteractiveScene.reset` for mask-based scene resets.

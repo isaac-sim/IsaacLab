@@ -5,7 +5,7 @@
 
 """Tests for Warp reset-mask forwarding to Newton asset wrench storage."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import warp as wp
 from isaaclab_newton.assets.articulation.articulation import Articulation
@@ -61,3 +61,26 @@ def test_articulation_without_lab_actuators_keeps_mask_on_device() -> None:
     asset.reset(env_mask=env_mask)
 
     asset._instantaneous_wrench_composer.reset.assert_called_once_with(slice(None), env_mask)
+
+
+def test_articulation_native_mode_masked_reset_skips_lab_actuators() -> None:
+    """Native-mode partial resets must not reset Lab actuator state for all environments."""
+    asset = Articulation.__new__(Articulation)
+    asset._initialize_handle = None
+    asset._invalidate_initialize_handle = None
+    asset._prim_deletion_handle = None
+    lab_actuator = Mock()
+    asset.actuators = {"legs": lab_actuator}
+    asset._has_newton_actuators = True
+    asset._instantaneous_wrench_composer = Mock()
+    asset._permanent_wrench_composer = Mock()
+    env_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
+    adapter = Mock()
+
+    from isaaclab_newton.physics import NewtonManager
+
+    with patch.object(NewtonManager, "_adapter", adapter):
+        asset.reset(env_mask=env_mask)
+
+    lab_actuator.reset.assert_not_called()
+    adapter.reset.assert_called_once_with(slice(None), env_mask=env_mask)

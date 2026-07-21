@@ -169,8 +169,8 @@ def test_reset_dispatches_warp_mask_to_supported_entities() -> None:
         entity.reset.assert_called_once_with(env_mask=env_mask)
 
 
-def test_mask_reset_compacts_ids_for_surface_grippers() -> None:
-    """Mask reset should materialize IDs only for the legacy gripper boundary."""
+def test_mask_reset_forwards_boolean_mask_to_surface_grippers() -> None:
+    """Mask reset should hand surface grippers a boolean Torch view, not compact IDs."""
     scene = object.__new__(InteractiveScene)
     gripper = Mock()
     scene._articulations = {}
@@ -183,8 +183,10 @@ def test_mask_reset_compacts_ids_for_surface_grippers() -> None:
 
     scene.reset(env_mask=env_mask)
 
-    env_ids = gripper.reset.call_args.args[0]
-    assert torch.equal(env_ids, torch.tensor([0, 2], dtype=torch.int64))
+    gripper.reset.assert_not_called()
+    gripper_env_mask = gripper.reset_mask.call_args.args[0]
+    assert gripper_env_mask.dtype == torch.bool
+    assert torch.equal(gripper_env_mask, torch.tensor([True, False, True]))
 
 
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):

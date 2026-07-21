@@ -190,9 +190,11 @@ class InteractiveScene:
 
         self._aggregate_scene_data_requirements(requested_viz_types)
 
-        # The clone plan and terrain importer own the Torch origins buffer. Cache
-        # one zero-copy Warp view so frontend code does not rebuild it per access.
-        self._env_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
+        # The terrain importer owns its origins buffer together with its Warp view.
+        # For clone-plan origins, :attr:`env_origins_wp` caches a zero-copy view on
+        # first access (manager/term initialization, outside capture), so scene
+        # construction does not require a published clone plan.
+        self._clone_origins_wp = None
 
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
@@ -377,8 +379,17 @@ class InteractiveScene:
 
     @property
     def env_origins_wp(self) -> wp.array(dtype=wp.vec3f):
-        """Cached zero-copy Warp view of environment origins [m], shape ``(num_envs,)``."""
-        return self._env_origins_wp
+        """Zero-copy Warp view of environment origins [m], shape ``(num_envs,)``.
+
+        Terrain-backed scenes forward the terrain importer's cached view so both
+        accessors always share one storage owner. Clone-plan origins are wrapped
+        lazily on first access and cached.
+        """
+        if self._terrain is not None:
+            return self._terrain.env_origins_wp
+        if self._clone_origins_wp is None:
+            self._clone_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
+        return self._clone_origins_wp
 
     @property
     def terrain(self) -> TerrainImporter | None:
@@ -481,12 +492,16 @@ class InteractiveScene:
             deformable_object.reset(**reset_kwargs)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(**reset_kwargs)
-        if env_mask is not None and self._surface_grippers:
-            # Surface grippers expose only the legacy ID API. Materialize IDs at
-            # this optional PhysX boundary without penalizing Warp-native scenes.
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.reset(env_ids)
+        if env_mask is not None:
+            # Surface grippers are CPU-only assets driven through a Torch API.
+            # Hand them the boolean view and let their compatibility layer own
+            # any index materialization.
+            gripper_env_mask = wp.to_torch(env_mask) if self._surface_grippers else None
+            for surface_gripper in self._surface_grippers.values():
+                surface_gripper.reset_mask(gripper_env_mask)
+        else:
+            for surface_gripper in self._surface_grippers.values():
+                surface_gripper.reset(env_ids)
         for rigid_object_collection in self._rigid_object_collections.values():
             rigid_object_collection.reset(**reset_kwargs)
         # -- sensors

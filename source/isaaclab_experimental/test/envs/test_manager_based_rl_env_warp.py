@@ -33,7 +33,7 @@ def test_reset_without_host_consumers_does_not_compact_ids() -> None:
     env._reset_terminated_envs()
 
     env.reset_buf.nonzero.assert_not_called()
-    env._reset_idx.assert_called_once_with(env_mask=reset_mask)
+    env._reset_idx.assert_called_once_with(env_mask=reset_mask, env_ids=None)
 
 
 def test_curriculum_uses_mask_before_scene_reset() -> None:
@@ -54,7 +54,7 @@ def test_curriculum_uses_mask_before_scene_reset() -> None:
         reset=Mock(side_effect=lambda **kwargs: stages.append(("Scene_reset", kwargs))),
         surface_grippers={},
     )
-    env.curriculum_manager = SimpleNamespace(compute=Mock(), reset=Mock())
+    env.curriculum_manager = SimpleNamespace(compute=Mock(), reset=Mock(), requires_host_ids=False)
     env.event_manager = SimpleNamespace(available_modes=[], reset=Mock())
     env.observation_manager = SimpleNamespace(reset=Mock())
     env.action_manager = SimpleNamespace(reset=Mock())
@@ -89,7 +89,7 @@ def test_reset_stages_reuse_owner_mask_for_sparse_and_empty_selections() -> None
     env.sim = SimpleNamespace(device="cpu")
     env.reset_mask_wp = wp.zeros(3, dtype=wp.bool, device="cpu")
     env.scene = SimpleNamespace(num_envs=3, reset=Mock(), surface_grippers={})
-    env.curriculum_manager = SimpleNamespace(compute=Mock(), reset=Mock())
+    env.curriculum_manager = SimpleNamespace(compute=Mock(), reset=Mock(), requires_host_ids=False)
     env.event_manager = SimpleNamespace(available_modes=[], reset=Mock())
     env.observation_manager = SimpleNamespace(reset=Mock())
     env.action_manager = SimpleNamespace(reset=Mock())
@@ -106,6 +106,37 @@ def test_reset_stages_reuse_owner_mask_for_sparse_and_empty_selections() -> None
     assert seen[1][0] is env.reset_mask_wp
     np.testing.assert_array_equal(seen[0][1], [False, True, False])
     np.testing.assert_array_equal(seen[1][1], [False, False, False])
+
+
+def test_reset_threads_one_id_materialization_to_legacy_curriculum() -> None:
+    """Legacy curriculum consumers should share one compact-ID materialization per reset."""
+    env = ManagerBasedRLEnvWarp.__new__(ManagerBasedRLEnvWarp)
+    stages: dict[str, dict] = {}
+
+    def call(stage, fn, /, *args, **kwargs):
+        del fn, args
+        stages[stage] = kwargs
+        return None if stage.endswith("_compute") else {}
+
+    env._warp_graph_cache = SimpleNamespace(call=call)
+    env.sim = SimpleNamespace(device="cpu")
+    env.reset_mask_wp = wp.zeros(3, dtype=wp.bool, device="cpu")
+    env.scene = SimpleNamespace(num_envs=3, reset=Mock(), surface_grippers={})
+    env.curriculum_manager = SimpleNamespace(compute=Mock(), reset=Mock(), requires_host_ids=True)
+    env.event_manager = SimpleNamespace(available_modes=[], reset=Mock())
+    env.observation_manager = SimpleNamespace(reset=Mock())
+    env.action_manager = SimpleNamespace(reset=Mock())
+    env.reward_manager = SimpleNamespace(reset=Mock())
+    env.command_manager = SimpleNamespace(reset=Mock())
+    env.termination_manager = SimpleNamespace(reset=Mock())
+    env._episode_length_buf_wp = wp.ones(3, dtype=wp.int64, device="cpu")
+    env.extras = {}
+
+    env._reset_idx(env_mask=wp.array([False, True, True], dtype=wp.bool, device="cpu"))
+
+    compute_ids = stages["CurriculumManager_compute"]["env_ids"]
+    torch.testing.assert_close(compute_ids, torch.tensor([1, 2]))
+    assert stages["CurriculumManager_reset"]["env_ids"] is compute_ids
 
 
 def test_reset_compacts_ids_only_for_active_recorders() -> None:
@@ -126,7 +157,7 @@ def test_reset_compacts_ids_only_for_active_recorders() -> None:
 
     reset_ids = env.recorder_manager.record_pre_reset.call_args.args[0]
     torch.testing.assert_close(reset_ids, torch.tensor([1]))
-    env._reset_idx.assert_called_once_with(env_mask=reset_mask)
+    env._reset_idx.assert_called_once_with(env_mask=reset_mask, env_ids=reset_ids)
     env.recorder_manager.reset.assert_called_once_with(reset_ids)
     env.recorder_manager.record_post_reset.assert_called_once_with(reset_ids)
     assert env.extras["log"]["recorder"] == 1.0
@@ -147,7 +178,7 @@ def test_rtx_rerender_does_not_require_compact_reset_ids() -> None:
 
     env._reset_terminated_envs()
 
-    env._reset_idx.assert_called_once_with(env_mask=reset_mask)
+    env._reset_idx.assert_called_once_with(env_mask=reset_mask, env_ids=None)
     assert env.sim.render.call_count == 2
 
 
@@ -185,4 +216,4 @@ def test_reset_captures_final_observation_before_reset() -> None:
 
     assert env.extras["final_obs"] is final_obs
     env.observation_manager.compute.assert_called_once_with()
-    env._reset_idx.assert_called_once_with(env_mask=reset_mask)
+    env._reset_idx.assert_called_once_with(env_mask=reset_mask, env_ids=None)

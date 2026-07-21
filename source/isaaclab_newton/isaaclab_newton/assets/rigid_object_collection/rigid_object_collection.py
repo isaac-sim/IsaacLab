@@ -266,8 +266,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_poses: Body poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7)
@@ -297,8 +297,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_poses: Body poses in simulation frame. Shape is (num_instances, num_bodies, 7)
@@ -339,8 +339,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_velocities: Body velocities in simulation frame.
@@ -374,8 +374,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_velocities: Body velocities in simulation frame.
@@ -422,8 +422,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_poses: Body link poses in simulation frame.
@@ -479,8 +479,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7)
@@ -520,8 +520,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_poses: Body center of mass poses in simulation frame.
@@ -580,8 +580,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7)
@@ -624,8 +624,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_velocities: Body center of mass velocities in simulation frame.
@@ -689,8 +689,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_velocities: Body center of mass velocities in simulation frame.
@@ -738,8 +738,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_velocities: Body link velocities in simulation frame.
@@ -806,8 +806,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6)
@@ -848,8 +848,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)).
@@ -891,8 +891,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
@@ -935,8 +935,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         .. caution::
             Unlike the PhysX version of this method, this method does not set the center of mass orientation.
@@ -985,8 +985,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         .. caution::
             Unlike the PhysX version of this method, this method does not set the center of mass orientation.
@@ -1036,8 +1036,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
@@ -1079,8 +1079,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            Both the index and mask methods route through the same index implementation: mask inputs are
+            currently compacted to host indices internally, so neither variant is CUDA-graph capturable yet.
 
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
@@ -1277,12 +1277,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
+    # TODO: Replace the host-side compaction below with mask-native write kernels so the
+    # write_*_to_sim_mask methods become CUDA-graph capturable.
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment mask to indices via torch.nonzero."""
         if env_mask is not None:
             if isinstance(env_mask, wp.array):
                 env_mask = wp.to_torch(env_mask)
-            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)
+            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)  # mask-boundary: legacy index write path
         else:
             env_ids = self._ALL_ENV_INDICES
         return env_ids
@@ -1292,7 +1294,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if body_mask is not None:
             if isinstance(body_mask, wp.array):
                 body_mask = wp.to_torch(body_mask)
-            body_ids = torch.nonzero(body_mask)[:, 0].to(torch.int32)
+            body_ids = torch.nonzero(body_mask)[:, 0].to(torch.int32)  # mask-boundary: legacy index write path
         else:
             body_ids = self._ALL_BODY_INDICES
         return body_ids

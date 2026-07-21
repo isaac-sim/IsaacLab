@@ -424,7 +424,8 @@ class ManagerBasedEnvWarp:
         if self._has_recorders:
             recorder_env_ids = env_ids
             if recorder_env_ids is None or isinstance(recorder_env_ids, wp.array):
-                recorder_env_ids = wp.to_torch(reset_mask).nonzero(as_tuple=False).squeeze(-1)
+                torch_mask = wp.to_torch(reset_mask)
+                recorder_env_ids = torch_mask.nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: recorders
             self.recorder_manager.record_pre_reset(recorder_env_ids)
 
         # set the seed

@@ -177,7 +177,7 @@ def replicate_builder_mapping(
             site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
             local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
 
-        for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
+        for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():  # mask-boundary: init-time cloning
             source_builder = source_builders[sources[int(row)]]
             offset = builder.shape_count
             source_col = int(source_world_indices[int(row)])
@@ -222,7 +222,7 @@ def rename_builder_labels(
 
     for source_index, source in enumerate(sources):
         source_root = source.rstrip("/")
-        world_cols = torch.nonzero(mapping[source_index], as_tuple=True)[0].tolist()
+        world_cols = torch.nonzero(mapping[source_index], as_tuple=True)[0].tolist()  # mask-boundary: init-time cloning
         world_roots = {int(env_ids[col]): destinations[source_index].format(int(env_ids[col])) for col in world_cols}
 
         def _rename_pair(values, worlds, *, collect_body_bindings: bool = False):
