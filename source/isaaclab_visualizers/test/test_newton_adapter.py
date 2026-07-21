@@ -117,25 +117,47 @@ def test_newton_visualizer_cfg_exposes_particle_options():
     assert cfg.particle_color == (0.1, 0.2, 0.3)
 
 
-def test_newton_marker_close_does_not_query_simulation_context(monkeypatch: pytest.MonkeyPatch):
-    """Marker cleanup should remain safe during interpreter shutdown."""
+def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
+    """Construction caches the registry; close survives context teardown and is idempotent."""
 
     class _Registry:
-        removed_groups: list[str] = []
+        def __init__(self) -> None:
+            self.groups: dict[str, object] = {}
+
+        def set_group(self, group_id: str, marker) -> None:
+            self.groups[group_id] = marker
 
         def remove_group(self, group_id: str) -> None:
-            self.removed_groups.append(group_id)
+            self.groups.pop(group_id)
 
-    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
-    marker.group_id = "/Visuals/test::marker"
-    marker._registry = _Registry()
-    monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", None)
+    class _FakeContext:
+        def __init__(self, registry: _Registry) -> None:
+            self.vis_marker_registry = registry
+
+    class _FakeSimulationContext:
+        current: object | None = None
+
+        @classmethod
+        def instance(cls):
+            return cls.current
+
+    registry = _Registry()
+    monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", _FakeSimulationContext)
+    _FakeSimulationContext.current = _FakeContext(registry)
+
+    marker = newton_markers.NewtonVisualizationMarkers(
+        newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
+    )
+    assert registry.groups == {marker.group_id: marker}
+
+    # the context is torn down before markers close during interpreter shutdown
+    _FakeSimulationContext.current = None
 
     marker.close()
     marker.close()
 
     assert marker._registry is None
-    assert _Registry.removed_groups == [marker.group_id]
+    assert registry.groups == {}
 
 
 def test_newton_visualizer_cfg_exposes_world_spacing():
