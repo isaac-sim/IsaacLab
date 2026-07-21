@@ -1170,7 +1170,7 @@ def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
     )
     if ordering_mode == "reversed":
-        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)))
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     sim.reset()
     assert articulation.is_initialized
