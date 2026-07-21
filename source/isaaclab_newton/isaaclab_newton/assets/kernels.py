@@ -1394,6 +1394,12 @@ def update_wrench_array_with_force_and_torque(
     env_ids: wp.array(dtype=wp.bool),
     body_ids: wp.array(dtype=wp.bool),
 ):
+    """Compose the external wrench [N, N·m] from the force/torque composer buffers
+
+    for bodies selected by the env x body boolean masks.
+    Launch with dim=(num_envs, num_bodies); unselected entries keep their
+    current wrench.
+    """
     env_index, body_index = wp.tid()
     if env_ids[env_index] and body_ids[body_index]:
         wrench[env_index, body_index] = update_wrench_with_force_and_torque(

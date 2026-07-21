@@ -41,6 +41,11 @@ def write_scalar_at_indices(
     from_mask: bool,
     out: wp.array(dtype=wp.float32),
 ):
+    """Scatter per-gripper command values into the sim view's flat buffer.
+
+    ``from_mask`` selects the layout of ``data``: full-length (indexed by the
+    target id) vs compact (indexed by the launch thread).
+    """
     i = wp.tid()
     if from_mask:
         out[env_ids[i]] = data[env_ids[i]]
@@ -54,6 +59,7 @@ def fill_scalar_at_indices(
     env_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32),
 ):
+    """Write a constant into the sim view's flat buffer at the selected indices."""
     i = wp.tid()
     out[env_ids[i]] = value
 
@@ -64,6 +70,10 @@ def fill_scalar_masked(
     env_mask: wp.array(dtype=wp.bool),
     out: wp.array(dtype=wp.float32),
 ):
+    """Write a constant into the sim view's flat buffer for envs selected by the
+
+    boolean mask (mask-native reset path).
+    """
     i = wp.tid()
     if env_mask[i]:
         out[i] = value
