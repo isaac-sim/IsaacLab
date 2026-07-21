@@ -371,6 +371,12 @@ class NewtonManager(PhysicsManager):
     _cubric_adapter: int | None = None
     _cubric_bound_fabric_id: int | None = None
 
+    # Set to True after sync_transforms_to_usd() successfully writes body positions for
+    # the first time in each simulation session.  Reset to False in clear().  Polled by
+    # test drain helpers to know when the GPU has propagated the newton:index Fabric
+    # attribute and body_q values are valid.
+    _newton_fabric_ready: bool = False
+
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
 
@@ -583,9 +589,15 @@ class NewtonManager(PhysicsManager):
                     device=str(PhysicsManager._device),
                 )
                 if selection.GetCount() == 0:
-                    NewtonManager._transforms_dirty = False
+                    # The newton:index attribute is written CPU-side by start_simulation() but
+                    # GPU propagation is deferred.  Keep _transforms_dirty=True so the next
+                    # pre_render() retries once initialize_solver() has completed (FK delegate
+                    # bound) and body_q holds valid values.
+                    if cls._eval_fk is _eval_fk_unbound:
+                        NewtonManager._transforms_dirty = False
                     return
 
+                NewtonManager._newton_fabric_ready = True
                 fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
                 newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
                 wp.launch(
@@ -888,6 +900,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cubric = None
         NewtonManager._cubric_adapter = None
         NewtonManager._cubric_bound_fabric_id = None
+        NewtonManager._newton_fabric_ready = False
         NewtonManager._builder = None
         NewtonManager._model = None
         NewtonManager._solver = None
