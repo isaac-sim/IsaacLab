@@ -200,7 +200,7 @@ def test_mujoco_joint_actuatorgravcomp_enables_child_body_gravcomp():
     stage = sim_utils.get_current_stage()
     prim = _make_revolute_joint(stage)
     UsdPhysics.RevoluteJoint(prim).CreateBody1Rel().SetTargets(["/World/Articulation/body1"])
-    apply_joint_drive_properties("/World/Articulation", [MujocoJointCfg(actuatorgravcomp=True)], stage)
+    apply_joint_drive_properties("/World/Articulation/**", [MujocoJointCfg(actuatorgravcomp=True)], stage)
     body = stage.GetPrimAtPath("/World/Articulation/body1")
     assert body.GetAttribute("mjc:gravcomp").Get() == pytest.approx(1.0)
 
@@ -217,7 +217,7 @@ def test_mujoco_joint_without_actuatorgravcomp_leaves_body_gravcomp_untouched():
     stage = sim_utils.get_current_stage()
     prim = _make_revolute_joint(stage)
     UsdPhysics.RevoluteJoint(prim).CreateBody1Rel().SetTargets(["/World/Articulation/body1"])
-    apply_joint_drive_properties("/World/Articulation", [MujocoJointCfg()], stage)
+    apply_joint_drive_properties("/World/Articulation/**", [MujocoJointCfg()], stage)
     body = stage.GetPrimAtPath("/World/Articulation/body1")
     assert body.GetAttribute("mjc:gravcomp").Get() is None
 
@@ -238,7 +238,7 @@ def test_mujoco_joint_actuatorgravcomp_enables_gravcomp_on_every_joint_body():
     j0.CreateBody1Rel().SetTargets(["/World/Articulation/link_a"])
     j1 = UsdPhysics.PrismaticJoint.Define(stage, "/World/Articulation/joint_1")
     j1.CreateBody1Rel().SetTargets(["/World/Articulation/link_b"])
-    apply_joint_drive_properties("/World/Articulation", [MujocoJointCfg(actuatorgravcomp=True)], stage)
+    apply_joint_drive_properties("/World/Articulation/**", [MujocoJointCfg(actuatorgravcomp=True)], stage)
     # both the revolute joint's body and the prismatic joint's body get gravcomp enabled
     assert stage.GetPrimAtPath("/World/Articulation/link_a").GetAttribute("mjc:gravcomp").Get() == pytest.approx(1.0)
     assert stage.GetPrimAtPath("/World/Articulation/link_b").GetAttribute("mjc:gravcomp").Get() == pytest.approx(1.0)
@@ -258,7 +258,7 @@ def test_mujoco_joint_actuatorgravcomp_preserves_authored_body_gravcomp():
     UsdPhysics.RevoluteJoint(prim).CreateBody1Rel().SetTargets(["/World/Articulation/body1"])
     body = stage.GetPrimAtPath("/World/Articulation/body1")
     safe_set_attribute_on_usd_prim(body, "mjc:gravcomp", 0.5, camel_case=False)
-    apply_joint_drive_properties("/World/Articulation", [MujocoJointCfg(actuatorgravcomp=True)], stage)
+    apply_joint_drive_properties("/World/Articulation/**", [MujocoJointCfg(actuatorgravcomp=True)], stage)
     assert body.GetAttribute("mjc:gravcomp").Get() == pytest.approx(0.5)
 
 
@@ -278,7 +278,7 @@ def test_apply_joint_drive_properties_composes_namespaces():
     stage = sim_utils.get_current_stage()
     prim = _make_revolute_joint(stage)
     apply_joint_drive_properties(
-        "/World/Articulation",
+        "/World/Articulation/**",
         [
             UsdPhysicsDriveCfg(drive_type="acceleration", max_force=80.0, stiffness=10.0, damping=0.1),
             PhysxJointCfg(max_joint_velocity=5.0),
@@ -303,7 +303,7 @@ def test_apply_joint_drive_properties_without_drive_does_not_apply_drive_api():
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     prim = _make_revolute_joint(stage)
-    apply_joint_drive_properties("/World/Articulation", [PhysxJointCfg(max_joint_velocity=5.0)], stage)
+    apply_joint_drive_properties("/World/Articulation/**", [PhysxJointCfg(max_joint_velocity=5.0)], stage)
     # DriveAPI is presence-gated: not applied when no UsdPhysicsDriveCfg fragment is present
     assert not bool(UsdPhysics.DriveAPI(prim, "angular"))
     # revolute joint -> rad/s to deg/s conversion via apply_physx_joint
@@ -329,7 +329,7 @@ def test_apply_joint_drive_properties_skips_tendon_child_joint():
     assert "PhysxTendonAxisAPI" in applied and "PhysxTendonAxisRootAPI" not in applied
 
     apply_joint_drive_properties(
-        "/World/Articulation",
+        "/World/Articulation/**",
         [
             UsdPhysicsDriveCfg(drive_type="acceleration", max_force=80.0, stiffness=10.0, damping=0.1),
             PhysxJointCfg(max_joint_velocity=5.0),
@@ -357,7 +357,7 @@ def test_apply_joint_drive_properties_skips_joint_via_registered_predicate(monke
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     joint = _make_revolute_joint(stage)
-    apply_joint_drive_properties("/World/Articulation", [UsdPhysicsDriveCfg(stiffness=10.0)], stage)
+    apply_joint_drive_properties("/World/Articulation/**", [UsdPhysicsDriveCfg(stiffness=10.0)], stage)
     assert not bool(UsdPhysics.DriveAPI(joint, "angular"))
 
 
@@ -371,7 +371,7 @@ def test_apply_joint_drive_properties_authors_when_no_skip_predicate(monkeypatch
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     joint = _make_revolute_joint(stage)
-    apply_joint_drive_properties("/World/Articulation", [UsdPhysicsDriveCfg(stiffness=10.0)], stage)
+    apply_joint_drive_properties("/World/Articulation/**", [UsdPhysicsDriveCfg(stiffness=10.0)], stage)
     assert bool(UsdPhysics.DriveAPI(joint, "angular"))
 
 
@@ -384,10 +384,39 @@ def test_apply_joint_drive_properties_ensure_drives_exist_seeds_stiffness():
     prim = _make_revolute_joint(stage)
     # neither stiffness nor damping authored -> ensure_drives_exist seeds a minimal stiffness
     apply_joint_drive_properties(
-        "/World/Articulation", [UsdPhysicsDriveCfg(max_force=1.0)], stage, ensure_drives_exist=True
+        "/World/Articulation/**", [UsdPhysicsDriveCfg(max_force=1.0)], stage, ensure_drives_exist=True
     )
     assert bool(UsdPhysics.DriveAPI(prim, "angular"))
     assert prim.GetAttribute("drive:angular:physics:stiffness").Get() == pytest.approx(1e-3 * math.pi / 180.0, rel=1e-6)
+
+
+def test_joint_drive_fragments_create_missing_drive_api():
+    """``create_if_missing`` applies the axis-appropriate DriveAPI on matched bare joints.
+
+    Uses a fragment list without a drive fragment on purpose: ``apply_drive`` applies the
+    DriveAPI itself, so only a non-drive fragment isolates the flag as the API's sole source.
+    """
+    from isaaclab_physx.sim.schemas import PhysxJointCfg
+
+    from isaaclab.sim.schemas import apply_joint_drive_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Bot")
+    UsdGeom.Cube.Define(stage, "/World/Bot/body0")
+    UsdGeom.Cube.Define(stage, "/World/Bot/body1")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/Bot/elbow")
+    joint = stage.GetPrimAtPath("/World/Bot/elbow")
+    assert not joint.HasAPI(UsdPhysics.DriveAPI, "angular")
+
+    result = apply_joint_drive_properties(
+        "/World/Bot/**", [PhysxJointCfg(max_joint_velocity=5.0)], stage=stage, create_if_missing=True
+    )
+
+    assert result is True
+    assert joint.HasAPI(UsdPhysics.DriveAPI, "angular")
+    assert joint.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(math.degrees(5.0))
 
 
 # -------------------------------------------------------------------------------------
