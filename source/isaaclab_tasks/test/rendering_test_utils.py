@@ -732,6 +732,8 @@ def make_require_ovlibs_install_fixture():
 
     @pytest.fixture(autouse=True)
     def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("PXR_WORK_THREAD_LIMIT", "1")
+
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
