@@ -5,12 +5,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+from isaaclab.cloner import CloneCfg, InclusionSet
+from isaaclab.cloner import add as clone_add
+from isaaclab.utils import find_unique_string_name
 from isaaclab.utils.configclass import configclass
+from isaaclab.assets import AssetBaseCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import AssetBaseCfg
+
     from .interactive_scene import InteractiveScene
 
 
@@ -129,3 +136,99 @@ class InteractiveSceneCfg:
     Queued replication no longer forwards this flag to the PhysX replicator;
     ``useFabricForReplication`` is always ``False``.
     """
+
+    clone_cfg: CloneCfg = CloneCfg()
+    """Clone execution and legal scene-combination configuration."""
+
+
+def add(
+    this: InteractiveSceneCfg,
+    other: InteractiveSceneCfg,
+    *,
+    asset_skip: Callable[[AssetBaseCfg], bool] | None = None,
+) -> InteractiveSceneCfg:
+    """Fold another scene's environment assets into ``this`` as a new clone combination.
+
+    ``this`` accumulates the fold: it keeps its execution settings and clone
+    combinations, gains the added scene's assets, and is returned. Both scenes
+    contribute spawned :class:`~isaaclab.assets.AssetBaseCfg` fields at literal
+    ``{ENV_REGEX_NS}/Leaf`` roots. An asset equal to an existing binding reuses
+    it (each binding at most once per call); other assets receive a unique field
+    name and prim path. Sensors, terrain importers, rigid-object collections,
+    and spawnless assets do not participate and are cleared from ``this``.
+    Global assets are not composed: skip them with :paramref:`asset_skip` and
+    attach shared world assets after the fold. Both operands are consumed.
+
+    Args:
+        this: Scene that accumulates the fold.
+        other: Scene whose environment assets are added. It must not declare
+            clone combinations of its own.
+        asset_skip: Optional predicate called with each spawned asset
+            configuration. An asset is omitted when the predicate returns
+            :data:`True`. The predicate must not mutate the configuration.
+
+    Returns:
+        ``this``, extended with the added scene's assets and one new clone combination.
+
+    Raises:
+        ValueError: If a scene has no environment asset or an asset root is
+            global or malformed, or if the added scene declares clone combinations.
+    """
+    if other.clone_cfg.clone_combinations:
+        raise ValueError("the added scene must not declare clone combinations; fold it as the base scene instead.")
+
+    left, right = _scene_assets(this, asset_skip), _scene_assets(other, asset_skip)
+    if not left or not right:
+        raise ValueError("both scenes must contain at least one spawned environment asset.")
+
+    # ``this`` accumulates only the participating assets: clear everything else
+    base_fields, left_names = InteractiveSceneCfg.__dataclass_fields__, {name for name, _ in left}
+    for name in [n for n, v in vars(this).items() if n not in base_fields and v is not None and n not in left_names]:
+        setattr(this, name, None)
+
+    # an empty clone configuration is homogeneous: make the base combination explicit
+    if not this.clone_cfg.clone_combinations:
+        clone_add(this.clone_cfg, InclusionSet(assets=[name for name, _ in left]))
+
+    # a duplicate is an asset equal to an existing binding; each binding is
+    # reused at most once per call so distinct twins survive
+    available, right_names, used_names = dict(left), [], set(dir(this))
+    paths = {cfg.prim_path for _, cfg in left}
+    for source_name, cfg in right:
+        target_name = next((name for name, existing in available.items() if existing == cfg), None)
+        if target_name is not None:
+            del available[target_name]
+        else:
+            target_name = find_unique_string_name(source_name, lambda name: name not in used_names)
+            if cfg.prim_path in paths:
+                cfg = cfg.replace(prim_path=find_unique_string_name(cfg.prim_path, lambda path: path not in paths))
+            setattr(this, target_name, cfg)
+            used_names.add(target_name)
+            paths.add(cfg.prim_path)
+        right_names.append(target_name)
+
+    clone_add(this.clone_cfg, InclusionSet(assets=list(dict.fromkeys(right_names))))
+    return this
+
+
+def _scene_assets(
+    scene_cfg: InteractiveSceneCfg,
+    asset_skip: Callable[[AssetBaseCfg], bool] | None,
+) -> list[tuple[str, AssetBaseCfg]]:
+    """List the environment-scoped spawned assets of one scene."""
+    env_root = "{ENV_REGEX_NS}/"
+    base_fields, assets = InteractiveSceneCfg.__dataclass_fields__, []
+    for name, value in vars(scene_cfg).items():
+        # only spawned assets compose; sensors, terrains, and collections are not AssetBaseCfg
+        if name in base_fields or not isinstance(value, AssetBaseCfg) or value.spawn is None:
+            continue
+        if asset_skip is not None and asset_skip(value):
+            continue
+        path = value.prim_path
+        if not (isinstance(path, str) and path.startswith(env_root) and path[len(env_root) :].isidentifier()):
+            raise ValueError(
+                f"scene composition requires assets at literal '{{ENV_REGEX_NS}}/Leaf' roots; {name!r} uses"
+                f" {path!r}. Skip global assets with asset_skip and attach shared world assets to the composed scene."
+            )
+        assets.append((name, value))
+    return assets
