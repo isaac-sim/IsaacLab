@@ -89,6 +89,8 @@ Table of Contents
 
    source/setup/ecosystem
    source/setup/installation/index
+   source/setup/environments
+   Local Installation <source/setup/installation/local_installation>
    source/deployment/index
    source/setup/installation/cloud_installation
    source/refs/reference_architecture/index

@@ -94,22 +94,52 @@ Testing the Installation
 
 First check that the Python package and runtime wheel import correctly:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
 Then run a small backend smoke test:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
 
 To try a task that declares an OvPhysX physics preset, use the same preset CLI
 syntax as the other backends:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz none presets=ovphysx
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz none presets=ovphysx
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz none presets=ovphysx
 
 This command starts a headless zero-action rollout; stop it with ``Ctrl+C``
 after the environment has started and stepped successfully.

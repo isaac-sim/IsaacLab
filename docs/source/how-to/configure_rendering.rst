@@ -10,8 +10,8 @@ Configuring RTX Rendering Settings
    For the **Newton renderer** (used with the Newton backend or in kit-less mode), see
    :ref:`overview_renderers` for the pluggable renderer architecture and available backends.
 
-Isaac Lab's RTX renderer applies high-fidelity camera rendering defaults when
-running with ``--enable_cameras``. Override individual settings to tune the
+Isaac Lab's RTX renderer applies high-fidelity camera rendering defaults automatically.
+Override individual settings to tune the
 renderer for your workflow, as described below. For camera-heavy workloads that
 need higher throughput, switch to the RTX Minimal renderer instead.
 

@@ -27,16 +27,33 @@ and kickoff training with MJWarp physics and the Newton visualizer:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         # Install Isaac Lab (Newton backend, no Isaac Sim required)
-         ./isaaclab.sh --install   # or ./isaaclab.sh -i
+         .. tab-item:: uv (Recommended)
 
-         # Kickoff training with MJWarp physics and Newton visualizer
-         ./isaaclab.sh train --rl_library rsl_rl \
-         --task=Isaac-Cartpole-Direct \
-         --num_envs=16 --max_iterations=10 \
-         physics=newton_mjwarp --visualizer newton
+            .. code-block:: bash
+
+               # Install Isaac Lab (Newton backend, no Isaac Sim required)
+               ./isaaclab.sh --install   # or ./isaaclab.sh -i
+
+               # Kickoff training with MJWarp physics and Newton visualizer
+               uv run isaaclab train --rl_library rsl_rl \
+               --task=Isaac-Cartpole-Direct \
+               --num_envs=16 --max_iterations=10 \
+               physics=newton_mjwarp --visualizer newton
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               # Install Isaac Lab (Newton backend, no Isaac Sim required)
+               ./isaaclab.sh --install   # or ./isaaclab.sh -i
+
+               # Kickoff training with MJWarp physics and Newton visualizer
+               ./isaaclab.sh train --rl_library rsl_rl \
+               --task=Isaac-Cartpole-Direct \
+               --num_envs=16 --max_iterations=10 \
+               physics=newton_mjwarp --visualizer newton
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows

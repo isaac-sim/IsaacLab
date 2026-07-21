@@ -134,30 +134,69 @@ Quick Start
 
 **Training** — RL fine-tuning of a pretrained VLA model:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh train --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/checkpoint
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh train --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/checkpoint
 
 **Evaluation** — Evaluate a pretrained (base) model with video recording:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/base_model \
-       --video
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --video
 
 **Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/base_model \
-       --rl_model_path /path/to/checkpoints/global_step_N \
-       --video
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --rl_model_path /path/to/checkpoints/global_step_N \
+             --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --rl_model_path /path/to/checkpoints/global_step_N \
+             --video
 
 Here ``--model_path`` points to the HuggingFace-format base model (with
 ``config.json``), and ``--rl_model_path`` points to the RLinf checkpoint

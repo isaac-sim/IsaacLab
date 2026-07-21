@@ -376,9 +376,20 @@ To enable rendering through X11 forwarding, run:
 
 To run an example within the container, run:
 
-.. code:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+        uv run python scripts/tutorials/00_sim/log_time.py
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+        ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py
 
 
 .. _`NVIDIA Software License Agreement`: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement

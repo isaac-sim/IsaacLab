@@ -192,12 +192,25 @@ PhysX Micro-Benchmarks
 
 Measure asset method and property performance using mock interfaces:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Run articulation benchmarks
-   ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
-       --num_iterations 1000 \
-       --num_instances 4096
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         # Run articulation benchmarks
+         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+             --num_iterations 1000 \
+             --num_instances 4096
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Run articulation benchmarks
+         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+             --num_iterations 1000 \
+             --num_instances 4096
 
 For detailed documentation on micro-benchmarks, including available benchmark files,
 input modes, and how to add new benchmarks, see :ref:`testing_micro_benchmarks`.
@@ -329,9 +342,6 @@ Non-RL / Runtime Benchmark Arguments
    * - ``--num_frames``
      - ``100``
      - Number of simulation frames to run
-   * - ``--enable_cameras``
-     - ``false``
-     - Enable camera rendering (for RGB/depth tasks)
 
 RL Training Arguments
 ~~~~~~~~~~~~~~~~~~~~~
@@ -494,9 +504,19 @@ JSON Formatter
 
 Full output with all phases, measurements, and metadata:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter json --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter json --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter json --output_path ./results
 
 Output structure:
 
@@ -524,9 +544,19 @@ Osmo Formatter
 
 Simplified key-value format for CI/CD integration:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter osmo --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter osmo --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter osmo --output_path ./results
 
 Output structure:
 
@@ -544,9 +574,19 @@ OmniPerf Formatter
 
 Format for database upload and performance tracking:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter omniperf --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter omniperf --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter omniperf --output_path ./results
 
 Output structure:
 
@@ -569,9 +609,19 @@ Writes a schema-v1 bundle attached with
 with a ``RuntimeBundle``, ``TrainingBundle``, or ``StartupBundle`` when a
 typed, stable output contract is required.
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter schema --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter schema --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter schema --output_path ./results
 
 Summary Formatter
 ~~~~~~~~~~~~~~~~~
@@ -583,9 +633,19 @@ any additional phases (e.g., from the startup profiling benchmark) are rendered
 automatically with their ``SingleMeasurement`` and ``StatisticalMeasurement``
 entries. Use when you want a quick readout without opening the JSON:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter summary --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter summary --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter summary --output_path ./results
 
 When ``summary`` is selected, frametime recorders are enabled automatically when
 running with Isaac Sim (Kit).
@@ -755,9 +815,19 @@ Import Errors
 
 Ensure you're running through the Isaac Lab launcher:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p your_benchmark.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python your_benchmark.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p your_benchmark.py
 
 Not:
 

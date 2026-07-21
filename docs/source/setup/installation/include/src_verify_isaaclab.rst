@@ -10,14 +10,29 @@ top of the repository:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         # Option 1: Using the isaaclab.sh executable
-         # note: this works for both the bundled python and the virtual environment
-         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+         .. tab-item:: uv (Recommended)
 
-         # Option 2: Using python in your virtual environment
-         python scripts/tutorials/00_sim/create_empty.py --viz kit
+            .. code:: bash
+
+               # Option 1: Using the isaaclab.sh executable
+               # note: this works for both the bundled python and the virtual environment
+               uv run python scripts/tutorials/00_sim/create_empty.py --viz kit
+
+               # Option 2: Using python in your virtual environment
+               python scripts/tutorials/00_sim/create_empty.py --viz kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               # Option 1: Using the isaaclab.sh executable
+               # note: this works for both the bundled python and the virtual environment
+               ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+
+               # Option 2: Using python in your virtual environment
+               python scripts/tutorials/00_sim/create_empty.py --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -63,9 +78,19 @@ These commands do not select a visualizer, so they run without a viewer for fast
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run isaaclab train --rl_library rsl_rl --task=Isaac-Ant
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -82,9 +107,19 @@ These commands do not select a visualizer, so they run without a viewer for fast
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh train --rl_library rsl_rl --task=IsaacContrib-Velocity-Rough-AnymalC
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run isaaclab train --rl_library rsl_rl --task=IsaacContrib-Velocity-Rough-AnymalC
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh train --rl_library rsl_rl --task=IsaacContrib-Velocity-Rough-AnymalC
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
