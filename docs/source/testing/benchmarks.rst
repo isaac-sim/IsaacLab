@@ -222,7 +222,7 @@ without forcing queued device work to complete. It describes the host-visible
 call boundary, not a device-complete boundary; asynchronously queued work can be
 paid at a later synchronization point.
 
-Pass ``--measure_synchronized_step_breakdown`` to collect the
+Pass ``--measure_sync_step`` to collect the
 ``serialized_synchronized`` diagnostic. It synchronizes at every measured
 environment and simulation boundary, then partitions synchronized
 environment-step wall time into:
@@ -254,7 +254,7 @@ For example, add the diagnostic flag to any runtime, training, or play command:
    uv run isaaclab benchmark runtime \
        --task Isaac-Ant-Direct \
        --num_envs 4096 \
-       --measure_synchronized_step_breakdown
+       --measure_sync_step
 
 PhysX Micro-Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -400,8 +400,8 @@ Non-RL / Runtime Benchmark Arguments
      - Number of environment steps to measure
    * - ``--warmup_frames``
      - ``50``
-     - Number of environment steps to exclude before measurement
-   * - ``--measure_synchronized_step_breakdown``
+     - Number of additional environment steps to exclude after the always-excluded startup step
+   * - ``--measure_sync_step``
      - ``false``
      - Collect the serialized synchronized diagnostic described above
    * - ``--enable_cameras``
@@ -430,7 +430,10 @@ RL Training Arguments
    * - ``--max_iterations``
      - ``None`` (task config)
      - Number of training iterations
-   * - ``--measure_synchronized_step_breakdown``
+   * - ``--warmup_steps``
+     - ``1``
+     - Number of initial environment steps to exclude before recording timing
+   * - ``--measure_sync_step``
      - ``false``
      - Collect the serialized synchronized diagnostic described above
 
@@ -456,13 +459,16 @@ RL Play Arguments
    * - ``--num_frames``
      - ``100``
      - Number of inference steps to roll out
+   * - ``--warmup_steps``
+     - ``1``
+     - Number of initial environment steps to exclude before recording timing
    * - ``--checkpoint``
      - ``None`` (published Nucleus checkpoint)
      - Local path or Nucleus URI of the checkpoint to roll out
    * - ``--benchmark_formatter``
      - ``schema``
      - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
-   * - ``--measure_synchronized_step_breakdown``
+   * - ``--measure_sync_step``
      - ``false``
      - Collect the serialized synchronized diagnostic described above
 

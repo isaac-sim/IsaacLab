@@ -128,6 +128,7 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
+    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -143,6 +144,7 @@ def _parse_args(argv: list[str]):
             " case --algorithm is used to determine the default agent entry point."
         ),
         include_distributed=False,
+        max_iterations_type=parse_positive_int,
     )
     parser.add_argument(
         "--ml_framework",
@@ -160,15 +162,15 @@ def _parse_args(argv: list[str]):
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
-        "--measure_synchronized_step_breakdown",
+        "--measure_sync_step",
         action="store_true",
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
         "--warmup_steps",
-        type=int,
-        default=0,
-        help="Exclude the first N env.step() calls from environment-step timing (cold-start). Opt-in; default 0.",
+        type=parse_non_negative_int,
+        default=1,
+        help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
     )
     parser.add_argument(
         "--benchmark_formatter",
@@ -202,10 +204,6 @@ def _parse_args(argv: list[str]):
         parser.error("Distributed training benchmarks are not supported.")
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
-    if args_cli.max_iterations is not None and args_cli.max_iterations <= 0:
-        parser.error("--max_iterations must be greater than zero")
-    if args_cli.warmup_steps < 0:
-        parser.error("--warmup_steps must be non-negative")
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
@@ -324,11 +322,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                         {"name": "algorithm", "data": algorithm.upper()},
                         {
                             "name": "environment_step_measurement_mode",
-                            "data": (
-                                "serialized_synchronized"
-                                if args_cli.measure_synchronized_step_breakdown
-                                else "host_return"
-                            ),
+                            "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                         {"name": "presets", "data": ",".join(cfg.presets)},
@@ -373,7 +367,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env,
-                measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown,
+                measure_synchronized_step_breakdown=args_cli.measure_sync_step,
                 warmup_steps=args_cli.warmup_steps,
             )
             with success_context, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):

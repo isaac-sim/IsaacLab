@@ -54,13 +54,13 @@ def test_adapters_reject_non_positive_workloads(library: str, workflow: str, arg
         module._parse_args(argv)
 
     assert exc_info.value.code == 2
-    assert f"{argument} must be greater than zero" in capsys.readouterr().err
+    assert f"argument {argument}: must be greater than zero" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
 @pytest.mark.parametrize("workflow", ["play", "train"])
 def test_adapters_reject_negative_warmup_steps(library: str, workflow: str, monkeypatch, capsys):
-    """Benchmark adapters reject a negative --warmup_steps (the cold-start exclusion is opt-in, N >= 0)."""
+    """Benchmark adapters reject negative warm-up counts."""
     module = _load_adapter(library, workflow)
     argv = ["--task", _TASK, "--warmup_steps", "-1", "--headless"]
     monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
@@ -69,7 +69,33 @@ def test_adapters_reject_negative_warmup_steps(library: str, workflow: str, monk
         module._parse_args(argv)
 
     assert exc_info.value.code == 2
-    assert "--warmup_steps must be non-negative" in capsys.readouterr().err
+    assert "argument --warmup_steps: must be non-negative" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
+@pytest.mark.parametrize("workflow", ["play", "train"])
+def test_adapters_default_to_one_warmup_step(library: str, workflow: str, monkeypatch):
+    """Benchmark adapters exclude the first environment step by default."""
+    module = _load_adapter(library, workflow)
+    argv = ["--task", _TASK, "--headless"]
+    monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
+
+    args = module._parse_args(argv)[0]
+
+    assert args.warmup_steps == 1
+
+
+@pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
+@pytest.mark.parametrize("workflow", ["play", "train"])
+def test_adapters_accept_short_synchronized_step_flag(library: str, workflow: str, monkeypatch):
+    """Benchmark adapters expose the concise synchronized-step diagnostic flag."""
+    module = _load_adapter(library, workflow)
+    argv = ["--task", _TASK, "--measure_sync_step", "--headless"]
+    monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
+
+    args = module._parse_args(argv)[0]
+
+    assert args.measure_sync_step is True
 
 
 @pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
@@ -205,7 +231,7 @@ def test_training_and_play_write_bundles(
                 "-p",
                 "scripts/benchmarks/play.py",
                 *common_args[:6],
-                "--measure_synchronized_step_breakdown",
+                "--measure_sync_step",
                 *common_args[6:],
                 "--num_frames",
                 "10",

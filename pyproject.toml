@@ -87,7 +87,7 @@ dependencies = [
     # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
     # ...) that honoring USD-authored ``physics:approximation`` requires.
     "newton[sim,importers]>=1.2.0",
-    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.3.1.
+    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
@@ -169,7 +169,7 @@ torchaudio = "2.11.0"
 ovphysx = ">=0.4.13"
 ovrtx = ">=0.3.0,<0.4.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
-newton = "c7ae7c7648cd0717df39e5c94b95d5a02c997320"
+newton = "81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9"
 warp = "1.15.0.dev20260626"
 
 [tool.ruff]
@@ -329,16 +329,17 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-# Isaac Lab owns the Newton and torch versions. Overrides replace these requirements
-# for EVERY requester (unlike constraints, which only intersect), so ``--extra isaacsim``
-# — which pins ``newton[sim]==1.2.0`` and its own torch stack — can neither block
-# resolution nor downgrade an already-installed newton/torch. The torch stack routes to
-# the CUDA indexes via [tool.uv.sources]. Values mirror [tool.isaaclab.versions] above.
+# Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
+# for every requester, unlike constraints, which only intersect. The ``isaacsim`` extra
+# pins older Newton, MuJoCo, and torch versions, so these overrides prevent downgrades.
+# Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@c7ae7c7648cd0717df39e5c94b95d5a02c997320",
+    "mujoco~=3.10.0",
+    "mujoco-warp~=3.10.0,>=3.10.0.2",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.3.1",
+    "newton-usd-schemas>=0.4.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",

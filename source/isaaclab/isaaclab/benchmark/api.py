@@ -184,7 +184,7 @@ class BenchmarkTrainingRequest:
     num_envs: int | None = None
     seed: int | None = None
     max_iterations: int | None = None
-    warmup_steps: int = 0
+    warmup_steps: int = 1
     ray_proc_id: int | None = None
     video: bool = False
     video_length: int = 200
@@ -241,7 +241,7 @@ class BenchmarkPlayRequest:
     agent: str | None = None
     num_envs: int | None = None
     num_frames: int = 100
-    warmup_steps: int = 0
+    warmup_steps: int = 1
     seed: int | None = None
     measure_synchronized_step_breakdown: bool = False
     presets: tuple[str, ...] = field(default_factory=tuple)

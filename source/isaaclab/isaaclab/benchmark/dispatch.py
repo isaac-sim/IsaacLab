@@ -166,7 +166,7 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
         _append_value(argv, "--warmup_steps", request.warmup_steps)
 
     if getattr(request, "measure_synchronized_step_breakdown", False):
-        argv.append("--measure_synchronized_step_breakdown")
+        argv.append("--measure_sync_step")
     argv.extend(_output_argv(request.output))
     argv.extend(_launcher_argv(request.launcher))
     argv.extend(getattr(request, "backend_args", ()))

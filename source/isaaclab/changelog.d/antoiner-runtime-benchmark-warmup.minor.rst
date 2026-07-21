@@ -4,9 +4,9 @@ Changed
 * Changed the runtime benchmark to exclude configurable warmup frames and
   report effective throughput over the complete measured interval, and
   report environment-step host-return rates across runtime, play, and training
-  benchmarks. Added an opt-in ``--warmup_steps`` flag to the play and training
-  benchmarks that excludes the first N ``env.step()`` calls (cold start) from
-  the environment-step timing; it defaults to ``0`` (no exclusion). Added an
-  optional serialized synchronized breakdown of time inside and outside
-  simulation calls; the outside-simulation remainder is not classified as
-  overhead.
+  benchmarks. Added a ``--warmup_steps`` flag to the play and training
+  benchmarks that excludes the first N ``env.step()`` calls from
+  environment-step timing and defaults to ``1`` to remove cold start. Pass
+  ``--warmup_steps 0`` to include every step. Added an optional serialized
+  synchronized breakdown of time inside and outside simulation calls; the
+  outside-simulation remainder is not classified as overhead.

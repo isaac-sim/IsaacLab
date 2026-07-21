@@ -40,6 +40,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Parsed arguments and the remaining Hydra overrides.
     """
     from isaaclab.app import add_launcher_args
+    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -47,16 +48,17 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
-    parser.add_argument("--num_frames", type=int, default=1000, help="Number of environment steps to benchmark.")
+    parser.add_argument(
+        "--num_frames", type=parse_positive_int, default=1000, help="Number of environment steps to benchmark."
+    )
     parser.add_argument(
         "--warmup_frames",
-        type=int,
+        type=parse_non_negative_int,
         default=50,
         help="Number of environment steps to exclude; the first startup step is always excluded.",
     )
     parser.add_argument(
-        "--measure_synchronized_step_breakdown",
-        dest="measure_synchronized_step_breakdown",
+        "--measure_sync_step",
         action="store_true",
         default=False,
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
@@ -76,10 +78,6 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     add_launcher_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
-    if args.num_frames <= 0:
-        parser.error("--num_frames must be greater than zero")
-    if args.warmup_frames < 0:
-        parser.error("--warmup_frames must be non-negative")
     sys.argv = [sys.argv[0]] + remaining
     return args, remaining
 
@@ -149,9 +147,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                     {"name": "warmup_frames", "data": args.warmup_frames},
                     {
                         "name": "environment_step_measurement_mode",
-                        "data": (
-                            "serialized_synchronized" if args.measure_synchronized_step_breakdown else "host_return"
-                        ),
+                        "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
                     },
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
@@ -168,7 +164,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             # even when no additional warmup frames are requested.
             warmup_step_times_s = stepping.run_runtime_warmup(env, args.warmup_frames)
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-                env, measure_synchronized_step_breakdown=args.measure_synchronized_step_breakdown
+                env, measure_synchronized_step_breakdown=args.measure_sync_step
             )
             with BenchmarkMonitor(benchmark, interval=1.0):
                 timer_context = environment_step_timer
