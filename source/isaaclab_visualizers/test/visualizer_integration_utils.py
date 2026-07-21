@@ -1061,6 +1061,13 @@ def _capture_kit_viewport_with_pose_reapply(
       the two ``app.update()`` calls so the second render uses the correct pose.
       This is the direct analogue of the camera-reapply fix applied to body transforms.
 
+    Note:
+        The body-transform re-sync is only applied when ``prior_physics_steps > 0``
+        because that is when ``NewtonManager._state_0.body_q`` holds confirmed-correct
+        positions (computed by the physics integrator).  At zero steps the state
+        reflects the reset pose before Newton FK has run, so syncing it would write
+        origin positions for articulation links and make things worse.
+
     Args:
         env: The simulation environment.
         kit_visualizer: The active :class:`KitVisualizer` instance.
