@@ -377,11 +377,24 @@ def _load_usd_mesh(usd_path: str) -> Mesh | None:
     try:
         from pxr import Usd, UsdGeom  # noqa: PLC0415
 
-        stage = Usd.Stage.Open(usd_path)
+        from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415
+
+        local_path = retrieve_file_path(usd_path)
+        stage = Usd.Stage.Open(local_path)
         if stage is None:
             logger.warning("[NewtonVisualizationMarkers] Failed to open USD stage: %s", usd_path)
             return None
         mesh_prims = [p for p in stage.Traverse() if p.IsA(UsdGeom.Mesh)]
+        from_prototype = False
+        if not mesh_prims:
+            # Instanceable USDs store geometry in prototypes rather than the main prim tree.
+            for proto in stage.GetPrototypes():
+                mesh_prims = [
+                    p for p in proto.GetFilteredChildren(Usd.TraverseInstanceProxies()) if p.IsA(UsdGeom.Mesh)
+                ]
+                if mesh_prims:
+                    from_prototype = True
+                    break
         if not mesh_prims:
             logger.warning("[NewtonVisualizationMarkers] No UsdGeom.Mesh prims found in USD: %s", usd_path)
             return None
@@ -391,7 +404,28 @@ def _load_usd_mesh(usd_path: str) -> Mesh | None:
                 usd_path,
                 mesh_prims[0].GetPath(),
             )
-        return Mesh.create_from_usd(mesh_prims[0], load_normals=True, load_uvs=True)
+        mesh = Mesh.create_from_usd(mesh_prims[0], load_normals=True, load_uvs=True)
+        if mesh is not None and from_prototype:
+            # Prototype prims carry a local transform (e.g. unit-cube → metres scale) that
+            # Mesh.create_from_usd does not apply. Bake it into vertex positions now.
+            from pxr import Gf  # noqa: PLC0415
+
+            xf = UsdGeom.Xformable(mesh_prims[0])
+            mat = xf.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+            if mat != Gf.Matrix4d(1):
+                # mesh.vertices may be a numpy array or a Warp array depending on Newton version.
+                verts = mesh.vertices
+                pts = verts.numpy() if hasattr(verts, "numpy") else np.asarray(verts)
+                ones = np.ones((len(pts), 1), dtype=np.float32)
+                mat_np = np.array(mat, dtype=np.float32).T
+                pts_world = (np.hstack([pts.astype(np.float32), ones]) @ mat_np)[:, :3]
+                if hasattr(verts, "numpy"):
+                    import warp as _wp  # noqa: PLC0415
+
+                    mesh.vertices = _wp.array(pts_world, dtype=_wp.vec3, device=verts.device)
+                else:
+                    mesh.vertices = pts_world
+        return mesh
     except Exception:
         logger.warning(
             "[NewtonVisualizationMarkers] Failed to load USD mesh from '%s'; marker will not be rendered.",
