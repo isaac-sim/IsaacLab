@@ -19,6 +19,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -184,7 +185,13 @@ class RigidObject(BaseRigidObject):
     Operations - Finders.
     """
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -193,11 +200,19 @@ class RigidObject(BaseRigidObject):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` returns the legacy list with a :class:`DeprecationWarning`;
+                ``False`` returns it without that warning; ``True`` returns a cached, device-local
+                :class:`ProxyArray` backed by Warp ``int32`` storage.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a list for
+            legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
-        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        body_ids, body_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        resolved_ids = self._resolve_finder_indices(
+            body_ids, domain="body", finder_name="find_bodies", as_proxy=as_proxy, legacy_type="list"
+        )
+        return resolved_ids, body_names
 
     """
     Operations - Write to simulation.

@@ -353,7 +353,13 @@ class Articulation(BaseArticulation):
     Operations - Finders.
     """
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
@@ -362,18 +368,28 @@ class Articulation(BaseArticulation):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` returns the legacy list with a :class:`DeprecationWarning`;
+                ``False`` returns it without that warning; ``True`` returns a cached, device-local
+                :class:`ProxyArray` backed by Warp ``int32`` storage.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a list for
+            legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
-        return resolve_matching_names(name_keys, self.body_names, preserve_order)
+        body_ids, body_names = resolve_matching_names(name_keys, self.body_names, preserve_order)
+        resolved_ids = self._resolve_finder_indices(
+            body_ids, domain="body", finder_name="find_bodies", as_proxy=as_proxy, legacy_type="list"
+        )
+        return resolved_ids, body_names
 
     def find_joints(
         self,
         name_keys: str | Sequence[str],
         joint_subset: list[str] | None = None,
         preserve_order: bool = False,
-    ) -> tuple[list[int], list[str]]:
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find joints in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -384,21 +400,31 @@ class Articulation(BaseArticulation):
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` returns the legacy list with a :class:`DeprecationWarning`;
+                ``False`` returns it without that warning; ``True`` returns a cached, device-local
+                :class:`ProxyArray` backed by Warp ``int32`` storage.
 
         Returns:
-            A tuple of lists containing the joint indices and names.
+            A tuple containing the joint indices and a fresh list of matched names. The indices are a list for
+            legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         if joint_subset is None:
             joint_subset = self.joint_names
         # find joints
-        return resolve_matching_names(name_keys, joint_subset, preserve_order)
+        joint_ids, joint_names = resolve_matching_names(name_keys, joint_subset, preserve_order)
+        resolved_ids = self._resolve_finder_indices(
+            joint_ids, domain="joint", finder_name="find_joints", as_proxy=as_proxy, legacy_type="list"
+        )
+        return resolved_ids, joint_names
 
     def find_fixed_tendons(
         self,
         name_keys: str | Sequence[str],
         tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
-    ) -> tuple[list[int], list[str]]:
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -410,22 +436,36 @@ class Articulation(BaseArticulation):
             tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
                 all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` returns the legacy list with a :class:`DeprecationWarning`;
+                ``False`` returns it without that warning; ``True`` returns a cached, device-local
+                :class:`ProxyArray` backed by Warp ``int32`` storage.
 
         Returns:
-            A tuple of lists containing the tendon indices and names.
+            A tuple containing the tendon indices and a fresh list of matched names. The indices are a list for
+            legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         if tendon_subsets is None:
             # tendons follow the joint names they are attached to
             tendon_subsets = self.fixed_tendon_names
         # find tendons
-        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        tendon_ids, tendon_names = resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        resolved_ids = self._resolve_finder_indices(
+            tendon_ids,
+            domain="fixed_tendon",
+            finder_name="find_fixed_tendons",
+            as_proxy=as_proxy,
+            legacy_type="list",
+        )
+        return resolved_ids, tendon_names
 
     def find_spatial_tendons(
         self,
         name_keys: str | Sequence[str],
         tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
-    ) -> tuple[list[int], list[str]]:
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find spatial tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -436,14 +476,26 @@ class Articulation(BaseArticulation):
             tendon_subsets: A subset of tendons to search for. Defaults to None, which means all tendons
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` returns the legacy list with a :class:`DeprecationWarning`;
+                ``False`` returns it without that warning; ``True`` returns a cached, device-local
+                :class:`ProxyArray` backed by Warp ``int32`` storage.
 
         Returns:
-            A tuple of lists containing the tendon indices and names.
+            A tuple containing the tendon indices and a fresh list of matched names. The indices are a list for
+            legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
         # find tendons
-        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        tendon_ids, tendon_names = resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        resolved_ids = self._resolve_finder_indices(
+            tendon_ids,
+            domain="spatial_tendon",
+            finder_name="find_spatial_tendons",
+            as_proxy=as_proxy,
+            legacy_type="list",
+        )
+        return resolved_ids, tendon_names
 
     """
     Operations - State Writers.

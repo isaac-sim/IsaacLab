@@ -23,6 +23,7 @@ from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -229,8 +230,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     """
 
     def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Find bodies in the rigid body collection based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -239,12 +244,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Selector return mode. ``None`` returns the legacy device-local ``torch.int32`` tensor
+                with a :class:`DeprecationWarning`; ``False`` returns it without that warning; ``True`` returns
+                a cached, device-local :class:`ProxyArray` backed by Warp ``int32`` storage.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a device-local
+            ``torch.int32`` tensor for legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         obj_ids, obj_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
-        return torch.tensor(obj_ids, device=self.device, dtype=torch.int32), obj_names
+        resolved_ids = self._resolve_finder_indices(
+            obj_ids, domain="body", finder_name="find_bodies", as_proxy=as_proxy, legacy_type="tensor"
+        )
+        return resolved_ids, obj_names
 
     """
     Operations - Write to simulation.
