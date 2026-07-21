@@ -147,7 +147,7 @@ mimic = [
 teleop = [
     "isaaclab-teleop",
     # IsaacTeleop is Linux x86_64 only
-    "isaacteleop[retargeters,ui,cloudxr]~=1.3.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
+    "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
 ]
 # RLinf VLA post-training (externally contributed).

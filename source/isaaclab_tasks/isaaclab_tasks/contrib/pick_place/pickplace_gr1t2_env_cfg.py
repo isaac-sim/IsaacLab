@@ -335,15 +335,19 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Per-finger contact sensors on all finger links of each hand, filtered against
     # the wheel body so force_matrix_w reports each finger's grip force. This drives
     # the per-finger haptic glove feedback (see GloveHapticFeedbackCfg below).
+    # Contact reporting is already enabled on the robot by GR1T2_HIGH_PD_CFG
+    # (``spawn.activate_contact_sensors=True``), so it is not set again here.
     left_hand_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*L_(index|middle|ring|pinky|thumb).*_link",
         filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
         update_period=0.0,
+        history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*R_(index|middle|ring|pinky|thumb).*_link",
         filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
         update_period=0.0,
+        history_length=3,
     )
 
     # Ground plane

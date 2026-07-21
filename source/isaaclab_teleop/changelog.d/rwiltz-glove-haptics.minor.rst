@@ -16,3 +16,6 @@ Changed
   :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg` for controller vibration. The
   :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_haptic` payload changed from a scalar force to a
   per-hand vector.
+
+* Bumped the Isaac Teleop pin to ``isaacteleop~=1.4.0`` (``teleop`` extra), which delivers the
+  per-endpoint haptic-glove fix so left- and right-hand glove feedback are driven independently.

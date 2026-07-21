@@ -1033,7 +1033,6 @@ Thumb..Pinky (matched from the sensor's body names via ``finger_order``) into a
    self.haptic_feedback = GloveHapticFeedbackCfg(
        left_sensor_name="left_hand_contact",
        right_sensor_name="right_hand_contact",
-       object_name="object",
    )
 
 Enabled on the two GR1T2 pick-place teleop environments
