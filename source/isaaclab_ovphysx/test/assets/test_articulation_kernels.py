@@ -6,6 +6,7 @@
 """Tests for OVPhysX articulation Warp kernels."""
 
 import warnings
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -18,6 +19,24 @@ from isaaclab_ovphysx.assets.articulation import kernels as articulation_kernels
 def _selector(values: list[int], dtype: type) -> wp.array:
     """Create a CPU Warp selector with the requested integer width."""
     return wp.array(values, dtype=dtype, device="cpu")
+
+
+def _articulation_class():
+    """Import the OVPhysX articulation class without unrelated config deprecations."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=(
+                "^'RigidBodyMaterialCfg' is deprecated and will be removed in 5\\.0\\. Use "
+                "'isaaclab_physx\\.sim\\.spawners\\.materials\\.PhysxRigidBodyMaterialCfg' for PhysX properties, "
+                "or 'isaaclab\\.sim\\.spawners\\.materials\\.RigidBodyMaterialBaseCfg' for solver-common properties "
+                "only\\.$"
+            ),
+            category=DeprecationWarning,
+        )
+        from isaaclab_ovphysx.assets.articulation.articulation import Articulation
+
+    return Articulation
 
 
 @pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
@@ -200,23 +219,12 @@ def test_item_index_workers_accept_selector_widths(kernel_name: str, env_dtype: 
         assert output.numpy()[1, 2].tolist() == [11.0, 111.0, 211.0]
 
 
-def test_selector_resolvers_preserve_item_width_and_narrow_environment_width() -> None:
-    """Preserve int64 item selectors while keeping environment IDs int32 for OVPhysX bindings."""
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=(
-                "^'RigidBodyMaterialCfg' is deprecated and will be removed in 5\\.0\\. Use "
-                "'isaaclab_physx\\.sim\\.spawners\\.materials\\.PhysxRigidBodyMaterialCfg' for PhysX properties, "
-                "or 'isaaclab\\.sim\\.spawners\\.materials\\.RigidBodyMaterialBaseCfg' for solver-common properties "
-                "only\\.$"
-            ),
-            category=DeprecationWarning,
-        )
-        from isaaclab_ovphysx.assets.articulation.articulation import Articulation
-
+@pytest.mark.parametrize(("torch_dtype", "warp_dtype"), [(torch.int32, wp.int32), (torch.int64, wp.int64)])
+def test_selector_resolvers_preserve_item_width_and_alias_source(torch_dtype: torch.dtype, warp_dtype: type) -> None:
+    """Alias int32/int64 item selectors while keeping environment IDs int32 for OVPhysX bindings."""
+    Articulation = _articulation_class()
     articulation = type("ResolverStub", (), {"_device": "cpu"})()
-    selector = torch.tensor([1, 0], dtype=torch.int64)
+    selector = torch.tensor([1, 0], dtype=torch_dtype)
 
     assert Articulation._resolve_env_ids(articulation, selector).dtype == wp.int32
     for resolver_name in (
@@ -226,4 +234,46 @@ def test_selector_resolvers_preserve_item_width_and_narrow_environment_width() -
         "_resolve_spatial_tendon_ids",
     ):
         resolved = getattr(Articulation, resolver_name)(articulation, selector)
-        assert resolved.dtype == wp.int64
+        assert resolved.dtype == warp_dtype
+        assert resolved.ptr == selector.data_ptr()
+
+
+@pytest.mark.parametrize("state_write", [False, True], ids=["velocity", "state"])
+def test_ordered_joint_writes_reject_unsupported_selector_before_launch(monkeypatch, state_write: bool) -> None:
+    """Reject an unsupported item selector through the shared factory before calling Warp launch."""
+    Articulation = _articulation_class()
+    articulation = Articulation.__new__(Articulation)
+    articulation._initialize_handle = None
+    articulation._invalidate_initialize_handle = None
+    articulation._prim_deletion_handle = None
+    articulation._device = "cpu"
+    articulation.assert_shape_and_dtype = lambda *args, **kwargs: None
+    articulation._joint_user_to_backend_map = lambda: wp.zeros(1, dtype=wp.int32, device="cpu")
+
+    def _buffer() -> SimpleNamespace:
+        return SimpleNamespace(data=wp.zeros((1, 1), dtype=wp.float32, device="cpu"))
+
+    joint_pos_backend = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
+    joint_vel_backend = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
+    articulation._data = SimpleNamespace(
+        joint_ordering=None,
+        _joint_pos_buf=_buffer(),
+        _joint_vel_buf=_buffer(),
+        _previous_joint_vel=wp.zeros((1, 1), dtype=wp.float32, device="cpu"),
+        _joint_acc=_buffer(),
+        _get_joint_pos_write_buffer=lambda partial: joint_pos_backend,
+        _get_joint_vel_write_buffer=lambda partial: joint_vel_backend,
+    )
+    monkeypatch.setattr(wp, "launch", lambda *args, **kwargs: pytest.fail("wp.launch must not be called"))
+
+    env_ids = wp.array([0], dtype=wp.int32, device="cpu")
+    joint_ids = wp.array([0], dtype=wp.float32, device="cpu")
+    position = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
+    velocity = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
+    with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit integers"):
+        if state_write:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                articulation.write_joint_state_to_sim(position, velocity, joint_ids=joint_ids, env_ids=env_ids)
+        else:
+            articulation.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)

@@ -1056,7 +1056,7 @@ class Articulation(BaseArticulation):
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.joint_ordering is not None
         wp.launch(
-            ordering_kernels.write_joint_vel_user_to_backend_with_indices,
+            ordering_kernels.write_joint_vel_user_to_backend_with_indices_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[velocity, env_ids, joint_ids, self._joint_user_to_backend_map(), has_joint_ordering, False],
             outputs=[
@@ -4723,7 +4723,7 @@ class Articulation(BaseArticulation):
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.joint_ordering is not None
         wp.launch(
-            ordering_kernels.write_joint_state_user_to_backend_with_indices,
+            ordering_kernels.write_joint_state_user_to_backend_with_indices_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
