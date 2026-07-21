@@ -59,7 +59,6 @@ class _FakeVisualizationModelBuilder:
                 references="world",
             ),
         }
-        self.custom_frequencies = {}
         self.geometry_sources = []
         self.world_slices = []
         self._current_world = None
@@ -74,9 +73,6 @@ class _FakeVisualizationModelBuilder:
 
     def end_world(self):
         self._current_world = None
-
-    def add_custom_frequency(self, frequency):
-        self.custom_frequencies[frequency.key] = frequency
 
     def add_usd(self, stage, root_path=None, ignore_paths=None, schema_resolvers=None, **kwargs):
         del stage, ignore_paths, schema_resolvers, kwargs
