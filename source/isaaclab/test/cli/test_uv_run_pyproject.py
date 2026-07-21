@@ -98,6 +98,19 @@ def test_version_single_source_matches_literal_pins():
     assert spec("ovphysx") in optional["ov"]
     assert spec("ovrtx") in optional["rtx"]
 
+    # CI installs OVRTX through a generic pip-package input (a bare ``pip install
+    # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:
+    # either by carrying the literal range, or by referencing the ``resolve-ov-pins``
+    # action output, which reads the pin from this same table. Never a bare ``ovrtx``.
+    build_workflow = (_repo_root() / ".github/workflows/build.yaml").read_text(encoding="utf-8")
+    ovrtx_install_lines = [
+        line.strip() for line in build_workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
+    ]
+    assert ovrtx_install_lines
+    assert all(
+        f"ovrtx{versions['ovrtx']}" in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines
+    )
+
     # uv torch-stack overrides mirror the table.
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in overrides
