@@ -55,22 +55,16 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     # complex geometry and materials; observed ~5.5% tiled, ~3.7% viewport on CI.
     "anymal_d-kit-tiled": 6.5,
     "anymal_d-kit-viewport": 4.5,
-    # Shadow hand Kit (RTX) tiled: captured at reset (0 physics steps). RTX TAA
-    # accumulates differently between cold (golden-save) and warm (retry) states within
-    # the same test session; observed 12.24% diff, SSIM=0.79 on the warm retry.
-    # Threshold is set to catch catastrophic failures (wrong scene, black frame) rather
-    # than subtle rendering differences.
-    "shadow_hand-kit-tiled": 15.0,
-    # Shadow hand Kit viewport (single view): less composite noise than tiled; observed
-    # <8% inter-run diff at reset. Use 10% to give headroom over the 4-tiled baseline.
-    "shadow_hand-kit-viewport": 10.0,
-    # Franka cloth Kit RTX tiled (1 physics step): VBD solver non-determinism from the
-    # cloth's parallel GPU reductions combines with RTX tiled composite noise; observed
-    # ~32% diff between cold-golden and warm-retry. 38% gives headroom.
-    "franka_cloth-kit-tiled": 38.0,
-    # Franka cloth Kit viewport (1 physics step): single-view RTX is much more stable
-    # than 4-view tiled; expected ~15% accounting for RTX TAA cold/warm gap.
-    "franka_cloth-kit-viewport": 15.0,
+    # Shadow hand Kit (RTX) tiled: 40 extra render-only warmup passes pre-converge
+    # RTX TAA so the cold/warm gap is small; observed 0.81% warm-retry diff.
+    "shadow_hand-kit-tiled": 3.0,
+    # Shadow hand Kit viewport: observed 0.00% on warm retry; 2% gives safety margin.
+    "shadow_hand-kit-viewport": 2.0,
+    # Franka cloth Kit RTX tiled: Newton tiled resync fix eliminated the missing-arm
+    # pixel diff; observed 0.22% warm-retry diff. Use the kit-tiled default (2%) which
+    # already gives headroom for the scene-agnostic RTX composite noise.
+    # Franka cloth Kit viewport: observed 0.45% warm-retry diff; 2% gives headroom.
+    "franka_cloth-kit-viewport": 2.0,
 }
 
 _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
@@ -81,14 +75,10 @@ _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     # Observed 0.9539 (tiled) and 0.9678 (viewport) for AnymalD Kit on CI.
     "anymal_d-kit-tiled": 0.945,
     "anymal_d-kit-viewport": 0.960,
-    # Shadow hand Kit tiled at reset: cold-golden vs warm-retry gap; observed SSIM=0.79.
-    "shadow_hand-kit-tiled": 0.75,
-    # Shadow hand Kit viewport: less composite noise; estimated SSIM ~0.92.
-    "shadow_hand-kit-viewport": 0.90,
-    # Franka cloth Kit tiled at 1 step: VBD + tiled composite noise; SSIM ~0.70 observed.
-    "franka_cloth-kit-tiled": 0.65,
-    # Franka cloth Kit viewport at 1 step: single view, more stable; SSIM ~0.87 expected.
-    "franka_cloth-kit-viewport": 0.85,
+    # Shadow hand Kit tiled: observed 0.9942 SSIM on warm retry; 0.985 matches kit default.
+    # Shadow hand Kit viewport: observed 1.0000 SSIM on warm retry.
+    # Franka cloth Kit tiled: observed 0.9981 SSIM on warm retry; use kit-tiled default (0.960).
+    # Franka cloth Kit viewport: observed 0.9970 SSIM on warm retry; 0.985 matches kit default.
 }
 
 _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
