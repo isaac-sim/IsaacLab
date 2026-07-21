@@ -16,6 +16,9 @@ if TYPE_CHECKING:
 
 @configclass
 class CableObjectCfg(AssetBaseCfg):
-    """Configuration parameters for a cable object."""
+    """Configuration parameters for a cable object.
+
+    The inherited :attr:`init_state` sets the cable's spawn position and orientation.
+    """
 
     class_type: type[CableObject] | str = "{DIR}.cable_object:CableObject"
