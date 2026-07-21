@@ -38,7 +38,6 @@ def test_runtime_writes_all_requested_formats(tmp_path):
         "--benchmark_formatter",
         "schema,omniperf",
         "presets=newton_mjwarp",
-        "--headless",
     ]
     res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=900)
     if res.returncode != 0:

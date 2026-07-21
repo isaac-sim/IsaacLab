@@ -16,10 +16,10 @@ Setup:
          Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
-    - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
-        presets=newton_mjwarp --max_iterations 5; ./isaaclab.sh train --rl_library rsl_rl
+    - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
+        presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
         --task Isaac-Cartpole-Camera-Direct --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
-        --headless --enable_cameras -> verify state training, camera rendering, and camera training work
+ -> verify state training, camera rendering, and camera training work
 """
 
 from __future__ import annotations

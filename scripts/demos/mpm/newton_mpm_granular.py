@@ -15,7 +15,7 @@ stepping.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/demos/mpm/newton_mpm_granular.py --visualizer newton
+    uv run python scripts/demos/mpm/newton_mpm_granular.py --visualizer newton
 """
 
 from __future__ import annotations

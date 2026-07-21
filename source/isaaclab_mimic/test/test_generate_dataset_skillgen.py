@@ -64,7 +64,7 @@ def test_generate_dataset_skillgen(setup_skillgen_test_environment):
 
     output_file = os.path.join(DATASETS_DOWNLOAD_DIR, "generated_dataset_skillgen.hdf5")
 
-    # Run the script directly (bypassing isaaclab.sh) so that stdout is
+    # Run the script through the uv environment so that stdout is
     # properly captured (see _run_script docstring for details).
     command = [
         sys.executable,
@@ -80,7 +80,6 @@ def test_generate_dataset_skillgen(setup_skillgen_test_environment):
         "--generation_num_trials",
         "1",
         "--use_skillgen",
-        "--headless",
         "--task",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
     ]

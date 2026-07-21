@@ -41,7 +41,7 @@ _KITLESS_PHYSICS_CFGS = ("NewtonCfg", "OvPhysxCfg")
 
 
 def add_launcher_args(parser: argparse.ArgumentParser) -> None:
-    """Add simulation-launcher CLI arguments (``--headless``, ``--device``, etc.) to *parser*.
+    """Add simulation-launcher CLI arguments (``--device``, ``--viz``, etc.) to *parser*.
 
     Delegates to :meth:`AppLauncher.add_app_launcher_args` so that user scripts
     do not need to import ``AppLauncher`` directly.
@@ -454,11 +454,6 @@ def launch_simulation(
     # never construct it, so honor --verbose / --info here to keep behavior consistent.
     if not needs_kit:
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
-
-    if needs_kit and config_scan.has_kit_camera and launcher_args is not None:
-        if not _get_arg(launcher_args, "enable_cameras", False):
-            logger.info("Auto-enabling cameras: scene contains camera sensors with a Kit renderer.")
-            _set_arg(launcher_args, "enable_cameras", True)
 
     # Resolve distributed device early, before AppLauncher or physics init.
     _resolve_distributed_device(effective_cfg, launcher_args)
