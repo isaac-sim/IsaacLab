@@ -45,7 +45,7 @@ dependencies = [
     "pytetwild[all]>=0.3.0,<0.4 ; platform_machine == 'aarch64' or platform_machine == 'arm64'",
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.15.0.dev20260626",
+    "warp-lang==1.16.0.dev20260716",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
@@ -169,8 +169,8 @@ torchaudio = "2.11.0"
 ovphysx = ">=0.4.13"
 ovrtx = ">=0.3.0,<0.4.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
-newton = "c7ae7c7648cd0717df39e5c94b95d5a02c997320"
-warp = "1.15.0.dev20260626"
+newton = "105f89514fd9662e0ba341b0a364f35131c02606"
+warp = "1.16.0.dev20260716"
 
 [tool.ruff]
 line-length = 120
@@ -329,14 +329,16 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-# Isaac Lab owns the Newton and torch versions. Overrides replace these requirements
+# Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace these requirements
 # for EVERY requester (unlike constraints, which only intersect), so ``--extra isaacsim``
-# — which pins ``newton[sim]==1.2.0`` and its own torch stack — can neither block
-# resolution nor downgrade an already-installed newton/torch. The torch stack routes to
-# the CUDA indexes via [tool.uv.sources]. Values mirror [tool.isaaclab.versions] above.
+# — which pins older Newton and MuJoCo versions plus its own torch stack — can neither
+# block resolution nor downgrade the versions required here. The torch stack routes to
+# the CUDA indexes via [tool.uv.sources]. Version pins mirror [tool.isaaclab.versions] above.
 override-dependencies = [
     "numpy>=2",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@c7ae7c7648cd0717df39e5c94b95d5a02c997320",
+    "newton[sim,importers] @ git+https://github.com/rubengrandia/newton.git@105f89514fd9662e0ba341b0a364f35131c02606",
+    "mujoco>=3.10.0,<3.11.0",
+    "mujoco-warp>=3.10.0.2,<3.11.0",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.3.1",
     "torch==2.11.0",
