@@ -19,7 +19,6 @@ from packaging import version
 
 from isaaclab.app import add_launcher_args
 
-from isaaclab_rl.entrypoints._state import preserve_attribute
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
@@ -28,6 +27,7 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    preserve_attribute,
     resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,

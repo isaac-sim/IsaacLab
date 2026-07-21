@@ -20,7 +20,6 @@ from packaging import version
 
 from isaaclab.app import add_launcher_args
 
-from isaaclab_rl.entrypoints._state import scoped_torch_backend_flags
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
@@ -31,6 +30,7 @@ from isaaclab_rl.entrypoints.common import (
     dump_train_configs,
     enable_cameras_for_video,
     resolve_checkpoint_selector,
+    scoped_torch_backend_flags,
     set_hydra_args,
     validate_distributed_device,
     wrap_training_capture,
@@ -98,10 +98,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def run(argv: list[str]) -> None:
     """Train an RSL-RL agent while restoring the caller's Torch backend settings."""
-    import torch
-
     args_cli = _parse_args(argv)
-    with scoped_torch_backend_flags(torch):
+    with scoped_torch_backend_flags(
+        cuda_matmul_allow_tf32=True,
+        cudnn_allow_tf32=True,
+        cudnn_deterministic=False,
+        cudnn_benchmark=False,
+    ):
         _run(args_cli)
 
 
