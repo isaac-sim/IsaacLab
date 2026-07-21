@@ -108,6 +108,15 @@ class CurriculumCfg:
         },
     )
 
+    oob_adr = CurrTerm(
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "terminations.object_out_of_bound.params.in_bound_range.z",
+            "modify_fn": mdp.initial_final_interpolate_fn,
+            "modify_params": {"initial_value": (0.3, 2.0), "final_value": (0.0, 2.0), "difficulty_term_str": "adr"},
+        },
+    )
+
     gravity_adr = CurrTerm(
         func=mdp.modify_term_cfg,
         params={

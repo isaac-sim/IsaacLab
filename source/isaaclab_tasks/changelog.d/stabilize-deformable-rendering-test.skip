@@ -1,0 +1,4 @@
+Test-only: stabilized Franka cloth rendering tests by skipping unsupported physics presets
+procedurally, reducing the pre-capture simulation step to one, refreshing Newton golden images,
+and removing PhysX golden images for an env that only declares a Newton preset. No user-facing API
+change.

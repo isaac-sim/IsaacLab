@@ -104,14 +104,16 @@ class TestMockRigidBodyViewWarpGetters:
         expected = np.tile(np.eye(3).flatten(), (4, 1))
         np.testing.assert_allclose(inertias_np, expected)
 
-    def test_getters_return_clones(self, view):
-        """Test that getters return clones, not references."""
+    def test_getters_refresh_stable_buffers(self, view):
+        """Test that getters refresh a pointer-stable buffer in place, like real PhysX."""
         transforms1 = view.get_transforms()
         transforms1_np = transforms1.numpy()
         transforms1_np[0, 0] = 999.0
         transforms2 = view.get_transforms()
         transforms2_np = transforms2.numpy()
+        # external mutations are overwritten by the refresh, and the buffer identity is stable
         assert transforms2_np[0, 0] != 999.0
+        assert transforms2.ptr == transforms1.ptr
 
 
 class TestMockRigidBodyViewWarpSetters:
