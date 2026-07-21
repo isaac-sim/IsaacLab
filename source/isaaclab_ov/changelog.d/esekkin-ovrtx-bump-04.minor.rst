@@ -8,4 +8,4 @@ Fixed
 ^^^^^
 
 * Worked around OVRTX 0.4 tiled RenderProducts retaining only cameras present at stage load by
-  rewriting the camera relationship after runtime cloning.
+  initially authoring only the resolvable source camera and rewriting the relationship after runtime cloning.

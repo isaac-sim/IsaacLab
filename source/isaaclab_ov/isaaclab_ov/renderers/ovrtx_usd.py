@@ -185,6 +185,9 @@ def build_render_product_as_string(
     """Build the render product USD snippet as a string.
 
     This string is meant to be appended to an exported stage (ASCII) before loading into OVRTX.
+    The initial camera relationship targets only environment zero, whose camera is guaranteed to
+    exist in the trimmed stage. Multi-environment rendering rewrites the relationship with every
+    resolved camera path after runtime cloning.
 
     Args:
         width: Tile width from sensor config [px].
@@ -200,7 +203,7 @@ def build_render_product_as_string(
     data_types = data_types if data_types else ["rgb"]
     tiled_width, tiled_height = _tiled_resolution(num_envs, width, height)
 
-    camera_paths = [f"/World/envs/env_{i}/{camera_rel_path}" for i in range(num_envs)]
+    camera_paths = [f"/World/envs/env_0/{camera_rel_path}"]
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
