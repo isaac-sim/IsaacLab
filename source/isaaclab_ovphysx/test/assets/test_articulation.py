@@ -360,12 +360,13 @@ def sim(request):
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
     """Write selected joint state with an int64 joint selector and int32 OVPhysX environment selector."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
     articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
     sim.reset()
+    assert articulation.num_joints >= 2
 
     env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
-    joint_ids = torch.tensor([2, 0], dtype=torch.int64, device=device)
+    joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int64, device=device)
     position = torch.tensor([[0.21, 0.11], [0.22, 0.12]], device=device)
     velocity = torch.tensor([[1.21, 1.11], [1.22, 1.12]], device=device)
     expected_position = articulation.data.joint_pos.torch.clone()
@@ -385,12 +386,13 @@ def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_set_masses_accepts_int64_selector(sim, device, gravity_enabled):
     """Set selected body masses with an int64 body selector and int32 OVPhysX environment selector."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
     articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
     sim.reset()
+    assert articulation.num_bodies >= 2
 
     env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
-    body_ids = torch.tensor([2, 0], dtype=torch.int64, device=device)
+    body_ids = torch.tensor([articulation.num_bodies - 1, 0], dtype=torch.int64, device=device)
     masses = torch.tensor([[2.1, 1.1], [2.2, 1.2]], device=device)
     expected = articulation.data.body_mass.torch.clone()
     expected[env_ids.long()[:, None], body_ids[None, :]] = masses
@@ -412,14 +414,14 @@ def test_set_fixed_tendon_stiffness_accepts_int64_selector(sim, device, gravity_
     env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
     fixed_tendon_ids = torch.tensor([articulation.num_fixed_tendons - 1, 0], dtype=torch.int64, device=device)
     stiffness = torch.tensor([[21.0, 11.0], [22.0, 12.0]], device=device)
-    expected = wp.to_torch(articulation.data._fixed_tendon_stiffness).clone()
+    expected = wp.to_torch(articulation.data._fixed_tendon_stiffness.data).clone()
     expected[env_ids.long()[:, None], fixed_tendon_ids[None, :]] = stiffness
 
     articulation.set_fixed_tendon_stiffness_index(
         stiffness=stiffness, env_ids=env_ids, fixed_tendon_ids=fixed_tendon_ids
     )
 
-    torch.testing.assert_close(wp.to_torch(articulation.data._fixed_tendon_stiffness), expected)
+    torch.testing.assert_close(wp.to_torch(articulation.data._fixed_tendon_stiffness.data), expected)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -433,14 +435,14 @@ def test_set_spatial_tendon_stiffness_accepts_int64_selector(sim, device, gravit
     env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
     spatial_tendon_ids = torch.tensor([0], dtype=torch.int64, device=device)
     stiffness = torch.tensor([[21.0], [22.0]], device=device)
-    expected = wp.to_torch(articulation.data._spatial_tendon_stiffness).clone()
+    expected = wp.to_torch(articulation.data._spatial_tendon_stiffness.data).clone()
     expected[env_ids.long()[:, None], spatial_tendon_ids[None, :]] = stiffness
 
     articulation.set_spatial_tendon_stiffness_index(
         stiffness=stiffness, env_ids=env_ids, spatial_tendon_ids=spatial_tendon_ids
     )
 
-    torch.testing.assert_close(wp.to_torch(articulation.data._spatial_tendon_stiffness), expected)
+    torch.testing.assert_close(wp.to_torch(articulation.data._spatial_tendon_stiffness.data), expected)
 
 
 @pytest.mark.parametrize("num_articulations", [1])

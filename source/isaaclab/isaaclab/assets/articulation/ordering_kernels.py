@@ -874,8 +874,8 @@ def write_2d_user_to_backend_with_indices(
         input_data: Values in caller-defined units, torch tensor or Warp array.
             With full_data true, shape is [num_envs, num_items] in public order;
             otherwise it is [len(env_ids), len(user_ids)].
-        env_ids: Unique selected environment indices, ``wp.int32``.
-        user_ids: Unique selected public item indices, ``wp.int32``.
+        env_ids: Unique selected environment indices, ``wp.int32`` or ``wp.int64``.
+        user_ids: Unique selected public item indices, ``wp.int32`` or ``wp.int64``.
         user_to_backend: Read-only public-to-backend item map, ``wp.int32``.
         has_ordering: Whether to scatter values into backend_data. When false,
             backend_data is not written and may alias user_data.

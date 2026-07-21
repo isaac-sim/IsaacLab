@@ -409,12 +409,13 @@ def sim(request):
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
     """Write selected joint state with an int64 joint selector and int32 PhysX environment selector."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
     articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
     sim.reset()
+    assert articulation.num_joints >= 2
 
     env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
-    joint_ids = torch.tensor([2, 0], dtype=torch.int64, device=device)
+    joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int64, device=device)
     position = torch.tensor([[0.21, 0.11], [0.22, 0.12]], device=device)
     velocity = torch.tensor([[1.21, 1.11], [1.22, 1.12]], device=device)
 
@@ -434,12 +435,13 @@ def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_set_masses_accepts_int64_selector(sim, device, gravity_enabled):
     """Set selected body masses with an int64 body selector and int32 PhysX environment selector."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
     articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
     sim.reset()
+    assert articulation.num_bodies >= 2
 
     env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
-    body_ids = torch.tensor([2, 0], dtype=torch.int64, device=device)
+    body_ids = torch.tensor([articulation.num_bodies - 1, 0], dtype=torch.int64, device=device)
     masses = torch.tensor([[2.1, 1.1], [2.2, 1.2]], device=device)
     expected = articulation.data.body_mass.torch.clone()
     expected[env_ids.long()[:, None], body_ids[None, :]] = masses
