@@ -14,16 +14,8 @@ from __future__ import annotations
 
 import sys
 import time
-from pathlib import Path
 
-_BENCH_DIR = Path(__file__).resolve().parents[1]
-_RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
-
-if str(_RL_SCRIPTS) not in sys.path:
-    # Shared training utilities remain script-local, so their directory must be on sys.path.
-    sys.path.insert(0, str(_RL_SCRIPTS))
-
-import common as _common  # noqa: E402
+from isaaclab_rl.entrypoints import common as _common
 
 
 def _parse_args(argv: list[str]):
@@ -39,9 +31,9 @@ def _parse_args(argv: list[str]):
     """
     import argparse
 
-    from isaaclab_tasks.utils import setup_preset_cli
+    from isaaclab.app import add_launcher_args
 
-    add_isaaclab_launcher_args = _common.add_isaaclab_launcher_args
+    from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with SKRL.")
     help_requested = "-h" in argv or "--help" in argv
@@ -89,7 +81,7 @@ def _parse_args(argv: list[str]):
             " Example: 'schema,omniperf'."
         ),
     )
-    add_isaaclab_launcher_args(parser)
+    add_launcher_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
     sys.argv = [sys.argv[0]] + remaining_args
@@ -126,7 +118,7 @@ def run(argv: list[str]) -> None:
 
     args_cli, remaining_args = _parse_args(argv)
 
-    # Resolve agent entry point (mirrors scripts/reinforcement_learning/skrl/play.py).
+    # Resolve agent entry point (mirrors isaaclab_rl.entrypoints.backends.play_skrl).
     if args_cli.agent is None:
         algorithm = args_cli.algorithm.lower()
         agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"
@@ -205,7 +197,7 @@ def run(argv: list[str]) -> None:
         elif args_cli.ml_framework.startswith("jax"):
             from skrl.utils.runner.jax import Runner
 
-        # Load the trained policy the same way scripts/reinforcement_learning/skrl/play.py does.
+        # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_skrl does.
         agent_cfg["trainer"]["close_environment_at_exit"] = False
         agent_cfg["agent"]["experiment"]["write_interval"] = 0
         agent_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
@@ -216,7 +208,7 @@ def run(argv: list[str]) -> None:
         def policy(obs):
             """Map an observation batch to a deterministic action batch via the skrl agent.
 
-            Mirrors the inference path in ``scripts/reinforcement_learning/skrl/play.py``:
+            Mirrors the inference path in ``isaaclab_rl.entrypoints.backends.play_skrl``:
             runs the agent's deterministic action, preferring the policy ``mean_actions``
             over the sampled action returned as the first element.
 

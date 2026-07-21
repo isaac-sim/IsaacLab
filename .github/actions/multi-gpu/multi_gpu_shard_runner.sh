@@ -49,7 +49,7 @@ mkdir -p /tmp/mgpu-base-home /tmp/mgpu-pyuserbase
 
 # Pytest deps (same as run-tests action). junitparser is imported at
 # tools/conftest.py load time, so it must be present first.
-./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky "coverage>=7.6.1"
+./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky "coverage>=7.6.1"
 
 # Shard count from nvidia-smi -L (truth; torch under-counts MIG).
 MIG_COUNT=$(nvidia-smi -L | grep -c "^  MIG ")  # grep -c = count of matching lines (MIG slices)

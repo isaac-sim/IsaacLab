@@ -16,8 +16,13 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "ovphysx", "tensorbindingsapi"]
 requires-python = ">=3.12"
-# Third-party requirements are centralized in the root pyproject.toml.
-dependencies = []
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
