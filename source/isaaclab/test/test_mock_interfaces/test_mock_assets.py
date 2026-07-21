@@ -83,6 +83,8 @@ def test_finders_support_transitional_return_modes(case):
         warnings.simplefilter("error", DeprecationWarning)
         explicit_indices, explicit_names = finder(name_keys, as_proxy=False)
         proxy_indices, proxy_names = finder(name_keys, as_proxy=True)
+        empty_indices, empty_names = finder([], as_proxy=True)
+        repeated_empty_indices, repeated_empty_names = finder([], as_proxy=True)
 
     expected_indices = [0] if case == "rigid_object_bodies" else [0, 1]
     expected_names = ["item_0"] if case == "rigid_object_bodies" else ["item_0", "item_1"]
@@ -109,6 +111,11 @@ def test_finders_support_transitional_return_modes(case):
     assert proxy_indices.torch.device.type == asset.device
     assert proxy_indices.torch.tolist() == expected_indices
     assert proxy_indices.warp.ptr == proxy_indices.torch.data_ptr()
+    assert empty_names == repeated_empty_names == []
+    assert empty_indices.torch.tolist() == []
+    assert empty_indices is repeated_empty_indices
+    assert empty_indices.warp is repeated_empty_indices.warp
+    assert empty_indices.torch is repeated_empty_indices.torch
 
 
 @pytest.mark.parametrize("case", _ALL_FINDER_CASES)

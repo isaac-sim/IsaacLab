@@ -165,8 +165,10 @@ class TestRigidObjectFinderReturnModes:
         with warnings.catch_warnings(record=True) as warning_records:
             warnings.simplefilter("always")
             explicit_indices, explicit_names = obj.find_bodies(".*", as_proxy=False)
-        proxy_indices, proxy_names = obj.find_bodies(explicit_names[0], as_proxy=True)
-        repeated_indices, repeated_names = obj.find_bodies(".*", as_proxy=True)
+            proxy_indices, proxy_names = obj.find_bodies(explicit_names[0], as_proxy=True)
+            repeated_indices, repeated_names = obj.find_bodies(".*", as_proxy=True)
+            empty_indices, empty_names = obj.find_bodies([], as_proxy=True)
+            repeated_empty_indices, repeated_empty_names = obj.find_bodies([], as_proxy=True)
 
         assert not warning_records
         assert isinstance(implicit_indices, list)
@@ -178,6 +180,11 @@ class TestRigidObjectFinderReturnModes:
         assert str(proxy_indices.device) == obj.device
         assert proxy_indices is repeated_indices
         assert proxy_indices.warp.ptr == repeated_indices.warp.ptr
+        assert empty_names == repeated_empty_names == []
+        assert empty_indices.torch.tolist() == []
+        assert empty_indices is repeated_empty_indices
+        assert empty_indices.warp is repeated_empty_indices.warp
+        assert empty_indices.torch is repeated_empty_indices.torch
 
     @_production_backends
     def test_find_bodies_cache_is_asset_local_and_cleared_on_invalidation(self, backend):
@@ -186,13 +193,16 @@ class TestRigidObjectFinderReturnModes:
 
         first = first_obj.find_bodies(".*", as_proxy=True)[0]
         other_asset = second_obj.find_bodies(".*", as_proxy=True)[0]
-        asset_base = next(base for base in type(first_obj).__mro__ if base.__name__ == "AssetBase")
-        asset_base._invalidate_initialize_callback(first_obj, None)
+        assert first_obj._root_view is not None
+        first_obj._invalidate_initialize_callback(None)
         after_reinitialization = first_obj.find_bodies(".*", as_proxy=True)[0]
 
+        assert first_obj._root_view is None
         assert first is not other_asset
+        assert first.warp is not other_asset.warp
         assert first.warp.ptr != other_asset.warp.ptr
         assert first is not after_reinitialization
+        assert first.warp is not after_reinitialization.warp
         assert first.warp.ptr != after_reinitialization.warp.ptr
 
 

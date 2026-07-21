@@ -32,7 +32,7 @@ class ProxyArray:
 
     * A ``.warp`` property that returns the original warp array (for kernel interop).
     * A ``.torch`` property that returns a cached, zero-copy :class:`torch.Tensor` view
-      (via :func:`warp.to_torch`).
+      (via DLPack for empty arrays and :func:`warp.to_torch` otherwise).
     * Convenience properties (``shape``, ``dtype``, ``device``) delegated to the warp array.
     * A deprecation bridge for common torch functions, indexing, and arithmetic/comparison
       operators while emitting a one-time :class:`DeprecationWarning`. Tensor instance methods
@@ -122,8 +122,9 @@ class ProxyArray:
     def torch(self) -> torch.Tensor:
         """A cached, zero-copy :class:`torch.Tensor` view of the warp array.
 
-        The tensor is created on first access via :func:`warp.to_torch` and cached
-        for subsequent calls. Since this is a zero-copy view, modifications to the
+        The tensor is created on first access via DLPack for an empty array or
+        :func:`warp.to_torch` otherwise, then cached for subsequent calls.
+        Since this is a zero-copy view, modifications to the
         tensor are visible through the warp array and vice versa.
 
         When the underlying warp array has dtype ``wp.quatf`` and the
@@ -144,7 +145,17 @@ class ProxyArray:
                 stacklevel=2,
             )
         if self._torch_cache is None:
-            self._torch_cache = wp.to_torch(self._warp)
+            if self._warp.size == 0:
+                torch_view = torch.from_dlpack(self._warp)
+                torch_view.requires_grad = self._warp.requires_grad
+                if self._warp.requires_grad and self._warp.grad is not None:
+                    torch_view.grad = torch.from_dlpack(self._warp.grad)
+                    torch_view.grad._warp_grad_array = self._warp.grad
+                # Keep explicit ownership parity with Warp's DLPack-backed to_torch path.
+                torch_view._warp_array = self._warp
+                self._torch_cache = torch_view
+            else:
+                self._torch_cache = wp.to_torch(self._warp)
         return self._torch_cache
 
     # ------------------------------------------------------------------

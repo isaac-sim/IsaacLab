@@ -52,6 +52,37 @@ class TestProxyArrayBasic:
         t2 = ta.torch
         assert t1 is t2
 
+    def test_empty_cpu_torch_returns_cached_tensor(self):
+        """An empty CPU warp array returns a correctly typed, cached torch view."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        ta = ProxyArray(wp.array([], dtype=wp.int32, device="cpu"))
+
+        first = ta.torch
+        second = ta.torch
+
+        assert first is second
+        assert first.shape == (0,)
+        assert first.dtype == torch.int32
+        assert first.device.type == "cpu"
+        assert first.tolist() == []
+        assert first._warp_array is ta.warp
+
+    def test_empty_cpu_torch_preserves_requires_grad(self):
+        """An empty differentiable warp array preserves torch gradient metadata."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        ta = ProxyArray(wp.zeros(0, dtype=wp.float32, device="cpu", requires_grad=True))
+
+        tensor = ta.torch
+
+        assert tensor.requires_grad
+        assert tensor.grad is not None
+        assert tensor.grad.shape == (0,)
+        assert tensor.grad.dtype == torch.float32
+        assert tensor.grad.device.type == "cpu"
+        assert tensor.grad._warp_grad_array is ta.warp.grad
+
     def test_torch_shares_memory(self, device):
         """Test that .torch provides a zero-copy view (shares memory with warp)."""
         from isaaclab.utils.warp.proxy_array import ProxyArray

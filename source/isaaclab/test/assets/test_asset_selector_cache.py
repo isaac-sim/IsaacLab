@@ -65,7 +65,20 @@ def test_equivalent_indices_reuse_proxy_and_storage():
 
     assert isinstance(first, ProxyArray)
     assert first is second
+    assert first.warp is second.warp
     assert first.warp.ptr == second.warp.ptr
+
+
+def test_empty_indices_reuse_proxy_and_torch_view():
+    asset = _make_asset()
+
+    first = _find(asset, [])
+    second = _find(asset, ())
+
+    assert first is second
+    assert first.warp is second.warp
+    assert first.torch is second.torch
+    assert first.torch.tolist() == []
 
 
 def test_domains_do_not_alias():
@@ -75,6 +88,7 @@ def test_domains_do_not_alias():
     bodies = _find(asset, [0, 2], domain="body")
 
     assert joints is not bodies
+    assert joints.warp is not bodies.warp
     assert joints.warp.ptr != bodies.warp.ptr
 
 
@@ -86,6 +100,7 @@ def test_assets_do_not_share_entries():
     second = _find(second_asset, [0, 2])
 
     assert first is not second
+    assert first.warp is not second.warp
     assert first.warp.ptr != second.warp.ptr
 
 
@@ -111,6 +126,7 @@ def test_clear_releases_cached_entries():
     second = _find(asset, [1, 4])
 
     assert first is not second
+    assert first.warp is not second.warp
     assert first.warp.ptr != second.warp.ptr
 
 
