@@ -3878,7 +3878,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
     """``g(q)`` must equal ``-sum_b J_com_b^T (m_b * g_w)`` at the current configuration.
 
     Newton computes the gravity compensation force through an RNEA pass
-    (``eval_inverse_dynamics``); the static identity above derives the same
+    (``eval_inverse_dynamics_passive``); the static identity above derives the same
     quantity independently from the (already contract-validated) COM-referenced
     Jacobian and the per-body masses, pinning the sign convention, the DoF
     ordering (including the 6 floating-base entries), and the flat-buffer view
@@ -4027,7 +4027,7 @@ def test_gravity_compensation_refreshes_after_manual_joint_write(sim, num_articu
     """After ``write_joint_position_to_sim_index`` (no sim step), the gravity
     compensation read must reflect the new joint state.
 
-    ``g(q)`` depends on ``q`` through the RNEA pass in ``eval_inverse_dynamics``,
+    ``g(q)`` depends on ``q`` through the RNEA pass in ``eval_inverse_dynamics_passive``,
     which reads ``state.body_q``. Same FK-staleness pattern as the Jacobian and
     the mass matrix. Gravity stays enabled (the default) — with gravity off,
     ``g(q)`` is identically zero and the assert would be vacuous.
@@ -4046,7 +4046,7 @@ def test_gravity_compensation_refreshes_after_manual_joint_write(sim, num_articu
 
     assert not torch.allclose(g_0, g_1, atol=1e-3), (
         "gravity_compensation_forces did not change after manual joint write — "
-        "FK trigger likely missing before eval_inverse_dynamics."
+        "FK trigger likely missing before eval_inverse_dynamics_passive."
     )
 
 
@@ -4321,7 +4321,7 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
     floor and the test fails loudly instead of silently passing on a
     non-discriminating setup. The gravity feed-forward consumes
     :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
-    (Newton RNEA via ``eval_inverse_dynamics``) live in the loop, covering the
+    (Newton RNEA via ``eval_inverse_dynamics_passive``) live in the loop, covering the
     FK-staleness refresh on every step of phase 2.
 
     The task stiffness (500) deliberately matches the PhysX-side OSC

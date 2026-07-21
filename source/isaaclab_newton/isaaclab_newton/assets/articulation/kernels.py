@@ -749,7 +749,7 @@ def gather_dof_force_rows(
 
     Flat-layout analogue of :func:`gather_mass_matrix_rows` for per-DoF outputs
     written in :attr:`newton.Model.joint_qd` layout (e.g. the gravity
-    compensation force from ``newton.eval_inverse_dynamics``). The DoF axis is
+    compensation force from ``newton.eval_inverse_dynamics_passive``). The DoF axis is
     preserved in full (including the leading 6 free-root entries for
     floating-base articulations), matching the cross-library industry
     convention used by PhysX, Pinocchio, Drake, MuJoCo, RBDL, OCS2, and

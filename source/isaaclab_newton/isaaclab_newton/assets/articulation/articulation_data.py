@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from newton import InverseDynamics
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
@@ -1028,26 +1027,27 @@ class ArticulationData(BaseArticulationData):
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
 
-        Newton implementation: ``eval_inverse_dynamics`` with ``EvalType.GRAVITY_FORCE``
-        (writes the model-wide flat DoF buffer) then a gather kernel extracts this
-        view's DoF segment.
+        Newton implementation: ``eval_inverse_dynamics_passive`` (writes the model-wide
+        flat DoF buffer) then a gather kernel extracts this view's DoF segment.
         """
-        # eval_inverse_dynamics reads ``state.body_q``; refresh FK if stale.
+        # eval_inverse_dynamics_passive reads ``state.body_q``; refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
         self._ensure_fk_fresh()
-        # eval_inverse_dynamics writes every articulation in the view's model-wide flat
+        # eval_inverse_dynamics_passive writes every articulation in the model-wide flat
         # buffer (zeros outside the view); the gather kernel extracts this view's DoF
-        # segments. All buffers are pre-allocated for CUDA-graph capture safety.
-        self._root_view.eval_inverse_dynamics(
+        # segments. Newton allocates its RNEA scratch internally on every call through
+        # Warp's stream-ordered mempool allocator — capture-safe when mempools are
+        # enabled (validated by Newton's own graph-capture test) — so only the output
+        # and gather buffers need pre-allocation here.
+        self._root_view.eval_inverse_dynamics_passive(
             SimulationManager.get_state_0(),
-            InverseDynamics.EvalType.GRAVITY_FORCE,
-            self._inverse_dynamics_buf,
+            gravity_force=self._gravity_force_full_buf,
         )
         wp.launch(
             articulation_kernels.gather_dof_force_rows,
             dim=self._gravity_compensation_forces_buf.shape,
             inputs=[
-                self._inverse_dynamics_buf.gravity_force,
+                self._gravity_force_full_buf,
                 self._jacobian_view_dof_starts,
                 self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
                 self._num_base_dofs,
@@ -1867,7 +1867,7 @@ class ArticulationData(BaseArticulationData):
         """Allocate the scratch + view-sized buffers used by task-space accessors.
 
         Newton's :meth:`eval_jacobian` / :meth:`eval_mass_matrix` /
-        :meth:`eval_inverse_dynamics` write into model-sized scratch buffers spanning
+        :meth:`eval_inverse_dynamics_passive` write into model-sized scratch buffers spanning
         every articulation in the model; the gather kernels in
         :attr:`body_com_jacobian_w` / :attr:`mass_matrix` /
         :attr:`gravity_compensation_forces` extract this view's rows. The
@@ -1935,10 +1935,9 @@ class ArticulationData(BaseArticulationData):
             device=self.device,
         )
 
-        # -- ``gravity_compensation_forces``: model-wide inverse-dynamics container
-        #    (eval_inverse_dynamics output buffers + private RNEA scratch) and per-view
-        #    output (gather output)
-        self._inverse_dynamics_buf = model.inverse_dynamics()
+        # -- ``gravity_compensation_forces``: model-wide flat gravity-force output
+        #    (eval_inverse_dynamics_passive) and per-view output (gather output)
+        self._gravity_force_full_buf = wp.zeros(model.joint_dof_count, dtype=wp.float32, device=self.device)
         # Flat joint-space (``Model.joint_qd`` layout) DoF start of each view
         # articulation, for gathering flat per-DoF outputs. Host-computed once:
         # dof_start = joint_qd_start[first joint of the articulation].
