@@ -83,10 +83,12 @@ dependencies = [
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
-    # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
-    # ...) that honoring USD-authored ``physics:approximation`` requires.
-    "newton[sim,importers]>=1.2.0",
+    # exact git commit (with the importers extra) is forced via
+    # [tool.uv].override-dependencies (uv sync only). The importers extra is omitted
+    # here because every published newton release pins usd-core<26.5 in that extra,
+    # conflicting with our usd-core>=26.05 requirement; the git override uses a build
+    # that dropped that upper bound.
+    "newton[sim]>=1.2.0",
     # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
