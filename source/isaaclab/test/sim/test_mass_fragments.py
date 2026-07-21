@@ -74,7 +74,7 @@ def test_apply_mass_properties_applies_anchor_and_writes_fields():
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     _make_xform(stage, "/World/B2")
-    apply_mass_properties("/World/B2", [MassCfg(mass=5.0, density=100.0)], stage)
+    apply_mass_properties("/World/B2", [MassCfg(mass=5.0, density=100.0)], create_if_missing=True, stage=stage)
     prim = stage.GetPrimAtPath("/World/B2")
     assert bool(UsdPhysics.MassAPI(prim))  # implicit anchor applied
     assert abs(prim.GetAttribute("physics:mass").Get() - 5.0) < 1e-6
@@ -121,19 +121,21 @@ def test_spawn_shape_with_single_mass_fragment():
 
 
 # -------------------------------------------------------------------------------------
-# Review follow-ups -- prim-validity guard, aggregated return, empty-list no-op
+# Review follow-ups -- unmatched-path warning, aggregated return, empty-list no-op
 # -------------------------------------------------------------------------------------
 
 
-def test_apply_mass_properties_raises_on_invalid_prim():
+def test_apply_mass_properties_warns_on_unmatched_path(caplog):
     from isaaclab.sim.schemas import MassCfg, apply_mass_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    # no prim authored at this path -> GetPrimAtPath returns an invalid prim
-    with pytest.raises(ValueError):
-        apply_mass_properties("/World/DoesNotExist", [MassCfg(mass=1.0)], stage)
+    # no prim authored at this path -> zero matches -> warning + False, no exception
+    with caplog.at_level("WARNING"):
+        result = apply_mass_properties("/World/DoesNotExist", [MassCfg(mass=1.0)], stage=stage)
+    assert result is False
+    assert "/World/DoesNotExist" in caplog.text
 
 
 def test_apply_mass_properties_aggregates_fragment_results():
@@ -147,11 +149,32 @@ def test_apply_mass_properties_aggregates_fragment_results():
     # a fragment whose applier reports failure must make the aggregate return False
     failing = MassCfg(mass=1.0)
     failing.func = lambda cfg, prim_path, stage=None: False
-    assert apply_mass_properties("/World/Agg", [failing], stage) is False
+    assert apply_mass_properties("/World/Agg", [failing], create_if_missing=True, stage=stage) is False
 
     # all-succeeding fragments return True
     ok = MassCfg(mass=1.0)
-    assert apply_mass_properties("/World/Agg", [ok], stage) is True
+    assert apply_mass_properties("/World/Agg", [ok], create_if_missing=True, stage=stage) is True
+
+
+def test_apply_mass_properties_creates_only_on_rigid_bodies(caplog):
+    """Multi-prim mass creation lands on every matched rigid body and skips non-bodies with a warning."""
+    from isaaclab.sim.schemas import MassCfg, apply_mass_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    body = UsdGeom.Xform.Define(stage, "/World/Bot/link").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(body)
+    plain = UsdGeom.Xform.Define(stage, "/World/Bot/frame").GetPrim()
+
+    with caplog.at_level("WARNING"):
+        result = apply_mass_properties("/World/Bot/**", [MassCfg(mass=2.0)], create_if_missing=True, stage=stage)
+
+    assert result is True
+    assert body.HasAPI(UsdPhysics.MassAPI)
+    assert body.GetAttribute("physics:mass").Get() == pytest.approx(2.0)
+    assert not plain.HasAPI(UsdPhysics.MassAPI)
+    assert "/World/Bot/frame" in caplog.text
 
 
 def test_spawn_shape_with_empty_mass_list_is_noop():

@@ -500,7 +500,7 @@ def _spawn_mesh_geom_from_mesh(
             # normalize a single fragment to a list so the convenience form routes like a list
             mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
             if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
-                schemas.apply_mass_properties(prim_path, mass_frags, stage=stage)
+                schemas.apply_mass_properties(prim_path, mass_frags, create_if_missing=True, stage=stage)
             else:
                 schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
         # apply rigid properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)

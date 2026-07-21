@@ -208,7 +208,9 @@ class MeshConverter(AssetConverterBase):
             # normalize a single fragment to a list so the convenience form routes like a list
             mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, SchemaFragment) else cfg.mass_props
             if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, SchemaFragment) for f in mass_frags):
-                schemas.apply_mass_properties(str(xform_prim.GetPath()), mass_frags, stage=stage)
+                schemas.apply_mass_properties(
+                    str(xform_prim.GetPath()), mass_frags, create_if_missing=True, stage=stage
+                )
             else:
                 schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
         # apply rigid body properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)

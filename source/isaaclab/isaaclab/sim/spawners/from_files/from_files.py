@@ -365,7 +365,7 @@ def _spawn_from_usd_file(
         # normalize a single fragment to a list so the convenience form routes like a list
         mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
         if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
-            schemas.apply_mass_properties(prim_path, mass_frags)
+            schemas.apply_mass_properties(f"{prim_path}/**", mass_frags)
         else:
             schemas.modify_mass_properties(prim_path, cfg.mass_props)
 

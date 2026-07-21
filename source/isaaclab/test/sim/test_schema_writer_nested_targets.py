@@ -260,7 +260,7 @@ def test_rigid_body_and_mass_fragments_modify_nested_bodies():
     rigid_result = apply_rigid_body_properties(
         "/World/Robot/**", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage=stage
     )
-    mass_result = apply_mass_properties("/World/Robot", [MassCfg(mass=2.5)], stage)
+    mass_result = apply_mass_properties("/World/Robot/**", [MassCfg(mass=2.5)], stage=stage)
 
     assert rigid_result is True
     assert mass_result is True

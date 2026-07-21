@@ -1059,36 +1059,70 @@ Mass properties.
 
 
 def apply_mass_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.MassFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.MassFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
 ) -> bool:
-    """Apply a list of mass fragments to the mass-bearing prims under a prim.
+    """Apply a list of mass fragments to the mass-bearing prims matched by an expression.
 
-    Existing mass-bearing prims in the subtree are modified in place, matching the legacy nested
-    writer, since real assets author ``UsdPhysics.MassAPI`` on their link prims. This includes
-    nested carriers: the URDF importer authors child links under their parent link prims, so
-    every carrier in the subtree is a target. Only when the subtree carries none is
-    ``UsdPhysics.MassAPI`` applied to ``prim_path`` itself -- the bare-prim case used by the
-    shape and mesh spawners. Each fragment is dispatched to every resolved target via its
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
+    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    already carry ``UsdPhysics.MassAPI`` are modified in place: each fragment is dispatched to
+    every such target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend
+    fragments carry backend-specific funcs, so core never imports a backend.
+
+    An empty fragment list is an authoring no-op and returns True. When
+    :paramref:`create_if_missing` is set, matched prims without the API become creation
+    candidates. If nothing already carries the API and exactly one candidate matched -- the
+    bare-prim case used by the shape and mesh spawners, which author mass before the rigid
+    body -- the API is applied to that candidate unconditionally. Otherwise creation is gated
+    on the candidate carrying ``UsdPhysics.RigidBodyAPI``, since a mass on a prim that is not
+    a rigid body is meaningless; non-body candidates are skipped with a warning that does not
+    affect the return value. When no target remains, a warning is emitted and False is
+    returned without authoring anything. Matched prims inside instances cannot be authored on
+    and are skipped with a warning.
 
     Args:
-        prim_path: The prim path whose subtree is searched for mass-bearing prims.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.MassFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        create_if_missing: Whether to apply ``UsdPhysics.MassAPI`` to matched prims that do
+            not carry it, following the creation rules above. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
-
-    Raises:
-        ValueError: When the prim path is not valid.
     """
     fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    targets, any_skipped = _resolve_fragment_targets(
-        prim_path, UsdPhysics.MassAPI, stage, apply_fresh=bool(fragments), stop_at_carrier=False
+    if not fragments:
+        return True
+    targets, candidates, any_skipped = _match_fragment_targets(
+        prim_path_expr, lambda p: p.HasAPI(UsdPhysics.MassAPI), stage
     )
+    if create_if_missing and candidates:
+        if not targets and len(candidates) == 1:
+            # single exact-prim match: the shape/mesh spawners author mass before the rigid
+            # body, so creation must not require a pre-existing body here
+            UsdPhysics.MassAPI.Apply(candidates[0])
+            targets.append(candidates[0])
+        else:
+            creatable = [p for p in candidates if p.HasAPI(UsdPhysics.RigidBodyAPI)]
+            skipped_creation = [p for p in candidates if not p.HasAPI(UsdPhysics.RigidBodyAPI)]
+            if skipped_creation:
+                logger.warning(
+                    "Not creating UsdPhysics.MassAPI on matched prims without a rigid body: %s.",
+                    [p.GetPath().pathString for p in skipped_creation],
+                )
+            for prim in creatable:
+                UsdPhysics.MassAPI.Apply(prim)
+                targets.append(prim)
+    if not targets:
+        logger.warning("No mass targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
     for target in targets:
