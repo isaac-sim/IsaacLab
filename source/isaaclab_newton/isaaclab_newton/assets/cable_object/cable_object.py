@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 
 class CableObject(BaseCableObject):
-    """A cable simulated by Newton."""
+    """A Newton cable that requires the VBD solver."""
 
     cfg: CableObjectCfg
     """Configuration instance for the cable object."""
