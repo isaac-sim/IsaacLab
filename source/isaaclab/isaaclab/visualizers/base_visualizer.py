@@ -46,6 +46,7 @@ class BaseVisualizer(ABC):
         self._deferred_startup_messages: list[str] = []
         self._live_plot_sources: list = []
         self._live_plot_env_idx: int = 0
+        self._live_plots_step_counter: int = 0
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
@@ -168,6 +169,10 @@ class BaseVisualizer(ABC):
         if not self.supports_live_plots():
             return
         if not getattr(self.cfg, "enable_live_plots", True):
+            return
+        import os
+
+        if os.environ.get("ISAACLAB_DISABLE_LIVE_PLOTS", "0") == "1":
             return
         from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
 

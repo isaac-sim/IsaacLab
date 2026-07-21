@@ -382,6 +382,19 @@ class ViserVisualizer(BaseVisualizer):
         num_envs = NewtonManager.get_num_envs()
 
         self._sim_time += dt
+
+        # Skip all rendering when no browser clients are connected.
+        server = getattr(self._viewer, "_server", None)
+        has_clients = True
+        if server is not None:
+            get_clients = getattr(server, "get_clients", None)
+            if callable(get_clients):
+                has_clients = len(get_clients()) > 0
+
+        if not has_clients:
+            self._render_live_plots()  # still throttled internally; no-ops when no clients
+            return
+
         self._viewer.begin_frame(self._sim_time)
         try:
             self._viewer.log_state(self._state)
@@ -469,6 +482,15 @@ class ViserVisualizer(BaseVisualizer):
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to the Viser viewer's per-term plot folders."""
         if self._viewer is None or not self._live_plot_sources:
+            return
+        # Skip when no browser clients are connected — nobody is watching the plots.
+        server = getattr(self._viewer, "_server", None)
+        if server is not None:
+            get_clients = getattr(server, "get_clients", None)
+            if callable(get_clients) and len(get_clients()) == 0:
+                return
+        self._live_plots_step_counter += 1
+        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
             return
         for source in self._live_plot_sources:
             for term_name, values in source.collect(self._live_plot_env_idx).items():

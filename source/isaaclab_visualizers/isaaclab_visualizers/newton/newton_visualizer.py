@@ -595,6 +595,7 @@ class NewtonVisualizer(BaseVisualizer):
                 " headless via EGL and no window will open. Run from a session with a display (or set"
                 " DISPLAY, e.g. 'export DISPLAY=:0') to see the viewer."
             )
+        self._runtime_headless = runtime_headless
 
         # Use pyglet's EGL headless backend when requested or when no Linux X display is available.
         # This must run before the first ``pyglet.window`` import so ``Window`` resolves to
@@ -1090,6 +1091,12 @@ class NewtonVisualizer(BaseVisualizer):
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to the Newton viewer's built-in plot panel."""
         if self._viewer is None or not self._live_plot_sources:
+            return
+        # In headless mode the panel is never visible — skip collection entirely.
+        if getattr(self, "_runtime_headless", False):
+            return
+        self._live_plots_step_counter += 1
+        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
             return
         for source in self._live_plot_sources:
             if not self._live_plots_manager_visible.get(source.manager_name, True):

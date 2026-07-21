@@ -98,6 +98,15 @@ class VisualizerCfg:
     training runs.
     """
 
+    live_plots_update_interval: int = 10
+    """How often (in simulation steps) to collect and push live plot data.
+
+    Collecting manager terms every step is expensive for high-dimensional managers
+    (observations, actions).  Setting this to ``N`` means plots update once every
+    ``N`` simulation steps — no visible quality loss on slowly-changing curves while
+    reducing scalar-collection CPU cost by ~N×.
+    """
+
     # Internal
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""

@@ -459,6 +459,9 @@ class RerunVisualizer(BaseVisualizer):
         """Push manager-term scalars to Rerun as time-series scalars."""
         if self._viewer is None or not self._live_plot_sources:
             return
+        self._live_plots_step_counter += 1
+        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
+            return
         for source in self._live_plot_sources:
             for term_name, values in source.collect(self._live_plot_env_idx).items():
                 if len(values) == 1:
