@@ -49,6 +49,22 @@ If everything executes correctly, it should create the following files:
 * ``.vscode/launch.json``: Contains the launch configurations for debugging python code.
 * ``.vscode/settings.json``: Contains the settings for the python interpreter and the python environment.
 
+.. note::
+
+   Type information for the Isaac Lab packages (``isaaclab``, ``isaaclab_tasks``, ...) works out of
+   the box without running this task: the in-repo source roots are registered via
+   ``extraPaths`` in the ``[tool.pyright]`` table of the root ``pyproject.toml``, which is read by
+   both Pylance (VS Code) and basedpyright (Cursor). Running ``setup_python_env`` is only needed to
+   select the Isaac Sim python interpreter and to index the Isaac Sim extensions (``omni.*``,
+   ``pxr.*``, ``isaacsim.*``).
+
+.. note::
+
+   **Using Cursor?** Cursor cannot run Pylance (it is licensed for official VS Code builds only), so
+   install the `basedpyright <https://marketplace.visualstudio.com/items?itemName=detachhead.basedpyright>`__
+   extension (``detachhead.basedpyright``) as the language server. It reads the same ``[tool.pyright]``
+   configuration, so Isaac Lab type information works there without any extra setup.
+
 For more information on VSCode support for Omniverse, please refer to the
 following links:
 

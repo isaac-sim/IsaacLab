@@ -273,6 +273,27 @@ exclude = [
     ".vscode",
 ]
 
+# Make the in-repo packages resolvable by the language server (Pylance / basedpyright)
+# without an editable install, so imports like ``isaaclab.assets`` work out of the box.
+# These are machine-independent relative paths. Add new source packages here when created.
+extraPaths = [
+    "source/isaaclab",
+    "source/isaaclab_assets",
+    "source/isaaclab_contrib",
+    "source/isaaclab_experimental",
+    "source/isaaclab_mimic",
+    "source/isaaclab_newton",
+    "source/isaaclab_ov",
+    "source/isaaclab_ovphysx",
+    "source/isaaclab_physx",
+    "source/isaaclab_ppisp",
+    "source/isaaclab_rl",
+    "source/isaaclab_tasks",
+    "source/isaaclab_tasks_experimental",
+    "source/isaaclab_teleop",
+    "source/isaaclab_visualizers",
+]
+
 typeCheckingMode = "basic"
 pythonVersion = "3.12"
 pythonPlatform = "Linux"

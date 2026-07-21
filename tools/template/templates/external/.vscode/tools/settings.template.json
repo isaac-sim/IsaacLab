@@ -72,8 +72,10 @@
     },
     "[restructuredtext]": {
         "editor.tabSize": 2
-    },
-    // Python extra paths
-    // Note: this is filled up when vscode is set up for the first time
-    "python.analysis.extraPaths": []
+    }
+    // Note: python.analysis.extraPaths is intentionally not set here.
+    //     The setup_python_env task writes the Isaac Sim kit-extension and
+    //     source/<project> search paths to pyrightconfig.json instead, which
+    //     works in both VS Code (Pylance) and Cursor (basedpyright) and does
+    //     not conflict with the [tool.pyright] table in pyproject.toml.
 }

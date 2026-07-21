@@ -63,14 +63,22 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
 
 ### Set up IDE (Optional)
 
-To setup the IDE, please follow these instructions:
+Isaac Lab APIs (`isaaclab.*`) and this project's own package resolve automatically once you
+point your editor at the Python interpreter that has Isaac Lab installed and run the editable
+install from above (`python -m pip install -e source/{{ name }}`). This gives autocompletion,
+docstrings, and go-to-definition into the Isaac Lab source, and works in both VS Code (Pylance)
+and Cursor (basedpyright).
 
-- Run VSCode Tasks, by pressing `Ctrl+Shift+P`, selecting `Tasks: Run Task` and running the `setup_python_env` in the drop down menu.
-  When running this task, you will be prompted to add the absolute path to your Isaac Sim installation.
+To additionally get type information for the Isaac Sim kit extensions (`omni.*`, `pxr.*`,
+`isaacsim.*`), run the `setup_python_env` task: press `Ctrl+Shift+P`, select `Tasks: Run Task`,
+and run `setup_python_env`. You will be prompted for the absolute path to your Isaac Sim
+installation. This generates a `pyrightconfig.json` at the project root (git-ignored) that adds
+the kit-extension search paths for the language server.
 
-If everything executes correctly, it should create a file .python.env in the `.vscode` directory.
-The file contains the python paths to all the extensions provided by Isaac Sim and Omniverse.
-This helps in indexing all the python modules for intelligent suggestions while writing code.
+> **Using Cursor?** Cursor cannot run Pylance (it is licensed for official VS Code builds only),
+> so install the [basedpyright](https://marketplace.visualstudio.com/items?itemName=detachhead.basedpyright)
+> extension (`detachhead.basedpyright`) as the language server. It reads the same
+> `pyrightconfig.json`, so type information works there without any extra setup.
 
 ### Setup as Omniverse Extension (Optional)
 
