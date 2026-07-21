@@ -1400,15 +1400,22 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
 
 
 def apply_joint_drive_properties(
-    prim_path: str, fragments, stage: Usd.Stage | None = None, ensure_drives_exist: bool = False
+    prim_path_expr: str,
+    fragments,
+    stage: Usd.Stage | None = None,
+    ensure_drives_exist: bool = False,
+    create_if_missing: bool = False,
 ) -> bool:
-    """Apply a list of joint-drive fragments to all joint prims under a prim path.
+    """Apply a list of joint-drive fragments to the joint prims matched by an expression.
 
-    Mirrors the recursion behaviour of :func:`modify_joint_drive_properties` (decorated with
-    :func:`~isaaclab.sim.utils.apply_nested`): the prim path and all its descendants are visited,
-    and the fragments are dispatched to every revolute/prismatic joint prim found. As soon as a
-    prim is successfully handled, its children are not descended into (nested joints are not
-    allowed).
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
+    trailing ``**`` token selects a prim together with its whole subtree. The fragments are
+    dispatched to every matched revolute/prismatic joint prim that is not excluded by a
+    backend-registered skip predicate (see :func:`register_joint_drive_skip_predicate`, e.g.
+    PhysX tendon members). Non-joint matches are ignored silently -- a ``**`` expression matches
+    whole subtrees, so per-prim warnings would spam. Matched prims inside instances cannot be
+    authored on and are skipped with a warning.
 
     Unlike :func:`apply_rigid_body_properties`, the joint-drive family has no implicit anchor:
     ``UsdPhysics.DriveAPI`` is *presence-gated* and applied only by :func:`apply_drive` when a
@@ -1416,16 +1423,25 @@ def apply_joint_drive_properties(
     fragment is dispatched via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, so backend
     fragments carry backend-specific funcs and core never imports a backend.
 
+    An empty fragment list is an authoring no-op and returns True. When no fragment succeeds on
+    any joint, a warning is emitted and False is returned.
+
     Args:
-        prim_path: The root prim path to search for joint prims under.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.JointDriveFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
         ensure_drives_exist: If True, write a minimal stiffness (``1e-3``) to any drive whose
             authored stiffness *and* damping are both zero, so that backends (e.g. Newton) treat
             the drive as active. Reproduces the legacy
             :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.ensure_drives_exist` behaviour. This is
             a spawner-level flag, not a fragment field.
+        create_if_missing: If True, apply the axis-appropriate ``UsdPhysics.DriveAPI`` instance
+            (``"angular"`` for revolute joints, ``"linear"`` for prismatic joints) on matched
+            joints that do not carry it, before dispatching the fragments. Distinct from
+            :paramref:`ensure_drives_exist`: this flag creates the drive API itself, whereas
+            :paramref:`ensure_drives_exist` seeds a minimal stiffness on fully-passive drives
+            that already exist. Defaults to False.
 
     Returns:
         True if the fragments were applied to at least one joint prim, False otherwise.
@@ -1434,55 +1450,47 @@ def apply_joint_drive_properties(
         stage = get_current_stage()
 
     fragments = list(fragments)
+    if not fragments:
+        return True
     # detect whether a UsdPhysics.DriveAPI fragment is present (governs presence-gating + the
     # ensure_drives_exist behaviour, which only makes sense for the solver-common drive fragment)
     drive_cfg = next((f for f in fragments if isinstance(f, schemas_cfg.UsdPhysicsDriveCfg)), None)
 
-    root_prim = stage.GetPrimAtPath(prim_path)
-    if not root_prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # match revolute/prismatic joints not excluded by a backend-registered skip predicate;
+    # non-joint matches (candidates) are ignored silently since a ``**`` expression matches
+    # whole subtrees
+    targets, _, _ = _match_fragment_targets(
+        prim_path_expr,
+        lambda p: (p.IsA(UsdPhysics.RevoluteJoint) or p.IsA(UsdPhysics.PrismaticJoint)) and not _skip_joint_drive(p),
+        stage,
+    )
 
     count_success = 0
-    instanced_prim_paths = []
-    all_prims = [root_prim]
-    while len(all_prims) > 0:
-        child_prim = all_prims.pop(0)
-        child_prim_path = child_prim.GetPath().pathString
-        # skip instanced prims (cannot author on prototypes)
-        if child_prim.IsInstance():
-            instanced_prim_paths.append(child_prim_path)
-            continue
-        # a prim is a valid joint-drive target only if it is a revolute/prismatic joint
-        is_joint = child_prim.IsA(UsdPhysics.RevoluteJoint) or child_prim.IsA(UsdPhysics.PrismaticJoint)
-        if not is_joint:
-            all_prims += child_prim.GetChildren()
-            continue
-        # skip backend-owned joints wholesale (e.g. PhysX tendon members): no fragment may author on
-        # them. The backend registers the detector via register_joint_drive_skip_predicate, so this
-        # gate carries no backend-specific knowledge; descend into children to reach nested joints.
-        if _skip_joint_drive(child_prim):
-            all_prims += child_prim.GetChildren()
-            continue
+    for joint_prim in targets:
+        joint_prim_path = joint_prim.GetPath().pathString
+        if create_if_missing:
+            drive_api_name = _drive_instance_name(joint_prim)
+            if drive_api_name is not None and not joint_prim.HasAPI(UsdPhysics.DriveAPI, drive_api_name):
+                UsdPhysics.DriveAPI.Apply(joint_prim, drive_api_name)
         # dispatch each fragment via its func
         success = False
         for cfg in fragments:
             func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-            if func(cfg, child_prim_path, stage):
+            if func(cfg, joint_prim_path, stage):
                 success = True
         # seed a minimal stiffness only when the drive fragment authored neither stiffness nor
         # damping and the resulting drive is fully passive
         if ensure_drives_exist and drive_cfg is not None and success:
-            _ensure_drive_exists(drive_cfg, child_prim)
+            _ensure_drive_exists(drive_cfg, joint_prim)
         if success:
             count_success += 1
-        else:
-            all_prims += child_prim.GetChildren()
 
     if count_success == 0:
         logger.warning(
-            f"Could not apply joint-drive properties on any prims under: '{prim_path}'."
-            " This might be because no revolute/prismatic joint prims were found, or they are"
-            f" instanced. Discovered list of instanced prim paths: {instanced_prim_paths}"
+            "Could not apply joint-drive properties on any joints matched by '%s'."
+            " No revolute/prismatic joint prims matched, they are instanced, or every fragment"
+            " reported failure.",
+            prim_path_expr,
         )
     return count_success > 0
 

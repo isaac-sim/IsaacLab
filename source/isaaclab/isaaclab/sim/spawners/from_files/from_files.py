@@ -441,7 +441,9 @@ def _spawn_from_usd_file(
             cfg.joint_drive_props if isinstance(cfg.joint_drive_props, (list, tuple)) else [cfg.joint_drive_props]
         )
         if joint_frags and all(isinstance(f, schemas.SchemaFragment) for f in joint_frags):
-            schemas.apply_joint_drive_properties(prim_path, joint_frags, ensure_drives_exist=cfg.ensure_drives_exist)
+            schemas.apply_joint_drive_properties(
+                f"{prim_path}/**", joint_frags, ensure_drives_exist=cfg.ensure_drives_exist
+            )
         else:
             # auto-enable body-level gravcomp if joint-level actuator gravcomp is requested
             # without it — actuatorgravcomp has no effect since there are no forces to route.
