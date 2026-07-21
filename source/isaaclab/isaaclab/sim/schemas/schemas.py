@@ -1045,21 +1045,19 @@ def apply_mass_properties(
     fragments carry backend-specific funcs, so core never imports a backend.
 
     An empty fragment list is an authoring no-op and returns True. When
-    :paramref:`create_if_missing` is set, matched prims without the API become creation
-    candidates. If nothing already carries the API and exactly one candidate matched -- the
-    bare-prim case used by the shape and mesh spawners, which author mass before the rigid
-    body -- the API is applied to that candidate unconditionally. Otherwise creation is gated
-    on the candidate carrying ``UsdPhysics.RigidBodyAPI``, since a mass on a prim that is not
-    a rigid body is meaningless; non-body candidates are skipped with a warning that does not
-    affect the return value. When no target remains, a warning is emitted and False is
-    returned without authoring anything. Matched prims inside instances cannot be authored on
-    and are skipped with a warning.
+    :paramref:`create_if_missing` is set, ``UsdPhysics.MassAPI`` is applied to every matched
+    prim that does not carry it, mirroring the legacy define path. The physics parsers only
+    consume a mass on a prim that is (or later becomes) a rigid body, so pairing the mass
+    with ``UsdPhysics.RigidBodyAPI`` is the caller's responsibility -- the shape and mesh
+    spawners, for instance, author mass first and the rigid body right after. When no target
+    remains, a warning is emitted and False is returned without authoring anything. Matched
+    prims inside instances cannot be authored on and are skipped with a warning.
 
     Args:
         prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.MassFragment` instances.
-        create_if_missing: Whether to apply ``UsdPhysics.MassAPI`` to matched prims that do
-            not carry it, following the creation rules above. Defaults to False.
+        create_if_missing: Whether to apply ``UsdPhysics.MassAPI`` to every matched prim
+            that does not carry it. Defaults to False.
         stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
@@ -1074,24 +1072,10 @@ def apply_mass_properties(
     targets, creation_candidates, any_skipped = _match_fragment_targets(
         prim_path_expr, lambda p: p.HasAPI(UsdPhysics.MassAPI), stage
     )
-    if create_if_missing and creation_candidates:
-        if not targets and len(creation_candidates) == 1:
-            # exactly one matched prim and no carrier anywhere: apply unconditionally. The
-            # shape/mesh spawners author mass before the rigid body, so requiring a
-            # pre-existing body here would break their bootstrap
-            UsdPhysics.MassAPI.Apply(creation_candidates[0])
-            targets.append(creation_candidates[0])
-        else:
-            creatable = [p for p in creation_candidates if p.HasAPI(UsdPhysics.RigidBodyAPI)]
-            skipped_creation = [p for p in creation_candidates if not p.HasAPI(UsdPhysics.RigidBodyAPI)]
-            if skipped_creation:
-                logger.warning(
-                    "Not creating UsdPhysics.MassAPI on matched prims without a rigid body: %s.",
-                    [p.GetPath().pathString for p in skipped_creation],
-                )
-            for prim in creatable:
-                UsdPhysics.MassAPI.Apply(prim)
-                targets.append(prim)
+    if create_if_missing:
+        for prim in creation_candidates:
+            UsdPhysics.MassAPI.Apply(prim)
+            targets.append(prim)
     if not targets:
         logger.warning("No mass targets matched expression '%s'; nothing was authored.", prim_path_expr)
         return False

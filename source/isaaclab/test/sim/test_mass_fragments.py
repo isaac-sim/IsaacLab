@@ -156,25 +156,28 @@ def test_apply_mass_properties_aggregates_fragment_results():
     assert apply_mass_properties("/World/Agg", [ok], create_if_missing=True, stage=stage) is True
 
 
-def test_apply_mass_properties_creates_only_on_rigid_bodies(caplog):
-    """Multi-prim mass creation lands on every matched rigid body and skips non-bodies with a warning."""
+def test_apply_mass_properties_creates_on_every_matched_prim():
+    """Creation applies ``MassAPI`` to every matched prim lacking it, rigid body or not.
+
+    Pairing the mass with a rigid body is the caller's responsibility; the writer does not
+    police it, matching the legacy define path which applied the API unconditionally.
+    """
     from isaaclab.sim.schemas import MassCfg, apply_mass_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
+    root = UsdGeom.Xform.Define(stage, "/World/Bot").GetPrim()
     body = UsdGeom.Xform.Define(stage, "/World/Bot/link").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(body)
     plain = UsdGeom.Xform.Define(stage, "/World/Bot/frame").GetPrim()
 
-    with caplog.at_level("WARNING"):
-        result = apply_mass_properties("/World/Bot/**", [MassCfg(mass=2.0)], create_if_missing=True, stage=stage)
+    result = apply_mass_properties("/World/Bot/**", [MassCfg(mass=2.0)], create_if_missing=True, stage=stage)
 
     assert result is True
-    assert body.HasAPI(UsdPhysics.MassAPI)
-    assert body.GetAttribute("physics:mass").Get() == pytest.approx(2.0)
-    assert not plain.HasAPI(UsdPhysics.MassAPI)
-    assert "/World/Bot/frame" in caplog.text
+    for prim in (root, body, plain):
+        assert prim.HasAPI(UsdPhysics.MassAPI), prim.GetPath()
+        assert prim.GetAttribute("physics:mass").Get() == pytest.approx(2.0), prim.GetPath()
 
 
 def test_spawn_shape_with_empty_mass_list_is_noop():
