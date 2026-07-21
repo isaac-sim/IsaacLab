@@ -86,7 +86,7 @@ dependencies = [
     # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
     # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
     # ...) that honoring USD-authored ``physics:approximation`` requires.
-    "newton[sim,importers]>=1.2.0",
+    "newton[sim]>=1.2.0",
     # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
