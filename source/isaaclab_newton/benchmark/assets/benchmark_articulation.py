@@ -1128,8 +1128,12 @@ class _SelectorBenchmarkRunner(MethodBenchmarkRunner):
             inputs = generator(self._config)
             method(**inputs)
         except NotImplementedError as error:
+            if factory is not None:
+                raise
             return {"skipped": True, "skip_reason": f"NotImplementedError: {error}"}
         except Exception as error:
+            if factory is not None:
+                raise
             return {"skipped": True, "skip_reason": f"Error: {type(error).__name__}: {error}"}
         if factory is not None:
             factory.assert_proxy_unmaterialized()

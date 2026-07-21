@@ -391,3 +391,55 @@ def test_summary_filters_root_modes_and_reports_counts_and_missing_baselines(cap
     assert incomplete_baseline_proxy["ratio_vs_torch_list"] is None
     assert "n=3/3" in output
     assert "n/a" in output
+
+
+def test_runner_reraises_immediate_registered_selector_failure() -> None:
+    namespace = _load_benchmark_namespace()
+    benchmark = next(benchmark for benchmark in namespace["BENCHMARKS"] if benchmark.name == "write_joint_state_to_sim")
+    factory = namespace["ITEM_SELECTOR_FACTORIES"][benchmark.name]
+    config = SimpleNamespace(
+        articulation=_make_robot(),
+        device="cpu",
+        num_instances=4,
+        num_joints=3,
+        num_bodies=2,
+        warmup_steps=0,
+        num_iterations=2,
+    )
+    runner = _make_runner(namespace, config, {benchmark.name: factory})
+
+    def fail_immediately(**_inputs):
+        raise RuntimeError("immediate probe failure")
+
+    with pytest.raises(RuntimeError, match="immediate probe failure"):
+        runner._benchmark_method(
+            fail_immediately,
+            f"{benchmark.name}_proxy_int32",
+            benchmark.input_generators["proxy_int32"],
+            [],
+        )
+
+    assert runner.selector_results == {}
+
+
+def test_successful_writer_summary_contains_all_six_registered_modes() -> None:
+    namespace = _load_benchmark_namespace()
+    benchmark = next(benchmark for benchmark in namespace["BENCHMARKS"] if benchmark.name == "write_joint_state_to_sim")
+    factory = namespace["ITEM_SELECTOR_FACTORIES"][benchmark.name]
+    config = SimpleNamespace(
+        articulation=_make_robot(),
+        device="cpu",
+        num_instances=4,
+        num_joints=3,
+        num_bodies=2,
+        warmup_steps=0,
+        num_iterations=1,
+    )
+    runner = _make_runner(namespace, config, {benchmark.name: factory})
+
+    for mode, generator in benchmark.input_generators.items():
+        runner._benchmark_method(lambda **_inputs: None, f"{benchmark.name}_{mode}", generator, [])
+
+    summary = namespace["_summarize_writer_results"](runner.selector_results, {benchmark.name})
+
+    assert tuple(summary[benchmark.name]) == namespace["ITEM_SELECTOR_MODES"]
