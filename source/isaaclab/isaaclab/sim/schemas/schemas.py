@@ -924,42 +924,68 @@ Collision properties.
 
 
 def apply_collision_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.CollisionFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.CollisionFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
 ) -> bool:
-    """Apply a list of collision fragments to the colliders under a prim.
+    """Apply a list of collision fragments to the colliders matched by an expression.
 
-    Existing colliders in the subtree are modified in place, and the search does not descend
-    below a found collider, matching the legacy nested writer's stop-on-success traversal.
-    Real assets author ``UsdPhysics.CollisionAPI`` on their collider prims, so anchoring a fresh
-    collider on the spawn prim would change the scene's collision geometry. Only when the
-    subtree carries no collider is ``UsdPhysics.CollisionAPI`` applied to ``prim_path`` itself
-    -- the bare-prim case used by the shape and mesh spawners. Each fragment is dispatched to
-    every resolved target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend
-    fragments carry backend-specific funcs, so core never imports a backend.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
+    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    already carry ``UsdPhysics.CollisionAPI`` are modified in place: each fragment is
+    dispatched to every such target via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
+    funcs, so core never imports a backend.
+
+    Mesh-collision fragments author cooking attributes and the approximation token, which are
+    only meaningful on geometry prims, so they are skipped on targets that are not
+    ``UsdGeom.Gprim`` (e.g. aggregate ``Xform`` colliders).
+
+    An empty fragment list is an authoring no-op and returns True. When
+    :paramref:`create_if_missing` is set, ``UsdPhysics.CollisionAPI`` is applied to every
+    matched prim that lacks it and those prims become targets; unlike rigid bodies, creating
+    colliders on multiple prims is supported -- this covers the bare-prim case used by the
+    shape and mesh spawners. When no target remains, a warning is emitted and False is
+    returned without authoring anything. Matched prims inside instances cannot be authored on
+    and are skipped with a warning.
 
     Args:
-        prim_path: The prim path whose subtree is searched for colliders.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.CollisionFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        create_if_missing: Whether to apply ``UsdPhysics.CollisionAPI`` to matched prims that
+            do not carry it. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
-
-    Raises:
-        ValueError: When the prim path is not valid.
     """
     fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    targets, any_skipped = _resolve_fragment_targets(
-        prim_path, UsdPhysics.CollisionAPI, stage, apply_fresh=bool(fragments), stop_at_carrier=True
+    if not fragments:
+        return True
+    targets, candidates, any_skipped = _match_fragment_targets(
+        prim_path_expr, lambda p: p.HasAPI(UsdPhysics.CollisionAPI), stage
     )
+    if create_if_missing:
+        for candidate in candidates:
+            UsdPhysics.CollisionAPI.Apply(candidate)
+            targets.append(candidate)
+    if not targets:
+        logger.warning("No collision targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
     for target in targets:
         target_path = target.GetPath().pathString
+        target_is_gprim = target.IsA(UsdGeom.Gprim)
         for cfg in fragments:
+            # cooking attrs and the approximation token only make sense on geometry prims
+            if isinstance(cfg, schemas_cfg.MeshCollisionFragment) and not target_is_gprim:
+                continue
             success = bool(cfg.func(cfg, target_path, stage)) and success
     return success
 
