@@ -1049,8 +1049,8 @@ class ArticulationData(BaseArticulationData):
             inputs=[
                 self._gravity_force_full_buf,
                 self._jacobian_view_art_ids,
-                self._sim_bind_articulation_start,
-                self._sim_bind_joint_qd_start,
+                self._model_articulation_start,
+                self._model_joint_qd_start,
                 self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
                 self._num_base_dofs,
                 self.has_joint_ordering,
@@ -1943,8 +1943,8 @@ class ArticulationData(BaseArticulationData):
         # Model topology arrays for locating each articulation's segment in flat
         # (``Model.joint_qd`` layout) per-DoF outputs; the gather kernel composes
         # ``joint_qd_start[articulation_start[art_id]]`` on device.
-        self._sim_bind_articulation_start = model.articulation_start
-        self._sim_bind_joint_qd_start = model.joint_qd_start
+        self._model_articulation_start = model.articulation_start
+        self._model_joint_qd_start = model.joint_qd_start
         self._gravity_compensation_forces_buf = wp.zeros(
             (self._num_instances, self._num_joints + num_base_dofs), dtype=wp.float32, device=self.device
         )

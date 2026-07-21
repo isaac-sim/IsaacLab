@@ -3547,8 +3547,8 @@ def test_get_gravity_compensation_forces_shape_fixed_base(sim, num_articulations
     """Fixed-base ``gravity_compensation_forces`` shape ``(N, num_joints)``.
 
     No floating-base entries on the DoF axis, and per-articulation output
-    sizing — a wrong view gather (model-wide ``max_dofs`` or a bad flat DoF
-    offset) would surface here in heterogeneous scenes.
+    sizing. Heterogeneous-scene indexing is pinned separately by
+    ``test_heterogeneous_scene_per_view_shapes``.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -3735,6 +3735,17 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
         "Anymal mass matrix has non-positive diagonal under heterogeneous scene"
     )
 
+    # Gravity compensation gathers a FLAT model-wide DoF buffer, so a padded-layout
+    # regression (indexing by ``art_id * max_dofs`` instead of
+    # ``joint_qd_start[articulation_start[art_id]]``) is numerically invisible in
+    # homogeneous scenes — this mixed scene is the only place it can surface.
+    franka_g = franka.data.gravity_compensation_forces.torch
+    anymal_g = anymal.data.gravity_compensation_forces.torch
+    assert franka_g.shape == torch.Size((num_per_type, franka_dofs))
+    assert anymal_g.shape == torch.Size((num_per_type, anymal_dofs))
+    assert franka_g.abs().max() > 1e-3, "Franka gravity compensation is all-zero under heterogeneous scene"
+    assert anymal_g.abs().max() > 1e-3, "Anymal gravity compensation is all-zero under heterogeneous scene"
+
 
 @pytest.mark.parametrize("num_articulations", [4])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -3915,6 +3926,10 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
         # (x, y, z, w) quaternion — 30 deg roll about x.
         root_pose[:, 3:] = torch.tensor([0.2588, 0.0, 0.0, 0.9659], device=device)
         articulation.write_root_pose_to_sim_index(root_pose=root_pose)
+        # Guard against a vacuous identity: if root-pose FK invalidation ever
+        # regressed, both sides would be evaluated at the stale identity pose and
+        # agree trivially, voiding the newton#2625 rotated-root coverage.
+        torch.testing.assert_close(articulation.data.root_link_pose_w.torch, root_pose, atol=1e-5, rtol=0.0)
 
     g_meas = articulation.data.gravity_compensation_forces.torch
 
@@ -4412,7 +4427,7 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
 
     print(f"GRAVCOMP_METRIC pos_off={pos_off:.5f} pos_on={pos_on:.6f}")
 
-    # Calibrated on newton 9af5a9f4 / mujoco-warp 3.10.0.1 with 4 substeps:
+    # Re-validated on newton 81cdcfc2 / mujoco-warp 3.10.0.2 with 4 substeps:
     # pos_off ~= 0.024, pos_on ~= 1e-6.
     assert pos_off > 1.2e-2, f"uncompensated sag {pos_off:.5f} < 1.2 cm — setup no longer discriminates gravity"
     assert pos_on < 1e-4, f"compensated hold {pos_on:.6f} > 0.1 mm — gravity compensation inaccurate"
