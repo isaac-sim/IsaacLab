@@ -5,36 +5,12 @@
 
 """Kamino joint-property dynamics integration tests.
 
-These tests verify that joint properties (stiffness, damping, position limit, armature) authored
+These tests verify that joint properties (stiffness, drive damping, passive damping, position limit, armature) authored
 through the different supported paths -- the USD source model, the Python actuator config, and the
 runtime ``write_joint_*_to_sim`` API -- all end up producing the *correct Kamino dynamics*. They also
 verify the per-step joint commands that feed the same dynamics: the feed-forward joint torque
 (:meth:`set_joint_effort_target_index`) and the joint velocity reference
 (:meth:`set_joint_velocity_target_index`).
-
-Rather than compare against long-term/period responses, we reconstruct a *single* Kamino
-integration step analytically and compare it to the observed joint state after one ``sim.step()``.
-This is possible because we build the articulation procedurally, so the effective joint-space
-inertia is known (and read back from :attr:`data.mass_matrix`), and because the Kamino ``"euler"``
-integrator applies the implicit joint PD as a per-DOF dynamic constraint whose converged solution
-is closed-form for a fixed-base 1-DOF system on the constraint manifold (see :func:`_predict_from_rest`).
-
-Test system: a procedurally built, fixed-base, single-DOF articulation (a base link fixed to the
-world by a ``FixedJoint`` plus one moving link connected by a revolute or prismatic joint), mirroring
-the structure of ``SimpleArticulation/revolute_articulation.usd``. Both joint types are tested
-separately. Gravity is disabled and there are no collisions, so the joint reduces to a scalar ODE.
-
-Notes on Kamino behavior exercised here:
-- Kamino allocates the per-DOF implicit-dynamics constraint at *model-build* time whenever a joint
-  has a non-zero stiffness/damping/armature imported from USD. A joint built with zero gains is not
-  given a constraint, and later runtime writes to its gains are ignored.
-  TODO: Kamino should throw an error in case parameters are set in an incompatible way.
-- Kamino honors USD-authored joint position limits but does not honor runtime limit writes, so the
-  limit test exercises the USD authoring path only.
-  TODO: Kamino should honor runtime limit writes.
-- Velocity/effort limits and joint friction are intentionally out of scope (Kamino does not enforce
-  the velocity/effort limits in its step, and maps ``joint_friction`` to viscous damping).
-  TODO: Fix mapping to viscous damping.
 """
 
 from isaaclab.app import AppLauncher
@@ -69,6 +45,7 @@ DT = 1.0 / 120.0
 Q_REF = 0.2
 # Base drive stiffness authored in USD so Kamino allocates the per-DOF dynamic constraint.
 BASE_KE = 100.0
+BASE_KD = 10.0
 # Per-joint moving-link mass [kg] and diagonal inertia [kg m^2]; COM sits on the joint axis so the
 # joint-space inertia equals the mass (prismatic) or the on-axis principal moment (revolute).
 _MASS = {"revolute": 1.0, "prismatic": 2.0}
@@ -106,6 +83,7 @@ def _build_single_dof(
     usd_ke: float,
     usd_kd: float = 0.0,
     usd_armature: float = 0.0,
+    usd_passive_damping: float = 0.0,
     usd_lower: float | None = None,
     usd_upper: float | None = None,
 ) -> None:
@@ -145,10 +123,12 @@ def _build_single_dof(
         joint = UsdPhysics.RevoluteJoint.Define(stage, dof_joint)
         axis = "Z"
         limit_conv = _RAD2DEG  # USD authors angular limits in degrees
+        damping_conv = 1.0 / _RAD2DEG  # USD authors angular damping per degree
     else:
         joint = UsdPhysics.PrismaticJoint.Define(stage, dof_joint)
         axis = "X"
         limit_conv = 1.0
+        damping_conv = 1.0
     joint.CreateBody0Rel().SetTargets([base])
     joint.CreateBody1Rel().SetTargets([link])
     joint.CreateAxisAttr().Set(axis)
@@ -157,6 +137,9 @@ def _build_single_dof(
         joint.CreateUpperLimitAttr().Set(float(usd_upper * limit_conv))
     if usd_armature > 0.0:
         joint.GetPrim().CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(float(usd_armature))
+    joint.GetPrim().CreateAttribute("newton:damping", Sdf.ValueTypeNames.Float).Set(
+        float(usd_passive_damping * damping_conv)
+    )
 
     # apply_drive handles the rad->deg conversion of angular stiffness/damping; Newton converts back on import.
     apply_drive(
@@ -179,7 +162,7 @@ def _make_cfg(stiffness: float | None, damping: float | None, armature: float | 
     )
 
 
-def _predict_from_rest(
+def _predict_single_step(
     *,
     ke: float,
     kd: float,
@@ -188,45 +171,57 @@ def _predict_from_rest(
     i_body: float,
     tau: float = 0.0,
     dq_ref: float = 0.0,
+    q: float = 0.0,
+    dq: float = 0.0,
+    passive_damping: float = 0.0,
     dt: float = DT,
 ):
-    """Analytic Kamino ``euler`` single step for a fixed-base 1-DOF joint starting from rest.
+    """Analytic Kamino ``euler`` single step for a fixed-base 1-DOF joint.
 
-    The implicit joint dynamics use the effective joint inertia ``m_j = a + dt*kd + dt^2*ke`` and a
-    bias velocity built from the total commanded joint torque -- the feed-forward torque ``tau``, the
-    stiffness term ``ke*q_ref`` and the velocity-reference term ``kd*dq_ref``::
+    The implicit joint dynamics add armature, drive damping, passive damping, and stiffness to the
+    effective joint inertia. The resulting update is::
 
-        dq_b = dt * (tau + ke * q_ref + kd * dq_ref) / m_j
-        dq_plus = dq_b - dq_b * i_body / (m_j + i_body)
-        q_plus = dt * dq_plus
+        m_eff = i_body + a + dt * (kd + passive_damping) + dt**2 * ke
+        dq_plus = ((i_body + a) * dq + dt * (tau + ke * (q_ref - q) + kd * dq_ref)) / m_eff
+        q_plus = q + dt * dq_plus
 
-    (Friction is out of scope and starting state is rest, so ``dq_minus = q_minus = 0``.)
+    Passive damping is therefore dynamically equivalent to drive damping with a zero velocity
+    reference, while remaining a distinct authored model property.
 
     Returns the predicted ``(dq_plus, q_plus)``.
     """
-    m_j = a + dt * kd + dt * dt * ke
-    if m_j > 0.0:
-        dq_b = dt * (tau + ke * q_ref + kd * dq_ref) / m_j
-        dq_plus = dq_b - dq_b * i_body / (m_j + i_body)
-    else:
-        dq_plus = dt * tau / i_body
-    return dq_plus, dt * dq_plus
+    m_eff = i_body + a + dt * (kd + passive_damping) + dt * dt * ke
+    drive_effort = tau + ke * (q_ref - q) + kd * dq_ref
+    dq_plus = ((i_body + a) * dq + dt * drive_effort) / m_eff
+    return dq_plus, q + dt * dq_plus
 
 
 def _authoring_spec(authoring: str, *, ke: float, kd: float, a: float):
     """Map an authoring path to (USD gains, actuator-cfg gains, runtime gains)."""
+    # We need a non-zero USD gain to trigger the right actuation type in cfg and runtime mode.
+    # TODO: Change once https://github.com/isaac-sim/IsaacLab/issues/6649 is resolved.
+    usd_ke = BASE_KE if ke > 0.0 else 0.0
+    usd_kd = BASE_KD if kd > 0.0 else 0.0
+
     if authoring == "usd":
         return dict(usd=(ke, kd, a), cfg=(None, None, None), runtime=None)
     if authoring == "cfg":
-        return dict(usd=(0.0, 0.0, 0.0), cfg=(ke, kd, a), runtime=None)
+        return dict(usd=(usd_ke, usd_kd, 0.0), cfg=(ke, kd, a), runtime=None)
     if authoring == "runtime":
         # Kamino only allocates the constraint if USD or cfg authoring triggers it.
-        # We write a non-zero cfg stiffness so that the constraint is allocated.
-        return dict(usd=(0.0, 0.0, 0.0), cfg=(BASE_KE, 0.0, 0.0), runtime=(ke, kd, a))
+        # A USD or cfg value must be non-zero to trigger the constraint allocation.
+        usd_a = a / 10.0
+        return dict(usd=(usd_ke, usd_kd, usd_a), cfg=(None, None, None), runtime=(ke, kd, a))
+    if authoring == "runtime-error":
+        # Set up for an error case where the runtime write tries to change the dynamic constraint topology.
+        if ke == 0.0 and kd == 0.0 and a == 0.0:
+            return dict(usd=(BASE_KE, 0.0, 0.0), cfg=(None, None, None), runtime=(0.0, 0.0, 0.0))
+        else:
+            return dict(usd=(0.0, 0.0, 0.0), cfg=(None, None, None), runtime=(ke, kd, a))
     raise ValueError(f"unknown authoring path: {authoring}")
 
 
-def _single_step_from_rest(
+def _single_step(
     joint_type: str,
     authoring: str,
     *,
@@ -236,8 +231,11 @@ def _single_step_from_rest(
     q_ref: float = Q_REF,
     dq_ref: float = 0.0,
     tau: float = 0.0,
+    q_initial: float = 0.0,
+    dq_initial: float = 0.0,
+    passive_damping: float = 0.0,
 ) -> dict:
-    """Build the articulation, author gains via ``authoring``, and take one Kamino step from rest.
+    """Build the articulation, author properties via ``authoring``, and take one Kamino step.
 
     The per-step command inputs -- position target ``q_ref``, velocity reference ``dq_ref`` and
     feed-forward torque ``tau`` -- are applied through the standard actuator command API.
@@ -253,7 +251,13 @@ def _single_step_from_rest(
 
         # This sequence replicate the IsaacLab asset authoring and simulation pipeline.
         # 1. Read the USD asset. Here, we build the articulation procedurally.
-        _build_single_dof(joint_type, usd_ke=usd_ke, usd_kd=usd_kd, usd_armature=usd_a)
+        _build_single_dof(
+            joint_type,
+            usd_ke=usd_ke,
+            usd_kd=usd_kd,
+            usd_armature=usd_a,
+            usd_passive_damping=passive_damping,
+        )
         # 2. Author the gains via the Python actuator config.
         art = Articulation(_make_cfg(cfg_ke, cfg_kd, cfg_a))
         # 3. Reset the simulation. This call sets up the Kamino solver and model.
@@ -268,6 +272,8 @@ def _single_step_from_rest(
             art.write_joint_damping_to_sim_index(damping=r_kd)
             art.write_joint_armature_to_sim_index(armature=r_a)
 
+        art.write_joint_position_to_sim_index(position=torch.full((1, 1), q_initial, device=DEVICE))
+        art.write_joint_velocity_to_sim_index(velocity=torch.full((1, 1), dq_initial, device=DEVICE))
         art.set_joint_position_target_index(target=torch.full((1, 1), q_ref, device=DEVICE))
         art.set_joint_velocity_target_index(target=torch.full((1, 1), dq_ref, device=DEVICE))
         art.set_joint_effort_target_index(target=torch.full((1, 1), tau, device=DEVICE))
@@ -285,6 +291,30 @@ def _single_step_from_rest(
             "q_plus": float(art.data.joint_pos.torch[0, 0]),
             "dq_plus": float(art.data.joint_vel.torch[0, 0]),
         }
+
+
+def _assert_step_matches(
+    parameter_id: str,
+    result: dict,
+    dq_expected: float,
+    q_expected: float,
+    *,
+    q_initial: float = 0.0,
+    dq_initial: float = 0.0,
+) -> None:
+    """Assert one-step state and dynamics with parameter traceability."""
+    assert result["q_minus"] == pytest.approx(q_initial, rel=_RTOL, abs=_ATOL), (
+        f"{parameter_id}: articulation did not start at the requested joint position"
+    )
+    assert result["dq_minus"] == pytest.approx(dq_initial, rel=_RTOL, abs=_ATOL), (
+        f"{parameter_id}: articulation did not start at the requested joint velocity"
+    )
+    assert result["dq_plus"] == pytest.approx(dq_expected, rel=_RTOL, abs=_ATOL), (
+        f"{parameter_id}: joint velocity does not match the analytic Kamino step"
+    )
+    assert result["q_plus"] == pytest.approx(q_expected, rel=_RTOL, abs=_ATOL), (
+        f"{parameter_id}: joint position does not match the analytic Kamino step"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -318,14 +348,12 @@ def test_build_yields_fixed_base_single_dof(joint_type):
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("ke", [100.0, 300.0])
-def test_stiffness_single_step(joint_type, authoring, ke):
-    """Authored stiffness (USD / cfg / runtime) reproduces the analytic single Kamino step."""
-    r = _single_step_from_rest(joint_type, authoring, ke=ke, kd=0.0, a=0.0)
-    assert abs(r["q_minus"]) < 1e-5 and abs(r["dq_minus"]) < 1e-5, "articulation should start from rest"
+def test_drive_01_stiffness_single_step(joint_type, authoring, ke):
+    """DRIVE-01: Authored implicit stiffness reproduces the analytic single Kamino step."""
+    r = _single_step(joint_type, authoring, ke=ke, kd=0.0, a=0.0)
 
-    dq_pred, q_pred = _predict_from_rest(ke=ke, kd=0.0, a=0.0, q_ref=Q_REF, i_body=r["i_body"])
-    assert r["dq_plus"] == pytest.approx(dq_pred, rel=_RTOL, abs=_ATOL)
-    assert r["q_plus"] == pytest.approx(q_pred, rel=_RTOL, abs=_ATOL)
+    dq_pred, q_pred = _predict_single_step(ke=ke, kd=0.0, a=0.0, q_ref=Q_REF, i_body=r["i_body"])
+    _assert_step_matches("DRIVE-01", r, dq_pred, q_pred)
 
 
 # ---------------------------------------------------------------------------
@@ -336,18 +364,17 @@ def test_stiffness_single_step(joint_type, authoring, ke):
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("kd", [20.0, 60.0])
-def test_damping_single_step(joint_type, authoring, kd):
-    """Authored damping (USD / cfg / runtime) reproduces the analytic single Kamino step.
+def test_drive_02_damping_single_step(joint_type, authoring, kd):
+    """DRIVE-02: Authored implicit drive damping reproduces the analytic single Kamino step.
 
-    Damping enters the implicit ``m_j`` denominator, so from rest with a fixed stiffness it measurably
-    reduces the first-step velocity.
+    This is the drive damping gain, not the passive damping classified as ``JOINT-08``. It enters the
+    implicit ``m_j`` denominator, so from rest with a fixed stiffness it measurably reduces the
+    first-step velocity.
     """
-    r = _single_step_from_rest(joint_type, authoring, ke=BASE_KE, kd=kd, a=0.0)
-    assert abs(r["q_minus"]) < 1e-5 and abs(r["dq_minus"]) < 1e-5, "articulation should start from rest"
+    r = _single_step(joint_type, authoring, ke=BASE_KE, kd=kd, a=0.0)
 
-    dq_pred, q_pred = _predict_from_rest(ke=BASE_KE, kd=kd, a=0.0, q_ref=Q_REF, i_body=r["i_body"])
-    assert r["dq_plus"] == pytest.approx(dq_pred, rel=_RTOL, abs=_ATOL)
-    assert r["q_plus"] == pytest.approx(q_pred, rel=_RTOL, abs=_ATOL)
+    dq_pred, q_pred = _predict_single_step(ke=BASE_KE, kd=kd, a=0.0, q_ref=Q_REF, i_body=r["i_body"])
+    _assert_step_matches("DRIVE-02", r, dq_pred, q_pred)
 
 
 # ---------------------------------------------------------------------------
@@ -358,18 +385,63 @@ def test_damping_single_step(joint_type, authoring, kd):
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("armature", [0.1, 0.5])
-def test_armature_single_step(joint_type, authoring, armature):
-    """Authored armature (USD / cfg / runtime) reproduces the analytic single Kamino step.
+def test_joint_07_armature_single_step(joint_type, authoring, armature):
+    """JOINT-07: Authored armature reproduces the analytic single Kamino step.
 
     Armature adds to the effective joint inertia ``m_j`` (not the body ``mass_matrix``), reducing the
     first-step velocity for a fixed stiffness.
     """
-    r = _single_step_from_rest(joint_type, authoring, ke=BASE_KE, kd=0.0, a=armature)
-    assert abs(r["q_minus"]) < 1e-5 and abs(r["dq_minus"]) < 1e-5, "articulation should start from rest"
+    r = _single_step(joint_type, authoring, ke=BASE_KE, kd=0.0, a=armature)
 
-    dq_pred, q_pred = _predict_from_rest(ke=BASE_KE, kd=0.0, a=armature, q_ref=Q_REF, i_body=r["i_body"])
-    assert r["dq_plus"] == pytest.approx(dq_pred, rel=_RTOL, abs=_ATOL)
-    assert r["q_plus"] == pytest.approx(q_pred, rel=_RTOL, abs=_ATOL)
+    dq_pred, q_pred = _predict_single_step(ke=BASE_KE, kd=0.0, a=armature, q_ref=Q_REF, i_body=r["i_body"])
+    _assert_step_matches("JOINT-07", r, dq_pred, q_pred)
+
+
+# ---------------------------------------------------------------------------
+# Passive damping (USD authoring path only)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
+@pytest.mark.parametrize("passive_damping", [0.0, 3.0, 6.0])
+def test_joint_08_passive_damping_usd_single_step(joint_type, passive_damping):
+    """JOINT-08: USD-authored passive damping reproduces the analytic single Kamino step.
+
+    This is Newton's passive ``joint_damping`` property, not the implicit drive damping classified as
+    ``DRIVE-02``. It is dynamically equivalent to drive damping with a zero velocity reference. The
+    damping value is scaled by the known effective joint inertia so both joint types exercise the
+    same nominal decay rate.
+
+    Expand to other authoring paths once https://github.com/isaac-sim/IsaacLab/issues/6517 is resolved.
+    """
+    dq_initial = 1.0
+
+    r = _single_step(
+        joint_type,
+        "usd",
+        ke=0.0,
+        kd=0.0,
+        a=0.0,
+        q_ref=0.0,
+        dq_initial=dq_initial,
+        passive_damping=passive_damping,
+    )
+    dq_pred, q_pred = _predict_single_step(
+        ke=0.0,
+        kd=0.0,
+        a=0.0,
+        q_ref=0.0,
+        i_body=r["i_body"],
+        dq=dq_initial,
+        passive_damping=passive_damping,
+    )
+    _assert_step_matches(
+        "JOINT-08",
+        r,
+        dq_pred,
+        q_pred,
+        dq_initial=dq_initial,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -380,30 +452,35 @@ def test_armature_single_step(joint_type, authoring, armature):
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("tau", [5.0, 20.0])
-def test_feedforward_torque_implicit_single_step(joint_type, authoring, tau):
-    """A commanded feed-forward joint torque alongside implicit PD control reproduces the analytic single Kamino step.
+def test_cmd_01_feedforward_torque_implicit_single_step(joint_type, authoring, tau):
+    """CMD-01: Feed-forward effort with implicit PD reproduces the analytic single Kamino step.
 
     A non-zero implicit stiffness is present so Kamino allocates the joint's dynamic constraint.
     """
-    r = _single_step_from_rest(joint_type, authoring, ke=BASE_KE, kd=0.0, a=0.0, q_ref=0.0, tau=tau)
-    assert abs(r["q_minus"]) < 1e-5 and abs(r["dq_minus"]) < 1e-5, "articulation should start from rest"
+    r = _single_step(joint_type, authoring, ke=BASE_KE, kd=0.0, a=0.0, q_ref=0.0, tau=tau)
 
-    dq_pred, q_pred = _predict_from_rest(ke=BASE_KE, kd=0.0, a=0.0, q_ref=0.0, i_body=r["i_body"], tau=tau)
-    assert r["dq_plus"] == pytest.approx(dq_pred, rel=_RTOL, abs=_ATOL)
-    assert r["q_plus"] == pytest.approx(q_pred, rel=_RTOL, abs=_ATOL)
+    dq_pred, q_pred = _predict_single_step(ke=BASE_KE, kd=0.0, a=0.0, q_ref=0.0, i_body=r["i_body"], tau=tau)
+    _assert_step_matches("CMD-01", r, dq_pred, q_pred)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
-@pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
+@pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime", "runtime-error"])
 @pytest.mark.parametrize("tau", [5.0, 20.0])
-def test_feedforward_torque_explicit_single_step(joint_type, authoring, tau):
-    """A commanded feed-forward joint torque without any joint dynamicsreproduces the analytic single Kamino step."""
-    r = _single_step_from_rest(joint_type, authoring, ke=0.0, kd=0.0, a=0.0, q_ref=0.0, tau=tau)
-    assert abs(r["q_minus"]) < 1e-5 and abs(r["dq_minus"]) < 1e-5, "articulation should start from rest"
+def test_cmd_01_feedforward_torque_explicit_single_step(joint_type, authoring, tau):
+    """CMD-01: Feed-forward effort without joint dynamics reproduces the analytic single Kamino step.
 
-    dq_pred, q_pred = _predict_from_rest(ke=0.0, kd=0.0, a=0.0, q_ref=0.0, i_body=r["i_body"], tau=tau)
-    assert r["dq_plus"] == pytest.approx(dq_pred, rel=_RTOL, abs=_ATOL)
-    assert r["q_plus"] == pytest.approx(q_pred, rel=_RTOL, abs=_ATOL)
+    Runtime authoring starts from an implicit-stiffness configuration and then clears its stiffness.
+    Kamino must reject that dynamic-constraint topology change instead of silently rebuilding.
+    """
+    if authoring == "runtime-error":
+        with pytest.raises(RuntimeError, match="Changing dynamic constraint topology"):
+            _single_step(joint_type, authoring, ke=0.0, kd=0.0, a=0.0, q_ref=0.0, tau=tau)
+        return
+
+    r = _single_step(joint_type, authoring, ke=0.0, kd=0.0, a=0.0, q_ref=0.0, tau=tau)
+
+    dq_pred, q_pred = _predict_single_step(ke=0.0, kd=0.0, a=0.0, q_ref=0.0, i_body=r["i_body"], tau=tau)
+    _assert_step_matches("CMD-01", r, dq_pred, q_pred)
 
 
 # ---------------------------------------------------------------------------
@@ -413,21 +490,18 @@ def test_feedforward_torque_explicit_single_step(joint_type, authoring, tau):
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("dq_ref", [2.0, 5.0])
-def test_velocity_reference_single_step(joint_type, dq_ref):
-    """A commanded joint velocity reference reproduces the analytic single Kamino step.
+def test_cmd_02_velocity_reference_single_step(joint_type, dq_ref):
+    """CMD-02: A joint velocity target reproduces the analytic single Kamino step.
 
-    With the position target at the rest configuration (``q_ref=0``) and a non-zero damping gain, the
-    velocity reference enters the joint torque as ``kd*dq_ref``. It is delivered through
-    :meth:`set_joint_velocity_target_index`; the effect vanishes at ``kd=0``, so a non-zero damping is
-    required for the reference to matter.
+    Zero stiffness and non-zero damping make Newton import the drive in velocity mode. With the position
+    target at the rest configuration (``q_ref=0``), the velocity reference enters the joint torque as
+    ``kd*dq_ref``. It is delivered through :meth:`set_joint_velocity_target_index`.
     """
     kd = 40.0
-    r = _single_step_from_rest(joint_type, "cfg", ke=BASE_KE, kd=kd, a=0.0, q_ref=0.0, dq_ref=dq_ref)
-    assert abs(r["q_minus"]) < 1e-5 and abs(r["dq_minus"]) < 1e-5, "articulation should start from rest"
+    r = _single_step(joint_type, "cfg", ke=0.0, kd=kd, a=0.0, q_ref=0.0, dq_ref=dq_ref)
 
-    dq_pred, q_pred = _predict_from_rest(ke=BASE_KE, kd=kd, a=0.0, q_ref=0.0, i_body=r["i_body"], dq_ref=dq_ref)
-    assert r["dq_plus"] == pytest.approx(dq_pred, rel=_RTOL, abs=_ATOL)
-    assert r["q_plus"] == pytest.approx(q_pred, rel=_RTOL, abs=_ATOL)
+    dq_pred, q_pred = _predict_single_step(ke=0.0, kd=kd, a=0.0, q_ref=0.0, i_body=r["i_body"], dq_ref=dq_ref)
+    _assert_step_matches("CMD-02", r, dq_pred, q_pred)
 
 
 # ---------------------------------------------------------------------------
@@ -437,8 +511,8 @@ def test_velocity_reference_single_step(joint_type, dq_ref):
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("upper", [0.3, 2.0])
-def test_position_limit_usd(joint_type, upper):
-    """A USD-authored upper limit is enforced by Kamino.
+def test_joint_04_position_limit_usd(joint_type, upper):
+    """JOINT-04: A USD-authored upper position limit is enforced by Kamino.
 
     Driving the joint toward a target beyond the limit clamps it at the limit (``upper=0.3``); with a
     far limit (``upper=2.0``) the same drive carries the joint well past ``0.3`` toward the target,
@@ -463,8 +537,8 @@ def test_position_limit_usd(joint_type, upper):
 
         if upper < target:
             # active limit: joint clamps at the limit and never overshoots it appreciably
-            assert q_max <= upper + 0.03
-            assert q_final == pytest.approx(upper, abs=0.03)
+            assert q_max <= upper + 0.03, "JOINT-04: active upper limit was exceeded"
+            assert q_final == pytest.approx(upper, abs=0.03), "JOINT-04: joint did not settle at the active upper limit"
         else:
             # inactive limit: joint moves well past where the low limit would have clamped it
-            assert q_final > 0.35
+            assert q_final > 0.35, "JOINT-04: inactive-limit control did not pass the low-limit position"
