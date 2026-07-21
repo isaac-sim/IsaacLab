@@ -1424,7 +1424,7 @@ class AppLauncher:
           exits with a failure status.
 
         WORKAROUND(isaac-sim): two pieces below exist only because of upstream
-        SimulationApp behavior and can be removed once it is fixed: fast shutdown is
+        SimulationApp behavior and can be removed once isaac-sim/IsaacSim#717 lands: fast shutdown is
         disabled during a signal close (so ``close()`` returns and the
         killed-by-signal status can be reported), and ``SIGINT`` is re-registered
         over SimulationApp's own handler (which exits 0 before user code unwinds).
@@ -1478,7 +1478,18 @@ class AppLauncher:
                 # (e.g. ``sys.exit(1)``) does not set ``sys.last_exc`` and is not yet
                 # detected here.
                 exit_code = 1 if getattr(sys, "last_exc", None) is not None else 0
-                self._app.close(exit_code=exit_code)
+                try:
+                    self._app.close(exit_code=exit_code)
+                except TypeError:
+                    # Fail loudly if a SimulationApp update drops the parameter, so the
+                    # exit-status masking does not return silently.
+                    print(
+                        "[ISAACLAB] WARNING: SimulationApp.close() does not accept exit_code;"
+                        " a pending failure may be reported as exit code 0.",
+                        file=sys.__stderr__,
+                        flush=True,
+                    )
+                    self._app.close()
 
         def _on_abort_signal(self, signum, frame):
             """Handle SIGTERM/SIGABRT: close the app once, then die by the signal."""
@@ -1501,6 +1512,15 @@ class AppLauncher:
                 carb.settings.get_settings().set("/app/fastShutdown", False)
             with contextlib.suppress(Exception):
                 self._app.config["fast_shutdown"] = False
+            if self._app.config.get("fast_shutdown", True):
+                # Fail loudly if a SimulationApp update breaks the override, so the
+                # exit-0-on-signal regression does not return silently.
+                print(
+                    "[ISAACLAB] WARNING: could not disable Kit fast shutdown; this process may"
+                    " report exit code 0 instead of its termination signal.",
+                    file=sys.__stderr__,
+                    flush=True,
+                )
             with contextlib.suppress(Exception):
                 self._app.close()
             # Die by the signal so the exit status is the conventional 128 + signum

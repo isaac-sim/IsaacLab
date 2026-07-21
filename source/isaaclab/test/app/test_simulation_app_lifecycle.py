@@ -120,3 +120,22 @@ def test_atexit_close_preserves_pending_failure_status(monkeypatch):
     lifecycle._close_at_exit()
 
     assert codes == [0, 1]
+
+
+def test_atexit_close_falls_back_when_exit_code_unsupported(capfd):
+    """A ``close()`` that stops accepting ``exit_code`` still closes the app, with a warning.
+
+    Guards the workaround against silent drift: if a SimulationApp update drops the
+    parameter, the app must still be closed and the exit-status limitation must be
+    reported instead of failing silently.
+    """
+    calls = []
+
+    def _close():  # simulates a SimulationApp.close() without the exit_code parameter
+        calls.append(len(calls) + 1)
+
+    lifecycle = _make_lifecycle(_close)
+    lifecycle._close_at_exit()
+
+    assert calls == [1]
+    assert "does not accept exit_code" in capfd.readouterr().err
