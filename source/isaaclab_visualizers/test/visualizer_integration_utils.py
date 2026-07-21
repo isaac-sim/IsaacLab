@@ -1241,6 +1241,12 @@ def _capture_visualizer_tiled_camera_rgb(visualizer, *, label: str = "capture") 
         if isinstance(visualizer, KitVisualizer):
             visualizer._sync_camera_pose_updates_to_kit()
             _update_active_simulation_app()
+            # Re-sync Newton body transforms after the app update.  Prior tests can leave
+            # stale Newton state that Newton's forward() writes to USD Fabric during the
+            # app update above, corrupting articulation body positions.  This mirrors the
+            # resync done between the two app.update() calls in
+            # _capture_kit_viewport_with_pose_reapply().
+            _force_newton_transforms_resync()
         # Pump the camera renderer enough times for every tile to produce a valid frame.
         # NewtonVisualizer skips _log_camera_sensor_image() when the Newton physics state is
         # unavailable (e.g. PhysX backend), so owned cameras may have had zero renderer
