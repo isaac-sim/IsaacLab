@@ -1668,45 +1668,71 @@ Fixed tendon properties.
 """
 
 
+def _is_fixed_tendon_target(prim: Usd.Prim) -> bool:
+    """Whether a prim carries a fixed-tendon representation (PhysX multi-apply instance or MjcTendon prim)."""
+    if prim.GetTypeName() == "MjcTendon":
+        return True
+    return any("PhysxTendonAxisRootAPI" in s for s in prim.GetAppliedSchemas())
+
+
+def _is_spatial_tendon_target(prim: Usd.Prim) -> bool:
+    """Whether a prim carries a spatial-tendon multi-apply instance."""
+    return any(
+        "PhysxTendonAttachmentRootAPI" in s or "PhysxTendonAttachmentLeafAPI" in s for s in prim.GetAppliedSchemas()
+    )
+
+
 def apply_fixed_tendon_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.FixedTendonFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str, fragments: Iterable[schemas_cfg.FixedTendonFragment], stage: Usd.Stage | None = None
 ) -> bool:
-    """Apply a list of fixed-tendon fragments to a prim.
+    """Apply a list of fixed-tendon fragments to the tendon prims matched by an expression.
 
-    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
-    multi-instance schemas already exist on the prim (authored in the source asset). This writer
-    therefore applies no anchor schema; it only dispatches each fragment via its
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
-    Backend fragments carry backend-specific funcs, so core never imports a backend.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
+    trailing ``**`` token selects a prim together with its whole subtree. A matched prim is a
+    fixed-tendon target when it carries an applied ``PhysxTendonAxisRootAPI`` multi-apply
+    instance or is a ``MjcTendon`` prim.
 
-    Each fragment tunes only its own schema and returns ``False`` when that schema is not
-    present on the prim. A prim carries a single tendon backend, so compose backends across
-    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+    Fixed tendons are a *tune-not-apply* family: the tendon topology is authored in the source
+    asset, so this writer never creates instances -- it only dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` to every matched target. Backend
+    fragments carry backend-specific funcs, so core never imports a backend. A fragment
+    succeeds when its func returns True on at least one target: each func only tunes its own
+    backend's representation and no-ops (returns False) on the other backend's prims, so a
+    mixed-backend target set does not fail the write.
+
+    An empty fragment list is an authoring no-op and returns True. When no target matches, a
+    warning is emitted and False is returned without authoring anything. Matched prims inside
+    instances cannot be authored on and are skipped with a warning.
 
     Args:
-        prim_path: The prim path to apply the fixed-tendon schemas on.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
-        True if all fragments applied successfully, False if any fragment reported failure.
-
-    Raises:
-        ValueError: If the prim at ``prim_path`` is not valid.
+        True if every fragment tuned at least one target and no instanced prim was skipped.
     """
+    fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    # fail loudly on an invalid path (matches the sibling apply_* writers)
-    if not prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # tune-not-apply: the PhysxTendonAxisRootAPI instances already exist; apply no anchor.
-    # aggregate per-fragment results so a reported failure is not silently masked.
-    success = True
+    if not fragments:
+        return True
+    targets, _, any_skipped = _match_fragment_targets(prim_path_expr, _is_fixed_tendon_target, stage)
+    if not targets:
+        logger.warning("No fixed-tendon targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
+    # per-fragment any-target aggregation: a fragment fails only when it tuned no target at all,
+    # since each backend's func legitimately no-ops on the other backend's tendon prims.
+    success = not any_skipped
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        success = bool(func(cfg, prim_path, stage)) and success
+        fragment_hit = False
+        for target in targets:
+            if func(cfg, target.GetPath().pathString, stage):
+                fragment_hit = True
+        success = fragment_hit and success
     return success
 
 
@@ -1787,46 +1813,56 @@ Spatial tendon properties.
 
 
 def apply_spatial_tendon_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.SpatialTendonFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str, fragments: Iterable[schemas_cfg.SpatialTendonFragment], stage: Usd.Stage | None = None
 ) -> bool:
-    """Apply a list of spatial-tendon fragments to a prim.
+    """Apply a list of spatial-tendon fragments to the tendon prims matched by an expression.
 
-    Spatial tendons are a *tune-not-apply* family: the applied
-    ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI`` multi-instance schemas
-    already exist on the prim (authored in the source asset). This writer therefore applies no
-    anchor schema; it only dispatches each fragment via its
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
-    Backend fragments carry backend-specific funcs, so core never imports a backend.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
+    trailing ``**`` token selects a prim together with its whole subtree. A matched prim is a
+    spatial-tendon target when it carries an applied ``PhysxTendonAttachmentRootAPI`` or
+    ``PhysxTendonAttachmentLeafAPI`` multi-apply instance.
 
-    Each fragment tunes only its own schema and returns ``False`` when that schema is not
-    present on the prim. A prim carries a single tendon backend, so compose backends across
-    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+    Spatial tendons are a *tune-not-apply* family: the tendon topology is authored in the
+    source asset, so this writer never creates instances -- it only dispatches each fragment
+    via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func` to every matched target. Backend
+    fragments carry backend-specific funcs, so core never imports a backend. A fragment
+    succeeds when its func returns True on at least one target: each func only tunes its own
+    backend's representation and no-ops (returns False) on the other backend's prims, so a
+    mixed-backend target set does not fail the write.
+
+    An empty fragment list is an authoring no-op and returns True. When no target matches, a
+    warning is emitted and False is returned without authoring anything. Matched prims inside
+    instances cannot be authored on and are skipped with a warning.
 
     Args:
-        prim_path: The prim path to apply the spatial-tendon schemas on.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
-        True if all fragments applied successfully, False if any fragment reported failure.
-
-    Raises:
-        ValueError: If the prim at ``prim_path`` is not valid.
+        True if every fragment tuned at least one target and no instanced prim was skipped.
     """
+    fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    # fail loudly on an invalid path (matches the sibling apply_* writers)
-    if not prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # tune-not-apply: the PhysxTendonAttachmentRootAPI / PhysxTendonAttachmentLeafAPI instances
-    # already exist; apply no anchor.
-    # aggregate per-fragment results so a reported failure is not silently masked.
-    success = True
+    if not fragments:
+        return True
+    targets, _, any_skipped = _match_fragment_targets(prim_path_expr, _is_spatial_tendon_target, stage)
+    if not targets:
+        logger.warning("No spatial-tendon targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
+    # per-fragment any-target aggregation: a fragment fails only when it tuned no target at all,
+    # since each backend's func legitimately no-ops on the other backend's tendon prims.
+    success = not any_skipped
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        success = bool(func(cfg, prim_path, stage)) and success
+        fragment_hit = False
+        for target in targets:
+            if func(cfg, target.GetPath().pathString, stage):
+                fragment_hit = True
+        success = fragment_hit and success
     return success
 
 

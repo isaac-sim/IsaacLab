@@ -133,31 +133,42 @@ def test_apply_fixed_tendon_writes_all_instances():
         assert abs(prim.GetAttribute(f"PhysxTendonAxisRootAPI:{inst}:stiffness").Get() - 9.0) < 1e-6
 
 
-def test_apply_fixed_tendon_descends_to_child_prims():
+def test_apply_fixed_tendon_writer_descends_to_child_prims():
     # tendon schemas are authored on child joint prims, not the articulation root the spawner
-    # targets; applying at the root must descend to every descendant carrying the schema.
+    # targets. Targeting is owned by the core writer: its trailing ``**`` token descends to
+    # every descendant carrying the schema, while the backend func is a per-prim tuner that
+    # no-ops on a prim without the schema.
     from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
+
+    from isaaclab.sim.schemas import apply_fixed_tendon_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     UsdGeom.Xform.Define(stage, "/World/Robot")  # root: no tendon schema
     child = _make_fixed_tendon_prim(stage, "/World/Robot/joint", instance="t0")  # child joint carries it
-    # apply at the ROOT, not the joint
-    assert apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=8.0), "/World/Robot", stage) is True
+    # the backend func is per-prim: applied at the root it tunes nothing
+    assert apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=8.0), "/World/Robot", stage) is False
+    # the core writer's ``**`` expression descends from the root to the joint
+    assert apply_fixed_tendon_properties("/World/Robot/**", [PhysxFixedTendonCfg(stiffness=8.0)], stage) is True
     prefix = _tendon_attr_prefix(child, "PhysxTendonAxisRootAPI")
     assert abs(child.GetAttribute(f"{prefix}:stiffness").Get() - 8.0) < 1e-6
 
 
-def test_apply_spatial_tendon_descends_to_child_prims():
+def test_apply_spatial_tendon_writer_descends_to_child_prims():
     from isaaclab_physx.sim.schemas import PhysxSpatialTendonCfg, apply_spatial_tendon
+
+    from isaaclab.sim.schemas import apply_spatial_tendon_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     UsdGeom.Xform.Define(stage, "/World/Robot2")  # root: no tendon schema
     child = _make_prim_with_schemas(stage, "/World/Robot2/joint", ["PhysxTendonAttachmentRootAPI:s0"])
-    assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=5.0), "/World/Robot2", stage) is True
+    # the backend func is per-prim: applied at the root it tunes nothing
+    assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=5.0), "/World/Robot2", stage) is False
+    # the core writer's ``**`` expression descends from the root to the joint
+    assert apply_spatial_tendon_properties("/World/Robot2/**", [PhysxSpatialTendonCfg(stiffness=5.0)], stage) is True
     assert abs(child.GetAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness").Get() - 5.0) < 1e-6
 
 
@@ -260,22 +271,30 @@ def test_public_imports():
 # -------------------------------------------------------------------------------------
 
 
-def test_apply_fixed_tendon_raises_on_invalid_prim():
+def test_apply_fixed_tendon_warns_on_unmatched_path(caplog):
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg
+
     from isaaclab.sim.schemas import apply_fixed_tendon_properties
 
     _new_sim()
     stage = sim_utils.get_current_stage()
-    with pytest.raises(ValueError):
-        apply_fixed_tendon_properties("/World/DoesNotExist", [], stage)
+    with caplog.at_level("WARNING"):
+        result = apply_fixed_tendon_properties("/World/DoesNotExist", [PhysxFixedTendonCfg(stiffness=1.0)], stage)
+    assert result is False
+    assert "/World/DoesNotExist" in caplog.text
 
 
-def test_apply_spatial_tendon_raises_on_invalid_prim():
+def test_apply_spatial_tendon_warns_on_unmatched_path(caplog):
+    from isaaclab_physx.sim.schemas import PhysxSpatialTendonCfg
+
     from isaaclab.sim.schemas import apply_spatial_tendon_properties
 
     _new_sim()
     stage = sim_utils.get_current_stage()
-    with pytest.raises(ValueError):
-        apply_spatial_tendon_properties("/World/DoesNotExist", [], stage)
+    with caplog.at_level("WARNING"):
+        result = apply_spatial_tendon_properties("/World/DoesNotExist", [PhysxSpatialTendonCfg(stiffness=1.0)], stage)
+    assert result is False
+    assert "/World/DoesNotExist" in caplog.text
 
 
 def test_apply_fixed_tendon_aggregates_fragment_results():
@@ -292,6 +311,43 @@ def test_apply_fixed_tendon_aggregates_fragment_results():
     ok = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
     ok.func = lambda cfg, prim_path, stage=None: True
     assert apply_fixed_tendon_properties("/World/Agg", [ok], stage) is True
+
+
+def test_apply_fixed_tendon_properties_narrows_to_exact_path():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg
+
+    from isaaclab.sim.schemas import apply_fixed_tendon_properties
+
+    stage = _new_sim()
+    first = _make_fixed_tendon_prim(stage, "/World/Narrow/J0", instance="t1")
+    second = _make_fixed_tendon_prim(stage, "/World/Narrow/J1", instance="t1")
+    # the exact path of the first joint must tune only that joint
+    assert apply_fixed_tendon_properties("/World/Narrow/J0", [PhysxFixedTendonCfg(stiffness=50.0)], stage) is True
+    prefix = _tendon_attr_prefix(first, "PhysxTendonAxisRootAPI")
+    assert abs(first.GetAttribute(f"{prefix}:stiffness").Get() - 50.0) < 1e-6
+    second_prefix = _tendon_attr_prefix(second, "PhysxTendonAxisRootAPI")
+    second_attr = second.GetAttribute(f"{second_prefix}:stiffness")
+    assert not (second_attr and second_attr.HasAuthoredValue())
+
+
+def test_apply_fixed_tendon_properties_bare_parent_path_does_not_descend(caplog):
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg
+
+    from isaaclab.sim.schemas import apply_fixed_tendon_properties
+
+    stage = _new_sim()
+    UsdGeom.Xform.Define(stage, "/World/Parent")  # plain Xform: carries no tendon schema
+    first = _make_fixed_tendon_prim(stage, "/World/Parent/J0", instance="t1")
+    second = _make_fixed_tendon_prim(stage, "/World/Parent/J1", instance="t1")
+    # a bare parent path (no ``**``) matches only the parent, which is not a tendon target
+    with caplog.at_level("WARNING"):
+        result = apply_fixed_tendon_properties("/World/Parent", [PhysxFixedTendonCfg(stiffness=50.0)], stage)
+    assert result is False
+    for prim in (first, second):
+        prefix = _tendon_attr_prefix(prim, "PhysxTendonAxisRootAPI")
+        attr = prim.GetAttribute(f"{prefix}:stiffness")
+        assert not (attr and attr.HasAuthoredValue())
+    assert "/World/Parent" in caplog.text
 
 
 def test_apply_fixed_tendon_raises_on_invalid_prim_backend():
@@ -387,7 +443,7 @@ def test_legacy_and_fragment_fixed_tendon_produce_identical_attrs():
 
     # apply each path at the ROOT; both must descend to the child joints
     modify_fixed_tendon_properties("/World/legacy", PhysxFixedTendonPropertiesCfg(limit_stiffness=30.0, damping=0.1))
-    apply_fixed_tendon_properties("/World/fragment", [PhysxFixedTendonCfg(limit_stiffness=30.0, damping=0.1)])
+    apply_fixed_tendon_properties("/World/fragment/**", [PhysxFixedTendonCfg(limit_stiffness=30.0, damping=0.1)])
 
     def _collect(root):
         attrs = {}
