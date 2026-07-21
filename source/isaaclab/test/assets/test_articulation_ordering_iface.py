@@ -909,7 +909,7 @@ def _get_backend_body_property_tensors(backend: str, art, raw_backend) -> dict[s
 _dynamics_ordering_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
 )
-_non_mock_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "mock"], indirect=False)
+_non_mock_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b.lower() != "mock"], indirect=False)
 
 
 class TestArticulationDataBodyState:
