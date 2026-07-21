@@ -277,7 +277,9 @@ class RenderData:
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
             fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(self.width, self.height, fov_warp)
+            self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
+                self.width, self.height, camera_fovs=fov_warp
+            )
 
     @wp.kernel
     def _update_transforms(
@@ -329,7 +331,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
             self._newton_model,
-            config=newton.sensors.SensorTiledCamera.RenderConfig(
+            default_render_config=newton.sensors.SensorTiledCamera.RenderConfig(
                 enable_textures=self.cfg.enable_textures,
                 enable_shadows=self.cfg.enable_shadows,
                 enable_ambient_lighting=self.cfg.enable_ambient_lighting,
@@ -342,11 +344,13 @@ class NewtonWarpRenderer(BaseRenderer):
         )
 
         if self.cfg.render_order == "pixel_priority":
-            self.newton_sensor.render_config.render_order = newton.sensors.SensorTiledCamera.RenderOrder.PIXEL_PRIORITY
+            self.newton_sensor.default_render_config.render_order = (
+                newton.sensors.SensorTiledCamera.RenderOrder.PIXEL_PRIORITY
+            )
         elif self.cfg.render_order == "view_priority":
-            self.newton_sensor.render_config.render_order = newton.sensors.SensorTiledCamera.RenderOrder.VIEW_PRIORITY
-        else:
-            self.newton_sensor.render_config.render_order = newton.sensors.SensorTiledCamera.RenderOrder.TILED
+            self.newton_sensor.default_render_config.render_order = (
+                newton.sensors.SensorTiledCamera.RenderOrder.VIEW_PRIORITY
+            )
 
         # Newton ``v1.2.0rc2`` made shape-BVH construction explicit; ``SensorTiledCamera.update``
         # no longer auto-builds when a non-``None`` state is passed, and the underlying
@@ -441,9 +445,8 @@ class NewtonWarpRenderer(BaseRenderer):
         if self.newton_sensor.model.shape_count > 0:
             newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
 
-        # render_config is shared state across all Newton sensors, so set max_distance immediately
-        # before each render call rather than once in create_render_data.
-        self.newton_sensor.render_config.max_distance = (
+        # Cameras can have different far clipping planes, so update the sensor config before rendering.
+        self.newton_sensor.default_render_config.max_distance = (
             render_data.far_clip if render_data.far_clip is not None else self.cfg.max_distance
         )
 
