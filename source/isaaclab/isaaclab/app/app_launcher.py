@@ -1396,49 +1396,36 @@ class AppLauncher:
     class _SimulationAppLifecycle:
         """Reports the lifecycle of the Kit-based :class:`SimulationApp` process.
 
-        Everything a supervisor learns about this process flows through here: the CI
-        test runner watches the startup announcements, and distributed launchers,
-        schedulers, and CI read the exit status. The exit-path policy exists because
-        Kit fast shutdown terminates the process with exit code 0 from inside
-        :meth:`SimulationApp.close`, so any death funneled through an unqualified
-        ``close()`` is reported as success.
+        Supervisors (the CI runner at startup; torchrun, schedulers, and CI at exit)
+        only see this process through its output markers and its exit status. Kit
+        fast shutdown exits with code 0 from inside :meth:`SimulationApp.close`, so
+        every exit path below must carry its own truthful status.
 
-        Exit paths and policy:
+        Exit-path policy:
 
-        * Normal interpreter exit: the ``atexit`` hook closes the app once, passing a
-          nonzero exit code when an unhandled exception is pending so the failure
-          status survives Kit fast shutdown.
-        * ``SIGTERM`` and signal-delivered ``SIGABRT``: close once with the conventional
-          killed-by-signal status (``close(exit_code=128 + signum)``; the app performs
-          its full teardown before exiting on isaacsim.simulation_app >= 2.18.5). If
-          ``close()`` returns (fast shutdown disabled), re-raise the signal with the
-          default action. Native ``abort()`` calls bypass Python handlers and already
-          terminate correctly.
-        * Any signal while a close is running: never re-enter ``close()`` (the nested
-          calls previously recursed until the stack overflowed, leaving workers that
-          only SIGKILL could stop); fall back to the default signal action.
-        * ``SIGSEGV``: intentionally not handled. A Python handler never runs for a
-          synchronous main-thread segfault (the process would spin on signal
-          delivery), reports a successful exit for worker-thread segfaults, and
-          replaces the carb crash reporter's handler, suppressing minidumps.
-        * ``SIGINT``: Python's default handler, so Ctrl-C raises
-          :class:`KeyboardInterrupt`, unwinds user code (``finally`` blocks run), and
-          exits with a failure status.
+        * Normal exit: the ``atexit`` hook closes the app once; a pending unhandled
+          exception turns into exit code 1.
+        * ``SIGTERM`` / ``kill -ABRT``: ``close(exit_code=128 + signum)`` — full
+          teardown before exiting on isaacsim.simulation_app >= 2.18.5, truthful
+          status either way; if ``close()`` returns (fast shutdown disabled),
+          re-raise the signal with the default action.
+        * Signal during a running close: fall back to the default action instead of
+          re-entering ``close()``, which previously recursed until stack overflow.
+        * ``SIGSEGV``: not intercepted — a Python handler cannot run for main-thread
+          faults, reports success for worker-thread faults, and suppresses the carb
+          crash reporter's minidumps.
+        * ``SIGINT``: Python's default handler, so Ctrl-C unwinds user code and
+          exits nonzero.
 
-        WORKAROUND(isaac-sim): ``SIGINT`` is re-registered over SimulationApp's own
-        handler, which exits 0 before user code unwinds. This is handled here rather
-        than upstream because fixing the upstream handler changes user-visible Ctrl-C
-        semantics for every SimulationApp consumer (``KeyboardInterrupt`` starts
-        propagating and exit codes become nonzero), which needs its own upstream
-        review; the exit-status fix that shipped in isaacsim.simulation_app 2.18.5
-        deliberately excluded it. Remove once the upstream handler preserves
-        exception semantics and a nonzero exit status.
+        Not handled on the sim side, so handled here: SimulationApp installs its own
+        ``SIGINT`` handler that exits 0 before user code unwinds (changing it there
+        affects Ctrl-C semantics for every consumer), so the launcher restores
+        Python's default handler for its own processes.
         """
 
         def __init__(self, app: SimulationApp):
             self._app = app
-            # True once any close has started; a signal arriving after that must not
-            # start a second, nested teardown of a half-closed app.
+            # set once any close starts; later signals must not start a second teardown
             self._closing = False
 
         def announce_startup(self):
@@ -1446,84 +1433,59 @@ class AppLauncher:
             import carb
             import omni.kit.app
 
-            # The CI test runner watches for this marker to distinguish a Kit that is
-            # still starting from one that hung. stdout may be redirected to /dev/null
-            # during app creation, so use __stderr__, which is never suppressed.
+            # the CI runner greps this marker for hang detection; __stderr__ survives
+            # stdout being redirected to /dev/null during app creation
             print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
 
             kit_app = omni.kit.app.get_app()
             tokens = carb.tokens.get_tokens_interface()
-            kit_version = kit_app.get_kit_version()
-            kernel_version = kit_app.get_kernel_version()
             kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
-            print(f"[ISAACLAB] Kit version: {kit_version}", file=sys.__stderr__, flush=True)
-            print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
+            print(f"[ISAACLAB] Kit version: {kit_app.get_kit_version()}", file=sys.__stderr__, flush=True)
+            print(f"[ISAACLAB] Kit kernel:  {kit_app.get_kernel_version()}", file=sys.__stderr__, flush=True)
             print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
 
         def install_exit_handlers(self):
             """Register the ``atexit`` hook and signal handlers implementing the exit policy."""
-            # Close the app on normal process exit so Kit shuts down cleanly instead
-            # of relying on __del__ (which logs a warning and can leave GPU resources
-            # in a bad state for the next test).
+            # close on normal exit so Kit shuts down cleanly instead of via __del__
             atexit.register(self._close_at_exit)
-            # Explicit `kill` and signal-delivered aborts take the truthful-close path.
             signal.signal(signal.SIGTERM, self._on_abort_signal)
             signal.signal(signal.SIGABRT, self._on_abort_signal)
-            # SIGSEGV is intentionally absent and SIGINT uses Python's default handler;
-            # the class docstring explains both decisions.
+            # no SIGSEGV handler and default SIGINT — see the class docstring
             signal.signal(signal.SIGINT, signal.default_int_handler)
 
         def _close_at_exit(self):
             """Close the app on normal interpreter exit, preserving a pending failure status."""
             self._closing = True
             with contextlib.suppress(Exception):
-                # The interpreter sets ``sys.last_exc`` before atexit callbacks run for
-                # an unhandled exception; pass a nonzero code so Kit fast shutdown does
-                # not replace the pending failure status with 0. Note that ``SystemExit``
-                # (e.g. ``sys.exit(1)``) does not set ``sys.last_exc`` and is not yet
-                # detected here.
+                # sys.last_exc is set before atexit callbacks run for an unhandled
+                # exception (but not for SystemExit, which is not detected yet)
                 exit_code = 1 if getattr(sys, "last_exc", None) is not None else 0
-                try:
-                    self._app.close(exit_code=exit_code)
-                except TypeError:
-                    # Fail loudly if a SimulationApp update drops the parameter, so the
-                    # exit-status masking does not return silently.
-                    print(
-                        "[ISAACLAB] WARNING: SimulationApp.close() does not accept exit_code;"
-                        " a pending failure may be reported as exit code 0.",
-                        file=sys.__stderr__,
-                        flush=True,
-                    )
-                    self._app.close()
+                self._close_app(exit_code)
 
         def _on_abort_signal(self, signum, frame):
             """Handle SIGTERM/SIGABRT: close the app once, then die by the signal."""
             if self._closing:
-                # A signal during a running close must not re-enter ``close()``: the
-                # nested calls recurse until the stack overflows, so the process can
-                # neither shut down cleanly nor report a meaningful failure.
                 signal.signal(signum, signal.SIG_DFL)
                 signal.raise_signal(signum)
                 return
             self._closing = True
-            # Close with the conventional killed-by-signal status so a killed worker is not
-            # recorded as successful by its launcher. With isaacsim.simulation_app >= 2.18.5
-            # the app performs its full teardown and exits with this status; older builds
-            # exit with the correct status without the teardown.
             with contextlib.suppress(Exception):
-                try:
-                    self._app.close(exit_code=128 + signum)
-                except TypeError:
-                    # Fail loudly if ``close()`` stops accepting the parameter, so the
-                    # exit-0-on-signal regression does not return silently.
-                    print(
-                        "[ISAACLAB] WARNING: SimulationApp.close() does not accept exit_code;"
-                        " this process may report exit code 0 instead of its termination signal.",
-                        file=sys.__stderr__,
-                        flush=True,
-                    )
-                    self._app.close()
-            # ``close()`` only returns when fast shutdown is disabled; die by the signal so
-            # the exit status is truthful on that path as well.
+                # >= 2.18.5 tears down fully, then exits with this status; older
+                # builds exit with the status but skip the teardown
+                self._close_app(128 + signum)
+            # close() only returns when fast shutdown is disabled
             signal.signal(signum, signal.SIG_DFL)
             signal.raise_signal(signum)
+
+        def _close_app(self, exit_code):
+            """Close the app with ``exit_code``, warning loudly if the parameter is unsupported."""
+            try:
+                self._app.close(exit_code=exit_code)
+            except TypeError:
+                print(
+                    "[ISAACLAB] WARNING: SimulationApp.close() does not accept exit_code;"
+                    " this process may report exit code 0 instead of its failure status.",
+                    file=sys.__stderr__,
+                    flush=True,
+                )
+                self._app.close()
