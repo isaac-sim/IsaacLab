@@ -4388,11 +4388,17 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
         return pos_history
 
     def _stationary_tail_mean(history, label):
-        """Mean of the last 200 samples, asserting the two tail halves agree within 25%."""
+        """Mean of the last 200 samples, asserting the two tail halves agree within 25%.
+
+        The relative check carries a 10 µm absolute floor: at the ~1 µm solver noise
+        floor of the compensated hold, tail jitter is far below the 0.1 mm verdict
+        threshold and cannot flip the outcome, so demanding 25% relative agreement
+        of micrometer-scale means would only add GPU-dependent flakiness.
+        """
         a = sum(history[-200:-100]) / 100
         b = sum(history[-100:]) / 100
         mean = (a + b) / 2.0
-        assert abs(a - b) < 0.25 * max(mean, 1e-6), (
+        assert abs(a - b) < 0.25 * max(mean, 1e-5), (
             f"{label} not stationary: tail halves {a:.6f} vs {b:.6f} — extend the phase"
         )
         return mean
