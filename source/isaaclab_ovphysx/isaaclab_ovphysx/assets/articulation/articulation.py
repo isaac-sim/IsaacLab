@@ -2363,9 +2363,6 @@ class Articulation(BaseArticulation):
             use_mask: Whether :paramref:`env_sel` and :paramref:`body_sel` are masks (True) or indices
                 (False).
 
-        Raises:
-            RuntimeError: If a non-identity body ordering is active but no backend staging buffer was
-                provided.
         """
         if use_mask:
             env_sel = self._resolve_env_mask(env_sel)
@@ -2639,9 +2636,6 @@ class Articulation(BaseArticulation):
             use_mask: Whether :paramref:`env_sel` and :paramref:`joint_sel` are masks (True) or
                 indices (False).
 
-        Raises:
-            RuntimeError: If a non-identity joint ordering is active but no backend staging buffer
-                was provided.
         """
         if use_mask:
             env_sel = self._resolve_env_mask(env_sel)
