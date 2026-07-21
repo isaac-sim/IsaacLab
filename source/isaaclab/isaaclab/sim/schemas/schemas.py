@@ -560,76 +560,6 @@ Fragment-writer helpers.
 """
 
 
-def _resolve_fragment_targets(
-    prim_path: str,
-    api_type,
-    stage: Usd.Stage,
-    apply_fresh: bool,
-    stop_at_carrier: bool,
-) -> tuple[list, bool]:
-    """Resolve the prims that a fragment family writer should author on.
-
-    This mirrors the legacy nested writers: prims under ``prim_path`` that already carry
-    ``api_type`` are modified in place. Rigid-body and mass carriers legitimately nest -- the
-    URDF importer authors child links under their parent link prims -- so those families search
-    the entire subtree; collision keeps the legacy stop-at-carrier traversal. Only when the
-    subtree carries no such prim is the defining API applied freshly to ``prim_path`` itself --
-    the bare-prim case used by the shape and mesh spawners. Instanced prims cannot be edited,
-    so they are skipped with a warning.
-
-    Args:
-        prim_path: The prim path whose subtree is searched.
-        api_type: The defining USD API schema type (e.g. ``UsdPhysics.RigidBodyAPI``).
-        stage: The stage containing the prim.
-        apply_fresh: Whether to apply ``api_type`` to ``prim_path`` when the subtree contains
-            no carrier of it.
-        stop_at_carrier: Whether to skip the descendants of a found carrier instead of also
-            collecting nested carriers, mirroring :paramref:`~isaaclab.sim.utils.apply_nested.stop_on_success`
-            of the corresponding legacy writer.
-
-    Returns:
-        A tuple ``(targets, any_skipped)`` holding the writable target prims and whether any
-        instanced prim was skipped.
-
-    Raises:
-        ValueError: When the prim path is not valid.
-    """
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # breadth-first search over the subtree. Carriers on instanced prims are read-only and
-    # collected separately so they can be reported. With ``stop_at_carrier`` the search does not
-    # descend past a found carrier, matching the legacy writer's stop-on-success traversal.
-    targets = []
-    skipped = []
-    prims_queue = [prim]
-    index = 0
-    while index < len(prims_queue):
-        candidate = prims_queue[index]
-        index += 1
-        if candidate.HasAPI(api_type):
-            if candidate.IsInstance() or candidate.IsInstanceProxy():
-                skipped.append(candidate)
-            else:
-                targets.append(candidate)
-            if stop_at_carrier:
-                continue
-        prims_queue += candidate.GetFilteredChildren(Usd.TraverseInstanceProxies())
-    if not targets and not skipped and apply_fresh:
-        if prim.IsInstance() or prim.IsInstanceProxy():
-            skipped.append(prim)
-        else:
-            api_type.Apply(prim)
-            targets.append(prim)
-    if skipped:
-        logger.warning(
-            "Skipping %s updates on instanced prims: %s.",
-            api_type.__name__,
-            [p.GetPath().pathString for p in skipped],
-        )
-    return targets, bool(skipped)
-
-
 def _match_fragment_targets(
     prim_path_expr: str,
     is_target: Callable[[Usd.Prim], bool],
@@ -643,13 +573,16 @@ def _match_fragment_targets(
     instanced prims passing it are skipped with a warning since prototypes cannot be authored on.
 
     Args:
-        prim_path_expr: The prim path expression to match.
+        prim_path_expr: The prim path expression to match. Path-like objects (e.g.
+            ``Sdf.Path``) are accepted and converted with ``str``.
         is_target: Predicate deciding whether a matched prim is a valid family target.
         stage: The stage to match on.
 
     Returns:
         A tuple ``(targets, candidates, any_skipped)``.
     """
+    # tolerate path-like inputs such as Sdf.Path, whose string form is the path itself
+    prim_path_expr = str(prim_path_expr)
     targets = []
     candidates = []
     skipped = []

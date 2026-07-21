@@ -308,7 +308,7 @@ def test_rigid_body_fragments_empty_list_authors_nothing():
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     UsdGeom.Xform.Define(stage, "/World/Bare")
-    result = apply_rigid_body_properties("/World/Bare", [], stage)
+    result = apply_rigid_body_properties("/World/Bare", [], stage=stage)
     prim = stage.GetPrimAtPath("/World/Bare")
     assert result is True
     assert not prim.HasAPI(UsdPhysics.RigidBodyAPI)
