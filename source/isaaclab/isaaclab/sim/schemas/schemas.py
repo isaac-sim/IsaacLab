@@ -343,18 +343,18 @@ def apply_articulation_root_properties(
     if not fragments and fix_root_link is None:
         return True
 
-    targets, candidates, any_skipped = _match_fragment_targets(
+    targets, creation_candidates, any_skipped = _match_fragment_targets(
         prim_path_expr, lambda p: p.HasAPI(UsdPhysics.ArticulationRootAPI), stage
     )
-    if create_if_missing and not targets and candidates:
-        if len(candidates) > 1:
+    if create_if_missing and not targets and creation_candidates:
+        if len(creation_candidates) > 1:
             raise ValueError(
-                f"Expression '{prim_path_expr}' matches {len(candidates)} prims without"
+                f"Expression '{prim_path_expr}' matches {len(creation_candidates)} prims without"
                 " UsdPhysics.ArticulationRootAPI. Creating articulation roots on multiple prims"
                 " is not supported; narrow the expression to a single prim."
             )
-        UsdPhysics.ArticulationRootAPI.Apply(candidates[0])
-        targets.append(candidates[0])
+        UsdPhysics.ArticulationRootAPI.Apply(creation_candidates[0])
+        targets.append(creation_candidates[0])
     target_paths = [t.GetPath() for t in targets]
     for path in target_paths:
         if any(path != other and path.HasPrefix(other) for other in target_paths):
@@ -579,26 +579,26 @@ def _match_fragment_targets(
         stage: The stage to match on.
 
     Returns:
-        A tuple ``(targets, candidates, any_skipped)``.
+        A tuple ``(targets, creation_candidates, any_skipped)``.
     """
     # tolerate path-like inputs such as Sdf.Path, whose string form is the path itself
     prim_path_expr = str(prim_path_expr)
     targets = []
-    candidates = []
+    creation_candidates = []
     skipped = []
     for prim in find_matching_prims(prim_path_expr, stage):
         instanced = prim.IsInstance() or prim.IsInstanceProxy()
         if is_target(prim):
             (skipped if instanced else targets).append(prim)
         elif not instanced:
-            candidates.append(prim)
+            creation_candidates.append(prim)
     if skipped:
         logger.warning(
             "Skipping fragment updates on instanced prims matched by '%s': %s.",
             prim_path_expr,
             [p.GetPath().pathString for p in skipped],
         )
-    return targets, candidates, bool(skipped)
+    return targets, creation_candidates, bool(skipped)
 
 
 """
@@ -650,18 +650,18 @@ def apply_rigid_body_properties(
         stage = get_current_stage()
     if not fragments:
         return True
-    targets, candidates, any_skipped = _match_fragment_targets(
+    targets, creation_candidates, any_skipped = _match_fragment_targets(
         prim_path_expr, lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI), stage
     )
-    if create_if_missing and candidates:
-        if len(candidates) > 1:
+    if create_if_missing and creation_candidates:
+        if len(creation_candidates) > 1:
             raise ValueError(
-                f"Expression '{prim_path_expr}' matches {len(candidates)} prims without"
+                f"Expression '{prim_path_expr}' matches {len(creation_candidates)} prims without"
                 " UsdPhysics.RigidBodyAPI. Creating rigid bodies on multiple prims is not"
                 " supported; narrow the expression to a single prim."
             )
-        UsdPhysics.RigidBodyAPI.Apply(candidates[0])
-        targets.append(candidates[0])
+        UsdPhysics.RigidBodyAPI.Apply(creation_candidates[0])
+        targets.append(creation_candidates[0])
     if not targets:
         logger.warning("No rigid-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
         return False
@@ -912,11 +912,11 @@ def apply_collision_properties(
         stage = get_current_stage()
     if not fragments:
         return True
-    targets, candidates, any_skipped = _match_fragment_targets(
+    targets, creation_candidates, any_skipped = _match_fragment_targets(
         prim_path_expr, lambda p: p.HasAPI(UsdPhysics.CollisionAPI), stage
     )
     if create_if_missing:
-        for candidate in candidates:
+        for candidate in creation_candidates:
             UsdPhysics.CollisionAPI.Apply(candidate)
             targets.append(candidate)
     if not targets:
@@ -1071,18 +1071,18 @@ def apply_mass_properties(
         stage = get_current_stage()
     if not fragments:
         return True
-    targets, candidates, any_skipped = _match_fragment_targets(
+    targets, creation_candidates, any_skipped = _match_fragment_targets(
         prim_path_expr, lambda p: p.HasAPI(UsdPhysics.MassAPI), stage
     )
-    if create_if_missing and candidates:
-        if not targets and len(candidates) == 1:
+    if create_if_missing and creation_candidates:
+        if not targets and len(creation_candidates) == 1:
             # single exact-prim match: the shape/mesh spawners author mass before the rigid
             # body, so creation must not require a pre-existing body here
-            UsdPhysics.MassAPI.Apply(candidates[0])
-            targets.append(candidates[0])
+            UsdPhysics.MassAPI.Apply(creation_candidates[0])
+            targets.append(creation_candidates[0])
         else:
-            creatable = [p for p in candidates if p.HasAPI(UsdPhysics.RigidBodyAPI)]
-            skipped_creation = [p for p in candidates if not p.HasAPI(UsdPhysics.RigidBodyAPI)]
+            creatable = [p for p in creation_candidates if p.HasAPI(UsdPhysics.RigidBodyAPI)]
+            skipped_creation = [p for p in creation_candidates if not p.HasAPI(UsdPhysics.RigidBodyAPI)]
             if skipped_creation:
                 logger.warning(
                     "Not creating UsdPhysics.MassAPI on matched prims without a rigid body: %s.",
@@ -1416,7 +1416,7 @@ def apply_joint_drive_properties(
     drive_cfg = next((f for f in fragments if isinstance(f, schemas_cfg.UsdPhysicsDriveCfg)), None)
 
     # match revolute/prismatic joints not excluded by a backend-registered skip predicate;
-    # non-joint matches (candidates) are ignored silently since a ``**`` expression matches
+    # non-joint matches (creation_candidates) are ignored silently since a ``**`` expression matches
     # whole subtrees
     targets, _, _ = _match_fragment_targets(
         prim_path_expr,
