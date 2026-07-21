@@ -58,19 +58,17 @@ class ActuatorBaseCfg:
 
     .. attention::
 
-        The :attr:`velocity_limit_sim` attribute should be used to set the velocity limit for
-        the simulation physics solver.
+        This attribute describes the joint's peak velocity, i.e. the actuator's rated speed
+        reflected at the joint (after any gearbox). It populates the articulation data
+        buffers (e.g. :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits`, read by
+        velocity-limit terminations and rewards) and clips the effort output of explicit
+        actuator models, but it is **not** pushed to the physics solver.
 
-        The :attr:`velocity_limit` attribute is used for clipping the effort output of the
-        actuator model **only** in the case of explicit actuators, such as the
-        :class:`~isaaclab.actuators.IdealPDActuator`.
-
-    .. note::
-
-        For implicit actuators, the attribute :attr:`velocity_limit` is not used. This is to stay
-        backwards compatible with previous versions of the Isaac Lab, where this parameter was
-        unused since PhysX did not support setting the velocity limit for the joints using the
-        PhysX Tensor API.
+        Use :attr:`velocity_limit_sim` to additionally impose a solver-level hard clamp
+        (PhysX ``maxJointVelocity``). A physical actuator limits joint speed through its
+        torque curve rather than a kinematic clamp, so the two limits are resolved
+        independently. When only :attr:`velocity_limit_sim` is set, it also serves as the
+        joint velocity limit.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None

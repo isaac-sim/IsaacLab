@@ -127,6 +127,18 @@ class UsdReplicateContext:
                         wid = int(wid)
                         dp = tmpl.format(wid)
                         Sdf.CreatePrimInLayer(rl, dp)
+                        # ``CreatePrimInLayer`` authors missing intermediate ancestors (e.g. the
+                        # ``Groceries`` scope in ``env_{}/Groceries/Object``) as ``over`` specs. A
+                        # ``def`` copied below an ``over`` ancestor never composes as defined, so
+                        # Hydra skips it and its references stay unexpanded. Promote such ancestors
+                        # to ``def``; for ancestors already defined elsewhere this is a no-op.
+                        ancestor = Sdf.Path(dp).GetParentPath()
+                        while ancestor != Sdf.Path.absoluteRootPath:
+                            ancestor_spec = rl.GetPrimAtPath(ancestor)
+                            if ancestor_spec is None or ancestor_spec.specifier != Sdf.SpecifierOver:
+                                break
+                            ancestor_spec.specifier = Sdf.SpecifierDef
+                            ancestor = ancestor.GetParentPath()
                         if src != dp:
                             Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
 

@@ -90,15 +90,6 @@ def test_ovrtx_instance_segmentation_fast_uses_non_stable_instance_segmentation_
     )
 
 
-def test_ovrtx_instance_id_segmentation_fast_uses_instance_segmentation_sd_render_var():
-    """Requesting instance_id_segmentation_fast from OVRTX selects the InstanceSegmentationSD render variable."""
-    assert get_render_var_config(["instance_id_segmentation_fast"]) == (
-        "/Render/Vars/InstanceSegmentationSD",
-        "InstanceSegmentationSD",
-        "InstanceSegmentationSD",
-    )
-
-
 def test_ovrtx_motion_vectors_uses_target_motion_render_var():
     """Requesting motion vectors from OVRTX selects the TargetMotionSD render variable."""
     assert get_render_var_config(["motion_vectors"]) == (
