@@ -15,6 +15,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_import_paths() -> None:
+    """Re-apply Isaac Lab import path ordering before dynamic backend imports."""
+    try:
+        from isaaclab import _deprioritize_prebundle_paths
+    except (AttributeError, ImportError):
+        return
+    _deprioritize_prebundle_paths()
+
+
 def get_default_renderer_cfg() -> RendererCfg:
     """Return the default :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` for cameras.
 
@@ -114,8 +123,10 @@ class FactoryBase:
             # Construct the module name from the backend and the determined subpath.
             module_name = cls._get_module_name(backend)
             try:
+                _sanitize_import_paths()
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
+                _sanitize_import_paths()
                 module_class = getattr(module, class_name)
                 # Manually register the class
                 cls.register(backend, module_class)

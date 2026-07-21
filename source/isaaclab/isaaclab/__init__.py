@@ -51,32 +51,47 @@ def _deprioritize_prebundle_paths():
                 return True
         return False
 
-    # Partition: keep non-conflicting in place, collect conflicting.
-    clean = []
-    demoted = []
-    for p in sys.path:
-        if _should_demote(p):
-            demoted.append(p)
-        else:
-            clean.append(p)
-
-    if not demoted:
-        return
+    def _demote_paths(paths):
+        # Partition: keep non-conflicting in place, collect conflicting.
+        clean = []
+        demoted = []
+        for p in paths:
+            if _should_demote(p):
+                demoted.append(p)
+            else:
+                clean.append(p)
+        return clean + demoted, bool(demoted)
 
     # Rebuild sys.path: originals first, then demoted at the very end.
-    sys.path[:] = clean + demoted
+    sys.path[:], _ = _demote_paths(sys.path)
 
     # Rewrite PYTHONPATH with the same ordering for subprocesses.
     if "PYTHONPATH" in os.environ:
         parts = os.environ["PYTHONPATH"].split(os.pathsep)
-        env_clean = []
-        env_demoted = []
-        for p in parts:
-            if _should_demote(p):
-                env_demoted.append(p)
-            else:
-                env_clean.append(p)
-        os.environ["PYTHONPATH"] = os.pathsep.join(env_clean + env_demoted)
+        os.environ["PYTHONPATH"] = os.pathsep.join(_demote_paths(parts)[0])
+
+    # Kit can mutate a loaded package's search path directly.  If ``warp`` is
+    # already imported and an older ``omni.warp.core`` path is appended to
+    # ``warp.__path__``, a later ``import warp.fem`` can still mix the extension
+    # package with Isaac Lab's pip-installed Warp even when ``sys.path`` is
+    # clean.  Reorder loaded package paths with the same policy.
+    for module in tuple(sys.modules.values()):
+        package_path = getattr(module, "__path__", None)
+        if package_path is None:
+            continue
+        try:
+            reordered, changed = _demote_paths(list(package_path))
+        except TypeError:
+            continue
+        if not changed:
+            continue
+        try:
+            package_path[:] = reordered
+        except TypeError:
+            try:
+                module.__path__ = reordered
+            except Exception:
+                pass
 
 
 _deprioritize_prebundle_paths()
