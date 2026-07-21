@@ -44,10 +44,8 @@ CI note
 -------
 Because the lock is process-global, full coverage requires **two separate
 ``./scripts/run_ovphysx.sh -m pytest`` invocations** -- once with ``-k 'cpu'``
-and once with ``-k 'cuda:0'``.  Tracked as gap G5 in
-``docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md``; until
-the wheel exposes a way to reset Carbonite device state, this is the supported
-pattern.
+and once with ``-k 'cuda:0'``. Until the wheel exposes a way to reset Carbonite
+device state, this is the supported pattern.
 """
 
 from __future__ import annotations
@@ -93,10 +91,8 @@ pytestmark = pytest.mark.device_split
 
 
 _OMNI_PHYSX_SCHEMAS_GAP_REASON = (
-    "Schema-level fixed-joint creation in :mod:`isaaclab.sim.schemas` imports "
-    "``omni.physx.scripts.utils``, which is a Kit-only module not shipped by "
-    "the ovphysx wheel.  See "
-    "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
+    "Schema-level fixed-joint creation in :mod:`isaaclab.sim.schemas` imports the Kit-only "
+    "``omni.physx.scripts.utils`` module, which is not shipped by the ovphysx wheel."
 )
 
 _ANYMAL_PHYSX_JOINT_NAMES = (
@@ -529,7 +525,7 @@ def test_reversed_body_ordering_wrench_composes_from_backend_pose_without_shadow
     sim, num_articulations, device
 ):
     """Reversed body ordering: an external wrench composes from the backend-order link pose and
-    ``write_data_to_sim`` no longer refreshes the public ``body_link_pose_w`` shadow (finding [27]).
+    ``write_data_to_sim`` no longer refreshes the public ``body_link_pose_w`` shadow.
     """
     articulation_cfg = FRANKA_PANDA_CFG.replace(body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -580,7 +576,7 @@ def test_reversed_body_ordering_wrench_composes_from_backend_pose_without_shadow
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reversed_joint_ordering_joint_acc_matches_canonicalized_finite_difference(sim, num_articulations, device):
     """Reversed joint ordering: the fused ``joint_acc`` finite difference reads the backend-order
-    velocity source and equals the identity-order acceleration permuted into public order (finding [40]).
+    velocity source and equals the identity-order acceleration permuted into public order.
     """
     articulation_cfg = generate_articulation_cfg("anymal").replace(
         joint_ordering=tuple(reversed(_ANYMAL_PHYSX_JOINT_NAMES))
@@ -646,7 +642,7 @@ def _branching_fixture_path() -> Path:
 def test_branching_fixture_physx_ordering_is_identity_on_ovphysx(sim, device):
     """Take the same-backend identity fast path for ``joint_ordering="physx"`` on OVPhysX.
 
-    Live coverage for the same-backend symbolic-convention path (finding [64]): OVPhysX is a
+    Live coverage for the same-backend symbolic-convention path: OVPhysX is a
     PhysX-family backend whose articulation view is already in PhysX (breadth-first) order, so
     requesting ``physx`` must expose the public joint/body axes verbatim in backend order with no
     reorder map.
@@ -684,7 +680,7 @@ def test_branching_fixture_physx_ordering_is_identity_on_ovphysx(sim, device):
 def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
     """Resolve depth-first MJWarp order cross-backend for ``joint_ordering="mjwarp"`` on OVPhysX.
 
-    Live coverage for the cross-backend symbolic-convention path (findings [10]/[64]): OVPhysX is a
+    Live coverage for the cross-backend symbolic-convention path: OVPhysX is a
     PhysX-family backend (native breadth-first order), so requesting ``mjwarp`` triggers a temporary
     Newton USD discovery of the depth-first order and reorders the public joint/body axes to it. The
     MJWarp/DFS ground truth is the same tuple isaaclab_newton's
