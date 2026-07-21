@@ -1,9 +1,9 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""CPU-safe checks for the PhysX articulation selector benchmark grid."""
+"""CPU-safe checks for the Newton articulation selector benchmark grid."""
 
 from __future__ import annotations
 

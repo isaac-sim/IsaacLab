@@ -6,12 +6,15 @@
 """Micro-benchmarking framework for Articulation class (Newton backend).
 
 This module provides a benchmarking framework to measure the performance of setter and writer
-methods in the Articulation class. Each method is benchmarked under four scenarios:
+methods in the Articulation class. Each method is benchmarked under seven scenarios:
 
 1. **Torch List**: Inputs are PyTorch tensors with list indices (via deprecated wrappers).
 2. **Torch Tensor Int32**: Tensor indices use signed 32-bit integers.
 3. **Torch Tensor Int64**: Tensor indices use signed 64-bit integers.
-4. **Warp Mask**: Inputs are warp arrays with boolean masks (via ``_mask`` methods).
+4. **Warp Int32**: Item IDs are raw Warp ``int32`` arrays.
+5. **Warp Int64**: Item IDs are raw Warp ``int64`` arrays.
+6. **Proxy Int32**: Item IDs are cached finder ``ProxyArray`` objects backed by Warp ``int32`` storage.
+7. **Warp Mask**: Inputs are Warp arrays with boolean masks (via ``_mask`` methods).
 
 Usage:
     python benchmark_articulation.py [--num_iterations N] [--warmup_steps W]
@@ -42,7 +45,10 @@ parser.add_argument(
     "--mode",
     type=str,
     default="all",
-    help="Benchmark mode (all, torch_list, torch_tensor_int32, torch_tensor_int64, warp_mask)",
+    help=(
+        "Benchmark mode (all, torch_list, torch_tensor_int32, torch_tensor_int64, warp_int32, warp_int64, "
+        "proxy_int32, warp_mask)"
+    ),
 )
 parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
 parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
@@ -59,7 +65,9 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import contextlib
 import logging
+import time
 import warnings
 
 import numpy as np
@@ -72,7 +80,12 @@ from isaaclab_newton.test.mock_interfaces import (
 )
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.test.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
+from isaaclab.test.benchmark import (
+    DictMeasurement,
+    MethodBenchmarkDefinition,
+    MethodBenchmarkRunner,
+    MethodBenchmarkRunnerConfig,
+)
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -828,6 +841,237 @@ def _make_tensor_dtype_generator(base_gen_fn, dtype: torch.dtype):
     return generator
 
 
+ITEM_SELECTOR_MODES = (
+    "torch_list",
+    "torch_tensor_int32",
+    "torch_tensor_int64",
+    "warp_int32",
+    "warp_int64",
+    "proxy_int32",
+)
+"""Fair item-selector modes; every case shares one prebuilt ``torch.int32`` environment selector."""
+
+
+class _ItemSelectorInputFactory:
+    """Prepare all item-selector representations once, outside writer timing."""
+
+    def __init__(self, base_generator, item_key: str):
+        self._base_generator = base_generator
+        self._item_key = item_key
+        self._inputs_by_mode = None
+        self._setup_count = 0
+
+    @property
+    def setup_count(self) -> int:
+        """Number of times selector setup ran."""
+        return self._setup_count
+
+    def _prepare(self, config) -> None:
+        base_inputs = self._base_generator(config)
+        env_ids = base_inputs.get("env_ids")
+        if not isinstance(env_ids, torch.Tensor) or env_ids.dtype != torch.int32:
+            raise AssertionError("item-selector benchmarks require one prebuilt torch.int32 environment selector")
+        item_ids = base_inputs.get(self._item_key)
+        if not isinstance(item_ids, torch.Tensor) or item_ids.dtype != torch.int32:
+            raise AssertionError(f"{self._item_key} setup must start from torch.int32")
+
+        articulation = config.articulation
+        finder_name = "find_joints" if self._item_key == "joint_ids" else "find_bodies"
+        finder = getattr(articulation, finder_name)
+        legacy, _ = finder(".*", as_proxy=False)
+        proxy, _ = finder(".*", as_proxy=True)
+        repeated_proxy, _ = finder(".*", as_proxy=True)
+        if proxy is not repeated_proxy:
+            raise AssertionError(f"{finder_name} did not reuse its cached ProxyArray")
+        if proxy.dtype != wp.int32:
+            raise AssertionError(f"{finder_name} proxy must use warp.int32 storage")
+        if proxy._torch_cache is not None:
+            raise AssertionError("proxy benchmark setup must not materialize a Torch view")
+
+        item_values = item_ids.tolist()
+        if legacy != item_values:
+            raise AssertionError(f"{finder_name} full-range result differs from the benchmark workload")
+        selectors = {
+            "torch_list": legacy,
+            "torch_tensor_int32": item_ids,
+            "torch_tensor_int64": item_ids.to(torch.int64),
+            "warp_int32": wp.array(item_values, dtype=wp.int32, device=config.device),
+            "warp_int64": wp.array(item_values, dtype=wp.int64, device=config.device),
+            "proxy_int32": proxy,
+        }
+        self._inputs_by_mode = {mode: {**base_inputs, self._item_key: selector} for mode, selector in selectors.items()}
+        self._setup_count += 1
+
+    def make_generator(self, mode: str):
+        """Return a generator that reuses its prepared input dictionary."""
+
+        def generator(config):
+            if self._inputs_by_mode is None:
+                self._prepare(config)
+            return self._inputs_by_mode[mode]
+
+        return generator
+
+
+def _register_item_selector_modes(benchmark, item_key: str) -> _ItemSelectorInputFactory:
+    """Replace legacy tensor generators with the complete fair representation grid."""
+    base_generator = benchmark.input_generators["torch_tensor"]
+    factory = _ItemSelectorInputFactory(base_generator, item_key)
+    benchmark.input_generators = {mode: factory.make_generator(mode) for mode in ITEM_SELECTOR_MODES}
+    return factory
+
+
+def _measure_callable(callable_, num_iterations: int, warmup_steps: int) -> dict:
+    """Measure a prepared callable and return median and IQR dispersion in microseconds."""
+    for _ in range(warmup_steps):
+        callable_()
+    samples = []
+    for _ in range(num_iterations):
+        start = time.perf_counter()
+        callable_()
+        samples.append((time.perf_counter() - start) * 1e6)
+    return {
+        "median": float(np.median(samples)),
+        "iqr": float(np.percentile(samples, 75) - np.percentile(samples, 25)),
+        "mean": float(np.mean(samples)),
+        "std": float(np.std(samples)),
+        "n": len(samples),
+    }
+
+
+def _measure_finder_paths(articulation, finder_name: str, num_iterations: int, warmup_steps: int) -> dict:
+    """Measure cold proxy allocation separately from steady-state cached finder lookup."""
+    finder = getattr(articulation, finder_name)
+
+    def _clear_cache():
+        clear_method = getattr(articulation, "_clear_selector_cache", None)
+        if clear_method is not None:
+            clear_method()
+        else:
+            selector_cache = getattr(articulation, "_selector_cache", None)
+            if selector_cache is not None:
+                selector_cache.clear()
+
+    def cold_allocation():
+        _clear_cache()
+        selector, _ = finder(".*", as_proxy=True)
+        wp.synchronize()
+        if selector._torch_cache is not None:
+            raise AssertionError("cold finder benchmark materialized a Torch view")
+
+    cold_stats = _measure_callable(cold_allocation, num_iterations, warmup_steps)
+    _clear_cache()
+    cached_selector, _ = finder(".*", as_proxy=True)
+
+    def cached_lookup():
+        selector, _ = finder(".*", as_proxy=True)
+        if selector is not cached_selector:
+            raise AssertionError("steady-state finder lookup missed the proxy cache")
+        if selector._torch_cache is not None:
+            raise AssertionError("cached finder benchmark materialized a Torch view")
+
+    return {
+        "cold_allocation": cold_stats,
+        "cached_lookup": _measure_callable(cached_lookup, num_iterations, warmup_steps),
+    }
+
+
+def _summarize_writer_results(results: dict[str, dict]) -> dict:
+    """Group writer statistics by mode and add ratios against both P10 baselines."""
+    grouped = {}
+    for result_name, stats in results.items():
+        for mode in ITEM_SELECTOR_MODES:
+            suffix = f"_{mode}"
+            if result_name.endswith(suffix):
+                method_name = result_name[: -len(suffix)]
+                grouped.setdefault(method_name, {})[mode] = {
+                    "median_us": stats["median"],
+                    "iqr_us": stats["iqr"],
+                }
+                break
+    for modes in grouped.values():
+        tensor_baseline = modes.get("torch_tensor_int32", {}).get("median_us")
+        list_baseline = modes.get("torch_list", {}).get("median_us")
+        for stats in modes.values():
+            median = stats["median_us"]
+            stats["ratio_vs_torch_tensor_int32"] = median / tensor_baseline if tensor_baseline else None
+            stats["ratio_vs_torch_list"] = median / list_baseline if list_baseline else None
+    return grouped
+
+
+class _SelectorBenchmarkRunner(MethodBenchmarkRunner):
+    """Method runner that retains median/IQR samples for selector-mode comparisons."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.selector_results = {}
+
+    def _benchmark_method(self, method, method_name: str, generator, dependencies: list[str]) -> dict | None:
+        """Benchmark only the prepared writer callable; generator setup remains outside timing."""
+        if method is None:
+            return None
+        try:
+            inputs = generator(self._config)
+            method(**inputs)
+        except NotImplementedError as error:
+            return {"skipped": True, "skip_reason": f"NotImplementedError: {error}"}
+        except Exception as error:
+            return {"skipped": True, "skip_reason": f"Error: {type(error).__name__}: {error}"}
+
+        for _ in range(self._config.warmup_steps):
+            with contextlib.suppress(Exception):
+                method(**inputs)
+            if self._config.device.startswith("cuda"):
+                self._sync_device()
+
+        samples = []
+        for _ in range(self._config.num_iterations):
+            if self._config.device.startswith("cuda"):
+                self._sync_device()
+            start = time.perf_counter()
+            try:
+                method(**inputs)
+            except Exception:
+                continue
+            if self._config.device.startswith("cuda"):
+                self._sync_device()
+            samples.append((time.perf_counter() - start) * 1e6)
+        if not samples:
+            return {"skipped": True, "skip_reason": "No successful iterations"}
+
+        result = {
+            "mean": float(np.mean(samples)),
+            "std": float(np.std(samples)),
+            "median": float(np.median(samples)),
+            "iqr": float(np.percentile(samples, 75) - np.percentile(samples, 25)),
+            "n": len(samples),
+        }
+        if any(method_name.endswith(f"_{mode}") for mode in ITEM_SELECTOR_MODES):
+            self.selector_results[method_name] = result
+        return result
+
+
+def _print_selector_summary(finder_results: dict, writer_summary: dict) -> None:
+    """Print finder and writer selector statistics in a compact human-readable report."""
+    print("\n" + "=" * 80)
+    print("Finder and item-selector representation summary (median / IQR, us)")
+    print("=" * 80)
+    for domain, paths in finder_results.items():
+        for path, stats in paths.items():
+            print(f"{domain:>5} {path:>15}: {stats['median']:.3f} / {stats['iqr']:.3f}")
+    for method_name, modes in writer_summary.items():
+        print(method_name)
+        for mode, stats in modes.items():
+            tensor_ratio = stats["ratio_vs_torch_tensor_int32"]
+            list_ratio = stats["ratio_vs_torch_list"]
+            tensor_ratio_text = f"{tensor_ratio:.3f}" if tensor_ratio is not None else "n/a"
+            list_ratio_text = f"{list_ratio:.3f}" if list_ratio is not None else "n/a"
+            print(
+                f"  {mode:>20}: {stats['median_us']:.3f} / {stats['iqr_us']:.3f}"
+                f"  x torch.int32={tensor_ratio_text}  x list={list_ratio_text}"
+            )
+
+
 BENCHMARKS = [
     # --- Root State (Deprecated, no _mask equivalent) ---
     MethodBenchmarkDefinition(
@@ -1173,18 +1417,26 @@ BENCHMARKS = [
     ),
 ]
 
+_BODY_ITEM_BENCHMARKS = {"set_masses", "set_coms", "set_inertias", "set_external_force_and_torque"}
+
 for benchmark in BENCHMARKS:
     if "torch_tensor" not in benchmark.input_generators:
         continue
-    base_generator = benchmark.input_generators.pop("torch_tensor")
-    benchmark.input_generators.update(
-        {
-            "torch_tensor_int32": _make_tensor_dtype_generator(base_generator, torch.int32),
-            "torch_tensor_int64": _make_tensor_dtype_generator(base_generator, torch.int64),
-        }
-    )
+    if benchmark.name.startswith(("write_joint_", "set_joint_")):
+        _register_item_selector_modes(benchmark, "joint_ids")
+    elif benchmark.name in _BODY_ITEM_BENCHMARKS:
+        _register_item_selector_modes(benchmark, "body_ids")
+    else:
+        base_generator = benchmark.input_generators.pop("torch_tensor")
+        benchmark.input_generators.update(
+            {
+                "torch_tensor_int32": _make_tensor_dtype_generator(base_generator, torch.int32),
+                "torch_tensor_int64": _make_tensor_dtype_generator(base_generator, torch.int64),
+            }
+        )
 
 
+# =============================================================================
 # =============================================================================
 # Fill-Ratio Benchmarks (5%, 95%, 100% of env_ids filled)
 # =============================================================================
@@ -1304,13 +1556,14 @@ def main():
             device=config.device,
         )
 
+        config.articulation = articulation
         print(
             f"Benchmarking Articulation (Newton) with {config.num_instances} instances, {config.num_bodies} bodies,"
             f" {config.num_joints} joints..."
         )
 
         # Create runner and run benchmarks
-        runner = MethodBenchmarkRunner(
+        runner = _SelectorBenchmarkRunner(
             benchmark_name="newton_articulation_benchmark",
             config=config,
             backend_type=args.backend,
@@ -1319,6 +1572,29 @@ def main():
         )
 
         runner.run_benchmarks(BENCHMARKS, articulation)
+
+        finder_results = {
+            "joint": _measure_finder_paths(articulation, "find_joints", config.num_iterations, config.warmup_steps),
+            "body": _measure_finder_paths(articulation, "find_bodies", config.num_iterations, config.warmup_steps),
+        }
+        writer_summary = _summarize_writer_results(runner.selector_results)
+        selector_summary = {
+            "config": {
+                "num_iterations": config.num_iterations,
+                "warmup_steps": config.warmup_steps,
+                "num_instances": config.num_instances,
+                "num_bodies": config.num_bodies,
+                "num_joints": config.num_joints,
+                "device": config.device,
+            },
+            "finder": finder_results,
+            "writer": writer_summary,
+        }
+        runner.add_measurement(
+            "selector_representation_summary",
+            DictMeasurement(name="selector_representation_summary", value=selector_summary),
+        )
+        _print_selector_summary(finder_results, writer_summary)
 
         print("\n" + "=" * 80)
         print("Fill-Ratio Benchmarks (env_ids at 5%, 95%, 100% fill)")
