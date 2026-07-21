@@ -54,6 +54,7 @@ def _vec3_to_out3_kernel(
     src: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Scatter a vec3 array into three float32 columns of a term's ``out`` block."""
     env_id = wp.tid()
     v = src[env_id]
     out[env_id, 0] = v[0]
@@ -67,6 +68,10 @@ def _joint_gather_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Gather selected joints' values into contiguous term columns.
+
+    Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     out[env_id, k] = src[env_id, j]
@@ -82,6 +87,7 @@ def _base_pos_z_kernel(
     root_pos_w: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Write the root height above the world origin [m] into the term's single column."""
     env_id = wp.tid()
     out[env_id, 0] = root_pos_w[env_id][2]
 
@@ -114,6 +120,10 @@ def _base_lin_vel_kernel(
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Root linear velocity [m/s] in the body frame, derived inline from the root
+
+    pose and CoM velocity (Tier-1 access; avoids non-capturable lazy buffers).
+    """
     i = wp.tid()
     v = body_lin_vel_from_root(root_pose_w[i], root_vel_w[i])
     out[i, 0] = v[0]
@@ -141,6 +151,10 @@ def _base_ang_vel_kernel(
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Root angular velocity [rad/s] in the body frame, derived inline from the root
+
+    pose and CoM velocity (Tier-1 access; avoids non-capturable lazy buffers).
+    """
     i = wp.tid()
     v = body_ang_vel_from_root(root_pose_w[i], root_vel_w[i])
     out[i, 0] = v[0]
@@ -168,6 +182,7 @@ def _projected_gravity_kernel(
     gravity_w: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Unit gravity direction rotated into the body frame (flat pose -> (0, 0, -1))."""
     i = wp.tid()
     g = rotate_vec_to_body_frame(wp.normalize(gravity_w[i]), root_pose_w[i])
     out[i, 0] = g[0]
@@ -221,6 +236,10 @@ def _joint_rel_gather_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Gather selected joints' values relative to their per-env defaults into
+
+    contiguous term columns. Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     out[env_id, k] = values[env_id, j] - defaults[env_id, j]
@@ -257,6 +276,10 @@ def _joint_pos_limit_normalized_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Selected joints' positions normalized to [-1, 1] within their soft limits.
+
+    Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     pos = joint_pos[env_id, j]
@@ -372,6 +395,10 @@ def _body_incoming_wrench_kernel(
     body_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Gather selected bodies' incoming force [N] and torque [N·m] into per-body
+
+    ``[fx, fy, fz, tx, ty, tz]`` column blocks.
+    """
     env_id = wp.tid()
     for k in range(body_ids.shape[0]):
         b = body_ids[k]
@@ -411,6 +438,11 @@ def _height_scan_kernel(
     offset: wp.float32,
     out: wp.array2d(dtype=wp.float32),
 ):
+    """Height of the scan frame above each ray hit [m]: sensor_z - hit_z - offset.
+
+    Launch with dim=(num_envs, num_rays). Missed hits carry ``inf`` and produce
+    ``-inf`` heights, matching the stable term (handled by the term's clip).
+    """
     env_id, ray_id = wp.tid()
     out[env_id, ray_id] = pos_w[env_id][2] - ray_hits_w[env_id, ray_id][2] - offset
 

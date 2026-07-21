@@ -38,6 +38,12 @@ def _accumulate_velocity_metrics(
     error_yaw_sum: wp.array(dtype=wp.float32),
     step_count: wp.array(dtype=wp.float32),
 ):
+    """Accumulate per-step command-tracking error sums for logging: planar (xy)
+
+    linear-velocity error [m/s] and yaw-rate error [rad/s] vs the command, plus
+    the step count used later for averaging. Body-frame velocities are derived
+    inline from the root pose/velocity (capture-safe, no lazy buffers).
+    """
     env_id = wp.tid()
     root_lin_vel_b = body_lin_vel_from_root(root_pose_w[env_id], root_vel_w[env_id])
     root_ang_vel_b = body_ang_vel_from_root(root_pose_w[env_id], root_vel_w[env_id])
@@ -60,6 +66,11 @@ def _finalize_velocity_metrics(
     error_xy_threshold: float,
     error_yaw_threshold: float,
 ):
+    """Turn selected envs' accumulated error sums into episode means and a binary
+
+    success flag (both mean errors under their thresholds), then zero the
+    accumulators for the next episode.
+    """
     env_id = wp.tid()
     if env_mask[env_id]:
         denominator = wp.max(step_count[env_id], 1.0)
@@ -95,6 +106,12 @@ def _resample_velocity_command(
     rel_heading_envs: float,
     rel_standing_envs: float,
 ):
+    """Draw a new SE(2) velocity command (vx, vy [m/s], wz [rad/s]) for selected
+
+    envs, plus their heading target [rad] and heading/standing role flags.
+    The per-env device RNG state is written back so the random sequence advances
+    across CUDA-graph replays.
+    """
     env_id = wp.tid()
     if env_mask[env_id]:
         state = rng_state[env_id]
@@ -122,6 +139,11 @@ def _update_velocity_command(
     ang_vel_z_min: float,
     ang_vel_z_max: float,
 ):
+    """Per-step command shaping: heading-controlled envs convert heading error into
+
+    a clamped yaw-rate command (proportional control); standing envs zero their
+    command entirely.
+    """
     env_id = wp.tid()
     if heading_command and is_heading_env[env_id]:
         root_quat_w = wp.transform_get_rotation(root_pose_w[env_id])

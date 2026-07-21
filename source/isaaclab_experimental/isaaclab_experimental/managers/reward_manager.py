@@ -38,6 +38,13 @@ def _sum_and_zero_masked(
     # output
     out_avg: wp.array(dtype=wp.float32),
 ):
+    """Fold selected envs' per-term episode reward sums into per-term means and zero
+
+    them for the next episode.
+    Launch with dim=(num_terms, num_envs); ``scale[0]`` carries the 1/count
+    normalization and the atomic add reduces across selected envs into
+    ``out_avg[term]``.
+    """
     term_idx, env_id = wp.tid()
     if mask[env_id]:
         wp.atomic_add(out_avg, term_idx, episode_sums[term_idx, env_id] * scale[0])
@@ -55,6 +62,13 @@ def _reward_finalize(
     episode_sums: wp.array(dtype=wp.float32, ndim=2),
     step_reward: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Combine per-term outputs into the env step reward and episode bookkeeping.
+
+    Per env: ``step_reward`` records each term's weighted reward rate,
+    ``reward_buf`` accumulates ``weight * out * dt`` across terms, and
+    ``episode_sums`` grows by the same amount for episode metrics. Zero-weight
+    terms are skipped so disabled terms cost nothing.
+    """
     env_id = wp.tid()
 
     total = wp.float32(0.0)

@@ -36,6 +36,11 @@ def _sum_and_zero_masked(
     metric: wp.array(dtype=wp.float32),
     out_mean: wp.array(dtype=wp.float32),
 ):
+    """Fold selected envs' episode metric into a running mean and zero it for the next episode.
+
+    ``scale[0]`` carries the 1/count normalization; the atomic add reduces across all
+    selected envs into ``out_mean[0]``.
+    """
     env_id = wp.tid()
     if mask[env_id]:
         wp.atomic_add(out_mean, 0, metric[env_id] * scale[0])
@@ -44,6 +49,7 @@ def _sum_and_zero_masked(
 
 @wp.kernel
 def _zero_counter_masked(mask: wp.array(dtype=wp.bool), counter: wp.array(dtype=wp.int32)):
+    """Zero the per-env resample counter for envs selected by ``mask``."""
     env_id = wp.tid()
     if mask[env_id]:
         counter[env_id] = 0
@@ -55,6 +61,7 @@ def _step_time_left_and_build_resample_mask(
     dt: wp.float32,
     out_mask: wp.array(dtype=wp.bool),
 ):
+    """Advance each env's resample countdown by ``dt`` [s] and flag expired envs in ``out_mask``."""
     env_id = wp.tid()
     t = time_left[env_id] - dt
     time_left[env_id] = t
@@ -70,6 +77,11 @@ def _resample_time_left_and_increment_counter(
     lower: wp.float32,
     upper: wp.float32,
 ):
+    """Draw a new resampling interval [s] for flagged envs and count the resample.
+
+    Uses the per-env device RNG state with write-back so the random sequence
+    advances across CUDA-graph replays.
+    """
     env_id = wp.tid()
     if mask[env_id]:
         s = rng_state[env_id]

@@ -14,6 +14,7 @@ from isaaclab_experimental.managers import RewardManager, RewardTermCfg
 
 @wp.kernel
 def _fill_unit_reward(out: wp.array(dtype=wp.float32)):
+    """Test helper: write 1.0 into every env's term output."""
     out[wp.tid()] = 1.0
 
 

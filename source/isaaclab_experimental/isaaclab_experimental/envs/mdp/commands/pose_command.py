@@ -43,6 +43,12 @@ def _resample_pose_command(
     yaw_max: float,
     make_quat_unique: bool,
 ):
+    """Draw a new body-frame pose command for selected envs: uniform position [m]
+
+    and roll/pitch/yaw [rad] composed into a quaternion (optionally
+    sign-canonicalized to the w >= 0 hemisphere). RNG state is written back so
+    the sequence advances across replays.
+    """
     env_id = wp.tid()
     if env_mask[env_id]:
         state = rng_state[env_id]
@@ -81,6 +87,12 @@ def _update_pose_metrics(
     track_success: bool,
     position_success_threshold: float,
 ):
+    """Refresh the world-frame goal pose (root pose composed with the body-frame
+
+    command) and the tracking metrics: end-effector position [m] / orientation
+    [rad] errors vs the goal, and a position-threshold success flag when success
+    tracking is enabled.
+    """
     env_id = wp.tid()
     position_b = wp.vec3f(command_b[env_id, 0], command_b[env_id, 1], command_b[env_id, 2])
     orientation_b = wp.quatf(command_b[env_id, 3], command_b[env_id, 4], command_b[env_id, 5], command_b[env_id, 6])

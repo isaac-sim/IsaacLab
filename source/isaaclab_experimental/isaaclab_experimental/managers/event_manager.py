@@ -43,6 +43,7 @@ def _interval_init_per_env(
     lower: wp.float32,
     upper: wp.float32,
 ):
+    """Seed each env's interval-event countdown with a uniform draw from [``lower``, ``upper``] [s]."""
     env_id = wp.tid()
     s = rng_state[env_id]
     time_left[env_id] = wp.randf(s, lower, upper)
@@ -56,6 +57,7 @@ def _interval_init_global(
     lower: wp.float32,
     upper: wp.float32,
 ):
+    """Seed the single shared countdown of a ``is_global_time`` interval event."""
     # single element
     s = rng_state[0]
     time_left[0] = wp.randf(s, lower, upper)
@@ -71,6 +73,10 @@ def _interval_step_per_env(
     lower: wp.float32,
     upper: wp.float32,
 ):
+    """Tick each env's interval countdown by ``dt`` [s]; on expiry, flag the env in
+
+    ``trigger_mask`` and immediately draw its next interval (RNG state written back).
+    """
     env_id = wp.tid()
     t = time_left[env_id] - dt
     if t < wp.float32(1.0e-6):
@@ -92,6 +98,10 @@ def _interval_step_global(
     lower: wp.float32,
     upper: wp.float32,
 ):
+    """Tick the shared countdown of a ``is_global_time`` interval event; on expiry set
+
+    ``trigger_flag[0]`` and draw the next interval.
+    """
     t = time_left[0] - dt
     if t < wp.float32(1.0e-6):
         trigger_flag[0] = True
@@ -111,6 +121,7 @@ def _interval_reset_selected(
     lower: wp.float32,
     upper: wp.float32,
 ):
+    """Re-draw interval countdowns for envs selected by ``env_mask`` (episode-reset path)."""
     env_id = wp.tid()
     if env_mask[env_id]:
         s = rng_state[env_id]
@@ -123,6 +134,10 @@ def _seed_global_rng_from_env_rng(
     env_rng_state: wp.array(dtype=wp.uint32),
     global_rng_state: wp.array(dtype=wp.uint32),
 ):
+    """Derive the global-event RNG stream from env 0's per-env state so global draws
+
+    stay seed-reproducible without a host round-trip.
+    """
     global_rng_state[0] = wp.rand_init(wp.int32(env_rng_state[0]), wp.int32(0))
 
 
@@ -135,6 +150,13 @@ def _reset_compute_valid_mask(
     global_step_count_buf: wp.array(dtype=wp.int32),
     min_step_count: wp.int32,
 ):
+    """Gate a reset-event mask by trigger spacing entirely on device.
+
+    An env stays selected only if at least ``min_step_count`` steps passed since it
+    last triggered, or it has never triggered (stable-parity: first reset always
+    fires). Passing envs update ``last_triggered_step``/``triggered_once`` in the
+    same launch, keeping the spacing bookkeeping replay-safe.
+    """
     env_id = wp.tid()
     if not in_mask[env_id]:
         out_mask[env_id] = False

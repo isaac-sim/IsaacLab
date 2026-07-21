@@ -53,6 +53,10 @@ def initialize_rng_state(
     # output
     state: wp.array(dtype=wp.uint32),
 ):
+    """Initialize each env's persistent RNG state as an independent stream of the
+
+    global ``seed`` (one ``wp.rand_init`` stream per env id).
+    """
     env_id = wp.tid()
     state[env_id] = wp.rand_init(seed, wp.int32(env_id))
 

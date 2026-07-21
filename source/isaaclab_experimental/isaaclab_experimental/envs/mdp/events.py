@@ -173,6 +173,10 @@ def _apply_external_force_torque_kernel(
     torque_lo: float,
     torque_hi: float,
 ):
+    """Sample uniform random external force [N] and torque [N·m] vectors for
+
+    selected envs' target bodies into the asset's wrench composer buffers.
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
@@ -281,6 +285,10 @@ def _push_by_setting_velocity_kernel(
     ang_lo: wp.vec3f,
     ang_hi: wp.vec3f,
 ):
+    """Add a uniform random velocity kick [m/s, rad/s] to selected envs' current
+
+    root velocity, writing the result for the masked sim write.
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
@@ -379,6 +387,11 @@ def _reset_root_state_uniform_kernel(
     vel_ang_lo: wp.vec3f,
     vel_ang_hi: wp.vec3f,
 ):
+    """Compose selected envs' reset root state: default pose offset by the env
+
+    origin plus uniform position [m] / roll-pitch-yaw [rad] noise, and default
+    velocity plus uniform noise [m/s, rad/s].
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
@@ -523,6 +536,11 @@ def _reset_joints_by_offset_kernel(
     vel_lo: float,
     vel_hi: float,
 ):
+    """Reset selected envs' selected joints to defaults plus uniform offsets
+
+    [rad or m, depending on joint type], clamped to the soft position and
+    velocity limits.
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
@@ -621,6 +639,10 @@ def _reset_joints_by_scale_kernel(
     vel_lo: float,
     vel_hi: float,
 ):
+    """Reset selected envs' selected joints to defaults scaled by uniform random
+
+    factors, clamped to the soft position and velocity limits.
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return

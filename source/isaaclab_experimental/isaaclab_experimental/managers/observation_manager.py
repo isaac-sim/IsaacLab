@@ -70,6 +70,7 @@ if TYPE_CHECKING:
 
 @wp.kernel
 def _apply_clip(out: wp.array(dtype=wp.float32, ndim=2), clip_lo: wp.float32, clip_hi: wp.float32):
+    """Clamp every column of a term's ``out`` block to [``clip_lo``, ``clip_hi``] in place."""
     env_id = wp.tid()
     for j in range(out.shape[1]):
         out[env_id, j] = wp.clamp(out[env_id, j], clip_lo, clip_hi)
@@ -77,6 +78,7 @@ def _apply_clip(out: wp.array(dtype=wp.float32, ndim=2), clip_lo: wp.float32, cl
 
 @wp.kernel
 def _apply_scale(out: wp.array(dtype=wp.float32, ndim=2), scale: wp.array(dtype=wp.float32)):
+    """Multiply each column of a term's ``out`` block by its per-column ``scale`` in place."""
     env_id = wp.tid()
     for j in range(out.shape[1]):
         out[env_id, j] = out[env_id, j] * scale[j]
