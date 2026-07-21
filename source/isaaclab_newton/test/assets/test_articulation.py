@@ -113,6 +113,33 @@ def test_cached_read_launch_respects_graph_capture_and_resets(monkeypatch):
     assert data._cached_read_launches == {}
 
 
+def test_cached_read_launch_ignores_empty_recording(monkeypatch):
+    """Newton should treat an empty recorded launch as a completed no-op."""
+
+    class FakeDevice:
+        is_cuda = True
+        is_capturing = False
+
+    launch_calls = []
+
+    def fake_launch(*args, **kwargs):
+        launch_calls.append((args, kwargs))
+        return
+
+    module = sys.modules[ArticulationData.__module__]
+    monkeypatch.setattr(module.wp, "get_device", lambda device_name: FakeDevice())
+    monkeypatch.setattr(module.wp, "launch", fake_launch)
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cuda:0"
+    data._cached_read_launches = {}
+
+    data._launch_cached_read("joint_pos", object(), dim=0, inputs=[], outputs=[])
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0][1]["record_cmd"] is True
+    assert data._cached_read_launches == {}
+
+
 SIM_CFGs = {
     "humanoid": SimulationCfg(
         physics=NewtonCfg(
