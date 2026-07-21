@@ -1063,7 +1063,17 @@ def _measure_finder_paths(articulation, finder_name: str, num_iterations: int, w
     return {"cold_allocation": cold_stats, "cached_lookup": cached_stats}
 
 
-def _summarize_writer_results(results: dict[str, dict], item_benchmark_names) -> dict:
+def _expected_item_selector_modes(configured_mode: str | list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    """Return item-selector modes expected from the configured CLI selection."""
+    if configured_mode == "all":
+        return ITEM_SELECTOR_MODES
+    requested_modes = {configured_mode} if isinstance(configured_mode, str) else set(configured_mode)
+    return tuple(mode for mode in ITEM_SELECTOR_MODES if mode in requested_modes)
+
+
+def _summarize_writer_results(
+    results: dict[str, dict], item_benchmark_names, expected_modes: tuple[str, ...] | None = None
+) -> dict:
     """Summarize only registered item benchmarks and add ratios against both P10 baselines."""
     grouped = {}
     item_benchmark_names = set(item_benchmark_names)
@@ -1082,6 +1092,18 @@ def _summarize_writer_results(results: dict[str, dict], item_benchmark_names) ->
                     "failures": stats["failures"],
                 }
                 break
+    if expected_modes is not None:
+        invalid_modes = tuple(mode for mode in expected_modes if mode not in ITEM_SELECTOR_MODES)
+        if invalid_modes:
+            raise ValueError(f"Unknown expected item-selector modes: {', '.join(invalid_modes)}")
+        missing = {
+            method_name: tuple(mode for mode in expected_modes if mode not in grouped.get(method_name, {}))
+            for method_name in item_benchmark_names
+        }
+        missing = {method_name: modes for method_name, modes in missing.items() if modes}
+        if missing:
+            details = "; ".join(f"{method_name}: {', '.join(modes)}" for method_name, modes in sorted(missing.items()))
+            raise RuntimeError(f"Missing expected selector benchmark modes: {details}")
     for modes in grouped.values():
         tensor_stats = modes.get("torch_tensor_int32")
         list_stats = modes.get("torch_list")
@@ -1121,9 +1143,11 @@ class _SelectorBenchmarkRunner(MethodBenchmarkRunner):
 
     def _benchmark_method(self, method, method_name: str, generator, dependencies: list[str]) -> dict | None:
         """Benchmark only the prepared writer callable and fail on incomplete sampling."""
-        if method is None:
-            return None
         factory = self._factory_for_result(method_name)
+        if method is None:
+            if factory is not None:
+                raise AttributeError(f"registered selector benchmark method is missing: {method_name}")
+            return None
         try:
             inputs = generator(self._config)
             method(**inputs)
@@ -1685,7 +1709,11 @@ def main():
             "joint": _measure_finder_paths(articulation, "find_joints", config.num_iterations, config.warmup_steps),
             "body": _measure_finder_paths(articulation, "find_bodies", config.num_iterations, config.warmup_steps),
         }
-        writer_summary = _summarize_writer_results(runner.selector_results, ITEM_SELECTOR_FACTORIES)
+        writer_summary = _summarize_writer_results(
+            runner.selector_results,
+            ITEM_SELECTOR_FACTORIES,
+            expected_modes=_expected_item_selector_modes(config.mode),
+        )
         selector_summary = {
             "config": {
                 "num_iterations": config.num_iterations,

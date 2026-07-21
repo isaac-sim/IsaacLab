@@ -79,6 +79,7 @@ def _load_benchmark_namespace() -> dict:
         "_make_tensor_dtype_generator",
         "_measure_callable",
         "_measure_finder_paths",
+        "_expected_item_selector_modes",
         "_summarize_writer_results",
         "_SelectorBenchmarkRunner",
         "_print_selector_summary",
@@ -422,6 +423,93 @@ def test_runner_reraises_immediate_registered_selector_failure() -> None:
     assert runner.selector_results == {}
 
 
+def test_runner_reraises_missing_registered_selector_method() -> None:
+    namespace = _load_benchmark_namespace()
+    benchmark = next(benchmark for benchmark in namespace["BENCHMARKS"] if benchmark.name == "write_joint_state_to_sim")
+    factory = namespace["ITEM_SELECTOR_FACTORIES"][benchmark.name]
+    config = SimpleNamespace(device="cpu", warmup_steps=0, num_iterations=1)
+    runner = _make_runner(namespace, config, {benchmark.name: factory})
+
+    with pytest.raises(AttributeError, match=rf"registered selector benchmark.*{benchmark.name}"):
+        runner._benchmark_method(
+            None,
+            f"{benchmark.name}_proxy_int32",
+            benchmark.input_generators["proxy_int32"],
+            [],
+        )
+
+    assert runner.selector_results == {}
+
+
+def test_summary_rejects_missing_expected_registered_mode() -> None:
+    namespace = _load_benchmark_namespace()
+    benchmark_name = "set_masses"
+    results = {
+        f"{benchmark_name}_{mode}": {
+            "median": 1.0,
+            "iqr": 0.1,
+            "n": 1,
+            "attempts": 1,
+            "failures": 0,
+        }
+        for mode in namespace["ITEM_SELECTOR_MODES"][:-1]
+    }
+
+    with pytest.raises(RuntimeError, match=rf"{benchmark_name}.*proxy_int32"):
+        namespace["_summarize_writer_results"](
+            results,
+            {benchmark_name},
+            expected_modes=namespace["ITEM_SELECTOR_MODES"],
+        )
+
+
+@pytest.mark.parametrize(
+    "expected_modes",
+    [
+        ("proxy_int32",),
+        ("torch_list", "torch_tensor_int32", "proxy_int32"),
+    ],
+)
+def test_summary_accepts_intentional_partial_expected_modes(expected_modes: tuple[str, ...]) -> None:
+    namespace = _load_benchmark_namespace()
+    benchmark_name = "set_masses"
+    results = {
+        f"{benchmark_name}_{mode}": {
+            "median": 1.0,
+            "iqr": 0.1,
+            "n": 1,
+            "attempts": 1,
+            "failures": 0,
+        }
+        for mode in expected_modes
+    }
+
+    summary = namespace["_summarize_writer_results"](
+        results,
+        {benchmark_name},
+        expected_modes=expected_modes,
+    )
+
+    assert tuple(summary[benchmark_name]) == expected_modes
+
+
+@pytest.mark.parametrize(
+    ("configured_mode", "expected_modes"),
+    [
+        (
+            "all",
+            ("torch_list", "torch_tensor_int32", "torch_tensor_int64", "warp_int32", "warp_int64", "proxy_int32"),
+        ),
+        ("proxy_int32", ("proxy_int32",)),
+        (("torch_list", "proxy_int32", "warp_mask"), ("torch_list", "proxy_int32")),
+    ],
+)
+def test_cli_mode_selection_declares_expected_item_modes(configured_mode, expected_modes: tuple[str, ...]) -> None:
+    namespace = _load_benchmark_namespace()
+
+    assert namespace["_expected_item_selector_modes"](configured_mode) == expected_modes
+
+
 def test_successful_writer_summary_contains_all_six_registered_modes() -> None:
     namespace = _load_benchmark_namespace()
     benchmark = next(benchmark for benchmark in namespace["BENCHMARKS"] if benchmark.name == "write_joint_state_to_sim")
@@ -440,6 +528,10 @@ def test_successful_writer_summary_contains_all_six_registered_modes() -> None:
     for mode, generator in benchmark.input_generators.items():
         runner._benchmark_method(lambda **_inputs: None, f"{benchmark.name}_{mode}", generator, [])
 
-    summary = namespace["_summarize_writer_results"](runner.selector_results, {benchmark.name})
+    summary = namespace["_summarize_writer_results"](
+        runner.selector_results,
+        {benchmark.name},
+        expected_modes=namespace["ITEM_SELECTOR_MODES"],
+    )
 
     assert tuple(summary[benchmark.name]) == namespace["ITEM_SELECTOR_MODES"]
