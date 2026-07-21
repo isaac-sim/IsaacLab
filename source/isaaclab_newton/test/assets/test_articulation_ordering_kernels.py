@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import warnings
-from typing import get_args, get_type_hints
 
 import numpy as np
 import pytest
@@ -358,7 +357,7 @@ def test_public_joint_velocity_kernel_factory_launches_proxy_specialization() ->
     env_ids = ProxyArray(env_array)
     joint_ids = ProxyArray(joint_array)
     factory = articulation_kernels.write_joint_vel_data_index_kernel
-    assert ProxyArray in get_args(get_type_hints(factory)["env_ids"])
+    assert "ProxyArray" in factory.__annotations__["env_ids"]
     data = wp.array([[3.0]], dtype=wp.float32, device="cpu")
     outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
     wp.launch(
