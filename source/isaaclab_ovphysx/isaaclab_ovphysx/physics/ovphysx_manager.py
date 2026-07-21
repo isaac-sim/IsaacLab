@@ -13,6 +13,7 @@ using the ovphysx C/Python API.
 from __future__ import annotations
 
 import atexit
+import inspect
 import logging
 import os
 import re
@@ -272,8 +273,10 @@ class OvPhysxManager(PhysicsManager):
         runs it must be registered manually before the wheel can match
         ``PhysxContactReportAPI`` and friends on the stage.  The wheel
         bundles the plugin under ``ovphysx/plugins/usd/PhysxSchema``.  This
-        method is idempotent — :meth:`pxr.Plug.Registry.RegisterPlugins`
-        is a no-op once the plugin is registered.
+        method is idempotent and leaves an existing Kit ``physxSchema``
+        provider authoritative. Registering the wheel's provider after Kit's
+        provider raises duplicate-type errors even though both plugins share
+        the same name.
         """
         if cls._physx_schemas_registered:
             return
@@ -285,11 +288,15 @@ class OvPhysxManager(PhysicsManager):
             from pxr import Plug  # noqa: PLC0415
         except Exception:
             return
+        registry = Plug.Registry()
+        if any(plugin.name == "physxSchema" for plugin in registry.GetAllPlugins()):
+            cls._physx_schemas_registered = True
+            return
         plugin_root = os.path.join(os.path.dirname(ovphysx.__file__), "plugins", "usd")
         for sub in ("PhysxSchema/resources", "PhysxSchemaAddition/resources"):
             path = os.path.join(plugin_root, sub)
             if os.path.isdir(path):
-                Plug.Registry().RegisterPlugins(path)
+                registry.RegisterPlugins(path)
         cls._physx_schemas_registered = True
 
     @classmethod
@@ -350,9 +357,24 @@ class OvPhysxManager(PhysicsManager):
         if cls._physx is None:
             return
         dt = cls.get_physics_dt()
-        cls._physx.step_sync(dt=dt)
+        cls._step_physx(cls._physx, dt=dt, sim_time=PhysicsManager._sim_time)
         cls._physx.update_articulations_kinematic()
         PhysicsManager._sim_time += dt
+
+    @staticmethod
+    def _step_physx(physx: Any, dt: float, sim_time: float) -> None:
+        """Step either the declared legacy runtime or the trusted current runtime."""
+        if hasattr(physx, "reset_stage"):
+            physx.step_sync(dt=dt)
+        else:
+            physx.step_sync(dt=dt, sim_time=sim_time)
+
+    @staticmethod
+    def _reset_physx_stage(physx: Any) -> None:
+        """Clear the loaded stage through the runtime's available reset API."""
+        reset = physx.reset_stage if hasattr(physx, "reset_stage") else physx.reset
+        operation = reset()
+        physx.wait_op(operation)
 
     @classmethod
     def close(cls) -> None:
@@ -378,7 +400,7 @@ class OvPhysxManager(PhysicsManager):
     def _release_physx(cls) -> None:
         """Soft-reset the ovphysx runtime stage; keep the C++ instance alive.
 
-        Calls ``physx.reset_stage()`` to clear the loaded scene, but does **not**
+        Clears the loaded scene through the runtime's reset API, but does **not**
         drop the Python reference.  The cached :class:`ovphysx.PhysX` is reused by
         the next :class:`~isaaclab.sim.SimulationContext` via the reuse path in
         :meth:`_warmup_and_load`.  Safe to call multiple times.
@@ -395,8 +417,7 @@ class OvPhysxManager(PhysicsManager):
         namespace-isolated Carbonite (different soname / hidden visibility).
         """
         if cls._physx is not None:
-            op = cls._physx.reset_stage()
-            cls._physx.wait_op(op)
+            cls._reset_physx_stage(cls._physx)
 
     @classmethod
     def get_physx_instance(cls) -> Any:
@@ -583,13 +604,12 @@ class OvPhysxManager(PhysicsManager):
             cls._locked_device = ovphysx_device
         else:
             # Reuse path: the cached PhysX may still hold the prior stage (the
-            # wheel allows only one loaded USD at a time).  ``physx.reset_stage()``
-            # is idempotent on an already-cleared stage and required when this is
+            # wheel allows only one loaded USD at a time).  Clearing the stage is
+            # idempotent on an already-cleared stage and required when this is
             # a second :meth:`_warmup_and_load` within the same SimulationContext
             # (e.g. when a caller manually clears ``_warmup_done`` to force a
             # re-warmup).
-            op = cls._physx.reset_stage()
-            cls._physx.wait_op(op)
+            cls._reset_physx_stage(cls._physx)
 
         usd_handle, op_idx = cls._physx.add_usd(stage_file)
         cls._physx.wait_op(op_idx)
@@ -661,28 +681,7 @@ class OvPhysxManager(PhysicsManager):
             _sys.modules.update(_hidden_pxr)
 
         ovphysx = import_ovphysx()
-        ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
-
-        carbonite_overrides = {
-            "/physics/physxDispatcher": True,
-            "/physics/updateToUsd": False,
-            "/physics/updateVelocitiesToUsd": False,
-            "/physics/updateParticlesToUsd": False,
-        }
-        if ovphysx_device == "gpu":
-            carbonite_overrides.update(
-                {
-                    "/physics/suppressReadback": True,
-                    "/physics/suppressFabricUpdate": True,
-                }
-            )
-        physx_kwargs = {
-            "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
-        }
-        if ovphysx_device == "gpu":
-            physx_kwargs["active_cuda_gpus"] = str(gpu_index)
-
-        cls._physx = ovphysx.PhysX(**physx_kwargs)
+        cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index)
 
         # FIXME(malesiani): re-evaluate this when carbonite ships an isolated copy.
         # At process exit, two Carbonite instances are in memory:
@@ -716,6 +715,71 @@ class OvPhysxManager(PhysicsManager):
 
             atexit.register(_atexit_release_and_exit)
             cls._atexit_registered = True
+
+    @staticmethod
+    def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
+        """Create a PhysX instance for the declared or current OVPhysX runtime API.
+
+        Args:
+            ovphysx: Imported OVPhysX runtime module.
+            ovphysx_device: Physics device, either ``"cpu"`` or ``"gpu"``.
+            gpu_index: CUDA device ordinal selected for GPU physics.
+
+        Returns:
+            The configured ``ovphysx.PhysX`` instance.
+        """
+
+        carbonite_overrides = {
+            "/physics/physxDispatcher": True,
+            "/physics/updateToUsd": False,
+            "/physics/updateVelocitiesToUsd": False,
+            "/physics/updateParticlesToUsd": False,
+        }
+        if ovphysx_device == "gpu":
+            carbonite_overrides.update(
+                {
+                    "/physics/suppressReadback": True,
+                    "/physics/suppressFabricUpdate": True,
+                }
+            )
+        if hasattr(ovphysx.PhysX, "set_cpu_mode"):
+            ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
+            physx_kwargs = {
+                "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
+            }
+            if ovphysx_device == "gpu":
+                physx_kwargs["active_cuda_gpus"] = str(gpu_index)
+            return ovphysx.PhysX(**physx_kwargs)
+
+        physx_kwargs = {"device": ovphysx_device}
+        try:
+            physx_parameters = inspect.signature(ovphysx.PhysX).parameters
+        except (TypeError, ValueError):
+            # C-extension constructors may not expose a Python-visible signature
+            physx_parameters = {}
+        if "active_cuda_gpus" in physx_parameters and ovphysx_device == "gpu":
+            physx_kwargs["active_cuda_gpus"] = str(gpu_index)
+            physx_kwargs["config"] = ovphysx.PhysXConfig(
+                carbonite_overrides={
+                    "/physics/suppressReadback": True,
+                    "/physics/suppressFabricUpdate": True,
+                }
+            )
+        elif "gpu_index" in physx_parameters:
+            physx_kwargs["gpu_index"] = gpu_index
+
+        physx = ovphysx.PhysX(**physx_kwargs)
+        if hasattr(physx, "set_setting"):
+            physx.set_setting("/persistent/physics/numThreads", "8")
+            physx.set_setting("/physics/physxDispatcher", "true")
+            physx.set_setting("/physics/updateToUsd", "false")
+            physx.set_setting("/physics/updateVelocitiesToUsd", "false")
+            physx.set_setting("/physics/updateParticlesToUsd", "false")
+        else:
+            # the declared legacy runtime exposes no generic settings API, so
+            # only the thread count can be applied post-construction
+            physx.set_config_int32(ovphysx.ConfigInt32.NUM_THREADS, 8)
+        return physx
 
     @staticmethod
     def _configure_physx_scene_prim(scene_prim, cfg, device: str) -> None:
