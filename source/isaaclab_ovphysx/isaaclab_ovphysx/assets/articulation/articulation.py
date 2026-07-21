@@ -47,6 +47,31 @@ from .kernels import (
 logger = logging.getLogger(__name__)
 
 
+def _normalize_external_env_ids(env_ids: torch.Tensor | wp.array, target_device: str | None = None) -> wp.array:
+    """Normalize environment indices to wp.int32 at an external API boundary."""
+    if isinstance(env_ids, torch.Tensor):
+        if env_ids.dtype not in (torch.int32, torch.int64):
+            raise TypeError(
+                f"Environment indices must use signed 32-bit or signed 64-bit integers, got {env_ids.dtype}."
+            )
+        if env_ids.dtype == torch.int64:
+            env_ids = env_ids.to(torch.int32)
+        resolved = wp.from_torch(env_ids, dtype=wp.int32)
+    elif isinstance(env_ids, wp.array):
+        if env_ids.dtype not in (wp.int32, wp.int64):
+            raise TypeError(
+                f"Environment indices must use signed 32-bit or signed 64-bit integers, got {env_ids.dtype}."
+            )
+        if env_ids.dtype == wp.int64:
+            return wp.array(env_ids, dtype=wp.int32, device=target_device or env_ids.device)
+        resolved = env_ids
+    else:
+        raise TypeError(f"Environment indices must be a Torch tensor or Warp array, got {type(env_ids)}.")
+    if target_device is not None and str(resolved.device) != target_device:
+        return wp.clone(resolved, device=target_device)
+    return resolved
+
+
 class Articulation(BaseArticulation):
     """An articulation asset class.
 
@@ -4462,11 +4487,7 @@ class Articulation(BaseArticulation):
             return self._ALL_INDICES
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
-        if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-        if isinstance(env_ids, wp.array) and str(env_ids.device) != self._device:
-            env_ids = wp.clone(env_ids, device=self._device)
-        return env_ids
+        return _normalize_external_env_ids(env_ids, target_device=self._device)
 
     def _resolve_body_ids(self, body_ids) -> wp.array:
         """Resolve body indices to a Warp signed-integer array on ``self._device``."""
@@ -4614,8 +4635,7 @@ class Articulation(BaseArticulation):
         """Return CPU int32 indices, using the pre-allocated pinned ``_cpu_env_ids_all``
         fast path when *env_ids* matches ``_ALL_INDICES`` (PR #5329 pattern).
         """
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
+        env_ids = _normalize_external_env_ids(env_ids)
         if env_ids.ptr == self._ALL_INDICES.ptr:
             return self._cpu_env_ids_all
         return wp.clone(env_ids, device="cpu")

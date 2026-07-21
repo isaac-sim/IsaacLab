@@ -266,6 +266,49 @@ def test_selector_resolvers_preserve_item_width_and_alias_source(torch_dtype: to
         assert resolved.ptr == selector.data_ptr()
 
 
+@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
+@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
+def test_external_env_resolvers_return_int32_with_preserved_values(resolver_name: str, env_dtype: type) -> None:
+    """Normalize every supported Warp environment selector before an OVPhysX boundary."""
+    Articulation = _articulation_class()
+    all_indices = _selector([0, 1], wp.int32)
+    articulation = SimpleNamespace(
+        _ALL_INDICES=all_indices,
+        _cpu_env_ids_all=wp.clone(all_indices, device="cpu"),
+        _device="cpu",
+    )
+    selector = _selector([1, 0], env_dtype)
+
+    resolved = getattr(Articulation, resolver_name)(articulation, selector)
+
+    assert resolved.dtype == wp.int32
+    np.testing.assert_array_equal(resolved.numpy(), [1, 0])
+    if resolver_name == "_resolve_env_ids" and env_dtype == wp.int32:
+        assert resolved.ptr == selector.ptr
+
+
+@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
+@pytest.mark.parametrize(
+    "selector",
+    [
+        pytest.param(lambda: _selector([0], wp.int16), id="warp_int16"),
+        pytest.param(lambda: torch.tensor([0], dtype=torch.int16), id="torch_int16"),
+    ],
+)
+def test_external_env_resolvers_reject_unsupported_dtypes_before_boundary(resolver_name: str, selector) -> None:
+    """Reject unsupported environment selector widths before calling an OVPhysX binding."""
+    Articulation = _articulation_class()
+    all_indices = _selector([0], wp.int32)
+    articulation = SimpleNamespace(
+        _ALL_INDICES=all_indices,
+        _cpu_env_ids_all=wp.clone(all_indices, device="cpu"),
+        _device="cpu",
+    )
+
+    with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit integers"):
+        getattr(Articulation, resolver_name)(articulation, selector())
+
+
 @pytest.mark.parametrize("state_write", [False, True], ids=["velocity", "state"])
 def test_ordered_joint_writes_reject_unsupported_selector_before_launch(monkeypatch, state_write: bool) -> None:
     """Reject an unsupported item selector through the shared factory before calling Warp launch."""

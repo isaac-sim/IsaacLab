@@ -52,6 +52,31 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _normalize_external_env_ids(env_ids: torch.Tensor | wp.array, target_device: str | None = None) -> wp.array:
+    """Normalize environment indices to wp.int32 at an external API boundary."""
+    if isinstance(env_ids, torch.Tensor):
+        if env_ids.dtype not in (torch.int32, torch.int64):
+            raise TypeError(
+                f"Environment indices must use signed 32-bit or signed 64-bit integers, got {env_ids.dtype}."
+            )
+        if env_ids.dtype == torch.int64:
+            env_ids = env_ids.to(torch.int32)
+        resolved = wp.from_torch(env_ids, dtype=wp.int32)
+    elif isinstance(env_ids, wp.array):
+        if env_ids.dtype not in (wp.int32, wp.int64):
+            raise TypeError(
+                f"Environment indices must use signed 32-bit or signed 64-bit integers, got {env_ids.dtype}."
+            )
+        if env_ids.dtype == wp.int64:
+            return wp.array(env_ids, dtype=wp.int32, device=target_device or env_ids.device)
+        resolved = env_ids
+    else:
+        raise TypeError(f"Environment indices must be a Torch tensor or Warp array, got {type(env_ids)}.")
+    if target_device is not None and str(resolved.device) != target_device:
+        return wp.clone(resolved, device=target_device)
+    return resolved
+
+
 class Articulation(BaseArticulation):
     """An articulation asset class.
 
@@ -4796,9 +4821,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of environment indices.
         """
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
-        return wp.clone(env_ids, device="cpu")
+        return _normalize_external_env_ids(env_ids, target_device="cpu")
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
         """
@@ -4833,14 +4856,9 @@ class Articulation(BaseArticulation):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
-        if isinstance(env_ids, torch.Tensor):
-            # Convert int64 to int32 if needed, as warp expects int32
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
-            return wp.from_torch(env_ids, dtype=wp.int32)
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        return env_ids
+        return _normalize_external_env_ids(env_ids)
 
     def _resolve_joint_mask(self, joint_mask: wp.array | None) -> torch.Tensor | wp.array:
         """Resolve joint mask to a torch tensor.

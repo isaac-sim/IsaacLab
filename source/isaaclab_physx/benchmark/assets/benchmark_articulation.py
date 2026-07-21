@@ -678,6 +678,7 @@ def gen_set_external_force_and_torque_torch_list(config: MethodBenchmarkRunnerCo
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "torques": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "env_ids": list(range(config.num_instances)),
+        "body_ids": list(range(config.num_bodies)),
     }
 
 
@@ -687,6 +688,7 @@ def gen_set_external_force_and_torque_torch_tensor(config: MethodBenchmarkRunner
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "torques": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "body_ids": make_tensor_body_ids(config.num_bodies, config.device, torch.int32),
     }
 
 
