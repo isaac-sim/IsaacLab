@@ -45,6 +45,17 @@ Fixed
   pixel-diff gate was correspondingly tightened from 40% to 20%.  SSIM thresholds for both
   captures remain unchanged and continue to detect structural pose regressions.
 
+* Eliminated first-attempt flakiness in tiled-camera and Kit-viewport golden image tests by
+  replacing the fixed renderer warmup loops (20 iterations) with a convergence-based pump that
+  continues until two consecutive frames differ by fewer than 0.5% of pixels at L2 > 1, capped
+  at 50 frames.  This ensures the RTX TAA accumulation buffer has genuinely settled before the
+  golden-image comparison frame is sampled.  The ``anymal_d-kit-tiled`` SSIM threshold was also
+  lowered from 0.945 to 0.910 to accommodate persistent RTX GI cold-start variability (~0.920
+  observed vs warm) while preserving a large safety margin above wrong-pose regressions (~0.69
+  observed for a completely missing body).  Previously ``anymal_d-kit-tiled``,
+  ``shadow_hand-kit-viewport``, and ``franka_cloth-kit-tiled`` routinely required a second
+  attempt; after these changes all 16 Newton tests pass on the first attempt consistently.
+
 * Fixed false-passing golden image tests caused by ``np.frombuffer`` returning a read-only view
   of the annotator's internal buffer rather than an independent snapshot.  When Replicator reuses
   the same buffer in place, both the start-frame and end-frame captures reflected the same

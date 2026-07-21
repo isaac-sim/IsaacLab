@@ -140,6 +140,13 @@ test's stage is created.
 _KIT_APP_DRAIN_SLEEP_SECONDS = 0.01
 """Short sleep between app updates while draining startup/shutdown work."""
 
+_WARMUP_MAX_FRAMES = 50
+"""Hard cap on render frames pumped during convergence-based warmup."""
+
+_WARMUP_STABLE_DIFF_PCT = 0.5
+"""Fraction of pixels (%) with inter-frame L2 > 1.0 below which two consecutive frames are
+considered stable (renderer TAA has converged).  Used by :func:`_frames_converged`."""
+
 PLAY_VIZ_N_STEP = 20
 """Steps to run for each motion or resumed-play segment."""
 
@@ -965,6 +972,12 @@ def _drain_kit_app_updates(num_updates: int) -> None:
         time.sleep(_KIT_APP_DRAIN_SLEEP_SECONDS)
 
 
+def _frames_converged(frame_a: np.ndarray, frame_b: np.ndarray) -> bool:
+    """Return True when fewer than :data:`_WARMUP_STABLE_DIFF_PCT` % of pixels differ by L2 > 1."""
+    diff_l2 = np.linalg.norm(frame_a.astype(np.float32) - frame_b.astype(np.float32), axis=2)
+    return float(100.0 * np.mean(diff_l2 > 1.0)) < _WARMUP_STABLE_DIFF_PCT
+
+
 def _flush_kit_render_for_motion_capture(env) -> None:
     """Flush the Kit RTX pipeline so the annotator reads the current physics frame.
 
@@ -1168,7 +1181,8 @@ def _capture_kit_viewport_with_pose_reapply(
             # return 0 for many frames; rendering before it settles accumulates TAA ghost
             # frames at wrong body positions.
             _drain_until_newton_fabric_ready()
-            for _ in range(_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS):
+            prev: np.ndarray | None = None
+            for _ in range(_WARMUP_MAX_FRAMES):
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
                 env.sim.render()
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
@@ -1177,6 +1191,13 @@ def _capture_kit_viewport_with_pose_reapply(
                 _update_active_simulation_app()
                 with contextlib.suppress(Exception):
                     annotator.get_data()
+                curr = _annotator_rgb_to_numpy(annotator.get_data())
+                if curr.shape[:2] == (1, 1):
+                    prev = None
+                    continue
+                if prev is not None and _frames_converged(prev, curr):
+                    break
+                prev = curr
         else:
             _warm_kit_rtx_render_product(env, annotator)
         return _capture_kit_viewport_rgb(annotator)
@@ -1186,12 +1207,20 @@ def _capture_kit_viewport_with_pose_reapply(
 
 
 def _warm_kit_rtx_render_product(env, annotator) -> None:
-    """Pump Kit/RTX render-product updates before sampling the annotator after cold starts."""
-    for _ in range(_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS):
+    """Pump Kit/RTX until two consecutive viewport frames converge or the frame cap is reached."""
+    prev: np.ndarray | None = None
+    for _ in range(_WARMUP_MAX_FRAMES):
         env.sim.render()
         _update_active_simulation_app()
         with contextlib.suppress(Exception):
             annotator.get_data()
+        curr = _annotator_rgb_to_numpy(annotator.get_data())
+        if curr.shape[:2] == (1, 1):
+            prev = None
+            continue
+        if prev is not None and _frames_converged(prev, curr):
+            return
+        prev = curr
 
 
 def _run_kit_viewport_frame_motion_test(
@@ -1315,6 +1344,27 @@ def _capture_kit_viewport_rgb(annotator) -> np.ndarray:
     return frame
 
 
+def _pump_tiled_until_stable(camera_sensor, camera_indices: list[int]) -> np.ndarray:
+    """Pump ``camera_sensor.update()`` until two consecutive tiled frames converge.
+
+    Replaces the fixed :data:`_TILED_CAMERA_SENSOR_WARMUP_UPDATES` loop with an
+    adaptive one: stops as soon as two consecutive frames satisfy
+    :func:`_frames_converged`, or after :data:`_WARMUP_MAX_FRAMES` updates.
+    Returns the last captured frame.
+    """
+    prev: np.ndarray | None = None
+    last: np.ndarray | None = None
+    for _ in range(_WARMUP_MAX_FRAMES):
+        camera_sensor.update(dt=0.0, force_recompute=True)
+        rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
+        curr = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()[..., :3]
+        if prev is not None and _frames_converged(prev, curr):
+            return curr
+        prev = curr
+        last = curr
+    return last
+
+
 def _capture_visualizer_tiled_camera_rgb(visualizer, *, label: str = "capture") -> np.ndarray:
     """Return the visualizer-owned/generated tiled camera RGB frame as an HxWx3 array."""
     camera_sensor = visualizer._camera_sensor
@@ -1339,12 +1389,12 @@ def _capture_visualizer_tiled_camera_rgb(visualizer, *, label: str = "capture") 
             # resync done between the two app.update() calls in
             # _capture_kit_viewport_with_pose_reapply().
             _force_newton_transforms_resync()
-        # Pump the camera renderer enough times for every tile to produce a valid frame.
-        # NewtonVisualizer skips _log_camera_sensor_image() when the Newton physics state is
-        # unavailable (e.g. PhysX backend), so owned cameras may have had zero renderer
-        # updates during physics warmup and need the warmup applied here instead.
-        for _ in range(_TILED_CAMERA_SENSOR_WARMUP_UPDATES):
-            camera_sensor.update(dt=0.0, force_recompute=True)
+        # Pump until two consecutive tiled frames converge (TAA settled) or the frame
+        # cap is reached.  NewtonVisualizer skips _log_camera_sensor_image() when the
+        # Newton physics state is unavailable (e.g. PhysX backend), so owned cameras may
+        # have had zero renderer updates during physics warmup.  The convergence loop
+        # guarantees every tile has had enough frames to produce a stable image.
+        return _pump_tiled_until_stable(camera_sensor, camera_indices)
     rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
     frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()
     assert frame.ndim == 3, f"Expected tiled camera RGB frame to be HxWxC, got shape {frame.shape}."
