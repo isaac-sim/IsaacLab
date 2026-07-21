@@ -37,6 +37,22 @@ See :doc:`/source/features/hydra` for all available names and how the selectors 
 
 Newton does not require Isaac Sim (kit-less mode). See :ref:`kitless-installation` for setup.
 
+Programmatic use
+----------------
+
+Downstream applications can use the same dispatcher without constructing an
+``argparse.Namespace``:
+
+.. code:: python
+
+   from isaaclab_rl import TrainingRequest, train
+
+   train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", max_iterations=100))
+
+Use :class:`~isaaclab_rl.entrypoints.PlaybackRequest` and :func:`~isaaclab_rl.entrypoints.play` for
+playback. Pass backend-specific options through ``backend_args`` and Hydra or
+preset selectors through ``hydra_args``.
+
 
 Observation-mode Presets
 ------------------------
