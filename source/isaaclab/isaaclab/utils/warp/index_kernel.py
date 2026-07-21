@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from itertools import product
+from typing import Any
 
 import torch
 import warp as wp
@@ -31,18 +32,31 @@ class IndexKernelDispatcher:
     Args:
         kernel: Generic Warp kernel to specialize.
         selector_names: Names of the kernel arguments that receive index selectors.
+        argument_types: Concrete types for other generic kernel arguments. Defaults to None.
 
     Raises:
         ValueError: If :paramref:`selector_names` is empty.
+        ValueError: If :paramref:`argument_types` overlaps with :paramref:`selector_names`.
     """
 
-    def __init__(self, kernel: wp.Kernel, selector_names: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        kernel: wp.Kernel,
+        selector_names: tuple[str, ...],
+        argument_types: dict[str, Any] | None = None,
+    ) -> None:
         if not selector_names:
             raise ValueError("selector_names must contain at least one kernel argument name.")
+        argument_types = {} if argument_types is None else argument_types
+        overlapping_names = set(selector_names).intersection(argument_types)
+        if overlapping_names:
+            names = ", ".join(sorted(overlapping_names))
+            raise ValueError(f"argument_types must not redefine selector arguments: {names}.")
         self._selector_names = selector_names
         self._overloads = {}
         for dtypes in product(_INDEX_DTYPES, repeat=len(selector_names)):
-            signature = {name: wp.array(dtype=dtype) for name, dtype in zip(selector_names, dtypes, strict=True)}
+            signature = argument_types.copy()
+            signature.update({name: wp.array(dtype=dtype) for name, dtype in zip(selector_names, dtypes, strict=True)})
             self._overloads[dtypes] = wp.overload(kernel, signature)
 
     def select(self, *selectors: torch.Tensor | wp.array) -> wp.Kernel:

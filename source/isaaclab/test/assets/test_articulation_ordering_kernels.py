@@ -647,3 +647,124 @@ def test_write_float_wrapper_accepts_scalar_input() -> None:
     )
     assert user_data[0, 1].item() == 7.5 and user_data[1, 1].item() == 7.5
     assert backend_data[0, 0].item() == 7.5  # user index 1 -> backend index 0
+
+
+@pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
+@pytest.mark.parametrize("writer", ["scalar", "2d", "3d", "velocity", "state"])
+def test_index_writers_accept_signed_selector_widths(index_dtype, writer: str) -> None:
+    """Accept signed 32-bit and 64-bit environment and user selectors in every indexed writer."""
+    env_ids = wp.array(np.asarray([1, 0]), dtype=index_dtype, device="cpu")
+    user_ids = wp.array(np.asarray([2, 0]), dtype=index_dtype, device="cpu")
+    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+
+    if writer == "scalar":
+        user_data = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+        backend_data = wp.zeros_like(user_data)
+        write_float_user_to_backend_with_indices(
+            4.5, env_ids, user_ids, user_to_backend, True, False, user_data, backend_data, device="cpu"
+        )
+        np.testing.assert_array_equal(
+            user_data.numpy(), np.asarray([[4.5, 0.0, 4.5], [4.5, 0.0, 4.5]], dtype=np.float32)
+        )
+        np.testing.assert_array_equal(
+            backend_data.numpy(), np.asarray([[4.5, 4.5, 0.0], [4.5, 4.5, 0.0]], dtype=np.float32)
+        )
+        return
+
+    input_data_np = np.asarray([[10.0, 11.0], [20.0, 21.0]], dtype=np.float32)
+    input_data = wp.array(input_data_np, device="cpu")
+    expected_user = np.asarray([[21.0, 0.0, 20.0], [11.0, 0.0, 10.0]], dtype=np.float32)
+    expected_backend = np.asarray([[20.0, 21.0, 0.0], [10.0, 11.0, 0.0]], dtype=np.float32)
+
+    if writer == "2d":
+        user_data = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+        backend_data = wp.zeros_like(user_data)
+        write_2d_user_to_backend_with_indices(
+            input_data,
+            env_ids,
+            user_ids,
+            user_to_backend,
+            True,
+            False,
+            user_data,
+            backend_data,
+            dtype=wp.float32,
+            device="cpu",
+        )
+        np.testing.assert_array_equal(user_data.numpy(), expected_user)
+        np.testing.assert_array_equal(backend_data.numpy(), expected_backend)
+        return
+
+    if writer == "3d":
+        input_components_np = np.asarray([[[10.0, 11.0], [12.0, 13.0]], [[20.0, 21.0], [22.0, 23.0]]], dtype=np.float32)
+        input_components = wp.array(input_components_np, dtype=wp.float32, device="cpu")
+        user_data = wp.zeros((2, 3, 2), dtype=wp.float32, device="cpu")
+        backend_data = wp.zeros_like(user_data)
+        write_3d_user_to_backend_with_indices(
+            input_components,
+            env_ids,
+            user_ids,
+            user_to_backend,
+            True,
+            False,
+            user_data,
+            backend_data,
+            dtype=wp.float32,
+            device="cpu",
+        )
+        expected_user_components = np.asarray(
+            [[[22.0, 23.0], [0.0, 0.0], [20.0, 21.0]], [[12.0, 13.0], [0.0, 0.0], [10.0, 11.0]]],
+            dtype=np.float32,
+        )
+        expected_backend_components = np.asarray(
+            [[[20.0, 21.0], [22.0, 23.0], [0.0, 0.0]], [[10.0, 11.0], [12.0, 13.0], [0.0, 0.0]]],
+            dtype=np.float32,
+        )
+        np.testing.assert_array_equal(user_data.numpy(), expected_user_components)
+        np.testing.assert_array_equal(backend_data.numpy(), expected_backend_components)
+        return
+
+    user_velocity = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    previous_velocity = wp.zeros_like(user_velocity)
+    acceleration = wp.ones_like(user_velocity)
+    backend_velocity = wp.zeros_like(user_velocity)
+
+    if writer == "velocity":
+        wp.launch(
+            write_joint_vel_user_to_backend_with_indices,
+            dim=(env_ids.shape[0], user_ids.shape[0]),
+            inputs=[input_data, env_ids, user_ids, user_to_backend, True, False],
+            outputs=[user_velocity, previous_velocity, acceleration, backend_velocity],
+            device="cpu",
+        )
+        np.testing.assert_array_equal(user_velocity.numpy(), expected_user)
+        np.testing.assert_array_equal(previous_velocity.numpy(), expected_user)
+        np.testing.assert_array_equal(acceleration.numpy()[[0, 1]][:, [0, 2]], np.zeros((2, 2), dtype=np.float32))
+        np.testing.assert_array_equal(backend_velocity.numpy(), expected_backend)
+        return
+
+    position_data = wp.array(input_data_np + 100.0, dtype=wp.float32, device="cpu")
+    user_position = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    backend_position = wp.zeros_like(user_position)
+    wp.launch(
+        write_joint_state_user_to_backend_with_indices,
+        dim=(env_ids.shape[0], user_ids.shape[0]),
+        inputs=[position_data, input_data, env_ids, user_ids, user_to_backend, True, False],
+        outputs=[
+            user_position,
+            user_velocity,
+            previous_velocity,
+            acceleration,
+            backend_position,
+            backend_velocity,
+        ],
+        device="cpu",
+    )
+    expected_user_position = np.asarray([[121.0, 0.0, 120.0], [111.0, 0.0, 110.0]], dtype=np.float32)
+    expected_backend_position = np.asarray([[120.0, 121.0, 0.0], [110.0, 111.0, 0.0]], dtype=np.float32)
+    np.testing.assert_array_equal(user_position.numpy(), expected_user_position)
+    np.testing.assert_array_equal(user_velocity.numpy(), expected_user)
+    np.testing.assert_array_equal(previous_velocity.numpy(), expected_user)
+    np.testing.assert_array_equal(acceleration.numpy()[[0, 1]][:, [0, 2]], np.zeros((2, 2), dtype=np.float32))
+    np.testing.assert_array_equal(backend_position.numpy(), expected_backend_position)
+    np.testing.assert_array_equal(backend_velocity.numpy(), expected_backend)

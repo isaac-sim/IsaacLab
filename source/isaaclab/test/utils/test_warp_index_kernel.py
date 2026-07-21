@@ -25,6 +25,19 @@ def _scatter_indices(
     output[env_id, item_id] = 1
 
 
+@wp.kernel
+def _scatter_values(
+    env_ids: wp.array(dtype=Any),
+    item_ids: wp.array(dtype=Any),
+    values: wp.array2d(dtype=Any),
+    output: wp.array2d(dtype=Any),
+) -> None:
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    item_id = wp.int32(item_ids[j])
+    output[env_id, item_id] = values[i, j]
+
+
 _SCATTER_DISPATCHER = IndexKernelDispatcher(_scatter_indices, ("env_ids", "item_ids"))
 
 
@@ -49,3 +62,26 @@ def test_dispatcher_rejects_unsupported_index_dtype() -> None:
     item_ids = torch.tensor([0], dtype=torch.int32)
     with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit"):
         _SCATTER_DISPATCHER.select(env_ids, item_ids)
+
+
+def test_dispatcher_supports_fixed_non_selector_generic_types() -> None:
+    dispatcher = IndexKernelDispatcher(
+        _scatter_values,
+        ("env_ids", "item_ids"),
+        argument_types={
+            "values": wp.array2d(dtype=wp.float32),
+            "output": wp.array2d(dtype=wp.float32),
+        },
+    )
+    env_ids = torch.tensor([1, 0], dtype=torch.int64)
+    item_ids = torch.tensor([2, 0], dtype=torch.int32)
+    values = wp.array(np.asarray([[10.0, 11.0], [20.0, 21.0]], dtype=np.float32), device="cpu")
+    output = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    wp.launch(
+        dispatcher.select(env_ids, item_ids),
+        dim=(2, 2),
+        inputs=[env_ids, item_ids, values],
+        outputs=[output],
+        device="cpu",
+    )
+    np.testing.assert_array_equal(output.numpy(), np.asarray([[21.0, 0.0, 20.0], [11.0, 0.0, 10.0]]))

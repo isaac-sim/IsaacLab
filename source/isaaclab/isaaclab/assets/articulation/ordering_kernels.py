@@ -35,9 +35,15 @@ Axis conventions and ownership:
 
 from __future__ import annotations
 
-from typing import Any
+from functools import cache
+from typing import TYPE_CHECKING, Any
 
 import warp as wp
+
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+
+if TYPE_CHECKING:
+    import torch
 
 __all__ = [
     "gather_2d",
@@ -405,8 +411,8 @@ def reorder_generalized_vector_backend_to_user(
 @wp.kernel
 def write_joint_vel_user_to_backend_with_indices(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    user_ids: wp.array(dtype=Any),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     full_data: bool,
@@ -438,8 +444,8 @@ def write_joint_vel_user_to_backend_with_indices(
         backend_vel: Backend joint velocity destination [m/s or rad/s].
     """
     i, j = wp.tid()
-    env_id = env_ids[i]
-    user_id = user_ids[j]
+    env_id = wp.int32(env_ids[i])
+    user_id = wp.int32(user_ids[j])
 
     if full_data:
         value = in_data[env_id, user_id]
@@ -454,12 +460,32 @@ def write_joint_vel_user_to_backend_with_indices(
         backend_vel[env_id, backend_id] = value
 
 
+_WRITE_JOINT_VEL_USER_TO_BACKEND_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    write_joint_vel_user_to_backend_with_indices, ("env_ids", "user_ids")
+)
+
+
+def write_joint_vel_user_to_backend_with_indices_kernel(
+    env_ids: wp.array | torch.Tensor, user_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the concrete indexed joint-velocity writer for the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        user_ids: Public joint index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _WRITE_JOINT_VEL_USER_TO_BACKEND_WITH_INDICES_DISPATCHER.select(env_ids, user_ids)
+
+
 @wp.kernel
 def write_joint_state_user_to_backend_with_indices(
     pos_data: wp.array2d(dtype=wp.float32),
     vel_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    user_ids: wp.array(dtype=Any),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     full_data: bool,
@@ -498,8 +524,8 @@ def write_joint_state_user_to_backend_with_indices(
         backend_vel: Backend joint velocity destination [m/s or rad/s].
     """
     i, j = wp.tid()
-    env_id = env_ids[i]
-    user_id = user_ids[j]
+    env_id = wp.int32(env_ids[i])
+    user_id = wp.int32(user_ids[j])
 
     if full_data:
         position = pos_data[env_id, user_id]
@@ -516,6 +542,26 @@ def write_joint_state_user_to_backend_with_indices(
         backend_id = user_to_backend[user_id]
         backend_pos[env_id, backend_id] = position
         backend_vel[env_id, backend_id] = velocity
+
+
+_WRITE_JOINT_STATE_USER_TO_BACKEND_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    write_joint_state_user_to_backend_with_indices, ("env_ids", "user_ids")
+)
+
+
+def write_joint_state_user_to_backend_with_indices_kernel(
+    env_ids: wp.array | torch.Tensor, user_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the concrete indexed joint-state writer for the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        user_ids: Public joint index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _WRITE_JOINT_STATE_USER_TO_BACKEND_WITH_INDICES_DISPATCHER.select(env_ids, user_ids)
 
 
 @wp.kernel
@@ -614,8 +660,8 @@ def write_joint_state_user_to_backend_with_mask(
 @wp.kernel
 def _write_2d_user_to_backend_with_indices(
     input_data: wp.array2d(dtype=Any),
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    user_ids: wp.array(dtype=Any),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     full_data: bool,
@@ -637,17 +683,30 @@ def _write_2d_user_to_backend_with_indices(
         user_data: Public-order destination with the same dtype as input_data.
         backend_data: Backend-order destination with the same dtype as input_data.
     """
-    local_env_id, local_user_id = wp.tid()
-    env_id = env_ids[local_env_id]
-    user_id = user_ids[local_user_id]
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    user_id = wp.int32(user_ids[j])
     if full_data:
         value = input_data[env_id, user_id]
     else:
-        value = input_data[local_env_id, local_user_id]
+        value = input_data[i, j]
 
     user_data[env_id, user_id] = value
     if has_ordering:
         backend_data[env_id, user_to_backend[user_id]] = value
+
+
+@cache
+def _write_2d_user_to_backend_with_indices_dispatcher(dtype: type) -> IndexKernelDispatcher:
+    return IndexKernelDispatcher(
+        _write_2d_user_to_backend_with_indices,
+        ("env_ids", "user_ids"),
+        argument_types={
+            "input_data": wp.array(dtype=dtype, ndim=2),
+            "user_data": wp.array(dtype=dtype, ndim=2),
+            "backend_data": wp.array(dtype=dtype, ndim=2),
+        },
+    )
 
 
 @wp.kernel
@@ -686,8 +745,8 @@ def _write_2d_user_to_backend_with_mask(
 @wp.kernel
 def _write_3d_user_to_backend_with_indices(
     input_data: wp.array3d(dtype=Any),
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    user_ids: wp.array(dtype=Any),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     full_data: bool,
@@ -709,17 +768,30 @@ def _write_3d_user_to_backend_with_indices(
         user_data: Public-order destination with the same dtype as input_data.
         backend_data: Backend-order destination with the same dtype as input_data.
     """
-    local_env_id, local_user_id, component_id = wp.tid()
-    env_id = env_ids[local_env_id]
-    user_id = user_ids[local_user_id]
+    i, j, k = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    user_id = wp.int32(user_ids[j])
     if full_data:
-        value = input_data[env_id, user_id, component_id]
+        value = input_data[env_id, user_id, k]
     else:
-        value = input_data[local_env_id, local_user_id, component_id]
+        value = input_data[i, j, k]
 
-    user_data[env_id, user_id, component_id] = value
+    user_data[env_id, user_id, k] = value
     if has_ordering:
-        backend_data[env_id, user_to_backend[user_id], component_id] = value
+        backend_data[env_id, user_to_backend[user_id], k] = value
+
+
+@cache
+def _write_3d_user_to_backend_with_indices_dispatcher(dtype: type) -> IndexKernelDispatcher:
+    return IndexKernelDispatcher(
+        _write_3d_user_to_backend_with_indices,
+        ("env_ids", "user_ids"),
+        argument_types={
+            "input_data": wp.array(dtype=dtype, ndim=3),
+            "user_data": wp.array(dtype=dtype, ndim=3),
+            "backend_data": wp.array(dtype=dtype, ndim=3),
+        },
+    )
 
 
 @wp.kernel
@@ -805,7 +877,7 @@ def write_2d_user_to_backend_with_indices(
         device: Warp launch device.
     """
     wp.launch(
-        _write_2d_user_to_backend_with_indices,
+        _write_2d_user_to_backend_with_indices_dispatcher(dtype).select(env_ids, user_ids),
         dim=(env_ids.shape[0], user_ids.shape[0]),
         inputs=[
             _as_warp_array(input_data, dtype),
@@ -875,7 +947,7 @@ def write_3d_user_to_backend_with_indices(
     """
     user_array = _as_warp_array(user_data, dtype)
     wp.launch(
-        _write_3d_user_to_backend_with_indices,
+        _write_3d_user_to_backend_with_indices_dispatcher(dtype).select(env_ids, user_ids),
         dim=(env_ids.shape[0], user_ids.shape[0], user_array.shape[2]),
         inputs=[
             _as_warp_array(input_data, dtype),
@@ -945,7 +1017,7 @@ def write_float_user_to_backend_with_indices(
     """
     if isinstance(input_data, (int, float)):
         wp.launch(
-            _write_scalar_user_to_backend_with_indices,
+            _WRITE_SCALAR_USER_TO_BACKEND_WITH_INDICES_DISPATCHER.select(env_ids, user_ids),
             dim=(env_ids.shape[0], user_ids.shape[0]),
             inputs=[
                 float(input_data),
@@ -1023,8 +1095,8 @@ def write_float_user_to_backend_with_mask(
 @wp.kernel
 def _write_scalar_user_to_backend_with_indices(
     input_value: wp.float32,
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    user_ids: wp.array(dtype=Any),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     user_data: wp.array2d(dtype=wp.float32),
@@ -1046,13 +1118,18 @@ def _write_scalar_user_to_backend_with_indices(
         backend_data: Backend-order destination shaped [num_envs, num_items].
     """
     i, j = wp.tid()
-    env_id = env_ids[i]
-    user_id = user_ids[j]
+    env_id = wp.int32(env_ids[i])
+    user_id = wp.int32(user_ids[j])
 
     user_data[env_id, user_id] = input_value
     if has_ordering:
         backend_id = user_to_backend[user_id]
         backend_data[env_id, backend_id] = input_value
+
+
+_WRITE_SCALAR_USER_TO_BACKEND_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    _write_scalar_user_to_backend_with_indices, ("env_ids", "user_ids")
+)
 
 
 @wp.kernel
