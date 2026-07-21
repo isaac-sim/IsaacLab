@@ -451,6 +451,7 @@ def test_public_root_pose_kernel_factory_launches_int64_specialization() -> None
     )
     np.testing.assert_array_equal(output.numpy(), data.numpy())
 
+
 def test_public_root_pose_kernel_factory_launches_proxy_specialization() -> None:
     """Launch the OVPhysX root-pose worker from the exact proxy Warp allocation."""
     env_array = _selector([0], wp.int32)
@@ -462,3 +463,48 @@ def test_public_root_pose_kernel_factory_launches_proxy_specialization() -> None
     wp.launch(factory(env_ids), dim=1, inputs=[data, env_ids.warp], outputs=[output], device="cpu")
     assert env_ids.warp is env_array
     np.testing.assert_array_equal(output.numpy(), data.numpy())
+
+
+def test_public_root_pose_kernel_factory_launches_empty_proxy_selector() -> None:
+    """Launch the OVPhysX factory with an empty proxy selector without touching output."""
+    env_ids = ProxyArray(_selector([], wp.int32))
+    data = wp.zeros(0, dtype=wp.transformf, device="cpu")
+    expected = np.asarray([[9.0, 8.0, 7.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
+    output = wp.array(expected, dtype=wp.transformf, device="cpu")
+    wp.launch(
+        shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
+        dim=0,
+        inputs=[data, env_ids.warp],
+        outputs=[output],
+        device="cpu",
+    )
+    np.testing.assert_array_equal(output.numpy(), expected)
+
+
+def test_public_root_pose_kernel_factory_scatters_noncontiguous_proxy_selector() -> None:
+    """Scatter OVPhysX values selected by noncontiguous logical proxy indices."""
+    env_ids = ProxyArray(_selector([2, 0], wp.int32))
+    data = wp.array(
+        [[11.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [21.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]],
+        dtype=wp.transformf,
+        device="cpu",
+    )
+    output = wp.zeros(3, dtype=wp.transformf, device="cpu")
+    wp.launch(
+        shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
+        dim=2,
+        inputs=[data, env_ids.warp],
+        outputs=[output],
+        device="cpu",
+    )
+    expected = np.zeros((3, 7), dtype=np.float32)
+    expected[0] = data.numpy()[1]
+    expected[2] = data.numpy()[0]
+    np.testing.assert_array_equal(output.numpy(), expected)
+
+
+def test_public_root_pose_kernel_factory_rejects_unsupported_proxy_dtype_before_launch() -> None:
+    """Reject an unsupported OVPhysX proxy selector dtype while selecting the worker."""
+    env_ids = ProxyArray(_selector([0], wp.int16))
+    with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit"):
+        shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids)
