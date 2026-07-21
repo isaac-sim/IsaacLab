@@ -177,8 +177,8 @@ class MockOvPhysxView:
 
     Names resolve like the real view: pass either a :class:`TensorType` member or its
     lowercased name (e.g. ``"articulation_dof_stiffness"``). Unlike the real view this
-    keeps everything on CPU and applies no device/dtype/read-only guards -- it is a test
-    double for the binding-routing surface, not the device policy.
+    keeps everything on CPU and applies no device/dtype/read-only guards, but it preserves
+    the real view's zero-copy ``float32`` reinterpretation for structured Warp buffers.
     """
 
     def __init__(self, bindings: dict[int, MockTensorBinding]):
@@ -204,7 +204,7 @@ class MockOvPhysxView:
         """Read the full attribute tensor; fill ``out`` if given, else allocate float32."""
         binding = self._bindings[self._resolve(name)]
         if out is not None:
-            binding.read(out)
+            binding.read(self._as_binding_view(out, binding))
             return out
         import warp as wp
 
@@ -214,11 +214,30 @@ class MockOvPhysxView:
 
     def read_into(self, name, dst) -> None:
         """Fill ``dst`` in place from the attribute binding."""
-        self._bindings[self._resolve(name)].read(dst)
+        binding = self._bindings[self._resolve(name)]
+        binding.read(self._as_binding_view(dst, binding))
 
     def set_attribute(self, name, values, *, indices=None, mask=None) -> None:
         """Write a full attribute tensor; ``indices``/``mask`` select which rows apply."""
-        self._bindings[self._resolve(name)].write(values, indices=indices, mask=mask)
+        binding = self._bindings[self._resolve(name)]
+        binding.write(self._as_binding_view(values, binding), indices=indices, mask=mask)
+
+    @staticmethod
+    def _as_binding_view(array, binding):
+        """Return a flat ``float32`` Warp view matching the binding shape."""
+        import warp as wp
+
+        if not isinstance(array, wp.array) or (
+            array.dtype == wp.float32 and tuple(array.shape) == tuple(binding.shape)
+        ):
+            return array
+        return wp.array(
+            ptr=array.ptr,
+            shape=tuple(binding.shape),
+            dtype=wp.float32,
+            device=str(array.device),
+            copy=False,
+        )
 
     # -- raw binding access ----------------------------------------------------
 
