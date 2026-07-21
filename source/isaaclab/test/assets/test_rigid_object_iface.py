@@ -79,6 +79,19 @@ class TestRigidObjectIndexResolution:
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
 
+    @_production_backends
+    def test_resolve_body_ids_unwraps_proxy_without_materializing_torch(self, backend):
+        from isaaclab.utils.warp import ProxyArray
+
+        obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
+        body_ids_array = wp.array([0], dtype=wp.int32, device="cpu")
+        body_ids = ProxyArray(body_ids_array)
+
+        resolved = obj._resolve_body_ids(body_ids)
+
+        assert resolved is body_ids_array
+        assert body_ids._torch_cache is None
+
 
 # ---------------------------------------------------------------------------
 # Tests: RigidObject properties

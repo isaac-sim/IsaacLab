@@ -57,7 +57,7 @@ class JointPositionToLimitsAction(ActionTerm):
 
         # resolve the joints over which the action term is applied
         self._joint_ids, self._joint_names = self._asset.find_joints(
-            self.cfg.joint_names, preserve_order=cfg.preserve_order, as_proxy=False
+            self.cfg.joint_names, preserve_order=cfg.preserve_order, as_proxy=True
         )
         self._num_joints = len(self._joint_ids)
         # log the resolved joint names for debugging
@@ -166,10 +166,11 @@ class JointPositionToLimitsAction(ActionTerm):
             # clip to [-1, 1]
             actions = self._processed_actions.clamp(-1.0, 1.0)
             # rescale within the joint limits
+            joint_ids = self._joint_ids if isinstance(self._joint_ids, slice) else self._joint_ids.torch
             actions = math_utils.unscale_transform(
                 actions,
-                self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 0],
-                self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 1],
+                self._asset.data.soft_joint_pos_limits.torch[:, joint_ids, 0],
+                self._asset.data.soft_joint_pos_limits.torch[:, joint_ids, 1],
             )
             self._processed_actions[:] = actions[:]
 
@@ -268,14 +269,13 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         # check if specific environment ids are provided
+        joint_ids = self._joint_ids if isinstance(self._joint_ids, slice) else self._joint_ids.torch
         if env_ids is None:
             super().reset(slice(None))
-            self._prev_applied_actions[:] = self._asset.data.joint_pos.torch[:, self._joint_ids]
+            self._prev_applied_actions[:] = self._asset.data.joint_pos.torch[:, joint_ids]
         else:
             super().reset(env_ids)
-            curr_applied_actions = self._asset.data.joint_pos.torch[env_ids[:, None], self._joint_ids].view(
-                len(env_ids), -1
-            )
+            curr_applied_actions = self._asset.data.joint_pos.torch[env_ids[:, None], joint_ids].view(len(env_ids), -1)
             self._prev_applied_actions[env_ids, :] = curr_applied_actions
 
     def process_actions(self, actions: torch.Tensor):
@@ -285,10 +285,11 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
         ema_actions = self._alpha * self._processed_actions
         ema_actions += (1.0 - self._alpha) * self._prev_applied_actions
         # clamp the targets
+        joint_ids = self._joint_ids if isinstance(self._joint_ids, slice) else self._joint_ids.torch
         self._processed_actions[:] = torch.clamp(
             ema_actions,
-            self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 0],
-            self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 1],
+            self._asset.data.soft_joint_pos_limits.torch[:, joint_ids, 0],
+            self._asset.data.soft_joint_pos_limits.torch[:, joint_ids, 1],
         )
         # update previous targets
         self._prev_applied_actions[:] = self._processed_actions[:]

@@ -203,6 +203,11 @@ class RigidObject(BaseRigidObject):
                 attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
                 as immutable because cache hits share this storage.
 
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+
         Returns:
             A tuple containing the body indices and a fresh list of matched names. The indices are a
             ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
@@ -770,7 +775,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies using indices.
@@ -855,7 +860,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass position of all bodies using indices.
@@ -950,7 +955,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies using indices.
@@ -1120,7 +1125,9 @@ class RigidObject(BaseRigidObject):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
 
-    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+    def _resolve_body_ids(
+        self, body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
+    ) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
 
         Args:
@@ -1129,6 +1136,8 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
+        if isinstance(body_ids, ProxyArray):
+            return body_ids.warp
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):

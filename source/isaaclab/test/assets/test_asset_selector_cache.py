@@ -178,6 +178,32 @@ def test_legacy_tensor_mode_is_int32_on_asset_device():
     assert first.data_ptr() != second.data_ptr()
 
 
+def test_proxy_indices_can_differ_without_changing_legacy_semantics():
+    asset = _make_asset()
+
+    proxy = asset._resolve_finder_indices(
+        [0, 1],
+        proxy_indices=[2, 0],
+        domain="joint",
+        finder_name="find_joints",
+        as_proxy=True,
+        legacy_type="list",
+    )
+    direct = _find(asset, [2, 0])
+    explicit_legacy = asset._resolve_finder_indices(
+        [0, 1],
+        proxy_indices=[2, 0],
+        domain="joint",
+        finder_name="find_joints",
+        as_proxy=False,
+        legacy_type="list",
+    )
+
+    assert proxy is direct
+    assert proxy.torch.tolist() == [2, 0]
+    assert explicit_legacy == [0, 1]
+
+
 @pytest.mark.parametrize("as_proxy", [0, 1, "true", object()])
 def test_invalid_as_proxy_value_raises_type_error(as_proxy):
     asset = _make_asset()

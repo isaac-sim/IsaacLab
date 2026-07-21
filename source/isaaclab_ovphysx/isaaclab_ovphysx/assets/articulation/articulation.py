@@ -375,6 +375,11 @@ class Articulation(BaseArticulation):
                 attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
                 as immutable because cache hits share this storage.
 
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+
         Returns:
             A tuple containing the body indices and a fresh list of matched names. The indices are a
             ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
@@ -410,6 +415,14 @@ class Articulation(BaseArticulation):
                 attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
                 as immutable because cache hits share this storage.
 
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+
+        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
+        subset-local indices.
+
         Returns:
             A tuple containing the joint indices and a fresh list of matched names. The indices are a
             ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
@@ -418,8 +431,14 @@ class Articulation(BaseArticulation):
             joint_subset = self.joint_names
         # find joints
         joint_ids, joint_names = resolve_matching_names(name_keys, joint_subset, preserve_order)
+        proxy_joint_ids = [self.joint_names.index(name) for name in joint_names]
         resolved_ids = self._resolve_finder_indices(
-            joint_ids, domain="joint", finder_name="find_joints", as_proxy=as_proxy, legacy_type="list"
+            joint_ids,
+            domain="joint",
+            proxy_indices=proxy_joint_ids,
+            finder_name="find_joints",
+            as_proxy=as_proxy,
+            legacy_type="list",
         )
         return resolved_ids, joint_names
 
@@ -449,6 +468,14 @@ class Articulation(BaseArticulation):
                 attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
                 as immutable because cache hits share this storage.
 
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+
+        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
+        subset-local indices.
+
         Returns:
             A tuple containing the tendon indices and a fresh list of matched names. The indices are a
             ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
@@ -458,9 +485,11 @@ class Articulation(BaseArticulation):
             tendon_subsets = self.fixed_tendon_names
         # find tendons
         tendon_ids, tendon_names = resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        proxy_tendon_ids = [self.fixed_tendon_names.index(name) for name in tendon_names]
         resolved_ids = self._resolve_finder_indices(
             tendon_ids,
             domain="fixed_tendon",
+            proxy_indices=proxy_tendon_ids,
             finder_name="find_fixed_tendons",
             as_proxy=as_proxy,
             legacy_type="list",
@@ -492,6 +521,14 @@ class Articulation(BaseArticulation):
                 attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
                 as immutable because cache hits share this storage.
 
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+
+        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
+        subset-local indices.
+
         Returns:
             A tuple containing the tendon indices and a fresh list of matched names. The indices are a
             ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
@@ -500,9 +537,11 @@ class Articulation(BaseArticulation):
             tendon_subsets = self.spatial_tendon_names
         # find tendons
         tendon_ids, tendon_names = resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        proxy_tendon_ids = [self.spatial_tendon_names.index(name) for name in tendon_names]
         resolved_ids = self._resolve_finder_indices(
             tendon_ids,
             domain="spatial_tendon",
+            proxy_indices=proxy_tendon_ids,
             finder_name="find_spatial_tendons",
             as_proxy=as_proxy,
             legacy_type="list",

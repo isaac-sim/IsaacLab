@@ -58,6 +58,26 @@ def test_dispatcher_selects_torch_index_overloads(env_dtype: torch.dtype, item_d
     np.testing.assert_array_equal(output.numpy(), np.asarray([[1, 0, 1], [1, 0, 1]], dtype=np.int32))
 
 
+def test_dispatcher_selects_torch_index_overload_without_creating_warp_view(monkeypatch) -> None:
+    """Select a Torch overload from dtype metadata without constructing a Warp view."""
+    from_torch_calls = 0
+    original_from_torch = wp.from_torch
+
+    def record_from_torch(*args, **kwargs):
+        nonlocal from_torch_calls
+        from_torch_calls += 1
+        return original_from_torch(*args, **kwargs)
+
+    monkeypatch.setattr(wp, "from_torch", record_from_torch)
+    env_ids = torch.tensor([1, 0], dtype=torch.int64)
+    item_ids = torch.tensor([2, 0], dtype=torch.int32)
+
+    kernel = _SCATTER_DISPATCHER.select(env_ids, item_ids)
+
+    assert kernel is _SCATTER_DISPATCHER.select_dtypes(wp.int64, wp.int32)
+    assert from_torch_calls == 0
+
+
 @pytest.mark.parametrize("selector_dtype", [wp.int32, wp.int64])
 def test_dispatcher_selects_proxy_index_overloads_without_copy(selector_dtype: type) -> None:
     """Select and launch from the exact Warp allocations wrapped by proxy selectors."""

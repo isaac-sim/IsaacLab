@@ -257,6 +257,7 @@ class AssetBase(ABC):
         self,
         indices: Sequence[int],
         *,
+        proxy_indices: Sequence[int] | None = None,
         domain: str,
         finder_name: str,
         as_proxy: bool | None,
@@ -266,6 +267,8 @@ class AssetBase(ABC):
 
         Args:
             indices: Ordered indices returned by the finder.
+            proxy_indices: Optional asset-global indices used only for proxy mode. Defaults to the legacy
+                :paramref:`indices` values.
             domain: Asset-local namespace for the selector.
             finder_name: Finder name included in transition warnings.
             as_proxy: Whether to return a cached :class:`ProxyArray`. ``None``
@@ -284,11 +287,12 @@ class AssetBase(ABC):
 
         normalized_indices = tuple(int(index) for index in indices)
         if as_proxy:
+            normalized_proxy_indices = normalized_indices if proxy_indices is None else tuple(map(int, proxy_indices))
             selector_cache = getattr(self, "_selector_cache", None)
             if selector_cache is None:
                 selector_cache = _AssetSelectorCache()
                 self._selector_cache = selector_cache
-            return selector_cache.get(domain, normalized_indices, self.device)
+            return selector_cache.get(domain, normalized_proxy_indices, self.device)
 
         if as_proxy is None:
             warnings.warn(

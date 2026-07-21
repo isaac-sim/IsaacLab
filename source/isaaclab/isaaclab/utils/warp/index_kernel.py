@@ -27,7 +27,16 @@ def _selector_array(selector: torch.Tensor | wp.array | ProxyArray) -> wp.array:
 
 
 def _selector_dtype(selector: torch.Tensor | wp.array | ProxyArray) -> type[wp.int32] | type[wp.int64]:
-    dtype = _selector_array(selector).dtype
+    if isinstance(selector, ProxyArray):
+        dtype = selector.warp.dtype
+    elif isinstance(selector, torch.Tensor):
+        dtype = wp.dtype_from_torch(selector.dtype)
+    elif isinstance(selector, wp.array):
+        dtype = selector.dtype
+    else:
+        raise TypeError(
+            f"Index selector must be a torch.Tensor, wp.array, or ProxyArray, got {type(selector).__name__}."
+        )
     if dtype not in _INDEX_DTYPES:
         raise TypeError(f"Index selector must use signed 32-bit or signed 64-bit integers, got {dtype}.")
     return dtype

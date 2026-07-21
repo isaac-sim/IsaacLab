@@ -164,11 +164,18 @@ def test_articulation_finders_cache_after_subset_remapping(finder_name, subset_a
     )
     finder = getattr(robot, finder_name)
 
+    with pytest.warns(DeprecationWarning):
+        implicit_indices, implicit_names = finder(".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True)
+    explicit_indices, explicit_names = finder(
+        ".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True, as_proxy=False
+    )
     subset_indices, subset_names = finder(
         ".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True, as_proxy=True
     )
     direct_indices, direct_names = finder(["item_2", "item_0"], preserve_order=True, as_proxy=True)
 
+    assert implicit_indices == explicit_indices == [2, 0]
+    assert implicit_names == explicit_names == ["item_2", "item_0"]
     assert subset_indices is direct_indices
     assert subset_indices.torch.tolist() == [2, 0]
     assert subset_names == direct_names == ["item_2", "item_0"]
