@@ -10,6 +10,7 @@ The package is structured as follows:
 - ``core``: Core task families maintained as part of Isaac Lab.
 - ``contrib``: Contributed task families. These may depend on ``core`` tasks, but
   ``core`` tasks never depend on ``contrib`` tasks.
+- ``benchmark``: Benchmark-only task variants for simulation and rendering throughput profiling.
 - ``utils``: These include utility functions for the tasks.
 
 """

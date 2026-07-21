@@ -77,7 +77,7 @@ def is_training_task(task_id: str) -> bool:
         return False
     if any(task_id.endswith(suffix) for suffix in _INFERENCE_TASK_SUFFIXES):
         return False
-    if "-Benchmark-" in task_id:
+    if "-Benchmark-" in task_id or task_id.endswith("-Benchmark"):
         return False
     return True
 

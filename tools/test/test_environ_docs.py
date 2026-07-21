@@ -61,6 +61,8 @@ def test_is_training_task_filters_inference_variants():
     assert not is_training_task("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
+    assert not is_training_task("Isaac-Lift-Cloth-Franka-Camera-Benchmark")
+    assert not is_training_task("Isaac-Lift-Soft-Franka-Camera-Benchmark")
 
 
 def test_parse_rl_libraries_from_kwargs_handles_multi_agent_and_amp():
