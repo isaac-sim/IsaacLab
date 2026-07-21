@@ -206,6 +206,7 @@ class TeleopSessionLifecycle:
         # vector into it via the external-input mechanism.
         self._haptic_cfg = haptic_cfg
         self._haptic_sink = None
+        self._haptic_tracker = None
         self._haptic_num_taxels = haptic_cfg.num_taxels if haptic_cfg is not None else 0
         self._haptic_forces: dict[str, np.ndarray] = {
             "left": np.zeros(self._haptic_num_taxels, dtype=np.float32),
@@ -475,6 +476,7 @@ class TeleopSessionLifecycle:
         self._last_step_result = None
         self._last_left_controller = None
         self._haptic_sink = None
+        self._haptic_tracker = None
 
         if self._cloudxr_launcher is not None:
             try:
@@ -626,7 +628,12 @@ class TeleopSessionLifecycle:
         ):
             force_inputs[endpoint] = ValueInput(leaf_name, TactileVector(num_taxels)).output(ValueInput.VALUE)
 
-        return self._haptic_cfg.build_sink(force_inputs, controllers_source.get_tracker)
+        # build_sink returns (connected_sink, device_tracker). The tracker is kept
+        # so _on_request_required_extensions can request the device's OpenXR
+        # extensions (e.g. a glove's push-tensor extensions); the connected sink
+        # (a subgraph) does not expose the device.
+        sink, self._haptic_tracker = self._haptic_cfg.build_sink(force_inputs, controllers_source.get_tracker)
+        return sink
 
     def push_haptic(self, endpoint: str, values) -> None:
         """Set the latest per-hand output vector for one endpoint.
@@ -684,12 +691,17 @@ class TeleopSessionLifecycle:
         # the pipeline scan above misses it. Add its device's tracker extensions
         # directly (e.g. a glove's TensorPushTracker requires XR_NVX1_push_tensor);
         # without this the push-tensor function pointer is never available.
-        if self._haptic_sink is not None:
-            haptic_tracker = self._haptic_sink.get_tracker()
-            if haptic_tracker is not None:
+        #
+        # Guard this: the XR bridge silently drops ALL of a callback's extensions
+        # if the callback raises, so a failure here must not take down the
+        # pipeline's own required extensions (hand tracking, action context, ...).
+        if self._haptic_tracker is not None:
+            try:
                 import isaacteleop.deviceio as deviceio
 
-                required_extensions.extend(deviceio.DeviceIOSession.get_required_extensions([haptic_tracker]))
+                required_extensions.extend(deviceio.DeviceIOSession.get_required_extensions([self._haptic_tracker]))
+            except Exception:
+                logger.exception("Failed to add haptic sink required extensions; continuing without them")
 
         required_extensions = sorted(set(required_extensions))
         logger.info(f"Required extensions: {required_extensions}")

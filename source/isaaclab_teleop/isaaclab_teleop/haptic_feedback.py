@@ -116,28 +116,25 @@ def contact_force_magnitude(left_sensor_name: str, right_sensor_name: str) -> Si
 def per_finger_object_grip(
     left_sensor_name: str,
     right_sensor_name: str,
-    object_name: str,
     finger_order: Sequence[str],
 ) -> SignalFn:
-    """Signal source: per-finger grip force against a specific object.
+    """Signal source: per-finger grip force against the filtered object.
 
     Reads each hand's contact sensor ``force_matrix_w`` -- the contact force
-    *filtered against the object* (see :attr:`ContactSensorCfg.filter_prim_paths_expr`)
-    -- and orders the per-finger magnitudes into the device's channel order. Only
-    force against ``object_name`` contributes, so incidental table or self
-    contact does not trigger feedback. Suited to a haptic glove.
+    *filtered against the grasped object* (see
+    :attr:`ContactSensorCfg.filter_prim_paths_expr`) -- and accumulates it into one
+    channel per finger. Only force against the object contributes, so incidental
+    table or self contact does not trigger feedback. Suited to a haptic glove.
 
-    The sensor's matched bodies are mapped to output channels by substring: for
-    channel ``c``, the first sensor body whose (lower-cased) name contains
-    ``finger_order[c]`` supplies that channel. The map is resolved once per
-    sensor and cached.
+    Each sensor body is assigned to a channel by substring: a body maps to the
+    first ``finger_order`` entry its (lower-cased) name contains, and every link of
+    a finger (proximal, intermediate, distal) sums into that finger's channel. The
+    per-body assignment is resolved once per sensor and cached.
 
     Args:
         left_sensor_name: Scene entity name of the left-hand contact sensor
             (must be configured with the object as a contact filter).
         right_sensor_name: Scene entity name of the right-hand contact sensor.
-        object_name: Scene entity name of the grasped object (used only for docs;
-            the filtering itself is configured on the sensors).
         finger_order: Per-channel finger substrings in device channel order
             (e.g. ``["thumb", "index", "middle", "ring", "pinky"]``).
 
@@ -147,11 +144,14 @@ def per_finger_object_grip(
     names = {ENDPOINT_LEFT: left_sensor_name, ENDPOINT_RIGHT: right_sensor_name}
     fingers = [f.lower() for f in finger_order]
     num_channels = len(fingers)
-    channel_maps: dict[str, list[int | None]] = {}
+    body_channels: dict[str, list[int | None]] = {}
 
-    def _resolve_channel_map(sensor: Any) -> list[int | None]:
-        body_names = [n.lower() for n in (sensor.body_names or [])]
-        return [next((i for i, bn in enumerate(body_names) if finger in bn), None) for finger in fingers]
+    def _resolve(sensor: Any) -> list[int | None]:
+        # Map each sensor body to its finger channel by substring (unmatched -> None).
+        return [
+            next((c for c, finger in enumerate(fingers) if finger in body_name.lower()), None)
+            for body_name in (sensor.body_names or [])
+        ]
 
     def signal_fn(env: ManagerBasedRLEnv) -> dict[str, np.ndarray]:
         out: dict[str, np.ndarray] = {}
@@ -161,13 +161,14 @@ def per_finger_object_grip(
             # force_matrix_w: [num_envs, num_bodies, num_filters, 3] (None before first contact).
             force_matrix = sensor.data.force_matrix_w
             if force_matrix is not None:
-                if name not in channel_maps:
-                    channel_maps[name] = _resolve_channel_map(sensor)
-                # Per body: sum force magnitude over all filter shapes for env 0.
+                channels = body_channels.get(name)
+                if channels is None:
+                    channels = body_channels[name] = _resolve(sensor)
+                # Per body: contact-force magnitude summed over the object's filter shapes.
                 per_body = torch.linalg.vector_norm(force_matrix[0], dim=-1).sum(dim=-1)
-                for channel, body_index in enumerate(channel_maps[name]):
-                    if body_index is not None:
-                        vec[channel] = float(per_body[body_index])
+                for body_index, channel in enumerate(channels):
+                    if channel is not None:
+                        vec[channel] += float(per_body[body_index])
             out[endpoint] = vec
         return out
 
@@ -217,7 +218,7 @@ class HapticFeedbackCfg:
         """Return the signal source (environment -> per-hand vector) for this config."""
         raise NotImplementedError
 
-    def build_sink(self, force_inputs: dict[str, Any], tracker_provider: Callable[[], Any]) -> Any:
+    def build_sink(self, force_inputs: dict[str, Any], tracker_provider: Callable[[], Any]) -> tuple[Any, Any]:
         """Build the ``isaacteleop`` ``HapticSink`` that renders the cached vectors.
 
         Args:
@@ -228,7 +229,12 @@ class HapticFeedbackCfg:
                 (e.g. a glove) may ignore it.
 
         Returns:
-            A connected ``HapticSink`` node for ``TeleopSessionConfig(sinks=[...])``.
+            A ``(connected_sink, tracker)`` tuple. ``connected_sink`` is the
+            ``HapticSink.connect(...)`` result for ``TeleopSessionConfig(sinks=[...])``
+            (a subgraph, *not* the sink node). ``tracker`` is the device's DeviceIO
+            tracker (or ``None``); the session uses it to request the device's OpenXR
+            extensions (e.g. a glove's ``XR_NVX1_push_tensor``). It is returned
+            separately because the connected subgraph does not expose the device.
         """
         raise NotImplementedError
 
@@ -254,7 +260,7 @@ class ControllerHapticFeedbackCfg(HapticFeedbackCfg):
     def make_signal_fn(self) -> SignalFn:
         return contact_force_magnitude(self.left_sensor_name, self.right_sensor_name)
 
-    def build_sink(self, force_inputs: dict[str, Any], tracker_provider: Callable[[], Any]) -> Any:
+    def build_sink(self, force_inputs: dict[str, Any], tracker_provider: Callable[[], Any]) -> tuple[Any, Any]:
         from isaacteleop.haptic_devices.controller import ControllerHapticDevice
         from isaacteleop.retargeters.tactile_retargeters import TactileVectorToControllerPulse
         from isaacteleop.retargeting_engine.deviceio_source_nodes import HapticSink
@@ -273,7 +279,7 @@ class ControllerHapticFeedbackCfg(HapticFeedbackCfg):
             sink_inputs[endpoint] = pulse.output(TactileVectorToControllerPulse.OUTPUT_PULSE)
 
         device = ControllerHapticDevice(tracker_provider())
-        return HapticSink("_haptic_sink", device).connect(sink_inputs)
+        return HapticSink("_haptic_sink", device).connect(sink_inputs), device.get_tracker()
 
 
 @configclass
@@ -284,8 +290,6 @@ class GloveHapticFeedbackCfg(HapticFeedbackCfg):
     via a cross-process ``haptic_glove_device`` + ``TactileVectorToFingerPower``.
     """
 
-    num_taxels: int = 5
-    """Finger channels per hand (Thumb..Pinky by default)."""
     gain: float = 0.1
     """Force-to-power gain [1/N] applied after the deadband. Default maps ~10 N to full power."""
     deadband: float = 0.5
@@ -295,18 +299,19 @@ class GloveHapticFeedbackCfg(HapticFeedbackCfg):
     collection_id: str = "manus_glove_haptic"
     """Push-tensor collection id pairing Isaac Teleop with the glove plugin process
     (the Manus plugin's default). Change it to target a different glove vendor."""
-    object_name: str = "object"
-    """Scene entity name of the grasped object the fingers are gripping."""
     finger_order: list[str] = ["thumb", "index", "middle", "ring", "pinky"]
     """Per-channel finger substrings, in glove channel order, matched against the
-    contact sensor's body names to order the per-finger forces."""
+    contact sensor's body names to group each finger's links into one channel.
+    This is the sole source of the finger-channel count (``num_taxels``)."""
+
+    def __post_init__(self) -> None:
+        # finger_order is the single source of truth for the channel count.
+        self.num_taxels = len(self.finger_order)
 
     def make_signal_fn(self) -> SignalFn:
-        return per_finger_object_grip(
-            self.left_sensor_name, self.right_sensor_name, self.object_name, self.finger_order
-        )
+        return per_finger_object_grip(self.left_sensor_name, self.right_sensor_name, self.finger_order)
 
-    def build_sink(self, force_inputs: dict[str, Any], tracker_provider: Callable[[], Any]) -> Any:
+    def build_sink(self, force_inputs: dict[str, Any], tracker_provider: Callable[[], Any]) -> tuple[Any, Any]:
         from isaacteleop.haptic_devices.glove import haptic_glove_device
         from isaacteleop.retargeters.tactile_retargeters import TactileVectorToFingerPower
         from isaacteleop.retargeting_engine.deviceio_source_nodes import HapticSink
@@ -324,9 +329,10 @@ class GloveHapticFeedbackCfg(HapticFeedbackCfg):
             ).connect({TactileVectorToFingerPower.INPUT_TACTILE: force_output})
             sink_inputs[endpoint] = powers.output(TactileVectorToFingerPower.OUTPUT_POWERS)
 
-        # Cross-process device; it has no DeviceIO tracker, so tracker_provider is unused.
+        # Cross-process device; tracker_provider is unused. Its push-tensor tracker
+        # carries the required XR_NVX1_push_tensor / XR_NVX1_tensor_data extensions.
         device = haptic_glove_device(self.collection_id, num_fingers=self.num_taxels)
-        return HapticSink("_haptic_sink", device).connect(sink_inputs)
+        return HapticSink("_haptic_sink", device).connect(sink_inputs), device.get_tracker()
 
 
 # ----------------------------------------------------------------------------

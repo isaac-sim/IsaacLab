@@ -265,6 +265,13 @@ def _build_gr1t2_pickplace_pipeline():
 ##
 # Scene definition
 ##
+
+# The steering wheel USD authors its rigid body on a nested prim rather than at the
+# spawned ``Object`` root, so contact filtering must target that actor: filtering
+# against ``Object`` matches an empty Xform and force_matrix_w always reads zero.
+_STEERING_WHEEL_BODY = "{ENV_REGEX_NS}/Object/Geometry/sm_steeringwheel_a01_01"
+
+
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the GR1T2 Pick Place Base Scene."""
@@ -325,23 +332,18 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # Per-hand fingertip contact sensors, filtered against the grasped object so
-    # force_matrix_w reports each finger's grip force on the steering wheel (used
-    # to drive per-finger haptic glove feedback; see GloveHapticFeedbackCfg below).
-    # The Fourier hand exposes thumb/index/middle/ring/pinky distal-most links.
+    # Per-finger contact sensors on all finger links of each hand, filtered against
+    # the wheel body so force_matrix_w reports each finger's grip force. This drives
+    # the per-finger haptic glove feedback (see GloveHapticFeedbackCfg below).
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*L_(thumb_distal|index_intermediate|middle_intermediate|"
-        "ring_intermediate|pinky_intermediate)_link",
-        filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+        prim_path="{ENV_REGEX_NS}/Robot/.*L_(index|middle|ring|pinky|thumb).*_link",
+        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
         update_period=0.0,
-        history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*R_(thumb_distal|index_intermediate|middle_intermediate|"
-        "ring_intermediate|pinky_intermediate)_link",
-        filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+        prim_path="{ENV_REGEX_NS}/Robot/.*R_(index|middle|ring|pinky|thumb).*_link",
+        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
         update_period=0.0,
-        history_length=3,
     )
 
     # Ground plane
@@ -636,5 +638,4 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         self.haptic_feedback = GloveHapticFeedbackCfg(
             left_sensor_name="left_hand_contact",
             right_sensor_name="right_hand_contact",
-            object_name="object",
         )

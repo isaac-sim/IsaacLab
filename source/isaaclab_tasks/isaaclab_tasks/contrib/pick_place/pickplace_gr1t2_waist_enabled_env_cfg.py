@@ -79,5 +79,4 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         self.haptic_feedback = GloveHapticFeedbackCfg(
             left_sensor_name="left_hand_contact",
             right_sensor_name="right_hand_contact",
-            object_name="object",
         )
