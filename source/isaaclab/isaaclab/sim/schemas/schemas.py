@@ -1076,8 +1076,9 @@ def apply_mass_properties(
     )
     if create_if_missing and creation_candidates:
         if not targets and len(creation_candidates) == 1:
-            # single exact-prim match: the shape/mesh spawners author mass before the rigid
-            # body, so creation must not require a pre-existing body here
+            # exactly one matched prim and no carrier anywhere: apply unconditionally. The
+            # shape/mesh spawners author mass before the rigid body, so requiring a
+            # pre-existing body here would break their bootstrap
             UsdPhysics.MassAPI.Apply(creation_candidates[0])
             targets.append(creation_candidates[0])
         else:
