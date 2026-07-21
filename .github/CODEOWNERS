@@ -1,6 +1,6 @@
 # Codeowners are designated by their GitHub username. They are
-# the people who are responsible for reviewing and approving PRs
-# that modify the files that match the pattern.
+# responsible for reviewing and approving PRs that modify files matching
+# the pattern.
 #
 # Codeowners are not the same as contributors. They are not
 # automatically added to the PR, but they will be requested to
@@ -10,92 +10,183 @@
 # most familiar with the code that the PR is modifying. If you
 # are not sure who to add, ask in the issue or in the PR itself.
 #
-# The format of the file is as follows:
+# Format:
 # <file pattern> <codeowners>
 
 
 # App experience files
-# These are the files that are used to launch the app with the correct settings and configurations
-/apps/ @kellyguo11 @hhansen-bdai @Mayankm96
+/apps/ @kellyguo11 @hujc @matthewtrepte @StafaH
 
-# Core Framework
-/source/isaaclab/isaaclab/actuators @Mayankm96 @jtigue-bdai
-/source/isaaclab/isaaclab/app @hhansen-bdai @kellyguo11
-/source/isaaclab/isaaclab/assets @kellyguo11 @Mayankm96 @jtigue-bdai
-/source/isaaclab/isaaclab/assets/deformable_object @masoudmoghani @ooctipus
-/source/isaaclab/isaaclab/controllers @Mayankm96
-/source/isaaclab/isaaclab/envs/manager_based_* @Mayankm96 @jtigue-bdai @ooctipus
-/source/isaaclab/isaaclab/envs/direct_* @kellyguo11
-/source/isaaclab/isaaclab/envs/mdp @ooctipus
-/source/isaaclab/isaaclab/envs/mimic_* @peterd-NV
-/source/isaaclab/isaaclab/envs/ui @ooctipus @ossamaAhmed
-/source/isaaclab/isaaclab/envs/utils @Toni-SM
-/source/isaaclab/isaaclab/managers @jtigue-bdai @Mayankm96 @ooctipus
-/source/isaaclab/isaaclab/sensors/sensor_base* @pascal-roth
-/source/isaaclab/isaaclab/sensors/camera @kellyguo11 @pascal-roth
-/source/isaaclab/isaaclab/sensors/contact_sensor @jtigue-bdai @ooctipus
-/source/isaaclab/isaaclab/sensors/imu @jtigue-bdai @pascal-roth
-/source/isaaclab/isaaclab/sensors/ray_caster @pascal-roth
-/source/isaaclab/isaaclab/sensors/frame_transformer @jtigue-bdai
-/source/isaaclab/isaaclab/sim/converters @Mayankm96 @jtigue-bdai @kellyguo11
-/source/isaaclab/isaaclab/sim/schemas @Mayankm96 @jtigue-bdai @kellyguo11
-/source/isaaclab/isaaclab/sim/spawners @Mayankm96 @jtigue-bdai @ooctipus
-/source/isaaclab/isaaclab/sim/simulation_* @matthewtrepte @ossamaAhmed @kellyguo11
-/source/isaaclab/isaaclab/terrains @Mayankm96
-/source/isaaclab/isaaclab/ui @pascal-roth @jtigue-bdai
-/source/isaaclab/isaaclab/utils/buffers @ooctipus @jtigue-bdai
-/source/isaaclab/isaaclab/utils/datasets @Peter-NV
-/source/isaaclab/isaaclab/utils/interpolation @jtigue-bdai
-/source/isaaclab/isaaclab/utils/io @ooctipus
-/source/isaaclab/isaaclab/utils/modifiers @jtigue-bdai
-/source/isaaclab/isaaclab/utils/noise @jtigue-bdai @kellyguo11
-/source/isaaclab/isaaclab/utils/warp @pascal-roth
-/source/isaaclab/isaaclab/utils/assets.py @kellyguo11 @Mayankm96
-/source/isaaclab/isaaclab/utils/math.py @jtigue-bdai @Mayankm96
-/source/isaaclab/isaaclab/utils/configclass.py @Mayankm96
-/source/isaaclab/isaaclab/utils/sensors.py @kellyguo11 @pascal-roth
+# Core framework
+/source/isaaclab/isaaclab/app/ @ooctipus @hujc @AntoineRichard @mataylor @kellyguo11 @pbarejko @pv-nvidia
+/source/isaaclab/isaaclab/cli/ @StafaH @myurasov-nv @AntoineRichard @kellyguo11 @matthewtrepte @hujc
+/source/isaaclab/isaaclab/actuators/ @AntoineRichard @Mayankm96 @kellyguo11
+/source/isaaclab/isaaclab/assets/ @AntoineRichard @hujc @kellyguo11
+/source/isaaclab/isaaclab/assets/deformable_object/ @mmichelis @AntoineRichard
+/source/isaaclab/isaaclab/cloner/ @ooctipus @huidongc @AntoineRichard @rilei-nvidia
+/source/isaaclab/isaaclab/controllers/ @ooctipus @hujc @AntoineRichard
+/source/isaaclab/isaaclab/devices/ @pbarejko @ooctipus @rwiltz
+/source/isaaclab/isaaclab/envs/ @ooctipus @AntoineRichard @matthewtrepte @kellyguo11 @StafaH
+/source/isaaclab/isaaclab/envs/manager_based_* @ooctipus @AntoineRichard @matthewtrepte @StafaH
+/source/isaaclab/isaaclab/envs/direct_* @ooctipus @AntoineRichard @matthewtrepte @kellyguo11
+/source/isaaclab/isaaclab/envs/mimic_* @peterd-NV @kellyguo11
+/source/isaaclab/isaaclab/envs/mdp/ @ooctipus @AntoineRichard @StafaH @jmart-nv @kellyguo11
+/source/isaaclab/isaaclab/envs/ui/ @ooctipus @matthewtrepte @kellyguo11
+/source/isaaclab/isaaclab/envs/utils/ @Toni-SM @matthewtrepte @hujc @kellyguo11 @ooctipus @AntoineRichard
+/source/isaaclab/isaaclab/envs/leapp_deployment_env.py @frlai @StafaH
+/source/isaaclab/isaaclab/managers/ @hujc @kellyguo11 @ooctipus @StafaH @AntoineRichard
+/source/isaaclab/isaaclab/markers/ @matthewtrepte @kellyguo11 @ooctipus
+/source/isaaclab/isaaclab/physics/ @AntoineRichard @matthewtrepte @ooctipus @hujc @daniela-hase
+/source/isaaclab/isaaclab/renderers/ @pbarejko @rilei-nvidia @StafaH @huidongc
+/source/isaaclab/isaaclab/scene/ @ooctipus @AntoineRichard @pbarejko
+/source/isaaclab/isaaclab/scene_data/ @daniela-hase @matthewtrepte @AntoineRichard @ooctipus
+/source/isaaclab/isaaclab/sensors/ @AntoineRichard @ooctipus @Mayankm96 @pascal-roth
+/source/isaaclab/isaaclab/sensors/camera/ @AntoineRichard @ooctipus @matthewtrepte @kellyguo11 @pbarejko @pascal-roth
+/source/isaaclab/isaaclab/sensors/contact_sensor/ @AntoineRichard @ooctipus @Mayankm96 @StafaH
+/source/isaaclab/isaaclab/sensors/frame_transformer/ @AntoineRichard @ooctipus @StafaH
+/source/isaaclab/isaaclab/sensors/imu/ @AntoineRichard @ooctipus @StafaH
+/source/isaaclab/isaaclab/sensors/joint_wrench/ @AntoineRichard @camevor @StafaH
+/source/isaaclab/isaaclab/sensors/pva/ @AntoineRichard @camevor @StafaH
+/source/isaaclab/isaaclab/sensors/ray_caster/ @AntoineRichard @ooctipus @pascal-roth @StafaH
+/source/isaaclab/isaaclab/sim/ @ooctipus @vidurv-nvidia @matthewtrepte @AntoineRichard @hujc @pbarejko @daniela-hase
+/source/isaaclab/isaaclab/sim/converters/ @AntoineRichard @hujc @kellyguo11
+/source/isaaclab/isaaclab/sim/schemas/ @ooctipus @AntoineRichard @vidurv-nvidia @mmichelis @maxkra15
+/source/isaaclab/isaaclab/sim/spawners/ @ooctipus @AntoineRichard @vidurv-nvidia @mmichelis @Mayankm96
+/source/isaaclab/isaaclab/sim/utils/ @ooctipus @AntoineRichard @hujc
+/source/isaaclab/isaaclab/sim/views/ @pv-nvidia @AntoineRichard @hujc @ooctipus @r-schmitt
+/source/isaaclab/isaaclab/sim/simulation_* @ooctipus @vidurv-nvidia @matthewtrepte @AntoineRichard @hujc @pbarejko @daniela-hase @r-schmitt
+/source/isaaclab/isaaclab/terrains/ @ooctipus @AntoineRichard @StafaH @Mayankm96 @ClemensSchwarke @pascal-roth
+/source/isaaclab/isaaclab/ui/ @matthewtrepte @hujc @ooctipus
+/source/isaaclab/isaaclab/utils/ @AntoineRichard @ooctipus @hujc @kellyguo11 @rilei-nvidia @pbarejko
+/source/isaaclab/isaaclab/utils/buffers/ @ooctipus @AntoineRichard
+/source/isaaclab/isaaclab/utils/datasets/ @kellyguo11 @peterd-NV
+/source/isaaclab/isaaclab/utils/interpolation/ @hujc @AntoineRichard
+/source/isaaclab/isaaclab/utils/io/ @ooctipus @AntoineRichard
+/source/isaaclab/isaaclab/utils/leapp/ @frlai @AntoineRichard @kellyguo11 @StafaH
+/source/isaaclab/isaaclab/utils/modifiers/ @hujc @AntoineRichard @ooctipus
+/source/isaaclab/isaaclab/utils/noise/ @hujc @ooctipus @AntoineRichard
+/source/isaaclab/isaaclab/utils/warp/ @AntoineRichard @hujc @maxkra15
+/source/isaaclab/isaaclab/visualizers/ @matthewtrepte @daniela-hase @pbarejko
 
-# RL Environment
-/source/isaaclab_tasks/isaaclab_tasks/direct @kellyguo11
-/source/isaaclab_tasks/isaaclab_tasks/manager_based @Mayankm96
-/source/isaaclab_tasks/isaaclab_tasks/utils @Mayankm96
+# Source packages
+/source/isaaclab_assets/ @AntoineRichard @StafaH @hujc
+/source/isaaclab_assets/isaaclab_assets/robots/fourbar_pole.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
+/source/isaaclab_assets/isaaclab_assets/robots/dr_legs.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
+/source/isaaclab_contrib/ @AntoineRichard @ooctipus @StafaH @mmichelis @pascal-roth
+/source/isaaclab_contrib/isaaclab_contrib/deformable/ @mmichelis @AntoineRichard
+/source/isaaclab_experimental/ @hujc @AntoineRichard @ooctipus @StafaH
+/source/isaaclab_mimic/ @kellyguo11 @peterd-NV
+/source/isaaclab_mimic/isaaclab_mimic/locomanipulation_sdg/ @jaybdub @kellyguo11
+/source/isaaclab_newton/ @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/isaaclab_newton/actuators/ @AntoineRichard @StafaH
+/source/isaaclab_newton/isaaclab_newton/assets/ @AntoineRichard @ooctipus @mmichelis @maxkra15
+/source/isaaclab_newton/isaaclab_newton/cloner/ @ooctipus @huidongc @hujc @AntoineRichard
+/source/isaaclab_newton/isaaclab_newton/envs/ @maxkra15 @AntoineRichard @hujc @ooctipus
+/source/isaaclab_newton/isaaclab_newton/ik/ @maxkra15 @AntoineRichard @hujc
+/source/isaaclab_newton/isaaclab_newton/kernels/ @hujc @AntoineRichard @StafaH
+/source/isaaclab_newton/isaaclab_newton/physics/ @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/isaaclab_newton/renderers/ @pbarejko @daniela-hase @AntoineRichard @huidongc
+/source/isaaclab_newton/isaaclab_newton/sensors/ @ooctipus @AntoineRichard @camevor @pbarejko
+/source/isaaclab_newton/isaaclab_newton/sim/ @vidurv-nvidia @huidongc @ooctipus @AntoineRichard
+/source/isaaclab_newton/isaaclab_newton/test/ @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/isaaclab_newton/video_recording/ @matthewtrepte @pbarejko
+/source/isaaclab_newton/test/ @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/isaaclab_newton/physics/kamino_manager_cfg.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/isaaclab_newton/physics/newton_manager.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc @daniela-hase
+/source/isaaclab_newton/isaaclab_newton/physics/newton_manager_cfg.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc @daniela-hase
+/source/isaaclab_newton/isaaclab_newton/cloner/newton_clone_utils.py @david-cao-mueller @aserifi @rubengrandia @huidongc @AntoineRichard
+/source/isaaclab_newton/isaaclab_newton/sim/views/ @pv-nvidia @huidongc @AntoineRichard
+/source/isaaclab_newton/test/physics/test_newton_manager_abstraction.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc
+/source/isaaclab_ov/ @huidongc @rilei-nvidia @pbarejko @daniela-hase
+/source/isaaclab_ovphysx/ @AntoineRichard @marcodiiga @hujc
+/source/isaaclab_ovphysx/isaaclab_ovphysx/assets/articulation/ @marcodiiga @AntoineRichard @hujc
+/source/isaaclab_ovphysx/isaaclab_ovphysx/physics/ @marcodiiga @AntoineRichard @ooctipus @hujc
+/source/isaaclab_ovphysx/isaaclab_ovphysx/sim/views/ @pv-nvidia @huidongc @AntoineRichard
+/source/isaaclab_ovphysx/test/assets/ @marcodiiga @AntoineRichard @ooctipus
+/source/isaaclab_physx/ @AntoineRichard @ooctipus @matthewtrepte @kellyguo11 @hujc
+/source/isaaclab_physx/isaaclab_physx/sim/views/ @pv-nvidia @AntoineRichard @pbarejko @ooctipus
+/source/isaaclab_ppisp/ @moennen @StafaH @pbarejko
+/source/isaaclab_teleop/ @rwiltz @hougantc-nvda @StafaH @AntoineRichard
+/source/isaaclab_visualizers/ @matthewtrepte @daniela-hase @StafaH
 
-# Assets
-/source/isaaclab_assets/isaaclab_assets/ @pascal-roth
+# RL and tasks
+/source/isaaclab_rl/ @ooctipus @StafaH @Mayankm96 @ClemensSchwarke
+/source/isaaclab_rl/test/export/ @frlai @StafaH
+/source/isaaclab_rl/isaaclab_rl/rsl_rl/ @ClemensSchwarke @ooctipus @kellyguo11
+/source/isaaclab_rl/isaaclab_rl/rl_games/ @Toni-SM @ooctipus @kellyguo11
+/source/isaaclab_rl/isaaclab_rl/sb3.py @Toni-SM @ooctipus @kellyguo11
+/source/isaaclab_rl/isaaclab_rl/skrl.py @Toni-SM @ooctipus @kellyguo11
+/source/isaaclab_tasks/ @AntoineRichard @ooctipus @StafaH @kellyguo11 @hujc
+/source/isaaclab_tasks/isaaclab_tasks/core/ @StafaH @AntoineRichard @ooctipus @hujc @kellyguo11 @Mayankm96 @ClemensSchwarke @pascal-roth
+/source/isaaclab_tasks/isaaclab_tasks/core/fourbar_pole/ @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @StafaH
+/source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ @AntoineRichard @ooctipus @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ @AntoineRichard @ooctipus @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/ @AntoineRichard @ooctipus @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/core/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @ooctipus @AntoineRichard
+/source/isaaclab_tasks/isaaclab_tasks/contrib/ @StafaH @ooctipus @AntoineRichard @kellyguo11 @hujc
+/source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/ @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
+/source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/ @Mayankm96 @pascal-roth @ClemensSchwarke @AntoineRichard @ooctipus
+/source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/ @Mayankm96 @pascal-roth @ClemensSchwarke @AntoineRichard @ooctipus
+/source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/ @Mayankm96 @pascal-roth @ClemensSchwarke
+/source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @AntoineRichard @StafaH @ooctipus
+/source/isaaclab_tasks/isaaclab_tasks/utils/ @AntoineRichard @StafaH @ooctipus @pbarejko
+/source/isaaclab_tasks_experimental/ @StafaH @AntoineRichard @ooctipus @hujc
 
-# Mimic
-/source/isaaclab_mimic/isaaclab_mimic @peterd-NV
-/source/isaaclab_mimic/isaaclab_mimic @njawale42
-/source/isaaclab_mimic/isaaclab_mimic @michaellin6
-/source/isaaclab_mimic/isaaclab_mimic @jaybdub
-/source/isaaclab_mimic/isaaclab_mimic @huihuaNvidia2023
-/source/isaaclab_mimic/isaaclab_mimic @xyao-nv
+# Standalone scripts
+/scripts/benchmarks/ @AntoineRichard @StafaH @kellyguo11 @ooctipus @jmart-nv @pv-nvidia
+/scripts/demos/ @ooctipus @pbarejko @mmichelis @maxkra15 @AntoineRichard @hujc
+/scripts/environments/ @ooctipus @StafaH @hujc
+/scripts/imitation_learning/ @peterd-NV @StafaH @pbarejko @jaybdub
+/scripts/imitation_learning/locomanipulation_sdg/ @jaybdub @peterd-NV
+/scripts/reinforcement_learning/ @StafaH @AntoineRichard @hujc @ooctipus @kellyguo11 @Toni-SM
+/scripts/reinforcement_learning/leapp/ @frlai @StafaH
+/scripts/reinforcement_learning/rl_games/ @Toni-SM @ooctipus @kellyguo11
+/scripts/reinforcement_learning/sb3/ @Toni-SM @ooctipus @kellyguo11
+/scripts/reinforcement_learning/skrl/ @Toni-SM @ooctipus @kellyguo11
+/scripts/sim2sim_transfer/ @StafaH @ooctipus @AntoineRichard
+/scripts/tools/ @StafaH @hujc @kellyguo11 @pbarejko
+/scripts/tutorials/ @matthewtrepte @hujc @ooctipus @mmichelis @AntoineRichard
+/scripts/tutorials/06_deploy/ @frlai @StafaH
 
-# RL
-/source/isaaclab_rl/isaaclab_rl/rsl_rl @Mayankm96 @ClemensSchwarke
-/source/isaaclab_rl/isaaclab_rl/rl_games @Toni-SM
-/source/isaaclab_rl/isaaclab_rl/sb3 @Toni-SM
-/source/isaaclab_rl/isaaclab_rl/skrl @Toni-SM
+# GitHub Actions and infrastructure
+/.github/ @kellyguo11 @myurasov-nv @AntoineRichard @StafaH @huidongc @hujc
+/.vscode/ @kellyguo11 @hujc @myurasov-nv @Toni-SM
+/docker/ @myurasov-nv @kellyguo11 @hujc @AntoineRichard
+/docs/ @AntoineRichard @kellyguo11 @StafaH @ooctipus @matthewtrepte
+/docs/source/api/lab_contrib/isaaclab_contrib.deformable.rst @mmichelis @AntoineRichard
+/docs/source/api/lab_newton/ @AntoineRichard @mmichelis @maxkra15 @hujc
+/docs/source/api/lab_ovphysx/ @AntoineRichard @hujc @marcodiiga
+/docs/source/api/lab_physx/ @AntoineRichard @mmichelis @vidurv-nvidia @hujc
+/docs/source/features/isaac_teleop.rst @rwiltz @hougantc-nvda @StafaH @AntoineRichard
+/docs/source/how-to/cloudxr_teleoperation.rst @rwiltz @hougantc-nvda @kellyguo11
+/docs/source/how-to/configure_rendering.rst @pbarejko @StafaH @kellyguo11
+/docs/source/how-to/profile_with_nsys.rst @jmart-nv @pbarejko
+/docs/source/how-to/visualizer_tiled_camera.rst @matthewtrepte @pbarejko @StafaH
+/docs/source/migration/migrating_deformables.rst @mmichelis @AntoineRichard
+/docs/source/overview/core-concepts/visualization.rst @matthewtrepte @daniela-hase @huidongc
+/docs/source/overview/core-concepts/physical-backends/newton/ @AntoineRichard @ooctipus @StafaH @hujc @mmichelis @maxkra15
+/docs/source/overview/core-concepts/renderers.rst @pbarejko @jmart-nv @r-schmitt @matthewtrepte @StafaH
+/docs/source/overview/core-concepts/scene_data_providers.rst @daniela-hase @matthewtrepte @ooctipus
+/docs/source/overview/core-concepts/sensors/camera.rst @pbarejko @rilei-nvidia @r-schmitt
+/docs/source/policy_deployment/02_gear_assembly/ @frlai @StafaH
+/docs/source/api/lab_visualizers/ @matthewtrepte @daniela-hase @StafaH @ooctipus
+/docs/source/tutorials/01_assets/run_deformable_object.rst @mmichelis @AntoineRichard
+/docs/source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp.rst @frlai @StafaH @AntoineRichard
+/docs/source/overview/core-concepts/physical-backends/newton/kamino-solver.rst @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
+/docs/source/overview/core-concepts/physical-backends/solver-comparison.rst @AntoineRichard @StafaH
+/docs/source/overview/imitation-learning/humanoids_imitation.rst @jaybdub @kellyguo11
+/docs/source/policy_deployment/03_compass_with_NuRec/ @sameerchavan0027
+/docs/source/policy_deployment/05_leapp/ @frlai
+/tools/ @kellyguo11 @StafaH @huidongc @hujc @myurasov-nv
+/.pre-commit-config.yaml @kellyguo11 @StafaH @hujc
+/conftest.py @kellyguo11 @StafaH @hujc @mataylor
+/pyproject.toml @StafaH @hujc @AntoineRichard @kellyguo11
+/isaaclab.* @hujc @StafaH @kellyguo11 @AntoineRichard @pbarejko
 
-# Standalone Scripts
-/scripts/benchmarks/ @ooctipus @kellyguo11
-/scripts/demos/ @ooctipus
-/scripts/environments/ @ooctipus
-/scripts/imitation_learning/ @Peter-NV
-/scripts/reinforcement_learning/ @ooctipus @Toni-NV
-/scripts/tools/ @jtigue-bdai @Mayankm96
-/scripts/tutorials/ @jtigue-bdai @pascal-roth
-
-# Github Actions
-# This list is for people wanting to be notified every time there's a change
-# related to Github Actions
-/.github/ @kellyguo11 @hhansen-bdai
-
-# Visual Studio Code
-/.vscode/ @hhansen-bdai @Mayankm96
-
-# Infrastructure (Docker, Docs, Tools)
-/docker/ @hhansen-bdai @pascal-roth
-/docs/ @jtigue-bdai @kellyguo11 @Mayankm96
-/tools/ @hhansen-bdai
-/isaaclab.* @hhansen-bdai @Mayankm96 @kellyguo11
+# RLiNF
+/source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/ @mingxueg @kellyguo11
+/source/isaaclab_contrib/test/rl/test_rlinf_extension.py @mingxueg @kellyguo11
+/scripts/reinforcement_learning/rlinf/ @mingxueg @kellyguo11
+/docs/source/experimental-features/rlinf_vla_posttraining.rst @mingxueg @kellyguo11
+/docs/source/api/lab_contrib/isaaclab_contrib.rl.rst @mingxueg @kellyguo11

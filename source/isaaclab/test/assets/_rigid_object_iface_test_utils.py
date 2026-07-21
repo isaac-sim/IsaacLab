@@ -8,41 +8,9 @@
 
 """Shared mocked rigid-object backend factories for interface tests."""
 
-import os
-import sys
-import importlib.util
 from unittest.mock import MagicMock
 
-# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
-# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
-# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
-# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
-# set (bare Python, no Kit at all).
-_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
-    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
-)
-
-if not _kitless:
-    from isaaclab.app import AppLauncher
-
-    simulation_app = AppLauncher(headless=True).app
-else:
-    simulation_app = None
-    # Stub out the Kit/Omniverse modules that are not present under
-    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
-    # ``omni`` is a real namespace package, so missing submodules also need
-    # to be installed as attributes on it -- ``sys.modules`` alone is not
-    # enough because attribute access on the real ``omni`` won't fall
-    # through to ``sys.modules``.
-    import omni as _omni
-
-    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
-        _stub = MagicMock()
-        sys.modules[f"omni.{_mod}"] = _stub
-        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
-        setattr(_omni, _mod.split(".", 1)[0], _stub)
-    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
-        sys.modules.setdefault(_mod, MagicMock())
+from _iface_test_boot import simulation_app
 
 import numpy as np
 import warp as wp
@@ -50,40 +18,41 @@ import warp as wp
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
-# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
-# This is needed because the Data classes call SimulationManager.get_physics_sim_view().get_gravity()
-# but there's no actual physics scene when running unit tests
-_mock_physics_sim_view = MagicMock()
-_mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
-SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
-
 BACKENDS = ["Mock"]  # Mock backend is always available.
 
-if importlib.util.find_spec("isaaclab_physx") is not None:
+try:
     from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject as PhysXRigidObject
     from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
+    from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
+except ImportError:
+    pass
+else:
+    # PhysX data classes need gravity even though interface tests do not create a physics scene.
+    _mock_physics_sim_view = MagicMock()
+    _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+    SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
     BACKENDS.append("physx")
 
-if importlib.util.find_spec("isaaclab_newton") is not None:
+try:
     from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject as NewtonRigidObject
     from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData as NewtonRigidObjectData
     from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
-
+except ImportError:
+    pass
+else:
     BACKENDS.append("newton")
 
-if (
-    importlib.util.find_spec("isaaclab_ovphysx") is not None
-    and importlib.util.find_spec("ovphysx") is not None
-):
+try:
+    import ovphysx  # noqa: F401
+
     from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
     from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
     from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
-
+except ImportError:
+    pass
+else:
     BACKENDS.append("ovphysx")
 
 
