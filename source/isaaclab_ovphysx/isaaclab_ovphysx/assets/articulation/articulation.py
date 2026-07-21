@@ -963,7 +963,7 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         ordering_kernels.write_float_user_to_backend_with_indices(
             position,
             env_ids,
@@ -1015,7 +1015,7 @@ class Articulation(BaseArticulation):
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         ordering_kernels.write_float_user_to_backend_with_mask(
             position,
             env_mask_wp,
@@ -1064,7 +1064,7 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1115,7 +1115,7 @@ class Articulation(BaseArticulation):
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
@@ -1171,7 +1171,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         wp.launch(
             ordering_kernels.write_joint_state_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
@@ -2258,12 +2258,10 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         body_mass_backend = self._data._body_mass.data
         if has_body_ordering:
             backend_staging = self._data._body_mass_backend
-            if backend_staging is None:
-                raise RuntimeError("OVPhysX body ordering requires _body_mass_backend.")
             body_mass_backend = backend_staging.data
         ordering_kernels.write_float_user_to_backend_with_indices(
             masses,
@@ -2312,12 +2310,10 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         body_mass_backend = self._data._body_mass.data
         if has_body_ordering:
             backend_staging = self._data._body_mass_backend
-            if backend_staging is None:
-                raise RuntimeError("OVPhysX body ordering requires _body_mass_backend.")
             body_mass_backend = backend_staging.data
         ordering_kernels.write_float_user_to_backend_with_mask(
             masses,
@@ -2380,12 +2376,10 @@ class Articulation(BaseArticulation):
             body_sel = self._resolve_body_ids(body_sel)
             self.assert_shape_and_dtype(coms, (env_sel.shape[0], body_sel.shape[0]), wp.transformf, "coms")
 
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         backend_staging = self._data._body_com_pose_b_backend
         body_com_backend = self._data._body_com_pose_b.data
         if has_body_ordering:
-            if backend_staging is None:
-                raise RuntimeError("OVPhysX body ordering requires _body_com_pose_b_backend.")
             body_com_backend = backend_staging.data
         if not all_bodies_selected:
             self._data._ensure_body_com_pose_b_current()
@@ -2535,12 +2529,10 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         body_inertia_backend = self._data._body_inertia.data
         if has_body_ordering:
             backend_staging = self._data._body_inertia_backend
-            if backend_staging is None:
-                raise RuntimeError("OVPhysX body ordering requires _body_inertia_backend.")
             body_inertia_backend = backend_staging.data
         ordering_kernels.write_3d_user_to_backend_with_indices(
             inertias,
@@ -2590,12 +2582,10 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         body_inertia_backend = self._data._body_inertia.data
         if has_body_ordering:
             backend_staging = self._data._body_inertia_backend
-            if backend_staging is None:
-                raise RuntimeError("OVPhysX body ordering requires _body_inertia_backend.")
             body_inertia_backend = backend_staging.data
         ordering_kernels.write_3d_user_to_backend_with_mask(
             inertias,
@@ -2663,10 +2653,8 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(target, (env_sel.shape[0], joint_sel.shape[0]), wp.float32, "target")
         # Under a non-identity ordering the backend staging receives the reordered copy and is the
         # buffer pushed to the binding; the identity case writes and pushes the public buffer.
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
-            if backend_buffer is None:
-                raise RuntimeError(f"{self.__backend_name__} joint ordering requires backend target staging.")
             target_backend = backend_buffer
         else:
             target_backend = user_buffer
