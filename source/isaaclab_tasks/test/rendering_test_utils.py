@@ -1674,14 +1674,11 @@ def rendering_test_franka_soft(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if renderer == "isaacsim_rtx_renderer":
-        pytest.skip("The test cases will be enabled after OMPE-101977 is fixed.")
+    if physics_backend == "physx" or renderer == "isaacsim_rtx_renderer":
+        pytest.skip("Random teardown hangs in the kit-based combinations (OMPE-101977).")
 
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
         pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
-
-    if physics_backend == "physx" and renderer == "newton_renderer":
-        pytest.skip("The test cases will be enabled after Newton Github Issue#3228 is fixed.")
 
     if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
         pytest.skip("The test cases will be enabled after NVBUG#6418121 is fixed.")
