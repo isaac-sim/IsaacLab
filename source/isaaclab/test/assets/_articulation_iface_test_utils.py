@@ -298,6 +298,9 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "_debug_vis_handle", None)
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
+    object.__setattr__(articulation, "_can_write_effort", True)
+    object.__setattr__(articulation, "_can_write_pos_target", True)
+    object.__setattr__(articulation, "_can_write_vel_target", True)
 
     return articulation, mock_bindings
 

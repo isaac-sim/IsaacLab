@@ -2183,6 +2183,17 @@ class TestArticulationOperations:
         expected = np.asarray([[patterns[name] for name in art.joint_names]], dtype=np.float32)
         np.testing.assert_array_equal(art.data.default_joint_pos.warp.numpy(), expected)
 
+    def test_ovphysx_mock_shell_mirrors_write_capabilities(self) -> None:
+        """The OVPhysX test shell mirrors the write bindings installed by initialization."""
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+
+        art, _ = get_articulation("ovphysx", device="cpu")
+
+        assert art._can_write_effort is True
+        assert art._can_write_pos_target is True
+        assert art._can_write_vel_target is True
+
     def test_physx_newton_actuator_forces_are_written_in_backend_order(self):
         """Write Newton-actuator PhysX forces in backend joint order."""
         if "physx" not in BACKENDS:
