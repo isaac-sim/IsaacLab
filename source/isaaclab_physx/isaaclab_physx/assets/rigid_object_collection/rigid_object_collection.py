@@ -230,7 +230,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Find bodies in the rigid body collection based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:

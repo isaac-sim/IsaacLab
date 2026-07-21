@@ -1,4 +1,5 @@
 Added
 ^^^^^
 
-* Added cached ``ProxyArray`` selector support to Newton asset finder methods.
+* Added cached :class:`~isaaclab.utils.warp.ProxyArray`
+  selector support to Newton asset finder methods.

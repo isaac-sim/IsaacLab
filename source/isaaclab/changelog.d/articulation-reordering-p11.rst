@@ -1,7 +1,8 @@
 Added
 ^^^^^
 
-* Added an opt-in cached ``ProxyArray`` return mode to asset finder methods for
+* Added an opt-in cached :class:`~isaaclab.utils.warp.ProxyArray`
+  return mode to asset finder methods for
   zero-copy Torch and Warp index views.
 
 Deprecated
