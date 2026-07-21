@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import Any
+
+import torch
 import warp as wp
+
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 """
 Articulation-specific warp functions.
@@ -113,8 +120,8 @@ def update_soft_joint_pos_limits(
 @wp.kernel
 def clamp_default_joint_pos_and_update_soft_limits_index(
     joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     soft_limit_factor: wp.float32,
     default_joint_pos: wp.array2d(dtype=wp.float32),
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
@@ -147,14 +154,34 @@ def clamp_default_joint_pos_and_update_soft_limits_index(
             default joint position was clamped. Shape is (1,).
     """
     i, j = wp.tid()
-    e = env_ids[i]
-    k = joint_ids[j]
+    e = wp.int32(env_ids[i])
+    k = wp.int32(joint_ids[j])
     lo = joint_pos_limits[e, k][0]
     hi = joint_pos_limits[e, k][1]
     if (default_joint_pos[e, k] < lo) or (default_joint_pos[e, k] > hi):
         wp.atomic_add(clamped_count, 0, 1)
         default_joint_pos[e, k] = wp.clamp(default_joint_pos[e, k], lo, hi)
     soft_joint_pos_limits[e, k] = compute_soft_joint_pos_limits_func(joint_pos_limits[e, k], soft_limit_factor)
+
+
+_CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER = IndexKernelDispatcher(
+    clamp_default_joint_pos_and_update_soft_limits_index, ("env_ids", "joint_ids")
+)
+
+
+def clamp_default_joint_pos_and_update_soft_limits_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select an articulation worker matching the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        joint_ids: Joint index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
@@ -202,8 +229,8 @@ def write_joint_friction_data_to_buffer_index(
     in_static: wp.array2d(dtype=wp.float32),
     in_dynamic: wp.array2d(dtype=wp.float32),
     in_viscous: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     out_buffer: wp.array3d(dtype=wp.float32),
 ):
     """Conditionally update the static / dynamic / viscous slots of the friction buffer.
@@ -226,12 +253,34 @@ def write_joint_friction_data_to_buffer_index(
             slots [0] static, [1] dynamic, [2] viscous.
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
     if in_static:
-        out_buffer[env_ids[i], joint_ids[j], 0] = in_static[i, j]
+        out_buffer[env_id, joint_id, 0] = in_static[i, j]
     if in_dynamic:
-        out_buffer[env_ids[i], joint_ids[j], 1] = in_dynamic[i, j]
+        out_buffer[env_id, joint_id, 1] = in_dynamic[i, j]
     if in_viscous:
-        out_buffer[env_ids[i], joint_ids[j], 2] = in_viscous[i, j]
+        out_buffer[env_id, joint_id, 2] = in_viscous[i, j]
+
+
+_WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_joint_friction_data_to_buffer_index, ("env_ids", "joint_ids")
+)
+
+
+def write_joint_friction_data_to_buffer_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select an articulation worker matching the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        joint_ids: Joint index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel

@@ -36,10 +36,10 @@ from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .articulation_data import ArticulationData
 from .kernels import (
-    clamp_default_joint_pos_and_update_soft_limits_index,
+    clamp_default_joint_pos_and_update_soft_limits_index_kernel,
     clamp_default_joint_pos_and_update_soft_limits_mask,
     update_soft_joint_pos_limits,
-    write_joint_friction_data_to_buffer_index,
+    write_joint_friction_data_to_buffer_index_kernel,
     write_joint_friction_data_to_buffer_mask,
 )
 
@@ -494,7 +494,7 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         wp.launch(
-            shared_kernels.set_root_link_pose_to_sim_index,
+            shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[root_pose, env_ids],
             outputs=[self.data.root_link_pose_w],
@@ -573,7 +573,7 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         wp.launch(
-            shared_kernels.set_root_com_pose_to_sim_index,
+            shared_kernels.set_root_com_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[root_pose, self.data._backend_body_com_pose_b, env_ids],
             outputs=[self.data.root_com_pose_w, self.data.root_link_pose_w],
@@ -714,7 +714,7 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         wp.launch(
-            shared_kernels.set_root_com_velocity_to_sim_index,
+            shared_kernels.set_root_com_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[root_velocity, env_ids, self._num_bodies],
             outputs=[self.data.root_com_vel_w, self.data.body_com_acc_w],
@@ -802,7 +802,7 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         wp.launch(
-            shared_kernels.set_root_link_velocity_to_sim_index,
+            shared_kernels.set_root_link_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -904,7 +904,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, expected_shape, wp.float32, "position")
         self.assert_shape_and_dtype(velocity, expected_shape, wp.float32, "velocity")
         wp.launch(
-            shared_kernels.write_joint_state_to_buffer_with_indices,
+            shared_kernels.write_joint_state_to_buffer_with_indices_kernel(env_ids, joint_ids),
             dim=expected_shape,
             inputs=[position, velocity, env_ids, joint_ids],
             outputs=[
@@ -1227,7 +1227,7 @@ class Articulation(BaseArticulation):
         stiffness = self._broadcast_scalar_to_2d(stiffness, shape)
         self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
             dim=shape,
             inputs=[stiffness, env_ids, joint_ids],
             outputs=[self._data._joint_stiffness.data],
@@ -1321,7 +1321,7 @@ class Articulation(BaseArticulation):
         damping = self._broadcast_scalar_to_2d(damping, shape)
         self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
             dim=shape,
             inputs=[damping, env_ids, joint_ids],
             outputs=[self._data._joint_damping.data],
@@ -1436,7 +1436,7 @@ class Articulation(BaseArticulation):
             kernel_limits = limits
         # Scatter [lower, upper] pairs into the vec2f cache buffer.
         wp.launch(
-            shared_kernels.write_joint_position_limit_to_buffer_index,
+            shared_kernels.write_joint_position_limit_to_buffer_index_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[kernel_limits, env_ids, joint_ids],
             outputs=[self._data._joint_pos_limits.data],
@@ -1445,7 +1445,7 @@ class Articulation(BaseArticulation):
         # Clamp default_joint_pos to the new limits and refresh soft_joint_pos_limits.
         clamped_count = wp.zeros(1, dtype=wp.int32, device=self._device)
         wp.launch(
-            clamp_default_joint_pos_and_update_soft_limits_index,
+            clamp_default_joint_pos_and_update_soft_limits_index_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 self._data._joint_pos_limits.data,
@@ -1618,7 +1618,7 @@ class Articulation(BaseArticulation):
         limits = self._broadcast_scalar_to_2d(limits, shape)
         self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
             dim=shape,
             inputs=[limits, env_ids, joint_ids],
             outputs=[self._data._joint_vel_limits.data],
@@ -1712,7 +1712,7 @@ class Articulation(BaseArticulation):
         limits = self._broadcast_scalar_to_2d(limits, shape)
         self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
             dim=shape,
             inputs=[limits, env_ids, joint_ids],
             outputs=[self._data._joint_effort_limits.data],
@@ -1806,7 +1806,7 @@ class Articulation(BaseArticulation):
         armature = self._broadcast_scalar_to_2d(armature, shape)
         self.assert_shape_and_dtype(armature, shape, wp.float32, "armature")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
             dim=shape,
             inputs=[armature, env_ids, joint_ids],
             outputs=[self._data._joint_armature.data],
@@ -1922,7 +1922,7 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index,
+            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
             dim=shape,
             inputs=[
                 joint_friction_coeff,
@@ -2039,7 +2039,7 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index,
+            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2148,7 +2148,7 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index,
+            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2936,7 +2936,7 @@ class Articulation(BaseArticulation):
         stiffness = self._broadcast_scalar_to_2d(stiffness, shape)
         self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=shape,
             inputs=[stiffness, env_ids, tendon_ids],
             outputs=[self._data._fixed_tendon_stiffness.data],
@@ -3024,7 +3024,7 @@ class Articulation(BaseArticulation):
         damping = self._broadcast_scalar_to_2d(damping, shape)
         self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=shape,
             inputs=[damping, env_ids, tendon_ids],
             outputs=[self._data._fixed_tendon_damping.data],
@@ -3108,7 +3108,7 @@ class Articulation(BaseArticulation):
         limit_stiffness = self._broadcast_scalar_to_2d(limit_stiffness, shape)
         self.assert_shape_and_dtype(limit_stiffness, shape, wp.float32, "limit_stiffness")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=shape,
             inputs=[limit_stiffness, env_ids, tendon_ids],
             outputs=[self._data._fixed_tendon_limit_stiffness.data],
@@ -3194,7 +3194,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(limit, (env_ids.shape[0], tendon_ids.shape[0], 2), wp.float32, "limit")
         # Scatter [lower, upper] pairs into the vec2f cache buffer.
         wp.launch(
-            shared_kernels.write_joint_position_limit_to_buffer_index,
+            shared_kernels.write_joint_position_limit_to_buffer_index_kernel(env_ids, tendon_ids),
             dim=(env_ids.shape[0], tendon_ids.shape[0]),
             inputs=[limit, env_ids, tendon_ids],
             outputs=[self._data._fixed_tendon_pos_limits.data],
@@ -3290,7 +3290,7 @@ class Articulation(BaseArticulation):
         rest_length = self._broadcast_scalar_to_2d(rest_length, shape)
         self.assert_shape_and_dtype(rest_length, shape, wp.float32, "rest_length")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=shape,
             inputs=[rest_length, env_ids, tendon_ids],
             outputs=[self._data._fixed_tendon_rest_length.data],
@@ -3378,7 +3378,7 @@ class Articulation(BaseArticulation):
         offset = self._broadcast_scalar_to_2d(offset, shape)
         self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=shape,
             inputs=[offset, env_ids, tendon_ids],
             outputs=[self._data._fixed_tendon_offset.data],
@@ -3540,7 +3540,7 @@ class Articulation(BaseArticulation):
         stiffness = self._broadcast_scalar_to_2d(stiffness, (env_ids.shape[0], tendon_ids.shape[0]))
         self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "stiffness")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=(env_ids.shape[0], tendon_ids.shape[0]),
             inputs=[stiffness, env_ids, tendon_ids],
             outputs=[self._data._spatial_tendon_stiffness.data],
@@ -3626,7 +3626,7 @@ class Articulation(BaseArticulation):
         damping = self._broadcast_scalar_to_2d(damping, (env_ids.shape[0], tendon_ids.shape[0]))
         self.assert_shape_and_dtype(damping, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "damping")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=(env_ids.shape[0], tendon_ids.shape[0]),
             inputs=[damping, env_ids, tendon_ids],
             outputs=[self._data._spatial_tendon_damping.data],
@@ -3716,7 +3716,7 @@ class Articulation(BaseArticulation):
             limit_stiffness, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "limit_stiffness"
         )
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=(env_ids.shape[0], tendon_ids.shape[0]),
             inputs=[limit_stiffness, env_ids, tendon_ids],
             outputs=[self._data._spatial_tendon_limit_stiffness.data],
@@ -3804,7 +3804,7 @@ class Articulation(BaseArticulation):
         offset = self._broadcast_scalar_to_2d(offset, (env_ids.shape[0], tendon_ids.shape[0]))
         self.assert_shape_and_dtype(offset, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "offset")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
             dim=(env_ids.shape[0], tendon_ids.shape[0]),
             inputs=[offset, env_ids, tendon_ids],
             outputs=[self._data._spatial_tendon_offset.data],
@@ -4469,49 +4469,49 @@ class Articulation(BaseArticulation):
         return env_ids
 
     def _resolve_body_ids(self, body_ids) -> wp.array:
-        """Resolve body indices to a warp int32 array on ``self._device`` (mirrors PhysX)."""
+        """Resolve body indices to a Warp signed-integer array on ``self._device``."""
         if body_ids is None or body_ids == slice(None):
             return self._ALL_BODY_INDICES
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self._device)
         if isinstance(body_ids, torch.Tensor):
-            return wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
+            return wp.from_torch(body_ids)
         if isinstance(body_ids, wp.array) and str(body_ids.device) != self._device:
             body_ids = wp.clone(body_ids, device=self._device)
         return body_ids
 
     def _resolve_joint_ids(self, joint_ids) -> wp.array:
-        """Resolve joint indices to a warp int32 array on ``self._device``."""
+        """Resolve joint indices to a Warp signed-integer array on ``self._device``."""
         if joint_ids is None or joint_ids == slice(None):
             return self._ALL_JOINT_INDICES
         if isinstance(joint_ids, list):
             return wp.array(joint_ids, dtype=wp.int32, device=self._device)
         if isinstance(joint_ids, torch.Tensor):
-            return wp.from_torch(joint_ids.to(torch.int32), dtype=wp.int32)
+            return wp.from_torch(joint_ids)
         if isinstance(joint_ids, wp.array) and str(joint_ids.device) != self._device:
             joint_ids = wp.clone(joint_ids, device=self._device)
         return joint_ids
 
     def _resolve_fixed_tendon_ids(self, tendon_ids) -> wp.array:
-        """Resolve fixed-tendon indices to a warp int32 array on ``self._device``."""
+        """Resolve fixed-tendon indices to a Warp signed-integer array on ``self._device``."""
         if tendon_ids is None or tendon_ids == slice(None):
             return self._ALL_FIXED_TENDON_INDICES
         if isinstance(tendon_ids, list):
             return wp.array(tendon_ids, dtype=wp.int32, device=self._device)
         if isinstance(tendon_ids, torch.Tensor):
-            return wp.from_torch(tendon_ids.to(torch.int32), dtype=wp.int32)
+            return wp.from_torch(tendon_ids)
         if isinstance(tendon_ids, wp.array) and str(tendon_ids.device) != self._device:
             tendon_ids = wp.clone(tendon_ids, device=self._device)
         return tendon_ids
 
     def _resolve_spatial_tendon_ids(self, tendon_ids) -> wp.array:
-        """Resolve spatial-tendon indices to a warp int32 array on ``self._device``."""
+        """Resolve spatial-tendon indices to a Warp signed-integer array on ``self._device``."""
         if tendon_ids is None or tendon_ids == slice(None):
             return self._ALL_SPATIAL_TENDON_INDICES
         if isinstance(tendon_ids, list):
             return wp.array(tendon_ids, dtype=wp.int32, device=self._device)
         if isinstance(tendon_ids, torch.Tensor):
-            return wp.from_torch(tendon_ids.to(torch.int32), dtype=wp.int32)
+            return wp.from_torch(tendon_ids)
         if isinstance(tendon_ids, wp.array) and str(tendon_ids.device) != self._device:
             tendon_ids = wp.clone(tendon_ids, device=self._device)
         return tendon_ids

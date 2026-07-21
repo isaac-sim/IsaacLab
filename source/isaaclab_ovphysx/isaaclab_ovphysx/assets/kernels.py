@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import Any
+
+import torch
 import warp as wp
+
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
 
@@ -466,7 +473,7 @@ Root-level write kernels (1D — used by RigidObject + Articulation).
 @wp.kernel
 def set_root_link_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     root_link_pose_w: wp.array(dtype=wp.transformf),
 ):
     """Write root link pose data to simulation buffers.
@@ -480,14 +487,15 @@ def set_root_link_pose_to_sim_index(
         root_link_pose_w: Output array where root link poses are written. Shape is (num_envs,).
     """
     i = wp.tid()
-    root_link_pose_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_link_pose_w[env_id] = data[i]
 
 
 @wp.kernel
 def set_root_com_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
     body_com_pose_b: wp.array2d(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
 ):
@@ -507,17 +515,16 @@ def set_root_com_pose_to_sim_index(
             Shape is (num_envs,).
     """
     i = wp.tid()
-    root_com_pose_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_com_pose_w[env_id] = data[i]
     # Get the com pose in the link frame
-    root_link_pose_w[env_ids[i]] = get_com_pose_in_link_frame_func(
-        root_com_pose_w[env_ids[i]], body_com_pose_b[env_ids[i], 0]
-    )
+    root_link_pose_w[env_id] = get_com_pose_in_link_frame_func(root_com_pose_w[env_id], body_com_pose_b[env_id, 0])
 
 
 @wp.kernel
 def set_root_com_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     num_bodies: wp.int32,
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
@@ -537,10 +544,11 @@ def set_root_com_velocity_to_sim_index(
             (num_envs, num_bodies).
     """
     i = wp.tid()
-    root_com_velocity_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_com_velocity_w[env_id] = data[i]
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
-        body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        body_acc_w[env_id, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @wp.kernel
@@ -548,7 +556,7 @@ def set_root_link_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
     body_com_pose_b: wp.array2d(dtype=wp.transformf),
     link_pose_w: wp.array(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     num_bodies: wp.int32,
     root_link_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
@@ -575,14 +583,71 @@ def set_root_link_velocity_to_sim_index(
             Shape is (num_envs, num_bodies).
     """
     i = wp.tid()
-    root_link_velocity_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_link_velocity_w[env_id] = data[i]
     # Get the link velocity in the com frame
-    root_com_velocity_w[env_ids[i]] = get_link_velocity_in_com_frame_func(
-        root_link_velocity_w[env_ids[i]], link_pose_w[env_ids[i]], body_com_pose_b[env_ids[i], 0]
+    root_com_velocity_w[env_id] = get_link_velocity_in_com_frame_func(
+        root_link_velocity_w[env_id], link_pose_w[env_id], body_com_pose_b[env_id, 0]
     )
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
-        body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        body_acc_w[env_id, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
+_SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_link_pose_to_sim_index, ("env_ids",))
+_SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_com_pose_to_sim_index, ("env_ids",))
+_SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_com_velocity_to_sim_index, ("env_ids",))
+_SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(
+    set_root_link_velocity_to_sim_index, ("env_ids",)
+)
+
+
+def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select a root writer matching the environment selector dtype.
+
+    Args:
+        env_ids: Environment index selector.
+
+    Returns:
+        Concrete Warp kernel matching the selector dtype.
+    """
+    return _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select a root writer matching the environment selector dtype.
+
+    Args:
+        env_ids: Environment index selector.
+
+    Returns:
+        Concrete Warp kernel matching the selector dtype.
+    """
+    return _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select a root writer matching the environment selector dtype.
+
+    Args:
+        env_ids: Environment index selector.
+
+    Returns:
+        Concrete Warp kernel matching the selector dtype.
+    """
+    return _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select a root writer matching the environment selector dtype.
+
+    Args:
+        env_ids: Environment index selector.
+
+    Returns:
+        Concrete Warp kernel matching the selector dtype.
+    """
+    return _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
 """
@@ -846,8 +911,8 @@ Generic buffer-writing kernels (used by Articulation + RigidObject + RigidObject
 @wp.kernel
 def write_2d_data_to_buffer_with_indices(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     out_data: wp.array2d(dtype=wp.float32),
 ):
     """Write 2D float data to a buffer at specified indices.
@@ -862,15 +927,17 @@ def write_2d_data_to_buffer_with_indices(
         out_data: Output array where data is written. Shape is (num_envs, num_joints).
     """
     i, j = wp.tid()
-    out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    out_data[env_id, joint_id] = in_data[i, j]
 
 
 @wp.kernel
 def write_joint_state_to_buffer_with_indices(
     position: wp.array2d(dtype=wp.float32),
     velocity: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     out_position: wp.array2d(dtype=wp.float32),
     out_velocity: wp.array2d(dtype=wp.float32),
     previous_velocity: wp.array2d(dtype=wp.float32),
@@ -878,13 +945,51 @@ def write_joint_state_to_buffer_with_indices(
 ):
     """Write joint position and velocity state to selected buffer entries."""
     i, j = wp.tid()
-    env_id = env_ids[i]
-    joint_id = joint_ids[j]
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
     joint_velocity = velocity[i, j]
     out_position[env_id, joint_id] = position[i, j]
     out_velocity[env_id, joint_id] = joint_velocity
     previous_velocity[env_id, joint_id] = joint_velocity
     acceleration[env_id, joint_id] = 0.0
+
+
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    write_2d_data_to_buffer_with_indices, ("env_ids", "joint_ids")
+)
+_WRITE_JOINT_STATE_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    write_joint_state_to_buffer_with_indices, ("env_ids", "joint_ids")
+)
+
+
+def write_2d_data_to_buffer_with_indices_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select a buffer writer matching the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        joint_ids: Joint or tendon index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
+
+
+def write_joint_state_to_buffer_with_indices_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select a buffer writer matching the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        joint_ids: Joint or tendon index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _WRITE_JOINT_STATE_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
@@ -1378,8 +1483,8 @@ def _world_vel_to_body_ang(
 @wp.kernel
 def write_joint_position_limit_to_buffer_index(
     in_data: wp.array3d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     out_data: wp.array(dtype=wp.vec2f, ndim=2),
 ):
     """Write joint position-limit data to a vec2f buffer at specified indices.
@@ -1399,7 +1504,29 @@ def write_joint_position_limit_to_buffer_index(
             (num_envs, num_joints) with dtype ``wp.vec2f``.
     """
     i, j = wp.tid()
-    out_data[env_ids[i], joint_ids[j]] = wp.vec2f(in_data[i, j, 0], in_data[i, j, 1])
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    out_data[env_id, joint_id] = wp.vec2f(in_data[i, j, 0], in_data[i, j, 1])
+
+
+_WRITE_JOINT_POSITION_LIMIT_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_joint_position_limit_to_buffer_index, ("env_ids", "joint_ids")
+)
+
+
+def write_joint_position_limit_to_buffer_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select a buffer writer matching the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        joint_ids: Joint or tendon index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _WRITE_JOINT_POSITION_LIMIT_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
