@@ -740,6 +740,9 @@ def gather_mass_matrix_rows(
 def gather_dof_force_rows(
     src: wp.array(dtype=wp.float32),
     view_dof_starts: wp.array(dtype=wp.int32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
+    num_base_dofs: wp.int32,
+    has_joint_ordering: bool,
     dst: wp.array2d(dtype=wp.float32),
 ):
     """Copy per-view articulation DoF forces from a flat model-sized buffer into a view-sized buffer.
@@ -759,11 +762,19 @@ def gather_dof_force_rows(
         src: Input flat DoF buffer. Shape is (model.joint_dof_count,).
         view_dof_starts: Flat DoF start index of each view articulation. Shape
             is (num_instances,).
+        joint_user_to_backend: Map from public actuated-joint index to backend
+            actuated-joint index.
+        num_base_dofs: Number of leading floating-base DoF entries.
+        has_joint_ordering: Whether ``joint_user_to_backend`` is non-identity.
         dst: Output DoF-force buffer for this view. Shape is
             (num_instances, num_joints + num_base_dofs).
     """
-    i, d = wp.tid()
-    dst[i, d] = src[view_dof_starts[i] + d]
+    i, user_dof = wp.tid()
+    backend_dof = user_dof
+    if has_joint_ordering and user_dof >= num_base_dofs:
+        backend_dof = num_base_dofs + joint_user_to_backend[user_dof - num_base_dofs]
+
+    dst[i, user_dof] = src[view_dof_starts[i] + backend_dof]
 
 
 @wp.kernel

@@ -3867,12 +3867,13 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
 
 
 @pytest.mark.parametrize("num_articulations", [4])
-@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
 @pytest.mark.isaacsim_ci
 def test_get_gravity_compensation_forces_matches_jacobian_gravity(
-    sim, num_articulations, device, add_ground_plane, articulation_type
+    sim, num_articulations, device, add_ground_plane, articulation_type, ordering_mode
 ):
     """``g(q)`` must equal ``-sum_b J_com_b^T (m_b * g_w)`` at the current configuration.
 
@@ -3885,8 +3886,17 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
     floating-base — a rotated, lifted root pose guard the corner fixed
     upstream in newton#2625 (wrong gravity compensation under non-identity
     root pose).
+
+    With ``ordering_mode="reversed"`` a nonidentity joint ordering is active and
+    both sides of the identity must be expressed in user joint order: the
+    Jacobian gather applies the user->backend permutation, so a
+    ``gather_dof_force_rows`` that skips it returns backend-ordered forces and
+    breaks the identity row-wise.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    if ordering_mode == "reversed":
+        joint_names = _PANDA_JOINT_NAMES if articulation_type == "panda" else _ANYMAL_C_PHYSX_JOINT_NAMES
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(joint_names)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
     assert articulation.is_initialized
