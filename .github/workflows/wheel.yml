@@ -190,9 +190,15 @@ jobs:
             exit 1
           fi
 
+          # newton[importers]==1.2.0 pins usd-core<26.5, but isaacsim bundles its
+          # own pxr at runtime so that upper bound is irrelevant when isaacsim is
+          # installed. Override it so the resolver accepts usd-core>=26.05.
+          printf 'usd-core>=26.05\n' > /tmp/usd-override.txt
+
           uv pip install \
             --dry-run \
             --extra-index-url https://pypi.nvidia.com \
             --index-strategy unsafe-best-match \
             --prerelease=allow \
+            --override /tmp/usd-override.txt \
             "${wheel}[isaacsim,all]"
