@@ -464,7 +464,7 @@ def _spawn_mesh_geom_from_mesh(
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
         coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
         if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
-            schemas.apply_collision_properties(mesh_prim_path, coll_frags, stage=stage)
+            schemas.apply_collision_properties(mesh_prim_path, coll_frags, create_if_missing=True, stage=stage)
         else:
             schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
 

@@ -132,7 +132,9 @@ class MeshConverter(AssetConverterBase):
                         cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
                     )
                     if coll_frags and all(isinstance(f, SchemaFragment) for f in coll_frags):
-                        schemas.apply_collision_properties(str(child_mesh_prim.GetPath()), coll_frags, stage=stage)
+                        schemas.apply_collision_properties(
+                            str(child_mesh_prim.GetPath()), coll_frags, create_if_missing=True, stage=stage
+                        )
                     else:
                         schemas.define_collision_properties(
                             prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage

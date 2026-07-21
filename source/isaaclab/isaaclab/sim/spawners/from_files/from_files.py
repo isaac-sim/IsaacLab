@@ -357,7 +357,7 @@ def _spawn_from_usd_file(
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
         coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
         if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
-            schemas.apply_collision_properties(prim_path, coll_frags)
+            schemas.apply_collision_properties(f"{prim_path}/**", coll_frags)
         else:
             schemas.modify_collision_properties(prim_path, cfg.collision_props)
     # modify mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> modify_*)

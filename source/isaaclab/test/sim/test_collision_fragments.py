@@ -104,7 +104,7 @@ def test_newton_collision_fragment_writes_newton_namespace():
 
 
 # -------------------------------------------------------------------------------------
-# apply_collision_properties dispatch (implicit anchor + multi-namespace)
+# apply_collision_properties dispatch (explicit anchor creation + multi-namespace)
 # -------------------------------------------------------------------------------------
 
 
@@ -125,13 +125,79 @@ def test_apply_collision_properties_composes_namespaces():
             PhysxCollisionCfg(contact_offset=0.02),
             NewtonCollisionCfg(contact_margin=0.01),
         ],
-        stage,
+        create_if_missing=True,
+        stage=stage,
     )
     prim = stage.GetPrimAtPath("/World/C4")
     assert bool(UsdPhysics.CollisionAPI(prim))  # implicit anchor applied
     assert prim.GetAttribute("physics:collisionEnabled").Get() is True
     assert abs(prim.GetAttribute("physxCollision:contactOffset").Get() - 0.02) < 1e-6
     assert abs(prim.GetAttribute("newton:contactMargin").Get() - 0.01) < 1e-6
+
+
+# -------------------------------------------------------------------------------------
+# expression targeting: gprim gate, pattern narrowing, zero-target warning
+# -------------------------------------------------------------------------------------
+
+
+def test_mesh_collision_fragments_skip_non_gprim_targets():
+    """The approximation token is meaningless on non-geometry prims; only gprims receive it."""
+    from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    xform_collider = UsdGeom.Xform.Define(stage, "/World/Grp/agg").GetPrim()
+    mesh_collider = UsdGeom.Cube.Define(stage, "/World/Grp/box").GetPrim()
+    UsdPhysics.CollisionAPI.Apply(xform_collider)
+    UsdPhysics.CollisionAPI.Apply(mesh_collider)
+
+    result = apply_collision_properties(
+        "/World/Grp/**", [UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")], stage=stage
+    )
+
+    assert result is True
+    assert mesh_collider.HasAPI(UsdPhysics.MeshCollisionAPI)
+    assert mesh_collider.GetAttribute("physics:approximation").HasAuthoredValue()
+    assert not xform_collider.HasAPI(UsdPhysics.MeshCollisionAPI)
+    assert not xform_collider.GetAttribute("physics:approximation").HasAuthoredValue()
+
+
+def test_collision_fragments_pattern_narrows_targets():
+    """An expression targets only the colliders it matches."""
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+
+    from isaaclab.sim.schemas import apply_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Bot/colL", "/World/Bot/colR"):
+        prim = UsdGeom.Cube.Define(stage, path).GetPrim()
+        UsdPhysics.CollisionAPI.Apply(prim)
+    result = apply_collision_properties("/World/Bot/colL", [PhysxCollisionCfg(contact_offset=0.02)], stage=stage)
+    assert result is True
+    left = stage.GetPrimAtPath("/World/Bot/colL")
+    right = stage.GetPrimAtPath("/World/Bot/colR")
+    assert abs(left.GetAttribute("physxCollision:contactOffset").Get() - 0.02) < 1e-6
+    assert not right.GetAttribute("physxCollision:contactOffset").HasAuthoredValue()
+
+
+def test_collision_fragments_zero_targets_warn_and_return_false(caplog):
+    """No collider matched and no creation requested: warn, author nothing, report failure."""
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+
+    from isaaclab.sim.schemas import apply_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    with caplog.at_level("WARNING"):
+        result = apply_collision_properties(
+            "/World/DoesNotExist", [PhysxCollisionCfg(contact_offset=0.02)], stage=stage
+        )
+    assert result is False
+    assert "/World/DoesNotExist" in caplog.text
 
 
 # -------------------------------------------------------------------------------------
