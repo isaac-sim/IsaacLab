@@ -58,6 +58,10 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorator for all interface tests
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
+_cache_backends = pytest.mark.parametrize(
+    "backend",
+    [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS],
+)
 
 # We also need to provide the fixture params that articulation_iface reads:
 _default_dims = pytest.mark.parametrize(
@@ -1195,6 +1199,23 @@ def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
     return wp.from_torch(t.contiguous(), dtype=wp_dtype)
 
 
+def _prime_timestamped_properties(data, property_buffer_pairs: list[tuple[str, str]]):
+    """Prime public lazy properties and return their concrete timestamped buffers."""
+    buffers = []
+    for property_name, buffer_name in property_buffer_pairs:
+        getattr(data, property_name)
+        buffer = getattr(data, buffer_name)
+        assert buffer is not None, buffer_name
+        buffer.timestamp = data._sim_timestamp
+        buffers.append((buffer_name, buffer))
+    return buffers
+
+
+def _assert_buffers_stale(data, buffers) -> None:
+    for name, buffer in buffers:
+        assert buffer.timestamp < data._sim_timestamp, name
+
+
 def _make_bad_data_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
     """Create torch data with wrong leading shape for negative testing.
 
@@ -1249,6 +1270,66 @@ _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
 
 class TestArticulationWritersRoot:
     """Test root pose/velocity writers with all input combinations."""
+
+    @_cache_backends
+    @pytest.mark.parametrize(
+        "body_ordering",
+        [None, ("body_0", "body_3", "body_2", "body_1")],
+    )
+    def test_pose_write_invalidates_pose_dependent_caches(self, backend, body_ordering):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=3,
+            num_bodies=4,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        art.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            art.data,
+            [
+                ("root_link_vel_w", "_root_link_vel_w"),
+                ("body_link_vel_w", "_body_link_vel_w"),
+                ("projected_gravity_b", "_projected_gravity_b"),
+                ("heading_w", "_heading_w"),
+                ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+                ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+                ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+                ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+            ],
+        )
+        root_pose = _make_data_warp((art.num_instances,), "cpu", wp.transformf)
+        art.write_root_link_pose_to_sim_index(root_pose=root_pose)
+        _assert_buffers_stale(art.data, buffers)
+
+    @_cache_backends
+    @pytest.mark.parametrize(
+        "body_ordering",
+        [None, ("body_0", "body_3", "body_2", "body_1")],
+    )
+    def test_velocity_write_invalidates_body_frame_caches(self, backend, body_ordering):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=3,
+            num_bodies=4,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        art.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            art.data,
+            [
+                ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+                ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+                ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+                ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+            ],
+        )
+        root_velocity = _make_data_warp((art.num_instances,), "cpu", wp.spatial_vectorf)
+        art.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
+        _assert_buffers_stale(art.data, buffers)
 
     # -- index variants --
 

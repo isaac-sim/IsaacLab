@@ -157,6 +157,13 @@ class RigidObjectData(BaseRigidObjectData):
         reset_timestamps(
             [
                 self._root_com_pose_w if from_link else None,
+                self._root_link_vel_w,
+                self._projected_gravity_b,
+                self._heading_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
                 self._root_state_w,
                 self._root_link_state_w,
                 self._root_com_state_w,
@@ -179,6 +186,10 @@ class RigidObjectData(BaseRigidObjectData):
         reset_timestamps(
             [
                 self._root_link_vel_w if from_com else None,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
                 self._root_state_w,
                 self._root_link_state_w,
                 self._root_com_state_w,

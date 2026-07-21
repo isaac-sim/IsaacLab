@@ -46,6 +46,10 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorators
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
+_cache_backends = pytest.mark.parametrize(
+    "backend",
+    [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS],
+)
 
 _default_dims = pytest.mark.parametrize("num_instances", [1, 2, 100])
 
@@ -655,6 +659,23 @@ def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
     return wp.from_torch(t.contiguous(), dtype=wp_dtype)
 
 
+def _prime_timestamped_properties(data, property_buffer_pairs: list[tuple[str, str]]):
+    """Prime public lazy properties and return their concrete timestamped buffers."""
+    buffers = []
+    for property_name, buffer_name in property_buffer_pairs:
+        getattr(data, property_name)
+        buffer = getattr(data, buffer_name)
+        assert buffer is not None, buffer_name
+        buffer.timestamp = data._sim_timestamp
+        buffers.append((buffer_name, buffer))
+    return buffers
+
+
+def _assert_buffers_stale(data, buffers) -> None:
+    for name, buffer in buffers:
+        assert buffer.timestamp < data._sim_timestamp, name
+
+
 def _make_bad_data_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
     """Create torch data with wrong leading shape for negative testing."""
     bad_shape = (shape[0] + 1,) + shape[1:]
@@ -697,6 +718,45 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 
 _ROOT_POSE_METHODS = ["root_pose", "root_link_pose", "root_com_pose"]
 _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
+
+
+class TestRigidObjectCacheInvalidation:
+    @_cache_backends
+    def test_pose_write_invalidates_pose_dependent_caches(self, backend):
+        obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
+        obj.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            obj.data,
+            [
+                ("root_link_vel_w", "_root_link_vel_w"),
+                ("projected_gravity_b", "_projected_gravity_b"),
+                ("heading_w", "_heading_w"),
+                ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+                ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+                ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+                ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+            ],
+        )
+        root_pose = _make_data_warp((obj.num_instances,), "cpu", wp.transformf)
+        obj.write_root_link_pose_to_sim_index(root_pose=root_pose)
+        _assert_buffers_stale(obj.data, buffers)
+
+    @_cache_backends
+    def test_velocity_write_invalidates_body_frame_caches(self, backend):
+        obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
+        obj.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            obj.data,
+            [
+                ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+                ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+                ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+                ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+            ],
+        )
+        root_velocity = _make_data_warp((obj.num_instances,), "cpu", wp.spatial_vectorf)
+        obj.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
+        _assert_buffers_stale(obj.data, buffers)
 
 
 class TestRigidObjectWritersRoot:
