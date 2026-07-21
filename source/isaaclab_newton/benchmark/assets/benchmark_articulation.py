@@ -6,11 +6,12 @@
 """Micro-benchmarking framework for Articulation class (Newton backend).
 
 This module provides a benchmarking framework to measure the performance of setter and writer
-methods in the Articulation class. Each method is benchmarked under three scenarios:
+methods in the Articulation class. Each method is benchmarked under four scenarios:
 
 1. **Torch List**: Inputs are PyTorch tensors with list indices (via deprecated wrappers).
-2. **Torch Tensor**: Inputs are PyTorch tensors with tensor indices (via deprecated wrappers).
-3. **Warp Mask**: Inputs are warp arrays with boolean masks (via ``_mask`` methods).
+2. **Torch Tensor Int32**: Tensor indices use signed 32-bit integers.
+3. **Torch Tensor Int64**: Tensor indices use signed 64-bit integers.
+4. **Warp Mask**: Inputs are warp arrays with boolean masks (via ``_mask`` methods).
 
 Usage:
     python benchmark_articulation.py [--num_iterations N] [--warmup_steps W]
@@ -18,7 +19,7 @@ Usage:
 
 Example:
     python benchmark_articulation.py --num_iterations 1000 --warmup_steps 10
-    python benchmark_articulation.py --mode torch_list  # Only run list-based benchmarks
+    python benchmark_articulation.py --mode torch_tensor_int64  # Only run 64-bit tensor benchmarks
     python benchmark_articulation.py --mode warp_mask   # Only run warp mask benchmarks
 """
 
@@ -37,7 +38,12 @@ parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warm
 parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
 parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
 parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
-parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor, warp_mask)")
+parser.add_argument(
+    "--mode",
+    type=str,
+    default="all",
+    help="Benchmark mode (all, torch_list, torch_tensor_int32, torch_tensor_int64, warp_mask)",
+)
 parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
 parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
 parser.add_argument("--no_shape_checks", action="store_true", help="Disable shape/dtype assertions")
@@ -82,19 +88,19 @@ logging.getLogger("isaaclab").setLevel(logging.ERROR)
 # =============================================================================
 
 
-def make_tensor_env_ids(num_instances: int, device: str) -> torch.Tensor:
+def make_tensor_env_ids(num_instances: int, device: str, dtype: torch.dtype) -> torch.Tensor:
     """Create a tensor of environment IDs."""
-    return torch.arange(num_instances, dtype=torch.int32, device=device)
+    return torch.arange(num_instances, dtype=dtype, device=device)
 
 
-def make_tensor_joint_ids(num_joints: int, device: str) -> torch.Tensor:
+def make_tensor_joint_ids(num_joints: int, device: str, dtype: torch.dtype) -> torch.Tensor:
     """Create a tensor of joint IDs."""
-    return torch.arange(num_joints, dtype=torch.int32, device=device)
+    return torch.arange(num_joints, dtype=dtype, device=device)
 
 
-def make_tensor_body_ids(num_bodies: int, device: str) -> torch.Tensor:
+def make_tensor_body_ids(num_bodies: int, device: str, dtype: torch.dtype) -> torch.Tensor:
     """Create a tensor of body IDs."""
-    return torch.arange(num_bodies, dtype=torch.int32, device=device)
+    return torch.arange(num_bodies, dtype=dtype, device=device)
 
 
 # =============================================================================
@@ -200,7 +206,7 @@ def gen_root_link_pose_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_root_link_pose_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "root_pose": torch.rand(config.num_instances, 7, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -215,7 +221,7 @@ def gen_root_com_pose_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_root_com_pose_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "root_pose": torch.rand(config.num_instances, 7, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -230,7 +236,7 @@ def gen_root_link_velocity_torch_list(config: MethodBenchmarkRunnerConfig) -> di
 def gen_root_link_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -245,7 +251,7 @@ def gen_root_com_velocity_torch_list(config: MethodBenchmarkRunnerConfig) -> dic
 def gen_root_com_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -260,7 +266,7 @@ def gen_root_state_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_root_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -275,7 +281,7 @@ def gen_root_com_state_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_root_com_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -290,7 +296,7 @@ def gen_root_link_state_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_root_link_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -308,8 +314,8 @@ def gen_joint_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
         "velocity": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -325,8 +331,8 @@ def gen_joint_position_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_joint_position_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -342,8 +348,8 @@ def gen_joint_velocity_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_joint_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "velocity": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -359,8 +365,8 @@ def gen_joint_stiffness_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_joint_stiffness_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "stiffness": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -376,8 +382,8 @@ def gen_joint_damping_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_joint_damping_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "damping": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -397,8 +403,8 @@ def gen_joint_position_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -
     upper = torch.rand(config.num_instances, config.num_joints, 1, device=config.device, dtype=torch.float32) * 3.14
     return {
         "limits": torch.cat([lower, upper], dim=-1),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -414,8 +420,8 @@ def gen_joint_velocity_limit_torch_list(config: MethodBenchmarkRunnerConfig) -> 
 def gen_joint_velocity_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 10.0,
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -435,8 +441,8 @@ def gen_joint_effort_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -> 
         "limits": (
             torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 100.0
         ),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -456,8 +462,8 @@ def gen_joint_armature_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict
         "armature": (
             torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.1
         ),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -477,8 +483,8 @@ def gen_joint_friction_coefficient_torch_tensor(config: MethodBenchmarkRunnerCon
         "joint_friction_coeff": (
             torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.5
         ),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -494,8 +500,8 @@ def gen_set_joint_position_target_torch_list(config: MethodBenchmarkRunnerConfig
 def gen_set_joint_position_target_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -511,8 +517,8 @@ def gen_set_joint_velocity_target_torch_list(config: MethodBenchmarkRunnerConfig
 def gen_set_joint_velocity_target_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -528,8 +534,8 @@ def gen_set_joint_effort_target_torch_list(config: MethodBenchmarkRunnerConfig) 
 def gen_set_joint_effort_target_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -545,8 +551,8 @@ def gen_set_masses_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_set_masses_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "masses": torch.rand(config.num_instances, config.num_bodies, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "body_ids": make_tensor_body_ids(config.num_bodies, config.device, torch.int32),
     }
 
 
@@ -562,8 +568,8 @@ def gen_set_coms_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_set_coms_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "coms": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "body_ids": make_tensor_body_ids(config.num_bodies, config.device, torch.int32),
     }
 
 
@@ -579,8 +585,8 @@ def gen_set_inertias_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 def gen_set_inertias_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "inertias": torch.rand(config.num_instances, config.num_bodies, 9, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "body_ids": make_tensor_body_ids(config.num_bodies, config.device, torch.int32),
     }
 
 
@@ -597,7 +603,7 @@ def gen_set_external_force_and_torque_torch_tensor(config: MethodBenchmarkRunner
     return {
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "torques": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -806,6 +812,21 @@ def gen_set_inertias_warp_mask(config: MethodBenchmarkRunnerConfig) -> dict:
 # =============================================================================
 # Benchmarks
 # =============================================================================
+
+
+def _make_tensor_dtype_generator(base_gen_fn, dtype: torch.dtype):
+    """Create a Newton generator with all selectors of the requested dtype."""
+
+    def generator(config):
+        inputs = base_gen_fn(config)
+        for key in ("env_ids", "joint_ids", "body_ids"):
+            value = inputs.get(key)
+            if isinstance(value, torch.Tensor):
+                inputs[key] = value.to(dtype)
+        return inputs
+
+    return generator
+
 
 BENCHMARKS = [
     # --- Root State (Deprecated, no _mask equivalent) ---
@@ -1152,6 +1173,17 @@ BENCHMARKS = [
     ),
 ]
 
+for benchmark in BENCHMARKS:
+    if "torch_tensor" not in benchmark.input_generators:
+        continue
+    base_generator = benchmark.input_generators.pop("torch_tensor")
+    benchmark.input_generators.update(
+        {
+            "torch_tensor_int32": _make_tensor_dtype_generator(base_generator, torch.int32),
+            "torch_tensor_int64": _make_tensor_dtype_generator(base_generator, torch.int64),
+        }
+    )
+
 
 # =============================================================================
 # Fill-Ratio Benchmarks (5%, 95%, 100% of env_ids filled)
@@ -1171,15 +1203,15 @@ def _make_fill_ratio_generator(base_gen_fn, fill_ratio):
         n = max(1, int(config.num_instances * fill_ratio))
         base_inputs = base_gen_fn(config)
         inputs = {}
-        for key, val in base_inputs.items():
+        for key, value in base_inputs.items():
             if key == "env_ids":
                 inputs[key] = (
-                    torch.randperm(config.num_instances, device=config.device)[:n].sort().values.to(torch.int32)
+                    torch.randperm(config.num_instances, device=config.device)[:n].sort().values.to(value.dtype)
                 )
-            elif isinstance(val, torch.Tensor) and val.dim() >= 1 and val.shape[0] == config.num_instances:
-                inputs[key] = val[:n]
+            elif isinstance(value, torch.Tensor) and value.dim() >= 1 and value.shape[0] == config.num_instances:
+                inputs[key] = value[:n]
             else:
-                inputs[key] = val
+                inputs[key] = value
         return inputs
 
     return generator
@@ -1209,11 +1241,12 @@ def _build_fill_benchmarks():
     fill_benchmarks = []
     for bm in BENCHMARKS:
         generators = {}
-        # Add tensor fill variants from torch_tensor generators
-        if "torch_tensor" in bm.input_generators:
-            base_gen = bm.input_generators["torch_tensor"]
-            for suffix, ratio in FILL_RATIOS.items():
-                generators[f"tensor_{suffix}"] = _make_fill_ratio_generator(base_gen, ratio)
+        # Add tensor fill variants for both selector dtypes.
+        for mode in ("torch_tensor_int32", "torch_tensor_int64"):
+            if mode in bm.input_generators:
+                base_gen = bm.input_generators[mode]
+                for suffix, ratio in FILL_RATIOS.items():
+                    generators[f"{mode}_{suffix}"] = _make_fill_ratio_generator(base_gen, ratio)
         # Add mask fill variants from warp_mask generators
         if "warp_mask" in bm.input_generators:
             base_gen = bm.input_generators["warp_mask"]
