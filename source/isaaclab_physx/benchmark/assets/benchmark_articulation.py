@@ -63,7 +63,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import contextlib
 import logging
 import time
 import warnings
@@ -734,6 +733,27 @@ ITEM_SELECTOR_MODES = (
 )
 """Fair item-selector modes; every case shares one prebuilt ``torch.int32`` environment selector."""
 
+ITEM_SELECTOR_KEYS = {
+    "write_joint_state_to_sim": "joint_ids",
+    "write_joint_position_to_sim": "joint_ids",
+    "write_joint_velocity_to_sim": "joint_ids",
+    "write_joint_stiffness_to_sim": "joint_ids",
+    "write_joint_damping_to_sim": "joint_ids",
+    "write_joint_position_limit_to_sim": "joint_ids",
+    "write_joint_velocity_limit_to_sim": "joint_ids",
+    "write_joint_effort_limit_to_sim": "joint_ids",
+    "write_joint_armature_to_sim": "joint_ids",
+    "write_joint_friction_coefficient_to_sim": "joint_ids",
+    "set_joint_position_target": "joint_ids",
+    "set_joint_velocity_target": "joint_ids",
+    "set_joint_effort_target": "joint_ids",
+    "set_masses": "body_ids",
+    "set_coms": "body_ids",
+    "set_inertias": "body_ids",
+    "set_external_force_and_torque": "body_ids",
+}
+"""Actual articulation benchmarks that vary a joint/body selector representation."""
+
 
 class _ItemSelectorInputFactory:
     """Prepare all item-selector representations once, outside writer timing."""
@@ -742,12 +762,25 @@ class _ItemSelectorInputFactory:
         self._base_generator = base_generator
         self._item_key = item_key
         self._inputs_by_mode = None
+        self._proxy_selector = None
         self._setup_count = 0
 
     @property
     def setup_count(self) -> int:
         """Number of times selector setup ran."""
         return self._setup_count
+
+    @property
+    def proxy_selector(self):
+        """Prepared cached proxy selector, or ``None`` before setup."""
+        return self._proxy_selector
+
+    def assert_proxy_unmaterialized(self) -> None:
+        """Assert the prepared proxy still has no cached Torch view."""
+        if self._proxy_selector is None:
+            raise AssertionError("proxy selector setup has not run")
+        if self._proxy_selector._torch_cache is not None:
+            raise AssertionError("prepared proxy selector materialized a Torch view")
 
     def _prepare(self, config) -> None:
         base_inputs = self._base_generator(config)
@@ -768,8 +801,6 @@ class _ItemSelectorInputFactory:
             raise AssertionError(f"{finder_name} did not reuse its cached ProxyArray")
         if proxy.dtype != wp.int32:
             raise AssertionError(f"{finder_name} proxy must use warp.int32 storage")
-        if proxy._torch_cache is not None:
-            raise AssertionError("proxy benchmark setup must not materialize a Torch view")
 
         item_values = item_ids.tolist()
         if legacy != item_values:
@@ -783,7 +814,9 @@ class _ItemSelectorInputFactory:
             "proxy_int32": proxy,
         }
         self._inputs_by_mode = {mode: {**base_inputs, self._item_key: selector} for mode, selector in selectors.items()}
+        self._proxy_selector = proxy
         self._setup_count += 1
+        self.assert_proxy_unmaterialized()
 
     def make_generator(self, mode: str):
         """Return a generator that reuses its prepared input dictionary."""
@@ -804,27 +837,62 @@ def _register_item_selector_modes(benchmark, item_key: str) -> _ItemSelectorInpu
     return factory
 
 
-def _measure_callable(callable_, num_iterations: int, warmup_steps: int) -> dict:
-    """Measure a prepared callable and return median and IQR dispersion in microseconds."""
+def _register_benchmark_selector_modes(benchmarks) -> dict[str, _ItemSelectorInputFactory]:
+    """Register item grids on actual item-bearing definitions and typed root modes elsewhere."""
+    factories = {}
+    for benchmark in benchmarks:
+        item_key = ITEM_SELECTOR_KEYS.get(benchmark.name)
+        if item_key is not None:
+            factories[benchmark.name] = _register_item_selector_modes(benchmark, item_key)
+        elif "torch_tensor" in benchmark.input_generators:
+            base_generator = benchmark.input_generators.pop("torch_tensor")
+            benchmark.input_generators.update(
+                {
+                    "torch_tensor_int32": _make_tensor_dtype_generator(base_generator, torch.int32),
+                    "torch_tensor_int64": _make_tensor_dtype_generator(base_generator, torch.int64),
+                }
+            )
+    return factories
+
+
+def _measure_callable(callable_, num_iterations: int, warmup_steps: int, before_each=None, after_each=None) -> dict:
+    """Measure a callable while keeping optional per-sample ownership setup outside timing."""
     for _ in range(warmup_steps):
-        callable_()
+        if before_each is not None:
+            before_each()
+        try:
+            callable_()
+        finally:
+            if after_each is not None:
+                after_each()
+
     samples = []
     for _ in range(num_iterations):
-        start = time.perf_counter()
-        callable_()
-        samples.append((time.perf_counter() - start) * 1e6)
+        if before_each is not None:
+            before_each()
+        try:
+            start = time.perf_counter()
+            callable_()
+            end = time.perf_counter()
+        finally:
+            if after_each is not None:
+                after_each()
+        samples.append((end - start) * 1e6)
     return {
         "median": float(np.median(samples)),
         "iqr": float(np.percentile(samples, 75) - np.percentile(samples, 25)),
         "mean": float(np.mean(samples)),
         "std": float(np.std(samples)),
         "n": len(samples),
+        "attempts": num_iterations,
+        "failures": 0,
     }
 
 
 def _measure_finder_paths(articulation, finder_name: str, num_iterations: int, warmup_steps: int) -> dict:
-    """Measure cold proxy allocation separately from steady-state cached finder lookup."""
+    """Measure cold allocation and cached lookup with explicit untimed selector ownership."""
     finder = getattr(articulation, finder_name)
+    cold_selector = None
 
     def _clear_cache():
         clear_method = getattr(articulation, "_clear_selector_cache", None)
@@ -835,16 +903,35 @@ def _measure_finder_paths(articulation, finder_name: str, num_iterations: int, w
             if selector_cache is not None:
                 selector_cache.clear()
 
-    def cold_allocation():
+    def prepare_cold_sample():
+        nonlocal cold_selector
+        cold_selector = None
         _clear_cache()
-        selector, _ = finder(".*", as_proxy=True)
         wp.synchronize()
-        if selector._torch_cache is not None:
+
+    def cold_allocation():
+        nonlocal cold_selector
+        cold_selector, _ = finder(".*", as_proxy=True)
+        wp.synchronize()
+        if cold_selector._torch_cache is not None:
             raise AssertionError("cold finder benchmark materialized a Torch view")
 
-    cold_stats = _measure_callable(cold_allocation, num_iterations, warmup_steps)
-    _clear_cache()
+    def release_cold_sample():
+        nonlocal cold_selector
+        cold_selector = None
+        _clear_cache()
+        wp.synchronize()
+
+    cold_stats = _measure_callable(
+        cold_allocation,
+        num_iterations,
+        warmup_steps,
+        before_each=prepare_cold_sample,
+        after_each=release_cold_sample,
+    )
+
     cached_selector, _ = finder(".*", as_proxy=True)
+    wp.synchronize()
 
     def cached_lookup():
         selector, _ = finder(".*", as_proxy=True)
@@ -853,46 +940,73 @@ def _measure_finder_paths(articulation, finder_name: str, num_iterations: int, w
         if selector._torch_cache is not None:
             raise AssertionError("cached finder benchmark materialized a Torch view")
 
-    return {
-        "cold_allocation": cold_stats,
-        "cached_lookup": _measure_callable(cached_lookup, num_iterations, warmup_steps),
-    }
+    cached_stats = _measure_callable(cached_lookup, num_iterations, warmup_steps)
+    if cached_selector._torch_cache is not None:
+        raise AssertionError("cached finder benchmark materialized a Torch view")
+    return {"cold_allocation": cold_stats, "cached_lookup": cached_stats}
 
 
-def _summarize_writer_results(results: dict[str, dict]) -> dict:
-    """Group writer statistics by mode and add ratios against both P10 baselines."""
+def _summarize_writer_results(results: dict[str, dict], item_benchmark_names) -> dict:
+    """Summarize only registered item benchmarks and add ratios against both P10 baselines."""
     grouped = {}
+    item_benchmark_names = set(item_benchmark_names)
     for result_name, stats in results.items():
         for mode in ITEM_SELECTOR_MODES:
             suffix = f"_{mode}"
             if result_name.endswith(suffix):
                 method_name = result_name[: -len(suffix)]
+                if method_name not in item_benchmark_names:
+                    break
                 grouped.setdefault(method_name, {})[mode] = {
                     "median_us": stats["median"],
                     "iqr_us": stats["iqr"],
+                    "n": stats["n"],
+                    "attempts": stats["attempts"],
+                    "failures": stats["failures"],
                 }
                 break
     for modes in grouped.values():
-        tensor_baseline = modes.get("torch_tensor_int32", {}).get("median_us")
-        list_baseline = modes.get("torch_list", {}).get("median_us")
+        tensor_stats = modes.get("torch_tensor_int32")
+        list_stats = modes.get("torch_list")
+        tensor_baseline = (
+            tensor_stats["median_us"]
+            if tensor_stats and tensor_stats["failures"] == 0 and tensor_stats["n"] == tensor_stats["attempts"]
+            else None
+        )
+        list_baseline = (
+            list_stats["median_us"]
+            if list_stats and list_stats["failures"] == 0 and list_stats["n"] == list_stats["attempts"]
+            else None
+        )
         for stats in modes.values():
             median = stats["median_us"]
-            stats["ratio_vs_torch_tensor_int32"] = median / tensor_baseline if tensor_baseline else None
-            stats["ratio_vs_torch_list"] = median / list_baseline if list_baseline else None
+            valid = stats["failures"] == 0 and stats["n"] == stats["attempts"]
+            stats["ratio_vs_torch_tensor_int32"] = median / tensor_baseline if valid and tensor_baseline else None
+            stats["ratio_vs_torch_list"] = median / list_baseline if valid and list_baseline else None
     return grouped
 
 
 class _SelectorBenchmarkRunner(MethodBenchmarkRunner):
-    """Method runner that retains median/IQR samples for selector-mode comparisons."""
+    """Method runner that retains complete median/IQR samples for registered item benchmarks."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, selector_factories=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._selector_factories = selector_factories or {}
+        self._item_benchmark_names = set(self._selector_factories)
         self.selector_results = {}
 
+    def _factory_for_result(self, method_name: str):
+        for mode in ITEM_SELECTOR_MODES:
+            suffix = f"_{mode}"
+            if method_name.endswith(suffix):
+                return self._selector_factories.get(method_name[: -len(suffix)])
+        return None
+
     def _benchmark_method(self, method, method_name: str, generator, dependencies: list[str]) -> dict | None:
-        """Benchmark only the prepared writer callable; generator setup remains outside timing."""
+        """Benchmark only the prepared writer callable and fail on incomplete sampling."""
         if method is None:
             return None
+        factory = self._factory_for_result(method_name)
         try:
             inputs = generator(self._config)
             method(**inputs)
@@ -900,27 +1014,27 @@ class _SelectorBenchmarkRunner(MethodBenchmarkRunner):
             return {"skipped": True, "skip_reason": f"NotImplementedError: {error}"}
         except Exception as error:
             return {"skipped": True, "skip_reason": f"Error: {type(error).__name__}: {error}"}
+        if factory is not None:
+            factory.assert_proxy_unmaterialized()
 
         for _ in range(self._config.warmup_steps):
-            with contextlib.suppress(Exception):
-                method(**inputs)
+            method(**inputs)
             if self._config.device.startswith("cuda"):
                 self._sync_device()
+        if factory is not None:
+            factory.assert_proxy_unmaterialized()
 
         samples = []
         for _ in range(self._config.num_iterations):
             if self._config.device.startswith("cuda"):
                 self._sync_device()
             start = time.perf_counter()
-            try:
-                method(**inputs)
-            except Exception:
-                continue
+            method(**inputs)
             if self._config.device.startswith("cuda"):
                 self._sync_device()
             samples.append((time.perf_counter() - start) * 1e6)
-        if not samples:
-            return {"skipped": True, "skip_reason": "No successful iterations"}
+        if factory is not None:
+            factory.assert_proxy_unmaterialized()
 
         result = {
             "mean": float(np.mean(samples)),
@@ -928,20 +1042,25 @@ class _SelectorBenchmarkRunner(MethodBenchmarkRunner):
             "median": float(np.median(samples)),
             "iqr": float(np.percentile(samples, 75) - np.percentile(samples, 25)),
             "n": len(samples),
+            "attempts": self._config.num_iterations,
+            "failures": 0,
         }
-        if any(method_name.endswith(f"_{mode}") for mode in ITEM_SELECTOR_MODES):
+        if factory is not None:
             self.selector_results[method_name] = result
         return result
 
 
 def _print_selector_summary(finder_results: dict, writer_summary: dict) -> None:
-    """Print finder and writer selector statistics in a compact human-readable report."""
+    """Print finder and writer selector statistics with sample completeness."""
     print("\n" + "=" * 80)
     print("Finder and item-selector representation summary (median / IQR, us)")
     print("=" * 80)
     for domain, paths in finder_results.items():
         for path, stats in paths.items():
-            print(f"{domain:>5} {path:>15}: {stats['median']:.3f} / {stats['iqr']:.3f}")
+            print(
+                f"{domain:>5} {path:>15}: {stats['median']:.3f} / {stats['iqr']:.3f}"
+                f"  n={stats['n']}/{stats['attempts']} failures={stats['failures']}"
+            )
     for method_name, modes in writer_summary.items():
         print(method_name)
         for mode, stats in modes.items():
@@ -951,6 +1070,7 @@ def _print_selector_summary(finder_results: dict, writer_summary: dict) -> None:
             list_ratio_text = f"{list_ratio:.3f}" if list_ratio is not None else "n/a"
             print(
                 f"  {mode:>20}: {stats['median_us']:.3f} / {stats['iqr_us']:.3f}"
+                f"  n={stats['n']}/{stats['attempts']} failures={stats['failures']}"
                 f"  x torch.int32={tensor_ratio_text}  x list={list_ratio_text}"
             )
 
@@ -1180,24 +1300,9 @@ BENCHMARKS = [
     ),
 ]
 
-_BODY_ITEM_BENCHMARKS = {"set_masses", "set_coms", "set_inertias", "set_external_force_and_torque"}
-
-for benchmark in BENCHMARKS:
-    if benchmark.name.startswith(("write_joint_", "set_joint_")):
-        _register_item_selector_modes(benchmark, "joint_ids")
-    elif benchmark.name in _BODY_ITEM_BENCHMARKS:
-        _register_item_selector_modes(benchmark, "body_ids")
-    else:
-        base_generator = benchmark.input_generators.pop("torch_tensor")
-        benchmark.input_generators.update(
-            {
-                "torch_tensor_int32": _make_tensor_dtype_generator(base_generator, torch.int32),
-                "torch_tensor_int64": _make_tensor_dtype_generator(base_generator, torch.int64),
-            }
-        )
+ITEM_SELECTOR_FACTORIES = _register_benchmark_selector_modes(BENCHMARKS)
 
 
-# =============================================================================
 # =============================================================================
 # Fill-Ratio Benchmarks (5%, 95%, 100% of env_ids filled)
 # =============================================================================
@@ -1283,6 +1388,7 @@ def main():
     runner = _SelectorBenchmarkRunner(
         benchmark_name="articulation_benchmark",
         config=config,
+        selector_factories=ITEM_SELECTOR_FACTORIES,
         backend_type=args.backend,
         output_path=args.output_dir,
         use_recorders=True,
@@ -1294,7 +1400,7 @@ def main():
         "joint": _measure_finder_paths(articulation, "find_joints", config.num_iterations, config.warmup_steps),
         "body": _measure_finder_paths(articulation, "find_bodies", config.num_iterations, config.warmup_steps),
     }
-    writer_summary = _summarize_writer_results(runner.selector_results)
+    writer_summary = _summarize_writer_results(runner.selector_results, ITEM_SELECTOR_FACTORIES)
     selector_summary = {
         "config": {
             "num_iterations": config.num_iterations,
