@@ -393,7 +393,7 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
         self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
         self.ee_grasp_threshold: float = cfg.params.get("ee_grasp_threshold", 0.0)
 
-        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name], as_proxy=False)
         self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
         self._step_count = 0
 

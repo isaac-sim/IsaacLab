@@ -27,6 +27,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
@@ -1249,6 +1250,8 @@ class randomize_actuator_gains(ManagerTermBase):
         for actuator in self.asset.actuators.values():
             if not isinstance(actuator, ImplicitActuator):
                 joint_ids = actuator.joint_indices
+                if isinstance(joint_ids, ProxyArray):
+                    joint_ids = joint_ids.torch
                 self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
                 self.default_joint_damping[:, joint_ids] = actuator.damping
         # Same for explicit Newton actuators on either backend — their kp/kd
@@ -1296,21 +1299,23 @@ class randomize_actuator_gains(ManagerTermBase):
 
         # Loop through actuators and randomize gains
         for actuator in self.asset.actuators.values():
+            actuator_joint_indices = actuator.joint_indices
+            if isinstance(actuator_joint_indices, ProxyArray):
+                actuator_joint_indices = actuator_joint_indices.torch
             if isinstance(self.asset_cfg.joint_ids, slice):
                 # we take all the joints of the actuator
                 actuator_indices = slice(None)
-                if isinstance(actuator.joint_indices, slice):
+                if isinstance(actuator_joint_indices, slice):
                     global_indices = slice(None)
-                elif isinstance(actuator.joint_indices, torch.Tensor):
-                    global_indices = actuator.joint_indices.to(self.asset.device)
+                elif isinstance(actuator_joint_indices, torch.Tensor):
+                    global_indices = actuator_joint_indices.to(self.asset.device)
                 else:
                     raise TypeError("Actuator joint indices must be a slice or a torch.Tensor.")
-            elif isinstance(actuator.joint_indices, slice):
+            elif isinstance(actuator_joint_indices, slice):
                 # we take the joints defined in the asset config
                 global_indices = actuator_indices = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
             else:
                 # we take the intersection of the actuator joints and the asset config joints
-                actuator_joint_indices = actuator.joint_indices
                 asset_joint_ids = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
                 # the indices of the joints in the actuator that have to be randomized
                 actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)
@@ -2181,7 +2186,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
         pos_joint_ids = []
         for joint_name, joint_range in cfg.params["position_range"].items():
             # find the joint ids
-            joint_ids = self._asset.find_joints(joint_name)[0]
+            joint_ids = self._asset.find_joints(joint_name, as_proxy=False)[0]
             pos_joint_ids.extend(joint_ids)
 
             # set the joint position ranges based on the given values
@@ -2210,7 +2215,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
         vel_joint_ids = []
         for joint_name, joint_range in cfg.params["velocity_range"].items():
             # find the joint ids
-            joint_ids = self._asset.find_joints(joint_name)[0]
+            joint_ids = self._asset.find_joints(joint_name, as_proxy=False)[0]
             vel_joint_ids.extend(joint_ids)
 
             # set the joint velocity ranges based on the given values

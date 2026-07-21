@@ -73,21 +73,21 @@ class NonHolonomicAction(ActionTerm):
 
         # parse the joint information
         # -- x joint
-        x_joint_id, x_joint_name = self._asset.find_joints(self.cfg.x_joint_name)
+        x_joint_id, x_joint_name = self._asset.find_joints(self.cfg.x_joint_name, as_proxy=False)
         if len(x_joint_id) != 1:
             raise ValueError(
                 f"Expected a single joint match for the x joint name: {self.cfg.x_joint_name}, got {len(x_joint_id)}"
             )
         # -- y joint
-        y_joint_id, y_joint_name = self._asset.find_joints(self.cfg.y_joint_name)
+        y_joint_id, y_joint_name = self._asset.find_joints(self.cfg.y_joint_name, as_proxy=False)
         if len(y_joint_id) != 1:
             raise ValueError(f"Found more than one joint match for the y joint name: {self.cfg.y_joint_name}")
         # -- yaw joint
-        yaw_joint_id, yaw_joint_name = self._asset.find_joints(self.cfg.yaw_joint_name)
+        yaw_joint_id, yaw_joint_name = self._asset.find_joints(self.cfg.yaw_joint_name, as_proxy=False)
         if len(yaw_joint_id) != 1:
             raise ValueError(f"Found more than one joint match for the yaw joint name: {self.cfg.yaw_joint_name}")
         # parse the body index
-        self._body_idx, self._body_name = self._asset.find_bodies(self.cfg.body_name)
+        self._body_idx, self._body_name = self._asset.find_bodies(self.cfg.body_name, as_proxy=False)
         if len(self._body_idx) != 1:
             raise ValueError(f"Found more than one body match for the body name: {self.cfg.body_name}")
 

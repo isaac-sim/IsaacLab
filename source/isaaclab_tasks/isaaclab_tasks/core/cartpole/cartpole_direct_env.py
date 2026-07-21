@@ -29,8 +29,8 @@ class CartpoleEnv(DirectRLEnv):
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
-        self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
-        self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
+        self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name, as_proxy=False)
+        self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name, as_proxy=False)
         self.action_scale = self.cfg.action_scale
 
         self.joint_pos = self.cartpole.data.joint_pos.torch

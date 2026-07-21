@@ -6,11 +6,16 @@
 """Unit tests for mock asset interfaces."""
 
 import warnings
+from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 
+from isaaclab.actuators import RemotizedPDActuator
+from isaaclab.assets.articulation import BaseArticulation
+from isaaclab.envs.mdp.actions import BinaryJointPositionAction, BinaryJointPositionActionCfg
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.mock_interfaces.assets import (
     MockArticulation,
     MockRigidObject,
@@ -211,6 +216,122 @@ def test_collection_find_objects_forwards_return_mode():
             assert isinstance(indices, torch.Tensor)
             assert indices.dtype == torch.int32
             assert torch.equal(indices, implicit_indices)
+
+
+def test_binary_joint_action_reuses_cached_proxy_without_torch_materialization():
+    """Test repeated action writes retain the cached finder proxy through the writer boundary."""
+    robot = MockArticulation(
+        num_instances=2,
+        num_joints=3,
+        num_bodies=1,
+        joint_names=["joint_0", "joint_1", "joint_2"],
+        device="cpu",
+    )
+    expected_selector = robot.find_joints(["joint_0", "joint_2"], preserve_order=True, as_proxy=True)[0]
+    received_selectors = []
+
+    def record_target(*, target, joint_ids=None, env_ids=None):
+        received_selectors.append(joint_ids)
+
+    robot.set_joint_position_target_index = record_target
+    env = SimpleNamespace(scene={"robot": robot}, num_envs=2, device="cpu")
+    cfg = BinaryJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["joint_0", "joint_2"],
+        open_command_expr={"joint_.*": 1.0},
+        close_command_expr={"joint_.*": -1.0},
+    )
+
+    action = BinaryJointPositionAction(cfg, env)
+    action.process_actions(torch.ones(2, 1))
+    action.apply_actions()
+    action.apply_actions()
+
+    assert action._joint_ids is expected_selector
+    assert len(received_selectors) == 2
+    assert all(selector is expected_selector for selector in received_selectors)
+    assert expected_selector._torch_cache is None
+
+
+def test_actuator_selector_keeps_partial_proxy_and_optimizes_full_order():
+    """Test the shared actuator branch keeps partial proxies and full ordered selections as a slice."""
+    assert getattr(BaseArticulation._process_actuators_cfg, "__isabstractmethod__", False)
+    assert not getattr(BaseArticulation._select_actuator_joint_ids, "__isabstractmethod__", False)
+    robot = MockArticulation(
+        num_instances=1,
+        num_joints=3,
+        num_bodies=1,
+        joint_names=["joint_0", "joint_1", "joint_2"],
+        device="cpu",
+    )
+    partial_ids, partial_names = robot.find_joints(["joint_2", "joint_0"], preserve_order=True, as_proxy=True)
+    full_ids, full_names = robot.find_joints(".*", as_proxy=True)
+
+    reordered_ids, reordered_names = robot.find_joints(
+        list(reversed(robot.joint_names)), preserve_order=True, as_proxy=True
+    )
+    resolved_partial = BaseArticulation._select_actuator_joint_ids(robot, partial_ids, partial_names)
+    resolved_full = BaseArticulation._select_actuator_joint_ids(robot, full_ids, full_names)
+
+    resolved_reordered = BaseArticulation._select_actuator_joint_ids(robot, reordered_ids, reordered_names)
+    assert resolved_partial is partial_ids
+    assert resolved_full == slice(None)
+    assert partial_ids._torch_cache is None
+    assert resolved_reordered is reordered_ids
+    assert full_ids._torch_cache is None
+
+    assert reordered_ids._torch_cache is None
+
+
+def test_remotized_pd_actuator_accepts_proxy_selector_annotation():
+    """Test the concrete actuator signature advertises cached proxy selectors."""
+
+    assert "ProxyArray" in RemotizedPDActuator.__init__.__annotations__["joint_ids"]
+
+
+def test_scene_entity_cfg_requests_legacy_list_for_joint_bookkeeping():
+    """Test SceneEntityCfg keeps list equality and slice-optimization semantics explicit."""
+    robot = MockArticulation(
+        num_instances=1,
+        num_joints=3,
+        num_bodies=1,
+        joint_names=["joint_0", "joint_1", "joint_2"],
+        device="cpu",
+    )
+    original_find_joints = robot.find_joints
+    requested_modes = []
+
+    def record_find_joints(*args, **kwargs):
+        requested_modes.append(kwargs.get("as_proxy"))
+        return original_find_joints(*args, **kwargs)
+
+    robot.find_joints = record_find_joints
+    entity_cfg = SceneEntityCfg("robot", joint_names=["joint_2", "joint_0"], preserve_order=True)
+
+    entity_cfg.resolve({"robot": robot})
+
+    assert requested_modes == [False]
+    assert entity_cfg.joint_ids == [2, 0]
+    assert entity_cfg.joint_names == ["joint_2", "joint_0"]
+
+
+def test_scene_entity_cfg_does_not_pass_asset_mode_to_sensor_finder():
+    """Test the sensor-specific SceneEntityCfg finder branch remains out of the asset migration."""
+
+    class FakeSensor:
+        body_names = ["foot_0", "foot_1"]
+        num_sensors = 2
+
+        def find_sensors(self, name_keys, preserve_order=False):
+            assert name_keys == ["foot_1"]
+            return [1], ["foot_1"]
+
+    entity_cfg = SceneEntityCfg("feet", body_names=["foot_1"])
+
+    entity_cfg.resolve({"feet": FakeSensor()})
+
+    assert entity_cfg.body_ids == [1]
+    assert entity_cfg.body_names == ["foot_1"]
 
 
 # ==============================================================================

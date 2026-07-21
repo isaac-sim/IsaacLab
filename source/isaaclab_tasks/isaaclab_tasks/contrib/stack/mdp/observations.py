@@ -291,7 +291,7 @@ def gripper_pos(
 
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
-            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names, as_proxy=False)
             if len(gripper_joint_ids) == 1:
                 # single-jaw gripper (e.g. SO-101)
                 return robot.data.joint_pos.torch[:, gripper_joint_ids[0]].clone().unsqueeze(1)
@@ -330,7 +330,7 @@ def object_grasped(
 
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
-            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names, as_proxy=False)
             assert len(gripper_joint_ids) >= 1, "Observations require at least one gripper joint"
 
             # Grasped: the end-effector is close to the object and every gripper joint has moved
@@ -375,7 +375,7 @@ def object_stacked(
 
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
-            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names, as_proxy=False)
             assert len(gripper_joint_ids) >= 1, "Observations require at least one gripper joint"
             # Stacked also requires the gripper to be released (every jaw back at the open value).
             open_val = torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)

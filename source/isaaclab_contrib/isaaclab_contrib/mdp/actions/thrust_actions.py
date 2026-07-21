@@ -88,7 +88,7 @@ class ThrustAction(ActionTerm):
 
         # resolve the thrusters over which the action term is applied
         self._thruster_ids, self._thruster_names = self._asset.find_bodies(
-            thruster_names_expr, preserve_order=self.cfg.preserve_order
+            thruster_names_expr, preserve_order=self.cfg.preserve_order, as_proxy=False
         )
         self._num_thrusters = len(self._thruster_ids)
         # log the resolved thruster names for debugging

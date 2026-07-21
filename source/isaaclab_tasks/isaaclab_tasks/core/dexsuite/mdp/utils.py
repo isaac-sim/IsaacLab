@@ -302,7 +302,7 @@ def collect_body_collision_meshes(robot, body_names: str | list[str]) -> tuple[d
     Returns ``(body_meshes, body_names)`` where ``body_meshes`` maps a body index to one
     merged :class:`trimesh.Trimesh` in that body's frame.
     """
-    body_ids, names = robot.find_bodies(body_names)
+    body_ids, names = robot.find_bodies(body_names, as_proxy=False)
     body_id_of = dict(zip(names, body_ids))
     robot_prim = sim_utils.find_matching_prims(robot.cfg.prim_path)[0]
 

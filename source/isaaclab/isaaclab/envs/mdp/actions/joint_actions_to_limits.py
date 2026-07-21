@@ -57,7 +57,7 @@ class JointPositionToLimitsAction(ActionTerm):
 
         # resolve the joints over which the action term is applied
         self._joint_ids, self._joint_names = self._asset.find_joints(
-            self.cfg.joint_names, preserve_order=cfg.preserve_order
+            self.cfg.joint_names, preserve_order=cfg.preserve_order, as_proxy=False
         )
         self._num_joints = len(self._joint_ids)
         # log the resolved joint names for debugging
