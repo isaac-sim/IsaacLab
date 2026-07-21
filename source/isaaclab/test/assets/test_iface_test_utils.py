@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _ASSET_TEST_DIR = Path(__file__).parent
 _IFACE_UTIL_MODULES = (
     "_articulation_iface_test_utils",
@@ -50,25 +52,17 @@ def test_iface_utilities_import_without_physx_package() -> None:
     script = f"""
 import builtins
 import importlib
-import importlib.util
 import sys
 
 sys.path.insert(0, {_ASSET_TEST_DIR.as_posix()!r})
 real_import = builtins.__import__
-real_find_spec = importlib.util.find_spec
 
 def blocked_import(name, *args, **kwargs):
     if name == "isaaclab_physx" or name.startswith("isaaclab_physx."):
         raise ModuleNotFoundError(name)
     return real_import(name, *args, **kwargs)
 
-def backend_free_find_spec(name, *args, **kwargs):
-    if name in ("isaaclab_physx", "isaaclab_newton", "isaaclab_ovphysx", "ovphysx"):
-        return None
-    return real_find_spec(name, *args, **kwargs)
-
 builtins.__import__ = blocked_import
-importlib.util.find_spec = backend_free_find_spec
 modules = [importlib.import_module(name) for name in {_IFACE_UTIL_MODULES!r}]
 assert all(not any(backend.lower() == "physx" for backend in module.BACKENDS) for module in modules)
 """
@@ -93,41 +87,25 @@ assert all(module.BACKENDS[0] == "Mock" for module in modules)
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_discoverable_backend_internal_import_error_propagates() -> None:
+@pytest.mark.parametrize("module_name", _IFACE_UTIL_MODULES)
+def test_iface_utility_skips_backends_that_fail_to_import(module_name: str) -> None:
     script = f"""
 import builtins
-import importlib.util
+import importlib
 import sys
-import types
 
 sys.path.insert(0, {_ASSET_TEST_DIR.as_posix()!r})
-real_find_spec = importlib.util.find_spec
 real_import = builtins.__import__
 
-def find_spec(name, package=None):
-    if name in ("isaaclab_ovphysx", "ovphysx"):
-        return object()
-    if name in ("isaaclab_physx", "isaaclab_newton"):
-        return None
-    return real_find_spec(name, package)
-
 def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-    if name == "isaaclab_ovphysx.assets.articulation.articulation":
-        return types.SimpleNamespace(Articulation=object)
-    if name == "isaaclab_ovphysx.assets.articulation.articulation_data":
-        raise ModuleNotFoundError("broken backend dependency", name="broken_backend_dependency")
+    backend_prefixes = ("isaaclab_physx.", "isaaclab_newton.", "isaaclab_ovphysx.")
+    if name == "ovphysx" or name.startswith(backend_prefixes):
+        raise ModuleNotFoundError("backend dependency unavailable", name="backend_dependency")
     return real_import(name, globals, locals, fromlist, level)
 
-importlib.util.find_spec = find_spec
 builtins.__import__ = guarded_import
-
-try:
-    import _articulation_iface_test_utils
-except ModuleNotFoundError as exc:
-    if exc.name == "broken_backend_dependency":
-        raise SystemExit(0)
-    raise
-raise SystemExit("discoverable backend internal import error was swallowed")
+module = importlib.import_module({module_name!r})
+assert module.BACKENDS == ["Mock"]
 """
 
     result = _run_probe(script)

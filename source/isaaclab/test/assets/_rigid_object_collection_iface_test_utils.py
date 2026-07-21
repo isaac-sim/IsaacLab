@@ -8,7 +8,6 @@
 
 """Shared mocked rigid-object-collection backend factories for interface tests."""
 
-import importlib.util
 from unittest.mock import MagicMock
 
 from _iface_test_boot import simulation_app
@@ -22,7 +21,7 @@ from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
 BACKENDS = ["Mock"]  # Mock backend is always available.
 
-if importlib.util.find_spec("isaaclab_physx") is not None:
+try:
     from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as PhysXRigidObjectCollection,
     )
@@ -31,7 +30,9 @@ if importlib.util.find_spec("isaaclab_physx") is not None:
     )
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-
+except ImportError:
+    pass
+else:
     # PhysX data classes need gravity even though interface tests do not create a physics scene.
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
@@ -39,7 +40,7 @@ if importlib.util.find_spec("isaaclab_physx") is not None:
 
     BACKENDS.append("physx")
 
-if importlib.util.find_spec("isaaclab_newton") is not None:
+try:
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as NewtonRigidObjectCollection,
     )
@@ -48,13 +49,14 @@ if importlib.util.find_spec("isaaclab_newton") is not None:
     )
     from isaaclab_newton.test.mock_interfaces.mock_newton import MockWrenchComposer as NewtonMockWrenchComposer
     from isaaclab_newton.test.mock_interfaces.views import MockNewtonCollectionView as NewtonMockCollectionView
-
+except ImportError:
+    pass
+else:
     BACKENDS.append("newton")
 
-if (
-    importlib.util.find_spec("isaaclab_ovphysx") is not None
-    and importlib.util.find_spec("ovphysx") is not None
-):
+try:
+    import ovphysx  # noqa: F401
+
     from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as OvPhysxRigidObjectCollection,
     )
@@ -62,7 +64,9 @@ if (
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
     from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
-
+except ImportError:
+    pass
+else:
     if hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
         BACKENDS.append("ovphysx")
 

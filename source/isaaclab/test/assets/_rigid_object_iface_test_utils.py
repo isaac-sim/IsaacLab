@@ -8,7 +8,6 @@
 
 """Shared mocked rigid-object backend factories for interface tests."""
 
-import importlib.util
 from unittest.mock import MagicMock
 
 from _iface_test_boot import simulation_app
@@ -21,12 +20,14 @@ from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
 BACKENDS = ["Mock"]  # Mock backend is always available.
 
-if importlib.util.find_spec("isaaclab_physx") is not None:
+try:
     from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject as PhysXRigidObject
     from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-
+except ImportError:
+    pass
+else:
     # PhysX data classes need gravity even though interface tests do not create a physics scene.
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
@@ -34,21 +35,24 @@ if importlib.util.find_spec("isaaclab_physx") is not None:
 
     BACKENDS.append("physx")
 
-if importlib.util.find_spec("isaaclab_newton") is not None:
+try:
     from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject as NewtonRigidObject
     from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData as NewtonRigidObjectData
     from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
-
+except ImportError:
+    pass
+else:
     BACKENDS.append("newton")
 
-if (
-    importlib.util.find_spec("isaaclab_ovphysx") is not None
-    and importlib.util.find_spec("ovphysx") is not None
-):
+try:
+    import ovphysx  # noqa: F401
+
     from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
     from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
     from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
-
+except ImportError:
+    pass
+else:
     BACKENDS.append("ovphysx")
 
 
