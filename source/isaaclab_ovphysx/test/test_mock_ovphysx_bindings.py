@@ -44,3 +44,15 @@ def test_read_copies_into_structured_warp_destination(dtype, width):
     _make_binding(source).read(destination)
 
     np.testing.assert_array_equal(destination.view(wp.float32).numpy(), source)
+
+
+@pytest.mark.parametrize(
+    ("dtype", "destination_shape"),
+    [(wp.int32, (2, 3)), (wp.uint32, (2, 3)), (wp.vec3i, (2,))],
+)
+def test_read_rejects_warp_destination_without_float32_scalar(dtype, destination_shape):
+    source = np.arange(6, dtype=np.float32).reshape(2, 3)
+    destination = wp.zeros(destination_shape, dtype=dtype, device="cpu")
+
+    with pytest.raises(RuntimeError):
+        _make_binding(source).read(destination)
