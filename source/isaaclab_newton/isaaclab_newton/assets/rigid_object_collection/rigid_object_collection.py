@@ -165,7 +165,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def reset(
         self,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
         env_mask: wp.array | None = None,
         object_mask: wp.array | None = None,
     ) -> None:

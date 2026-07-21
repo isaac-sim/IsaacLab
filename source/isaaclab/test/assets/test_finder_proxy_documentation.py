@@ -69,6 +69,55 @@ def test_articulation_subset_finder_docs_define_proxy_and_legacy_indices(path: s
         assert "legacy" in docstring, finder_name
 
 
+@pytest.mark.parametrize(
+    "path",
+    (
+        "source/isaaclab/isaaclab/assets/articulation/base_articulation.py",
+        "source/isaaclab_physx/isaaclab_physx/assets/articulation/articulation.py",
+        "source/isaaclab_newton/isaaclab_newton/assets/articulation/articulation.py",
+        "source/isaaclab_ovphysx/isaaclab_ovphysx/assets/articulation/articulation.py",
+    ),
+)
+@pytest.mark.parametrize(
+    ("finder_name", "selector_name", "writer_name"),
+    (
+        ("find_joints", "joint_ids", "set_joint_position_target_index"),
+        ("find_fixed_tendons", "fixed_tendon_ids", "write_fixed_tendon_properties_to_sim_index"),
+        ("find_spatial_tendons", "spatial_tendon_ids", "write_spatial_tendon_properties_to_sim_index"),
+    ),
+)
+def test_articulation_finder_migration_examples_use_matching_domains(
+    path: str, finder_name: str, selector_name: str, writer_name: str
+) -> None:
+    tree = ast.parse((_REPO_ROOT / path).read_text())
+    node = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == finder_name)
+    docstring = ast.get_docstring(node) or ""
+
+    assert f'{selector_name}, _ = asset.{finder_name}(".*", as_proxy=True)' in docstring
+    assert writer_name in docstring
+    assert "find_bodies" not in docstring
+    assert "body_ids" not in docstring
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        "source/isaaclab/isaaclab/assets/articulation/base_articulation.py",
+        "source/isaaclab_physx/isaaclab_physx/assets/articulation/articulation.py",
+        "source/isaaclab_newton/isaaclab_newton/assets/articulation/articulation.py",
+        "source/isaaclab_ovphysx/isaaclab_ovphysx/assets/articulation/articulation.py",
+    ),
+)
+def test_articulation_body_finder_migration_example_uses_body_domain(path: str) -> None:
+    tree = ast.parse((_REPO_ROOT / path).read_text())
+    node = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "find_bodies")
+    docstring = ast.get_docstring(node) or ""
+
+    assert 'body_ids, _ = asset.find_bodies(".*", as_proxy=True)' in docstring
+    assert "joint_ids" not in docstring
+    assert "tendon_ids" not in docstring
+
+
 @pytest.mark.parametrize("path", _BACKEND_FRAGMENTS)
 def test_backend_fragments_include_deprecation_migration_guidance(path: str) -> None:
     fragment = (_REPO_ROOT / path).read_text()

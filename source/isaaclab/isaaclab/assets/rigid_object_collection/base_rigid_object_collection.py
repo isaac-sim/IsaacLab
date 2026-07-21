@@ -126,7 +126,7 @@ class BaseRigidObjectCollection(AssetBase):
     def reset(
         self,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
         """Resets all internal buffers of selected environments and objects.
@@ -976,7 +976,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_state: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and
         :meth:`write_body_link_velocity_to_sim_index` instead."""
@@ -992,7 +992,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_state: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` and
         :meth:`write_body_velocity_to_sim_index` instead."""
@@ -1008,7 +1008,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_state: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and
         :meth:`write_body_link_velocity_to_sim_index` instead."""
@@ -1024,7 +1024,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_pose: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` instead."""
         warnings.warn(
@@ -1039,7 +1039,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_pose: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_link_pose_to_sim_index` instead."""
         warnings.warn(
@@ -1054,7 +1054,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_pose: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` instead."""
         warnings.warn(
@@ -1069,7 +1069,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_velocity: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim_index` instead."""
         warnings.warn(
@@ -1084,7 +1084,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_velocity: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim_index` instead."""
         warnings.warn(
@@ -1099,7 +1099,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_velocity: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_link_velocity_to_sim_index` instead."""
         warnings.warn(

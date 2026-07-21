@@ -502,10 +502,10 @@ class Articulation(BaseArticulation):
                 attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
                 as immutable because cache hits share this storage.
 
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
-        ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
-        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
+        ``joint_ids, _ = asset.find_joints(".*", as_proxy=True)`` and pass ``joint_ids`` to
+        :meth:`set_joint_position_target_index`; use ``joint_ids.warp`` in Warp code or ``joint_ids.torch`` for
+        Torch indexing.
 
         Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
         subset-local indices.
@@ -555,10 +555,10 @@ class Articulation(BaseArticulation):
                 attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
                 as immutable because cache hits share this storage.
 
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
-        ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
-        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
+        ``fixed_tendon_ids, _ = asset.find_fixed_tendons(".*", as_proxy=True)`` and pass
+        ``fixed_tendon_ids`` to :meth:`write_fixed_tendon_properties_to_sim_index`; use
+        ``fixed_tendon_ids.warp`` in Warp code or ``fixed_tendon_ids.torch`` for Torch indexing.
 
         Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
         subset-local indices.
@@ -608,10 +608,10 @@ class Articulation(BaseArticulation):
                 attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
                 as immutable because cache hits share this storage.
 
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
-        ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
-        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
+        ``spatial_tendon_ids, _ = asset.find_spatial_tendons(".*", as_proxy=True)`` and pass
+        ``spatial_tendon_ids`` to :meth:`write_spatial_tendon_properties_to_sim_index`; use
+        ``spatial_tendon_ids.warp`` in Warp code or ``spatial_tendon_ids.torch`` for Torch indexing.
 
         Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
         subset-local indices.

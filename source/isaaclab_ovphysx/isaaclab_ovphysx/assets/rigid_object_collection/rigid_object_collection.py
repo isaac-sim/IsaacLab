@@ -165,7 +165,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def reset(
         self,
         env_ids: Sequence[int] | wp.array | None = None,
-        object_ids: slice | None = None,
+        object_ids: slice | ProxyArray | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
         """Resets all internal buffers of selected environments and objects.
