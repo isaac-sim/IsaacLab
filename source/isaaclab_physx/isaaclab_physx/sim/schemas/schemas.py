@@ -92,45 +92,44 @@ def _strip_fragment_fields(cfg) -> dict:
 
 
 def _tune_multi_instance_tendon(cfg, prim_path: str, stage: Usd.Stage | None, markers: tuple[str, ...]) -> bool:
-    """Tune every multi-instance tendon schema (matching one of ``markers``) under ``prim_path``.
+    """Tune the multi-instance tendon schemas (matching one of ``markers``) on the prim at ``prim_path``.
 
     Shared backend for :func:`apply_fixed_tendon` / :func:`apply_spatial_tendon`. These schemas are
-    *tune-not-apply* (instances are authored in the source asset) and are typically applied on the
-    descendant joint prims rather than the ``prim_path`` the spawner targets, so this descends the
-    whole subtree (matching the legacy ``apply_nested`` traversal) and writes each set fragment field
-    as ``<schema_name>:<camelCase(field)>`` on every prim carrying a matching instance. Applies no
-    schema. The fragment's ``_usd_namespace`` is unused (these are not flat-namespace fragments); the
-    schema marker is matched explicitly via ``markers``.
+    *tune-not-apply* (instances are authored in the source asset). This is a strictly per-prim
+    tuner: the core writers (e.g. :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) own
+    targeting and hand it the exact resolved prim paths, so it never descends into descendants. It
+    writes each set fragment field as ``<schema_name>:<camelCase(field)>`` across every matching
+    applied instance on the prim. Applies no schema. The fragment's ``_usd_namespace`` is unused
+    (these are not flat-namespace fragments); the schema marker is matched explicitly via
+    ``markers``.
 
     Args:
         cfg: The tendon fragment whose set fields are written.
-        prim_path: The prim path (or articulation root) whose subtree carries the schemas.
+        prim_path: The prim path carrying the tendon schema instances.
         stage: The stage to resolve the prim on. Defaults to the current stage.
         markers: Substrings identifying the applied schema(s) to tune (e.g. ``("PhysxTendonAxisRootAPI",)``).
 
     Returns:
-        True if at least one matching instance was tuned, False if none is applied.
+        True if at least one matching instance was tuned, False if none is applied on the prim.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` does not exist in the stage.
     """
     if stage is None:
         stage = get_current_stage()
-    root = stage.GetPrimAtPath(prim_path)
-    if not root.IsValid():
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    matching_schemas = [s for s in prim.GetAppliedSchemas() if any(m in s for m in markers)]
+    if not matching_schemas:
+        return False
     values = _strip_fragment_fields(cfg)
-    found = False
-    for prim in Usd.PrimRange(root):
-        applied_schemas = prim.GetAppliedSchemas()
-        if not any(m in s for s in applied_schemas for m in markers):
-            continue
-        found = True
-        for schema_name in applied_schemas:
-            if not any(m in schema_name for m in markers):
-                continue
-            for attr_name, value in values.items():
-                safe_set_attribute_on_usd_prim(
-                    prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-                )
-    return found
+    for schema_name in matching_schemas:
+        for attr_name, value in values.items():
+            safe_set_attribute_on_usd_prim(
+                prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+            )
+    return True
 
 
 def apply_fixed_tendon(cfg: PhysxFixedTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:

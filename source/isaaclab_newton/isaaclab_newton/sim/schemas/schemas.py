@@ -30,7 +30,10 @@ def apply_mujoco_fixed_tendon(cfg: MujocoFixedTendonCfg, prim_path: str, stage: 
     """Write ``mjc:*`` fixed-tendon attributes on a ``MjcTendon`` prim.
 
     Custom ``func`` override for :class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg`.
-    No-op (returns False) on any prim whose type is not ``MjcTendon``.
+    This is a strictly per-prim tuner: the core writer
+    (:func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) owns targeting and hands it the
+    exact resolved prim paths, so it never descends into descendants. No-op (returns False) on any
+    prim whose type is not ``MjcTendon``.
 
     Args:
         cfg: The :class:`MujocoFixedTendonCfg` fragment to apply.
@@ -45,24 +48,19 @@ def apply_mujoco_fixed_tendon(cfg: MujocoFixedTendonCfg, prim_path: str, stage: 
     """
     if stage is None:
         stage = get_current_stage()
-    root = stage.GetPrimAtPath(prim_path)
-    if not root.IsValid():
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if prim.GetTypeName() != "MjcTendon":
+        return False
     values = {
         f.name: getattr(cfg, f.name)
         for f in dataclasses.fields(cfg)
         if f.name != "func" and getattr(cfg, f.name) is not None
     }
-    # Descend the whole subtree (matching legacy apply_nested): ``MjcTendon`` prims may sit below
-    # the prim_path the spawner targets. Write ``mjc:*`` on every ``MjcTendon`` descendant.
-    found = False
-    for prim in Usd.PrimRange(root):
-        if prim.GetTypeName() != "MjcTendon":
-            continue
-        found = True
-        for attr_name, value in values.items():
-            safe_set_attribute_on_usd_prim(prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False)
-    return found
+    for attr_name, value in values.items():
+        safe_set_attribute_on_usd_prim(prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False)
+    return True
 
 
 def apply_mujoco_joint(cfg: MujocoJointCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:

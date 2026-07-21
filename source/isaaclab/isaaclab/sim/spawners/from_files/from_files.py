@@ -412,7 +412,7 @@ def _spawn_from_usd_file(
         if isinstance(fixed_tendon_frags, (list, tuple)) and all(
             isinstance(f, schemas.SchemaFragment) for f in fixed_tendon_frags
         ):
-            schemas.apply_fixed_tendon_properties(prim_path, fixed_tendon_frags)
+            schemas.apply_fixed_tendon_properties(f"{prim_path}/**", fixed_tendon_frags)
         else:
             schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
     if cfg.spatial_tendons_props is not None:
@@ -426,7 +426,7 @@ def _spawn_from_usd_file(
         if isinstance(spatial_tendon_frags, (list, tuple)) and all(
             isinstance(f, schemas.SchemaFragment) for f in spatial_tendon_frags
         ):
-            schemas.apply_spatial_tendon_properties(prim_path, spatial_tendon_frags)
+            schemas.apply_spatial_tendon_properties(f"{prim_path}/**", spatial_tendon_frags)
         else:
             schemas.modify_spatial_tendon_properties(prim_path, cfg.spatial_tendons_props)
     # define drive API on the joints
