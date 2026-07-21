@@ -1408,10 +1408,12 @@ class AppLauncher:
         * Normal interpreter exit: the ``atexit`` hook closes the app once, passing a
           nonzero exit code when an unhandled exception is pending so the failure
           status survives Kit fast shutdown.
-        * ``SIGTERM`` and signal-delivered ``SIGABRT``: close once with full teardown,
-          then re-raise the signal with the default action so the process dies with
-          the conventional killed-by-signal status (128 + signum). Native ``abort()``
-          calls bypass Python handlers and already terminate correctly.
+        * ``SIGTERM`` and signal-delivered ``SIGABRT``: close once with the conventional
+          killed-by-signal status (``close(exit_code=128 + signum)``; the app performs
+          its full teardown before exiting on isaacsim.simulation_app >= 2.18.5). If
+          ``close()`` returns (fast shutdown disabled), re-raise the signal with the
+          default action. Native ``abort()`` calls bypass Python handlers and already
+          terminate correctly.
         * Any signal while a close is running: never re-enter ``close()`` (the nested
           calls previously recursed until the stack overflowed, leaving workers that
           only SIGKILL could stop); fall back to the default signal action.
@@ -1423,11 +1425,9 @@ class AppLauncher:
           :class:`KeyboardInterrupt`, unwinds user code (``finally`` blocks run), and
           exits with a failure status.
 
-        WORKAROUND(isaac-sim): two pieces below exist only because of upstream
-        SimulationApp behavior and can be removed once isaac-sim/IsaacSim#717 lands: fast shutdown is
-        disabled during a signal close (so ``close()`` returns and the
-        killed-by-signal status can be reported), and ``SIGINT`` is re-registered
-        over SimulationApp's own handler (which exits 0 before user code unwinds).
+        WORKAROUND(isaac-sim): ``SIGINT`` is re-registered over SimulationApp's own
+        handler, which exits 0 before user code unwinds; remove once the upstream
+        handler preserves exception semantics and a nonzero exit status.
         """
 
         def __init__(self, app: SimulationApp):
@@ -1501,29 +1501,24 @@ class AppLauncher:
                 signal.raise_signal(signum)
                 return
             self._closing = True
-            # WORKAROUND(isaac-sim): under fast shutdown, ``close()`` terminates the
-            # process with exit code 0 from inside ``app.shutdown()``; a killed worker
-            # would then be recorded as successful by its launcher, and the remaining
-            # ranks would block until the collective watchdog fires. Disable fast
-            # shutdown so ``close()`` performs the full teardown and returns here.
+            # Close with the conventional killed-by-signal status so a killed worker is not
+            # recorded as successful by its launcher. With isaacsim.simulation_app >= 2.18.5
+            # the app performs its full teardown and exits with this status; older builds
+            # exit with the correct status without the teardown.
             with contextlib.suppress(Exception):
-                import carb.settings
-
-                carb.settings.get_settings().set("/app/fastShutdown", False)
-            with contextlib.suppress(Exception):
-                self._app.config["fast_shutdown"] = False
-            if self._app.config.get("fast_shutdown", True):
-                # Fail loudly if a SimulationApp update breaks the override, so the
-                # exit-0-on-signal regression does not return silently.
-                print(
-                    "[ISAACLAB] WARNING: could not disable Kit fast shutdown; this process may"
-                    " report exit code 0 instead of its termination signal.",
-                    file=sys.__stderr__,
-                    flush=True,
-                )
-            with contextlib.suppress(Exception):
-                self._app.close()
-            # Die by the signal so the exit status is the conventional 128 + signum
-            # instead of reporting success.
+                try:
+                    self._app.close(exit_code=128 + signum)
+                except TypeError:
+                    # Fail loudly if ``close()`` stops accepting the parameter, so the
+                    # exit-0-on-signal regression does not return silently.
+                    print(
+                        "[ISAACLAB] WARNING: SimulationApp.close() does not accept exit_code;"
+                        " this process may report exit code 0 instead of its termination signal.",
+                        file=sys.__stderr__,
+                        flush=True,
+                    )
+                    self._app.close()
+            # ``close()`` only returns when fast shutdown is disabled; die by the signal so
+            # the exit status is truthful on that path as well.
             signal.signal(signum, signal.SIG_DFL)
             signal.raise_signal(signum)

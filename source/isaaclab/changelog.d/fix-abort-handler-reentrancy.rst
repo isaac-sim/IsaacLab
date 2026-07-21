@@ -12,8 +12,10 @@ Fixed
 * Fixed signal-terminated processes reporting a successful exit status. Kit fast
   shutdown terminated the process with exit code 0 from inside the graceful close, so
   a ``SIGTERM``-ed worker was recorded as succeeded by distributed launchers. The
-  handler now performs the full teardown and re-raises the signal with the default
-  action, so the process exits with the conventional killed-by-signal status.
+  handler now closes the app with the conventional killed-by-signal status
+  (``close(exit_code=128 + signum)``; the app performs its full teardown before
+  exiting on ``isaacsim.simulation_app`` >= 2.18.5) and re-raises the signal with the
+  default action if the close returns.
 * Fixed ``Ctrl-C`` terminating the process with exit code 0 before ``finally`` blocks
   or ``KeyboardInterrupt`` handlers in user code could run. ``SIGINT`` is restored to
   Python's default handler; the app is still closed by the ``atexit`` callback.

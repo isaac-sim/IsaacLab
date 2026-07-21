@@ -70,8 +70,10 @@ def test_sigterm_reports_killed_by_signal_status():
         if proc.poll() is None:
             proc.kill()
 
-    # the process must die by SIGTERM, not report a successful exit
-    assert proc.returncode == -signal.SIGTERM, f"returncode={proc.returncode}\n{stderr}"
+    # the process must report the termination truthfully: exit status 128 + SIGTERM when
+    # fast shutdown exits inside close(exit_code=...), or death by SIGTERM when close()
+    # returns and the handler re-raises. Either way, never a successful exit.
+    assert proc.returncode in (128 + signal.SIGTERM, -signal.SIGTERM), f"returncode={proc.returncode}\n{stderr}"
     # the teardown must not recurse through the abort handler
     assert "_on_abort_signal" not in stderr
 
