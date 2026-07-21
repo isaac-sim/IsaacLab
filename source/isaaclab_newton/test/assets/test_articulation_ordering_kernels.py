@@ -4,16 +4,27 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+import pytest
 import warp as wp
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.physics import newton_manager
 
 
-def test_write_joint_limit_data_to_user_and_backend_index_reorders_backend_buffers() -> None:
+def _selector(values: list[int], dtype: type) -> wp.array:
+    """Create a CPU Warp selector with the requested integer width."""
+    return wp.array(values, dtype=dtype, device="cpu")
+
+
+@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
+@pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
+def test_write_joint_limit_data_to_user_and_backend_index_accepts_index_dtypes(
+    env_dtype: type, joint_dtype: type
+) -> None:
     """Write partial user-order joint limits into user and backend-order buffers."""
     limits_np = np.asarray([[[1.0, 3.0], [2.0, 5.0]], [[-1.0, 1.0], [4.0, 8.0]]], dtype=np.float32)
     limits = wp.array(limits_np, dtype=wp.vec2f, device="cpu")
-    env_ids = wp.array(np.asarray([0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
-    user_ids = wp.array(np.asarray([2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    env_ids = _selector([0, 1], env_dtype)
+    user_ids = _selector([2, 0], joint_dtype)
     user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
     user_lower = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     user_upper = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
@@ -102,11 +113,13 @@ def test_write_joint_limit_data_to_user_and_backend_mask_reorders_backend_buffer
     assert clamped_defaults.numpy()[0] == 2
 
 
-def test_deprecated_write_joint_vel_data_index_scatters_and_resets_acc() -> None:
+@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
+@pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
+def test_deprecated_write_joint_vel_data_index_accepts_index_dtypes(env_dtype: type, joint_dtype: type) -> None:
     """Deprecated kernel still scatters selected joint velocities and resets acceleration."""
     in_data = wp.array(np.asarray([[10.0, 11.0], [20.0, 21.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
-    env_ids = wp.array(np.asarray([1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
-    joint_ids = wp.array(np.asarray([2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    env_ids = _selector([1, 0], env_dtype)
+    joint_ids = _selector([2, 0], joint_dtype)
     joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     prev_joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     joint_acc = wp.array(np.ones((2, 3), dtype=np.float32), dtype=wp.float32, device="cpu")
@@ -150,12 +163,14 @@ def test_deprecated_write_joint_vel_data_mask_writes_only_masked_cells() -> None
     np.testing.assert_allclose(joint_acc.numpy(), np.asarray([[0.0, 1.0, 0.0], [1.0, 1.0, 1.0]], dtype=np.float32))
 
 
-def test_deprecated_write_joint_state_data_index_scatters_pos_and_vel() -> None:
+@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
+@pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
+def test_deprecated_write_joint_state_data_index_accepts_index_dtypes(env_dtype: type, joint_dtype: type) -> None:
     """Deprecated kernel scatters selected joint positions/velocities and resets acceleration."""
     pos_data = wp.array(np.asarray([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
     vel_data = wp.array(np.asarray([[5.0, 6.0], [7.0, 8.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
-    env_ids = wp.array(np.asarray([1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
-    joint_ids = wp.array(np.asarray([2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    env_ids = _selector([1, 0], env_dtype)
+    joint_ids = _selector([2, 0], joint_dtype)
     joint_pos = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     prev_joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
@@ -204,3 +219,23 @@ def test_deprecated_write_joint_state_data_mask_writes_only_masked_cells() -> No
     np.testing.assert_allclose(joint_vel.numpy(), expected_vel)
     np.testing.assert_allclose(prev_joint_vel.numpy(), expected_vel)
     np.testing.assert_allclose(joint_acc.numpy(), np.asarray([[1.0, 0.0, 0.0], [1.0, 1.0, 1.0]], dtype=np.float32))
+
+
+@pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
+def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> None:
+    """Set exact world and articulation reset masks from nonidentity environment IDs."""
+    env_ids = _selector([2, 0], index_dtype)
+    articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
+    world_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
+    fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
+
+    wp.launch(
+        newton_manager._scatter_reset_masks_from_ids,
+        dim=(env_ids.shape[0], articulation_ids.shape[1]),
+        inputs=[env_ids, articulation_ids],
+        outputs=[world_mask, fk_mask],
+        device="cpu",
+    )
+
+    np.testing.assert_array_equal(world_mask.numpy(), np.asarray([True, False, True]))
+    np.testing.assert_array_equal(fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))

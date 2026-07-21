@@ -3,9 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 import warp as wp
 
 from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+
+if TYPE_CHECKING:
+    import torch
 
 """
 Articulation-specific warp functions.
@@ -134,8 +142,8 @@ def get_body_com_acc_from_body_com_vel_ordered(
 def write_joint_limit_data_to_buffer_index(
     in_data: wp.array2d(dtype=wp.vec2f),
     soft_limit_factor: wp.float32,
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
     joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
@@ -166,19 +174,21 @@ def write_joint_limit_data_to_buffer_index(
             positions were clamped. Non-zero if any clamping occurred. Shape is (1,).
     """
     i, j = wp.tid()
-    joint_pos_limits_lower[env_ids[i], joint_ids[j]] = in_data[i, j][0]
-    joint_pos_limits_upper[env_ids[i], joint_ids[j]] = in_data[i, j][1]
-    if (
-        default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits_lower[env_ids[i], joint_ids[j]]
-    ) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits_upper[env_ids[i], joint_ids[j]]:
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    joint_pos_limits_lower[env_id, joint_id] = in_data[i, j][0]
+    joint_pos_limits_upper[env_id, joint_id] = in_data[i, j][1]
+    if (default_joint_pos[env_id, joint_id] < joint_pos_limits_lower[env_id, joint_id]) or default_joint_pos[
+        env_id, joint_id
+    ] > joint_pos_limits_upper[env_id, joint_id]:
         wp.atomic_add(clamped_defaults, 0, 1)
-        default_joint_pos[env_ids[i], joint_ids[j]] = wp.clamp(
-            default_joint_pos[env_ids[i], joint_ids[j]],
-            joint_pos_limits_lower[env_ids[i], joint_ids[j]],
-            joint_pos_limits_upper[env_ids[i], joint_ids[j]],
+        default_joint_pos[env_id, joint_id] = wp.clamp(
+            default_joint_pos[env_id, joint_id],
+            joint_pos_limits_lower[env_id, joint_id],
+            joint_pos_limits_upper[env_id, joint_id],
         )
-    soft_joint_pos_limits[env_ids[i], joint_ids[j]] = compute_soft_joint_pos_limits_func(
-        wp.vec2f(joint_pos_limits_lower[env_ids[i], joint_ids[j]], joint_pos_limits_upper[env_ids[i], joint_ids[j]]),
+    soft_joint_pos_limits[env_id, joint_id] = compute_soft_joint_pos_limits_func(
+        wp.vec2f(joint_pos_limits_lower[env_id, joint_id], joint_pos_limits_upper[env_id, joint_id]),
         soft_limit_factor,
     )
 
@@ -240,8 +250,8 @@ def write_joint_limit_data_to_buffer_mask(
 def write_joint_limit_data_to_user_and_backend_index(
     in_data: wp.array2d(dtype=wp.vec2f),
     soft_limit_factor: wp.float32,
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    user_ids: wp.array(dtype=Any),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     user_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
@@ -255,8 +265,8 @@ def write_joint_limit_data_to_user_and_backend_index(
 ):
     """Write indexed user-order joint limits into public and backend-order buffers."""
     i, j = wp.tid()
-    env_id = env_ids[i]
-    user_id = user_ids[j]
+    env_id = wp.int32(env_ids[i])
+    user_id = wp.int32(user_ids[j])
     backend_id = resolve_backend_index(user_id, user_to_backend, has_ordering)
     limits = in_data[i, j]
     lower = limits[0]
@@ -320,8 +330,8 @@ def write_joint_friction_data_to_buffer(
     in_friction: wp.array2d(dtype=wp.float32),
     in_dynamic_friction: wp.array2d(dtype=wp.float32),
     in_viscous_friction: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     from_mask: bool,
     out_friction: wp.array2d(dtype=wp.float32),
     out_dynamic_friction: wp.array2d(dtype=wp.float32),
@@ -359,32 +369,34 @@ def write_joint_friction_data_to_buffer(
             [friction, dynamic_friction, viscous_friction].
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
     # First update the output buffers
     if from_mask:
-        out_friction[env_ids[i], joint_ids[j]] = in_friction[env_ids[i], joint_ids[j]]
+        out_friction[env_id, joint_id] = in_friction[env_id, joint_id]
         if in_dynamic_friction:
-            out_dynamic_friction[env_ids[i], joint_ids[j]] = in_dynamic_friction[env_ids[i], joint_ids[j]]
+            out_dynamic_friction[env_id, joint_id] = in_dynamic_friction[env_id, joint_id]
         if in_viscous_friction:
-            out_viscous_friction[env_ids[i], joint_ids[j]] = in_viscous_friction[env_ids[i], joint_ids[j]]
+            out_viscous_friction[env_id, joint_id] = in_viscous_friction[env_id, joint_id]
     else:
-        out_friction[env_ids[i], joint_ids[j]] = in_friction[i, j]
+        out_friction[env_id, joint_id] = in_friction[i, j]
         if in_dynamic_friction:
-            out_dynamic_friction[env_ids[i], joint_ids[j]] = in_dynamic_friction[i, j]
+            out_dynamic_friction[env_id, joint_id] = in_dynamic_friction[i, j]
         if in_viscous_friction:
-            out_viscous_friction[env_ids[i], joint_ids[j]] = in_viscous_friction[i, j]
+            out_viscous_friction[env_id, joint_id] = in_viscous_friction[i, j]
     # Then update the friction properties
-    friction_props[env_ids[i], joint_ids[j], 0] = out_friction[env_ids[i], joint_ids[j]]
+    friction_props[env_id, joint_id, 0] = out_friction[env_id, joint_id]
     if in_dynamic_friction:
-        friction_props[env_ids[i], joint_ids[j], 1] = out_dynamic_friction[env_ids[i], joint_ids[j]]
+        friction_props[env_id, joint_id, 1] = out_dynamic_friction[env_id, joint_id]
     if in_viscous_friction:
-        friction_props[env_ids[i], joint_ids[j], 2] = out_viscous_friction[env_ids[i], joint_ids[j]]
+        friction_props[env_id, joint_id, 2] = out_viscous_friction[env_id, joint_id]
 
 
 @wp.kernel
 def write_joint_friction_param_to_buffer(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     buffer_index: wp.int32,
     from_mask: bool,
     out_data: wp.array2d(dtype=wp.float32),
@@ -412,19 +424,21 @@ def write_joint_friction_param_to_buffer(
             slice. Shape is (num_envs, num_joints, num_friction_params).
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
     if from_mask:
-        out_data[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
-        out_buffer[env_ids[i], joint_ids[j], buffer_index] = in_data[env_ids[i], joint_ids[j]]
+        out_data[env_id, joint_id] = in_data[env_id, joint_id]
+        out_buffer[env_id, joint_id, buffer_index] = in_data[env_id, joint_id]
     else:
-        out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
-        out_buffer[env_ids[i], joint_ids[j], buffer_index] = in_data[i, j]
+        out_data[env_id, joint_id] = in_data[i, j]
+        out_buffer[env_id, joint_id, buffer_index] = in_data[i, j]
 
 
 @wp.kernel
 def float_data_to_buffer_with_indices(
     in_data: wp.float32,
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     out_data: wp.array2d(dtype=wp.float32),
 ):
     """Write a scalar float value to a 2D buffer at specified indices.
@@ -439,7 +453,61 @@ def float_data_to_buffer_with_indices(
         out_data: Output array where the scalar value is written. Shape is (num_envs, num_joints).
     """
     i, j = wp.tid()
-    out_data[env_ids[i], joint_ids[j]] = in_data
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    out_data[env_id, joint_id] = in_data
+
+
+_WRITE_JOINT_LIMIT_DATA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_joint_limit_data_to_buffer_index, ("env_ids", "joint_ids")
+)
+_WRITE_JOINT_LIMIT_DATA_TO_USER_AND_BACKEND_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_joint_limit_data_to_user_and_backend_index, ("env_ids", "user_ids")
+)
+_WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
+    write_joint_friction_data_to_buffer, ("env_ids", "joint_ids")
+)
+_WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
+    write_joint_friction_param_to_buffer, ("env_ids", "joint_ids")
+)
+_FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    float_data_to_buffer_with_indices, ("env_ids", "joint_ids")
+)
+
+
+def write_joint_limit_data_to_buffer_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-limit buffer writer matching the selector dtypes."""
+    return _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
+
+
+def write_joint_limit_data_to_user_and_backend_index_kernel(
+    env_ids: wp.array | torch.Tensor, user_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the ordered joint-limit writer matching the selector dtypes."""
+    return _WRITE_JOINT_LIMIT_DATA_TO_USER_AND_BACKEND_INDEX_DISPATCHER.select(env_ids, user_ids)
+
+
+def write_joint_friction_data_to_buffer_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-friction writer matching the selector dtypes."""
+    return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
+
+
+def write_joint_friction_param_to_buffer_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-friction parameter writer matching the selector dtypes."""
+    return _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
+
+
+def float_data_to_buffer_with_indices_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the scalar buffer writer matching the selector dtypes."""
+    return _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
@@ -834,8 +902,8 @@ call time.
 @wp.kernel
 def write_joint_vel_data_index(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     joint_vel: wp.array2d(dtype=wp.float32),
     prev_joint_vel: wp.array2d(dtype=wp.float32),
     joint_acc: wp.array2d(dtype=wp.float32),
@@ -859,9 +927,11 @@ def write_joint_vel_data_index(
             (num_envs, num_joints).
     """
     i, j = wp.tid()
-    joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
-    prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
-    joint_acc[env_ids[i], joint_ids[j]] = 0.0
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    joint_vel[env_id, joint_id] = in_data[i, j]
+    prev_joint_vel[env_id, joint_id] = in_data[i, j]
+    joint_acc[env_id, joint_id] = 0.0
 
 
 @wp.kernel
@@ -902,8 +972,8 @@ def write_joint_vel_data_mask(
 def write_joint_state_data_index(
     pos_data: wp.array2d(dtype=wp.float32),
     vel_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     joint_pos: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
     prev_joint_vel: wp.array2d(dtype=wp.float32),
@@ -925,10 +995,30 @@ def write_joint_state_data_index(
         joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
     """
     i, j = wp.tid()
-    joint_pos[env_ids[i], joint_ids[j]] = pos_data[i, j]
-    joint_vel[env_ids[i], joint_ids[j]] = vel_data[i, j]
-    prev_joint_vel[env_ids[i], joint_ids[j]] = vel_data[i, j]
-    joint_acc[env_ids[i], joint_ids[j]] = 0.0
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    joint_pos[env_id, joint_id] = pos_data[i, j]
+    joint_vel[env_id, joint_id] = vel_data[i, j]
+    prev_joint_vel[env_id, joint_id] = vel_data[i, j]
+    joint_acc[env_id, joint_id] = 0.0
+
+
+_WRITE_JOINT_VEL_DATA_INDEX_DISPATCHER = IndexKernelDispatcher(write_joint_vel_data_index, ("env_ids", "joint_ids"))
+_WRITE_JOINT_STATE_DATA_INDEX_DISPATCHER = IndexKernelDispatcher(write_joint_state_data_index, ("env_ids", "joint_ids"))
+
+
+def write_joint_vel_data_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the deprecated joint-velocity writer matching the selector dtypes."""
+    return _WRITE_JOINT_VEL_DATA_INDEX_DISPATCHER.select(env_ids, joint_ids)
+
+
+def write_joint_state_data_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the deprecated joint-state writer matching the selector dtypes."""
+    return _WRITE_JOINT_STATE_DATA_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
