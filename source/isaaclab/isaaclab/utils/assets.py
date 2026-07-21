@@ -444,6 +444,16 @@ def search_simready_usd_paths(
     read from the ``USD_SEARCH_USERNAME`` and ``USD_SEARCH_PASSWORD`` environment variables when
     the package is first imported.
 
+    .. note::
+        The service returns identical results for identical queries while its asset index is
+        unchanged, but the index evolves over time, so the same query may resolve differently
+        across days. Treat this function as an authoring-time discovery step: resolve once, then
+        record the returned paths directly (e.g. in a spawner configuration's ``usd_path``)
+        instead of re-querying on every run. For physics-ready assets, restrict results with
+        SimReady features, e.g. ``filter_features=["FET004_BASE_PHYSX"]``. Feature tags certify
+        PhysX readiness only; validate assets under other physics backends before training on
+        them (see ``scripts/demos/simready_lift.py``).
+
     Args:
         query: Free-text search phrase (e.g. ``"food box"``). At least one of :paramref:`query`,
             :paramref:`filter_profiles`, or :paramref:`filter_features` must be provided.

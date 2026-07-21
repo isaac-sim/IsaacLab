@@ -71,8 +71,6 @@ __all__ = [
     "spawn_multi_usd_file",
     "MultiAssetSpawnerCfg",
     "MultiUsdFileCfg",
-    "SimReadyMultiUsdFileCfg",
-    "SimReadyUsdFileCfg",
 ]
 
 from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg
@@ -143,4 +141,3 @@ from .shapes import (
     SphereCfg,
 )
 from .wrappers import spawn_multi_asset, spawn_multi_usd_file, MultiAssetSpawnerCfg, MultiUsdFileCfg
-from .simready import SimReadyMultiUsdFileCfg, SimReadyUsdFileCfg

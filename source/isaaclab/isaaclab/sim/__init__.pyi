@@ -342,8 +342,6 @@ from .spawners import (
     RigidObjectSpawnerCfg,
     SensorFrameCfg,
     ShapeCfg,
-    SimReadyMultiUsdFileCfg,
-    SimReadyUsdFileCfg,
     SpawnerCfg,
     SphereCfg,
     SphereLightCfg,
