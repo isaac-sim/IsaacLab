@@ -3262,8 +3262,8 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
     reset because eval_fk was not called between write_root_pose and collide.
 
     Uses ``use_mujoco_contacts=False`` so the Newton collision pipeline is
-    active, then patches ``_simulate_physics_only`` to capture body_q at
-    the moment collide() is called and asserts it matches joint_q.
+    active, then patches ``_simulate`` to capture body_q at the moment
+    collide() is called and asserts it matches joint_q.
     """
     from unittest.mock import patch
 
@@ -3304,9 +3304,9 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
             env_ids=torch.tensor([0], device=device, dtype=torch.int32),
         )
 
-        # Patch _simulate_physics_only to capture body_q before collide runs
+        # Patch _simulate to capture body_q before collide runs
         captured = {}
-        original_simulate = SimulationManager._simulate_physics_only.__func__
+        original_simulate = SimulationManager._simulate.__func__
 
         @classmethod  # type: ignore[misc]
         def _patched_simulate(cls):
@@ -3319,7 +3319,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
                 captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
             original_simulate(cls)
 
-        with patch.object(SimulationManager, "_simulate_physics_only", _patched_simulate):
+        with patch.object(SimulationManager, "_simulate", _patched_simulate):
             sim.step()
         articulation.update(sim.cfg.dt)
 
