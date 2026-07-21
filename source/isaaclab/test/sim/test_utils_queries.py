@@ -241,3 +241,15 @@ def test_find_global_fixed_joint_prim():
     joint_prim.GetJointEnabledAttr().Set(False)
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka") is not None
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka", check_enabled_only=True) is None
+
+
+def test_find_matching_prims_recursive_token_includes_inactive_prims():
+    """``**`` matches inactive prims, consistent with the per-level token traversal."""
+    stage = sim_utils.get_current_stage()
+    stage.DefinePrim("/World/Bot", "Xform")
+    child = stage.DefinePrim("/World/Bot/link", "Xform")
+    child.SetActive(False)
+    per_level = sim_utils.find_matching_prim_paths("/World/Bot/.*")
+    recursive = sim_utils.find_matching_prim_paths("/World/Bot/**")
+    assert "/World/Bot/link" in per_level
+    assert "/World/Bot/link" in recursive

@@ -435,3 +435,26 @@ def test_public_imports():
         apply_drive,
         apply_joint_drive_properties,
     )
+
+
+def test_joint_drive_fragments_instanced_joints_warn_once_and_fail(caplog):
+    """Instanced joints are reported by the matcher only, and the writer returns False."""
+    from isaaclab_physx.sim.schemas import PhysxJointCfg
+
+    from isaaclab.sim.schemas import apply_joint_drive_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    source = UsdGeom.Xform.Define(stage, "/World/Src").GetPrim()
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/Src/j0")
+    instance = UsdGeom.Xform.Define(stage, "/World/Bot").GetPrim()
+    instance.GetReferences().AddInternalReference(source.GetPath())
+    instance.SetInstanceable(True)
+
+    with caplog.at_level("WARNING"):
+        result = apply_joint_drive_properties("/World/Bot/**", [PhysxJointCfg(max_joint_velocity=5.0)], stage=stage)
+
+    assert result is False
+    assert "Skipping fragment updates on instanced prims" in caplog.text
+    assert "Could not apply joint-drive properties" not in caplog.text

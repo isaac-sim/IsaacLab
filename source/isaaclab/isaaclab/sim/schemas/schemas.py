@@ -1350,7 +1350,8 @@ def apply_joint_drive_properties(
             that already exist. Defaults to False.
 
     Returns:
-        True if the fragments were applied to at least one joint prim, False otherwise.
+        True if the fragments were applied to at least one joint prim and no instanced joint
+        was skipped, False otherwise.
     """
     if stage is None:
         stage = get_current_stage()
@@ -1365,7 +1366,7 @@ def apply_joint_drive_properties(
     # match revolute/prismatic joints not excluded by a backend-registered skip predicate;
     # non-joint matches (creation_candidates) are ignored silently since a ``**`` expression matches
     # whole subtrees
-    targets, _, _ = _match_fragment_targets(
+    targets, _, any_skipped = _match_fragment_targets(
         prim_path_expr,
         lambda p: (p.IsA(UsdPhysics.RevoluteJoint) or p.IsA(UsdPhysics.PrismaticJoint)) and not _skip_joint_drive(p),
         stage,
@@ -1391,14 +1392,14 @@ def apply_joint_drive_properties(
         if success:
             count_success += 1
 
-    if count_success == 0:
+    # instanced skips were already reported by the matcher; only warn when nothing matched at all
+    if count_success == 0 and not any_skipped:
         logger.warning(
             "Could not apply joint-drive properties on any joints matched by '%s'."
-            " No revolute/prismatic joint prims matched, they are instanced, or every fragment"
-            " reported failure.",
+            " No revolute/prismatic joint prims matched or every fragment reported failure.",
             prim_path_expr,
         )
-    return count_success > 0
+    return count_success > 0 and not any_skipped
 
 
 def _ensure_drive_exists(drive_cfg, prim) -> None:

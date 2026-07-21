@@ -354,7 +354,8 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
     names at the corresponding depth. Additionally, the expression may end with the special token
     ``**``, which matches the anchor prim (the prim matched by the preceding tokens) itself as
     well as all its descendants at any depth. The recursive expansion traverses into instanceable
-    prims, so instance proxy prims are included in the result.
+    prims, so instance proxy prims are included in the result, and includes inactive prims,
+    matching the per-token traversal.
 
     Args:
         prim_path_regex: The regex expression for prim path. It may end with a ``**`` token to
@@ -407,10 +408,11 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
         output_prims = all_prims
     if recursive:
         # expand each anchor to itself plus all descendants, traversing into instances so
-        # callers can detect read-only proxy prims
+        # callers can detect read-only proxy prims. Match the per-level traversal above, which
+        # includes inactive prims, by widening from the default predicate to all prims.
         expanded = []
         for prim in output_prims:
-            expanded.extend(Usd.PrimRange(prim, Usd.TraverseInstanceProxies()))
+            expanded.extend(Usd.PrimRange(prim, Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)))
         output_prims = expanded
     return output_prims
 
