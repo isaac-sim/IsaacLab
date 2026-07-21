@@ -191,19 +191,10 @@ class CameraCfg(SensorBaseCfg):
     """
 
     background_color: tuple[float, float, float] | None = None
-    """Background color for the camera as normalized RGB floats in ``[0, 1]``.
+    """Background color for the camera as normalized RGB floats ``(red, green, blue)`` in ``[0, 1]``.
 
-    When set, the renderer fills pixels that miss all geometry with the given solid color.
-    When ``None`` (the default), each backend uses its own default background
-    (dome-light for RTX backends, gray for Newton).
-
-    The value is specified as ``(red, green, blue)`` with each component in ``[0, 1]``.
-    For example, ``(0.0, 0.0, 0.0)`` is black and ``(1.0, 1.0, 1.0)`` is white.
-
-    Both RTX backends (Isaac RTX and OVRTX) apply this as a per-render-product USD
-    attribute (``omni:rtx:background:source:type`` / ``omni:rtx:background:source:color``)
-    so each camera is configured independently and cameras with ``background_color=None``
-    use the dome-light default without affecting other cameras.
+    When set, pixels that miss all geometry are filled with this solid color.
+    When ``None`` (the default), each backend uses its own default background.
     """
 
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
