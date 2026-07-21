@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import inspect
-
 from newton import Model
 from newton.solvers import SolverFeatherstone
 
@@ -23,14 +21,17 @@ class NewtonFeatherstoneManager(NewtonManager):
     """
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: FeatherstoneSolverCfg) -> SolverFeatherstone:
+        """Construct the configured Featherstone solver."""
+        return SolverFeatherstone(model, **cls._filter_solver_kwargs(SolverFeatherstone, solver_cfg))
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: FeatherstoneSolverCfg) -> None:
         """Construct :class:`SolverFeatherstone` and populate the base-class slots.
 
         Featherstone always uses Newton's :class:`CollisionPipeline` and steps
         with separate input/output states, so the flags are fixed.
         """
-        valid = set(inspect.signature(SolverFeatherstone.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
-        NewtonManager._solver = SolverFeatherstone(model, **kwargs)
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True

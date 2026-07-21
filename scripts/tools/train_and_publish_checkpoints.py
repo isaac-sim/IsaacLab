@@ -183,6 +183,8 @@ def train_job(workflow, task_name, headless=False, force=False, num_envs=None):
     cmd = [
         sys.executable,
         WORKFLOW_TRAINER[workflow],
+        "--rl_library",
+        workflow,
         "--task",
         task_name,
         "--enable_cameras",
@@ -236,6 +238,8 @@ def review_pretrained_checkpoint(workflow, task_name, force_review=False, num_en
     cmd = [
         sys.executable,
         WORKFLOW_PLAYER[workflow],
+        "--rl_library",
+        workflow,
         "--task",
         task_name,
         "--checkpoint",

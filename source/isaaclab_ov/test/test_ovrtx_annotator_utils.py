@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the OVRTX semantic annotator utilities (SemanticIdMap decode -> idToLabels)."""
+"""Tests for the OVRTX segmentation annotator utilities (map decode -> idToLabels / idToSemantics)."""
 
 import importlib.util
 
@@ -24,9 +24,14 @@ pytestmark = [
 if not _MISSING_MODULES:
     import numpy as np  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_annotator_utils import (  # noqa: E402
+        StableId,
+        StableIdLabelPair,
+        _parse_semantic_label,
+        build_instance_id_to_labels_and_semantics,
         build_semantic_id_to_labels,
         decode_semantic_id_map,
-        parse_semantic_label,
+        decode_stable_id_map,
+        decode_stable_id_semantic_id_map,
     )
 
 
@@ -52,9 +57,9 @@ def _encode_semantic_id_map(entries: list[tuple[int, str]]) -> "np.ndarray":
 
 def test_parse_semantic_label_splits_type_and_label():
     """Raw ``"<type>: <label>;"`` strings parse into ``{type: label}`` dicts like Replicator idToLabels."""
-    assert parse_semantic_label("class: cone;") == {"class": "cone"}
-    assert parse_semantic_label("class: robot; type: arm;") == {"class": "robot", "type": "arm"}
-    assert parse_semantic_label("") == {}
+    assert _parse_semantic_label("class: cone;") == {"class": "cone"}
+    assert _parse_semantic_label("class: robot; type: arm;") == {"class": "robot", "type": "arm"}
+    assert _parse_semantic_label("") == {}
 
 
 def test_decode_semantic_id_map_round_trips_entries():
@@ -97,13 +102,111 @@ def test_build_semantic_id_to_labels_non_colorize_keys_by_id():
 
 
 def test_build_semantic_id_to_labels_colorize_keys_by_color():
-    """Colorized idToLabels is keyed by ``"(r, g, b, a)"``; reserved IDs use the fixed BACKGROUND/UNLABELLED colors."""
+    """Colorized idToLabels is keyed by ``(r, g, b, a)`` tuples; reserved IDs use the fixed reserved colors."""
     if not torch.cuda.is_available():
         pytest.skip("colorized key computation runs a Warp kernel that requires a CUDA device")
 
     id_to_labels = build_semantic_id_to_labels({2: {"class": "cone"}}, colorize=True, device="cuda:0")
     # BACKGROUND -> transparent black, UNLABELLED -> opaque black (matches the colorization kernel).
-    assert id_to_labels["(0, 0, 0, 0)"] == {"class": "BACKGROUND"}
-    assert id_to_labels["(0, 0, 0, 255)"] == {"class": "UNLABELLED"}
+    assert id_to_labels[(0, 0, 0, 0)] == {"class": "BACKGROUND"}
+    assert id_to_labels[(0, 0, 0, 255)] == {"class": "UNLABELLED"}
     assert {"class": "cone"} in id_to_labels.values()
     assert len(id_to_labels) == 3
+
+
+def _encode_identifier_map(entries: "list[StableIdLabelPair]") -> "np.ndarray":
+    """Encode ``(id_words, raw_label)`` pairs into an IdentifierMap byte buffer (SemanticIdMap / StableIdMap).
+
+    Layout mirrors the OVRTX render var: packed ``IdentifierMap`` entries, the UTF-8 label blob, then a
+    trailing little-endian ``uint32`` entry count.
+    """
+    entry_dtype = np.dtype([("id", "<u4", (4,)), ("label_length", "<u4"), ("label_offset", "<u4")])
+    header_size = len(entries) * entry_dtype.itemsize
+    entry_arr = np.zeros(len(entries), dtype=entry_dtype)
+    label_blob = b""
+    for i, (id_words, label) in enumerate(entries):
+        label_bytes = label.encode("utf-8")
+        entry_arr[i]["id"] = id_words
+        entry_arr[i]["label_length"] = len(label_bytes)
+        entry_arr[i]["label_offset"] = header_size + len(label_blob)
+        label_blob += label_bytes
+    buffer = entry_arr.tobytes() + label_blob + int(len(entries)).to_bytes(4, "little")
+    return np.frombuffer(buffer, dtype=np.uint8).copy()
+
+
+def _encode_stable_id_semantic_id_map(entries: "list[tuple[StableId, int]]") -> "np.ndarray":
+    """Encode ``(stable_id_words, semantic_id)`` pairs into a StableIdSemanticIdMap byte buffer.
+
+    Layout mirrors the OVRTX render var: a pure fixed-size array of ``StableIdSemanticIdMapValues`` entries
+    ``{uint32 stableId[4]; uint32 semanticId[4]}`` with no label blob and no trailing count.
+    """
+    entry_dtype = np.dtype([("stable_id", "<u4", (4,)), ("semantic_id", "<u4", (4,))])
+    entry_arr = np.zeros(len(entries), dtype=entry_dtype)
+    for i, (stable_id_words, semantic_id) in enumerate(entries):
+        entry_arr[i]["stable_id"] = stable_id_words
+        entry_arr[i]["semantic_id"][0] = semantic_id
+    return np.frombuffer(entry_arr.tobytes(), dtype=np.uint8).copy()
+
+
+def test_decode_stable_id_map_round_trips_prim_paths():
+    """Decoding an encoded StableIdMap recovers the four-word stable ID to prim-path mapping."""
+    stable_id_map = _encode_identifier_map([((1, 0, 0, 0), "/World/Cone"), ((2, 3, 0, 0), "/World/Cube")])
+    assert decode_stable_id_map(stable_id_map) == {(1, 0, 0, 0): "/World/Cone", (2, 3, 0, 0): "/World/Cube"}
+
+
+def test_decode_stable_id_map_rejects_corrupt_entry_count():
+    """A StableIdMap whose entry count exceeds the buffer raises with the map name in the message."""
+    stable_id_map = _encode_identifier_map([((1, 0, 0, 0), "/World/Cone")])
+    stable_id_map[-4:] = np.frombuffer(int(999).to_bytes(4, "little"), dtype=np.uint8)
+    with pytest.raises(ValueError, match="Corrupt StableIdMap"):
+        decode_stable_id_map(stable_id_map)
+
+
+def test_decode_stable_id_semantic_id_map_indexes_by_pixel_id():
+    """Each StableIdSemanticIdMap entry decodes to (stable_id, semanticId[0]) at position pixel_id - 2."""
+    buffer = _encode_stable_id_semantic_id_map([((1, 0, 0, 0), 2), ((5, 6, 0, 0), 3)])
+    assert decode_stable_id_semantic_id_map(buffer) == [((1, 0, 0, 0), 2), ((5, 6, 0, 0), 3)]
+
+
+def test_decode_stable_id_semantic_id_map_handles_empty_buffer():
+    """A StableIdSemanticIdMap smaller than one entry decodes to an empty list instead of raising."""
+    assert decode_stable_id_semantic_id_map(np.zeros(0, dtype=np.uint8)) == []
+
+
+def test_build_instance_id_to_labels_and_semantics_non_colorize_keys_by_id():
+    """Non-colorized instance maps are keyed by decimal pixel ID with the reserved BACKGROUND/UNLABELLED entries."""
+    id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
+        stable_id_semantic_id_map=[((1, 0, 0, 0), 2)],
+        stable_id_to_path={(1, 0, 0, 0): "/World/Cone"},
+        semantic_id_to_labels={2: {"class": "cone"}},
+        colorize=False,
+        device="cpu",
+    )
+    assert id_to_labels == {"0": "BACKGROUND", "1": "UNLABELLED", "2": "/World/Cone"}
+    assert id_to_semantics == {
+        "0": {"class": "BACKGROUND"},
+        "1": {"class": "UNLABELLED"},
+        "2": {"class": "cone"},
+    }
+
+
+def test_build_instance_id_to_labels_and_semantics_colorize_keys_by_color():
+    """Colorized instance maps are keyed by ``(r, g, b, a)`` tuples; reserved IDs use the fixed reserved colors."""
+    if not torch.cuda.is_available():
+        pytest.skip("colorized key computation runs a Warp kernel that requires a CUDA device")
+
+    id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
+        stable_id_semantic_id_map=[((1, 0, 0, 0), 2)],
+        stable_id_to_path={(1, 0, 0, 0): "/World/Cone"},
+        semantic_id_to_labels={2: {"class": "cone"}},
+        colorize=True,
+        device="cuda:0",
+    )
+    # BACKGROUND -> transparent black, UNLABELLED -> opaque black (matches the colorization kernel).
+    assert id_to_labels[(0, 0, 0, 0)] == "BACKGROUND"
+    assert id_to_labels[(0, 0, 0, 255)] == "UNLABELLED"
+    assert "/World/Cone" in id_to_labels.values()
+    assert id_to_semantics[(0, 0, 0, 0)] == {"class": "BACKGROUND"}
+    assert id_to_semantics[(0, 0, 0, 255)] == {"class": "UNLABELLED"}
+    assert {"class": "cone"} in id_to_semantics.values()
+    assert len(id_to_labels) == 3 and len(id_to_semantics) == 3

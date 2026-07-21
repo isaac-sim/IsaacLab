@@ -60,6 +60,23 @@ Resume example:
 uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --resume --load_run RUN_NAME --checkpoint model_100.pt
 ```
 
+## Programmatic API
+
+To launch train/play from Python instead of the CLI, use the typed requests from `isaaclab_rl`. The `backend` field maps to `--rl_library`; `hydra_args` carries Hydra overrides and preset selectors. Both functions return the process exit code.
+
+```python
+from isaaclab_rl import PlaybackRequest, TrainingRequest, play, train
+
+train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", num_envs=64, max_iterations=100))
+
+# Resume from a checkpoint (path, or the "latest"/"best" selectors)
+train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", checkpoint="latest"))
+
+play(PlaybackRequest(backend="rsl_rl", task="Isaac-Cartpole", checkpoint="latest"))
+```
+
+For raw argument lists (same tokens as the CLI, without the executable name), use `run_train_cli(argv)` and `run_play_cli(argv)` from `isaaclab_rl`.
+
 ## Config Lookup
 
 Agent configs live near the task implementation, for example:
