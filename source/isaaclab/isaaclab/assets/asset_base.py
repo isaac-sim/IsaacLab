@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 import inspect
+import warnings
 import weakref
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 import warp as wp
@@ -18,11 +20,43 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from pxr import Usd
 
     from .asset_base_cfg import AssetBaseCfg
+
+
+_SELECTOR_CACHE_CAPACITY = 128
+
+
+class _AssetSelectorCache:
+    """Per-asset LRU cache for device-local finder selectors."""
+
+    def __init__(self, capacity: int = _SELECTOR_CACHE_CAPACITY):
+        """Initialize the selector cache.
+
+        Args:
+            capacity: Maximum number of selectors retained by the cache.
+        """
+        self._capacity = capacity
+        self._entries: OrderedDict[tuple[str, tuple[int, ...]], ProxyArray] = OrderedDict()
+
+    def get(self, domain: str, indices: Sequence[int], device: str) -> ProxyArray:
+        """Return the cached Warp ``int32`` selector for an ordered index sequence."""
+        key = (domain, tuple(int(index) for index in indices))
+        selector = self._entries.pop(key, None)
+        if selector is None:
+            selector = ProxyArray(wp.array(key[1], dtype=wp.int32, device=device))
+        self._entries[key] = selector
+        if len(self._entries) > self._capacity:
+            self._entries.popitem(last=False)
+        return selector
+
+    def clear(self) -> None:
+        """Release all cached selectors."""
+        self._entries.clear()
 
 
 class AssetBase(ABC):
@@ -219,6 +253,61 @@ class AssetBase(ABC):
         # return success
         return True
 
+    def _resolve_finder_indices(
+        self,
+        indices: Sequence[int],
+        *,
+        domain: str,
+        finder_name: str,
+        as_proxy: bool | None,
+        legacy_type: Literal["list", "tensor"],
+    ) -> list[int] | torch.Tensor | ProxyArray:
+        """Resolve finder indices to a cached proxy or a legacy container.
+
+        Args:
+            indices: Ordered indices returned by the finder.
+            domain: Asset-local namespace for the selector.
+            finder_name: Finder name included in transition warnings.
+            as_proxy: Whether to return a cached :class:`ProxyArray`. ``None``
+                selects the legacy return type with a deprecation warning.
+            legacy_type: Legacy container type returned when ``as_proxy`` is not
+                enabled.
+
+        Returns:
+            Cached proxy selector or a freshly allocated legacy container.
+
+        Raises:
+            TypeError: If ``as_proxy`` is neither ``None`` nor a boolean.
+        """
+        if as_proxy is not None and not isinstance(as_proxy, bool):
+            raise TypeError(f"as_proxy must be a bool or None, got {type(as_proxy).__name__}.")
+
+        normalized_indices = tuple(int(index) for index in indices)
+        if as_proxy:
+            selector_cache = getattr(self, "_selector_cache", None)
+            if selector_cache is None:
+                selector_cache = _AssetSelectorCache()
+                self._selector_cache = selector_cache
+            return selector_cache.get(domain, normalized_indices, self.device)
+
+        if as_proxy is None:
+            warnings.warn(
+                f"{finder_name} currently returns the legacy {legacy_type} selector when as_proxy is unspecified. "
+                "Pass as_proxy=True for a cached ProxyArray or as_proxy=False for the legacy return type.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+
+        if legacy_type == "list":
+            return list(normalized_indices)
+        return torch.tensor(normalized_indices, dtype=torch.int32, device=self.device)
+
+    def _clear_selector_cache(self) -> None:
+        """Release all cached finder selectors owned by this asset."""
+        selector_cache = getattr(self, "_selector_cache", None)
+        if selector_cache is not None:
+            selector_cache.clear()
+
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets all internal buffers of selected environments.
@@ -404,6 +493,7 @@ class AssetBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
+        self._clear_selector_cache()
         sim_ctx = SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
