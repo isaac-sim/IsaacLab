@@ -86,6 +86,30 @@ def test_set_command_renormalizes_quat():
     torch.testing.assert_close(stored, raw / torch.linalg.norm(raw), atol=1e-6, rtol=0.0)
 
 
+def test_integer_command_and_limits_preserve_legacy_coercion():
+    """Integer command and limit tensors retain the public API's historical float coercion."""
+    c = _make_controller()
+    command = torch.tensor([[1, 2, 3, 0, 0, 0, 1]], dtype=torch.int64)
+    c.set_command(command)
+    torch.testing.assert_close(c.ee_pos_des, torch.tensor([[1.0, 2.0, 3.0]]))
+    torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]))
+
+    c.set_joint_pos_limits(
+        torch.full((_NUM_JOINTS,), -1, dtype=torch.int64),
+        torch.full((_NUM_JOINTS,), 1, dtype=torch.int64),
+    )
+    assert c._joint_pos_lower.dtype == torch.float32
+    assert c._joint_pos_upper.dtype == torch.float32
+
+    output = c.compute(
+        torch.zeros(1, 3),
+        torch.tensor([_ID_QUAT]),
+        torch.zeros(1, 6, _NUM_JOINTS),
+        torch.zeros(1, _NUM_JOINTS, dtype=torch.int64),
+    )
+    assert output.dtype == torch.float32
+
+
 def test_orientation_weight_none_is_unweighted():
     """With no orientation weight, the pose task Jacobian equals the raw Jacobian."""
     c = _make_controller(orientation_weight=None)
@@ -144,10 +168,12 @@ def test_adaptive_dls_damps_singularity():
     j_task[0, 0, 0] = j_task[0, 1, 1] = j_task[0, 2, 2] = 1.0  # well-conditioned position block
     eps = 1e-3
     j_task[0, 3, 3] = j_task[0, 4, 4] = eps  # near-singular orientation block
-    err = torch.zeros(1, 6)
-    err[0, 3] = err[0, 4] = 1.0
-
-    dq = c._compute_delta_joint_pos(delta_pose=err, jacobian=j_task)
+    ee_pos = torch.zeros(1, 3)
+    ee_quat = torch.tensor([_ID_QUAT])
+    command = torch.tensor([[0.0, 0.0, 0.0] + _quat_xyzw([1.0, 1.0, 0.0], math.sqrt(2.0))])
+    c.set_command(command)
+    _, err = c._compute_pose_task(ee_pos, ee_quat, j_task)
+    dq = c.compute(ee_pos, ee_quat, j_task, torch.zeros(1, _NUM_JOINTS))
     # reference: fixed lambda_min damped least squares
     jt = j_task.transpose(1, 2)
     a_min = torch.bmm(j_task, jt) + (0.01**2) * torch.eye(6)
@@ -157,14 +183,21 @@ def test_adaptive_dls_damps_singularity():
 
 
 def test_joint_limit_avoidance_zero_when_disabled():
-    """JLA returns zeros when joint_limit_avoidance_gain == 0 (default) or before limits are provided."""
+    """JLA changes no targets when disabled or before limits are provided."""
+    ee_pos = torch.zeros(1, 3)
+    ee_quat = torch.tensor([_ID_QUAT])
+    command = torch.tensor([[0.0, 0.0, 0.0] + _ID_QUAT])
+    jacobian = torch.ones(1, 6, _NUM_JOINTS)
+    joint_pos = torch.linspace(-0.5, 0.5, _NUM_JOINTS).unsqueeze(0)
     c = _make_controller(joint_limit_avoidance_gain=0.0)
-    out = c._joint_limit_avoidance(torch.zeros(1, _NUM_JOINTS), torch.ones(1, 6, _NUM_JOINTS))
-    torch.testing.assert_close(out, torch.zeros(1, _NUM_JOINTS))
+    c.set_command(command)
+    out = c.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    torch.testing.assert_close(out, joint_pos)
     # enabled but limits not set yet -> still zeros
     c2 = _make_controller(joint_limit_avoidance_gain=1.0)
-    out2 = c2._joint_limit_avoidance(torch.zeros(1, _NUM_JOINTS), torch.ones(1, 6, _NUM_JOINTS))
-    torch.testing.assert_close(out2, torch.zeros(1, _NUM_JOINTS))
+    c2.set_command(command)
+    out2 = c2.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    torch.testing.assert_close(out2, joint_pos)
 
 
 def test_joint_limit_avoidance_stays_in_position_nullspace():
@@ -177,7 +210,10 @@ def test_joint_limit_avoidance_stays_in_position_nullspace():
     j_task = torch.randn(1, 6, _NUM_JOINTS)
     # joints near their limits -> non-zero center-seeking bias
     joint_pos = torch.tensor([[0.95, -0.9, 0.0, 0.8, -0.85]])
-    correction = c._joint_limit_avoidance(joint_pos, j_task)
+    ee_pos = torch.zeros(1, 3)
+    ee_quat = torch.tensor([_ID_QUAT])
+    c.set_command(torch.tensor([[0.0, 0.0, 0.0] + _ID_QUAT]))
+    correction = c.compute(ee_pos, ee_quat, j_task, joint_pos) - joint_pos
     assert correction.norm().item() > 0.0  # bias is active
     residual = torch.bmm(j_task[:, :3, :], correction.unsqueeze(-1)).squeeze(-1)
     torch.testing.assert_close(residual, torch.zeros_like(residual), atol=1e-5, rtol=0.0)

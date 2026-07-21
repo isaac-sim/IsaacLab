@@ -136,6 +136,7 @@ def test_action_cfg_points_at_custom_action_and_controller():
     # stays importable without Kit); resolve it to confirm it points at the custom term.
     assert string_to_callable(str(cfg.class_type)) is SO101PoseIKAction
     assert isinstance(cfg.controller, SO101PoseIKControllerCfg)
+    assert string_to_callable(str(cfg.controller.class_type)) is SO101PoseIKController
 
 
 def test_action_cfg_accepts_clip_field():

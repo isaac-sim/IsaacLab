@@ -22,8 +22,6 @@ import torch
 
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 
-from .pose_ik_controller import SO101PoseIKController
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
@@ -37,12 +35,6 @@ class SO101PoseIKAction(DifferentialInverseKinematicsAction):
 
     def __init__(self, cfg: SO101PoseIKActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        # Swap the base differential-IK controller for the SO-101 one. The two share the same 7D
-        # ``[pos, quat_xyzw]`` action layout, so the base-allocated buffers/scale stay valid; the
-        # SO-101 controller only adds the orientation joint mask on top of the core adaptive-DLS +
-        # orientation-weighting + JLA controller. Null-space joint-limit injection now comes from
-        # the base term (gated on ``joint_limit_avoidance_gain > 0``), so it is not repeated here.
-        self._ik_controller = SO101PoseIKController(cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device)
         # Restrict the orientation task to a subset of joints if configured (e.g. the SO-101 wrist),
         # so the other joints (shoulder_pan, ...) serve position only and the base does not swing to
         # track orientation. Resolve the names against ``self._joint_names`` (asset-ordered, matching
