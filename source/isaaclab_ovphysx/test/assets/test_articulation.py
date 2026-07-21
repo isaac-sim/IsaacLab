@@ -2556,6 +2556,30 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
         sim.reset()
 
 
+@pytest.mark.parametrize("device", ["cpu"])
+def test_deprecated_joint_state_writer_delegates_to_index_writers(sim, device, mocker):
+    """Keep the deprecated combined API as a thin composition of public writers."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
+    articulation, _ = generate_articulation(articulation_cfg, 1, device)
+    sim.reset()
+
+    position = torch.tensor([[0.1]], device=device)
+    velocity = torch.tensor([[0.2]], device=device)
+    position_writer = mocker.patch.object(articulation, "write_joint_position_to_sim_index")
+    velocity_writer = mocker.patch.object(articulation, "write_joint_velocity_to_sim_index")
+
+    with pytest.warns(DeprecationWarning):
+        articulation.write_joint_state_to_sim(
+            position=position,
+            velocity=velocity,
+            joint_ids=[0],
+            env_ids=[0],
+        )
+
+    position_writer.assert_called_once_with(position=position, joint_ids=[0], env_ids=[0])
+    velocity_writer.assert_called_once_with(velocity=velocity, joint_ids=[0], env_ids=[0])
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_write_joint_state_to_sim_index_partial(sim, device):
     """Test fused joint-state writes with partial environment and joint indices."""

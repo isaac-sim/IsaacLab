@@ -239,7 +239,7 @@ class Articulation(BaseArticulation):
             # kernel indexes them in backend order (same physical body as the public wrench),
             # so no public-order pose shadow refresh / reorder launch is needed here.
             poses = self._data._backend_body_link_pose_w
-            has_body_ordering = self.data.body_ordering is not None
+            has_body_ordering = self.data.has_body_ordering
             wp.launch(
                 shared_kernels._body_wrench_to_world_ordered,
                 dim=(self._num_instances, self._num_bodies),
@@ -260,15 +260,14 @@ class Articulation(BaseArticulation):
         # scratch buffer rather than ``_joint_effort_target_backend``. The latter is the
         # persistent mirror of the raw target that partial writes rely on for their
         # unselected joints (see ``set_joint_effort_target_index``/``_mask``).
-        write_effort = self._effort_write_view is not None
+        write_effort = self._can_write_effort
         # position and velocity targets only for implicit actuators
-        write_pos = self._has_implicit_actuators and self._pos_target_write_view is not None
-        write_vel = self._has_implicit_actuators and self._vel_target_write_view is not None
-        if self.data.joint_ordering is not None:
+        write_pos = self._has_implicit_actuators and self._can_write_pos_target
+        write_vel = self._has_implicit_actuators and self._can_write_vel_target
+        if self.data.has_joint_ordering:
             if write_effort or write_pos or write_vel:
                 # One fused gather replaces the per-target reorder launches. The
-                # effort scratch also backs the unused joint_act output (its flag
-                # is off, so it is never indexed).
+                # fourth joint-acceleration output is disabled.
                 wp.launch(
                     ordering_kernels.reorder_joint_targets_user_to_backend,
                     dim=(self._num_instances, self._num_joints),
@@ -286,7 +285,7 @@ class Articulation(BaseArticulation):
                         self._applied_torque_backend,
                         self._joint_pos_target_backend,
                         self._joint_vel_target_backend,
-                        self._applied_torque_backend,
+                        None,
                     ],
                     device=self._device,
                 )
@@ -4035,31 +4034,9 @@ class Articulation(BaseArticulation):
         # build actuator instances and write drive properties to PhysX
         self._process_actuators_cfg()
 
-        # Cache binding-shaped aliases as write-availability sentinels for
-        # ``write_data_to_sim()``. They share the public command buffers. Default or identity
-        # ordering writes those buffers directly; nonidentity ordering gathers into backend-order
-        # staging instead, so these aliases are not the source of ordered writes.
-        effort_binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
-        if effort_binding is not None:
-            torque = self._data._applied_torque
-            self._effort_write_view = wp.array(
-                ptr=torque.ptr,
-                shape=effort_binding.shape,
-                dtype=wp.float32,
-                device=str(torque.device),
-                copy=False,
-            )
-        else:
-            self._effort_write_view = None
-
-        def _make_write_view(tt, buf):
-            binding = self._get_binding(tt)
-            if binding is None or buf is None:
-                return None
-            return wp.array(ptr=buf.ptr, shape=binding.shape, dtype=wp.float32, device=str(buf.device), copy=False)
-
-        self._pos_target_write_view = _make_write_view(TT.DOF_POSITION_TARGET, self._data._joint_pos_target)
-        self._vel_target_write_view = _make_write_view(TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target)
+        self._can_write_effort = self._get_binding(TT.DOF_ACTUATION_FORCE) is not None
+        self._can_write_pos_target = self._get_binding(TT.DOF_POSITION_TARGET) is not None
+        self._can_write_vel_target = self._get_binding(TT.DOF_VELOCITY_TARGET) is not None
 
         # validate the resolved configuration AFTER actuator/tendon processing
         # so the values reflect any overrides applied by the actuator models
@@ -4725,41 +4702,8 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
-        joint_selection_is_partial = joint_ids is not None
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
-        self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
-        self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
-        joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
-        has_joint_ordering = self.data.joint_ordering is not None
-        wp.launch(
-            ordering_kernels.write_joint_state_user_to_backend_with_indices,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[
-                position,
-                velocity,
-                env_ids,
-                joint_ids,
-                self._joint_user_to_backend_map(),
-                has_joint_ordering,
-                False,
-            ],
-            outputs=[
-                self._data._joint_pos_buf.data,
-                self._data._joint_vel_buf.data,
-                self._data._previous_joint_vel,
-                self._data._joint_acc.data,
-                joint_pos_backend,
-                joint_vel_backend,
-            ],
-            device=self._device,
-        )
-        self._data._joint_acc.timestamp = self._data._sim_timestamp
-        self._data._reset_pose()
-        self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=env_ids)
-        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=env_ids)
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_friction_coefficient_to_sim(
         self,
