@@ -13,10 +13,10 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-
-from isaaclab.utils.warp import ProxyArray
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.articulation import kernels as articulation_kernels
+
+from isaaclab.utils.warp import ProxyArray
 
 
 def _selector(values: list[int], dtype: type) -> wp.array:

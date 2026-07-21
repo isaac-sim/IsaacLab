@@ -23,9 +23,7 @@ def _selector_array(selector: torch.Tensor | wp.array | ProxyArray) -> wp.array:
         return wp.from_torch(selector)
     if isinstance(selector, wp.array):
         return selector
-    raise TypeError(
-        f"Index selector must be a torch.Tensor, wp.array, or ProxyArray, got {type(selector).__name__}."
-    )
+    raise TypeError(f"Index selector must be a torch.Tensor, wp.array, or ProxyArray, got {type(selector).__name__}.")
 
 
 def _selector_dtype(selector: torch.Tensor | wp.array | ProxyArray) -> type[wp.int32] | type[wp.int64]:

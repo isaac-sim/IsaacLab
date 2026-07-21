@@ -15,14 +15,14 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-
-from isaaclab.utils.warp import ProxyArray
 from isaaclab_physx.assets.articulation.kernels import (
     write_joint_state_data,
     write_joint_state_data_kernel,
     write_joint_vel_data,
     write_joint_vel_data_kernel,
 )
+
+from isaaclab.utils.warp import ProxyArray
 
 
 def _selector(values: list[int], dtype: type) -> wp.array:
@@ -293,12 +293,8 @@ def test_public_joint_velocity_kernel_factory_scatters_noncontiguous_proxy_selec
         outputs=outputs,
         device="cpu",
     )
-    expected_velocity = np.asarray(
-        [[22.0, -1.0, 21.0], [-1.0, -1.0, -1.0], [12.0, -1.0, 11.0]], dtype=np.float32
-    )
-    expected_acceleration = np.asarray(
-        [[0.0, -1.0, 0.0], [-1.0, -1.0, -1.0], [0.0, -1.0, 0.0]], dtype=np.float32
-    )
+    expected_velocity = np.asarray([[22.0, -1.0, 21.0], [-1.0, -1.0, -1.0], [12.0, -1.0, 11.0]], dtype=np.float32)
+    expected_acceleration = np.asarray([[0.0, -1.0, 0.0], [-1.0, -1.0, -1.0], [0.0, -1.0, 0.0]], dtype=np.float32)
     np.testing.assert_array_equal(outputs[0].numpy(), expected_velocity)
     np.testing.assert_array_equal(outputs[1].numpy(), expected_velocity)
     np.testing.assert_array_equal(outputs[2].numpy(), expected_acceleration)
