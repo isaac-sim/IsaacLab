@@ -739,7 +739,9 @@ def gather_mass_matrix_rows(
 @wp.kernel
 def gather_dof_force_rows(
     src: wp.array(dtype=wp.float32),
-    view_dof_starts: wp.array(dtype=wp.int32),
+    art_ids: wp.array(dtype=wp.int32),
+    articulation_start: wp.array(dtype=wp.int32),
+    joint_qd_start: wp.array(dtype=wp.int32),
     joint_user_to_backend: wp.array(dtype=wp.int32),
     num_base_dofs: wp.int32,
     has_joint_ordering: bool,
@@ -760,8 +762,16 @@ def gather_dof_force_rows(
 
     Args:
         src: Input flat DoF buffer. Shape is (model.joint_dof_count,).
-        view_dof_starts: Flat DoF start index of each view articulation. Shape
-            is (num_instances,).
+        art_ids: Model-level articulation indices owned by this view. Shape is
+            (num_instances,).
+        articulation_start: First joint index of each model articulation
+            (:attr:`newton.Model.articulation_start`). Shape is
+            (model.articulation_count + 1,).
+        joint_qd_start: First velocity coordinate of each model joint
+            (:attr:`newton.Model.joint_qd_start`). Shape is
+            (model.joint_count + 1,). Composed per thread as
+            ``joint_qd_start[articulation_start[art_ids[i]]]`` to locate the
+            articulation's segment in ``src``.
         joint_user_to_backend: Map from public actuated-joint index to backend
             actuated-joint index.
         num_base_dofs: Number of leading floating-base DoF entries.
@@ -774,7 +784,8 @@ def gather_dof_force_rows(
     if has_joint_ordering and user_dof >= num_base_dofs:
         backend_dof = num_base_dofs + joint_user_to_backend[user_dof - num_base_dofs]
 
-    dst[i, user_dof] = src[view_dof_starts[i] + backend_dof]
+    dof_start = joint_qd_start[articulation_start[art_ids[i]]]
+    dst[i, user_dof] = src[dof_start + backend_dof]
 
 
 @wp.kernel
