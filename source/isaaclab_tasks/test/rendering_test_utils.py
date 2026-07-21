@@ -43,7 +43,8 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
-    "cartpole": 1.0,
+    # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
+    "cartpole": 1.5,
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
