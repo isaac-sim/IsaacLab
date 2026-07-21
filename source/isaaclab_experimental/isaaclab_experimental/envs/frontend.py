@@ -85,13 +85,15 @@ class WarpFrontend:
     # are adapted (SceneEntityCfg promotion + MDP twin swap). The event manager
     # is warp-first too — it invokes term funcs with a Warp env-mask, so a stable
     # event func (which expects torch ``env_ids``) breaks at runtime; its funcs
-    # must be swapped to warp twins. The curriculum, recorder and command
-    # managers run on the stable (torch) implementation, so their terms are left
-    # untouched. A stable term left on a warp manager would break, so a missing
-    # twin in these groups is a hard error; a stable term on a stable manager is
-    # correct, so those groups are skipped.
+    # must be swapped to warp twins. The command manager is the warp-native
+    # ``CommandManager`` (captured), so command term ``class_type``s must swap
+    # to their warp twins as well. The curriculum and recorder managers run on
+    # the stable (torch) implementation, so their terms are left untouched. A
+    # stable term left on a warp manager would break, so a missing twin in these
+    # groups is a hard error; a stable term on a stable manager is correct, so
+    # those groups are skipped.
     WARP_MANAGED_GROUPS: ClassVar[frozenset[str]] = frozenset(
-        {"observations", "rewards", "terminations", "actions", "events"}
+        {"observations", "rewards", "terminations", "actions", "events", "commands"}
     )
 
     # ------------------------------------------------------------------
@@ -483,10 +485,10 @@ class WarpFrontend:
         """Yield ``(path, term)`` for every MDP term cfg in the cfg tree.
 
         A "term" is a :class:`ManagerTermBaseCfg` (observation/reward/
-        termination/event/curriculum) *or* an :class:`ActionTermCfg` — the
-        latter is a separate base that is **not** a ``ManagerTermBaseCfg``
-        subclass, yet carries a swappable ``class_type``, so it must be matched
-        explicitly.
+        termination/event/curriculum) *or* an :class:`ActionTermCfg` /
+        :class:`CommandTermCfg` — the latter two are separate bases that are
+        **not** ``ManagerTermBaseCfg`` subclasses, yet carry a swappable
+        ``class_type``, so they must be matched explicitly.
 
         Behavior at each node:
 
@@ -510,9 +512,9 @@ class WarpFrontend:
         cfg layouts (extra observation groups, new nesting, etc.) are picked up
         automatically as long as their terms subclass one of the term base cfgs.
         """
-        from isaaclab.managers.manager_term_cfg import ActionTermCfg, ManagerTermBaseCfg
+        from isaaclab.managers.manager_term_cfg import ActionTermCfg, CommandTermCfg, ManagerTermBaseCfg
 
-        if isinstance(node, (ManagerTermBaseCfg, ActionTermCfg)):
+        if isinstance(node, (ManagerTermBaseCfg, ActionTermCfg, CommandTermCfg)):
             yield path, node  # a term: yield and stop; never descend into params/func
             return
         if not hasattr(node, "__dataclass_fields__"):
