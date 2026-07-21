@@ -129,14 +129,13 @@ def build_render_scope_usd(
     camera_rel_list = ", ".join([f"<{p}>" for p in camera_paths])
 
     if background_color is None:
-        bg_attrs = ['token omni:rtx:background:source:type = "domeLight"']
+        bg_type_line = 'token omni:rtx:background:source:type = "domeLight"'
     else:
         r, g, b = background_color
-        bg_attrs = [
-            'token omni:rtx:background:source:type = "color"',
-            f"float3 omni:rtx:background:source:color = ({r}, {g}, {b})",
-        ]
-    background_lines = "\n        ".join(bg_attrs)
+        bg_type_line = (
+            f'token omni:rtx:background:source:type = "color"\n'
+            f"        color3f omni:rtx:background:source:color = ({r}, {g}, {b})"
+        )
 
     if minimal_mode is None:
         render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
@@ -165,7 +164,7 @@ def Scope "Render"
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
         rel camera = [{camera_rel_list}]
-        {background_lines}
+        {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
