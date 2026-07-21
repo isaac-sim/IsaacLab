@@ -28,10 +28,6 @@ def _make_solver_config(solver_cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
         grid_type=solver_cfg.grid_type,
         grid_padding=solver_cfg.grid_padding,
         max_active_cell_count=solver_cfg.max_active_cell_count,
-        max_leaf_node_count=solver_cfg.max_leaf_node_count,
-        max_lower_node_count=solver_cfg.max_lower_node_count,
-        max_upper_node_count=solver_cfg.max_upper_node_count,
-        separate_worlds=solver_cfg.separate_worlds,
         transfer_scheme=solver_cfg.transfer_scheme,
         integration_scheme=solver_cfg.integration_scheme,
         critical_fraction=solver_cfg.critical_fraction,
@@ -123,6 +119,15 @@ class NewtonMPMManager(NewtonManager):
         NewtonManager._needs_collision_pipeline = False
         NewtonManager._supports_rigid_body_force_input = False
         cls._project_outside_colliders = solver_cfg.project_outside_colliders
+
+    @classmethod
+    def _supports_cuda_graph_capture(cls) -> bool:
+        """Return ``True`` only for fixed-grid MPM.
+
+        Sparse and dense grids reallocate as particles move, which is not
+        capturable in a CUDA graph; the fixed grid keeps a static topology.
+        """
+        return cls._solver.grid_type == "fixed"
 
     @classmethod
     def _step_solver(

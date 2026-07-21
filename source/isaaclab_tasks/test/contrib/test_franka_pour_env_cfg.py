@@ -23,7 +23,7 @@ from isaaclab.managers import CurriculumTermCfg, RewardTermCfg, SceneEntityCfg, 
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 
-from isaaclab_contrib.coupling import CouplerProxyCfg, NewtonCoupler
+from isaaclab_contrib.coupling import CouplerProxyCfg, NewtonCouplerManager
 
 import isaaclab_tasks.contrib.franka_pour as franka_pour
 import isaaclab_tasks.contrib.franka_pour.config.franka  # noqa: F401
@@ -252,7 +252,6 @@ def test_finalize_builds_scene_assets_without_mutating_the_caller():
     assert isinstance(resolved.scene.media, MPMObjectCfg)
     assert resolved is not original
     assert resolved.scene is not original.scene
-    assert resolved.sim.physics.solver_cfg.scene_cfg is resolved.scene
     assert _media_capacity(resolved) == 8 * 512
 
 
@@ -426,22 +425,24 @@ def test_cfg_routes_each_body_to_exactly_one_solver():
     media = entries["media"]
     assert arm.solver_cfg.integrator == "implicitfast"
     assert arm.solver_cfg.use_mujoco_contacts is False
-    assert solver.scene_cfg is cfg.scene
     assert cfg.sim.physics.collision_cfg.soft_contact_max == 0
     assert arm.include_static_shapes is True
-    assert arm.bodies == [SceneEntityCfg("robot"), SceneEntityCfg("source_cup"), SceneEntityCfg("target_cup")]
+    assert arm.bodies == [
+        pour_env_cfg.ROBOT_BODY_LABEL_PATTERN,
+        pour_env_cfg.SOURCE_CUP_BODY_LABEL_PATTERN,
+        pour_env_cfg.TARGET_CUP_BODY_LABEL_PATTERN,
+    ]
     assert cfg.sim.physics.num_substeps == cfg.physics_substeps == 1
     assert arm.substeps == cfg.rigid_entry_substeps == 4
     assert media.substeps == cfg.mpm_entry_substeps == 2
     assert cfg.sim.physics.num_substeps * media.substeps == 2
     assert media.all_particles is True
-    assert media.bodies == [r".*/SpillFloor$"]
+    assert media.bodies == [pour_env_cfg.SPILL_FLOOR_LABEL_PATTERN]
     assert media.include_static_shapes is False
     assert media.in_place is True
     assert media.solver_cfg.grid_type == "sparse"
     assert media.solver_cfg.grid_padding == 0
     assert media.solver_cfg.max_active_cell_count == 2 * 512
-    assert media.solver_cfg.separate_worlds is True
     assert media.solver_cfg.solver == "jacobi"
     assert media.solver_cfg.warmstart_mode == "none"
     assert media.solver_cfg.max_iterations == 24
@@ -450,7 +451,10 @@ def test_cfg_routes_each_body_to_exactly_one_solver():
     proxies = solver.proxies
     assert len(proxies) == 1
     assert proxies[0].source == "arm" and proxies[0].destination == "media"
-    assert proxies[0].bodies == [SceneEntityCfg("source_cup"), SceneEntityCfg("target_cup")]
+    assert proxies[0].bodies == [
+        pour_env_cfg.SOURCE_CUP_BODY_LABEL_PATTERN,
+        pour_env_cfg.TARGET_CUP_BODY_LABEL_PATTERN,
+    ]
     assert proxies[0].collision_pipeline is not None
     assert proxies[0].collision_pipeline(None) is None
     assert proxies[0].mass_scale == pytest.approx(cfg.proxy_mass_scale)
@@ -1300,7 +1304,6 @@ def test_reset_dataset_play_preserves_policy_abi_with_captured_sparse_grid():
     assert play_solver_cfg.grid_type == "sparse"
     assert play_solver_cfg.grid_padding == 0
     assert play_solver_cfg.max_active_cell_count == 512
-    assert play_solver_cfg.separate_worlds is True
     assert play_cfg.sim.physics.use_cuda_graph is True
     assert play_cfg.terminations.success.func is mdp.immediate_pour_success
     assert play_cfg.terminations.success.params == {}
@@ -1802,9 +1805,7 @@ def test_sparse_training_reserves_capturable_isolated_grid_capacity(num_envs):
     assert _media_entry(resolved).solver_cfg.grid_type == "sparse"
     assert _media_capacity(resolved) == 512 * num_envs
     solver_cfg = _media_entry(resolved).solver_cfg
-    assert solver_cfg.separate_worlds is True
-    assert solver_cfg.max_lower_node_count == max(32, 16 * num_envs)
-    assert solver_cfg.max_upper_node_count == max(32, (num_envs + 1) // 2)
+    assert solver_cfg.max_active_cell_count == 512 * num_envs
     assert resolved.scene.env_spacing == pytest.approx(cfg.scene.env_spacing)
     assert resolved.sim.physics.use_cuda_graph is True
 
@@ -1841,12 +1842,10 @@ def test_mpm_uses_captured_sparse_training_and_play_configs():
     assert solver_cfg.project_outside_colliders is False
     assert solver_cfg.grid_type == "sparse"
     assert solver_cfg.max_active_cell_count == 200 * 512
-    assert solver_cfg.separate_worlds is True
     assert play_solver_cfg.collider_basis == "pic27"
     assert play_solver_cfg.grid_type == "sparse"
     assert play_solver_cfg.grid_padding == 0
     assert play_solver_cfg.max_active_cell_count == 512
-    assert play_solver_cfg.separate_worlds is True
     assert play_cfg.sim.physics.use_cuda_graph is True
 
 
@@ -1941,7 +1940,7 @@ def test_media_selector_includes_spill_floor_without_unrelated_shapes():
         particle_count=3,
     )
 
-    resolved = NewtonCoupler._resolve_entry(model, media, cfg.scene)
+    resolved = NewtonCouplerManager._resolve_entry(model, media)
 
     assert resolved.bodies == [1]
     assert resolved.shapes == [1]
@@ -2017,7 +2016,7 @@ def test_task_source_does_not_traverse_private_solver_state():
         if isinstance(node, ast.Attribute)
         and node.attr.startswith("_")
         and isinstance(node.value, ast.Name)
-        and node.value.id in {"NewtonManager", "NewtonCoupler"}
+        and node.value.id in {"NewtonManager", "NewtonCouplerManager"}
     }
     assert private_manager_attrs == set()
 

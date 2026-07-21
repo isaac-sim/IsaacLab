@@ -31,7 +31,6 @@ import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.cloner import copy_newton_source_builder, newton_builder_world_hook
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
@@ -374,9 +373,6 @@ _MPM_FIELD_VALUES = [
     ("grid_type", "dense"),
     ("grid_padding", 4),
     ("max_active_cell_count", 1024),
-    ("max_leaf_node_count", 512),
-    ("max_lower_node_count", 128),
-    ("max_upper_node_count", 32),
     ("transfer_scheme", "pic"),
     ("integration_scheme", "gimp"),
     ("critical_fraction", 0.25),
@@ -385,7 +381,6 @@ _MPM_FIELD_VALUES = [
     ("collider_basis", "Q1"),
     ("strain_basis", "P1d"),
     ("velocity_basis", "B2"),
-    ("separate_worlds", True),
 ]
 
 
@@ -600,39 +595,24 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
             assert calls["n"] == 0
 
 
-def test_mpm_solver_cfg_preserves_shared_world_default():
-    """World-isolated MPM remains opt-in for backward compatibility."""
-
-    assert MPMSolverCfg().separate_worlds is False
-
-
 @pytest.mark.parametrize(
-    "grid_type, advertised, expected",
+    "grid_type, expected",
     [
-        ("fixed", True, True),
-        ("sparse", True, True),
-        ("dense", False, False),
+        ("fixed", True),
+        ("sparse", False),
+        ("dense", False),
     ],
 )
-def test_mpm_cuda_graph_capture_uses_solver_capability(monkeypatch, grid_type, advertised, expected):
-    """The manager delegates graph safety to Newton's resolved solver configuration."""
+def test_mpm_cuda_graph_capture_supports_only_fixed_grid(monkeypatch, grid_type, expected):
+    """Newton implicit MPM is CUDA-graph capturable only with a fixed grid."""
 
-    solver = SimpleNamespace(grid_type=grid_type, supports_graph_capture=advertised)
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(grid_type=grid_type), raising=False)
 
     assert NewtonMPMManager._supports_cuda_graph_capture() is expected
 
 
-def test_cuda_graph_capture_keeps_legacy_solver_support(monkeypatch):
-    """Solvers without the optional capability property retain their existing capture path."""
-
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(), raising=False)
-
-    assert NewtonManager._supports_cuda_graph_capture() is True
-
-
-def test_solver_advertised_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
-    """A solver capability rejection prevents the manager from entering capture."""
+def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
+    """Sparse/dense MPM should not enter a CUDA graph capture window."""
     from isaaclab.physics import PhysicsManager
 
     monkeypatch.setattr(
@@ -642,70 +622,46 @@ def test_solver_advertised_unsupported_cuda_graph_capture_uses_eager_execution(m
         raising=False,
     )
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(supports_graph_capture=False), raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(grid_type="sparse"), raising=False)
     monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", "standard", raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
 
-    NewtonManager._capture_or_defer_graph()
+    NewtonMPMManager._capture_or_defer_graph()
 
     assert NewtonManager._graph is None
-    assert NewtonManager._graph_capture_pending is None
+    assert NewtonManager._graph_capture_pending is False
 
 
-@pytest.mark.parametrize("usdrt_stage, expected_mode", [(None, "standard"), (object(), "relaxed")])
-def test_cuda_graph_capture_is_deferred_with_explicit_mode(monkeypatch, usdrt_stage, expected_mode):
-    """Headless and RTX runs schedule their respective capture modes until the first step."""
+def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
+    """CUDA graph capture should use the simulation device instead of Warp's default device."""
     from isaaclab.physics import PhysicsManager
 
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", usdrt_stage, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(supports_graph_capture=True), raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", None, raising=False)
-
-    NewtonManager._capture_or_defer_graph()
-
-    assert NewtonManager._graph is None
-    assert NewtonManager._graph_capture_pending == expected_mode
-
-
-def test_standard_cuda_graph_capture_prepares_solver_before_recording(monkeypatch):
-    """Solver-owned persistent resources are prepared before the standard capture window."""
-    events = []
-    contacts = object()
+    captured_devices = []
     captured_graph = object()
 
     class FakeScopedCapture:
-        def __init__(self, device=None, **_kwargs):
-            assert device == "cuda:0"
+        def __init__(self, device=None):
+            captured_devices.append(device)
             self.graph = captured_graph
 
         def __enter__(self):
-            events.append(("capture", None))
             return self
 
         def __exit__(self, exc_type, exc_value, traceback):
             return False
 
-    solver = SimpleNamespace(
-        supports_graph_capture=True,
-        prepare_graph_capture=lambda received: events.append(("prepare", received)),
-    )
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_contacts", contacts, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
-    monkeypatch.setattr(
-        NewtonManager,
-        "_simulate_physics_only",
-        classmethod(lambda cls: events.append(("simulate", None))),
-    )
+    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
     monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
 
-    graph = NewtonManager._capture_standard_graph("cuda:0")
+    NewtonManager._capture_or_defer_graph()
 
-    assert events == [("prepare", contacts), ("capture", None), ("simulate", None)]
-    assert graph is captured_graph
+    assert captured_devices == ["cuda:1"]
+    assert NewtonManager._graph is captured_graph
 
 
 def test_relaxed_cuda_graph_capture_prepares_solver_before_warmup(monkeypatch):
