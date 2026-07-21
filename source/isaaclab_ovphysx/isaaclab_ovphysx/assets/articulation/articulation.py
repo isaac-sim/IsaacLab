@@ -896,20 +896,33 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         expected_shape = (env_ids.shape[0], joint_ids.shape[0])
         self.assert_shape_and_dtype(position, expected_shape, wp.float32, "position")
         self.assert_shape_and_dtype(velocity, expected_shape, wp.float32, "velocity")
+        joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
+        joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         wp.launch(
-            shared_kernels.write_joint_state_to_buffer_with_indices,
+            ordering_kernels.write_joint_state_user_to_backend_with_indices,
             dim=expected_shape,
-            inputs=[position, velocity, env_ids, joint_ids],
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+                self._joint_user_to_backend_map(),
+                self.data.has_joint_ordering,
+                False,
+            ],
             outputs=[
                 self._data._joint_pos_buf.data,
                 self._data._joint_vel_buf.data,
                 self._data._previous_joint_vel,
                 self._data._joint_acc.data,
+                joint_pos_backend,
+                joint_vel_backend,
             ],
             device=self._device,
         )
@@ -917,8 +930,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self._data._reset_pose()
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_POSITION, self._data._joint_pos_buf.data, indices=env_ids)
-        self._root_view.set_attribute(TT.DOF_VELOCITY, self._data._joint_vel_buf.data, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=env_ids)
 
     def write_joint_position_to_sim_index(
         self,

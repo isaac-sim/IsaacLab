@@ -388,6 +388,83 @@ def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(
     torch.testing.assert_close(backend_after, expected, rtol=0.0, atol=0.0)
 
 
+@pytest.mark.parametrize("selection", ["full", "partial"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_reversed_joint_ordering_joint_state_index_writes_backend_order(sim, selection, device):
+    """Write full and partial indexed joint state through a nonidentity public joint axis."""
+    articulation_cfg = generate_articulation_cfg("anymal").replace(
+        joint_ordering=tuple(reversed(_ANYMAL_PHYSX_JOINT_NAMES))
+    )
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+    sim.reset()
+
+    ordering = articulation.joint_ordering
+    assert ordering is not None
+    num_joints = articulation.num_joints
+    user_to_backend = torch.as_tensor(ordering.user_to_backend_indices, dtype=torch.long, device=device)
+    backend_to_user = torch.as_tensor(ordering.backend_to_user_indices, dtype=torch.long, device=device)
+
+    backend_pos_before = torch.arange(2 * num_joints, dtype=torch.float32, device=device).reshape(2, num_joints)
+    backend_vel_before = backend_pos_before + 100.0
+    articulation.root_view.set_attribute(TT.DOF_POSITION, wp.from_torch(backend_pos_before.contiguous()))
+    articulation.root_view.set_attribute(TT.DOF_VELOCITY, wp.from_torch(backend_vel_before.contiguous()))
+    for buffer in (
+        articulation.data._joint_pos_buf,
+        articulation.data._joint_vel_buf,
+        articulation.data._joint_pos_backend,
+        articulation.data._joint_vel_backend,
+    ):
+        if buffer is not None:
+            buffer.timestamp = -1.0
+
+    public_pos_before = articulation.data.joint_pos.torch.clone()
+    public_vel_before = articulation.data.joint_vel.torch.clone()
+    torch.testing.assert_close(public_pos_before, backend_pos_before[:, user_to_backend])
+    torch.testing.assert_close(public_vel_before, backend_vel_before[:, user_to_backend])
+
+    if selection == "full":
+        position = torch.arange(2 * num_joints, dtype=torch.float32, device=device).reshape(2, num_joints) + 200.0
+        velocity = position + 100.0
+        env_ids = None
+        joint_ids = None
+        expected_public_pos = position
+        expected_public_vel = velocity
+        expected_backend_pos = position[:, backend_to_user]
+        expected_backend_vel = velocity[:, backend_to_user]
+    else:
+        position = torch.tensor([[201.0, 203.0]], device=device)
+        velocity = torch.tensor([[301.0, 303.0]], device=device)
+        env_ids = [1]
+        joint_ids = [0, 2]
+        expected_public_pos = public_pos_before.clone()
+        expected_public_vel = public_vel_before.clone()
+        expected_public_pos[1, joint_ids] = position[0]
+        expected_public_vel[1, joint_ids] = velocity[0]
+        expected_backend_pos = backend_pos_before.clone()
+        expected_backend_vel = backend_vel_before.clone()
+        backend_joint_ids = user_to_backend[joint_ids]
+        expected_backend_pos[1, backend_joint_ids] = position[0]
+        expected_backend_vel[1, backend_joint_ids] = velocity[0]
+
+    articulation.write_joint_state_to_sim_index(
+        position=position,
+        velocity=velocity,
+        env_ids=env_ids,
+        joint_ids=joint_ids,
+    )
+
+    torch.testing.assert_close(articulation.data.joint_pos.torch, expected_public_pos)
+    torch.testing.assert_close(articulation.data.joint_vel.torch, expected_public_vel)
+    torch.testing.assert_close(
+        _read_binding_to_torch(articulation, TT.DOF_POSITION, device),
+        expected_backend_pos,
+    )
+    torch.testing.assert_close(
+        _read_binding_to_torch(articulation, TT.DOF_VELOCITY, device),
+        expected_backend_vel,
+    )
+
+
 @pytest.mark.parametrize("num_articulations", [1])
 # COM pose is a CPU-resident OVPhysX binding (``_CPU_ONLY_TYPES``) even on a GPU sim, and this test
 # restores it via the low-level ``root_view.set_attribute`` which forbids cross-device staging, so it
