@@ -114,16 +114,8 @@ jobs:
 
     # Single source of truth: read the OV runtime pins from [tool.isaaclab.versions].
     - name: Resolve OV runtime pins from pyproject
+      uses: ./.github/actions/resolve-ov-pins
       id: ov_pins
-      run: |
-        PINS=$(python3 <<'PY'
-        import re
-        block = re.search(r"^\[tool\.isaaclab\.versions\]\n(.*?)(?:\n\[|\Z)", open("pyproject.toml").read(), re.S | re.M).group(1)
-        vals = dict(re.findall(r'(\w+)\s*=\s*"([^"]+)"', block))
-        print(f"ovphysx=={vals['ovphysx']} ovrtx{vals['ovrtx']}")
-        PY
-        )
-        echo "pins=$PINS" >> "$GITHUB_OUTPUT"
 
     - name: Build Docker Image
       uses: ./.github/actions/docker-build
@@ -143,7 +135,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: ${{ steps.ov_pins.outputs.pins }}
+        extra-pip-packages: ${{ format('{0} {1}', steps.ov_pins.outputs.ovphysx, steps.ov_pins.outputs.ovrtx) }}
 
     - name: Copy All Test Results from IsaacLab Tasks Container
       run: |
