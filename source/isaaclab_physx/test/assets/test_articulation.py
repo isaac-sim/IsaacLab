@@ -405,6 +405,95 @@ def sim(request):
         yield sim
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
+    """Write selected joint state with an int64 joint selector and int32 PhysX environment selector."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+    sim.reset()
+
+    env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
+    joint_ids = torch.tensor([2, 0], dtype=torch.int64, device=device)
+    position = torch.tensor([[0.21, 0.11], [0.22, 0.12]], device=device)
+    velocity = torch.tensor([[1.21, 1.11], [1.22, 1.12]], device=device)
+
+    expected_position = articulation.data.joint_pos.torch.clone()
+    expected_velocity = articulation.data.joint_vel.torch.clone()
+
+    articulation.write_joint_state_to_sim_index(
+        position=position, velocity=velocity, env_ids=env_ids, joint_ids=joint_ids
+    )
+    expected_position[env_ids.long()[:, None], joint_ids[None, :]] = position
+    expected_velocity[env_ids.long()[:, None], joint_ids[None, :]] = velocity
+    torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
+    torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_set_masses_accepts_int64_selector(sim, device, gravity_enabled):
+    """Set selected body masses with an int64 body selector and int32 PhysX environment selector."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+    sim.reset()
+
+    env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
+    body_ids = torch.tensor([2, 0], dtype=torch.int64, device=device)
+    masses = torch.tensor([[2.1, 1.1], [2.2, 1.2]], device=device)
+    expected = articulation.data.body_mass.torch.clone()
+    expected[env_ids.long()[:, None], body_ids[None, :]] = masses
+
+    articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
+
+    torch.testing.assert_close(articulation.data.body_mass.torch, expected)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_set_fixed_tendon_stiffness_accepts_int64_selector(sim, device, gravity_enabled):
+    """Set selected fixed-tendon stiffness with an int64 tendon selector."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="shadow_hand")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+    sim.reset()
+    assert articulation.num_fixed_tendons >= 2
+
+    env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
+    fixed_tendon_ids = torch.tensor([articulation.num_fixed_tendons - 1, 0], dtype=torch.int64, device=device)
+    stiffness = torch.tensor([[21.0, 11.0], [22.0, 12.0]], device=device)
+    expected = wp.to_torch(articulation.data._fixed_tendon_stiffness).clone()
+    expected[env_ids.long()[:, None], fixed_tendon_ids[None, :]] = stiffness
+
+    articulation.set_fixed_tendon_stiffness_index(
+        stiffness=stiffness, env_ids=env_ids, fixed_tendon_ids=fixed_tendon_ids
+    )
+
+    torch.testing.assert_close(wp.to_torch(articulation.data._fixed_tendon_stiffness), expected)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_set_spatial_tendon_stiffness_accepts_int64_selector(sim, device, gravity_enabled):
+    """Set selected spatial-tendon stiffness with an int64 tendon selector."""
+    if has_kit() and get_isaac_sim_version().major < 5:
+        pytest.skip("Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later.")
+    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+    sim.reset()
+
+    env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
+    spatial_tendon_ids = torch.tensor([0], dtype=torch.int64, device=device)
+    stiffness = torch.tensor([[21.0], [22.0]], device=device)
+    expected = wp.to_torch(articulation.data._spatial_tendon_stiffness).clone()
+    expected[env_ids.long()[:, None], spatial_tendon_ids[None, :]] = stiffness
+
+    articulation.set_spatial_tendon_stiffness_index(
+        stiffness=stiffness, env_ids=env_ids, spatial_tendon_ids=spatial_tendon_ids
+    )
+
+    torch.testing.assert_close(wp.to_torch(articulation.data._spatial_tendon_stiffness), expected)
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(sim, device, gravity_enabled):

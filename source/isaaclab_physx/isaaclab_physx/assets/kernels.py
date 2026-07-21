@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import Any
+
+import torch
 import warp as wp
+
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
 
@@ -775,31 +782,53 @@ Generic buffer-writing kernels (used by Articulation + RigidObject + RigidObject
 @wp.kernel
 def write_2d_data_to_buffer_with_indices(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    item_ids: wp.array(dtype=Any),
     from_mask: bool,
     out_data: wp.array2d(dtype=wp.float32),
 ):
     """Write 2D float data to a buffer at specified indices.
 
     This kernel copies float data from an input array to an output buffer at the specified
-    environment and joint/body indices.
+    environment and item indices.
 
     Args:
-        in_data: Input array containing float data. Shape is (num_envs, num_joints) or
-            (num_selected_envs, num_selected_joints) depending on from_mask.
+        in_data: Input array containing float data. Shape is (num_envs, num_items) or
+            (num_selected_envs, num_selected_items) depending on from_mask.
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        joint_ids: Input array of joint/body indices to write to. Shape is (num_selected_joints,).
+        item_ids: Input array of item indices to write to. Shape is (num_selected_items,).
         from_mask: Input flag indicating whether to use masked indexing. If True, env_ids
-            and joint_ids are used to index into in_data. If False, in_data is indexed
+            and item_ids are used to index into in_data. If False, in_data is indexed
             directly using the thread indices.
-        out_data: Output array where data is written. Shape is (num_envs, num_joints).
+        out_data: Output array where data is written. Shape is (num_envs, num_items).
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    item_id = wp.int32(item_ids[j])
     if from_mask:
-        out_data[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
+        out_data[env_id, item_id] = in_data[env_id, item_id]
     else:
-        out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
+        out_data[env_id, item_id] = in_data[i, j]
+
+
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    write_2d_data_to_buffer_with_indices, ("env_ids", "item_ids")
+)
+
+
+def write_2d_data_to_buffer_with_indices_kernel(
+    env_ids: wp.array | torch.Tensor, item_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the 2-D buffer writer matching the selector dtypes.
+
+    Args:
+        env_ids: Environment index selector.
+        item_ids: Item index selector.
+
+    Returns:
+        Concrete Warp kernel matching both selector dtypes.
+    """
+    return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, item_ids)
 
 
 @wp.kernel
