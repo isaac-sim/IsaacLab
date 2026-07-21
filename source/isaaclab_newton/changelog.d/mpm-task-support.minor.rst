@@ -3,8 +3,6 @@ Added
 
 * Added scoped Newton builder-world hooks and independent clone-source builder
   copies for tasks that extend replicated Newton worlds.
-* Added isolated-world and bounded sparse-grid capacity options to
-  :class:`~isaaclab_newton.physics.MPMSolverCfg`.
 * Added :meth:`~isaaclab_newton.physics.NewtonManager.reset_solver_state` for
   clearing solver-owned history after selective simulation-state rewrites.
 

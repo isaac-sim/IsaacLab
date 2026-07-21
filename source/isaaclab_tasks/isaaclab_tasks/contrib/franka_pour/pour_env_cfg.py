@@ -84,6 +84,10 @@ FRANKA_POUR_ARM_COLLISION_PROXIES = frozenset(
     }
 )
 SPILL_FLOOR_LABEL_PATTERN = r".*/SpillFloor$"
+# Coupler body selectors use full Newton body-label regexes (not SceneEntityCfg).
+ROBOT_BODY_LABEL_PATTERN = r"/World/envs/env_.*/Robot"
+SOURCE_CUP_BODY_LABEL_PATTERN = r"/World/envs/env_.*/SourceCup"
+TARGET_CUP_BODY_LABEL_PATTERN = r"/World/envs/env_.*/TargetCup"
 GRASP_APPROACH_STAGE_NAMES = (
     "approach_1",
     "approach_2",
@@ -998,7 +1002,6 @@ class FrankaPourEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.physics = NewtonCfg(
             solver_cfg=CouplerProxyCfg(
-                scene_cfg=self.scene,
                 entries=[
                     CouplerEntryCfg(
                         name=RIGID_ENTRY,
@@ -1010,9 +1013,9 @@ class FrankaPourEnvCfg(ManagerBasedRLEnvCfg):
                             use_mujoco_contacts=False, integrator="implicitfast", njmax=510, nconmax=400
                         ),
                         bodies=[
-                            SceneEntityCfg("robot"),
-                            SceneEntityCfg("source_cup"),
-                            SceneEntityCfg("target_cup"),
+                            ROBOT_BODY_LABEL_PATTERN,
+                            SOURCE_CUP_BODY_LABEL_PATTERN,
+                            TARGET_CUP_BODY_LABEL_PATTERN,
                         ],
                         include_static_shapes=True,
                         substeps=self.rigid_entry_substeps,
@@ -1036,7 +1039,6 @@ class FrankaPourEnvCfg(ManagerBasedRLEnvCfg):
                             # Keep the task's validated nonlinear solve while sparse topology is
                             # rebuilt eagerly around the physically separated environments.
                             solver="jacobi",
-                            separate_worlds=True,
                         ),
                         all_particles=True,
                         bodies=[SPILL_FLOOR_LABEL_PATTERN],
@@ -1050,7 +1052,7 @@ class FrankaPourEnvCfg(ManagerBasedRLEnvCfg):
                     CouplerProxyMappingCfg(
                         source=RIGID_ENTRY,
                         destination=MPM_ENTRY,
-                        bodies=[SceneEntityCfg("source_cup"), SceneEntityCfg("target_cup")],
+                        bodies=[SOURCE_CUP_BODY_LABEL_PATTERN, TARGET_CUP_BODY_LABEL_PATTERN],
                         mass_scale=self.proxy_mass_scale,
                         mode="lagged",
                         # Implicit MPM resolves its proxy colliders internally; the shared outer
@@ -1933,14 +1935,6 @@ class FrankaPourEnvCfg(ManagerBasedRLEnvCfg):
         )
         mpm_solver_cfg = _mpm_solver_cfg(resolved)
         mpm_solver_cfg.max_active_cell_count = _resolve_mpm_cell_cap(resolved)
-        if mpm_solver_cfg.grid_type == "sparse" and resolved.sim.physics.use_cuda_graph:
-            # The compact initial fill underestimates hierarchy nodes needed after a particle moves
-            # into a different NanoVDB region. Reserve the task's workspace-derived headroom per
-            # independent world; this changes capacity only, not MPM stepping or physics.
-            world_count = int(resolved.scene.num_envs)
-            mpm_solver_cfg.max_lower_node_count = max(32, 16 * world_count)
-            mpm_solver_cfg.max_upper_node_count = max(32, (world_count + 1) // 2)
-        resolved.sim.physics.solver_cfg.scene_cfg = resolved.scene
         return resolved
 
 

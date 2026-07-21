@@ -57,7 +57,7 @@ def _paused_gc():
             gc.collect()
 
 
-from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, StateFlags, eval_fk
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
@@ -1587,6 +1587,44 @@ class NewtonManager(PhysicsManager):
         if world_mask is None:
             return
         cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+
+    @classmethod
+    def reset_solver_state(
+        cls,
+        state: State | None = None,
+        world_mask: wp.array(dtype=wp.bool) | None = None,
+        flags: StateFlags | int | None = None,
+    ) -> None:
+        """Reset solver-private history after simulation state is rewritten.
+
+        When :paramref:`state` is omitted, both distinct manager state buffers
+        are reset so a later buffer swap cannot restore stale solver history.
+
+        Args:
+            state: State whose solver-private history should be reset. If
+                omitted, reset both manager states.
+            world_mask: Optional mask selecting Newton worlds to reset.
+            flags: State components whose solver-private history should reset.
+
+        Raises:
+            RuntimeError: If the solver or a usable state is not initialized.
+        """
+        if cls._solver is None:
+            raise RuntimeError("Newton solver is not initialized; cannot reset solver state.")
+
+        candidates = (state,) if state is not None else (cls._state_1, cls._state_0)
+        states: list[State] = []
+        seen: set[int] = set()
+        for candidate in candidates:
+            if candidate is None or id(candidate) in seen:
+                continue
+            seen.add(id(candidate))
+            states.append(candidate)
+        if not states:
+            raise RuntimeError("Newton state is not initialized; provide an explicit state to reset.")
+
+        for candidate in states:
+            cls._solver.reset(candidate, world_mask=world_mask, flags=flags)
 
     # ----- Lifecycle orchestration ----------------------------------------
 

@@ -30,7 +30,6 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.cloner import copy_newton_source_builder, newton_builder_world_hook
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
@@ -223,9 +222,6 @@ _MPM_FIELD_VALUES = [
     ("grid_type", "dense"),
     ("grid_padding", 4),
     ("max_active_cell_count", 1024),
-    ("max_leaf_node_count", 512),
-    ("max_lower_node_count", 128),
-    ("max_upper_node_count", 32),
     ("transfer_scheme", "pic"),
     ("integration_scheme", "gimp"),
     ("critical_fraction", 0.25),
@@ -234,7 +230,6 @@ _MPM_FIELD_VALUES = [
     ("collider_basis", "Q1"),
     ("strain_basis", "P1d"),
     ("velocity_basis", "B2"),
-    ("separate_worlds", True),
 ]
 
 
@@ -411,39 +406,24 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
             assert calls["n"] == 0
 
 
-def test_mpm_solver_cfg_preserves_shared_world_default():
-    """World-isolated MPM remains opt-in for backward compatibility."""
-
-    assert MPMSolverCfg().separate_worlds is False
-
-
 @pytest.mark.parametrize(
-    "grid_type, advertised, expected",
+    "grid_type, expected",
     [
-        ("fixed", True, True),
-        ("sparse", True, True),
-        ("dense", False, False),
+        ("fixed", True),
+        ("sparse", False),
+        ("dense", False),
     ],
 )
-def test_mpm_cuda_graph_capture_uses_solver_capability(monkeypatch, grid_type, advertised, expected):
-    """The manager delegates graph safety to Newton's resolved solver configuration."""
+def test_mpm_cuda_graph_capture_supports_only_fixed_grid(monkeypatch, grid_type, expected):
+    """Newton implicit MPM is CUDA-graph capturable only with a fixed grid."""
 
-    solver = SimpleNamespace(grid_type=grid_type, supports_graph_capture=advertised)
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(grid_type=grid_type), raising=False)
 
     assert NewtonMPMManager._supports_cuda_graph_capture() is expected
 
 
-def test_cuda_graph_capture_keeps_legacy_solver_support(monkeypatch):
-    """Solvers without the optional capability property retain their existing capture path."""
-
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(), raising=False)
-
-    assert NewtonManager._supports_cuda_graph_capture() is True
-
-
-def test_solver_advertised_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
-    """A solver capability rejection prevents the manager from entering capture."""
+def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
+    """Sparse/dense MPM should not enter a CUDA graph capture window."""
     from isaaclab.physics import PhysicsManager
 
     monkeypatch.setattr(
@@ -453,378 +433,46 @@ def test_solver_advertised_unsupported_cuda_graph_capture_uses_eager_execution(m
         raising=False,
     )
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(supports_graph_capture=False), raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(grid_type="sparse"), raising=False)
     monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", "standard", raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
 
-    NewtonManager._capture_or_defer_graph()
+    NewtonMPMManager._capture_or_defer_graph()
 
     assert NewtonManager._graph is None
-    assert NewtonManager._graph_capture_pending is None
+    assert NewtonManager._graph_capture_pending is False
 
 
-@pytest.mark.parametrize("usdrt_stage, expected_mode", [(None, "standard"), (object(), "relaxed")])
-def test_cuda_graph_capture_is_deferred_with_explicit_mode(monkeypatch, usdrt_stage, expected_mode):
-    """Headless and RTX runs schedule their respective capture modes until the first step."""
+def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
+    """CUDA graph capture should use the simulation device instead of Warp's default device."""
     from isaaclab.physics import PhysicsManager
 
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", usdrt_stage, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(supports_graph_capture=True), raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", None, raising=False)
-
-    NewtonManager._capture_or_defer_graph()
-
-    assert NewtonManager._graph is None
-    assert NewtonManager._graph_capture_pending == expected_mode
-
-
-def test_standard_cuda_graph_capture_prepares_solver_before_recording(monkeypatch):
-    """Solver-owned persistent resources are prepared before the standard capture window."""
-    events = []
-    contacts = object()
+    captured_devices = []
     captured_graph = object()
 
     class FakeScopedCapture:
-        def __init__(self, device=None, **_kwargs):
-            assert device == "cuda:0"
+        def __init__(self, device=None):
+            captured_devices.append(device)
             self.graph = captured_graph
 
         def __enter__(self):
-            events.append(("capture", None))
             return self
 
         def __exit__(self, exc_type, exc_value, traceback):
             return False
 
-    solver = SimpleNamespace(
-        supports_graph_capture=True,
-        prepare_graph_capture=lambda received: events.append(("prepare", received)),
-    )
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_contacts", contacts, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
-    monkeypatch.setattr(
-        NewtonManager,
-        "_simulate_physics_only",
-        classmethod(lambda cls: events.append(("simulate", None))),
-    )
+    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
     monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
 
-    graph = NewtonManager._capture_standard_graph("cuda:0")
+    NewtonManager._capture_or_defer_graph()
 
-    assert events == [("prepare", contacts), ("capture", None), ("simulate", None)]
-    assert graph is captured_graph
-
-
-def test_relaxed_cuda_graph_capture_prepares_solver_before_warmup(monkeypatch):
-    """The RTX-compatible path prepares solver resources before its eager allocation warmup."""
-    import isaaclab_newton.physics.newton_manager as newton_manager_module
-
-    events = []
-    contacts = object()
-    solver = SimpleNamespace(prepare_graph_capture=lambda received: events.append(("prepare", received)))
-    fake_cudart = SimpleNamespace(cudaStreamCreateWithFlags=lambda *_args: 1)
-
-    monkeypatch.setattr(newton_manager_module, "_cudart", fake_cudart)
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_contacts", contacts, raising=False)
-    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
-    monkeypatch.setattr(
-        NewtonManager,
-        "_simulate_physics_only",
-        classmethod(lambda cls: events.append(("warmup", None))),
-    )
-    monkeypatch.setattr(wp, "get_stream", lambda *_args, **_kwargs: object())
-    monkeypatch.setattr(wp, "synchronize_stream", lambda *_args, **_kwargs: None)
-
-    assert NewtonManager._capture_relaxed_graph("cpu") == (None, True)
-    assert events == [("prepare", contacts), ("warmup", None)]
-
-
-@pytest.mark.parametrize("all_graphable", [True, False])
-def test_manager_checks_solver_status_after_graph_replay(monkeypatch, all_graphable):
-    """Asynchronous solver failures are inspected after either manager graph path replays."""
-    from isaaclab.physics import PhysicsManager
-
-    events = []
-    mask = SimpleNamespace(zero_=lambda: None)
-    solver = SimpleNamespace(check_status=lambda: events.append("status"))
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(is_playing=lambda: True), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
-    monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0, raising=False)
-    monkeypatch.setattr(NewtonManager, "_model_changes", set(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_needs_fk_before_step", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_dt", 1.0 / 120.0, raising=False)
-    monkeypatch.setattr(NewtonManager, "_num_substeps", 1, raising=False)
-    monkeypatch.setattr(NewtonManager, "_decimation", 1, raising=False)
-    monkeypatch.setattr(NewtonManager, "_adapter", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_post_actuator_callbacks", [], raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_particle_visual_prims", {}, raising=False)
-    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: all_graphable))
-    monkeypatch.setattr(NewtonManager, "_reset_solver_internals", classmethod(lambda cls, world_mask: None))
-    monkeypatch.setattr(wp, "capture_launch", lambda graph: events.append("replay"))
-    monkeypatch.setattr(NewtonManager, "_log_solver_debug", classmethod(lambda cls: events.append("debug")))
-
-    NewtonManager.step()
-
-    assert events == ["replay", "status", "debug"]
-
-
-@pytest.mark.parametrize("mode", ["standard", "relaxed"])
-@pytest.mark.parametrize("all_graphable", [True, False])
-def test_deferred_graph_capture_runs_after_reset_setup_then_replays_once(monkeypatch, mode, all_graphable):
-    """The first reset is consumed before capture, then the new graph advances exactly one step."""
-    from isaaclab.physics import PhysicsManager
-
-    events = []
-    graph = object()
-
-    class Mask:
-        def __init__(self, name):
-            self.name = name
-
-        def zero_(self):
-            events.append(f"zero_{self.name}")
-
-    adapter = SimpleNamespace(step=lambda *_args: events.append("actuator")) if not all_graphable else None
-    solver = SimpleNamespace(check_status=lambda: events.append("status"))
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(is_playing=lambda: True), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
-    monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0, raising=False)
-    monkeypatch.setattr(NewtonManager, "_model_changes", set(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", mode, raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", Mask("world"), raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", Mask("fk"), raising=False)
-    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_needs_fk_before_step", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_dt", 1.0 / 120.0, raising=False)
-    monkeypatch.setattr(NewtonManager, "_num_substeps", 1, raising=False)
-    monkeypatch.setattr(NewtonManager, "_decimation", 1, raising=False)
-    monkeypatch.setattr(NewtonManager, "_adapter", adapter, raising=False)
-    monkeypatch.setattr(NewtonManager, "_post_actuator_callbacks", [], raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_particle_visual_prims", {}, raising=False)
-    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: all_graphable))
-    monkeypatch.setattr(
-        NewtonManager,
-        "_reset_solver_internals",
-        classmethod(lambda cls, world_mask: events.append("reset")),
-    )
-    monkeypatch.setattr(
-        NewtonManager,
-        "_eval_fk",
-        classmethod(lambda cls, world_mask, fk_mask: events.append("fk")),
-    )
-    monkeypatch.setattr(
-        NewtonManager,
-        "_capture_standard_graph",
-        classmethod(lambda cls, device: events.append("capture_standard") or graph),
-    )
-    monkeypatch.setattr(
-        NewtonManager,
-        "_capture_relaxed_graph",
-        classmethod(lambda cls, device: events.append("capture_relaxed") or (graph, True)),
-    )
-    monkeypatch.setattr(wp, "capture_launch", lambda captured: events.append("replay"))
-    monkeypatch.setattr(NewtonManager, "_log_solver_debug", classmethod(lambda cls: events.append("debug")))
-    monkeypatch.setattr(
-        NewtonManager,
-        "_simulate_full",
-        classmethod(lambda cls: pytest.fail("captured step must not also execute eagerly")),
-    )
-    monkeypatch.setattr(
-        NewtonManager,
-        "_simulate_physics_only",
-        classmethod(lambda cls: pytest.fail("captured step must not also execute eagerly")),
-    )
-
-    NewtonManager.step()
-
-    expected = ["reset", "fk", "zero_world", "zero_fk"]
-    if not all_graphable:
-        expected.append("actuator")
-    expected.append(f"capture_{mode}")
-    if mode == "standard":
-        expected.extend(["replay", "status"])
-    expected.append("debug")
-    assert events == expected
-    assert NewtonManager._graph_capture_pending is None
-
-
-def test_reset_solver_state_resets_distinct_buffers_and_deduplicates_aliases(monkeypatch):
-    """Selective resets cannot revive stale history after a state-buffer swap."""
-    calls = []
-    state_0 = object()
-    state_1 = object()
-    world_mask = SimpleNamespace(zero_=lambda: None)
-    solver = SimpleNamespace(reset=lambda state, *, world_mask, flags: calls.append((state, world_mask, flags)))
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_model", SimpleNamespace(world_count=2), raising=False)
-    monkeypatch.setattr(NewtonManager, "_state_0", state_0, raising=False)
-    monkeypatch.setattr(NewtonManager, "_state_1", state_1, raising=False)
-
-    NewtonManager.reset_solver_state(world_mask=world_mask, flags=17)
-    assert calls == [(state_1, world_mask, 17), (state_0, world_mask, 17)]
-
-    calls.clear()
-    monkeypatch.setattr(NewtonManager, "_state_1", state_0, raising=False)
-    NewtonManager.reset_solver_state()
-    assert calls == [(state_0, None, None)]
-
-
-def test_solver_internal_reset_is_event_gated_and_single_world_uses_full_reset(monkeypatch):
-    """Absent invalidation does no work; a dirty single world uses a full reset."""
-    calls = []
-    state = object()
-    state_1 = object()
-    world_mask = SimpleNamespace(zero_=lambda: None)
-    solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_model", SimpleNamespace(world_count=1), raising=False)
-    monkeypatch.setattr(NewtonManager, "_state_0", state, raising=False)
-    monkeypatch.setattr(NewtonManager, "_state_1", state_1, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", SimpleNamespace(zero_=lambda: None), raising=False)
-    monkeypatch.setattr(NewtonManager, "_eval_fk", classmethod(lambda cls, *_args: None))
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
-
-    NewtonManager.forward()
-    assert calls == []
-
-    NewtonManager._solver_reset_pending = True
-    NewtonManager.forward()
-    assert calls == [((state,), {"world_mask": None, "flags": 0})]
-    assert NewtonManager._solver_reset_pending is False
-
-    calls.clear()
-    NewtonManager.reset_solver_state(world_mask=world_mask, flags=17)
-    assert calls == [
-        ((state_1,), {"world_mask": world_mask, "flags": 17}),
-        ((state,), {"world_mask": world_mask, "flags": 17}),
-    ]
-
-
-def test_forward_publishes_reset_fk_to_fabric(monkeypatch):
-    """A public forward call must publish reset joint poses before returning."""
-    events = []
-    world_mask = SimpleNamespace(zero_=lambda: events.append("clear_world"))
-    fk_mask = SimpleNamespace(zero_=lambda: events.append("clear_fk"))
-
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", object(), raising=False)
-    monkeypatch.setattr(
-        NewtonManager,
-        "_reset_solver_internals",
-        classmethod(lambda cls, mask: events.append(("reset", mask))),
-    )
-    monkeypatch.setattr(
-        NewtonManager,
-        "_eval_fk",
-        classmethod(lambda cls, worlds, articulations: events.append(("fk", worlds, articulations))),
-    )
-    monkeypatch.setattr(
-        NewtonManager,
-        "_mark_transforms_dirty",
-        classmethod(lambda cls: events.append("mark_transforms")),
-    )
-    monkeypatch.setattr(
-        NewtonManager,
-        "sync_transforms_to_usd",
-        classmethod(lambda cls: events.append("sync_transforms")),
-    )
-
-    NewtonManager.forward()
-
-    assert events == [
-        ("reset", world_mask),
-        ("fk", world_mask, fk_mask),
-        "mark_transforms",
-        "sync_transforms",
-        "clear_fk",
-        "clear_world",
-    ]
-
-
-def test_newton_builder_world_hook_is_scoped_and_preserves_existing_registration(monkeypatch):
-    def existing(*args):
-        pass
-
-    def added(*args):
-        pass
-
-    hooks = [existing]
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", hooks, raising=False)
-
-    with newton_builder_world_hook(added):
-        assert hooks == [existing, added]
-    assert hooks == [existing]
-
-    with newton_builder_world_hook(existing):
-        assert hooks == [existing]
-    assert hooks == [existing]
-
-
-def test_newton_builder_world_hook_cleans_up_after_error(monkeypatch):
-    def hook(*args):
-        pass
-
-    hooks = []
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", hooks, raising=False)
-
-    with pytest.raises(RuntimeError, match="stop"):
-        with newton_builder_world_hook(hook):
-            raise RuntimeError("stop")
-
-    assert hooks == []
-
-
-def test_copy_newton_source_builder_detaches_mutable_state_and_geometry(monkeypatch):
-    geometry = SimpleNamespace(name="mesh", copy=lambda: SimpleNamespace(name="mesh-copy"))
-    prototype = SimpleNamespace(
-        values=[1],
-        mapping={"rows": [2]},
-        array=np.asarray([3.0], dtype=np.float32),
-        shape_source=[geometry, None],
-    )
-    monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/envs/env_0": prototype}, raising=False)
-
-    builder = copy_newton_source_builder("/World/envs/env_0")
-    builder.values.append(4)
-    builder.mapping["rows"].append(5)
-    builder.array[0] = 6.0
-
-    assert builder is not prototype
-    assert builder.shape_source[0].name == "mesh-copy"
-    assert builder.shape_source[0] is not prototype.shape_source[0]
-    assert prototype.values == [1]
-    assert prototype.mapping == {"rows": [2]}
-    assert prototype.array == pytest.approx([3.0])
-
-
-def test_copy_newton_source_builder_rejects_unknown_source(monkeypatch):
-    monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/known": object()}, raising=False)
-
-    with pytest.raises(RuntimeError, match="/World/missing.*Available: /World/known"):
-        copy_newton_source_builder("/World/missing")
+    assert captured_devices == ["cuda:1"]
+    assert NewtonManager._graph is captured_graph
 
 
 # ---------------------------------------------------------------------------
