@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -255,6 +256,17 @@ def spawn_cable(
     Returns:
         The created cable root prim.
     """
+    if len(cfg.positions) < 3:
+        raise ValueError(f"CableCfg requires at least three positions, got {len(cfg.positions)}.")
+    if any(len(point) != 3 for point in cfg.positions):
+        raise ValueError("CableCfg positions must contain exactly three coordinates.")
+    if any(not math.isfinite(coordinate) for point in cfg.positions for coordinate in point):
+        raise ValueError("CableCfg positions must contain only finite coordinates.")
+    if any(math.dist(start, end) <= 1.0e-8 for start, end in zip(cfg.positions, cfg.positions[1:])):
+        raise ValueError(
+            "CableCfg consecutive positions must be separated by more than 1e-8 m in the cable-local frame."
+        )
+
     stage = get_current_stage()
     attributes = {
         "points": cfg.positions,

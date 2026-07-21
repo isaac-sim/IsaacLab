@@ -91,6 +91,10 @@ per-task support, see each backend's own ``limitations`` page.
       - Yes
       - Yes
       - Yes
+    * - Cable Object API
+      - No
+      - Pure VBD only
+      - No
     * - Contact Sensor
       - Yes
       - Yes

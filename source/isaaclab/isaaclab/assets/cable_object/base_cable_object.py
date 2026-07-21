@@ -9,7 +9,11 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
+import warp as wp
+
 from isaaclab.assets.asset_base import AssetBase
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .base_cable_object_data import BaseCableObjectData
@@ -19,8 +23,7 @@ if TYPE_CHECKING:
 class BaseCableObject(AssetBase):
     """Abstract base class for cable object assets.
 
-    Cable objects expose the world-frame pose and velocity of each simulated segment. They are read-only
-    because the physics backend owns the segment state.
+    Cable objects expose the world-frame pose and velocity of each simulated segment.
     """
 
     cfg: CableObjectCfg
@@ -85,5 +88,40 @@ class BaseCableObject(AssetBase):
 
         Args:
             dt: The time step for the update [s].
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_segment_pose_to_sim_index(
+        self,
+        *,
+        segment_pose: torch.Tensor | wp.array(dtype=wp.transformf) | ProxyArray,
+        env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None = None,
+    ) -> None:
+        """Set segment poses for selected environments.
+
+        Args:
+            segment_pose: Segment actor-frame poses in simulation world frame. The Torch shape is
+                (len(env_ids), num_segments, 7), with position ``(x, y, z)`` [m] followed by quaternion
+                ``(x, y, z, w)``. The Warp shape is (len(env_ids), num_segments), dtype ``wp.transformf``.
+            env_ids: Environment indices. If None, all instances are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_segment_velocity_to_sim_index(
+        self,
+        *,
+        segment_velocity: torch.Tensor | wp.array(dtype=wp.spatial_vectorf) | ProxyArray,
+        env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None = None,
+    ) -> None:
+        """Set segment velocities for selected environments.
+
+        Args:
+            segment_velocity: Segment center-of-mass velocities in simulation world frame. The Torch shape is
+                (len(env_ids), num_segments, 6), with linear ``(x, y, z)`` [m/s] followed by angular
+                ``(x, y, z)`` [rad/s] velocity. The Warp shape is (len(env_ids), num_segments), dtype
+                ``wp.spatial_vectorf``.
+            env_ids: Environment indices. If None, all instances are used.
         """
         raise NotImplementedError()

@@ -55,3 +55,23 @@ def test_spawn_cable_authors_newton_import_contract(stage):
     assert physics_material_prim.GetAttribute("physics:density").Get() == pytest.approx(1000.0)
     assert physics_material_prim.GetAttribute("physics:stretchStiffness").Get() == pytest.approx(1.0e9)
     assert physics_material_prim.GetAttribute("physics:bendStiffness").Get() == pytest.approx(1.0e6)
+
+
+@pytest.mark.parametrize(
+    ("positions", "message"),
+    [
+        (((0.0, 0.0, 0.0), (0.1, 0.0, 0.0)), "at least three"),
+        (((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.1, 0.0, 0.0)), "separated"),
+        (((0.0, 0.0, 0.0), (1.0e-8, 0.0, 0.0), (0.1, 0.0, 0.0)), "separated"),
+        (((0.0, 0.0), (0.1, 0.0, 0.0), (0.2, 0.0, 0.0)), "exactly three coordinates"),
+        (((0.0, 0.0, 0.0), (float("nan"), 0.0, 0.0), (0.2, 0.0, 0.0)), "finite coordinates"),
+        (((0.0, 0.0, 0.0), (float("inf"), 0.0, 0.0), (0.2, 0.0, 0.0)), "finite coordinates"),
+    ],
+)
+def test_spawn_cable_rejects_invalid_positions_without_authoring(stage, positions, message):
+    cfg = CableCfg(positions=positions, physics_material=CableMaterialCfg())
+
+    with pytest.raises(ValueError, match=message):
+        cfg.func("/World/Cable", cfg)
+
+    assert not stage.GetPrimAtPath("/World/Cable").IsValid()

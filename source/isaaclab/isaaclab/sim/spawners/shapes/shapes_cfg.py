@@ -138,7 +138,10 @@ class CableCfg(ShapeCfg):
     func: Callable | str = "{DIR}.shapes:spawn_cable"
 
     positions: Sequence[tuple[float, float, float]] = MISSING
-    """Control points in the cable-local frame [m]."""
+    """Control points in the cable-local frame [m].
+
+    Requires at least three finite points with consecutive points separated by more than 1e-8 m.
+    """
 
     physics_material_path: str = "physics_material"
     """Path to the physics material, relative to the cable geometry prim."""

@@ -56,6 +56,8 @@ class NewtonVBDManager(NewtonManager):
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
     """
 
+    _supports_cable_joints: bool = True
+
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the manager with simulation context.

@@ -606,6 +606,15 @@ class InteractiveScene:
             #   This assumption does not hold for effort controlled joints.
             articulation.set_joint_position_target_index(target=joint_position, env_ids=env_ids)
             articulation.set_joint_velocity_target_index(target=joint_velocity, env_ids=env_ids)
+        # cable objects
+        for asset_name, cable_object in self._cable_objects.items():
+            asset_state = state["cable_object"][asset_name]
+            segment_pose = asset_state["segment_pose"].clone().to(self.device)
+            if is_relative:
+                segment_pose[..., :3] += self.env_origins[env_ids, None, :]
+            segment_velocity = asset_state["segment_velocity"].clone().to(self.device)
+            cable_object.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+            cable_object.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
         # deformable objects
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = state["deformable_object"][asset_name]
@@ -639,6 +648,7 @@ class InteractiveScene:
         Based on the type of the entity, the state comprises of different components.
 
         * For an articulation, the state comprises of the root pose, root velocity, and joint position and velocity.
+        * For a cable object, the state comprises of the segment pose and velocity.
         * For a deformable object, the state comprises of the nodal position and velocity.
         * For a rigid object, the state comprises of the root pose and root velocity.
 
@@ -661,14 +671,20 @@ class InteractiveScene:
                         "joint_velocity": torch.Tensor,
                     },
                 },
-                "deformable_object": {
+                "cable_object": {
                     "entity_3_name": {
+                        "segment_pose": torch.Tensor,
+                        "segment_velocity": torch.Tensor,
+                    }
+                },
+                "deformable_object": {
+                    "entity_4_name": {
                         "nodal_position": torch.Tensor,
                         "nodal_velocity": torch.Tensor,
                     }
                 },
                 "rigid_object": {
-                    "entity_4_name": {
+                    "entity_5_name": {
                         "root_pose": torch.Tensor,
                         "root_velocity": torch.Tensor,
                     }
@@ -696,6 +712,15 @@ class InteractiveScene:
             asset_state["joint_position"] = articulation.data.joint_pos.torch.clone()
             asset_state["joint_velocity"] = articulation.data.joint_vel.torch.clone()
             state["articulation"][asset_name] = asset_state
+        # cable objects
+        state["cable_object"] = dict()
+        for asset_name, cable_object in self._cable_objects.items():
+            asset_state = dict()
+            asset_state["segment_pose"] = cable_object.data.segment_pose_w.torch.clone()
+            if is_relative:
+                asset_state["segment_pose"][..., :3] -= self.env_origins[:, None, :]
+            asset_state["segment_velocity"] = cable_object.data.segment_velocity_w.torch.clone()
+            state["cable_object"][asset_name] = asset_state
         # deformable objects
         state["deformable_object"] = dict()
         for asset_name, deformable_object in self._deformable_objects.items():

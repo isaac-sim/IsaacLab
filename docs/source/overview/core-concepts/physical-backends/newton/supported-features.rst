@@ -37,6 +37,8 @@ isaaclab
 * Direct and Manager-based single-agent workflows
 * Backend-neutral deformable object API
 * Omniverse Kit visualizer (when Isaac Sim is installed)
+* Cable Object API for standalone, open, linear, unwelded curves using the pure
+  VBD solver
 * Newton-Warp visualizer (kit-less)
 * Tiled rendering via the Newton-Warp renderer
 
@@ -91,8 +93,9 @@ Solver Coverage
   ``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. See
   :doc:`kamino-solver`.
 * **VBD solver**: experimental, exposed through :mod:`isaaclab_contrib.deformable`
-  for cloth and soft-body simulation. Most often used inside the coupled
-  MJWarp + VBD or Featherstone + VBD managers so one solver advances rigid
+  for cloth, soft-body, and cable simulation. Cable objects require the pure VBD
+  manager and are not supported by coupled managers. VBD is most often used inside
+  the coupled MJWarp + VBD or Featherstone + VBD managers so one solver advances rigid
   bodies and VBD advances deformable particles. See :doc:`using-vbd-solver`
   and :doc:`newton-manager-abstraction`.
 

@@ -38,6 +38,8 @@ from .coupler_cfg import (
 class NewtonCouplerManager(NewtonVBDManager):
     """Couple named Newton solver entries through proxy or ADMM interfaces."""
 
+    _supports_cable_joints: bool = False
+
     @dataclass
     class _ResolvedEntry:
         """Entry configuration with model selectors resolved to indices."""

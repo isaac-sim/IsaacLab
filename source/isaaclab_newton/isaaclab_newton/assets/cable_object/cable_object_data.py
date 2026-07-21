@@ -36,6 +36,9 @@ class CableObjectData(BaseCableObjectData):
         self._root_view: ArticulationView = weakref.proxy(root_view)
         self._create_simulation_bindings()
         self._create_buffers()
+        self.update(0.0)
+        self.default_segment_pose_w = ProxyArray(wp.clone(self._segment_pose_w))
+        self.default_segment_velocity_w = ProxyArray(wp.clone(self._segment_velocity_w))
 
     @property
     def segment_pose_w(self) -> ProxyArray:
@@ -72,6 +75,7 @@ class CableObjectData(BaseCableObjectData):
         self._num_instances = self._root_view.count
         self._num_segments = self._root_view.link_count + 1
         self._sim_bind_root_body_ids = self._root_view.get_attribute("joint_parent", model)[:, 0, 0].contiguous()
+        self._sim_bind_link_body_ids = self._root_view.get_attribute("joint_child", model)[:, 0].contiguous()
         self._sim_bind_root_pose_w = state.body_q[self._sim_bind_root_body_ids]
         self._sim_bind_root_velocity_w = state.body_qd[self._sim_bind_root_body_ids]
         self._sim_bind_link_pose_w = self._root_view.get_link_transforms(state)[:, 0]

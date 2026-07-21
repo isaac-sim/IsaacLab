@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Fixed replicated cable-only scenes using the VBD solver.
+* Fixed cable solver selection to accept pure VBD and reject unsupported coupled managers.

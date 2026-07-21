@@ -19,6 +19,20 @@ class BaseCableObjectData(ABC):
         """
         self.device = device
 
+    default_segment_pose_w: ProxyArray | None = None
+    """Default segment actor-frame poses in simulation world frame [m].
+
+    The Warp view has shape (num_instances, num_segments), dtype ``wp.transformf``. The Torch view has shape
+    (num_instances, num_segments, 7), with position [m] and quaternion in ``(x, y, z, w)`` format.
+    """
+
+    default_segment_velocity_w: ProxyArray | None = None
+    """Default segment center-of-mass velocities in simulation world frame [m/s, rad/s].
+
+    The Warp view has shape (num_instances, num_segments), dtype ``wp.spatial_vectorf``. The Torch view has shape
+    (num_instances, num_segments, 6), with linear [m/s] followed by angular [rad/s] velocity.
+    """
+
     @property
     @abstractmethod
     def segment_pose_w(self) -> ProxyArray:
