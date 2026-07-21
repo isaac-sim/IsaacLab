@@ -342,6 +342,10 @@ override-dependencies = [
     "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.0",
+    # newton[importers] pins usd-core<26.5 in every published release and the current
+    # dev build; override it so uv accepts our usd-core>=26.05 requirement.
+    # Remove once newton publishes a release that drops the upper bound.
+    "usd-core>=26.05,<27.0 ; platform_machine in 'x86_64 AMD64'",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
