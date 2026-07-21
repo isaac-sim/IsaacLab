@@ -9,11 +9,11 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.cloner import add as clone_add
 from isaaclab.utils import find_unique_string_name
 from isaaclab.utils.configclass import configclass
-from isaaclab.assets import AssetBaseCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import AssetBaseCfg
