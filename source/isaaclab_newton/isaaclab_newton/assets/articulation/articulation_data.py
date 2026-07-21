@@ -1043,16 +1043,15 @@ class ArticulationData(BaseArticulationData):
             InverseDynamics.EvalType.GRAVITY_FORCE,
             self._inverse_dynamics_buf,
         )
-        joint_ordering = self.joint_ordering
         wp.launch(
             articulation_kernels.gather_dof_force_rows,
             dim=self._gravity_compensation_forces_buf.shape,
             inputs=[
                 self._inverse_dynamics_buf.gravity_force,
                 self._jacobian_view_dof_starts,
-                joint_ordering.user_to_backend if joint_ordering is not None else None,
+                self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
                 self._num_base_dofs,
-                joint_ordering is not None,
+                self.has_joint_ordering,
             ],
             outputs=[self._gravity_compensation_forces_buf],
             device=self.device,
