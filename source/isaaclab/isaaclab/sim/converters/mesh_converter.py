@@ -215,7 +215,9 @@ class MeshConverter(AssetConverterBase):
         if cfg.rigid_props is not None:
             rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
             if rigid_frags and all(isinstance(f, SchemaFragment) for f in rigid_frags):
-                schemas.apply_rigid_body_properties(str(xform_prim.GetPath()), rigid_frags, stage=stage)
+                schemas.apply_rigid_body_properties(
+                    str(xform_prim.GetPath()), rigid_frags, create_if_missing=True, stage=stage
+                )
             else:
                 schemas.define_rigid_body_properties(prim_path=xform_prim.GetPath(), cfg=cfg.rigid_props, stage=stage)
 
