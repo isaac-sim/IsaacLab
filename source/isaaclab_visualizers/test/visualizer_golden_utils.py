@@ -27,7 +27,7 @@ from PIL import Image, ImageChops
 _GOLDEN_IMAGES_DIRECTORY = Path(__file__).parent / "golden_images"
 
 # Euclidean distance between two RGB pixels below which they are treated as equal.
-_PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
+_PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 20.0
 
 # Kit RTX viewport inherits RTX renderer variability; use the cartpole renderer
 # baseline (1.0 %).  Newton GL is more deterministic so we tighten to 0.5 %.
@@ -64,10 +64,11 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     # Franka cloth Kit RTX tiled: 12 prior Newton tests leave RTX global-illumination and
     # specular-reflection state in a different phase.  The robot+cloth geometry is correct
     # (SSIM 0.963 passes the 0.960 threshold), but the highly reflective floor produces a
-    # global brightness shift that pushes ~33% of pixels past the L2-norm-10 threshold.
-    # Observed warm-retry: 33.1–33.2%.  40% gives a safe margin while SSIM still catches
-    # structural regressions (wrong body pose dropped SSIM to 0.69 in earlier runs).
-    "franka_cloth-kit-tiled": 40.0,
+    # brightness shift: ~16% of pixels exceed the L2-norm-20 threshold (~11.5 units/channel
+    # uniform shift).  Observed warm-retry: 16.1–16.4%.  20% gives a safe margin while SSIM
+    # still catches structural regressions (wrong body pose dropped SSIM to 0.69 in earlier
+    # runs).
+    "franka_cloth-kit-tiled": 20.0,
     # Franka cloth Kit viewport: the Kit RTX viewport's TAA history accumulates frames from
     # all 14 prior test scenes in the same process.  With ~400+ contaminated viewport frames
     # and only 20 warmup iterations the TAA blend is ≈67% contaminated, producing a

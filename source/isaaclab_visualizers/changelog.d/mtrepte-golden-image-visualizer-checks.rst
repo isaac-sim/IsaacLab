@@ -39,10 +39,11 @@ Fixed
   transforms never syncing to USD Fabric.  The ``_drain_until_newton_fabric_ready`` helper now
   uses a higher iteration ceiling (600 vs. 200) and more Kit app updates per iteration (4 vs. 2)
   for the tiled-camera path, and adds a ``torch.cuda.synchronize()`` before each ``SelectPrims``
-  retry to help flush any queued Fabric CPU-to-GPU attribute propagation work.  Pixel-diff and
-  SSIM thresholds for these two captures were calibrated to accommodate persistent RTX
-  global-illumination and viewport-TAA contamination from prior tests while still detecting
-  structural pose regressions.
+  retry to help flush any queued Fabric CPU-to-GPU attribute propagation work.  The global per-pixel
+  L2-norm difference threshold was raised from 10 to 20 to better reflect the magnitude of RTX
+  global-illumination contamination in heavily loaded suites; the ``franka_cloth-kit-tiled``
+  pixel-diff gate was correspondingly tightened from 40% to 20%.  SSIM thresholds for both
+  captures remain unchanged and continue to detect structural pose regressions.
 
 * Fixed false-passing golden image tests caused by ``np.frombuffer`` returning a read-only view
   of the annotator's internal buffer rather than an independent snapshot.  When Replicator reuses
