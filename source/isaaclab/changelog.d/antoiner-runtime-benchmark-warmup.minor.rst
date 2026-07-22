@@ -22,3 +22,6 @@ Fixed
 
 * Fixed environment-step timing setup to restore partially installed wrappers
   when setup fails.
+
+* Fixed effective throughput metrics to report the conventional sample standard
+  deviation of observed rates.

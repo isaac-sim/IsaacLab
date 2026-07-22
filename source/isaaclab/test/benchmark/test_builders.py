@@ -7,6 +7,7 @@
 
 import json
 import os
+import statistics
 
 import pytest
 
@@ -109,9 +110,9 @@ def test_build_runtime_uses_effective_aggregate_throughput_when_requested():
 
     assert rt.total_wall_time_s == pytest.approx(4.0)
     assert rt.total_fps.mean == pytest.approx(4.0)
-    assert rt.total_fps.std == pytest.approx((160.0 / 9.0) ** 0.5)
+    assert rt.total_fps.std == pytest.approx(statistics.stdev([8.0, 8.0 / 3.0]))
     assert rt.collection_fps.mean == pytest.approx(4.0)
-    assert rt.collection_fps.std == pytest.approx((160.0 / 9.0) ** 0.5)
+    assert rt.collection_fps.std == pytest.approx(statistics.stdev([8.0, 8.0 / 3.0]))
     assert rt.iterations_per_s.mean == pytest.approx(0.5)
 
 
@@ -132,7 +133,7 @@ def test_build_runtime_adds_environment_step_timing():
     assert rt.environment_step_timing.environment_step_time_s.mean == pytest.approx(1.5)
     assert rt.environment_step_timing.environment_step_time_s.std == pytest.approx(2**-0.5)
     assert rt.environment_step_timing.environment_step_fps.mean == pytest.approx(16.0 / 3.0)
-    assert rt.environment_step_timing.environment_step_fps.std == pytest.approx((80.0 / 9.0) ** 0.5)
+    assert rt.environment_step_timing.environment_step_fps.std == pytest.approx(statistics.stdev([8.0, 4.0]))
     assert rt.environment_step_timing.simulation_step_time_s.mean == pytest.approx(0.5)
     assert rt.environment_step_timing.outside_simulation_step_time_s.mean == pytest.approx(1.0)
     assert rt.environment_step_timing.outside_simulation_step_fraction == pytest.approx(2.0 / 3.0)
