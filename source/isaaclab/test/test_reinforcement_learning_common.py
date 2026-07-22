@@ -232,6 +232,20 @@ def test_common_train_args_register_frontend_with_torch_default() -> None:
         parser.parse_args(["--frontend", "tensorflow"])
 
 
+def test_play_entrypoints_route_through_frontend_factory() -> None:
+    """Every dispatched play backend constructs its env via the frontend-aware factory."""
+    play_scripts = sorted((_repo_root() / "scripts" / "reinforcement_learning").glob("*/play_*.py"))
+    # rlinf constructs environments inside the external framework; the frontend cannot
+    # reach it (documented limitation).
+    play_scripts = [path for path in play_scripts if path.name != "play_rlinf.py"]
+    assert len(play_scripts) == 4, sorted(path.name for path in play_scripts)
+    for script in play_scripts:
+        source = script.read_text()
+        assert "create_isaaclab_env(" in source, f"{script.name} bypasses the frontend factory"
+        assert "gym.make(args_cli.task" not in source, f"{script.name} constructs directly via gym.make"
+        assert "add_frontend_args(parser)" in source, f"{script.name} does not expose --frontend"
+
+
 def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """The shared factory preserves the existing Gym path when no frontend is selected."""
     expected_env = object()

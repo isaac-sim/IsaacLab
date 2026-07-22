@@ -14,7 +14,7 @@ import time
 
 import gymnasium as gym
 import torch
-from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+from common import CHECKPOINT_SELECTORS, add_frontend_args, create_isaaclab_env, resolve_checkpoint_selector
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
@@ -56,6 +56,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+add_frontend_args(parser)
 parser.add_argument(
     "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
@@ -140,14 +141,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # set the log directory for the environment
         env_cfg.log_dir = log_dir
 
-        # create isaac environment
-        env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-
-        # convert to single-agent instance if required by the RL algorithm
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
+        # create isaac environment on the selected frontend
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+        )
 
         # wrap for video recording
         if args_cli.video:

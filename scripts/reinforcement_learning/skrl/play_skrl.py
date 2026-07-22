@@ -20,7 +20,7 @@ import time
 import gymnasium as gym
 import skrl
 import torch
-from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+from common import CHECKPOINT_SELECTORS, add_frontend_args, create_isaaclab_env, resolve_checkpoint_selector
 from packaging import version
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -51,6 +51,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+add_frontend_args(parser)
 parser.add_argument(
     "--agent",
     type=str,
@@ -174,13 +175,12 @@ def main():
         env_cfg.log_dir = log_dir
 
         # create isaac environment
-        env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-
-        # convert to single-agent instance if required by the RL algorithm
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and algorithm in ["ppo"]:
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
+        )
 
         # get environment (step) dt for real-time evaluation
         try:

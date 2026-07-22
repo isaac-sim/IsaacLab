@@ -2,8 +2,10 @@ Added
 ^^^^^
 
 * Added ``--frontend {torch,warp}`` to the shared reinforcement-learning
-  training CLI (all supported RL libraries) for selecting the environment
-  runtime; default ``torch`` is unchanged.
+  training and play CLIs (all supported RL libraries) for selecting the
+  environment runtime; default ``torch`` is unchanged. The ``rlinf``
+  integration constructs environments inside the external framework and is
+  not frontend-routable.
 * Added :mod:`isaaclab_experimental.envs.frontend` runtime selector and
   :meth:`isaaclab_experimental.managers.SceneEntityCfg.from_stable` used by
   ``--frontend=warp`` to adapt stable cfgs onto the warp runtime.
