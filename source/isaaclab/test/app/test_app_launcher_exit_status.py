@@ -15,6 +15,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -40,6 +41,40 @@ def _raise_after_app_launcher_initialization() -> None:
     raise RuntimeError("intentional AppLauncher failure")
 
 
+def _wait_for_ready_marker(proc: subprocess.Popen, timeout: float) -> None:
+    """Wait until the child prints the ready marker, failing on timeout or early child exit.
+
+    A reader thread consumes the child's stdout so the blocking line iteration cannot
+    outlive the deadline: the test waits on an event with a timeout instead of on the
+    pipe itself. On failure the collected child output is included in the report.
+    """
+    lines: list[str] = []
+    stdout_settled = threading.Event()  # marker seen or EOF
+    marker_seen = False
+
+    def _drain_stdout() -> None:
+        nonlocal marker_seen
+        for line in proc.stdout:
+            lines.append(line)
+            if _READY_MARKER in line:
+                marker_seen = True
+                break
+        stdout_settled.set()
+
+    reader = threading.Thread(target=_drain_stdout, daemon=True)
+    reader.start()
+    settled = stdout_settled.wait(timeout)
+    if not settled or not marker_seen:
+        proc.kill()
+        proc.wait(timeout=30)
+        reader.join(timeout=30)
+        stderr = proc.stderr.read()
+        reason = "did not become ready in time" if not settled else "exited before becoming ready"
+        pytest.fail(
+            f"AppLauncher child {reason}.\n--- child stdout ---\n{''.join(lines)}\n--- child stderr ---\n{stderr}"
+        )
+
+
 @pytest.mark.integration
 def test_sigterm_reports_killed_by_signal_status():
     """Verify that SIGTERM tears the app down once and the process dies by SIGTERM.
@@ -56,13 +91,8 @@ def test_sigterm_reports_killed_by_signal_status():
         text=True,
     )
     try:
-        # wait for the app to finish starting up
-        deadline = time.time() + 300
-        for line in proc.stdout:
-            if _READY_MARKER in line:
-                break
-            if time.time() > deadline:
-                pytest.fail("AppLauncher child did not become ready in time")
+        # wait for the app to finish starting up, without blocking past the deadline
+        _wait_for_ready_marker(proc, timeout=300)
         proc.send_signal(signal.SIGTERM)
         proc.stdout.close()
         _, stderr = proc.communicate(timeout=300)
