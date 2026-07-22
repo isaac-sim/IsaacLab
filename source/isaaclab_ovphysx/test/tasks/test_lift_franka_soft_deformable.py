@@ -8,12 +8,10 @@
 from __future__ import annotations
 
 import gymnasium as gym
+import ovphysx.types  # noqa: F401
 import pytest
 import torch
 import warp as wp
-
-pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
-
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 
 from isaaclab.sim import SimulationContext  # noqa: E402
