@@ -62,8 +62,8 @@ def test_manager_full_stage_requirement_preserves_authored_environments(tmp_path
         OvPhysxManager._requires_full_stage = previous
 
 
-def test_manager_full_stage_requirement_discards_pending_runtime_clones():
-    """A full-stage load discards queued runtime clones without replaying them."""
+def test_manager_full_stage_never_replays_runtime_clones():
+    """A full-stage load never mutates the already loaded runtime through cloning."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
     fake = SimpleNamespace(clone=lambda *args, **kwargs: pytest.fail("clone must not run"))
@@ -72,6 +72,72 @@ def test_manager_full_stage_requirement_discards_pending_runtime_clones():
         OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0)])]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=True)
         assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_full_stage_materializes_only_missing_heterogeneous_targets(tmp_path):
+    """A full-stage export copies missing heterogeneous targets without replacing authored ones."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    stage.DefinePrim("/World/envs/env_2", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Object", "Xform")
+    source.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set("source")
+    existing = stage.DefinePrim("/World/envs/env_1/Object", "Xform")
+    existing.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set("authored")
+    output = tmp_path / "scene.usda"
+    stage.Export(str(output))
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Object",
+                ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
+                [(1.0, 2.0, 3.0), (4.0, 5.0, 6.0)],
+            )
+        ]
+        OvPhysxManager._materialize_pending_clones(stage, str(output))
+        exported = Usd.Stage.Open(str(output))
+        assert exported.GetPrimAtPath("/World/envs/env_1/Object").GetAttribute("test:variant").Get() == "authored"
+        assert exported.GetPrimAtPath("/World/envs/env_2/Object").GetAttribute("test:variant").Get() == "source"
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_full_stage_materialization_is_atomic_on_invalid_target(tmp_path):
+    """A validation failure clears the queue without partially modifying the export."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    stage.DefinePrim("/World/envs/env_0/Object", "Xform")
+    output = tmp_path / "scene.usda"
+    stage.Export(str(output))
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Object",
+                ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
+                [(1.0, 0.0, 0.0), (2.0, 0.0, 0.0)],
+            )
+        ]
+        with pytest.raises(RuntimeError, match="clone target parent is absent"):
+            OvPhysxManager._materialize_pending_clones(stage, str(output))
+        assert OvPhysxManager._pending_clones == []
+        exported = Usd.Stage.Open(str(output))
+        assert not exported.GetPrimAtPath("/World/envs/env_1/Object").IsValid()
     finally:
         OvPhysxManager._pending_clones = previous
 
