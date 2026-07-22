@@ -35,3 +35,4 @@ def test_cloth_task_ovphysx_preset_selects_complete_authored_scene():
     assert cfg.scene.replicate_physics is False
     assert isinstance(cfg.scene.deformable.spawn.deformable_props, PhysxDeformableBodyPropertiesCfg)
     assert isinstance(cfg.scene.deformable.spawn.physics_material, PhysxSurfaceDeformableBodyMaterialCfg)
+    assert cfg.events.robot_physics_material.params["asset_cfg"].body_names is None
