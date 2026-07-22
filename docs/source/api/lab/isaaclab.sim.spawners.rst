@@ -315,7 +315,7 @@ Physical Materials
     :show-inheritance:
     :exclude-members: __init__, func
 
-.. autofunction:: spawn_rigid_body_material_from_fragments
+.. autofunction:: spawn_physics_material_from_fragments
 
 .. autoclass:: RigidBodyMaterialFragment
     :members:

@@ -536,7 +536,7 @@ Added
   :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` (marker base) and
   :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg` (solver-common
   ``physics:*`` friction/restitution/density), plus the family writer
-  :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments` and the slot
+  :func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments` and the slot
   dispatcher :func:`~isaaclab.sim.spawners.materials.spawn_physics_material`. Relevant
   ``physics_material`` slots now accept a single fragment or list alongside their legacy cfg form.
   Legacy material cfgs are current-stage-only: the dispatcher raises ``ValueError`` for an explicit
