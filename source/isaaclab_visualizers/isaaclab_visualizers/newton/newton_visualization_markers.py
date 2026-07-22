@@ -80,14 +80,16 @@ class NewtonVisualizationMarkers:
         }
 
         sim = sim_utils.SimulationContext.instance()
-        if sim is not None:
-            sim.vis_marker_registry.set_group(self.group_id, self)
+        self._registry = sim.vis_marker_registry if sim is not None else None
+        if self._registry is not None:
+            self._registry.set_group(self.group_id, self)
 
     def close(self) -> None:
         """Remove marker backend from the simulation marker registry."""
-        sim = sim_utils.SimulationContext.instance()
-        if sim is not None:
-            sim.vis_marker_registry.remove_group(self.group_id)
+        registry = getattr(self, "_registry", None)
+        self._registry = None
+        if registry is not None:
+            registry.remove_group(self.group_id)
 
     def infer_device(self) -> torch.device:
         """Infer the device from current marker state."""
