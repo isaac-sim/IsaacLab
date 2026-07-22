@@ -143,14 +143,22 @@ class HapticFeedbackDriver:
         per-body contact-force magnitudes for the first environment.  This
         favors a stable "am I pressing on something" signal over directional
         detail, which is all a single rumble motor can render.
+
+        Both hands are reduced on-device and moved to the host in a single
+        transfer to avoid a per-hand CUDA sync each frame. A hand whose sensor
+        data is unavailable fails safe to ``0.0`` so the device does not keep
+        rendering a stale force.
         """
-        for endpoint, sensor in self._endpoint_sensors.items():
-            # net_forces_w: [num_envs, num_bodies, 3]; reduce env 0 to a scalar [N].
-            net_forces = sensor.data.net_forces_w
-            if net_forces is None:
-                continue
-            force = torch.linalg.vector_norm(net_forces[0], dim=-1).sum().item()
-            self._device.send_haptic(endpoint, force)
+        # net_forces_w: [num_envs, num_bodies, 3]; reduce env 0 to a scalar [N].
+        # Use the explicit ``.torch`` view to avoid the ProxyArray deprecation path.
+        reduced = {
+            endpoint: torch.linalg.vector_norm(net.torch[0], dim=-1).sum()
+            for endpoint, sensor in self._endpoint_sensors.items()
+            if (net := sensor.data.net_forces_w) is not None
+        }
+        forces = dict(zip(reduced, torch.stack(list(reduced.values())).tolist())) if reduced else {}
+        for endpoint in self._endpoint_sensors:
+            self._device.send_haptic(endpoint, forces.get(endpoint, 0.0))
 
     def stop(self) -> None:
         """Zero every endpoint so any active pulse stops.
