@@ -108,11 +108,17 @@ def test_apply_deformable_modify_path_skips_setup(monkeypatch):
 
 
 def test_apply_deformable_zero_targets_warns_and_returns_false(monkeypatch, caplog):
+    import logging
+
     from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg, apply_surface_deformable_properties
 
     stage = _fresh_sim_with_stub(monkeypatch)
-    result = apply_surface_deformable_properties("/World/Nope", [OmniPhysicsDeformableBodyCfg(mass=1.0)], stage=stage)
+    with caplog.at_level(logging.WARNING):
+        result = apply_surface_deformable_properties(
+            "/World/Nope", [OmniPhysicsDeformableBodyCfg(mass=1.0)], stage=stage
+        )
     assert result is False
+    assert any("No deformable-body targets matched" in rec.message for rec in caplog.records)
 
 
 def test_apply_deformable_warns_on_type_mismatched_fragment(monkeypatch, caplog):
@@ -148,7 +154,6 @@ def test_apply_deformable_warns_on_type_mismatched_fragment(monkeypatch, caplog)
 def test_deformable_slot_exclusivity_raises():
     import isaaclab.sim as sim_utils
     from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
-    from isaaclab.sim.spawners.materials import OmniPhysicsSurfaceDeformableMaterialCfg  # noqa: F401
 
     cfg = sim_utils.MeshCuboidCfg(
         size=(0.1, 0.1, 0.1),
@@ -161,25 +166,36 @@ def test_deformable_slot_exclusivity_raises():
         cfg.func("/World/Bad", cfg)
 
 
-def test_mesh_surface_deformable_spawn_with_collision_props(monkeypatch):
+def test_mesh_surface_deformable_spawn_with_collision_props(monkeypatch, caplog):
     """Surface slot end-to-end on the mesh path (no tetrahedralization needed), with collision
-    offsets riding the collision family keyed to the sim mesh."""
+    offsets riding the collision family keyed to the sim mesh.
+
+    A deformable ``physics_material`` is bound before the deformable slot is authored, so the
+    happy path must not emit the "without a physics material binding" warning.
+    """
+    import logging
+
     import isaaclab.sim as sim_utils
     from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg, UsdPhysicsCollisionCfg
+    from isaaclab.sim.spawners.materials import OmniPhysicsSurfaceDeformableMaterialCfg
 
     stage = _fresh_sim_with_stub(monkeypatch)
     cfg = sim_utils.MeshCuboidCfg(
         size=(0.1, 0.1, 0.1),
         surface_deformable_props={"": [OmniPhysicsDeformableBodyCfg(mass=0.2)]},
+        physics_material=[OmniPhysicsSurfaceDeformableMaterialCfg(surface_thickness=0.01)],
         collision_props={"sim_mesh": [UsdPhysicsCollisionCfg(collision_enabled=True)]},
     )
-    cfg.func("/World/Cloth", cfg)
+    with caplog.at_level(logging.WARNING):
+        cfg.func("/World/Cloth", cfg)
     prim = stage.GetPrimAtPath("/World/Cloth")
     assert _StubManager.calls and _StubManager.calls[0][1] == "surface"
     assert abs(prim.GetAttribute("omniphysics:mass").Get() - 0.2) < 1e-6
     sim_mesh = stage.GetPrimAtPath("/World/Cloth/sim_mesh")
     assert sim_mesh.IsValid()
     assert sim_mesh.GetAttribute("physics:collisionEnabled").Get() is True
+    # a bound deformable material must silence the missing-material warning on the happy path
+    assert not any("without a physics material binding" in rec.message for rec in caplog.records)
 
 
 def test_usd_file_volume_deformable_spawn(monkeypatch, tmp_path):

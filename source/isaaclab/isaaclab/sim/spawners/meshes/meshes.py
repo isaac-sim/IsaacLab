@@ -369,8 +369,17 @@ def _apply_mesh_deformable_slot(prim_path: str, cfg: meshes_cfg.MeshCfg, deforma
         if deformable_type == "volume"
         else schemas.apply_surface_deformable_properties
     )
+    # the spawner binds ``physics_material`` after this authoring pass, so suppress the writer's
+    # missing-material advisory when a material is configured to avoid a spurious warning
+    warn_missing_material = cfg.physics_material is None
     for pattern, fragments in mapping.items():
-        writer(props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage)
+        writer(
+            props_expr(prim_path, pattern),
+            fragments,
+            create_if_missing=True,
+            stage=stage,
+            warn_missing_material=warn_missing_material,
+        )
     # collision tuning rides the collision family, anchored at the spawn prim so the created
     # sim mesh child is reachable (e.g. {"sim_mesh": [...]})
     if isinstance(cfg.collision_props, dict):

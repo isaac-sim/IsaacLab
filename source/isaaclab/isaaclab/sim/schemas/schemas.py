@@ -656,18 +656,24 @@ Deformable body properties.
 
 
 def _warn_if_no_deformable_material(prim: Usd.Prim) -> None:
-    """Warn when a newly created deformable body has no physics material binding."""
+    """Warn when a newly created deformable body has no physics material binding.
+
+    A ``physics`` material may be bound directly on the deformable body prim or on a child
+    geometry prim (USD material bindings do not propagate upward), so the whole subtree is
+    inspected before warning. The check is advisory only and never blocks authoring.
+    """
     from pxr import UsdShade  # noqa: PLC0415
 
-    targets = []
-    if prim.HasAPI(UsdShade.MaterialBindingAPI):
-        targets = UsdShade.MaterialBindingAPI(prim).GetDirectBindingRel("physics").GetTargets()
-    if not targets:
-        logger.warning(
-            "Deformable body '%s' was created without a physics material binding; runtime behavior"
-            " is undefined until a deformable material is bound.",
-            prim.GetPath().pathString,
-        )
+    for descendant in Usd.PrimRange(prim):
+        if not descendant.HasAPI(UsdShade.MaterialBindingAPI):
+            continue
+        if UsdShade.MaterialBindingAPI(descendant).GetDirectBindingRel("physics").GetTargets():
+            return
+    logger.warning(
+        "Deformable body '%s' was created without a physics material binding; runtime behavior"
+        " is undefined until a deformable material is bound.",
+        prim.GetPath().pathString,
+    )
 
 
 def _apply_deformable_body_properties(
@@ -677,6 +683,7 @@ def _apply_deformable_body_properties(
     create_if_missing: bool,
     stage: Usd.Stage | None,
     sim_mesh_name: str,
+    warn_missing_material: bool,
 ) -> bool:
     """Shared implementation of the volume/surface deformable family writers."""
     fragments = list(fragments)
@@ -705,7 +712,8 @@ def _apply_deformable_body_properties(
             sim_mesh_prim_path = f"{prim.GetPath().pathString}/{sim_mesh_name}"
             sim_mesh_prim, vis_mesh_prim = _setup_deformable_meshes(prim, deformable_type, sim_mesh_prim_path, stage)
             sim.physics_manager.setup_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim, stage)
-            _warn_if_no_deformable_material(prim)
+            if warn_missing_material:
+                _warn_if_no_deformable_material(prim)
             targets.append(prim)
     if not targets:
         logger.warning("No deformable-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
@@ -726,6 +734,7 @@ def apply_volume_deformable_properties(
     create_if_missing: bool = False,
     stage: Usd.Stage | None = None,
     sim_mesh_name: str = "sim_mesh",
+    warn_missing_material: bool = True,
 ) -> bool:
     """Apply deformable-body fragments to the volume deformables matched by an expression.
 
@@ -753,6 +762,10 @@ def apply_volume_deformable_properties(
             stage is used.
         sim_mesh_name: Name of the simulation-mesh child prim created per target. Defaults to
             ``"sim_mesh"``.
+        warn_missing_material: Whether to warn when a newly created deformable body has no
+            physics material bound anywhere in its subtree. Callers that bind a deformable
+            material after creation (e.g. the spawners) pass False to silence the advisory.
+            Defaults to True.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
@@ -761,7 +774,7 @@ def apply_volume_deformable_properties(
         RuntimeError: If creation is requested without an active simulation.
     """
     return _apply_deformable_body_properties(
-        prim_path_expr, fragments, "volume", create_if_missing, stage, sim_mesh_name
+        prim_path_expr, fragments, "volume", create_if_missing, stage, sim_mesh_name, warn_missing_material
     )
 
 
@@ -771,6 +784,7 @@ def apply_surface_deformable_properties(
     create_if_missing: bool = False,
     stage: Usd.Stage | None = None,
     sim_mesh_name: str = "sim_mesh",
+    warn_missing_material: bool = True,
 ) -> bool:
     """Apply deformable-body fragments to the surface deformables matched by an expression.
 
@@ -786,6 +800,10 @@ def apply_surface_deformable_properties(
             stage is used.
         sim_mesh_name: Name of the simulation-mesh child prim created per target. Defaults to
             ``"sim_mesh"``.
+        warn_missing_material: Whether to warn when a newly created deformable body has no
+            physics material bound anywhere in its subtree. Callers that bind a deformable
+            material after creation (e.g. the spawners) pass False to silence the advisory.
+            Defaults to True.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
@@ -794,7 +812,7 @@ def apply_surface_deformable_properties(
         RuntimeError: If creation is requested without an active simulation.
     """
     return _apply_deformable_body_properties(
-        prim_path_expr, fragments, "surface", create_if_missing, stage, sim_mesh_name
+        prim_path_expr, fragments, "surface", create_if_missing, stage, sim_mesh_name, warn_missing_material
     )
 
 

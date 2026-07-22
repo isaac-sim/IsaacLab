@@ -339,8 +339,17 @@ def _apply_deformable_schema_properties(prim_path: str, cfg: from_files_cfg.File
         if deformable_type == "volume"
         else schemas.apply_surface_deformable_properties
     )
+    # the spawner binds ``physics_material`` after this authoring pass, so suppress the writer's
+    # missing-material advisory when a material is configured to avoid a spurious warning
+    warn_missing_material = cfg.physics_material is None
     for pattern, fragments in mapping.items():
-        writer(props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage)
+        writer(
+            props_expr(prim_path, pattern),
+            fragments,
+            create_if_missing=True,
+            stage=stage,
+            warn_missing_material=warn_missing_material,
+        )
 
 
 def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -> None:
