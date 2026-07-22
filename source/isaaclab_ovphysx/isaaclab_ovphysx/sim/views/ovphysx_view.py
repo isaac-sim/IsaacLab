@@ -271,7 +271,7 @@ class OvPhysxView:
         """A supplied buffer does not match the binding's element count."""
 
     class DtypeMismatch(OvPhysxViewError):
-        """A supplied buffer's scalar element type is not ``float32``."""
+        """A supplied buffer does not use the binding-reported DLPack scalar dtype."""
 
     class DeviceMismatch(OvPhysxViewError):
         """A supplied buffer is on a different device than the binding requires."""
@@ -364,8 +364,9 @@ class OvPhysxView:
             device -- ``cpu`` for CPU-only property types even on a GPU sim (see
             :func:`is_cpu_only`). When ``out`` is omitted this is a fresh, caller-owned array;
             its dtype is the attribute's structured Warp dtype when it has one (e.g.
-            ``wp.transformf`` for poses, ``wp.spatial_vectorf`` for velocities) and flat
-            ``float32`` otherwise (see :data:`_ATTR_DTYPE`).
+            ``wp.transformf`` for poses, ``wp.spatial_vectorf`` for velocities). Otherwise,
+            a flat array matching the binding shape is allocated with the Warp scalar dtype
+            resolved from the binding's DLPack metadata (see :data:`_ATTR_DTYPE`).
         """
         tt = self._resolve(name)
         binding = self._binding(tt)
@@ -401,7 +402,8 @@ class OvPhysxView:
 
         Raises:
             OvPhysxView.DeviceMismatch: If ``dst`` is not on the binding's native device.
-            OvPhysxView.DtypeMismatch: If ``dst``'s scalar element type is not ``float32``.
+            OvPhysxView.DtypeMismatch: If ``dst``'s scalar element type does not match the
+                binding-reported DLPack scalar dtype.
             OvPhysxView.ShapeMismatch: If ``dst`` is non-contiguous or its element count does not match.
         """
         tt = self._resolve(name)
@@ -419,8 +421,8 @@ class OvPhysxView:
     ) -> None:
         """Write a full attribute tensor; ``indices``/``mask`` select which rows apply.
 
-        ``values`` may be a structured-dtype buffer (read through a ``float32``
-        reinterpret view). If both ``indices`` and ``mask`` are given, ``mask`` wins and
+        ``values`` may be a structured-dtype buffer read through a binding-reported scalar
+        dtype reinterpret view. If both ``indices`` and ``mask`` are given, ``mask`` wins and
         the wheel emits a ``UserWarning`` -- this view forwards both verbatim to
         ``TensorBinding.write`` and does not implement the precedence itself.
 
@@ -433,7 +435,8 @@ class OvPhysxView:
         Raises:
             OvPhysxView.ReadOnlyAttribute: If the attribute is read-only.
             OvPhysxView.DeviceMismatch: If ``values`` is not on the binding's native device.
-            OvPhysxView.DtypeMismatch: If ``values``' scalar element type is not ``float32``.
+            OvPhysxView.DtypeMismatch: If ``values``' scalar element type does not match the
+                binding-reported DLPack scalar dtype.
             OvPhysxView.ShapeMismatch: If ``values`` is non-contiguous or its element count does not match.
         """
         tt = self._resolve(name)
