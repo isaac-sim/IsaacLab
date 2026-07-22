@@ -435,7 +435,7 @@ RL Play Arguments
    * - ``--num_frames``
      - ``100``
      - Number of measured inference steps
-   * - ``--warmup_steps``
+   * - ``--warmup_frames``
      - ``1``
      - Number of preceding environment steps to exclude from timing and throughput
    * - ``--checkpoint``
@@ -448,11 +448,15 @@ RL Play Arguments
      - ``false``
      - Collect the serialized synchronized diagnostic described above
 
-Runtime executes ``warmup_frames + num_frames`` environment steps, while play
-executes ``warmup_steps + num_frames`` environment steps. Thus, the requested
-``num_frames`` is always the exact number of measured steps. Play warmup steps
-are excluded only from timing and throughput; they still contribute to reward,
-episode-length, success-rate, and resource measurements.
+Runtime and play execute ``warmup_frames + num_frames`` environment steps. Thus,
+the requested ``num_frames`` is always the exact number of measured steps. Play
+warmup frames are excluded only from timing and throughput; they still contribute
+to reward, episode-length, success-rate, and resource measurements.
+
+Runtime warmup frames are excluded from steady-state timing, throughput, and
+synchronized environment-step measurements. When warmup is nonzero, the first
+warmup frame ordinary wall-clock time is retained separately as the ``first_step`` startup diagnostic.
+With zero warmup, the first measured frame supplies that diagnostic.
 
 Measurement Types
 -----------------

@@ -59,7 +59,7 @@ def _parse_args(argv: list[str]):
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
-        "--warmup_steps",
+        "--warmup_frames",
         type=parse_non_negative_int,
         default=1,
         help="Number of preceding env.step() calls to exclude from timing and throughput.",
@@ -167,7 +167,7 @@ def run(argv: list[str]) -> None:
                         "name": "environment_step_measurement_mode",
                         "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                     },
-                    {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
+                    {"name": "environment_step_warmup_frames", "data": args_cli.warmup_frames},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -234,14 +234,14 @@ def run(argv: list[str]) -> None:
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env,
                 measure_synchronized_step_breakdown=args_cli.measure_sync_step,
-                warmup_steps=args_cli.warmup_steps,
+                warmup_steps=args_cli.warmup_frames,
             )
-            total_frames = args_cli.warmup_steps + args_cli.num_frames
+            total_frames = args_cli.warmup_frames + args_cli.num_frames
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
                 all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
 
             first_step_s = all_step_times[0]
-            step_times = all_step_times[args_cli.warmup_steps :]
+            step_times = all_step_times[args_cli.warmup_frames :]
 
             benchmark.update_manual_recorders()
 
