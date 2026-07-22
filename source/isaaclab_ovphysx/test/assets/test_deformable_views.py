@@ -76,12 +76,14 @@ class _FakeBinding:
         self.spatial_tendon_count = 0
         self.last_indices: wp.array | None = None
         self.last_mask: wp.array | None = None
+        self.last_values: wp.array | None = None
         self.destroyed = False
 
     def read(self, values: wp.array) -> None:
         pass
 
     def write(self, values: wp.array, indices: wp.array | None = None, mask: wp.array | None = None) -> None:
+        self.last_values = values
         self.last_indices = indices
         self.last_mask = mask
 
@@ -135,15 +137,23 @@ def test_body_view_forwards_full_buffer_indices_and_masks():
 
 def test_body_view_converts_torch_state_and_target_inputs():
     view = OvPhysxDeformableBodyView(_FakePhysX(), "/World/env_*/Soft", "cpu", "volume")
-    positions = torch.zeros((2, 5, 3), dtype=torch.float32).transpose(0, 1).transpose(0, 1)
-    targets = torch.zeros((2, 5, 4), dtype=torch.float32).transpose(0, 1).transpose(0, 1)
+    positions = torch.zeros((2, 3, 5), dtype=torch.float32).transpose(1, 2)
+    targets = torch.zeros((2, 4, 5), dtype=torch.float32).transpose(1, 2)
+    assert not positions.is_contiguous()
+    assert not targets.is_contiguous()
 
     view.set_simulation_nodal_positions(positions)
     view.set_simulation_nodal_kinematic_targets(targets, indices=torch.tensor([1], dtype=torch.int64))
 
-    assert view._view.binding_for(TensorType.DEFORMABLE_SIM_NODAL_POSITION).last_indices is None
-    assert str(view._view.binding_for(TensorType.DEFORMABLE_SIM_KINEMATIC_TARGET).last_indices.device) == "cpu"
-    assert view._view.binding_for(TensorType.DEFORMABLE_SIM_KINEMATIC_TARGET).last_indices.dtype == wp.int32
+    position_binding = view._view.binding_for(TensorType.DEFORMABLE_SIM_NODAL_POSITION)
+    target_binding = view._view.binding_for(TensorType.DEFORMABLE_SIM_KINEMATIC_TARGET)
+    assert position_binding.last_indices is None
+    assert position_binding.last_values.is_contiguous
+    assert position_binding.last_values.dtype == wp.float32
+    assert target_binding.last_values.is_contiguous
+    assert target_binding.last_values.dtype == wp.float32
+    assert str(target_binding.last_indices.device) == "cpu"
+    assert target_binding.last_indices.dtype == wp.int32
 
 
 @pytest.mark.parametrize(
@@ -168,12 +178,15 @@ def test_material_view_exposes_all_properties_on_cpu(getter: str, setter: str):
 
 def test_material_view_converts_torch_inputs_and_cpu_selection():
     view = OvPhysxDeformableMaterialView(_FakePhysX(), "/World/env_*/material")
-    values = torch.zeros((2,), dtype=torch.float32).transpose(0, 0)
+    values = torch.zeros((2, 2), dtype=torch.float32)[:, 0]
+    assert not values.is_contiguous()
     indices = torch.tensor([1], dtype=torch.int64)
     mask = torch.tensor([False, True])
 
     view.set_dynamic_frictions(values, indices=indices, mask=mask)
     binding = view._view.binding_for(TensorType.DEFORMABLE_MATERIAL_DYNAMIC_FRICTION)
+    assert binding.last_values.is_contiguous
+    assert binding.last_values.dtype == wp.float32
     assert str(binding.last_indices.device) == "cpu"
     assert binding.last_indices.dtype == wp.int32
     assert str(binding.last_mask.device) == "cpu"
