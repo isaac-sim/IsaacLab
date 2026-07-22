@@ -11,10 +11,14 @@ import ovphysx.types  # noqa: F401
 import pytest
 import torch
 import warp as wp
+from flaky import flaky
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg  # noqa: E402
 
+from pxr import Gf, UsdGeom  # noqa: E402
+
 import isaaclab.sim as sim_utils  # noqa: E402
+import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
@@ -66,10 +70,12 @@ def _ovphysx_sim_context(device: str, *, gravity_enabled: bool = False):
     return build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=True)
 
 
-def _generate_deformable_scene(spawn: sim_utils.SpawnerCfg, num_objects: int = 2) -> DeformableObject:
+def _generate_deformable_scene(
+    spawn: sim_utils.SpawnerCfg, num_objects: int = 2, height: float = 1.0
+) -> DeformableObject:
     """Create independently authored deformables beneath matching parent prims."""
     for index in range(num_objects):
-        sim_utils.create_prim(f"/World/Table_{index}", "Xform", translation=(index * 0.5, 0.0, 1.0))
+        sim_utils.create_prim(f"/World/Table_{index}", "Xform", translation=(index * 0.5, 0.0, height))
     cfg = DeformableObjectCfg(
         prim_path="/World/Table_.*/Object",
         spawn=spawn,
@@ -88,6 +94,242 @@ def _assert_finite_deformable_state(deformable: DeformableObject) -> None:
 def _canonical_connectivity(connectivity: torch.Tensor) -> list[set[tuple[int, ...]]]:
     """Return unordered elements with each element's vertex indices sorted."""
     return [{tuple(sorted(element)) for element in body} for body in connectivity.cpu().tolist()]
+
+
+def _assert_rest_positions_match_authored(
+    rest_positions: torch.Tensor, authored_points: torch.Tensor, prim_paths: list[str]
+) -> None:
+    """Assert each body contains the authored local rest points transformed into world space."""
+    assert rest_positions.shape == (rest_positions.shape[0], authored_points.shape[0], 3)
+    assert torch.is_floating_point(rest_positions)
+    assert torch.isfinite(rest_positions).all()
+    assert len(prim_paths) == rest_positions.shape[0]
+    stage = sim_utils.get_current_stage()
+    xform_cache = UsdGeom.XformCache()
+    for body_points, prim_path in zip(rest_positions, prim_paths):
+        local_to_world = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(prim_path))
+        expected = torch.tensor(
+            [tuple(local_to_world.Transform(Gf.Vec3d(*point.tolist()))) for point in authored_points.cpu()],
+            dtype=rest_positions.dtype,
+            device=rest_positions.device,
+        )
+        distances = torch.cdist(body_points, expected)
+        torch.testing.assert_close(
+            distances.min(dim=0).values, torch.zeros(expected.shape[0], device=expected.device), atol=1e-6, rtol=0.0
+        )
+        torch.testing.assert_close(
+            distances.min(dim=1).values, torch.zeros(expected.shape[0], device=expected.device), atol=1e-6, rtol=0.0
+        )
+
+
+@pytest.mark.parametrize(
+    "num_objects, material_path",
+    [
+        (1, "material"),
+        (2, None),
+        (2, "/World/SoftMaterial"),
+        (2, "material"),
+    ],
+)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
+def test_initialization(num_objects: int, material_path: str | None):
+    """Test volume deformable initialization and public buffer shapes."""
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        deformable = _generate_deformable_scene(
+            pre_tetrahedralized_deformable_spawn_cfg(material_path=material_path), num_objects=num_objects
+        )
+
+        sim.reset()
+
+        assert deformable.is_initialized
+        assert deformable.num_instances == num_objects
+        assert deformable.num_bodies == 1
+        assert deformable.root_view.count == num_objects
+        if material_path is None:
+            assert deformable.material_physx_view is None
+        elif material_path.startswith("/"):
+            assert deformable.material_physx_view is not None
+            assert deformable.material_physx_view.count == 1
+        else:
+            assert deformable.material_physx_view is not None
+            assert deformable.material_physx_view.count == num_objects
+        assert deformable.data.nodal_state_w.torch.shape == (
+            num_objects,
+            deformable.max_sim_vertices_per_body,
+            6,
+        )
+        assert deformable.data.nodal_kinematic_target is not None
+        assert deformable.data.nodal_kinematic_target.torch.shape == (
+            num_objects,
+            deformable.max_sim_vertices_per_body,
+            4,
+        )
+        assert deformable.data.root_pos_w.torch.shape == (num_objects, 3)
+        assert deformable.data.root_vel_w.torch.shape == (num_objects, 3)
+
+        deformable._invalidate_initialize_callback(None)
+        assert deformable._root_physx_view is None
+        assert deformable._material_physx_view is None
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
+def test_initialization_surface_deformable():
+    """Test surface deformable initialization and unsupported target writes."""
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        num_objects = 2
+        deformable = _generate_deformable_scene(pretriangulated_surface_deformable_spawn_cfg(), num_objects=num_objects)
+
+        sim.reset()
+
+        assert deformable.is_initialized
+        assert deformable.num_instances == num_objects
+        assert deformable.root_view.count == num_objects
+        assert deformable.material_physx_view is not None
+        assert deformable.material_physx_view.count == num_objects
+        assert deformable.data.nodal_state_w.torch.shape == (
+            num_objects,
+            deformable.max_sim_vertices_per_body,
+            6,
+        )
+        assert deformable.data.root_pos_w.torch.shape == (num_objects, 3)
+        assert deformable.data.root_vel_w.torch.shape == (num_objects, 3)
+        assert deformable.data.nodal_kinematic_target is None
+
+        dummy_targets = torch.zeros(num_objects, deformable.max_sim_vertices_per_body, 4, device=sim.device)
+        with pytest.raises(ValueError, match="Kinematic targets can only be set for volume deformable bodies"):
+            deformable.write_nodal_kinematic_target_to_sim_index(dummy_targets)
+
+
+@pytest.mark.isaacsim_ci
+def test_initialization_on_device_cpu():
+    """Test that OVPhysX deformable initialization rejects a CPU simulation."""
+    with _ovphysx_sim_context(device="cpu") as sim:
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=5)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            sim.reset()
+        message = str(exc_info.value)
+        assert "deformable tensors require a CUDA simulation device" in message or (
+            "locked to device 'gpu'" in message and "cannot switch to 'cpu'" in message
+        )
+        assert not deformable.is_initialized
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
+def test_set_nodal_state():
+    """Test combined nodal state writes while independently randomizing position and velocity."""
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        num_objects = 2
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=num_objects)
+        sim.reset()
+
+        for state_type_to_randomize in ["nodal_pos_w", "nodal_vel_w"]:
+            state_dict = {
+                "nodal_pos_w": torch.zeros_like(deformable.data.nodal_pos_w.torch),
+                "nodal_vel_w": torch.zeros_like(deformable.data.nodal_vel_w.torch),
+            }
+
+            for _ in range(5):
+                deformable.reset()
+                state_dict[state_type_to_randomize] = torch.randn(
+                    num_objects, deformable.max_sim_vertices_per_body, 3, device=sim.device
+                )
+
+                for _ in range(5):
+                    nodal_state = torch.cat([state_dict["nodal_pos_w"], state_dict["nodal_vel_w"]], dim=-1)
+                    deformable.write_nodal_state_to_sim_index(nodal_state)
+                    torch.testing.assert_close(deformable.data.nodal_state_w.torch, nodal_state, rtol=1e-5, atol=1e-5)
+
+                    sim.step()
+                    deformable.update(sim.cfg.dt)
+
+
+@pytest.mark.parametrize(
+    "num_objects, randomize_pos, randomize_rot",
+    [
+        (1, False, False),
+        (1, True, False),
+        (1, False, True),
+        (2, True, True),
+    ],
+)
+@flaky(max_runs=3, min_passes=1)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
+def test_set_nodal_state_with_applied_transform(num_objects: int, randomize_pos: bool, randomize_rot: bool):
+    """Test combined nodal state writes after applying rigid transforms."""
+    with _ovphysx_sim_context(device="cuda:0", gravity_enabled=False) as sim:
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=num_objects)
+        sim.reset()
+
+        for _ in range(5):
+            nodal_state = deformable.data.default_nodal_state_w.torch.clone()
+            mean_nodal_pos_default = nodal_state[..., :3].mean(dim=1)
+
+            if randomize_pos:
+                pos_w = 0.5 * torch.rand(deformable.num_instances, 3, device=sim.device)
+                pos_w[:, 2] += 0.5
+            else:
+                pos_w = None
+            if randomize_rot:
+                quat_w = math_utils.random_orientation(deformable.num_instances, device=sim.device)
+            else:
+                quat_w = None
+
+            nodal_state[..., :3] = deformable.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
+            mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
+
+            if pos_w is None:
+                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5)
+            else:
+                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
+
+            deformable.write_nodal_state_to_sim_index(nodal_state)
+            deformable.reset()
+
+            for _ in range(50):
+                sim.step()
+                deformable.update(sim.cfg.dt)
+
+            torch.testing.assert_close(deformable.data.root_pos_w.torch, mean_nodal_pos_init, rtol=1e-4, atol=1e-4)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
+def test_set_kinematic_targets():
+    """Test pinning one volume deformable while another falls under gravity."""
+    with _ovphysx_sim_context(device="cuda:0", gravity_enabled=True) as sim:
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2, height=1.0)
+        sim.reset()
+
+        nodal_kinematic_targets = wp.to_torch(deformable.root_view.get_simulation_nodal_kinematic_targets()).clone()
+
+        for _ in range(5):
+            deformable.write_nodal_state_to_sim_index(deformable.data.default_nodal_state_w.torch)
+            default_root_pos = deformable.data.default_nodal_state_w.torch[..., :3].mean(dim=1)
+            deformable.reset()
+
+            nodal_kinematic_targets[1:, :, 3] = 1.0
+            nodal_kinematic_targets[0, :, 3] = 0.0
+            nodal_kinematic_targets[0, :, :3] = deformable.data.default_nodal_state_w.torch[0, :, :3]
+            deformable.write_nodal_kinematic_target_to_sim_index(
+                nodal_kinematic_targets[0:1], env_ids=torch.tensor([0], device=sim.device)
+            )
+
+            for _ in range(20):
+                sim.step()
+                deformable.update(sim.cfg.dt)
+
+                torch.testing.assert_close(
+                    deformable.data.nodal_pos_w.torch[0],
+                    nodal_kinematic_targets[0, :, :3],
+                    rtol=1e-5,
+                    atol=1e-5,
+                )
+                assert torch.all(deformable.data.root_pos_w.torch[1:, 2] < default_root_pos[1:, 2])
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
@@ -114,6 +356,21 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         assert deformable.data.default_nodal_state_w.torch.shape == (2, 5, 6)
         assert deformable.data.root_pos_w.torch.shape == (2, 3)
         assert deformable.data.root_vel_w.torch.shape == (2, 3)
+        rest_positions = wp.to_torch(deformable.root_view.get_rest_nodal_positions())
+        _assert_rest_positions_match_authored(
+            rest_positions,
+            torch.tensor(
+                [
+                    [0.0, 0.0, 0.0],
+                    [0.2, 0.0, 0.0],
+                    [0.0, 0.2, 0.0],
+                    [0.0, 0.0, 0.2],
+                    [0.2, 0.2, 0.2],
+                ],
+                device=rest_positions.device,
+            ),
+            deformable.root_view.prim_paths,
+        )
         torch.testing.assert_close(deformable.data.root_pos_w.torch, nodal_pos.mean(dim=1))
         torch.testing.assert_close(deformable.data.root_vel_w.torch, nodal_vel.mean(dim=1))
 
@@ -193,6 +450,20 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         assert deformable.data.nodal_state_w.torch.shape == (2, 4, 6)
         assert deformable.data.root_pos_w.torch.shape == (2, 3)
         assert deformable.data.root_vel_w.torch.shape == (2, 3)
+        rest_positions = wp.to_torch(deformable.root_view.get_rest_nodal_positions())
+        _assert_rest_positions_match_authored(
+            rest_positions,
+            torch.tensor(
+                [
+                    [0.0, 0.0, 0.0],
+                    [0.2, 0.0, 0.0],
+                    [0.2, 0.2, 0.0],
+                    [0.0, 0.2, 0.0],
+                ],
+                device=rest_positions.device,
+            ),
+            deformable.root_view.prim_paths,
+        )
 
         element_indices = wp.to_torch(deformable.root_view.get_simulation_element_indices())
         assert element_indices.shape == (2, 2, 3)
