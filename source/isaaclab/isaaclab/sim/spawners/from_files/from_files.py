@@ -15,7 +15,7 @@ from filelock import FileLock
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners._utils import props_expr
+from isaaclab.sim.spawners._utils import props_expr, resolve_deformable_slot
 from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import (
@@ -318,6 +318,31 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
             schemas.modify_mass_properties(prim_path, cfg.mass_props)
 
 
+def _apply_deformable_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg, stage) -> None:
+    """Author the deformable-body schema family on the spawned asset (dict slots only).
+
+    Runs the active deformable dict slot (:attr:`volume_deformable_props` or
+    :attr:`surface_deformable_props`) through its writer, creating missing setups. The legacy
+    ``deformable_props`` path is handled separately by the caller.
+
+    Args:
+        prim_path: The path of the spawn prim that anchors the target patterns.
+        cfg: The file spawner configuration carrying the schema fields.
+        stage: The stage where to author the properties.
+    """
+    deformable_slot = resolve_deformable_slot(cfg)
+    if deformable_slot is None:
+        return
+    deformable_type, mapping = deformable_slot
+    writer = (
+        schemas.apply_volume_deformable_properties
+        if deformable_type == "volume"
+        else schemas.apply_surface_deformable_properties
+    )
+    for pattern, fragments in mapping.items():
+        writer(props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage)
+
+
 def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -> None:
     """Author the articulation-root, tendon, and joint-drive schema families on the spawned asset.
 
@@ -490,13 +515,17 @@ def _spawn_from_usd_file(
     if hasattr(cfg, "variants") and cfg.variants is not None:
         select_usd_variants(prim_path, cfg.variants)
 
+    # author the deformable dict slot first so any collision_props keyed to the created sim mesh
+    # (e.g. {"sim_mesh": [...]}) can match it in _apply_body_schema_properties below
+    _apply_deformable_schema_properties(prim_path, cfg, stage)
     # modify rigid body, collision, and mass properties
     _apply_body_schema_properties(prim_path, cfg)
     # modify articulation root, tendon, and joint drive properties
     _apply_articulation_schema_properties(prim_path, cfg)
 
     # define deformable body properties, or modify if deformable body API is present (PhysX only)
-    if cfg.deformable_props is not None:
+    # (legacy slot only; the dict slots are handled by _apply_deformable_schema_properties above)
+    if resolve_deformable_slot(cfg) is None and cfg.deformable_props is not None:
         prim = stage.GetPrimAtPath(prim_path)
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"

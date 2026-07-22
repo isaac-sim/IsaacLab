@@ -138,3 +138,69 @@ def test_apply_deformable_warns_on_type_mismatched_fragment(monkeypatch, caplog)
     assert result is True  # warned, authored anyway
     assert any("volume" in rec.message for rec in caplog.records)
     assert prim.GetAttribute("omniphysics:mass").Get() is not None
+
+
+# -------------------------------------------------------------------------------------
+# Spawner slots -- volume/surface_deformable_props on mesh and USD-file spawners
+# -------------------------------------------------------------------------------------
+
+
+def test_deformable_slot_exclusivity_raises():
+    import isaaclab.sim as sim_utils
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+    from isaaclab.sim.spawners.materials import OmniPhysicsSurfaceDeformableMaterialCfg  # noqa: F401
+
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        volume_deformable_props={"": [OmniPhysicsDeformableBodyCfg()]},
+        surface_deformable_props={"": [OmniPhysicsDeformableBodyCfg()]},
+    )
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    with pytest.raises(ValueError, match="one deformable"):
+        cfg.func("/World/Bad", cfg)
+
+
+def test_mesh_surface_deformable_spawn_with_collision_props(monkeypatch):
+    """Surface slot end-to-end on the mesh path (no tetrahedralization needed), with collision
+    offsets riding the collision family keyed to the sim mesh."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg, UsdPhysicsCollisionCfg
+
+    stage = _fresh_sim_with_stub(monkeypatch)
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        surface_deformable_props={"": [OmniPhysicsDeformableBodyCfg(mass=0.2)]},
+        collision_props={"sim_mesh": [UsdPhysicsCollisionCfg(collision_enabled=True)]},
+    )
+    cfg.func("/World/Cloth", cfg)
+    prim = stage.GetPrimAtPath("/World/Cloth")
+    assert _StubManager.calls and _StubManager.calls[0][1] == "surface"
+    assert abs(prim.GetAttribute("omniphysics:mass").Get() - 0.2) < 1e-6
+    sim_mesh = stage.GetPrimAtPath("/World/Cloth/sim_mesh")
+    assert sim_mesh.IsValid()
+    assert sim_mesh.GetAttribute("physics:collisionEnabled").Get() is True
+
+
+def test_usd_file_volume_deformable_spawn(monkeypatch, tmp_path):
+    """Volume slot on the USD-file path with a pre-tetrahedralized asset (no pytetwild)."""
+    from pxr import Usd, UsdGeom
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+
+    asset = str(tmp_path / "tet_asset.usda")
+    layer_stage = Usd.Stage.CreateNew(asset)
+    UsdGeom.Xform.Define(layer_stage, "/Asset")
+    tet = UsdGeom.TetMesh.Define(layer_stage, "/Asset/tet").GetPrim()
+    tet.GetAttribute("points").Set([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)])
+    tet.GetAttribute("tetVertexIndices").Set([(0, 1, 2, 3)])
+    layer_stage.SetDefaultPrim(layer_stage.GetPrimAtPath("/Asset"))
+    layer_stage.Save()
+
+    stage = _fresh_sim_with_stub(monkeypatch)
+    cfg = sim_utils.UsdFileCfg(usd_path=asset, volume_deformable_props={"": [OmniPhysicsDeformableBodyCfg()]})
+    cfg.func("/World/Soft", cfg)
+    assert stage is sim_utils.get_current_stage()
+    # the pre-authored TetMesh is reused in place as the simulation mesh (path keeps its name)
+    assert _StubManager.calls == [("/World/Soft", "volume", "/World/Soft/tet")]

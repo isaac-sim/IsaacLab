@@ -26,3 +26,32 @@ def props_expr(prim_path: str, pattern: str) -> str:
     if not pattern:
         return prim_path
     return f"{prim_path}/{pattern}"
+
+
+def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
+    """Pick the active deformable slot on a spawner cfg.
+
+    Returns ``("volume" | "surface", mapping)`` for the new dict slots, or None when neither is
+    set. Raises when more than one of the new slots and the legacy ``deformable_props`` is set.
+
+    Args:
+        cfg: The spawner configuration to inspect.
+
+    Returns:
+        The active slot as a ``(kind, mapping)`` pair, or None when no dict slot is set.
+
+    Raises:
+        ValueError: If more than one deformable slot (including the legacy ``deformable_props``) is set.
+    """
+    slots = [
+        ("volume", getattr(cfg, "volume_deformable_props", None)),
+        ("surface", getattr(cfg, "surface_deformable_props", None)),
+    ]
+    active = [(kind, mapping) for kind, mapping in slots if mapping is not None]
+    legacy = getattr(cfg, "deformable_props", None)
+    if len(active) + (legacy is not None) > 1:
+        raise ValueError(
+            "A spawner configuration may set at most one deformable slot: 'volume_deformable_props',"
+            " 'surface_deformable_props', or the legacy 'deformable_props'."
+        )
+    return active[0] if active else None

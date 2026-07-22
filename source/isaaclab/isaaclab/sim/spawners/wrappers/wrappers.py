@@ -77,7 +77,15 @@ def spawn_multi_asset(
             else:
                 asset_cfg.semantic_tags += cfg.semantic_tags
         # override settings for properties
-        attr_names = ["mass_props", "rigid_props", "collision_props", "activate_contact_sensors", "deformable_props"]
+        attr_names = [
+            "mass_props",
+            "rigid_props",
+            "collision_props",
+            "activate_contact_sensors",
+            "deformable_props",
+            "volume_deformable_props",
+            "surface_deformable_props",
+        ]
         for attr_name in attr_names:
             attr_value = getattr(cfg, attr_name)
             if hasattr(asset_cfg, attr_name) and attr_value is not None:
