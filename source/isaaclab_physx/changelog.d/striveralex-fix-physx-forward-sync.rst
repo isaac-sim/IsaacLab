@@ -1,6 +1,5 @@
 Fixed
 ^^^^^
 
-* Fixed :meth:`~isaaclab_physx.physics.PhysxManager.forward` so rigid-body
-  poses written through tensor APIs are visible to RTX cameras before the
-  next physics step.
+* Fixed RTX rendering of rigid-object poses written through tensor APIs before
+  the next physics step, while preserving the lightweight forward path.
