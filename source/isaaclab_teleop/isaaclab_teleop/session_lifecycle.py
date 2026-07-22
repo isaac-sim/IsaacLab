@@ -178,10 +178,9 @@ class TeleopSessionLifecycle:
                 outputs when enabled at :meth:`start` time.  When ``False``
                 (the default), the pipeline carries no visualization overhead.
             haptic_cfg: Optional haptic-feedback configuration.  When provided,
-                :meth:`start` builds an ``isaacteleop`` ``HapticSink`` subgraph
-                (fed by ``TactileVectorToControllerPulse``) so that per-hand
-                contact forces pushed via :meth:`push_haptic` are rendered as
-                controller vibration.  ``None`` disables haptics entirely.
+                per-hand contact forces pushed via :meth:`push_haptic` are
+                rendered as controller vibration.  ``None`` disables haptics
+                entirely.
 
         Raises:
             ValueError: If both *mcap_record_path* and *mcap_replay_path*

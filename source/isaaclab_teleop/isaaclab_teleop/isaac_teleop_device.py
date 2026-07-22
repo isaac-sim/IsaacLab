@@ -317,9 +317,8 @@ class IsaacTeleopDevice:
 
         Implements the :class:`~isaaclab_teleop.HapticFeedbackReceiver` protocol.
         The force is cached and injected into the haptic sink on the next
-        :meth:`advance`; the force -> amplitude mapping and the OpenXR write are
-        handled by the ``isaacteleop`` haptic sink built at session start.  This
-        is a no-op unless the device was constructed with a ``haptic_cfg``.
+        :meth:`advance`.  This is a no-op unless the device was constructed with
+        a ``haptic_cfg``.
 
         Args:
             endpoint: ``"left"`` or ``"right"`` (see
