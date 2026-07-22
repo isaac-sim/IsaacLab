@@ -394,6 +394,14 @@ class NewtonVisualizer(BaseVisualizer):
         runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
+        if runtime_headless and not self.cfg.headless:
+            # print() instead of logger.warning(): the kitless launch path does not
+            # install a logging handler, so this user-facing notice would be swallowed.
+            print(
+                "[WARNING] [NewtonVisualizer] No display found (DISPLAY is unset); the Newton viewer runs"
+                " headless via EGL and no window will open. Run from a session with a display (or set"
+                " DISPLAY, e.g. 'export DISPLAY=:0') to see the viewer."
+            )
 
         # Use pyglet's EGL headless backend when requested or when no Linux X display is available.
         # This must run before the first ``pyglet.window`` import so ``Window`` resolves to

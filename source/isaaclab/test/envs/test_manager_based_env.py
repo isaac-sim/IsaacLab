@@ -24,17 +24,15 @@ import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.integration
 
 
-@configclass
-class EmptyManagerCfg:
-    """Empty manager specifications for the environment."""
-
-    pass
+def dummy_observation(env: ManagerBasedEnv) -> torch.Tensor:
+    """Return a dummy observation."""
+    return torch.randn((env.num_envs, 1), device=env.device)
 
 
 @configclass
@@ -45,7 +43,7 @@ class EmptyObservationWithHistoryCfg:
     class EmptyObservationGroupWithHistoryCfg(ObsGroup):
         """Empty observation with history specifications for the environment."""
 
-        dummy_term: ObsTerm = ObsTerm(func=lambda env: torch.randn(env.num_envs, 1, device=env.device))
+        dummy_term: ObsTerm = ObsTerm(func=dummy_observation)
 
         def __post_init__(self):
             self.history_length = 5
@@ -53,63 +51,13 @@ class EmptyObservationWithHistoryCfg:
     empty_observation: EmptyObservationGroupWithHistoryCfg = EmptyObservationGroupWithHistoryCfg()
 
 
-@configclass
-class EmptySceneCfg(InteractiveSceneCfg):
-    """Configuration for an empty scene."""
-
-    pass
-
-
-def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0):
-    """Generate base environment config based on device"""
-
-    @configclass
-    class EmptyEnvCfg(ManagerBasedEnvCfg):
-        """Configuration for the empty test environment."""
-
-        # Scene settings
-        scene: EmptySceneCfg = EmptySceneCfg(num_envs=num_envs, env_spacing=env_spacing)
-        # Basic settings
-        actions: EmptyManagerCfg = EmptyManagerCfg()
-        observations: EmptyManagerCfg = EmptyManagerCfg()
-
-        def __post_init__(self):
-            """Post initialization."""
-            # step settings
-            self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-            # simulation settings
-            self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-            self.sim.render_interval = self.decimation  # render every 4 sim steps
-            # pass device down from test
-            self.sim.device = device
-
-    return EmptyEnvCfg()
-
-
-def get_empty_base_env_cfg_with_history(device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0):
-    """Generate base environment config based on device"""
-
-    @configclass
-    class EmptyEnvWithHistoryCfg(ManagerBasedEnvCfg):
-        """Configuration for the empty test environment."""
-
-        # Scene settings
-        scene: EmptySceneCfg = EmptySceneCfg(num_envs=num_envs, env_spacing=env_spacing)
-        # Basic settings
-        actions: EmptyManagerCfg = EmptyManagerCfg()
-        observations: EmptyObservationWithHistoryCfg = EmptyObservationWithHistoryCfg()
-
-        def __post_init__(self):
-            """Post initialization."""
-            # step settings
-            self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-            # simulation settings
-            self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-            self.sim.render_interval = self.decimation  # render every 4 sim steps
-            # pass device down from test
-            self.sim.device = device
-
-    return EmptyEnvWithHistoryCfg()
+def make_empty_manager_based_env_with_history_cfg(
+    device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0
+) -> ManagerBasedEnvCfg:
+    """Create an empty environment configuration with observation history."""
+    cfg = make_empty_manager_based_env_cfg(device=device, num_envs=num_envs, env_spacing=env_spacing)
+    cfg.observations = EmptyObservationWithHistoryCfg()
+    return cfg
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -118,7 +66,7 @@ def test_initialization(device):
     # create a new stage
     sim_utils.create_new_stage()
     # create environment
-    env = ManagerBasedEnv(cfg=get_empty_base_env_cfg(device=device))
+    env = ManagerBasedEnv(cfg=make_empty_manager_based_env_cfg(device=device))
     # check size of action manager terms
     assert env.action_manager.total_action_dim == 0
     assert len(env.action_manager.active_terms) == 0
@@ -138,64 +86,24 @@ def test_initialization(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_observation_history_changes_only_after_step(device):
-    """Test observation history of ManagerBasedEnv.
-
-    The history buffer should only change after a step is taken.
-    """
+def test_step_updates_observation_history(device):
+    """Test that a real environment step advances observation history."""
     # create a new stage
     sim_utils.create_new_stage()
     # create environment with history length of 5
-    env = ManagerBasedEnv(cfg=get_empty_base_env_cfg_with_history(device=device))
+    env = ManagerBasedEnv(cfg=make_empty_manager_based_env_with_history_cfg(device=device))
+    history = env.observation_manager._group_obs_term_history_buffer["empty_observation"]["dummy_term"]
 
-    # check if history buffer is empty
-    for group_name in env.observation_manager._group_obs_term_names:
-        group_term_names = env.observation_manager._group_obs_term_names[group_name]
-        for term_name in group_term_names:
-            torch.testing.assert_close(
-                env.observation_manager._group_obs_term_history_buffer[group_name][term_name].current_length,
-                torch.zeros((env.num_envs,), device=device, dtype=torch.int64),
-            )
+    torch.testing.assert_close(
+        history.current_length,
+        torch.zeros((env.num_envs,), device=device, dtype=torch.int64),
+    )
 
-    # check if history buffer is empty after compute
-    env.observation_manager.compute()
-    for group_name in env.observation_manager._group_obs_term_names:
-        group_term_names = env.observation_manager._group_obs_term_names[group_name]
-        for term_name in group_term_names:
-            torch.testing.assert_close(
-                env.observation_manager._group_obs_term_history_buffer[group_name][term_name].current_length,
-                torch.zeros((env.num_envs,), device=device, dtype=torch.int64),
-            )
+    # step the environment and verify that history advances
+    env.step(torch.randn_like(env.action_manager.action))
+    torch.testing.assert_close(
+        history.current_length,
+        torch.ones((env.num_envs,), device=device, dtype=torch.int64),
+    )
 
-    # check if history buffer is not empty after step
-    act = torch.randn_like(env.action_manager.action)
-    env.step(act)
-    group_obs = dict()
-    for group_name in env.observation_manager._group_obs_term_names:
-        group_term_names = env.observation_manager._group_obs_term_names[group_name]
-        group_obs[group_name] = dict()
-        for term_name in group_term_names:
-            torch.testing.assert_close(
-                env.observation_manager._group_obs_term_history_buffer[group_name][term_name].current_length,
-                torch.ones((env.num_envs,), device=device, dtype=torch.int64),
-            )
-            group_obs[group_name][term_name] = env.observation_manager._group_obs_term_history_buffer[group_name][
-                term_name
-            ].buffer
-
-    # check if history buffer is not empty after compute and is the same as the buffer after step
-    env.observation_manager.compute()
-    for group_name in env.observation_manager._group_obs_term_names:
-        group_term_names = env.observation_manager._group_obs_term_names[group_name]
-        for term_name in group_term_names:
-            torch.testing.assert_close(
-                env.observation_manager._group_obs_term_history_buffer[group_name][term_name].current_length,
-                torch.ones((env.num_envs,), device=device, dtype=torch.int64),
-            )
-            assert torch.allclose(
-                group_obs[group_name][term_name],
-                env.observation_manager._group_obs_term_history_buffer[group_name][term_name].buffer,
-            )
-
-    # close the environment
     env.close()

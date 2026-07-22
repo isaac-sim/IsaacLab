@@ -146,16 +146,6 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - 11,458
      - 7,813
      - -31.83%
-   * - AnymalB
-     - Manager
-     - 29,188
-     - 21,781
-     - -25.38%
-   * - AnymalC
-     - Manager
-     - 30,938
-     - 22,228
-     - -28.15%
    * - AnymalD
      - Manager
      - 32,294
@@ -176,17 +166,7 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - 22,202
      - 15,864
      - -28.55%
-   * - A1
-     - Manager
-     - 15,257
-     - 9,907
-     - -35.07%
-   * - Go1
-     - Manager
-     - 16,515
-     - 11,869
-     - -28.13%
-   * - Go2
+   * - UnitreeGo2
      - Manager
      - 15,221
      - 9,966
@@ -203,7 +183,7 @@ overhead. Reading the table above:
 - **Manager-based classic RL** (Cartpole, Ant) — biggest gains (-52% to -54%). Many small
   reward / observation terms with low compute per term, so per-launch CPU overhead dominated
   the stable baseline.
-- **Manager-based locomotion** (Anymal, G1, H1, Cassie, Unitree) — consistent -25% to -38%
+- **Manager-based locomotion** (AnymalD, G1, H1, Cassie, UnitreeGo2) — consistent -21% to -38%
   range. The MDP has more terms but the underlying physics step is heavier, so the relative
   Python savings shrink.
 - **Direct workflow** — gains scale with how much the env's step body was Python (Ant -51%,
@@ -231,7 +211,7 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
   ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
   ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
   warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
-  the cfg with a Newton physics block (or ``physics=newton_mjwarp``).
+  the cfg with a Newton physics block (or ``presets=newton_mjwarp``).
 
 **MDP coverage**
 

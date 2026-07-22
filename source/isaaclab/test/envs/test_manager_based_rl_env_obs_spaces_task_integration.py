@@ -3,7 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test texture randomization in the cartpole scene using pytest."""
+"""Preserve task-backed manager-based RL observation-space integration coverage.
+
+This temporary relocation handoff intentionally remains in the core test tree until the
+task-backed reset/step, camera, and ray-caster scenarios can move to the task package.
+"""
 
 from isaaclab.app import AppLauncher
 
@@ -73,7 +77,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     ids=["RGB", "Depth", "RayCaster"],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_contraint(env_cfg_cls, presets, device):
+def test_obs_space_follows_clip_constraint(env_cfg_cls, presets, device):
     """Ensure observation space bounds reflect the clip constraint on each term."""
     # new USD stage
     sim_utils.create_new_stage()
