@@ -363,7 +363,7 @@ class OvPhysxDeformableMaterialView:
         self._set("thickness", values, indices=indices, mask=mask)
 
     def get_bending_dampings(self) -> wp.array(dtype=wp.float32):
-        """Return bending damping coefficients [dimensionless]."""
+        """Return bending damping coefficients [1/s]."""
         return self._get("bending_damping")
 
     def set_bending_dampings(
@@ -372,7 +372,7 @@ class OvPhysxDeformableMaterialView:
         indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
         mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
-        """Set bending damping coefficients [dimensionless]."""
+        """Set bending damping coefficients [1/s]."""
         self._set("bending_damping", values, indices=indices, mask=mask)
 
     def destroy(self) -> None:

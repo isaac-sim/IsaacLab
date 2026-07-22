@@ -49,21 +49,28 @@ def _make_prim_with_api_metadata(schemas: list[str]) -> Usd.Prim:
     stage = Usd.Stage.CreateInMemory()
     _TEST_STAGES.append(stage)
     prim = stage.DefinePrim("/Soft", "Xform")
-    schema_metadata = Sdf.TokenListOp()
-    schema_metadata.prependedItems = schemas
-    prim.SetMetadata("apiSchemas", schema_metadata)
+    _set_api_schemas(prim, schemas)
     return prim
 
 
-def _make_deformable_prims(material_schemas: list[str], child_type: str) -> tuple[Usd.Prim, Usd.Prim]:
+def _set_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
+    """Author API schema metadata on a test prim."""
+    schema_metadata = Sdf.TokenListOp()
+    schema_metadata.prependedItems = schemas
+    prim.SetMetadata("apiSchemas", schema_metadata)
+
+
+def _make_deformable_prims(
+    material_schemas: list[str], child_types: list[str], root_schemas: list[str] | None = None
+) -> tuple[Usd.Prim, Usd.Prim]:
     stage = Usd.Stage.CreateInMemory()
     _TEST_STAGES.append(stage)
     root = stage.DefinePrim("/Soft", "Xform")
-    stage.DefinePrim("/Soft/Geometry", child_type)
+    _set_api_schemas(root, root_schemas or [])
+    for index, child_type in enumerate(child_types):
+        stage.DefinePrim(f"/Soft/Geometry_{index}", child_type)
     material = stage.DefinePrim("/Material", "Material")
-    schema_metadata = Sdf.TokenListOp()
-    schema_metadata.prependedItems = material_schemas
-    material.SetMetadata("apiSchemas", schema_metadata)
+    _set_api_schemas(material, material_schemas)
     return root, material
 
 
@@ -195,8 +202,60 @@ def test_get_api_schemas_includes_unregistered_authored_metadata():
 def test_detect_deformable_type_matches_physx_rules(
     material_schemas: list[str], child_type: str, expected: str
 ) -> None:
-    root, material = _make_deformable_prims(material_schemas, child_type)
+    root, material = _make_deformable_prims(material_schemas, [child_type])
     assert _detect_deformable_type(root, material) == expected
+
+
+@pytest.mark.parametrize(
+    "body_schema,expected",
+    [
+        ("OmniPhysicsVolumeDeformableSimAPI", "volume"),
+        ("OmniPhysicsSurfaceDeformableSimAPI", "surface"),
+    ],
+)
+def test_detect_deformable_type_uses_authored_body_schema(body_schema: str, expected: str) -> None:
+    root, material = _make_deformable_prims([], [], root_schemas=[body_schema])
+    assert _detect_deformable_type(root, material) == expected
+
+
+def test_detect_deformable_type_normalizes_inherited_generic_surface_material_schema() -> None:
+    root, material = _make_deformable_prims(
+        ["PhysxDeformableMaterialAPI", "PhysxSurfaceDeformableMaterialAPI"], ["Mesh"]
+    )
+    assert _detect_deformable_type(root, material) == "surface"
+
+
+@pytest.mark.parametrize(
+    "material_schemas,child_type",
+    [
+        (["PhysxDeformableMaterialAPI"], "Mesh"),
+        (["PhysxSurfaceDeformableMaterialAPI"], "TetMesh"),
+    ],
+)
+def test_detect_deformable_type_rejects_material_topology_conflict(
+    material_schemas: list[str], child_type: str
+) -> None:
+    root, material = _make_deformable_prims(material_schemas, [child_type])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _detect_deformable_type(root, material)
+
+    message = str(exc_info.value)
+    assert "Root schemas:" in message
+    assert f"Material schemas: {sorted(material_schemas)}" in message
+    assert f"Hierarchy types: {sorted({'Xform', child_type})}" in message
+    assert "Detected deformable types: ['surface', 'volume']" in message
+
+
+def test_detect_deformable_type_rejects_mixed_tetmesh_and_mesh_hierarchy() -> None:
+    root, material = _make_deformable_prims([], ["TetMesh", "Mesh"])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _detect_deformable_type(root, material)
+
+    message = str(exc_info.value)
+    assert "Hierarchy types: ['Mesh', 'TetMesh', 'Xform']" in message
+    assert "Detected deformable types: ['surface', 'volume']" in message
 
 
 @pytest.mark.parametrize(

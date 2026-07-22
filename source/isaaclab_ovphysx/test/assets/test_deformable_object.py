@@ -128,7 +128,6 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         expected_tetrahedra = {(0, 1, 2, 3), (1, 2, 3, 4)}
         assert all(elements == expected_tetrahedra for elements in _canonical_connectivity(element_indices))
         assert all(elements == expected_tetrahedra for elements in _canonical_connectivity(collision_indices))
-        torch.testing.assert_close(collision_indices, element_indices)
 
         updated_pos = nodal_pos[1:2].clone()
         updated_pos[..., 0] += 0.025

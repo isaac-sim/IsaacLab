@@ -62,6 +62,21 @@ _REQUIRED_DEFORMABLE_TENSOR_TYPES = (
     "DEFORMABLE_MATERIAL_BENDING_DAMPING",
 )
 
+_VOLUME_BODY_SCHEMAS = frozenset({"OmniPhysicsVolumeDeformableSimAPI"})
+_SURFACE_BODY_SCHEMAS = frozenset(
+    {
+        "OmniPhysicsSurfaceDeformableSimAPI",
+        "PhysxSurfaceDeformableBodyAPI",
+    }
+)
+_GENERIC_MATERIAL_SCHEMAS = frozenset(
+    {
+        "OmniPhysicsDeformableMaterialAPI",
+        "PhysxDeformableMaterialAPI",
+    }
+)
+_SURFACE_MATERIAL_SCHEMAS = frozenset({"OmniPhysicsSurfaceDeformableMaterialAPI", "PhysxSurfaceDeformableMaterialAPI"})
+
 
 def _require_deformable_tensor_types(tensor_types: Any = TT) -> None:
     """Raise when the installed OVPhysX wheel lacks required deformable tensors."""
@@ -101,27 +116,41 @@ def _find_deformable_material(root_prim: Usd.Prim) -> Usd.Prim | None:
     return None
 
 
-def _detect_deformable_type(root_prim: Usd.Prim, material_prim: Usd.Prim | None) -> str | None:
-    """Detect a volume or surface deformable using PhysX-compatible rules."""
-    if material_prim is not None:
-        material_schemas = _get_api_schemas(material_prim)
-        has_surface_schema = "PhysxSurfaceDeformableMaterialAPI" in material_schemas
-        has_volume_schema = "PhysxDeformableMaterialAPI" in material_schemas
-        if has_surface_schema:
-            return "surface"
-        if has_volume_schema:
-            return "volume"
-
-    descendants = sim_utils.get_all_matching_child_prims(
+def _detect_deformable_type(root_prim: Usd.Prim, material_prim: Usd.Prim | None) -> str:
+    """Detect one unambiguous volume or surface deformable type from authored evidence."""
+    root_schemas = _get_api_schemas(root_prim)
+    material_schemas = _get_api_schemas(material_prim) if material_prim is not None else set()
+    hierarchy_prims = sim_utils.get_all_matching_child_prims(
         root_prim.GetPath(),
         stage=root_prim.GetStage(),
         traverse_instance_prims=False,
     )
-    if any(prim.GetTypeName() == "TetMesh" for prim in descendants):
-        return "volume"
-    if any(prim.GetTypeName() == "Mesh" for prim in descendants):
-        return "surface"
-    return None
+    hierarchy_types = {prim.GetTypeName() for prim in hierarchy_prims}
+
+    detected_types = {
+        deformable_type
+        for deformable_type, schemas in (
+            ("volume", _VOLUME_BODY_SCHEMAS),
+            ("surface", _SURFACE_BODY_SCHEMAS),
+        )
+        if root_schemas & schemas
+    }
+    if material_schemas & _SURFACE_MATERIAL_SCHEMAS:
+        detected_types.add("surface")
+    elif material_schemas & _GENERIC_MATERIAL_SCHEMAS:
+        detected_types.add("volume")
+    if "TetMesh" in hierarchy_types:
+        detected_types.add("volume")
+    if "Mesh" in hierarchy_types:
+        detected_types.add("surface")
+
+    if len(detected_types) == 1:
+        return next(iter(detected_types))
+    raise RuntimeError(
+        f"Failed to determine deformable type for '{root_prim.GetPath().pathString}'. "
+        f"Root schemas: {sorted(root_schemas)}; Material schemas: {sorted(material_schemas)}; "
+        f"Hierarchy types: {sorted(hierarchy_types)}; Detected deformable types: {sorted(detected_types)}."
+    )
 
 
 def _to_ovphysx_pattern(path_expr: str) -> str:
@@ -433,14 +462,6 @@ class DeformableObject(BaseDeformableObject):
             )
 
         self._deformable_type = _detect_deformable_type(root_prim, material_prim)
-        if self._deformable_type not in ("volume", "surface"):
-            material_schemas = sorted(_get_api_schemas(material_prim)) if material_prim is not None else []
-            child_types = sorted({prim.GetTypeName() for prim in Usd.PrimRange(root_prim)})
-            raise RuntimeError(
-                f"Failed to determine deformable type for '{root_prim.GetPath().pathString}'. "
-                f"Material schemas: {material_schemas}; hierarchy types: {child_types}."
-            )
-
         root_path = root_prim.GetPath().pathString
         root_path_expr = self.cfg.prim_path + root_path[len(template_prim_path) :]
         root_pattern = _to_ovphysx_pattern(root_path_expr)
