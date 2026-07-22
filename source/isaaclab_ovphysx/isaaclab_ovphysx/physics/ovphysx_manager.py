@@ -575,6 +575,7 @@ class OvPhysxManager(PhysicsManager):
         if exported_stage is None:
             raise RuntimeError("OvPhysxManager: failed to open serialized full stage.")
 
+        envs_path = Sdf.Path("/World/envs")
         operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
         processed_targets: set[Sdf.Path] = set()
         for source, targets, _ in pending_clones:
@@ -585,12 +586,22 @@ class OvPhysxManager(PhysicsManager):
                 target_path = Sdf.Path(target)
                 if target_path in processed_targets:
                     continue
-                if layer.GetPrimAtPath(target_path.GetParentPath()) is None:
+                boundary_path = target_path.GetParentPath()
+                for prefix in target_path.GetPrefixes():
+                    if prefix.GetParentPath() == envs_path:
+                        boundary_path = prefix
+                        break
+                if layer.GetPrimAtPath(boundary_path) is None:
                     raise RuntimeError(f"OvPhysxManager: clone target parent is absent for {target!r}.")
                 operations.append((source_path, target_path, layer.GetPrimAtPath(target_path) is not None))
                 processed_targets.add(target_path)
 
+        operations.sort(key=lambda operation: len(operation[1].GetPrefixes()))
         for source_path, target_path, target_exists in operations:
+            parent_path = target_path.GetParentPath()
+            parent_spec = layer.GetPrimAtPath(parent_path)
+            if parent_spec is None and Sdf.CreatePrimInLayer(layer, parent_path) is None:
+                raise RuntimeError(f"OvPhysxManager: failed to materialize clone target parent {str(parent_path)!r}.")
             if target_exists:
                 target_prim = exported_stage.GetPrimAtPath(target_path)
                 if not target_prim.GetReferences().AddInternalReference(source_path):
@@ -636,8 +647,9 @@ class OvPhysxManager(PhysicsManager):
         instance, registers the ``atexit`` handler, and locks the process to
         the resolved device.  On subsequent calls, reuses the cached instance
         (see HACK on :meth:`_release_physx`) -- serializing the new USD,
-        attaching it via OVStage, replaying pending clones, and (on GPU)
-        re-running ``warmup_gpu`` so the new stage's bodies are resident.
+        re-attaching it via OVStage, rebuilding active clone recipes through
+        full-stage materialization or runtime replay, and (on GPU) re-running
+        ``warmup_gpu`` so the new stage's bodies are resident.
 
         Raises:
             RuntimeError: if ``SimulationContext`` is not set, or if a device
