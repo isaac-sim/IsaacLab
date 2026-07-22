@@ -218,6 +218,22 @@ def test_detect_deformable_type_uses_authored_body_schema(body_schema: str, expe
     assert _detect_deformable_type(root, material) == expected
 
 
+def test_detect_deformable_type_rejects_conflicting_explicit_body_schemas() -> None:
+    root, material = _make_deformable_prims(
+        [], [], root_schemas=["OmniPhysicsVolumeDeformableSimAPI", "OmniPhysicsSurfaceDeformableSimAPI"]
+    )
+
+    with pytest.raises(RuntimeError, match="Detected deformable types: \\['surface', 'volume'\\]"):
+        _detect_deformable_type(root, material)
+
+
+def test_detect_deformable_type_rejects_missing_evidence() -> None:
+    root, material = _make_deformable_prims([], [])
+
+    with pytest.raises(RuntimeError, match="Detected deformable types: \\[]"):
+        _detect_deformable_type(root, material)
+
+
 def test_detect_deformable_type_normalizes_inherited_generic_surface_material_schema() -> None:
     root, material = _make_deformable_prims(
         ["PhysxDeformableMaterialAPI", "PhysxSurfaceDeformableMaterialAPI"], ["Mesh"]
@@ -225,16 +241,15 @@ def test_detect_deformable_type_normalizes_inherited_generic_surface_material_sc
     assert _detect_deformable_type(root, material) == "surface"
 
 
-@pytest.mark.parametrize(
-    "material_schemas,child_type",
-    [
-        (["PhysxDeformableMaterialAPI"], "Mesh"),
-        (["PhysxSurfaceDeformableMaterialAPI"], "TetMesh"),
-    ],
-)
-def test_detect_deformable_type_rejects_material_topology_conflict(
-    material_schemas: list[str], child_type: str
-) -> None:
+def test_detect_deformable_type_ignores_generic_material_schema_for_surface_mesh() -> None:
+    root, material = _make_deformable_prims(["PhysxDeformableMaterialAPI"], ["Mesh"])
+
+    assert _detect_deformable_type(root, material) == "surface"
+
+
+def test_detect_deformable_type_rejects_surface_material_volume_topology_conflict() -> None:
+    material_schemas = ["PhysxSurfaceDeformableMaterialAPI"]
+    child_type = "TetMesh"
     root, material = _make_deformable_prims(material_schemas, [child_type])
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -247,15 +262,16 @@ def test_detect_deformable_type_rejects_material_topology_conflict(
     assert "Detected deformable types: ['surface', 'volume']" in message
 
 
-def test_detect_deformable_type_rejects_mixed_tetmesh_and_mesh_hierarchy() -> None:
-    root, material = _make_deformable_prims([], ["TetMesh", "Mesh"])
+def test_detect_deformable_type_uses_descendant_volume_schema_with_visual_mesh() -> None:
+    stage = Usd.Stage.CreateInMemory()
+    _TEST_STAGES.append(stage)
+    root = stage.DefinePrim("/Soft", "Xform")
+    stage.DefinePrim("/Soft/visual", "Mesh")
+    simulation_tet_mesh = stage.DefinePrim("/Soft/simulation", "TetMesh")
+    _set_api_schemas(simulation_tet_mesh, ["OmniPhysicsVolumeDeformableSimAPI"])
+    material = stage.DefinePrim("/Material", "Material")
 
-    with pytest.raises(RuntimeError) as exc_info:
-        _detect_deformable_type(root, material)
-
-    message = str(exc_info.value)
-    assert "Hierarchy types: ['Mesh', 'TetMesh', 'Xform']" in message
-    assert "Detected deformable types: ['surface', 'volume']" in message
+    assert _detect_deformable_type(root, material) == "volume"
 
 
 @pytest.mark.parametrize(

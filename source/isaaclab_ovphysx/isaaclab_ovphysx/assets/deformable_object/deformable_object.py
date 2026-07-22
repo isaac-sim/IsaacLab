@@ -69,12 +69,6 @@ _SURFACE_BODY_SCHEMAS = frozenset(
         "PhysxSurfaceDeformableBodyAPI",
     }
 )
-_GENERIC_MATERIAL_SCHEMAS = frozenset(
-    {
-        "OmniPhysicsDeformableMaterialAPI",
-        "PhysxDeformableMaterialAPI",
-    }
-)
 _SURFACE_MATERIAL_SCHEMAS = frozenset({"OmniPhysicsSurfaceDeformableMaterialAPI", "PhysxSurfaceDeformableMaterialAPI"})
 
 
@@ -126,30 +120,35 @@ def _detect_deformable_type(root_prim: Usd.Prim, material_prim: Usd.Prim | None)
         traverse_instance_prims=False,
     )
     hierarchy_types = {prim.GetTypeName() for prim in hierarchy_prims}
-
-    detected_types = {
+    hierarchy_schemas = set().union(*(_get_api_schemas(prim) for prim in hierarchy_prims))
+    explicit_types = {
         deformable_type
         for deformable_type, schemas in (
             ("volume", _VOLUME_BODY_SCHEMAS),
             ("surface", _SURFACE_BODY_SCHEMAS),
         )
-        if root_schemas & schemas
+        if hierarchy_schemas & schemas
     }
+    detected_types = set(explicit_types)
     if material_schemas & _SURFACE_MATERIAL_SCHEMAS:
         detected_types.add("surface")
-    elif material_schemas & _GENERIC_MATERIAL_SCHEMAS:
-        detected_types.add("volume")
-    if "TetMesh" in hierarchy_types:
-        detected_types.add("volume")
-    if "Mesh" in hierarchy_types:
-        detected_types.add("surface")
+
+    if len(explicit_types) == 1:
+        if len(detected_types) == 1:
+            return next(iter(detected_types))
+    elif not explicit_types:
+        if "TetMesh" in hierarchy_types:
+            detected_types.add("volume")
+        elif "Mesh" in hierarchy_types:
+            detected_types.add("surface")
 
     if len(detected_types) == 1:
         return next(iter(detected_types))
     raise RuntimeError(
         f"Failed to determine deformable type for '{root_prim.GetPath().pathString}'. "
         f"Root schemas: {sorted(root_schemas)}; Material schemas: {sorted(material_schemas)}; "
-        f"Hierarchy types: {sorted(hierarchy_types)}; Detected deformable types: {sorted(detected_types)}."
+        f"Hierarchy schemas: {sorted(hierarchy_schemas)}; Hierarchy types: {sorted(hierarchy_types)}; "
+        f"Detected deformable types: {sorted(detected_types)}."
     )
 
 
