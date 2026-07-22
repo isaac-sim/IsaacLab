@@ -600,8 +600,23 @@ class OvPhysxManager(PhysicsManager):
         for source_path, target_path, target_exists in operations:
             parent_path = target_path.GetParentPath()
             parent_spec = layer.GetPrimAtPath(parent_path)
-            if parent_spec is None and Sdf.CreatePrimInLayer(layer, parent_path) is None:
-                raise RuntimeError(f"OvPhysxManager: failed to materialize clone target parent {str(parent_path)!r}.")
+            if parent_spec is None:
+                generated_paths: list[Sdf.Path] = []
+                # ``CreatePrimInLayer`` authors missing ancestors as ``over`` specs. Track only
+                # paths absent before creation so generated ancestors become defined without
+                # changing existing authored specs.
+                ancestor_path = parent_path
+                while layer.GetPrimAtPath(ancestor_path) is None:
+                    generated_paths.append(ancestor_path)
+                    ancestor_path = ancestor_path.GetParentPath()
+                if Sdf.CreatePrimInLayer(layer, parent_path) is None:
+                    raise RuntimeError(
+                        f"OvPhysxManager: failed to materialize clone target parent {str(parent_path)!r}."
+                    )
+                for generated_path in generated_paths:
+                    generated_spec = layer.GetPrimAtPath(generated_path)
+                    if generated_spec is not None and generated_spec.specifier == Sdf.SpecifierOver:
+                        generated_spec.specifier = Sdf.SpecifierDef
             if target_exists:
                 target_prim = exported_stage.GetPrimAtPath(target_path)
                 if not target_prim.GetReferences().AddInternalReference(source_path):
