@@ -7,12 +7,10 @@
 
 from __future__ import annotations
 
+import ovphysx.types  # noqa: F401
 import pytest
 import torch
 import warp as wp
-
-pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
-
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg  # noqa: E402
 
