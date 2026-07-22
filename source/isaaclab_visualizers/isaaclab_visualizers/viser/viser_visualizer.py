@@ -151,11 +151,9 @@ class NewtonViewerViser(ViewerViser):
                 with contextlib.suppress(Exception):
                     folder.remove()
             per_plot_folders.clear()
-        live_plots_folder = getattr(self, "_live_plots_folder", None)
-        if live_plots_folder is not None:
-            with contextlib.suppress(Exception):
-                live_plots_folder.remove()
-            self._live_plots_folder = None
+        # Do NOT remove _live_plots_folder — it is a persistent structural element
+        # created once in _setup_isaaclab_sidebar and should survive model reloads.
+        # Only the per-term chart handles (in _per_plot_folders) are cleared above.
 
     @staticmethod
     def _array_signature(array) -> tuple[tuple[int, ...], bytes] | None:
