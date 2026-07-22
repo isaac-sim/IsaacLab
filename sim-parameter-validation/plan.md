@@ -579,7 +579,27 @@ defects to [isaac-sim/IsaacLab](https://github.com/isaac-sim/IsaacLab/issues).
 1. **Phase 0 — establish the baseline:** classify the existing Kamino single-DOF test under the IDs in this
    document and add issue references for its `X` cells.
 2. **Phase 1 — non-contact analytical core:** implement free-body, wrench, COM, state, and single-DOF cases
-   across the scoped backends.
+   across the scoped backends. Phase 1 is intentionally split into three sub-steps so the shared fixture
+   architecture is validated on Kamino before it is replicated on MJWarp and PhysX:
+
+   - **Phase 1a — extract shared fixtures:** refactor the existing Kamino single-DOF test into the proposed
+     layout without changing coverage. Move procedural scene construction and pure oracle logic into
+     `source/isaaclab/test/physics/parameter_validation/fixtures.py` and `oracles.py`; keep Kamino launch,
+     profiles, and public API adapters in `source/isaaclab_newton/test/physics/parameter_validation/conftest.py`.
+     The legacy Kamino test file may remain as a thin wrapper until all cases migrate.
+   - **Phase 1b — deepen Kamino coverage:** add the Phase 1 fixtures that do not yet exist in any backend:
+     `FIX-FREE-FALL`, `FIX-JOINT-STATE`, `FIX-WRENCH-LIN`, `FIX-WRENCH-ANG`, and `FIX-COM`. Implement them on
+     Kamino only first, using the pinned `PROFILE-DOF` and `PROFILE-FREE` oracles. Finish Kamino `JOINT-08`
+     Python override and runtime paths when [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517)
+     exposes passive joint damping separately from implicit drive damping.
+   - **Phase 1c — port in batches:** replicate validated fixture contracts horizontally. Port `FIX-DOF-STEP` and
+     the existing Phase 0 Kamino cases to MJWarp and PhysX first because they are the highest matrix ROI and
+     upstream Newton evidence already exists. Then port `FIX-FREE-FALL`, `FIX-JOINT-STATE`, `FIX-WRENCH-LIN`,
+     `FIX-WRENCH-ANG`, and `FIX-COM` one fixture at a time, selecting backend-specific oracles and tolerances
+     in each backend package rather than forcing one cross-backend reference.
+
+   Do not copy the monolithic Kamino test file into other backend packages. Each backend adapter should invoke
+   the same fixture contract and assert against its own documented oracle.
 3. **Phase 2 — limits, frames, and passive effects:** add position/velocity/effort limits, joint frames,
    passive damping, and backend-specific joint friction.
 4. **Phase 3 — contact parameters:** add friction, restitution, geometry, and offset fixtures after their
