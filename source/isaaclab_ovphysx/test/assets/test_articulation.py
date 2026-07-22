@@ -365,7 +365,7 @@ def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_live_anymal_c_manual_joint_ordering_reorders_joint_targets(sim, device):
     """Write nonidentity-ordered joint targets into their intended backend columns."""
-    backend_joint_names = _ANYMAL_PHYSX_JOINT_NAMES
+    backend_joint_names = ANYMAL_C_PHYSX_JOINT_NAMES
     joint_ordering = (*backend_joint_names[1:], backend_joint_names[0])
     articulation_cfg = generate_articulation_cfg("anymal").replace(
         joint_ordering=joint_ordering,
@@ -396,7 +396,7 @@ def test_live_anymal_c_manual_joint_ordering_reorders_joint_targets(sim, device)
 @pytest.mark.parametrize("device", ["cpu"])
 def test_live_anymal_c_manual_joint_ordering_reorders_joint_friction_properties(sim, device):
     """Read every friction component from backend order into public joint order."""
-    backend_joint_names = _ANYMAL_PHYSX_JOINT_NAMES
+    backend_joint_names = ANYMAL_C_PHYSX_JOINT_NAMES
     joint_ordering = (*backend_joint_names[1:], backend_joint_names[0])
     articulation_cfg = generate_articulation_cfg("anymal").replace(joint_ordering=joint_ordering)
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
