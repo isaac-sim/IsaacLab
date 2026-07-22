@@ -155,15 +155,24 @@ def test_mask_native_code_has_no_unsanctioned_host_syncs():
     assert not stale, f"Stale sanctioned-boundary entries (function gone or no longer syncs): {sorted(stale)}"
 
 
-# Expected ``@WarpCapturable(False)`` opt-outs: (path suffix, decorated name).
+# Expected capturability opt-outs — ``@WarpCapturable(False)`` decorations or
+# ``_warp_capturable = False`` class attributes: (path suffix, name).
 EXPECTED_NON_CAPTURABLE = {
-    ("envs/mdp/events.py", "randomize_rigid_body_com"),
-    ("envs/mdp/observations.py", "height_scan"),
+    ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_com"),
+    ("isaaclab_experimental/envs/mdp/observations.py", "height_scan"),
+    # Reads the Python-owned common step counter; captured replay would bake it.
+    ("isaaclab_tasks_experimental/core/reach/mdp/curriculums.py", "modify_reward_weight"),
 }
+
+NON_CAPTURABLE_SCAN_ROOTS = [
+    "source/isaaclab_experimental/isaaclab_experimental",
+    "source/isaaclab_tasks_experimental/isaaclab_tasks_experimental",
+]
 
 
 def _warp_capturable_false_targets(tree: ast.Module) -> list[str]:
-    """Names decorated with ``@WarpCapturable(False, ...)`` in a module."""
+    """Names annotated non-capturable: ``@WarpCapturable(False, ...)`` decorations
+    or ``_warp_capturable = False`` class attributes."""
     out = []
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -178,21 +187,29 @@ def _warp_capturable_false_targets(tree: ast.Module) -> list[str]:
                 and deco.args[0].value is False
             ):
                 out.append(node.name)
+        if isinstance(node, ast.ClassDef):
+            for stmt in node.body:
+                if (
+                    isinstance(stmt, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id == "_warp_capturable" for t in stmt.targets)
+                    and isinstance(stmt.value, ast.Constant)
+                    and stmt.value.value is False
+                ):
+                    out.append(node.name)
     return out
 
 
 def test_non_capturable_terms_are_inventoried():
     """Every ``@WarpCapturable(False)`` opt-out is documented here, and only these."""
     found = set()
-    root = _REPO_ROOT / "source/isaaclab_experimental/isaaclab_experimental"
-    for path in sorted(root.rglob("*.py")):
-        rel = path.relative_to(_REPO_ROOT).as_posix()
-        for name in _warp_capturable_false_targets(ast.parse(path.read_text(), filename=rel)):
-            found.add((rel, name))
-    expected = {
-        (f"source/isaaclab_experimental/isaaclab_experimental/{suffix}", name)
-        for suffix, name in EXPECTED_NON_CAPTURABLE
-    }
+    for scan_root in NON_CAPTURABLE_SCAN_ROOTS:
+        for path in sorted((_REPO_ROOT / scan_root).rglob("*.py")):
+            rel = path.relative_to(_REPO_ROOT).as_posix()
+            if "/test/" in rel:
+                continue
+            for name in _warp_capturable_false_targets(ast.parse(path.read_text(), filename=rel)):
+                found.add((rel, name))
+    expected = {(f"source/{suffix.split('/')[0]}/{suffix}", name) for suffix, name in EXPECTED_NON_CAPTURABLE}
     assert found == expected, (
         "Non-capturable inventory drift.\n"
         f"  unexpected: {sorted(found - expected)}\n"

@@ -13,7 +13,7 @@ runtime, the adapted term callables still use the Warp-first
 ``func(env, out, **params) -> None`` signature.
 
 :class:`CurriculumTermCfg` is the one override: it extends the stable class with
-the ``requires_host_ids`` selector consumed by the Warp-first curriculum manager.
+the Warp-first curriculum term configuration.
 """
 
 from __future__ import annotations
@@ -36,13 +36,6 @@ from isaaclab.utils.configclass import configclass
 @configclass
 class CurriculumTermCfg(_CurriculumTermCfg):
     """Configuration for a Warp-mask or legacy curriculum term."""
-
-    requires_host_ids: bool | None = None
-    """Whether a legacy term consumes compact environment IDs.
-
-    ``None`` selects the manager default: mask-native terms do not require IDs, while legacy terms do.
-    Set this to ``False`` for global legacy terms that ignore their ``env_ids`` argument.
-    """
 
 
 __all__ = [

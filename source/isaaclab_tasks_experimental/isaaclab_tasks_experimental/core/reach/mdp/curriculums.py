@@ -39,7 +39,7 @@ def _update_reward_weight(
     reset_requested[0] = 0
 
 
-class ModifyRewardWeight(ManagerTermBase):
+class modify_reward_weight(ManagerTermBase):
     """Update one reward weight after a reset reaches the configured step threshold."""
 
     # The Python-owned common step counter is intentionally read in eager mode.

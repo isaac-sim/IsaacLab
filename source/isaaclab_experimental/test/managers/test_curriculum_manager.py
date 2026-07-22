@@ -14,8 +14,8 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental.managers import CurriculumManager, CurriculumTermCfg
-from isaaclab_tasks_experimental.core.reach.mdp import ModifyRewardWeight
-from isaaclab_tasks_experimental.core.velocity.mdp import TerrainLevelsVel, terrain_levels_vel
+from isaaclab_tasks_experimental.core.reach.mdp import modify_reward_weight
+from isaaclab_tasks_experimental.core.velocity.mdp import terrain_levels_vel
 
 from isaaclab.managers import ManagerTermBase as StableManagerTermBase
 from isaaclab.terrains import TerrainImporter
@@ -25,7 +25,7 @@ class _GlobalCurriculumTerm(StableManagerTermBase):
     """Legacy global term that intentionally ignores compact environment IDs."""
 
     def __call__(self, env, env_ids, value: float) -> float:
-        assert env_ids == slice(None)
+        del env_ids  # a stable term is free to ignore its selection
         return value
 
 
@@ -299,7 +299,6 @@ def test_terrain_importer_mask_update_preserves_sparse_and_stable_semantics():
 
 def test_curriculum_manager_updates_masked_levels_and_logs_without_host_compaction(monkeypatch: pytest.MonkeyPatch):
     """Manager compute/reset should remain mask-native and expose persistent scalar logging."""
-    assert terrain_levels_vel is not TerrainLevelsVel
     terrain = _make_terrain([0, 1, 2, 2, 1, 0])
     root_positions = terrain.env_origins.numpy().copy()
     root_positions[:, 0] += np.array([5.0, 1.0, 3.0, 5.0, 9.0, 0.0], dtype=np.float32)
@@ -310,12 +309,7 @@ def test_curriculum_manager_updates_masked_levels_and_logs_without_host_compacti
     env = _Env(terrain, root_positions, commands)
     manager = CurriculumManager(
         {
-            "terrain_levels": CurriculumTermCfg(func=TerrainLevelsVel),
-            "global_state": CurriculumTermCfg(
-                func=_GlobalCurriculumTerm,
-                params={"value": 7.0},
-                requires_host_ids=False,
-            ),
+            "terrain_levels": CurriculumTermCfg(func=terrain_levels_vel),
         },
         env,
     )
@@ -326,7 +320,8 @@ def test_curriculum_manager_updates_masked_levels_and_logs_without_host_compacti
     state_ptr = manager._term_states_wp.ptr
     extras_ref = manager.reset_extras
     assert not manager.requires_host_ids
-    assert manager.requires_host_boundary
+    # a purely mask-native manager needs no host boundary at all
+    assert not manager.requires_host_boundary
 
     def _fail_host_compaction(*args, **kwargs):
         raise AssertionError("Torch host compaction/scalar extraction reached the Warp curriculum path")
@@ -349,7 +344,6 @@ def test_curriculum_manager_updates_masked_levels_and_logs_without_host_compacti
     assert extras is extras_ref
     assert extras["Curriculum/terrain_levels"] is manager.reset_extras["Curriculum/terrain_levels"]
     torch.testing.assert_close(extras["Curriculum/terrain_levels"], terrain.terrain_levels.float().mean())
-    torch.testing.assert_close(extras["Curriculum/global_state"], torch.tensor(7.0))
     assert term._move_up_wp.ptr == move_up_ptr
     assert term._move_down_wp.ptr == move_down_ptr
     assert manager._term_states_wp.ptr == state_ptr
@@ -363,7 +357,10 @@ def test_curriculum_manager_compacts_ids_inside_legacy_term_boundary():
         sim=SimpleNamespace(is_playing=lambda: True),
     )
     manager = CurriculumManager(
-        {"id_count": CurriculumTermCfg(func=_LegacyIdCurriculumTerm, params={"scale": 2.0})},
+        {
+            "id_count": CurriculumTermCfg(func=_LegacyIdCurriculumTerm, params={"scale": 2.0}),
+            "global_state": CurriculumTermCfg(func=_GlobalCurriculumTerm, params={"value": 7.0}),
+        },
         env,
     )
     env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
@@ -377,6 +374,7 @@ def test_curriculum_manager_compacts_ids_inside_legacy_term_boundary():
     torch.testing.assert_close(term.compute_env_ids, torch.tensor([0, 2]))
     torch.testing.assert_close(term.reset_env_ids, torch.tensor([0, 2]))
     torch.testing.assert_close(extras["Curriculum/id_count"], torch.tensor(4.0))
+    torch.testing.assert_close(extras["Curriculum/global_state"], torch.tensor(7.0))
 
 
 def test_curriculum_manager_consumes_threaded_ids_without_compaction(monkeypatch: pytest.MonkeyPatch):
@@ -420,11 +418,11 @@ def test_registered_reach_curricula_update_weights_without_a_host_boundary():
     manager = CurriculumManager(
         {
             "action_rate": CurriculumTermCfg(
-                func=ModifyRewardWeight,
+                func=modify_reward_weight,
                 params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500},
             ),
             "joint_vel": CurriculumTermCfg(
-                func=ModifyRewardWeight,
+                func=modify_reward_weight,
                 params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500},
             ),
         },
@@ -456,7 +454,7 @@ def test_curriculum_manager_rejects_structured_legacy_state() -> None:
     terrain = _make_terrain([0, 1])
     env = _Env(terrain, terrain.env_origins.numpy().copy(), np.zeros((2, 3), dtype=np.float32))
     manager = CurriculumManager(
-        {"structured": CurriculumTermCfg(func=_structured_state, requires_host_ids=False)},
+        {"structured": CurriculumTermCfg(func=_structured_state)},
         env,
     )
     env_mask = wp.array([True, False], dtype=wp.bool, device="cpu")

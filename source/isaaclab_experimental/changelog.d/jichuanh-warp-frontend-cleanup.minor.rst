@@ -6,6 +6,9 @@ Added
   without commands.
 * Added a Warp-native ``height_scan`` observation term (eager until sensor
   capture-readiness lands) with ray-count output-dimension inference.
+* Added opportunistic curriculum adaptation: curriculum terms swap to warp
+  twins when one exists (e.g. terrain levels), keeping the legacy ID-based
+  fallback for stable terms without twins.
 * Added :class:`~isaaclab_experimental.managers.CurriculumManager` and a
   boolean-mask reset path for Warp manager-based environments, retaining compact
   environment IDs only for legacy host consumers.

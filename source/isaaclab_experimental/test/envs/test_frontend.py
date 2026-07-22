@@ -473,10 +473,10 @@ def test_promote_scene_entity_cfgs_walks_all_term_groups():
     assert isinstance(cfg.observations.perception.o3.params["asset_cfg"], WarpSceneEntityCfg)
     # The event manager is warp-first, so its terms are promoted too.
     assert isinstance(cfg.events.e1.params["asset_cfg"], WarpSceneEntityCfg)
-    # Curriculum runs on the stable (torch) manager, so its SceneEntityCfg is
-    # left untouched — promoting it would hand a warp variant to a torch manager.
-    assert isinstance(cfg.curriculum.c1.params["asset_cfg"], StableSceneEntityCfg)
-    assert not isinstance(cfg.curriculum.c1.params["asset_cfg"], WarpSceneEntityCfg)
+    # Curriculum is adapted opportunistically (terms swap to warp twins when one
+    # exists), so its entities are promoted as well; the warp SceneEntityCfg
+    # subclasses the stable one, keeping legacy fallback terms valid.
+    assert isinstance(cfg.curriculum.c1.params["asset_cfg"], WarpSceneEntityCfg)
 
 
 # ======================================================================

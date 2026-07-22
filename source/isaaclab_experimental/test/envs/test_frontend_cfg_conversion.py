@@ -169,3 +169,93 @@ def test_stable_cartpole_cfg_adapts_to_current_warp_module_layout():
     assert cfg.rewards.pole_pos.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
     assert cfg.rewards.success_rate.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
     assert issubclass(cfg.actions.joint_effort.class_type, ActionTerm)
+
+
+def _iter_obs_terms(cfg):
+    """Yield (name, term cfg) for every observation term that carries a noise slot."""
+    from isaaclab.managers.manager_term_cfg import ObservationGroupCfg
+
+    for group in vars(cfg.observations).values():
+        if not isinstance(group, ObservationGroupCfg):
+            continue
+        for name, term in vars(group).items():
+            if hasattr(term, "noise"):
+                yield name, term
+
+
+def test_stable_observation_noise_converts_to_warp_twins():
+    """Stable noise cfgs (e.g. Unoise) become warp-native twins with the same parameters."""
+    from isaaclab.utils import noise as stable_noise
+
+    entry = _cfg_entry_point("Isaac-Velocity-Flat-UnitreeGo2")
+    module_path, class_name = entry.split(":")
+    raw = getattr(importlib.import_module(module_path), class_name)()
+    stable_params = {
+        name: (term.noise.n_min, term.noise.n_max)
+        for name, term in _iter_obs_terms(raw)
+        if isinstance(term.noise, stable_noise.UniformNoiseCfg)
+    }
+    assert stable_params, "expected uniform noise on the stable velocity observations"
+
+    cfg = _load_adapted_cfg(entry)
+    converted = dict(_iter_obs_terms(cfg))
+    for name, (n_min, n_max) in stable_params.items():
+        twin = converted[name].noise
+        assert type(twin).__module__.startswith("isaaclab_experimental."), name
+        assert (twin.n_min, twin.n_max) == (n_min, n_max), name
+
+
+def test_noise_cfg_without_warp_twin_is_a_hard_error():
+    """Class-based noise models have no warp twin yet: adapting must fail loudly."""
+    from isaaclab_experimental.envs.frontend import FrontendIncompatibleError
+
+    from isaaclab.utils.noise import NoiseModelCfg, UniformNoiseCfg
+
+    entry = _cfg_entry_point("Isaac-Velocity-Flat-UnitreeGo2")
+    module_path, class_name = entry.split(":")
+    cfg = getattr(importlib.import_module(module_path), class_name)()
+    cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+    name, term = next(iter(_iter_obs_terms(cfg)))
+    term.noise = NoiseModelCfg(noise_cfg=UniformNoiseCfg())
+    with pytest.raises(FrontendIncompatibleError, match="noise"):
+        WarpFrontend.adapt_cfg(cfg)
+
+
+def test_curriculum_terms_swap_to_warp_twins_when_available():
+    """Rough-terrain curriculum swaps to its warp twin instead of the legacy host fallback."""
+    cfg = _load_adapted_cfg(_cfg_entry_point("Isaac-Velocity-Rough-AnymalD"))
+    terms = {n: t for n, t in vars(cfg.curriculum).items() if t is not None and hasattr(t, "func")}
+    assert terms, "expected curriculum terms on the rough task"
+    for name, term in terms.items():
+        assert not isinstance(term.func, str) and term.func.__module__.startswith(_WARP_ROOTS), (
+            f"curriculum term '{name}' was not swapped to a warp twin (got {term.func!r})"
+        )
+        assert getattr(term.func, "_curriculum_mask_native", False), (
+            f"curriculum term '{name}' resolved to a legacy ID-based twin instead of the"
+            f" mask-native class (got {term.func!r})"
+        )
+
+
+def test_reach_curriculum_terms_swap_to_mask_native_class():
+    """Reach's weight-modification curricula resolve to the mask-native class twin."""
+    from isaaclab_tasks_experimental.core.reach.mdp import modify_reward_weight
+
+    cfg = _load_adapted_cfg(_cfg_entry_point("Isaac-Reach-Franka"))
+    terms = {n: t for n, t in vars(cfg.curriculum).items() if t is not None and hasattr(t, "func")}
+    assert terms, "expected curriculum terms on the reach task"
+    for name, term in terms.items():
+        assert term.func is modify_reward_weight, f"curriculum term '{name}' got {term.func!r}"
+
+
+def test_curriculum_term_without_twin_stays_stable():
+    """Optional group: a curriculum term lacking a twin stays on the legacy fallback, no error."""
+    import isaaclab.utils.math as math_utils
+
+    entry = _cfg_entry_point("Isaac-Velocity-Rough-AnymalD")
+    module_path, class_name = entry.split(":")
+    cfg = getattr(importlib.import_module(module_path), class_name)()
+    cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+    term = next(t for t in vars(cfg.curriculum).values() if t is not None and hasattr(t, "func"))
+    term.func = math_utils.quat_mul  # stable-rooted symbol with no warp mirror
+    WarpFrontend.adapt_cfg(cfg)
+    assert term.func is math_utils.quat_mul

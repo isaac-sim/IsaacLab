@@ -105,26 +105,21 @@ class CurriculumManager(ManagerBase):
         """
         env_mask = self._resolve_reset_mask(None, env_mask)
         # Dispatch by term kind: Warp class terms consume the mask directly; stable
-        # class terms receive compact IDs (materialized at most once) or a global
-        # selection, depending on their declared mode.
+        # class terms receive compact IDs, materialized at most once per call.
         compact_env_ids = env_ids
         for term_cfg, mode in zip(self._term_cfgs, self._term_modes):
             if isinstance(term_cfg.func, ManagerTermBase):
                 term_cfg.func.reset(env_mask=env_mask)
             elif isinstance(term_cfg.func, StableManagerTermBase):
-                if mode == "legacy_ids":
-                    if compact_env_ids is None:
-                        compact_env_ids = self._compact_legacy_env_ids(env_mask)
-                    term_env_ids = compact_env_ids
-                else:
-                    term_env_ids = slice(None)
-                term_cfg.func.reset(env_ids=term_env_ids)
+                if compact_env_ids is None:
+                    compact_env_ids = self._compact_legacy_env_ids(env_mask)
+                term_cfg.func.reset(env_ids=compact_env_ids)
         return self._reset_extras
 
     @property
     def requires_host_ids(self) -> bool:
         """Whether any active legacy term genuinely consumes compact environment IDs."""
-        return "legacy_ids" in self._term_modes
+        return "legacy" in self._term_modes
 
     @property
     def requires_host_boundary(self) -> bool:
@@ -149,19 +144,14 @@ class CurriculumManager(ManagerBase):
         self._term_states_wp.zero_()
         compact_env_ids = env_ids
         # Term modes: "mask" = Warp-native ``(env, env_mask, out)``;
-        # "legacy_ids" = stable ``(env, env_ids)``; "legacy_global" = stable term
-        # that ignores its ID argument (``requires_host_ids=False``).
+        # "legacy" = stable ``(env, env_ids)`` with compact IDs materialized at most once.
         for term_idx, (term_cfg, mode) in enumerate(zip(self._term_cfgs, self._term_modes)):
             if mode == "mask":
                 term_cfg.func(self._env, env_mask, term_cfg.out, **term_cfg.params)
                 continue
-            if mode == "legacy_ids":
-                if compact_env_ids is None:
-                    compact_env_ids = self._compact_legacy_env_ids(env_mask)
-                term_env_ids = compact_env_ids
-            else:
-                term_env_ids = slice(None)
-            state = term_cfg.func(self._env, term_env_ids, **term_cfg.params)
+            if compact_env_ids is None:
+                compact_env_ids = self._compact_legacy_env_ids(env_mask)
+            state = term_cfg.func(self._env, compact_env_ids, **term_cfg.params)
             if state is not None:
                 if isinstance(state, torch.Tensor) and state.numel() != 1:
                     raise TypeError(
@@ -204,7 +194,7 @@ class CurriculumManager(ManagerBase):
                 mode = "mask"
                 self._resolve_common_term_cfg(term_name, term_cfg, min_argc=3)
             else:
-                mode = "legacy_global" if getattr(term_cfg, "requires_host_ids", None) is False else "legacy_ids"
+                mode = "legacy"
                 self._resolve_legacy_term_cfg(term_name, term_cfg)
             self._term_names.append(term_name)
             self._term_cfgs.append(term_cfg)
