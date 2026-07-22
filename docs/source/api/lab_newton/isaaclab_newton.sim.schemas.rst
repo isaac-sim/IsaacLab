@@ -17,6 +17,7 @@ isaaclab_newton.sim.schemas
   .. autosummary::
 
     NewtonDeformableBodyPropertiesCfg
+    NewtonDeformableBodyCfg
     NewtonRigidBodyPropertiesCfg
     NewtonJointDrivePropertiesCfg
     NewtonCollisionPropertiesCfg
@@ -41,6 +42,11 @@ Deformable Body
     :members:
     :show-inheritance:
     :exclude-members: __init__
+
+.. autoclass:: NewtonDeformableBodyCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 Schema define and modify functions remain unified in
 :mod:`isaaclab.sim.schemas`.

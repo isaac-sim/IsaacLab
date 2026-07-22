@@ -9,6 +9,8 @@ isaaclab_physx.sim.spawners
 
     PhysxRigidBodyMaterialCfg
     PhysxMaterialCfg
+    PhysxDeformableMaterialCfg
+    PhysxSurfaceDeformableMaterialCfg
     PhysxDeformableBodyMaterialCfg
     PhysxSurfaceDeformableBodyMaterialCfg
     PhysXDeformableMaterialCfg
@@ -33,6 +35,16 @@ Deformable Materials
 
 PhysX provides the backend-specific deformable material cfgs. Deformable material spawning is unified in
 :func:`isaaclab.sim.spawners.materials.spawn_deformable_body_material`.
+
+.. autoclass:: PhysxDeformableMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: PhysxSurfaceDeformableMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 .. autoclass:: PhysxDeformableBodyMaterialCfg
     :members:
