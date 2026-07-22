@@ -35,9 +35,9 @@ class FrankaCabinetEnvCfg(joint_pos_env_cfg.FrankaCabinetEnvCfg):
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
         )
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         # make a smaller scene for play
         self.scene.env_spacing = 2.5

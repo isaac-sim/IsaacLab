@@ -24,9 +24,9 @@ class AllegroCubeEnvCfg(ReorientObjectEnvCfg):
         # enable clone in fabric
         self.scene.clone_in_fabric = True
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         # remove termination due to timeouts
         self.terminations.time_out = None

@@ -148,9 +148,9 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         self.episode_length_s = 40.0
         self.commands.base_velocity.ranges.lin_vel_x = (1.0, 1.0)

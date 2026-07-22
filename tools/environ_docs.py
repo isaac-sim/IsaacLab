@@ -46,7 +46,7 @@ _PHYSICS_BACKEND_MIRROR_NAMES = frozenset(
 _RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
 
 # Gym IDs reserved for inference / evaluation variants and excluded from the training list.
-# Play overrides are now applied by the play script via ``play_post_init``; only the
+# Play overrides are now applied by the play script via ``play_mode``; only the
 # versionless ``-Eval`` suffix remains registered for dedicated evaluation variants.
 _INFERENCE_TASK_SUFFIXES = ("-Eval",)
 

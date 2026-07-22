@@ -53,9 +53,9 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         self.observations.policy.joint_pos = None
         self.observations.policy.joint_vel = None
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         # make a smaller scene for play
         self.scene.num_envs = 16

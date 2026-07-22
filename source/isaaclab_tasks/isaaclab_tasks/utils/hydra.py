@@ -475,7 +475,7 @@ def resolve_task_config(task_name: str, agent_cfg_entry_point: str, play_mode: b
         task_name: Task name (e.g., "IsaacContrib-Velocity-Flat-AnymalC").
         agent_cfg_entry_point: Agent config entry point key (e.g., "rsl_rl_cfg_entry_point").
         play_mode: Whether to apply the play-mode overrides defined by the environment
-            configuration's ``play_post_init`` method after loading. Defaults to False.
+            configuration's ``play_mode`` method after loading. Defaults to False.
 
     Returns:
         Tuple of (env_cfg, agent_cfg) fully resolved.
@@ -494,7 +494,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str, play_mode: boo
         task_name: Task name (e.g., "Isaac-Reach-Franka")
         agent_cfg_entry_point: Agent config entry point key
         play_mode: Whether to apply the play-mode overrides defined by the environment
-            configuration's ``play_post_init`` method after loading. Defaults to False.
+            configuration's ``play_mode`` method after loading. Defaults to False.
 
     Returns:
         Decorated function receiving ``(env_cfg, agent_cfg, *args, **kwargs)``
@@ -590,7 +590,7 @@ def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> 
         task_name: Task name (e.g., "Isaac-Reach-Franka").
         agent_entry: Agent config entry point key.
         play_mode: Whether to apply the play-mode overrides defined by the environment
-            configuration's ``play_post_init`` method after loading. Defaults to False.
+            configuration's ``play_mode`` method after loading. Defaults to False.
 
     Returns:
         Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
@@ -679,8 +679,8 @@ def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> 
 
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
-    if play_mode and hasattr(env_cfg, "play_post_init"):
-        env_cfg.play_post_init()
+    if play_mode and hasattr(env_cfg, "play_mode"):
+        env_cfg.play_mode()
 
     cfgs = {"env": env_cfg, "agent": agent_cfg}
     for key, val, arg in override_items:

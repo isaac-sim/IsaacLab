@@ -146,9 +146,9 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
                 "or choose a data type that includes colour, e.g. presets=rgb."
             )
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         # scene
         self.scene.num_envs = 64

@@ -23,9 +23,9 @@ class NoObstacleEnvCfg(TrackPositionNoObstaclesEnvCfg):
         self.scene.robot = ARL_ROBOT_1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["thrusters"].dt = self.sim.dt
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         # remove random pushing event
         self.events.base_external_force_torque = None

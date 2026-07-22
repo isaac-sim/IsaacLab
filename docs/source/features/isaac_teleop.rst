@@ -314,7 +314,7 @@ Teleoperation Environment Reference
 
 The tables below list every built-in Isaac Lab environment that supports teleoperation,
 organized by input method. For closed-loop policy evaluation, the play script automatically
-applies each environment config's ``play_post_init`` overrides; pass ``--train_env_cfg`` to
+applies each environment config's ``play_mode`` overrides; pass ``--train_env_cfg`` to
 play the training configuration as-is.
 
 Isaac Teleop (XR Headset) Environments

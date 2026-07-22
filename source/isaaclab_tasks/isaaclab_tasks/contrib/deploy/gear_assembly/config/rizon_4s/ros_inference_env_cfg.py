@@ -27,7 +27,7 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
     - Exposes variables needed for ROS inference
     - Overrides robot and gear initial poses for fixed/deterministic setup
 
-    In play mode, :meth:`play_post_init` additionally disables all randomization
+    In play mode, :meth:`play_mode` additionally disables all randomization
     so the simulation is identical on every reset.  Useful for comparing
     simulated and real-world policy behavior at a known pose.
 
@@ -147,10 +147,10 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
             gear_shaft_pos_noise,
         ]
 
-    def play_post_init(self):
+    def play_mode(self):
         """Disable all randomization for deterministic play/debug at a known pose."""
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         self.scene.num_envs = 1
 

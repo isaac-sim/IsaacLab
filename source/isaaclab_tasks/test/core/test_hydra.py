@@ -1539,7 +1539,7 @@ def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
 # =============================================================================
 
 
-def test_register_task_play_mode_applies_play_post_init(monkeypatch):
+def test_register_task_play_mode_applies_play_mode(monkeypatch):
     """``register_task(play_mode=True)`` applies the env cfg's play-mode overrides after loading."""
     import sys
 
@@ -1549,7 +1549,7 @@ def test_register_task_play_mode_applies_play_post_init(monkeypatch):
     class PlayModeEnvCfg:
         played: bool = False
 
-        def play_post_init(self):
+        def play_mode(self):
             self.played = True
 
     gym.register(

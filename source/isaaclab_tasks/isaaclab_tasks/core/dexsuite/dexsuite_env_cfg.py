@@ -544,9 +544,9 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         self.commands.object_pose.debug_vis = True
         if self.curriculum is not None:
@@ -564,8 +564,8 @@ class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
         if self.curriculum is not None:
             self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         self.commands.object_pose.position_only = True

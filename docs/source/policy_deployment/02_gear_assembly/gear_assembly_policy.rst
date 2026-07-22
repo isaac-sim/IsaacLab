@@ -859,7 +859,7 @@ Deterministic Debugging (Play Environment)
 
 Playing the ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference`` environment
 provides a fully deterministic setup for debugging policy behavior against a specific
-real-world scenario. The ``play_post_init`` method of
+real-world scenario. The ``play_mode`` method of
 ``Rizon4sGearAssemblyROSInferenceEnvCfg`` is applied automatically by the play command:
 all randomization is disabled and observation noise is turned off, so the simulation is
 identical on every reset.

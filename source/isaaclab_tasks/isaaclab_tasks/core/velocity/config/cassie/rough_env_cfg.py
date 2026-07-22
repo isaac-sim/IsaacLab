@@ -97,9 +97,9 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.action_rate_l2.weight *= 1.5
         self.rewards.dof_acc_l2.weight *= 1.5
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         self.commands.base_velocity.ranges.lin_vel_x = (0.7, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)

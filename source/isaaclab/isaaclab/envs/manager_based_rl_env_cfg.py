@@ -96,7 +96,7 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     Please refer to the :class:`isaaclab.managers.CommandManager` class for more details.
     """
 
-    def play_post_init(self):
+    def play_mode(self):
         """Adjust the configuration for interactive playback and policy inference.
 
         Play scripts call this method after the configuration is fully initialized (i.e. after
@@ -107,7 +107,7 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
         * disables observation corruption for all observation groups.
 
         Override this method in a task configuration to customize playback behavior. Call
-        ``super().play_post_init()`` to keep the shared defaults.
+        ``super().play_mode()`` to keep the shared defaults.
         """
         # make a smaller scene for play
         self.scene.num_envs = min(self.scene.num_envs, 50)

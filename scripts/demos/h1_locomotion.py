@@ -86,7 +86,7 @@ class H1RoughDemo:
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK)
         # create envionrment
         env_cfg = H1RoughEnvCfg()
-        env_cfg.play_post_init()
+        env_cfg.play_mode()
         env_cfg.scene.num_envs = 25
         env_cfg.episode_length_s = 1000000
         env_cfg.curriculum = None

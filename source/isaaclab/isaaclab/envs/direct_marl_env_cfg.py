@@ -253,7 +253,7 @@ class DirectMARLEnvCfg:
     video_recorder: VideoRecorderCfg = VideoRecorderCfg()
     """Configuration for video recording when ``render_mode="rgb_array"`` (i.e. ``--video``)."""
 
-    def play_post_init(self):
+    def play_mode(self):
         """Adjust the configuration for interactive playback and policy inference.
 
         Play scripts call this method after the configuration is fully initialized (i.e. after
@@ -264,7 +264,7 @@ class DirectMARLEnvCfg:
         * disables the observation noise models.
 
         Override this method in a task configuration to customize playback behavior. Call
-        ``super().play_post_init()`` to keep the shared defaults.
+        ``super().play_mode()`` to keep the shared defaults.
         """
         # make a smaller scene for play
         self.scene.num_envs = min(self.scene.num_envs, 50)

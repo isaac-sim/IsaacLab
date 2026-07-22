@@ -234,9 +234,9 @@ class DigitLocoManipEnvCfg(DigitRoughEnvCfg):
         # Remove terrain curriculum.
         self.curriculum.terrain_levels = None
 
-    def play_post_init(self) -> None:
+    def play_mode(self) -> None:
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         # Remove random pushing.
         self.events.base_external_force_torque = None

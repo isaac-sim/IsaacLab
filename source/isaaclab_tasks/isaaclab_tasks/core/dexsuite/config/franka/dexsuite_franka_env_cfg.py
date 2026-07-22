@@ -223,9 +223,9 @@ class FrankaMixinCfg:
 
 @configclass
 class DexsuiteFrankaReorientEnvCfg(FrankaMixinCfg, dexsuite.DexsuiteReorientEnvCfg):
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         # deploy/eval at the datasheet gripper speed: no closing-speed randomization, and
         # the hand kd=175 caps closing at 0.2 m/s (the real hand's jaw-speed limit)
@@ -234,9 +234,9 @@ class DexsuiteFrankaReorientEnvCfg(FrankaMixinCfg, dexsuite.DexsuiteReorientEnvC
 
 @configclass
 class DexsuiteFrankaLiftEnvCfg(FrankaMixinCfg, dexsuite.DexsuiteLiftEnvCfg):
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         # deploy/eval at the datasheet gripper speed: no closing-speed randomization, and
         # the hand kd=175 caps closing at 0.2 m/s (the real hand's jaw-speed limit)

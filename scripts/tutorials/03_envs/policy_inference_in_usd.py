@@ -57,7 +57,7 @@ def main():
 
     # setup environment
     env_cfg = H1RoughEnvCfg()
-    env_cfg.play_post_init()
+    env_cfg.play_mode()
     env_cfg.scene.num_envs = 1
     env_cfg.curriculum = None
     env_cfg.scene.terrain = TerrainImporterCfg(

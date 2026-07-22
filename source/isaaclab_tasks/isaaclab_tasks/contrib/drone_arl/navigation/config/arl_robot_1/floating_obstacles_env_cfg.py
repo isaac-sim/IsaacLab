@@ -24,9 +24,9 @@ class FloatingObstacleEnvCfg(NavigationVelocityFloatingObstacleEnvCfg):
         self.scene.robot = ARL_ROBOT_1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["thrusters"].dt = self.sim.dt
 
-    def play_post_init(self):
+    def play_mode(self):
         # play-mode overrides of parent
-        super().play_post_init()
+        super().play_mode()
 
         self.curriculum.obstacle_levels.params["max_difficulty"] = 40
         self.curriculum.obstacle_levels.params["min_difficulty"] = 39

@@ -565,7 +565,7 @@ Step 4: Evaluate the Trained Policy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Once training completes, evaluate the policy with the play command. The play command
-automatically applies the task's play-mode overrides (``play_post_init``), which disable
+automatically applies the task's play-mode overrides (``play_mode``), which disable
 observation corruption for cleaner evaluation and cap the number of environments for
 better visualization:
 

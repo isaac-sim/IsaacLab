@@ -208,7 +208,7 @@ def resolve_play_task_name(task: str | None) -> str | None:
 
     Task ids with a ``-Play`` suffix (before an optional ``-v<N>`` version) were removed in
     favor of play-mode overrides that play scripts apply to the training configuration (see
-    ``play_post_init`` on the environment configuration). When ``task`` carries the suffix,
+    ``play_mode`` on the environment configuration). When ``task`` carries the suffix,
     is not itself registered, and the corresponding training task id is registered, the
     training task id is returned (preserving any namespace prefix) along with a deprecation
     warning. Externally registered ``-Play`` tasks are returned unchanged.
