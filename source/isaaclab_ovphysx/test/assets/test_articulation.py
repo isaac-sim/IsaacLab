@@ -415,6 +415,36 @@ def test_live_anymal_c_manual_joint_ordering_reorders_joint_targets(sim, device)
     torch.testing.assert_close(backend_velocity_target, velocity_target[:, backend_to_user])
 
 
+@pytest.mark.parametrize("device", ["cpu"])
+def test_live_anymal_c_manual_joint_ordering_reorders_joint_friction_properties(sim, device):
+    """Read every friction component from backend order into public joint order."""
+    backend_joint_names = _ANYMAL_PHYSX_JOINT_NAMES
+    joint_ordering = (*backend_joint_names[1:], backend_joint_names[0])
+    articulation_cfg = generate_articulation_cfg("anymal").replace(joint_ordering=joint_ordering)
+    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
+    sim.reset()
+
+    ordering = articulation.joint_ordering
+    assert ordering is not None
+    user_to_backend = torch.as_tensor(ordering.user_to_backend_indices, dtype=torch.long, device=device)
+    joint_index = torch.arange(articulation.num_joints, dtype=torch.float32, device=device).unsqueeze(0)
+    backend_friction = torch.stack(
+        (20.0 + joint_index, 10.0 + 0.5 * joint_index, 1.0 + 0.25 * joint_index),
+        dim=-1,
+    )
+    articulation.root_view.set_attribute(
+        TT.DOF_FRICTION_PROPERTIES,
+        wp.from_torch(backend_friction.contiguous()),
+    )
+    articulation.data._joint_friction_props_buf.timestamp = -1.0
+    articulation.data._joint_friction_props_backend.timestamp = -1.0
+
+    expected = backend_friction[:, user_to_backend]
+    torch.testing.assert_close(articulation.data.joint_friction_coeff.torch, expected[..., 0])
+    torch.testing.assert_close(articulation.data.joint_dynamic_friction_coeff.torch, expected[..., 1])
+    torch.testing.assert_close(articulation.data.joint_viscous_friction_coeff.torch, expected[..., 2])
+
+
 @pytest.mark.parametrize("selection", ["full", "partial"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reversed_joint_ordering_joint_state_index_writes_backend_order(sim, selection, device):

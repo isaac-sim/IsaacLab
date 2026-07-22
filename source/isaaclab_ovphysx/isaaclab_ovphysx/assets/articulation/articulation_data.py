@@ -469,7 +469,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_STIFFNESS`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_joint_scalar_binding(TT.DOF_STIFFNESS, self._joint_stiffness, self._joint_stiffness_backend)
+        self._read_joint_property_binding(TT.DOF_STIFFNESS, self._joint_stiffness, self._joint_stiffness_backend)
         if self._joint_stiffness_ta is None:
             self._joint_stiffness_ta = ProxyArray(self._joint_stiffness.data)
         return self._joint_stiffness_ta
@@ -483,7 +483,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_DAMPING`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_joint_scalar_binding(TT.DOF_DAMPING, self._joint_damping, self._joint_damping_backend)
+        self._read_joint_property_binding(TT.DOF_DAMPING, self._joint_damping, self._joint_damping_backend)
         if self._joint_damping_ta is None:
             self._joint_damping_ta = ProxyArray(self._joint_damping.data)
         return self._joint_damping_ta
@@ -497,7 +497,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_ARMATURE`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_joint_scalar_binding(TT.DOF_ARMATURE, self._joint_armature, self._joint_armature_backend)
+        self._read_joint_property_binding(TT.DOF_ARMATURE, self._joint_armature, self._joint_armature_backend)
         if self._joint_armature_ta is None:
             self._joint_armature_ta = ProxyArray(self._joint_armature.data)
         return self._joint_armature_ta
@@ -557,7 +557,7 @@ class ArticulationData(BaseArticulationData):
         The limits are in the order :math:`[lower, upper]`.  Routed through
         pinned-host staging because ``DOF_LIMIT`` is a CPU-only OVPhysX binding.
         """
-        self._read_joint_scalar_binding(TT.DOF_LIMIT, self._joint_pos_limits, self._joint_pos_limits_backend)
+        self._read_joint_property_binding(TT.DOF_LIMIT, self._joint_pos_limits, self._joint_pos_limits_backend)
         if self._joint_pos_limits_ta is None:
             self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits.data)
         return self._joint_pos_limits_ta
@@ -571,7 +571,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_MAX_VELOCITY`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_joint_scalar_binding(TT.DOF_MAX_VELOCITY, self._joint_vel_limits, self._joint_vel_limits_backend)
+        self._read_joint_property_binding(TT.DOF_MAX_VELOCITY, self._joint_vel_limits, self._joint_vel_limits_backend)
         if self._joint_vel_limits_ta is None:
             self._joint_vel_limits_ta = ProxyArray(self._joint_vel_limits.data)
         return self._joint_vel_limits_ta
@@ -585,7 +585,9 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_MAX_FORCE`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_joint_scalar_binding(TT.DOF_MAX_FORCE, self._joint_effort_limits, self._joint_effort_limits_backend)
+        self._read_joint_property_binding(
+            TT.DOF_MAX_FORCE, self._joint_effort_limits, self._joint_effort_limits_backend
+        )
         if self._joint_effort_limits_ta is None:
             self._joint_effort_limits_ta = ProxyArray(self._joint_effort_limits.data)
         return self._joint_effort_limits_ta
@@ -2285,44 +2287,47 @@ class ArticulationData(BaseArticulationData):
     _read_spatial_vector_binding = _read_binding_into_buf
     _read_scalar_binding = _read_binding_into_buf
 
-    def _read_joint_scalar_binding(
-        self, tensor_type: int, user_buf: TimestampedBuffer, backend_buf: TimestampedBuffer | None
+    def _read_joint_property_binding(
+        self,
+        tensor_type: int,
+        user_buffer: TimestampedBuffer,
+        backend_buffer: TimestampedBuffer | None,
+        component_count: int | None = None,
     ) -> None:
         """Refresh a joint property binding into a public user-order buffer."""
-        if self.joint_ordering is None:
-            self._read_scalar_binding(tensor_type, user_buf)
+        if not self.has_joint_ordering:
+            self._read_scalar_binding(tensor_type, user_buffer)
             return
 
-        if user_buf.timestamp >= self._sim_timestamp:
+        if user_buffer.timestamp >= self._sim_timestamp:
             return
-        self._read_scalar_binding(tensor_type, backend_buf)
-        wp.launch(
-            ordering_kernels.reorder_2d_backend_to_user,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[backend_buf.data, self.joint_ordering.user_to_backend],
-            outputs=[user_buf.data],
-            device=self.device,
-        )
-        user_buf.timestamp = backend_buf.timestamp
+        self._read_scalar_binding(tensor_type, backend_buffer)
+        if component_count is None:
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
+                outputs=[user_buffer.data],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self.num_instances, self.num_joints, component_count),
+                inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
+                outputs=[user_buffer.data],
+                device=self.device,
+            )
+        user_buffer.timestamp = backend_buffer.timestamp
 
     def _read_joint_friction_binding(self) -> None:
         """Refresh joint friction properties into the public user-order buffer."""
-        if self.joint_ordering is None:
-            self._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._joint_friction_props_buf)
-            return
-
-        backend_buffer = self._joint_friction_props_backend
-        if self._joint_friction_props_buf.timestamp >= self._sim_timestamp:
-            return
-        self._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, backend_buffer)
-        wp.launch(
-            ordering_kernels.reorder_3d_backend_to_user,
-            dim=(self.num_instances, self.num_joints, 3),
-            inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
-            outputs=[self._joint_friction_props_buf.data],
-            device=self.device,
+        self._read_joint_property_binding(
+            TT.DOF_FRICTION_PROPERTIES,
+            self._joint_friction_props_buf,
+            self._joint_friction_props_backend,
+            component_count=3,
         )
-        self._joint_friction_props_buf.timestamp = backend_buffer.timestamp
 
     def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
         """Return a position view aliased into a transform array.
