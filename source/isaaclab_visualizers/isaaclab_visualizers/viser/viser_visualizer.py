@@ -508,7 +508,7 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer = NewtonViewerViser(
             port=self.cfg.port,
             bind_address=self.cfg.bind_address,
-            label=self.cfg.label,
+            label="Isaac Lab",
             verbose=False,
             share=self.cfg.share,
             record_to_viser=record_to_viser,
