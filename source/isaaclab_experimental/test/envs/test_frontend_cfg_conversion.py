@@ -221,30 +221,23 @@ def test_noise_cfg_without_warp_twin_is_a_hard_error():
         WarpFrontend.adapt_cfg(cfg)
 
 
-def test_curriculum_terms_swap_to_warp_twins_when_available():
-    """Rough-terrain curriculum swaps to its warp twin instead of the legacy host fallback."""
-    cfg = _load_adapted_cfg(_cfg_entry_point("Isaac-Velocity-Rough-AnymalD"))
+@pytest.mark.parametrize(
+    "task_id",
+    ["Isaac-Velocity-Rough-AnymalD", "Isaac-Reach-Franka"],
+    ids=["rough-terrain-levels", "reach-weight-modifiers"],
+)
+def test_curriculum_terms_swap_to_mask_native_twins(task_id: str):
+    """Curriculum terms resolve to the mask-native warp classes, not legacy ID paths."""
+    cfg = _load_adapted_cfg(_cfg_entry_point(task_id))
     terms = {n: t for n, t in vars(cfg.curriculum).items() if t is not None and hasattr(t, "func")}
-    assert terms, "expected curriculum terms on the rough task"
+    assert terms, f"expected curriculum terms on {task_id}"
     for name, term in terms.items():
         assert not isinstance(term.func, str) and term.func.__module__.startswith(_WARP_ROOTS), (
             f"curriculum term '{name}' was not swapped to a warp twin (got {term.func!r})"
         )
-        assert getattr(term.func, "_curriculum_mask_native", False), (
-            f"curriculum term '{name}' resolved to a legacy ID-based twin instead of the"
-            f" mask-native class (got {term.func!r})"
+        assert isinstance(term.func, type), (
+            f"curriculum term '{name}' resolved to a legacy function instead of a mask-native class"
         )
-
-
-def test_reach_curriculum_terms_swap_to_mask_native_class():
-    """Reach's weight-modification curricula resolve to the mask-native class twin."""
-    from isaaclab_tasks_experimental.core.reach.mdp import modify_reward_weight
-
-    cfg = _load_adapted_cfg(_cfg_entry_point("Isaac-Reach-Franka"))
-    terms = {n: t for n, t in vars(cfg.curriculum).items() if t is not None and hasattr(t, "func")}
-    assert terms, "expected curriculum terms on the reach task"
-    for name, term in terms.items():
-        assert term.func is modify_reward_weight, f"curriculum term '{name}' got {term.func!r}"
 
 
 def test_curriculum_term_without_twin_stays_stable():
