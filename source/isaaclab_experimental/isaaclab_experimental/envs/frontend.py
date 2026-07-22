@@ -37,6 +37,7 @@ from types import ModuleType
 from typing import Any, ClassVar
 
 import gymnasium as gym
+import torch
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _StableSceneEntityCfg
@@ -179,6 +180,7 @@ class WarpFrontend:
         cls._require_newton_physics(cfg, label)
         cls._promote_scene_entity_cfgs(cfg)
         cls._swap_mdp(cfg, label)
+        cls._swap_noise_cfgs(cfg, label)
 
     @staticmethod
     def _require_newton_physics(cfg: Any, label: str) -> None:
@@ -400,6 +402,61 @@ class WarpFrontend:
             except ModuleNotFoundError:
                 continue
         return None
+
+    @classmethod
+    def _swap_noise_cfgs(cls, cfg: Any, label: str) -> None:
+        """Replace stable observation-noise cfgs with their warp-native twins.
+
+        The warp observation manager applies noise through the experimental noise
+        cfg family (in-place Warp kernels); a stable noise cfg would otherwise be
+        silently ignored, training against a different MDP. Twins resolve by class
+        name; data fields are copied while ``func`` keeps the twin's warp default.
+        Noise cfgs without a warp twin (e.g. class-based ``NoiseModelCfg``) are a
+        hard error — silently changing the MDP is never acceptable.
+        """
+        import dataclasses
+
+        from isaaclab.utils import noise as stable_noise
+
+        from isaaclab_experimental.utils import noise as warp_noise
+
+        unsupported: list[str] = []
+        swapped = 0
+        for path, term in cls._walk_terms(cfg):
+            if not path or path[0] != "observations":
+                continue
+            noise_cfg = getattr(term, "noise", None)
+            if noise_cfg is None:
+                continue
+            if type(noise_cfg).__module__.startswith(cls.WARP_ROOT_PREFIXES):
+                continue  # already warp-native
+            twin_cls = getattr(warp_noise, type(noise_cfg).__name__, None)
+            if (
+                twin_cls is None
+                or not twin_cls.__module__.startswith(cls.WARP_ROOT_PREFIXES)
+                or not isinstance(noise_cfg, stable_noise.NoiseCfg)
+            ):
+                unsupported.append(f"{'.'.join(path)}: {type(noise_cfg).__name__}")
+                continue
+            if noise_cfg.func != type(noise_cfg)().func:
+                # A user-customized noise func has no warp twin; replacing it with the
+                # twin's default would silently change the MDP.
+                unsupported.append(f"{'.'.join(path)}: {type(noise_cfg).__name__} with custom func {noise_cfg.func!r}")
+                continue
+            fields = {f.name: getattr(noise_cfg, f.name) for f in dataclasses.fields(noise_cfg) if f.name != "func"}
+            if any(isinstance(value, torch.Tensor) for value in fields.values()):
+                # The warp noise kernels take scalar parameters; tensor-valued ranges
+                # (per-element noise) have no warp twin yet.
+                unsupported.append(f"{'.'.join(path)}: {type(noise_cfg).__name__} with tensor-valued parameters")
+                continue
+            term.noise = twin_cls(**fields)
+            swapped += 1
+        if unsupported:
+            raise FrontendIncompatibleError(
+                f"warp env {label!r}: observation noise cfgs without warp twins:\n  " + "\n  ".join(unsupported)
+            )
+        if swapped:
+            logger.info("frontend.warp: swapped %d observation noise cfg(s) to warp twins", swapped)
 
     @staticmethod
     def _import_twin_module(target: str) -> ModuleType:

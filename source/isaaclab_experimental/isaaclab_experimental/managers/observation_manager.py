@@ -679,6 +679,16 @@ class ObservationManager(ManagerBase):
                 # check noise settings
                 if not group_cfg.enable_corruption:
                     term_cfg.noise = None
+                elif term_cfg.noise is not None and not type(term_cfg.noise).__module__.startswith(
+                    "isaaclab_experimental."
+                ):
+                    raise TypeError(
+                        f"Observation term '{term_name}' uses noise cfg"
+                        f" '{type(term_cfg.noise).__module__}.{type(term_cfg.noise).__name__}', which the Warp"
+                        " observation manager would silently ignore. Use the warp-native noise cfgs from"
+                        " isaaclab_experimental.utils.noise (the warp frontend converts stable cfgs"
+                        " automatically)."
+                    )
                 # check group history params and override terms
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
@@ -760,6 +770,10 @@ class ObservationManager(ManagerBase):
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
 
+                # plumb the shared per-env RNG state so Warp noise kernels can consume it
+                # (function-style NoiseCfg kernels read it off the cfg at call time)
+                if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseCfg):
+                    term_cfg.noise.rng_state_wp = self._env.rng_state_wp
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
                     # plumb the shared per-env RNG state so Warp noise kernels can consume it

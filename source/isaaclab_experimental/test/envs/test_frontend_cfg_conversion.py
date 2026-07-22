@@ -169,3 +169,53 @@ def test_stable_cartpole_cfg_adapts_to_current_warp_module_layout():
     assert cfg.rewards.pole_pos.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
     assert cfg.rewards.success_rate.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
     assert issubclass(cfg.actions.joint_effort.class_type, ActionTerm)
+
+
+def _iter_obs_terms(cfg):
+    """Yield (name, term cfg) for every observation term that carries a noise slot."""
+    from isaaclab.managers.manager_term_cfg import ObservationGroupCfg
+
+    for group in vars(cfg.observations).values():
+        if not isinstance(group, ObservationGroupCfg):
+            continue
+        for name, term in vars(group).items():
+            if hasattr(term, "noise"):
+                yield name, term
+
+
+def test_stable_observation_noise_converts_to_warp_twins():
+    """Stable noise cfgs (e.g. Unoise) become warp-native twins with the same parameters."""
+    from isaaclab.utils import noise as stable_noise
+
+    entry = _cfg_entry_point("Isaac-Velocity-Flat-UnitreeGo2")
+    module_path, class_name = entry.split(":")
+    raw = getattr(importlib.import_module(module_path), class_name)()
+    stable_params = {
+        name: (term.noise.n_min, term.noise.n_max)
+        for name, term in _iter_obs_terms(raw)
+        if isinstance(term.noise, stable_noise.UniformNoiseCfg)
+    }
+    assert stable_params, "expected uniform noise on the stable velocity observations"
+
+    cfg = _load_adapted_cfg(entry)
+    converted = dict(_iter_obs_terms(cfg))
+    for name, (n_min, n_max) in stable_params.items():
+        twin = converted[name].noise
+        assert type(twin).__module__.startswith("isaaclab_experimental."), name
+        assert (twin.n_min, twin.n_max) == (n_min, n_max), name
+
+
+def test_noise_cfg_without_warp_twin_is_a_hard_error():
+    """Class-based noise models have no warp twin yet: adapting must fail loudly."""
+    from isaaclab_experimental.envs.frontend import FrontendIncompatibleError
+
+    from isaaclab.utils.noise import NoiseModelCfg, UniformNoiseCfg
+
+    entry = _cfg_entry_point("Isaac-Velocity-Flat-UnitreeGo2")
+    module_path, class_name = entry.split(":")
+    cfg = getattr(importlib.import_module(module_path), class_name)()
+    cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+    name, term = next(iter(_iter_obs_terms(cfg)))
+    term.noise = NoiseModelCfg(noise_cfg=UniformNoiseCfg())
+    with pytest.raises(FrontendIncompatibleError, match="noise"):
+        WarpFrontend.adapt_cfg(cfg)
