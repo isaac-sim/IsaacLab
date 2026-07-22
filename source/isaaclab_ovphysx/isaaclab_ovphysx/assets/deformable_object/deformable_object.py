@@ -107,8 +107,6 @@ def _detect_deformable_type(root_prim: Usd.Prim, material_prim: Usd.Prim | None)
         material_schemas = _get_api_schemas(material_prim)
         has_surface_schema = "PhysxSurfaceDeformableMaterialAPI" in material_schemas
         has_volume_schema = "PhysxDeformableMaterialAPI" in material_schemas
-        if has_surface_schema and has_volume_schema:
-            return None
         if has_surface_schema:
             return "surface"
         if has_volume_schema:
