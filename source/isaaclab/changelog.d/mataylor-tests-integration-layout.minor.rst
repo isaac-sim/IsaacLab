@@ -8,6 +8,15 @@ Changed
   The ``tests/integration/install_ci/`` suite retains its own ``pytest.ini``
   and ``conftest.py`` and is unchanged in behaviour.
 
+* Moved micro-benchmark tests from ``source/isaaclab/test/benchmark/`` to
+  ``tests/integration/benchmark/`` so they live alongside other
+  cross-package integration tests rather than alongside unit tests.
+
+* Moved the unit-test import policy test from ``source/isaaclab/test/cli/``
+  to ``tests/integration/`` and updated :mod:`tools.conftest` to scan
+  ``tests/integration/`` so future integration tests placed there are
+  picked up automatically.
+
 * Declared ``scipy`` as an explicit dependency in the root ``pyproject.toml``.
   It was already used in production code and unit tests but was undeclared,
   making it a silent transitive dependency.
