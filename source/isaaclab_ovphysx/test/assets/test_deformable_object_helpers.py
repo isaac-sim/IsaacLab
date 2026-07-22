@@ -334,6 +334,61 @@ def test_indexed_state_write_updates_position_and_velocity_buffers():
     assert asset.data._nodal_state_w.timestamp == -1.0
 
 
+def test_indexed_state_write_refreshes_unselected_stale_cache_rows():
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+    initial_positions = torch.full((3, 2, 3), -1.0, device=asset.device)
+    initial_velocities = torch.full((3, 2, 3), -2.0, device=asset.device)
+    asset.root_view.positions = wp.from_torch(initial_positions.contiguous(), dtype=wp.float32)
+    asset.root_view.velocities = wp.from_torch(initial_velocities.contiguous(), dtype=wp.float32)
+
+    asset.data.nodal_pos_w
+    asset.data.nodal_vel_w
+
+    latest_positions = torch.tensor(
+        [
+            [[10.0, 11.0, 12.0], [13.0, 14.0, 15.0]],
+            [[20.0, 21.0, 22.0], [23.0, 24.0, 25.0]],
+            [[30.0, 31.0, 32.0], [33.0, 34.0, 35.0]],
+        ],
+        device=asset.device,
+    )
+    latest_velocities = torch.tensor(
+        [
+            [[-10.0, -11.0, -12.0], [-13.0, -14.0, -15.0]],
+            [[-20.0, -21.0, -22.0], [-23.0, -24.0, -25.0]],
+            [[-30.0, -31.0, -32.0], [-33.0, -34.0, -35.0]],
+        ],
+        device=asset.device,
+    )
+    asset.root_view.positions = wp.from_torch(latest_positions.contiguous(), dtype=wp.float32)
+    asset.root_view.velocities = wp.from_torch(latest_velocities.contiguous(), dtype=wp.float32)
+    asset.update(0.1)
+
+    selected_state = torch.cat(
+        (
+            torch.full((1, 2, 3), 100.0, device=asset.device),
+            torch.full((1, 2, 3), -100.0, device=asset.device),
+        ),
+        dim=-1,
+    )
+    asset.write_nodal_state_to_sim_index(selected_state, env_ids=[0])
+
+    expected_positions = latest_positions.clone()
+    expected_positions[0] = selected_state[0, :, :3]
+    expected_velocities = latest_velocities.clone()
+    expected_velocities[0] = selected_state[0, :, 3:]
+
+    assert asset.data._nodal_pos_w.timestamp == asset.data._sim_timestamp
+    assert asset.data._nodal_vel_w.timestamp == asset.data._sim_timestamp
+    torch.testing.assert_close(asset.data.nodal_pos_w.torch, expected_positions)
+    torch.testing.assert_close(asset.data.nodal_vel_w.torch, expected_velocities)
+    torch.testing.assert_close(
+        asset.data.nodal_state_w.torch, torch.cat((expected_positions, expected_velocities), dim=-1)
+    )
+    torch.testing.assert_close(asset.data.root_pos_w.torch, expected_positions.mean(dim=1))
+    torch.testing.assert_close(asset.data.root_vel_w.torch, expected_velocities.mean(dim=1))
+
+
 @pytest.mark.parametrize("trailing_dimension", [4, 5, 7])
 def test_malformed_state_write_fails_before_mutating_or_writing(trailing_dimension: int):
     asset = _make_asset_shell(deformable_type="volume", num_instances=2, num_vertices=4)

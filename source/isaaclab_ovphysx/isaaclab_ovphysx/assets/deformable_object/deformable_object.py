@@ -334,6 +334,9 @@ class DeformableObject(BaseDeformableObject):
         )
         if isinstance(nodal_pos, torch.Tensor):
             nodal_pos = wp.from_torch(nodal_pos.contiguous(), dtype=wp.vec3f)
+        if env_ids.shape[0] < self.num_instances:
+            _ = self._data.nodal_pos_w
+
         wp.launch(
             write_nodal_vec3f_to_buffer,
             dim=(env_ids.shape[0], self.max_sim_vertices_per_body),
@@ -370,6 +373,9 @@ class DeformableObject(BaseDeformableObject):
         )
         if isinstance(nodal_vel, torch.Tensor):
             nodal_vel = wp.from_torch(nodal_vel.contiguous(), dtype=wp.vec3f)
+        if env_ids.shape[0] < self.num_instances:
+            _ = self._data.nodal_vel_w
+
         wp.launch(
             write_nodal_vec3f_to_buffer,
             dim=(env_ids.shape[0], self.max_sim_vertices_per_body),
