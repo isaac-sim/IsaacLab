@@ -18,6 +18,102 @@ import pytest
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 
+def _make_two_environment_stage():
+    """Create an in-memory USD stage with one cube in each of two environments."""
+    from pxr import Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0/Cube", "Cube")
+    stage.DefinePrim("/World/envs/env_1/Cube", "Cube")
+    return stage
+
+
+def test_manager_env0_only_export_preserves_only_first_environment(tmp_path):
+    """The default manager export keeps env_0 and strips later authored environments."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Usd
+
+    stage = _make_two_environment_stage()
+    output = tmp_path / "scene.usda"
+    OvPhysxManager._export_env0_only_stage(stage, str(output))
+
+    exported = Usd.Stage.Open(str(output))
+    assert exported.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
+    assert not exported.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
+
+
+def test_manager_full_stage_requirement_preserves_authored_environments(tmp_path):
+    """A full-stage request keeps every authored environment in the manager export."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Usd
+
+    stage = _make_two_environment_stage()
+    output = tmp_path / "scene.usda"
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = True
+        OvPhysxManager._export_selected_stage(stage, str(output))
+        exported = Usd.Stage.Open(str(output))
+        assert exported.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
+        assert exported.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
+    finally:
+        OvPhysxManager._requires_full_stage = previous
+
+
+def test_manager_full_stage_requirement_discards_pending_runtime_clones():
+    """A full-stage load discards queued runtime clones without replaying them."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    fake = SimpleNamespace(clone=lambda *args, **kwargs: pytest.fail("clone must not run"))
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0)])]
+        OvPhysxManager._replay_pending_clones(fake, requires_full_stage=True)
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_replays_pending_runtime_clones_without_full_stage_requirement():
+    """The default replay path preserves the runtime's positional pose API."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class FakePhysX:
+        def __init__(self):
+            self.calls = []
+
+        def clone(self, source, targets, transforms):
+            self.calls.append(("clone", source, targets, transforms))
+            return 19
+
+        def wait_op(self, operation):
+            self.calls.append(("wait_op", operation))
+
+    fake = FakePhysX()
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0)])]
+        OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
+        assert fake.calls == [
+            ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
+            ("wait_op", 19),
+        ]
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_resets_full_stage_requirement_between_contexts():
+    """Closing a manager context resets the full-stage requirement."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    OvPhysxManager.require_full_stage()
+    OvPhysxManager.close()
+    assert OvPhysxManager._requires_full_stage is False
+
+
 def test_manager_supports_declared_legacy_runtime_api():
     """The declared public OVPhysX wheel keeps its constructor, step, and reset API."""
     from isaaclab_ovphysx.physics import OvPhysxManager
