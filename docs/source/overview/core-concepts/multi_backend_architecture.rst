@@ -67,7 +67,7 @@ component yet:
    * - Cable Object
      - :class:`~isaaclab.assets.CableObject`
      - Not supported
-     - :class:`~isaaclab_newton.assets.CableObject` (pure VBD only)
+     - :class:`~isaaclab_newton.assets.CableObject`
      - Not supported
    * - Contact Sensor
      - :class:`~isaaclab.sensors.ContactSensor`

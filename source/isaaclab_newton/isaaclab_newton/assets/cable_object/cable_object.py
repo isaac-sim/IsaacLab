@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -54,21 +53,7 @@ class CableObject(BaseCableObject):
         Args:
             cfg: A configuration instance.
         """
-        self._initialize_handle = None
-        self._invalidate_initialize_handle = None
-        self._prim_deletion_handle = None
-        sim = SimulationContext.instance()
-        if sim is not None:
-            solver_cfg = getattr(sim.cfg.physics, "solver_cfg", None)
-            if not hasattr(solver_cfg, "integrate_with_external_rigid_solver") or (
-                solver_cfg.integrate_with_external_rigid_solver
-            ):
-                raise RuntimeError(
-                    "CableObject requires a standalone VBDSolverCfg with internal rigid-body integration."
-                )
-
         super().__init__(cfg)
-        self._curve_path_expr, self._num_authored_segments = self._resolve_curve()
         if has_kit():
             queue_usd_replication(cfg)
         queue_newton_physics_replication(cfg)
@@ -272,40 +257,14 @@ class CableObject(BaseCableObject):
         SimulationManager.invalidate_body_state(env_mask=env_mask)
         self.update(0.0)
 
-    def _resolve_curve(self) -> tuple[str, int]:
-        """Resolve and validate the authored cable curve."""
-
+    def _initialize_impl(self) -> None:
         def is_cable_curve(prim) -> bool:
             applied_schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
             return prim.IsA(UsdGeom.BasisCurves) and "PhysicsCurvesDeformableSimAPI" in applied_schemas
 
         resolve_kwargs = {"predicate": is_cable_curve, "expected_num_matches": 1}
         curve_prim, curve_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        curves = UsdGeom.BasisCurves(curve_prim)
-        vertex_counts = curves.GetCurveVertexCountsAttr().Get()
-        points = curves.GetPointsAttr().Get()
-        if (
-            vertex_counts is None
-            or len(vertex_counts) != 1
-            or points is None
-            or int(vertex_counts[0]) != len(points)
-            or len(points) < 3
-            or curves.GetTypeAttr().Get() != UsdGeom.Tokens.linear
-            or curves.GetWrapAttr().Get() != UsdGeom.Tokens.nonperiodic
-        ):
-            raise RuntimeError("CableObject requires one open, linear curve with at least two segments.")
-
-        curve_to_world = UsdGeom.XformCache().GetLocalToWorldTransform(curve_prim)
-        points_w = [curve_to_world.Transform(point) for point in points]
-        if any(not math.isfinite(coordinate) for point in points_w for coordinate in point) or any(
-            math.dist(start, end) <= 1.0e-8 for start, end in zip(points_w, points_w[1:])
-        ):
-            raise RuntimeError("CableObject requires finite world-space segments longer than 1e-8 m.")
-        return curve_path_expr, len(points_w) - 1
-
-    def _initialize_impl(self) -> None:
-        curve_path_expr = self._curve_path_expr
-        num_segments = self._num_authored_segments
+        num_segments = int(UsdGeom.BasisCurves(curve_prim).GetCurveVertexCountsAttr().Get()[0]) - 1
 
         model = SimulationManager.get_model()
         articulation_path_expr = f"{curve_path_expr}_articulation"

@@ -14,12 +14,11 @@ import warp as wp
 pytest.importorskip("newton")
 
 from isaaclab_newton.assets import CableObject as NewtonCableObject
-from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
-from pxr import UsdGeom, Vt
-
-from isaaclab.assets import CableObjectCfg
+import isaaclab.sim as sim_utils
+from isaaclab.assets import CableObjectCfg, RigidObjectCfg
 from isaaclab.envs.mdp.events import reset_scene_to_default
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -28,6 +27,7 @@ from isaaclab.sim.spawners.shapes import CableCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_contrib.deformable import VBDSolverCfg
 
 
@@ -47,21 +47,18 @@ class _CableSceneCfg(InteractiveSceneCfg):
     )
 
 
-def _author_curve(
-    stage,
-    path,
-    points,
-    counts,
-    *,
-    curve_type=UsdGeom.Tokens.linear,
-    wrap=UsdGeom.Tokens.nonperiodic,
-) -> None:
-    curves = UsdGeom.BasisCurves.Define(stage, path)
-    curves.CreatePointsAttr(points)
-    curves.CreateCurveVertexCountsAttr(Vt.IntArray(counts))
-    curves.CreateTypeAttr(curve_type)
-    curves.CreateWrapAttr(wrap)
-    curves.GetPrim().AddAppliedSchema("PhysicsCurvesDeformableSimAPI")
+@configclass
+class _ProxyCableSceneCfg(_CableSceneCfg):
+    rigid = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Rigid",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.1, 0.1, 0.1),
+            rigid_props=sim_utils.RigidBodyBaseCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionBaseCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
+    )
 
 
 def _expected_segment_state(cable, state, model) -> tuple[torch.Tensor, torch.Tensor]:
@@ -246,6 +243,51 @@ def test_cable_mask_writes_update_selected_environments():
         assert not wp.to_torch(SimulationManager._fk_reset_mask).any()
 
 
+def test_proxy_coupler_runs_cable_in_vbd_entry():
+    solver_cfg = CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(
+                name="rigid",
+                solver_cfg=XPBDSolverCfg(iterations=2),
+                bodies=[r"/World/envs/env_.*/Rigid"],
+            ),
+            CouplerEntryCfg(
+                name="cable",
+                solver_cfg=VBDSolverCfg(iterations=2),
+                bodies=[r"/World/envs/env_.*/Cable"],
+            ),
+        ],
+        proxies=[
+            CouplerProxyMappingCfg(
+                source="rigid",
+                destination="cable",
+                bodies=[r"/World/envs/env_.*/Rigid"],
+            )
+        ],
+        iterations=1,
+    )
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cpu",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=1, use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(_ProxyCableSceneCfg(num_envs=1, env_spacing=1.0))
+        sim.reset()
+        scene.update(0.0)
+
+        cable = scene["cable"]
+        z_before = cable.data.segment_pose_w.torch[..., 2].clone()
+        scene.write_data_to_sim()
+        sim.step(render=False)
+        scene.update(sim.cfg.dt)
+
+        assert torch.isfinite(cable.data.segment_pose_w.torch).all()
+        assert torch.any(cable.data.segment_pose_w.torch[..., 2] < z_before)
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_cable_mask_writes_are_cuda_graph_capturable(device):
     sim_cfg = SimulationCfg(
@@ -296,32 +338,6 @@ def test_cable_mask_writes_are_cuda_graph_capturable(device):
         assert not wp.to_torch(SimulationManager._fk_reset_mask).any()
 
 
-def test_cable_rejects_non_vbd_solver():
-    sim_cfg = SimulationCfg(
-        dt=1.0 / 120.0,
-        device="cpu",
-        physics=NewtonCfg(use_cuda_graph=False),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg):
-        with pytest.raises(RuntimeError, match="VBDSolverCfg"):
-            InteractiveScene(_CableSceneCfg(num_envs=1, env_spacing=1.0))
-
-
-def test_cable_rejects_external_rigid_integration():
-    sim_cfg = SimulationCfg(
-        device="cpu",
-        physics=NewtonCfg(
-            solver_cfg=VBDSolverCfg(integrate_with_external_rigid_solver=True),
-            use_cuda_graph=False,
-        ),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg):
-        with pytest.raises(RuntimeError, match="rigid-body integration"):
-            InteractiveScene(_CableSceneCfg(num_envs=1, env_spacing=1.0))
-
-
 def test_cable_callback_does_not_retain_asset():
     sim_cfg = SimulationCfg(
         device="cpu",
@@ -344,54 +360,3 @@ def test_cable_callback_does_not_retain_asset():
 
         assert cable_ref() is None
         assert callback_id not in SimulationManager._callbacks
-
-
-@pytest.mark.parametrize(
-    ("points", "counts", "curve_attributes", "message"),
-    [
-        (
-            ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.4, 0.0)),
-            (3,),
-            {},
-            "longer than",
-        ),
-        (
-            ((0.0, 0.0, 0.0), (0.0, float("nan"), 0.0), (0.0, 0.4, 0.0)),
-            (3,),
-            {},
-            "finite",
-        ),
-        (
-            tuple((0.0, 0.1 * index, 0.0) for index in range(6)),
-            (3, 3),
-            {},
-            "one open",
-        ),
-        (
-            ((0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.0, 0.0)),
-            (3,),
-            {"wrap": UsdGeom.Tokens.periodic},
-            "one open",
-        ),
-        (
-            ((0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.0, 0.0)),
-            (3,),
-            {"curve_type": UsdGeom.Tokens.cubic},
-            "one open",
-        ),
-    ],
-)
-def test_cable_rejects_invalid_imported_curve(points, counts, curve_attributes, message):
-    sim_cfg = SimulationCfg(
-        device="cpu",
-        physics=NewtonCfg(
-            solver_cfg=VBDSolverCfg(iterations=2),
-            use_cuda_graph=False,
-        ),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        path = "/World/Cable"
-        _author_curve(sim.stage, path, points, counts, **curve_attributes)
-        with pytest.raises(RuntimeError, match=message):
-            NewtonCableObject(CableObjectCfg(prim_path=path))

@@ -1,4 +1,4 @@
 Added
 ^^^^^
 
-* Added pure VBD cable support.
+* Added VBD cable support.
