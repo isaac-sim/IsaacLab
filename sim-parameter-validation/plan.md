@@ -29,7 +29,8 @@ set the intended values. The Isaac Lab tests must exercise those paths directly.
 - **Live state:** current simulator state changed by a state writer.
 - **Joint passive damping:** an uncommanded dissipative joint property.
 - **Implicit drive gain:** stiffness or damping consumed directly by the physics solver's joint drive.
-- **Explicit actuator gain:** gain used by an Isaac Lab or Newton actuator controller to compute effort.
+- **Explicit actuator gain:** gain owned by an Isaac Lab or Newton actuator controller and used to compute effort;
+  it is an actuator-integration parameter, not a solver property.
 
 ### Requirements and success criteria
 
@@ -141,10 +142,15 @@ Joint-frame tests should validate the resulting joint axis and body motion, not 
 
 The tests must distinguish passive joint damping from drive damping.
 
-#### Actuator properties
+#### Actuator-integration parameters
 
-- Explicit actuator stiffness
-- Explicit actuator damping
+- Explicit actuator stiffness integration
+- Explicit actuator damping integration
+
+These rows validate the actuator pipeline rather than a native solver parameter: the public Isaac Lab writer must
+update the active controller, the controller must compute the expected effort from the new gain, and that effort
+must reach the selected solver. Separate MJWarp and Kamino results are end-to-end compatibility coverage, not
+evidence of solver-owned gain storage.
 
 Newton's internal actuation/target mode is not in v1 because Isaac Lab does not expose a public authoring or
 runtime writer for it.
@@ -189,18 +195,18 @@ storage-only tests remain `T`.
 | JOINT-01 | Parent and child joint frames | T / T / N | T / T / N | T / T / N |
 | JOINT-02 | Reset/live joint position | N / T / T | N / T / T | N / T / T |
 | JOINT-03 | Reset/live joint velocity | N / T / T | N / T / T | N / T / T |
-| JOINT-04 | Lower and upper position limits | T / T / T | T / T / T | I / T / X |
+| JOINT-04 | Lower and upper position limits | T / N / T | T / N / T | I / N / I |
 | JOINT-05 | Velocity limit | T / T / T | X / X / X | X / X / X |
 | JOINT-06 | Effort limit | T / T / T | T / T / T | X / X / X |
 | JOINT-07 | Armature | T / T / T | T / T / T | I / I / I |
-| JOINT-08 | Passive joint damping | T / T / T | T / T / T | T / T / T |
+| JOINT-08 | Passive joint damping | T / T / T | T / T / T | I / T / T |
 | JOINT-09 | Joint dry-friction force/torque | T / T / T | T / T / T | X / X / X |
 | DRIVE-01 | Implicit drive stiffness | T / T / T | T / T / T | I / I / I |
 | DRIVE-02 | Implicit drive damping | T / T / T | T / T / T | I / I / I |
 | CMD-01 | Feed-forward joint effort | N / N / T | N / N / T | N / N / I |
 | CMD-02 | Joint velocity target | N / N / T | N / N / T | N / N / I |
-| ACT-01 | Explicit actuator stiffness | N / T / T | N / T / X | N / T / X |
-| ACT-02 | Explicit actuator damping | N / T / T | N / T / X | N / T / X |
+| ACT-01 | Explicit actuator stiffness integration | N / T / T | N / T / T | N / T / T |
+| ACT-02 | Explicit actuator damping integration | N / T / T | N / T / T | N / T / T |
 | ACT-03 | Runtime actuation/target mode | N / N / N | N / N / N | N / N / N |
 | DEFER-01 | Generic constraint properties | D / D / D | D / D / D | D / D / D |
 | DEFER-02 | Fixed and spatial tendon properties | D / D / D | D / D / D | D / D / D |
@@ -221,10 +227,21 @@ one Coulomb coefficient to rest/slide classification and to sliding deceleration
 Newton joint friction is an absolute dry-friction force or torque `[N or N·m, depending on joint type]`,
 despite the `coefficient` name in the common Isaac Lab API.
 
+Newton-Kamino `JOINT-04` runtime writes may change existing finite limit values in place; the
+`write_joint_position_limit_to_sim_index` path is covered by `FIX-LIMIT-POS`. Runtime writes that change joint
+limit **existence** — for example, adding a limit to a previously unlimited joint or removing a limit — are not
+supported in place and must raise a documented error (`E` coverage on the same runtime API). This is distinct
+from changing the numeric lower/upper values while the limit remains active.
+
 `ACT-03` is retained to document the gap in the original scope, but it is not v1 coverage: Isaac Lab currently
 has no public writer for Newton's internal `joint_target_mode`. Likewise, the `X` runtime-limit cells record
 current silent or ineffective writes; they must become `E` when a documented error exists or `T` when physical
 support is implemented.
+
+`ACT-01` and `ACT-02` are actuator-integration rows. Their Newton runtime paths are `T` because
+`write_actuator_stiffness_to_sim` and `write_actuator_damping_to_sim` update the active controller today, while
+the planned physical test must still verify the resulting effort and trajectory. They do not require a Newton
+model-change notification because the gains are not solver-owned properties.
 
 #### `X`-cell issue register
 
@@ -234,18 +251,19 @@ backend, parameter, and authoring path. Related issues provide implementation co
 
 | Parameter ID | Backend and `X` authoring paths | Qualifying issue | Related context |
 |---|---|---|---|
-| `JOINT-04` | Newton-Kamino: runtime | TODO: exact runtime position-limit issue required | [vastsoun/newton#104](https://github.com/vastsoun/newton/issues/104) tracks the general model-change integration |
-| `JOINT-05` | Newton-MJWarp: USD, Python, runtime | TODO: exact upstream Newton velocity-limit issue required | None |
+| `JOINT-05` | Newton-MJWarp: USD, Python, runtime | No Isaac Lab issue (out of scope) | MJWarp is maintained by [newton-physics/newton](https://github.com/newton-physics/newton); Isaac Lab does not intend to fix velocity-limit enforcement on this solver. The `X` disposition records the known gap only. |
 | `JOINT-05` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397) | [newton-physics/newton#161](https://github.com/newton-physics/newton/issues/161) added model storage; does not establish Kamino enforcement |
 | `JOINT-06` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#398](https://github.com/vastsoun/newton/issues/398) | [newton-physics/newton#161](https://github.com/newton-physics/newton/issues/161) added model storage; does not establish Kamino enforcement |
 | `JOINT-09` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#383](https://github.com/vastsoun/newton/issues/383) | None |
-| `ACT-01`, `ACT-02` | Newton-MJWarp: runtime | TODO: exact Isaac Lab or upstream Newton actuator-update issue required | None |
-| `ACT-01`, `ACT-02` | Newton-Kamino: runtime | TODO: exact Isaac Lab/Kamino actuator-update issue required | [vastsoun/newton#104](https://github.com/vastsoun/newton/issues/104) tracks general model-change integration |
+
+Newton-Kamino `JOINT-05` is tracked by [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397).
+Newton-MJWarp `JOINT-05` remains `X` but is explicitly out of Isaac Lab fix scope; do not open a qualifying
+issue in this repository for MJWarp velocity-limit enforcement.
 
 [vastsoun/newton#385](https://github.com/vastsoun/newton/issues/385) is closed historical evidence for allocating
 Kamino's implicit joint-dynamics equations when gains may change at runtime. It explains the pre-allocation used
-by the existing `DRIVE-01`, `DRIVE-02`, and `JOINT-07` tests, but it is not a qualifying issue for the explicit
-actuator `X` cells.
+by the existing `DRIVE-01`, `DRIVE-02`, and `JOINT-07` tests; it does not apply to the controller-owned gains in
+the explicit actuator integration rows.
 
 #### Temporary Newton target-mode workaround
 
@@ -320,8 +338,8 @@ an otherwise identical control case.
 | Effort limit | Acceleration under a commanded effort above the configured maximum |
 | Passive joint damping | Deceleration from a known initial velocity with the drive disabled |
 | Joint friction coefficient | Breakaway or deceleration response with the drive disabled |
-| Explicit actuator stiffness | Single-step position-target response from rest |
-| Explicit actuator damping | Single-step velocity-target response from rest |
+| Explicit actuator stiffness integration | Controller effort and single-step position-target response from rest |
+| Explicit actuator damping integration | Controller effort and single-step velocity-target response from rest |
 | Feed-forward joint effort target | Single-step acceleration from rest, with and without implicit drive dynamics |
 | Joint velocity target | Single-step velocity-target response from rest with non-zero drive damping |
 
@@ -378,11 +396,11 @@ contract into multiple pytest cases, but it must preserve the listed controlled 
 | FIX-DOF-STEP | DRIVE-01, DRIVE-02, JOINT-07, CMD-01, CMD-02 | Joint position and velocity after one step using the backend-specific implicit or explicit update | Fixed-base revolute and prismatic variants; gravity/collision off |
 | FIX-JOINT-STATE | JOINT-02, JOINT-03 | State immediately after write and after one unforced step | Separate reset-default and live-write cases |
 | FIX-JOINT-FRAME | JOINT-01 | World-space motion axis and displacement under known effort | Identity-frame control and one rotated/translated frame at a time |
-| FIX-LIMIT-POS | JOINT-04 | Maximum and settled joint position for active and inactive limits | Same drive and initial state; lower and upper limits tested separately |
+| FIX-LIMIT-POS | JOINT-04 | Maximum and settled joint position for active and inactive limits | Same drive and initial state; lower and upper limits tested separately; Kamino runtime requires USD limits present before the write |
 | FIX-LIMIT-VEL | JOINT-05 | Sustained maximum speed and braking response after starting above the limit | Effort high enough that velocity, not effort, is limiting |
 | FIX-LIMIT-EFFORT | JOINT-06 | Initial acceleration under sub-limit and over-limit commands | Known effective inertia; drive terms disabled or included in oracle |
 | FIX-PASSIVE | JOINT-08, JOINT-09 | Velocity decay or breakaway threshold using backend-specific damping/friction law | Drive disabled; zero-loss paired control |
-| FIX-ACTUATOR | ACT-01, ACT-02 | Controller effort and resulting trajectory after gain update | Separate explicit actuator and implicit drive cases |
+| FIX-ACTUATOR | ACT-01, ACT-02 | Controller effort and resulting trajectory after gain update | Explicit actuator path with implicit solver drive disabled; run against each solver as an end-to-end compatibility check |
 | FIX-FRICTION-STATIC | MAT-01 (PhysX), MAT-03 (Newton) | Rest/sliding classification on both sides of the critical incline angle | Identical material values on both shapes unless combination is under test; Newton uses one `mu` for \(\mu_s\) |
 | FIX-FRICTION-DYNAMIC | MAT-02 (PhysX), MAT-03 (Newton) | Stopping distance and velocity decay under the backend's contact law | Level plane, zero restitution, known initial speed; Newton uses one `mu` for \(\mu_d\) |
 | FIX-RESTITUTION | MAT-04 | First post-impact apex or normal-velocity ratio | Zero friction; first impact only |
@@ -450,7 +468,9 @@ do not recreate the solver and rerun the physical measurement. The public write 
 exception or warning,
 which is tested as an `E` matrix cell. A silent or ineffective write is an `X` defect, not an expected success.
 If the change is unsupported because it changes topology or constraint capacity, assert the documented error
-and do not classify that case as physical coverage.
+and do not classify that case as physical coverage. Kamino `JOINT-04` is the reference split: in-place runtime
+edits to existing finite limits use `FIX-LIMIT-POS`, while runtime writes that change limit existence (for
+example unlimited to limited) assert the documented error on the same writer.
 
 All fixtures should report the authored path, backend, time step, substep count, measured quantity, expected
 quantity, and tolerance on failure. Use deterministic initial states and disable unrelated effects such as
@@ -490,11 +510,14 @@ API tests unless a mask-only graphed pipeline has distinct physical behavior.
 - **Newton-MJWarp:** contact cases use the single combined `mu` interpretation. Each Newton backend's `MAT-03`
   row requires both `FIX-FRICTION-STATIC` and `FIX-FRICTION-DYNAMIC`. Runtime material and collider-offset
   tests invoke the public Isaac Lab event/API path and must not substitute a raw buffer write plus manual
-  notification. Joint-friction cases use absolute dry-friction force/torque semantics.
-- **Newton-Kamino:** blocked limit, joint-friction, and actuator cells remain `X`; tests must not encode silent
-  or ineffective writes as expected behavior. Contact combined `mu` (`MAT-03`) is in scope and requires the same
-  static-threshold and stopping-distance fixtures as MJWarp. Single-step joint cases use the pinned Kamino
-  profile and oracle defined above.
+  notification. Joint-friction cases use absolute dry-friction force/torque semantics. Velocity-limit
+  enforcement (`JOINT-05`) is an accepted out-of-scope gap; Isaac Lab does not intend to fix MJWarp solver
+  behavior here.
+- **Newton-Kamino:** blocked joint-friction and actuator cells remain `X`; tests must not encode silent or
+  ineffective writes as expected behavior. Contact combined `mu` (`MAT-03`) is in scope and requires the same
+  static-threshold and stopping-distance fixtures as MJWarp. Position-limit runtime writes (`JOINT-04`) may
+  change existing finite limits in place; writes that change limit existence must assert the documented error.
+  Single-step joint cases use the pinned Kamino profile and oracle defined above.
 
 ### Proposed test architecture
 
@@ -564,9 +587,14 @@ defects to [isaac-sim/IsaacLab](https://github.com/isaac-sim/IsaacLab/issues).
 5. **Phase 4 — blocked runtime contracts:** convert `X` cells to `E` or `T` as backend defects are resolved.
    Deferred constraints, tendons, and OVPhysX require a separate design revision.
 
-Phase 0 test classification is implemented for `DRIVE-01`, `DRIVE-02`, `JOINT-04`, `JOINT-07`, `CMD-01`, and
-`CMD-02`. The `X`-cell register is complete, but Phase 0 does not fully satisfy `REQ-07` while qualifying issues
-are still missing for Kamino runtime position limits, MJWarp velocity limits, and runtime actuator gain updates.
+Phase 0 test classification is implemented for `DRIVE-01`, `DRIVE-02`, `JOINT-04`, `JOINT-07`, `JOINT-08`,
+`CMD-01`, and `CMD-02`. The `X`-cell register is complete. Newton-Kamino `JOINT-05` is covered by
+[vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397); Newton-MJWarp `JOINT-05` is an accepted
+out-of-scope gap with no Isaac Lab issue. Kamino `JOINT-04` runtime in-place limit edits are implemented; the
+topology-change error path is covered by the existing `runtime-error` case. Kamino `JOINT-08` USD authoring is
+implemented; Python override and runtime paths remain `T` until
+[IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) exposes passive joint damping separately from
+implicit drive damping.
 
 The appropriate CI selection, gating policy, and scheduling are intentionally left to the implementation
 change. Contact tests are likely to be less reliable in CI because their thresholds depend on integrator,
@@ -591,11 +619,10 @@ These decisions do not block the document structure, but each blocks promotion o
 
 | Decision | Owner role | Exit criterion |
 |---|---|---|
-| Kamino runtime position limits: support or explicit rejection | Newton/Kamino integration maintainer | Physical limit test passes or public writer emits documented error |
+| Kamino runtime position-limit topology changes | Newton/Kamino integration maintainer | Resolved for v1: in-place value edits are `I`; unlimited-to-limited (or reverse) at runtime raises documented error |
 | Kamino/MJWarp restitution Isaac Lab integration | Newton contact maintainer | `FIX-RESTITUTION` passes through Isaac Lab authoring paths; Kamino oracle per [newton-physics/newton#3588](https://github.com/newton-physics/newton/pull/3588) |
-| Newton explicit actuator gain notification | Newton actuator integration maintainer | Runtime writer updates the active controller and `FIX-ACTUATOR` passes |
 | Kamino joint-friction mapping | Newton/Kamino integration maintainer | Dry-friction semantics implemented or public API documents a distinct viscous parameter |
-| MJWarp velocity-limit enforcement | Newton/MJWarp integration maintainer | Sustained-drive and above-limit braking behavior are documented and tested |
+| MJWarp velocity-limit enforcement | [newton-physics/newton](https://github.com/newton-physics/newton) maintainers | Accepted gap for Isaac Lab v1: matrix stays `X`, no Isaac Lab issue; Isaac Lab does not intend to fix MJWarp enforcement |
 | Generic constraints and tendons | Asset API maintainers | Public authoring/runtime contract plus backend reconstruction/error semantics |
 | OVPhysX inclusion | OVPhysX maintainers | Separate backend mapping and support scope approved for a follow-up design |
 

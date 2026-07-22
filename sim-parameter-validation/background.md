@@ -21,7 +21,8 @@ black-box test.
 ## Existing Isaac Lab implementation status
 
 `source/isaaclab_newton/test/assets/test_articulation_kamino_joint_dynamics.py` is the reference partial
-implementation of `PROFILE-DOF`, `FIX-DOF-STEP`, and `FIX-LIMIT-POS`. Its Phase 0 classification is:
+implementation of `PROFILE-DOF`, `FIX-DOF-STEP`, `FIX-LIMIT-POS`, and partial `FIX-PASSIVE`. Its Phase 0
+classification is:
 
 | Parameter ID | Kamino disposition (USD / Python / runtime) | Backend test | Physical evidence |
 |---|---|---|---|
@@ -30,7 +31,8 @@ implementation of `PROFILE-DOF`, `FIX-DOF-STEP`, and `FIX-LIMIT-POS`. Its Phase 
 | `JOINT-07` | `I / I / I` | `test_joint_07_armature_single_step` | Analytical reduction in acceleration from added joint-space inertia |
 | `CMD-01` | `N / N / I` | `test_cmd_01_feedforward_torque_implicit_single_step`, `test_cmd_01_feedforward_torque_explicit_single_step` | Analytical effort-driven joint position and velocity after one step |
 | `CMD-02` | `N / N / I` | `test_cmd_02_velocity_reference_single_step` | Analytical pure-velocity-target response after one step |
-| `JOINT-04` | `I / T / X` | `test_joint_04_position_limit_usd` | Active/inactive USD upper-limit trajectories |
+| `JOINT-04` | `I / N / I` | `test_joint_04_position_limit` | USD and in-place runtime upper-limit trajectories; `runtime-error` asserts topology-change rejection |
+| `JOINT-08` | `I / T / T` | `test_joint_08_passive_damping_usd_single_step` | Analytical single-step velocity decay from USD-authored passive damping; cfg/runtime blocked on [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) |
 
 The stiffness, damping, and armature cases cover revolute and prismatic joints through USD,
 `ImplicitActuatorCfg`, and runtime writers. The command rows have only a runtime authoring path; the `authoring`
@@ -38,8 +40,13 @@ axis in the feed-forward tests varies the surrounding implicit-drive configurati
 path. The procedural-build test is fixture validation and does not represent a parameter cell. Canonical
 parameter IDs appear in pytest node IDs and assertion diagnostics.
 
-Its damping cases validate implicit drive damping, not the separate passive-damping contract. Its position-limit
-Python path remains `T`, and its runtime path remains `X` because the write currently has no physical effect.
+Its `DRIVE-02` cases validate implicit drive damping through `write_joint_damping_to_sim_index`; they do not
+cover the separate passive-damping contract in `JOINT-08`. Passive damping is authored in USD through
+`newton:damping` and is dynamically equivalent to drive damping with a zero velocity reference. Python override
+and runtime paths for passive damping remain `T` until
+[IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) exposes them separately from implicit drive
+damping. Kamino runtime may change existing finite limit values in place (`I`); runtime writes that introduce or
+remove a limit must raise instead of changing solver topology.
 The test pins `dt = 1/120 s`, one Kamino Euler substep, CUDA graphs off, and `rtol = 5e-3`,
 `atol = 2e-4`; these settings define the initial Kamino profile in the design.
 
@@ -101,17 +108,17 @@ exercise additional Isaac Lab parameters in the current scope, so they are not p
 | Child joint frame | Reaction-force fixtures; Kamino frame conversion | Partial analytical/behavioral | Add known-effort motion-direction test |
 | Joint position/state | Joint controller initial state and targets | Analytical or target-convergence behavior | Separate reset state from runtime state write |
 | Joint velocity/state | Joint damping and velocity-target tests | Behavioral; analytical in unforced free motion | Separate reset state from runtime state write |
-| Lower and upper position limits | `test_joint_limits.py`; Kamino notify | Kamino USD path is behavioral; other paths are storage/notification only | Extend active/inactive-limit trajectories and retain Kamino runtime as a known defect |
-| Velocity limit | MuJoCo property tests note no matching physical enforcement | Storage only | Add sustained-drive trajectory and document unsupported backends |
+| Lower and upper position limits | `test_joint_limits.py`; Kamino notify; Kamino `test_joint_04_position_limit` | Kamino USD and in-place runtime paths are behavioral; topology-change runtime writes error | Replicate Kamino USD and runtime coverage on MJWarp and PhysX; no Isaac Lab Python override is exposed |
+| Velocity limit | MuJoCo property tests note no matching physical enforcement | Storage only on MJWarp; Kamino tracked by [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397) | MJWarp `JOINT-05` is an accepted Isaac Lab out-of-scope gap; add sustained-drive coverage for PhysX and document MJWarp/Kamino matrix dispositions |
 | Effort limit | One-step clamped drive response | Analytical | Extend beyond MuJoCo/MJWarp and through Isaac Lab writers |
 | Armature | MuJoCo/Kamino property and notify tests | Kamino USD/config/runtime paths have analytical Isaac Lab coverage | Extend the one-step acceleration fixture to MJWarp and PhysX |
-| Passive joint damping | Damped versus undamped revolute joint | Behavioral | Add closed-form or paired decay checks through each authoring path |
+| Passive joint damping | Damped versus undamped revolute joint; Kamino `test_joint_08_passive_damping_usd_single_step` | Kamino USD path is analytical; upstream Newton evidence is behavioral | Extend Kamino cfg/runtime after [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517); replicate USD coverage on MJWarp and PhysX |
 | Joint friction coefficient | MuJoCo property/notify tests | Storage/notification only | Add breakaway or stopping response with drive disabled |
 | Drive stiffness / position gain | One-step joint drive | Analytical upstream evidence; Kamino has analytical Isaac Lab coverage | Extend the shared fixture to MJWarp and PhysX |
 | Drive damping / velocity gain | One-step joint drive | Analytical upstream evidence; Kamino has analytical Isaac Lab coverage | Extend to MJWarp and PhysX and keep distinct from passive damping |
 | Internal actuation/target mode | Position/velocity controller responses and runtime mode switch | Upstream Newton evidence only | No public Isaac Lab writer; retain as out of scope until an API contract exists |
-| Explicit actuator stiffness | Direct PD component force law | Component only | Validate simulated trajectory and Isaac Lab actuator writer |
-| Explicit actuator damping | Direct PD component force law | Component only | Validate simulated trajectory and Isaac Lab actuator writer |
+| Explicit actuator stiffness integration | Direct PD component force law and active-controller gain writes | Component and storage only | Validate controller effort and simulated trajectory through the Isaac Lab actuator writer |
+| Explicit actuator damping integration | Direct PD component force law and active-controller gain writes | Component and storage only | Validate controller effort and simulated trajectory through the Isaac Lab actuator writer |
 | Constraint properties | MuJoCo loop-constraint tests | Analytical for selected constraints, no generic property-write coverage | Add cases only for properties Isaac Lab exposes |
 | Tendon properties | Tendon unit tests are not a generic runtime physical oracle | No applicable evidence in this design | Add cases only for supported runtime writes |
 
@@ -171,10 +178,11 @@ tracked separately in [vastsoun/newton#375](https://github.com/vastsoun/newton/i
 #### Runtime behavior
 
 - A center-of-mass update refreshes the derived body pose, joint frames, and shape offsets.
-- Newton's Kamino notification layer can refresh finite joint-limit arrays in place, while changing a joint
-  between limited and unlimited requires solver recreation. However, the current Isaac Lab integration test
-  observes that runtime position-limit writes do not affect Kamino dynamics. The design therefore records this
-  path as blocked until the discrepancy is fixed or a documented error replaces the silent write.
+- Newton's Kamino notification layer can refresh finite joint-limit arrays in place. Changing a joint between
+  limited and unlimited requires solver recreation; Isaac Lab's
+  `write_joint_position_limit_to_sim_index` rejects that topology change with a documented `RuntimeError`.
+  In-place edits to existing finite lower/upper values are supported and covered by
+  `test_joint_04_position_limit`.
 - Armature, passive damping, and drive gains can be updated only while they do not add or remove the joint's
   dynamic-constraint allocation.
 - Switching between active position and velocity actuation can be updated in place. Switching between active
@@ -202,11 +210,15 @@ tracked separately in [vastsoun/newton#375](https://github.com/vastsoun/newton/i
 
 - Runtime writes that alter model topology, collision capacity, or the number/type of constraints require
   reconstruction and must have an error-path test once the public API reports that condition.
-- Velocity-limit physical enforcement is not established by current integration tests.
+- Velocity-limit physical enforcement is not established by current integration tests on MJWarp; `JOINT-05`
+  remains `X` as an accepted Isaac Lab out-of-scope gap with no issue filed in this repository. Kamino
+  velocity-limit gaps are tracked by [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397).
 - Material and collider-offset paths currently rely on view bindings or event terms. Their v1 tests must invoke
   the public Isaac Lab path and let that path emit `SHAPE_PROPERTIES`; direct buffer writes plus manual notify
   are reference patterns only.
-- Explicit actuator `kp`/`kd` writers patch controller arrays but do not emit `ACTUATOR_PROPERTIES`.
+- Explicit actuator `kp`/`kd` writers patch the active controller arrays directly. These gains are not
+  solver-owned model properties, so this path does not require an `ACTUATOR_PROPERTIES` model-change
+  notification; the remaining evidence gap is an end-to-end effort and trajectory assertion.
 
 ### PhysX
 
@@ -236,10 +248,10 @@ This evidence covers `isaaclab_physx`, not `isaaclab_ovphysx`.
 
 ## Collected implementation gaps and observations
 
-- **Actuator gains do not notify.** `write_actuator_stiffness_to_sim` and
-  `write_actuator_damping_to_sim` patch controller `kp`/`kd` through
-  `ArticulationView.set_actuator_parameter` and do not call `add_model_change`. Newton defines
-  `ACTUATOR_PROPERTIES` (`1 << 8`), but Isaac Lab never emits it.
+- **Explicit actuator gains bypass model notification by design.** `write_actuator_stiffness_to_sim` and
+  `write_actuator_damping_to_sim` patch active-controller `kp`/`kd` through
+  `ArticulationView.set_actuator_parameter`. They do not call `add_model_change` because these controller-owned
+  gains are not solver model properties.
 - **Tendon writers do not notify.** The fixed and spatial tendon setters
   (`set_fixed_tendon_*`, `write_fixed_tendon_properties_to_sim_*`, and related methods) write buffers but emit
   no `TENDON_PROPERTIES` flag.
