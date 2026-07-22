@@ -49,7 +49,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         "--warmup_frames",
         type=parse_non_negative_int,
         default=50,
-        help="Number of environment steps to exclude; the first startup step is always excluded.",
+        help="Exact number of environment steps to exclude from timing; zero measures the first step.",
     )
     parser.add_argument(
         "--measure_sync_step",
@@ -153,8 +153,6 @@ def run(argv: list[str]) -> None:
 
             num_envs = env.unwrapped.num_envs
 
-            # The first step is a startup diagnostic and is never part of throughput,
-            # even when no additional warmup frames are requested.
             warmup_step_times_s = stepping.run_runtime_warmup(env, args.warmup_frames)
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env, measure_synchronized_step_breakdown=args.measure_sync_step
@@ -162,7 +160,7 @@ def run(argv: list[str]) -> None:
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
                 step_times_s = stepping.run_runtime_loop(env, args.num_frames, reset=False)
 
-            first_step_s = warmup_step_times_s[0]
+            first_step_s = warmup_step_times_s[0] if warmup_step_times_s else step_times_s[0]
 
             benchmark.update_manual_recorders()
 

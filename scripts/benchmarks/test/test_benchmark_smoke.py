@@ -104,17 +104,16 @@ def test_adapters_accept_short_synchronized_step_flag(library: str, workflow: st
 
 
 @pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
-def test_play_adapters_reject_warmup_that_exhausts_workload(library: str, monkeypatch, capsys):
-    """Play requires at least one measured environment step after warm-up."""
+def test_play_adapters_accept_warmup_larger_than_measured_workload(library: str, monkeypatch):
+    """Play warm-up adds calls without consuming the measured workload."""
     module = _load_adapter(library, "play")
-    argv = ["--task", _TASK, "--num_frames", "2", "--warmup_steps", "2", "--headless"]
+    argv = ["--task", _TASK, "--num_frames", "2", "--warmup_steps", "3", "--headless"]
     monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
 
-    with pytest.raises(SystemExit) as exc_info:
-        module._parse_args(argv)
+    args = module._parse_args(argv)[0]
 
-    assert exc_info.value.code == 2
-    assert "--warmup_steps must be less than --num_frames" in capsys.readouterr().err
+    assert args.num_frames == 2
+    assert args.warmup_steps == 3
 
 
 @pytest.mark.parametrize(

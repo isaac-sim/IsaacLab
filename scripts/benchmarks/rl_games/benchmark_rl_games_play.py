@@ -40,7 +40,7 @@ def _parse_args(argv: list[str]):
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument(
-        "--num_frames", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
+        "--num_frames", type=parse_positive_int, default=100, help="Number of measured inference steps."
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument(
@@ -62,7 +62,7 @@ def _parse_args(argv: list[str]):
         "--warmup_steps",
         type=parse_non_negative_int,
         default=1,
-        help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
+        help="Number of preceding env.step() calls to exclude from timing and throughput.",
     )
     parser.add_argument(
         "--benchmark_formatter",
@@ -77,8 +77,6 @@ def _parse_args(argv: list[str]):
     add_launcher_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
-    if args_cli.warmup_steps >= args_cli.num_frames:
-        parser.error("--warmup_steps must be less than --num_frames")
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args
@@ -235,15 +233,19 @@ def run(argv: list[str]) -> None:
             measure_synchronized_step_breakdown=args_cli.measure_sync_step,
             warmup_steps=args_cli.warmup_steps,
         )
+        total_frames = args_cli.warmup_steps + args_cli.num_frames
         with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-            step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args_cli.num_frames)
+            all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
+
+        first_step_s = all_step_times[0]
+        step_times = all_step_times[args_cli.warmup_steps :]
 
         benchmark.update_manual_recorders()
 
         startup = StartupTime(
             app_launch=(app_t1 - app_t0) / 1e9,
             env_creation=(env_t1 - env_t0) / 1e9,
-            first_step=(step_times[0] if step_times else 0.0),
+            first_step=first_step_s,
         )
 
         fps = [num_envs / t for t in step_times if t > 0]

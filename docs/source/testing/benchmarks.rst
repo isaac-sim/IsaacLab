@@ -376,7 +376,7 @@ Non-RL / Runtime Benchmark Arguments
      - Number of environment steps to measure
    * - ``--warmup_frames``
      - ``50``
-     - Number of additional environment steps to exclude after the always-excluded startup step
+     - Exact number of environment steps to exclude from timing; zero measures the first step
    * - ``--measure_sync_step``
      - ``false``
      - Collect the serialized synchronized diagnostic described above
@@ -434,10 +434,10 @@ RL Play Arguments
      - Number of parallel environments
    * - ``--num_frames``
      - ``100``
-     - Number of inference steps to roll out
+     - Number of measured inference steps
    * - ``--warmup_steps``
      - ``1``
-     - Number of initial environment steps to exclude before recording timing
+     - Number of preceding environment steps to exclude from timing and throughput
    * - ``--checkpoint``
      - ``None`` (published Nucleus checkpoint)
      - Local path or Nucleus URI of the checkpoint to roll out
@@ -447,6 +447,12 @@ RL Play Arguments
    * - ``--measure_sync_step``
      - ``false``
      - Collect the serialized synchronized diagnostic described above
+
+Runtime executes ``warmup_frames + num_frames`` environment steps, while play
+executes ``warmup_steps + num_frames`` environment steps. Thus, the requested
+``num_frames`` is always the exact number of measured steps. Play warmup steps
+are excluded only from timing and throughput; they still contribute to reward,
+episode-length, success-rate, and resource measurements.
 
 Measurement Types
 -----------------
