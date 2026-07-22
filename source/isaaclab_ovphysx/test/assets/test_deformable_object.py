@@ -7,6 +7,11 @@
 
 from __future__ import annotations
 
+import multiprocessing
+import queue
+import traceback
+from typing import Any
+
 import ovphysx.types  # noqa: F401
 import pytest
 import torch
@@ -122,6 +127,22 @@ def _assert_rest_positions_match_authored(
         )
 
 
+def _run_cpu_deformable_initialization(result_queue: Any) -> None:
+    """Run the CPU initialization contract in a fresh spawned process."""
+    try:
+        with _ovphysx_sim_context(device="cpu") as sim:
+            deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=5)
+            try:
+                sim.reset()
+            except RuntimeError as error:
+                result = ("runtime_error", str(error), deformable.is_initialized)
+            else:
+                result = ("no_error", "", deformable.is_initialized)
+    except BaseException:
+        result = ("child_error", traceback.format_exc(), None)
+    result_queue.put(result)
+
+
 @pytest.mark.parametrize(
     "num_objects, material_path",
     [
@@ -205,16 +226,29 @@ def test_initialization_surface_deformable():
 @pytest.mark.isaacsim_ci
 def test_initialization_on_device_cpu():
     """Test that OVPhysX deformable initialization rejects a CPU simulation."""
-    with _ovphysx_sim_context(device="cpu") as sim:
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=5)
+    context = multiprocessing.get_context("spawn")
+    result_queue = context.Queue()
+    process = context.Process(target=_run_cpu_deformable_initialization, args=(result_queue,))
+    process.start()
+    process.join(timeout=30.0)
 
-        with pytest.raises(RuntimeError) as exc_info:
-            sim.reset()
-        message = str(exc_info.value)
-        assert "deformable tensors require a CUDA simulation device" in message or (
-            "locked to device 'gpu'" in message and "cannot switch to 'cpu'" in message
-        )
-        assert not deformable.is_initialized
+    if process.is_alive():
+        process.terminate()
+        process.join()
+        pytest.fail("CPU deformable initialization child process timed out.")
+    assert process.exitcode == 0
+
+    try:
+        result_kind, message, is_initialized = result_queue.get(timeout=5.0)
+    except queue.Empty:
+        pytest.fail("CPU deformable initialization child process returned no result.")
+    finally:
+        result_queue.close()
+        result_queue.join_thread()
+
+    assert result_kind == "runtime_error", message
+    assert message == "OVPhysX deformable tensors require a CUDA simulation device; received 'cpu'."
+    assert is_initialized is False
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
