@@ -153,7 +153,7 @@ class NewtonMaterialCfg(RigidBodyMaterialFragment):
     Composes with other rigid-body material fragments (e.g.
     :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg`) in the same fragment
     list passed to
-    :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments`. For the
+    :func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments`. For the
     legacy (non-fragment) equivalent, see
     :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`.
     """

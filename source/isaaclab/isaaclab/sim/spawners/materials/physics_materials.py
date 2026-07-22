@@ -17,20 +17,22 @@ from isaaclab.utils.string import string_to_callable
 from . import physics_materials_cfg
 
 
-def spawn_rigid_body_material_from_fragments(
+def spawn_physics_material_from_fragments(
     prim_path: str,
     fragments: physics_materials_cfg.RigidBodyMaterialFragment
-    | list[physics_materials_cfg.RigidBodyMaterialFragment]
-    | tuple[physics_materials_cfg.RigidBodyMaterialFragment, ...],
+    | physics_materials_cfg.DeformableMaterialFragment
+    | list[physics_materials_cfg.RigidBodyMaterialFragment | physics_materials_cfg.DeformableMaterialFragment]
+    | tuple[physics_materials_cfg.RigidBodyMaterialFragment | physics_materials_cfg.DeformableMaterialFragment, ...],
     stage: Usd.Stage | None = None,
 ) -> Usd.Prim:
-    """Spawn a rigid-body physics material from one or more single-namespace fragments.
+    """Spawn a physics material from one or more single-namespace fragments.
 
     Creates (or reuses) the ``UsdShade.Material`` prim at ``prim_path``, applies the standard
-    ``UsdPhysics.MaterialAPI`` anchor, then dispatches each fragment via its
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` to author its namespace onto the material prim.
-    Backend fragments carry backend-specific namespaces (e.g. PhysX ``physxMaterial:*``) without core
-    importing a backend.
+    ``UsdPhysics.MaterialAPI`` anchor when at least one rigid-body fragment is present, then dispatches
+    each fragment via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func` to author its namespace onto
+    the material prim. Rigid-body and deformable fragments may be mixed in a single collection; each
+    fragment authors its own namespace. Backend fragments carry backend-specific namespaces (e.g. PhysX
+    ``physxMaterial:*``) without core importing a backend.
 
     .. note::
         Unlike the ``@clone``-decorated :func:`spawn_rigid_body_material`, this writer expects a
@@ -40,17 +42,19 @@ def spawn_rigid_body_material_from_fragments(
 
     Args:
         prim_path: The prim path to spawn the material at.
-        fragments: A single :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`,
-            or a list/tuple of them.
+        fragments: A single
+            :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or
+            :class:`~isaaclab.sim.spawners.materials.DeformableMaterialFragment`, or a list/tuple of
+            them (rigid and deformable fragments may be mixed).
         stage: The stage to spawn on. Defaults to None, in which case the current stage is used.
 
     Returns:
-        The spawned rigid body material prim.
+        The spawned physics material prim.
 
     Raises:
         ValueError: When ``fragments`` is empty.
         ValueError: When a prim already exists at the path and is not a material.
-        TypeError: When an item is not a rigid-body material fragment.
+        TypeError: When an item is not a rigid-body or deformable material fragment.
     """
     if not isinstance(fragments, (list, tuple)):
         fragments = [fragments]
@@ -61,12 +65,15 @@ def spawn_rigid_body_material_from_fragments(
     invalid_types = [
         type(fragment).__name__
         for fragment in fragments
-        if not isinstance(fragment, physics_materials_cfg.RigidBodyMaterialFragment)
+        if not isinstance(
+            fragment,
+            (physics_materials_cfg.RigidBodyMaterialFragment, physics_materials_cfg.DeformableMaterialFragment),
+        )
     ]
     if invalid_types:
         raise TypeError(
-            "A physics-material fragment collection must contain only RigidBodyMaterialFragment instances; got"
-            f" {invalid_types}."
+            "A physics-material fragment collection must contain only physics-material fragments"
+            f" (rigid or deformable); got {invalid_types}."
         )
     if stage is None:
         stage = get_current_stage()
@@ -78,9 +85,11 @@ def spawn_rigid_body_material_from_fragments(
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
 
-    # apply the standard UsdPhysics MaterialAPI anchor (the defining schema for a physics material)
-    if not UsdPhysics.MaterialAPI(prim):
-        UsdPhysics.MaterialAPI.Apply(prim)
+    # the UsdPhysics MaterialAPI anchor defines a rigid-body physics material; deformable
+    # fragments never imply it
+    if any(isinstance(fragment, physics_materials_cfg.RigidBodyMaterialFragment) for fragment in fragments):
+        if not UsdPhysics.MaterialAPI(prim):
+            UsdPhysics.MaterialAPI.Apply(prim)
 
     # dispatch each fragment's applier (writes its single namespace onto the material prim)
     for cfg in fragments:
@@ -93,21 +102,24 @@ def spawn_physics_material(
     prim_path: str,
     material: physics_materials_cfg.PhysicsMaterialCfg
     | physics_materials_cfg.RigidBodyMaterialFragment
-    | list[physics_materials_cfg.RigidBodyMaterialFragment]
-    | tuple[physics_materials_cfg.RigidBodyMaterialFragment, ...],
+    | physics_materials_cfg.DeformableMaterialFragment
+    | list[physics_materials_cfg.RigidBodyMaterialFragment | physics_materials_cfg.DeformableMaterialFragment]
+    | tuple[physics_materials_cfg.RigidBodyMaterialFragment | physics_materials_cfg.DeformableMaterialFragment, ...],
     stage: Usd.Stage | None = None,
 ) -> Usd.Prim:
     """Spawn a physics material from a spawner ``physics_material`` slot value.
 
-    Dispatches the two accepted slot forms: a single rigid-body fragment or list/tuple is spawned via
-    :func:`spawn_rigid_body_material_from_fragments`; otherwise the value is a legacy material cfg and is
-    spawned via its own :attr:`func`. Lets spawners accept both the fragment and the legacy interface
-    from one call site.
+    Dispatches the two accepted slot forms: a single rigid-body or deformable material fragment (or a
+    list/tuple of them) is spawned via :func:`spawn_physics_material_from_fragments`; otherwise the
+    value is a legacy material cfg and is spawned via its own :attr:`func`. A mixed list is legal --
+    each fragment authors its own namespace. Lets spawners accept both the fragment and the legacy
+    interface from one call site.
 
     Args:
         prim_path: The prim path to spawn the material at.
-        material: A :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` (or list/tuple
-            of them), or a legacy material cfg carrying a :attr:`func`.
+        material: A :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or
+            :class:`~isaaclab.sim.spawners.materials.DeformableMaterialFragment` (or list/tuple of
+            them, possibly mixed), or a legacy material cfg carrying a :attr:`func`.
         stage: The stage to spawn on. Defaults to None, in which case the current stage is used. A
             legacy material cfg only supports the current stage (or None); passing a different
             stage raises.
@@ -119,16 +131,25 @@ def spawn_physics_material(
         ValueError: When ``material`` is a legacy material cfg and ``stage`` is neither ``None``
             nor the current stage.
         TypeError: When ``material`` is a fragment collection containing anything other than
-            :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
-        TypeError: When ``material`` is neither a physics-material cfg nor a rigid-body fragment.
+            :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or
+            :class:`~isaaclab.sim.spawners.materials.DeformableMaterialFragment` instances.
+        TypeError: When ``material`` is neither a physics-material cfg nor a physics-material fragment.
     """
     # The family writer owns fragment validation so direct and dispatched calls have one contract.
-    if isinstance(material, (list, tuple, physics_materials_cfg.RigidBodyMaterialFragment)):
-        return spawn_rigid_body_material_from_fragments(prim_path, material, stage)
+    if isinstance(
+        material,
+        (
+            list,
+            tuple,
+            physics_materials_cfg.RigidBodyMaterialFragment,
+            physics_materials_cfg.DeformableMaterialFragment,
+        ),
+    ):
+        return spawn_physics_material_from_fragments(prim_path, material, stage)
     if not isinstance(material, physics_materials_cfg.PhysicsMaterialCfg):
         raise TypeError(
-            "A physics material must be a PhysicsMaterialCfg or rigid-body material fragment; got"
-            f" '{type(material).__name__}'."
+            "A physics material must be a PhysicsMaterialCfg or a physics-material fragment"
+            f" (rigid or deformable); got '{type(material).__name__}'."
         )
     # legacy single-cfg path (rigid or deformable material cfg with its own spawner ``func``).
     # Legacy material funcs take only ``(prim_path, cfg)`` and resolve the stage internally via

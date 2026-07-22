@@ -108,7 +108,7 @@ class RigidBodyMaterialFragment(SchemaFragment):
     (:class:`UsdPhysicsRigidBodyMaterialCfg`) and any backend-specific namespace (e.g. PhysX
     ``physxMaterial:*`` via :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg`).
     The defining ``UsdPhysics.MaterialAPI`` anchor is applied by the family writer
-    (:func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments`).
+    (:func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments`).
     """
 
     pass
