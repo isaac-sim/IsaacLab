@@ -114,6 +114,26 @@ syntax as the other backends:
 This command starts a headless zero-action rollout; stop it with ``Ctrl+C``
 after the environment has started and stepped successfully.
 
+Supported locomotion environments
+---------------------------------
+
+The following locomotion training environments declare an ``ovphysx`` physics
+preset. Their corresponding ``-Play`` variants support the same backend where
+available.
+
+* ``Isaac-Ant-Direct``
+* ``Isaac-Humanoid-Direct``
+* ``IsaacContrib-Velocity-Rough-AnymalB``
+* ``IsaacContrib-Velocity-Rough-AnymalC``
+* ``Isaac-Velocity-Flat-AnymalD``
+* ``Isaac-Velocity-Rough-AnymalD``
+* ``IsaacContrib-Velocity-Rough-UnitreeA1``
+* ``IsaacContrib-Velocity-Rough-UnitreeGo1``
+* ``Isaac-Velocity-Rough-UnitreeGo2``
+* ``Isaac-Velocity-Rough-Cassie``
+* ``Isaac-Velocity-Rough-G1``
+* ``Isaac-Velocity-Rough-H1``
+
 Status and follow-up
 --------------------
 
