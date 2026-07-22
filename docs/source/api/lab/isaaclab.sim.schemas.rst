@@ -30,6 +30,47 @@ isaaclab.sim.schemas
     BoundingCubePropertiesCfg
     BoundingSpherePropertiesCfg
 
+  .. rubric:: Schema fragments
+
+  A fragment mirrors exactly one USD applied schema and writes into a single attribute
+  namespace. The family writers below dispatch lists of fragments to the prims matched by
+  a target expression. See :ref:`schema-fragments` for the concept and the spawner-level
+  usage. Backend fragments live in :mod:`isaaclab_physx.sim.schemas` and
+  :mod:`isaaclab_newton.sim.schemas`.
+
+  .. autosummary::
+
+    SchemaFragment
+    RigidBodyFragment
+    CollisionFragment
+    MassFragment
+    ArticulationRootFragment
+    JointDriveFragment
+    MeshCollisionFragment
+    FixedTendonFragment
+    SpatialTendonFragment
+    UsdPhysicsRigidBodyCfg
+    UsdPhysicsCollisionCfg
+    UsdPhysicsDriveCfg
+    UsdPhysicsMeshCollisionCfg
+    MassCfg
+
+  .. rubric:: Fragment writers
+
+  .. autosummary::
+
+    apply_rigid_body_properties
+    apply_collision_properties
+    apply_mass_properties
+    apply_articulation_root_properties
+    apply_joint_drive_properties
+    apply_mesh_collision_properties
+    apply_fixed_tendon_properties
+    apply_spatial_tendon_properties
+    apply_namespaced
+    apply_drive
+    apply_mesh_collision
+
   .. rubric:: Functions
 
   .. autosummary::
@@ -49,6 +90,90 @@ isaaclab.sim.schemas
     modify_fixed_tendon_properties
     define_deformable_body_properties
     modify_deformable_body_properties
+
+Schema Fragments
+----------------
+
+.. autoclass:: SchemaFragment
+    :members:
+    :exclude-members: __init__
+
+.. autoclass:: RigidBodyFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: CollisionFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: MassFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: ArticulationRootFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: JointDriveFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: MeshCollisionFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: FixedTendonFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: SpatialTendonFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: UsdPhysicsRigidBodyCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: UsdPhysicsCollisionCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: UsdPhysicsDriveCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: UsdPhysicsMeshCollisionCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: MassCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autofunction:: apply_rigid_body_properties
+.. autofunction:: apply_collision_properties
+.. autofunction:: apply_mass_properties
+.. autofunction:: apply_articulation_root_properties
+.. autofunction:: apply_joint_drive_properties
+.. autofunction:: apply_mesh_collision_properties
+.. autofunction:: apply_fixed_tendon_properties
+.. autofunction:: apply_spatial_tendon_properties
+.. autofunction:: apply_namespaced
+.. autofunction:: apply_drive
+.. autofunction:: apply_mesh_collision
 
 Articulation Root
 -----------------
