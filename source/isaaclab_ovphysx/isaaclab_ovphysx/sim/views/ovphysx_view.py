@@ -329,9 +329,9 @@ class OvPhysxView:
             self._key_aliases[req_tt] = made_tt
         self._bindings: dict[Any, Any] = {}
         # Cache of binding-scalar reinterpret views for read_into / get_attribute, keyed by the
-        # destination buffer's id(). Reusing the same reinterpret object across calls keeps the
-        # wheel's object-identity read cache (the TensorBinding.read fast path) warm.
-        self._read_views: dict[int, wp.array] = {}
+        # destination and binding identities. Reusing the same reinterpret object per binding
+        # keeps the wheel's object-identity read cache (the TensorBinding.read fast path) warm.
+        self._read_views: dict[tuple[int, int], wp.array] = {}
 
         if eager:
             explicit = tensor_types is not None
@@ -686,12 +686,13 @@ class OvPhysxView:
         rebuilds it if the buffer's backing storage moved. A ``dst`` that is already flat
         binding scalar is its own stable identity, so it is returned directly (and not cached).
         """
-        cached = self._read_views.get(id(dst))
+        key = (id(dst), id(binding))
+        cached = self._read_views.get(key)
         if cached is not None and cached.ptr == dst.ptr:
             return cached
         view = self._as_binding_view(dst, binding, "destination")
         if view is not dst:  # structured dst -> cache the reinterpret; a flat scalar dst caches nothing
-            self._read_views[id(dst)] = view
+            self._read_views[key] = view
         return view
 
     def _attribute_dtype(self, tensor_type: Any, binding: Any) -> tuple[tuple[int, ...], Any]:
