@@ -102,20 +102,24 @@ default positions. The helper owns only the repeated transport tail:
    `_get_backend_ordered_joint_buffer`.
 2. Reinterpret structured storage as flat `float32` only when the destination
    binding requires it.
-3. Copy into the caller-provided existing pinned CPU buffer.
+3. Copy into the caller-provided pinned CPU buffer, or reuse the existing
+   tensor-type write staging cache for combined friction properties.
 4. Call `set_attribute` with exactly one resolved CPU `indices` or `mask`
    selector.
 
-The helper accepts explicit user, backend, and CPU buffers, the tensor type,
-an optional component count, and mutually exclusive `indices`/`mask` keyword
-arguments. It does not allocate, validate public inputs, mutate timestamps, or
-choose which environments are selected. Keeping those responsibilities at the
-call sites avoids hiding differences between index/mask APIs and scalar,
-position-limit, and friction mutation kernels.
+The helper accepts explicit user and backend buffers, the tensor type, an
+optional preallocated CPU buffer, an optional component count, and mutually
+exclusive `indices`/`mask` keyword arguments. Stiffness, damping, limits, and
+armature retain their dedicated preallocated CPU buffers. Friction retains its
+existing lazy `(tensor_type, "write")` staging cache. The helper does not
+validate public inputs, mutate timestamps, or choose which environments are
+selected. Keeping those responsibilities at the call sites avoids hiding
+differences between index/mask APIs and scalar, position-limit, and friction
+mutation kernels.
 
 All stiffness, damping, position-limit, velocity-limit, effort-limit, armature,
 and friction writers use the helper for their final transport step. Existing
-property-specific pinned buffers remain in use.
+preallocated and lazy pinned buffers remain in use.
 
 ## Changelog
 
