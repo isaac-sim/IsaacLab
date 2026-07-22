@@ -251,7 +251,7 @@ Key Components
    - ``MockArticulationView`` - Mimics PhysX ArticulationView
    - ``MockRigidBodyView`` - Mimics PhysX RigidBodyView
 
-2. **Benchmark Framework** (``tests/integration/benchmark/``)
+2. **Benchmark Framework** (``source/isaaclab/test/benchmark/``)
 
    - :class:`~isaaclab.test.benchmark.MethodBenchmarkRunner` - Runner extending
      :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark` for method-level benchmarks
