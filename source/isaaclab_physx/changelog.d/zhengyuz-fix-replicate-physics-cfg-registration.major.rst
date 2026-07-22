@@ -1,8 +1,9 @@
 Added
 ^^^^^
 
-* Added :data:`~isaaclab_physx.cloner.REPLICATION`, the backend's default replication stack
-  referenced by asset cfgs: native physics replication plus USD clones for visuals.
+* Added :data:`~isaaclab_physx.cloner.PHYSICS_CONTEXT`, the backend's default physics
+  replication context referenced by asset cfgs. USD clones for visuals are added
+  automatically under Kit by :func:`~isaaclab.cloner.replicate`.
 
 Removed
 ^^^^^^^

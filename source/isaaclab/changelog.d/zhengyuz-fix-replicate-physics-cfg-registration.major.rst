@@ -15,8 +15,9 @@ Added
   policy; :class:`~isaaclab.scene.InteractiveScene` pipes the scene flag into it and
   :func:`~isaaclab.cloner.replicate` applies it.
 * Added :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` to override, per asset, the
-  cloning contexts resolved at replication time; ``None`` uses the active backend's default
-  stack (``isaaclab_<backend>.cloner.REPLICATION``).
+  physics cloning contexts resolved at replication time; ``None`` uses the active backend's
+  default physics context (``isaaclab_<backend>.cloner.PHYSICS_CONTEXT``). USD clones are
+  added automatically under Kit and are not authored through this field.
 
 Changed
 ^^^^^^^

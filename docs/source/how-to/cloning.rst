@@ -303,14 +303,17 @@ cfgs participate:
         ...
 
 *How* each cfg is cloned is resolved by :func:`~isaaclab.cloner.replicate` at
-dispatch: the cfg's :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`
-when set, otherwise the active backend's default stack. Each backend cloner
-exports that stack under the conventional name ``REPLICATION`` — PhysX pairs
-its native replication with USD clones, Newton includes USD only under Kit,
-and OvPhysX replicates alone because its clone replay authors USD itself.
-With :attr:`~isaaclab.cloner.CloneCfg.replicate_physics` disabled, cloning is
-USD-only: every context except ``UsdReplicateContext`` is dropped and the
-physics engine parses the per-env USD prims directly.
+dispatch. The physics side comes from the cfg's
+:attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when set, otherwise the
+active backend's default physics context, which each backend cloner exports as
+``PHYSICS_CONTEXT`` (PhysX and Newton replicate natively; OvPhysX replays its
+own clones). :class:`~isaaclab.cloner.UsdReplicateContext` is never authored by
+assets — :func:`~isaaclab.cloner.replicate` adds it automatically whenever a cfg
+has a spawner and Kit is available, so USD clones accompany physics replication
+under Kit and are skipped in headless runs. With
+:attr:`~isaaclab.cloner.CloneCfg.replicate_physics` disabled, cloning is
+USD-only: every physics context is dropped and the physics engine parses the
+per-env USD prims directly.
 
 Deferring the work like this buys three things at once:
 
