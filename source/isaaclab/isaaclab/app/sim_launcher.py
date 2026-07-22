@@ -424,6 +424,9 @@ def launch_simulation(
 
     Callers that do not need the value simply omit ``as``.
     """
+    if launcher_args is None:
+        launcher_args = {}
+
     # Livestreaming implies a Kit visualizer; make that visible to auto RTX
     # resolution during the single scan.
     _ensure_livestream_kit_visualizer(launcher_args)
@@ -455,7 +458,7 @@ def launch_simulation(
     if not needs_kit:
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
-    if needs_kit and config_scan.has_kit_camera and launcher_args is not None:
+    if needs_kit and config_scan.has_kit_camera:
         if not _get_arg(launcher_args, "enable_cameras", False):
             logger.info("Auto-enabling camera rendering because the scene contains Kit camera sensors.")
             _set_arg(launcher_args, "enable_cameras", True)

@@ -46,7 +46,7 @@ def test_visualizer_alias_parsing():
     assert args.visualizer_explicit is True
 
 
-@pytest.mark.parametrize("deprecated_arg", ["--head" + "less", "--enable_" + "cameras"])
+@pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras"])
 def test_deprecated_render_flags_are_rejected(deprecated_arg: str):
     """Test that removed render flags are rejected by the parser."""
     parser = argparse.ArgumentParser()
