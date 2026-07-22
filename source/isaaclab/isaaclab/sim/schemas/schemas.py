@@ -650,6 +650,154 @@ def apply_rigid_body_properties(
     return success
 
 
+"""
+Deformable body properties.
+"""
+
+
+def _warn_if_no_deformable_material(prim: Usd.Prim) -> None:
+    """Warn when a newly created deformable body has no physics material binding."""
+    from pxr import UsdShade  # noqa: PLC0415
+
+    targets = []
+    if prim.HasAPI(UsdShade.MaterialBindingAPI):
+        targets = UsdShade.MaterialBindingAPI(prim).GetDirectBindingRel("physics").GetTargets()
+    if not targets:
+        logger.warning(
+            "Deformable body '%s' was created without a physics material binding; runtime behavior"
+            " is undefined until a deformable material is bound.",
+            prim.GetPath().pathString,
+        )
+
+
+def _apply_deformable_body_properties(
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.DeformableBodyFragment],
+    deformable_type: str,
+    create_if_missing: bool,
+    stage: Usd.Stage | None,
+    sim_mesh_name: str,
+) -> bool:
+    """Shared implementation of the volume/surface deformable family writers."""
+    fragments = list(fragments)
+    if stage is None:
+        stage = get_current_stage()
+    if not fragments and not create_if_missing:
+        return True
+    for cfg in fragments:
+        if deformable_type not in type(cfg)._deformable_types:
+            logger.warning(
+                "Fragment '%s' is not meaningful for %s deformables; authoring anyway.",
+                type(cfg).__name__,
+                deformable_type,
+            )
+    targets, creation_candidates, any_skipped = _match_fragment_targets(prim_path_expr, has_deformable_body_api, stage)
+    if create_if_missing and creation_candidates:
+        # Keep this import local to avoid the SimulationContext -> schemas import cycle.
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+        sim = SimulationContext.instance()
+        if sim is None:
+            raise RuntimeError(
+                f"Cannot create deformable bodies matched by '{prim_path_expr}' without an active simulation."
+            )
+        for prim in creation_candidates:
+            sim_mesh_prim_path = f"{prim.GetPath().pathString}/{sim_mesh_name}"
+            sim_mesh_prim, vis_mesh_prim = _setup_deformable_meshes(prim, deformable_type, sim_mesh_prim_path, stage)
+            sim.physics_manager.setup_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim, stage)
+            _warn_if_no_deformable_material(prim)
+            targets.append(prim)
+    if not targets:
+        logger.warning("No deformable-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
+    dispatchers = [cfg.func if callable(cfg.func) else string_to_callable(cfg.func) for cfg in fragments]
+    # aggregate per-target, per-fragment results so a reported failure is not masked
+    success = not any_skipped
+    for target in targets:
+        target_path = target.GetPath().pathString
+        for cfg, func in zip(fragments, dispatchers):
+            success = bool(func(cfg, target_path, stage)) and success
+    return success
+
+
+def apply_volume_deformable_properties(
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.DeformableBodyFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
+    sim_mesh_name: str = "sim_mesh",
+) -> bool:
+    """Apply deformable-body fragments to the volume deformables matched by an expression.
+
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
+    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    already carry a deformable-body anchor (per :func:`~isaaclab.sim.utils.has_deformable_body_api`)
+    are modified in place: each fragment is dispatched to every such target via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+
+    With :paramref:`create_if_missing`, every matched prim without the anchor receives a full
+    volume-deformable setup: the simulation ``TetMesh`` is created as a ``sim_mesh_name`` child
+    (reusing a pre-tetrahedralized ``UsdGeom.TetMesh`` child when present, tetrahedralizing the
+    visual mesh via the optional ``pytetwild`` package otherwise), collision is enabled on it,
+    and the anchor schemas are applied through the active physics backend. Creation therefore
+    requires an active simulation. Zero targets warn and return False; instanced matches are
+    skipped with a warning; fragments not meaningful for volume deformables warn but author.
+
+    Args:
+        prim_path_expr: The prim path expression matched against the stage.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` instances.
+        create_if_missing: Whether to run the full deformable setup on matched prims that do
+            not carry the anchor. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
+            stage is used.
+        sim_mesh_name: Name of the simulation-mesh child prim created per target. Defaults to
+            ``"sim_mesh"``.
+
+    Returns:
+        True if every target and fragment succeeded and no instanced prim was skipped.
+
+    Raises:
+        RuntimeError: If creation is requested without an active simulation.
+    """
+    return _apply_deformable_body_properties(
+        prim_path_expr, fragments, "volume", create_if_missing, stage, sim_mesh_name
+    )
+
+
+def apply_surface_deformable_properties(
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.DeformableBodyFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
+    sim_mesh_name: str = "sim_mesh",
+) -> bool:
+    """Apply deformable-body fragments to the surface deformables matched by an expression.
+
+    Same contract as :func:`apply_volume_deformable_properties` with surface structural work:
+    the simulation mesh is a triangle-mesh copy of the visual mesh (no tetrahedralization).
+
+    Args:
+        prim_path_expr: The prim path expression matched against the stage.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` instances.
+        create_if_missing: Whether to run the full deformable setup on matched prims that do
+            not carry the anchor. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
+            stage is used.
+        sim_mesh_name: Name of the simulation-mesh child prim created per target. Defaults to
+            ``"sim_mesh"``.
+
+    Returns:
+        True if every target and fragment succeeded and no instanced prim was skipped.
+
+    Raises:
+        RuntimeError: If creation is requested without an active simulation.
+    """
+    return _apply_deformable_body_properties(
+        prim_path_expr, fragments, "surface", create_if_missing, stage, sim_mesh_name
+    )
+
+
 def apply_mesh_collision(
     cfg: schemas_cfg.MeshCollisionFragment, prim_path: str, stage: Usd.Stage | None = None
 ) -> bool:
