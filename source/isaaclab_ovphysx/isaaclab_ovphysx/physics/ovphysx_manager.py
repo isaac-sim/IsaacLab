@@ -208,6 +208,7 @@ class OvPhysxManager(PhysicsManager):
     _ovstage: ClassVar[Any] = None
     _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
+    _requires_full_stage: ClassVar[bool] = False
     # Device the process is locked to once :meth:`_warmup_and_load` constructs the
     # ``ovphysx.PhysX`` instance for the first time.  ``ovphysx<=0.3.7`` enforces
     # a process-global device-mode lock at the C++ layer (see HACK note on
@@ -226,6 +227,11 @@ class OvPhysxManager(PhysicsManager):
     def get_dt(cls) -> float:
         """Get the physics timestep. Alias for get_physics_dt()."""
         return cls.get_physics_dt()
+
+    @classmethod
+    def require_full_stage(cls) -> None:
+        """Load every authored environment during the next stage warmup."""
+        cls._requires_full_stage = True
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
@@ -316,6 +322,7 @@ class OvPhysxManager(PhysicsManager):
         super().initialize(sim_context)
         cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
+        cls._requires_full_stage = False
         cls._stage_usda = None
         cls._pending_clones = []
         # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
@@ -380,6 +387,7 @@ class OvPhysxManager(PhysicsManager):
 
         cls._stage_usda = None
         cls._warmup_done = False
+        cls._requires_full_stage = False
         # Drop the SceneDataBackend singleton: its cached ``TensorBinding`` handles
         # point into the wheel's prior scene which we just cleared.
         # The next :class:`SimulationContext` re-creates the backend in
@@ -513,6 +521,36 @@ class OvPhysxManager(PhysicsManager):
         return layer.ExportToString()
 
     @classmethod
+    def _serialize_selected_stage(cls, sim_stage: Any) -> str:
+        """Serialize either the complete stage or the env-0 clone source."""
+        if cls._requires_full_stage:
+            return sim_stage.Flatten().ExportToString()
+        return cls._serialize_env0_only_stage(sim_stage)
+
+    @classmethod
+    def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:
+        """Replay runtime clones unless the serialized stage already contains them."""
+        if requires_full_stage:
+            cls._pending_clones.clear()
+            return
+
+        for source, targets, parent_positions in cls._pending_clones:
+            logger.info(
+                "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
+                source,
+                len(targets),
+                targets[0],
+                targets[-1],
+            )
+            if parent_positions:
+                transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
+            else:
+                transforms = None
+            op_idx = physx.clone(source, targets, transforms)
+            physx.wait_op(op_idx)
+        cls._pending_clones.clear()
+
+    @classmethod
     def _warmup_and_load(cls) -> None:
         """Serialize the USD stage and attach it to the ovphysx runtime.
 
@@ -565,16 +603,12 @@ class OvPhysxManager(PhysicsManager):
         # ``create_tensor_binding`` call into an O(N) USD enumeration -- the
         # hang you'd see at large env counts.
         #
-        # The workaround: strip ``/World/envs/env_<i>`` for i != 0 from the
-        # flattened layer before handing it to the wheel. Sensors that read
-        # USD directly (RayCaster, Camera, ContactSensor discovery) still see
-        # the full N-env stage; only the wheel-side physics ingestion is
-        # scoped to env_0, and ``physx.clone()`` re-populates env_1..N in
-        # the physics runtime with proper clone lineage (which is what the
-        # binding fast path expects).
-        stage_usda = cls._serialize_env0_only_stage(sim.stage)
+        # By default the serialized stage keeps only env_0 and runtime cloning
+        # re-populates env_1..N. Features that need distinct authored physics in
+        # every environment request the full stage and skip runtime cloning.
+        stage_usda = cls._serialize_selected_stage(sim.stage)
         cls._stage_usda = stage_usda
-        logger.info("OvPhysxManager: serialized env_0-scoped USD stage in memory")
+        logger.info("OvPhysxManager: serialized selected USD stage in memory")
 
         if cls._physx is None:
             cls._construct_physx(ovphysx_device, gpu_index)
@@ -592,29 +626,7 @@ class OvPhysxManager(PhysicsManager):
         cls._attach_ovstage(stage_usda)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
-        # Replay pending physics clones registered by ovphysx_replicate().
-        # The USD stage contains only env_0's physics; env_1..N are empty
-        # Xform containers.  physx.clone() creates the remaining environments
-        # in the physics runtime without modifying the attached OVStage.
-        if cls._pending_clones:
-            # The cfg-level OvPhysX replicator registers pending clones for physics
-            # regardless of whether USD copies were also queued for rendering. Execute
-            # unconditionally — no USD content heuristic is needed.
-            for source, targets, parent_positions in cls._pending_clones:
-                logger.info(
-                    "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
-                    source,
-                    len(targets),
-                    targets[0],
-                    targets[-1],
-                )
-                if parent_positions:
-                    transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
-                else:
-                    transforms = None
-                op_idx = cls._physx.clone(source, targets, transforms)
-                cls._physx.wait_op(op_idx)
-            cls._pending_clones = []
+        cls._replay_pending_clones(cls._physx, requires_full_stage=cls._requires_full_stage)
 
         # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
