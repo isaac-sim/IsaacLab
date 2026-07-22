@@ -108,7 +108,8 @@ class TeleopMessageProcessor(BaseRetargeter):
         """Schedule a reset pulse on the next pipeline step.
 
         The ``reset`` output will be ``True`` for exactly one frame, then
-        automatically cleared.
+        automatically cleared. Any in-flight start/stop toggle sequence is also
+        cancelled on that step so stale edges do not fire after the reset.
         """
         self._inject_reset_pending = True
 
@@ -217,6 +218,12 @@ class TeleopMessageProcessor(BaseRetargeter):
         for injected_kind in injected_commands:
             if self._apply_command_kind(injected_kind):
                 reset = True
+
+        # Cancel any in-flight toggle sequence on reset so stale edges can't drive the
+        # state manager afterwards. Cleared here (compute thread, where it drains), not in
+        # inject_reset; shadow is left alone since reset doesn't change the manager's state.
+        if reset:
+            self._run_toggle_queue = []
 
         # Drain the toggle queue (one value per frame).
         if self._run_toggle_queue:
