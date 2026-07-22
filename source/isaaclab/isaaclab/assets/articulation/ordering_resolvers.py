@@ -85,6 +85,28 @@ class _ArticulationElementKind:
     config_field: str
     matches_backend_spelling: bool
 
+    def get_backend_names(self, articulation: BaseArticulation) -> tuple[str, ...]:
+        """Return active backend names from an articulation."""
+        return _validate_articulation_names(
+            getattr(articulation, self.backend_names_attr),
+            parameter_name=f"Articulation {self.backend_names_attr}",
+        )
+
+    def resolve_target_name(self, prim: Usd.Prim) -> str:
+        """Return the articulation name represented by a robot schema target prim."""
+        name_override = _get_prim_authored_string(prim, self.name_override_attrs)
+        return name_override if name_override is not None else _get_prim_name(prim)
+
+    def match_backend_spellings(
+        self,
+        names: Sequence[str],
+        backend_names: Sequence[str],
+    ) -> tuple[str, ...]:
+        """Return convention names rewritten with active-backend spellings when needed."""
+        if self.matches_backend_spelling:
+            return _match_backend_joint_name_spellings(names, backend_names)
+        return tuple(names)
+
 
 _JOINT_KIND = _ArticulationElementKind(
     label="joint",
@@ -143,12 +165,6 @@ def _validate_ordering_kind(kind: _ArticulationElementKind | str) -> _Articulati
     if resolved is not None:
         return resolved
     raise ValueError(f"kind must be 'joint' or 'body'; got {kind!r}.")
-
-
-def _get_backend_names(articulation: BaseArticulation, kind: _ArticulationElementKind) -> tuple[str, ...]:
-    """Return active backend names from an articulation."""
-    attr_name = kind.backend_names_attr
-    return _validate_articulation_names(getattr(articulation, attr_name), parameter_name=f"Articulation {attr_name}")
 
 
 def _get_cached_convention_names(
@@ -213,14 +229,6 @@ def _get_prim_authored_string(prim: Usd.Prim, attr_names: Sequence[str]) -> str 
 def _get_prim_name(prim: Usd.Prim) -> str:
     """Return a prim's name."""
     return prim.GetName()
-
-
-def _get_robot_schema_target_name(prim: Usd.Prim, kind: _ArticulationElementKind) -> str:
-    """Return the articulation name represented by a robot schema target prim."""
-    name_override = _get_prim_authored_string(prim, kind.name_override_attrs)
-    if name_override is not None:
-        return name_override
-    return _get_prim_name(prim)
 
 
 def _get_relationship_targets(prim: Usd.Prim, relationship_name: str) -> tuple[Sdf.Path, ...]:
@@ -298,7 +306,7 @@ def _collect_robot_schema_relationship_names(
                 )
             )
         else:
-            names.append(_get_robot_schema_target_name(target_prim, kind))
+            names.append(kind.resolve_target_name(target_prim))
     return tuple(names)
 
 
@@ -358,16 +366,6 @@ def _match_backend_joint_name_spellings(
     return tuple(matched_names)
 
 
-def _match_backend_name_spellings(
-    *,
-    kind: _ArticulationElementKind,
-    names: Sequence[str],
-    backend_names: Sequence[str],
-) -> tuple[str, ...]:
-    """Return convention names rewritten with active-backend spellings when needed."""
-    return _match_backend_joint_name_spellings(names, backend_names) if kind.matches_backend_spelling else tuple(names)
-
-
 def _get_complete_convention_names(
     *,
     kind: _ArticulationElementKind,
@@ -383,11 +381,7 @@ def _get_complete_convention_names(
     if names is None:
         return None
     candidate_names = names
-    candidate_names = _match_backend_name_spellings(
-        kind=kind,
-        names=candidate_names,
-        backend_names=backend_names,
-    )
+    candidate_names = kind.match_backend_spellings(candidate_names, backend_names)
     backend_names = tuple(backend_names)
     if len(candidate_names) != len(backend_names) or set(candidate_names) != set(backend_names):
         return None
@@ -406,7 +400,7 @@ def _get_complete_convention_names_by_kind(
     """
     complete_names: dict[_ArticulationElementKind, tuple[str, ...]] = {}
     for candidate_kind in (_JOINT_KIND, _BODY_KIND):
-        backend_names = _get_backend_names(articulation, candidate_kind)
+        backend_names = candidate_kind.get_backend_names(articulation)
         names = _get_complete_convention_names(
             kind=candidate_kind,
             names=names_by_kind.get(candidate_kind.label),
@@ -460,7 +454,7 @@ def _get_robot_schema_names(
         reason describing why resolution stopped (empty when names were
         resolved).
     """
-    backend_names = _get_backend_names(articulation, kind)
+    backend_names = kind.get_backend_names(articulation)
     relationship_name = kind.relationship_name
 
     candidate_prims = _get_robot_schema_candidate_prims(articulation)
@@ -696,13 +690,13 @@ def _resolve_articulation_convention_name_ordering(
     kind = _validate_ordering_kind(kind)
     parsed_convention = parse_articulation_ordering_convention(convention)
     if parsed_convention is None:
-        return _get_backend_names(articulation, kind)
+        return kind.get_backend_names(articulation)
 
     active_backend_name = articulation.__backend_name__
     if _backend_matches_ordering_convention(articulation, parsed_convention):
-        return _get_backend_names(articulation, kind)
+        return kind.get_backend_names(articulation)
 
-    backend_names = _get_backend_names(articulation, kind)
+    backend_names = kind.get_backend_names(articulation)
     resolution_failures: list[str] = []
 
     cached_names = _get_cached_convention_names(articulation, parsed_convention, kind)
@@ -888,7 +882,7 @@ def _resolve_articulation_ordering_names(
             convention=convention,
             kind=kind,
         )
-        return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
+        return kind.match_backend_spellings(convention_names, backend_names)
 
     config_field = kind.config_field
     raise NotImplementedError(
