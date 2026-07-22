@@ -63,7 +63,7 @@ def _apply_transform(
     if translation is not None:
         xform.AddTranslateOp().Set(Gf.Vec3d(*translation))
     if orientation is not None:
-        xform.AddOrientOp().Set(Gf.Quatf(orientation[0], orientation[1], orientation[2], orientation[3]))
+        xform.AddOrientOp().Set(Gf.Quatf(orientation[3], orientation[0], orientation[1], orientation[2]))
     xform.AddScaleOp().Set(Gf.Vec3f(1.0, 1.0, 1.0))
 
 
