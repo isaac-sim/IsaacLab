@@ -695,7 +695,7 @@ def test_newton_legacy_cfg_matches_equivalent_fragment_composition():
 
 
 # -------------------------------------------------------------------------------------
-# end-to-end: the from-files transition bridge routes articulation_props by type
+# end-to-end: the from-files spawner routes articulation_props by type
 # -------------------------------------------------------------------------------------
 
 
@@ -710,9 +710,9 @@ def _author_articulation_usd(path: str) -> None:
     asset_stage.Save()
 
 
-@pytest.mark.parametrize("articulation_props", [None, []], ids=["none", "empty"])
+@pytest.mark.parametrize("articulation_props", [None, {}], ids=["none", "empty"])
 def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articulation_props):
-    """None and an empty fragment collection both honor the independent topology flag."""
+    """None and an empty fragment mapping both honor the independent topology flag."""
     from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
@@ -731,7 +731,7 @@ def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articu
 
 
 def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
-    """The real FileCfg transition bridge composes backend fragments on the relocated root."""
+    """The real FileCfg fragment path composes backend fragments on the relocated root."""
     from isaaclab_newton.sim.schemas import NewtonArticulationCfg
     from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
@@ -744,10 +744,12 @@ def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
     _author_articulation_usd(usd_path)
     cfg = UsdFileCfg(
         usd_path=usd_path,
-        articulation_props=[
-            PhysxArticulationCfg(solver_position_iteration_count=8),
-            NewtonArticulationCfg(self_collision_enabled=True),
-        ],
+        articulation_props={
+            "**": [
+                PhysxArticulationCfg(solver_position_iteration_count=8),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
+        },
         fix_root_link=True,
     )
 

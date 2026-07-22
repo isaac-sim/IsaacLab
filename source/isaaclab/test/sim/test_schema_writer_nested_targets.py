@@ -83,7 +83,7 @@ def test_rigid_body_fragments_target_existing_bodies_on_usd_asset(tmp_path):
     stage = _spawn_robot(
         tmp_path,
         "/World/RobotA",
-        rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=5.0)],
+        rigid_props={"**": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]},
     )
     spawn_prim = stage.GetPrimAtPath("/World/RobotA")
     # the spawn prim keeps its articulation root and gains NO rigid-body anchor or attrs
@@ -102,7 +102,7 @@ def test_collision_fragments_target_existing_colliders_on_usd_asset(tmp_path):
     stage = _spawn_robot(
         tmp_path,
         "/World/RobotB",
-        collision_props=[PhysxCollisionCfg(contact_offset=0.02)],
+        collision_props={"**": [PhysxCollisionCfg(contact_offset=0.02)]},
     )
     spawn_prim = stage.GetPrimAtPath("/World/RobotB")
     assert not spawn_prim.HasAPI(UsdPhysics.CollisionAPI)
@@ -118,7 +118,7 @@ def test_mass_fragments_target_existing_mass_prims_on_usd_asset(tmp_path):
     stage = _spawn_robot(
         tmp_path,
         "/World/RobotC",
-        mass_props=[MassCfg(mass=2.0)],
+        mass_props={"**": [MassCfg(mass=2.0)]},
     )
     spawn_prim = stage.GetPrimAtPath("/World/RobotC")
     assert not spawn_prim.HasAPI(UsdPhysics.MassAPI)
@@ -145,7 +145,7 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     legacy_cfg = UsdFileCfg(usd_path=usd_path, rigid_props=PhysxRigidBodyPropertiesCfg(max_depenetration_velocity=5.0))
-    frag_cfg = UsdFileCfg(usd_path=usd_path, rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=5.0)])
+    frag_cfg = UsdFileCfg(usd_path=usd_path, rigid_props={"**": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]})
     _spawn_from_usd_file("/World/Legacy", usd_path, legacy_cfg)
     _spawn_from_usd_file("/World/Frag", usd_path, frag_cfg)
     stage = sim_utils.get_current_stage()
@@ -164,12 +164,11 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
 
 
 def test_rigid_body_pattern_cfg_narrows_spawned_targets(tmp_path):
-    """``rigid_props_prim_path`` on the spawner cfg restricts which links receive fragments."""
+    """A narrowing dict key on the spawner cfg restricts which links receive fragments."""
     stage = _spawn_robot(
         tmp_path,
         "/World/RobotD",
-        rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=5.0)],
-        rigid_props_prim_path="link2/**",
+        rigid_props={"link2/**": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]},
     )
     modified = stage.GetPrimAtPath("/World/RobotD/link2")
     nested = stage.GetPrimAtPath("/World/RobotD/link2/link3")
@@ -177,6 +176,24 @@ def test_rigid_body_pattern_cfg_narrows_spawned_targets(tmp_path):
     assert modified.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
     assert nested.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
     assert not untouched.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+
+
+def test_fragment_dicts_target_and_override_in_insertion_order(tmp_path):
+    """Dict entries target independently; later entries override earlier ones on overlap."""
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/RobotE",
+        rigid_props={
+            "**": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)],
+            "link2/**": [PhysxRigidBodyCfg(max_depenetration_velocity=1.0)],
+        },
+    )
+    broad_only = stage.GetPrimAtPath("/World/RobotE/link1")
+    overridden = stage.GetPrimAtPath("/World/RobotE/link2")
+    nested_overridden = stage.GetPrimAtPath("/World/RobotE/link2/link3")
+    assert broad_only.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
+    assert overridden.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(1.0)
+    assert nested_overridden.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(1.0)
 
 
 # -------------------------------------------------------------------------------------

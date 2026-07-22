@@ -151,7 +151,7 @@ def test_apply_rigid_body_properties_composes_namespaces():
 
 
 # -------------------------------------------------------------------------------------
-# spawner slot accepts a fragment list + transition routing
+# spawner slot accepts a fragment mapping + routing by type
 # -------------------------------------------------------------------------------------
 
 
@@ -164,7 +164,7 @@ def test_spawn_shape_with_rigid_fragment_list():
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = sim_utils.CuboidCfg(
         size=(1, 1, 1),
-        rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True), PhysxRigidBodyCfg(linear_damping=0.3)],
+        rigid_props={"": [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True), PhysxRigidBodyCfg(linear_damping=0.3)]},
     )
     cfg.func("/World/Cube", cfg)
     prim = sim_utils.get_current_stage().GetPrimAtPath("/World/Cube")

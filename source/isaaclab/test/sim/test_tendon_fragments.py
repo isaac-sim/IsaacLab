@@ -468,8 +468,8 @@ def test_legacy_and_fragment_fixed_tendon_produce_identical_attrs():
 
 
 def test_spawn_from_file_with_empty_tendon_lists_is_noop(tmp_path):
-    # an empty tendon list is type-valid for the slot; the spawner shim must route it through the
-    # fragment path (a no-op) rather than handing [] to the legacy modify_*_tendon_properties writer.
+    # a mapping entry with an empty fragment list is type-valid for the slot; the spawner must route
+    # it through the fragment path (a no-op) rather than the legacy modify_*_tendon_properties writer.
     asset = tmp_path / "mini.usda"
     src = Usd.Stage.CreateNew(str(asset))
     UsdGeom.Xform.Define(src, "/Root")
@@ -478,6 +478,6 @@ def test_spawn_from_file_with_empty_tendon_lists_is_noop(tmp_path):
     del src
 
     _new_sim()
-    cfg = sim_utils.UsdFileCfg(usd_path=str(asset), fixed_tendons_props=[], spatial_tendons_props=[])
+    cfg = sim_utils.UsdFileCfg(usd_path=str(asset), fixed_tendons_props={"**": []}, spatial_tendons_props={"**": []})
     cfg.func("/World/Asset", cfg)  # must not raise
     assert sim_utils.get_current_stage().GetPrimAtPath("/World/Asset").IsValid()

@@ -12,29 +12,43 @@ from isaaclab.utils.configclass import configclass
 class MeshConverterCfg(AssetConverterBaseCfg):
     """The configuration class for MeshConverter."""
 
-    mass_props: schemas_cfg.MassPropertiesCfg = None
+    mass_props: dict[str, list[schemas_cfg.MassFragment]] | schemas_cfg.MassPropertiesCfg | None = None
     """Mass properties to apply to the USD. Defaults to None.
+
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``{"": [MassCfg(...)]}``) or a
+    single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg`. Keys are target patterns
+    relative to the root Xform prim of the converted asset; an empty string targets that prim
+    itself. Entries are applied in insertion order, so on overlapping targets later entries
+    override earlier ones per attribute.
 
     Note:
         If None, then no mass properties will be added.
     """
 
-    rigid_props: schemas_cfg.RigidBodyBaseCfg = None
+    rigid_props: dict[str, list[schemas_cfg.RigidBodyFragment]] | schemas_cfg.RigidBodyBaseCfg | None = None
     """Rigid body properties to apply to the USD. Defaults to None.
+
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.RigidBodyFragment` fragments or a single legacy cfg
+    (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`). Keys are target patterns relative to
+    the root Xform prim of the converted asset; an empty string targets that prim itself. Entries
+    are applied in insertion order, so on overlapping targets later entries override earlier ones
+    per attribute.
 
     Note:
         If None, then no rigid body properties will be added.
     """
 
-    collision_props: (
-        schemas_cfg.CollisionPropertiesCfg | schemas_cfg.CollisionFragment | list[schemas_cfg.CollisionFragment]
-    ) = None
+    collision_props: dict[str, list[schemas_cfg.CollisionFragment]] | schemas_cfg.CollisionPropertiesCfg | None = None
     """Collision properties to apply to the USD. Defaults to None.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`) or a
-    list of :class:`~isaaclab.sim.schemas.CollisionFragment` fragments. When a fragment list is
-    given, ``UsdPhysics.CollisionAPI`` is applied as the implicit anchor and each fragment writes
-    its own namespace.
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.CollisionFragment` fragments or a single legacy cfg
+    (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`). Keys are target patterns relative to
+    each Mesh prim of the converted asset; an empty string targets the mesh prim itself. Entries
+    are applied in insertion order, so on overlapping targets later entries override earlier ones
+    per attribute.
 
     Note:
         If None, then no collision properties will be added.

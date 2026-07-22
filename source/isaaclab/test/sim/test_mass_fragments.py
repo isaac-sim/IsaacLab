@@ -82,40 +82,22 @@ def test_apply_mass_properties_applies_anchor_and_writes_fields():
 
 
 # -------------------------------------------------------------------------------------
-# spawner slot accepts a fragment list + transition routing
+# spawner slot accepts a fragment mapping + routing by type
 # -------------------------------------------------------------------------------------
 
 
-def test_spawn_shape_with_mass_fragment_list():
+def test_spawn_shape_with_mass_fragment_dict():
     from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = sim_utils.CuboidCfg(
         size=(1, 1, 1),
-        rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)],
-        mass_props=[MassCfg(mass=4.0)],
+        rigid_props={"": [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)]},
+        mass_props={"": [MassCfg(mass=4.0)]},
     )
     cfg.func("/World/Cube", cfg)
     prim = sim_utils.get_current_stage().GetPrimAtPath("/World/Cube")
-    assert bool(UsdPhysics.MassAPI(prim))
-    assert abs(prim.GetAttribute("physics:mass").Get() - 4.0) < 1e-6
-
-
-def test_spawn_shape_with_single_mass_fragment():
-    # the ``mass_props`` slot advertises a single fragment (convenience form), not only a list;
-    # the spawn shim must route a bare fragment through ``apply_mass_properties`` (not the legacy writer)
-    from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    cfg = sim_utils.CuboidCfg(
-        size=(1, 1, 1),
-        rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)],
-        mass_props=MassCfg(mass=4.0),
-    )
-    cfg.func("/World/CubeSingle", cfg)
-    prim = sim_utils.get_current_stage().GetPrimAtPath("/World/CubeSingle")
     assert bool(UsdPhysics.MassAPI(prim))
     assert abs(prim.GetAttribute("physics:mass").Get() - 4.0) < 1e-6
 
@@ -183,10 +165,10 @@ def test_spawn_shape_with_empty_mass_list_is_noop():
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = sim_utils.CuboidCfg(
         size=(1, 1, 1),
-        rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)],
-        mass_props=[],
+        rigid_props={"": [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)]},
+        mass_props={"": []},
     )
-    # an empty fragment list routes through the fragment path and applies nothing (no exception)
+    # an entry with an empty fragment list routes through the fragment path and applies nothing (no exception)
     cfg.func("/World/Cube", cfg)
     prim = sim_utils.get_current_stage().GetPrimAtPath("/World/Cube")
     # mass anchor is not required when there are zero fragments to apply

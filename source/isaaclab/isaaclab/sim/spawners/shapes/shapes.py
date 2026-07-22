@@ -295,15 +295,15 @@ def _spawn_geom_from_prim_type(
     # create the geometry prim
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
     # apply collision properties
+    # fragment path: a mapping from target pattern to fragment list, applied entry by entry in
+    # insertion order; patterns anchor at the geometry prim this spawner authors, so ``""``
+    # preserves the legacy placement. Otherwise a legacy cfg routes to the legacy writer.
     if cfg.collision_props is not None:
-        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
-        coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-        if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
-            if cfg.collision_props_prim_path is None:
-                coll_expr = mesh_prim_path
-            else:
-                coll_expr = props_expr(prim_path, cfg.collision_props_prim_path)
-            schemas.apply_collision_properties(coll_expr, coll_frags, create_if_missing=True, stage=stage)
+        if isinstance(cfg.collision_props, dict):
+            for pattern, fragments in cfg.collision_props.items():
+                schemas.apply_collision_properties(
+                    props_expr(mesh_prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
         else:
             schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
     # apply visual material
@@ -329,27 +329,22 @@ def _spawn_geom_from_prim_type(
 
     # note: we apply rigid properties in the end to later make the instanceable prim
     # apply mass properties
+    # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
+    # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
     if cfg.mass_props is not None:
-        # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> define_*
-        # normalize a single fragment to a list so the convenience form routes like a list
-        mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
-        if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
-            if cfg.mass_props_prim_path is None:
-                mass_expr = prim_path
-            else:
-                mass_expr = props_expr(prim_path, cfg.mass_props_prim_path)
-            schemas.apply_mass_properties(mass_expr, mass_frags, create_if_missing=True, stage=stage)
+        if isinstance(cfg.mass_props, dict):
+            for pattern, fragments in cfg.mass_props.items():
+                schemas.apply_mass_properties(
+                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
         else:
             schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
     if cfg.rigid_props is not None:
-        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
-        rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
-        if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
-            if cfg.rigid_props_prim_path is None:
-                rigid_expr = prim_path
-            else:
-                rigid_expr = props_expr(prim_path, cfg.rigid_props_prim_path)
-            schemas.apply_rigid_body_properties(rigid_expr, rigid_frags, create_if_missing=True, stage=stage)
+        if isinstance(cfg.rigid_props, dict):
+            for pattern, fragments in cfg.rigid_props.items():
+                schemas.apply_rigid_body_properties(
+                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
         else:
             schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

@@ -82,81 +82,64 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
         to the prim outside of the properties available by default when spawning the prim.
     """
 
-    mass_props: schemas.MassPropertiesCfg | schemas.MassFragment | list[schemas.MassFragment] | None = None
+    mass_props: dict[str, list[schemas.MassFragment]] | schemas.MassPropertiesCfg | None = None
     """Mass properties.
 
-    Accepts either a single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg` or a list of
-    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``[MassCfg(...)]``). When a fragment
-    list is given, ``UsdPhysics.MassAPI`` is applied as the implicit anchor and each fragment writes
-    its own namespace.
-    """
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``{"**": [MassCfg(...)]}``) or a
+    single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg`. On the fragment path each
+    fragment writes its own namespace.
 
-    mass_props_prim_path: str | None = None
-    """Target pattern selecting which prims of the spawned asset receive :attr:`mass_props` fragments.
-    Defaults to None.
-
-    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
-    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
-    the spawner default is used (for USD assets: the spawn prim's whole subtree; for shapes and
-    meshes: the exact prim the spawner authors). An empty string targets the spawn prim itself.
-    Only consumed when :attr:`mass_props` is given as fragments; legacy single-cfg values ignore it.
+    Keys are target patterns relative to the prim the spawner anchors this family on (for USD
+    assets: the spawn prim; for shapes and meshes: the container prim). Each ``/``-separated token
+    is a regular expression matched per level, a trailing ``**`` token matches a prim and all its
+    descendants, and an empty string targets the anchor prim itself. Entries are applied in
+    insertion order, so on overlapping targets later entries override earlier ones per attribute.
     """
 
     mass_props_create_if_missing: bool = False
-    """Whether the mass writer may apply ``UsdPhysics.MassAPI`` to matched rigid bodies that lack it.
-    Defaults to False.
+    """Whether the mass writer may apply ``UsdPhysics.MassAPI`` to matched prims that lack it.
+    Defaults to False. The flag applies to every entry of the :attr:`mass_props` mapping.
 
     Only consumed when :attr:`mass_props` is given as fragments and the asset is spawned from a
     USD file; the shape and mesh spawners always create the API on the bare prim they author.
     """
 
-    rigid_props: schemas.RigidBodyBaseCfg | schemas.RigidBodyFragment | list[schemas.RigidBodyFragment] | None = None
+    rigid_props: dict[str, list[schemas.RigidBodyFragment]] | schemas.RigidBodyBaseCfg | None = None
     """Rigid body properties.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`) or a
-    list of :class:`~isaaclab.sim.schemas.RigidBodyFragment` fragments
-    (e.g. ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``). When a fragment list is given,
-    ``UsdPhysics.RigidBodyAPI`` is applied as the implicit anchor and each fragment writes its own
-    namespace.
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.RigidBodyFragment` fragments
+    (e.g. ``{"**": [UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]}``) or a single legacy cfg
+    (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`). On the fragment path each fragment
+    writes its own namespace.
+
+    Keys are target patterns relative to the prim the spawner anchors this family on (for USD
+    assets: the spawn prim; for shapes and meshes: the container prim). Each ``/``-separated token
+    is a regular expression matched per level, a trailing ``**`` token matches a prim and all its
+    descendants, and an empty string targets the anchor prim itself. Entries are applied in
+    insertion order, so on overlapping targets later entries override earlier ones per attribute.
 
     For making a rigid object static, set the :attr:`schemas.RigidBodyBaseCfg.kinematic_enabled`
     (or :attr:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg.kinematic_enabled`) as True. This will
     make the object static and will not be affected by gravity or other forces.
     """
 
-    rigid_props_prim_path: str | None = None
-    """Target pattern selecting which prims of the spawned asset receive :attr:`rigid_props` fragments.
-    Defaults to None.
-
-    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
-    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
-    the spawner default is used (for USD assets: the spawn prim's whole subtree; for shapes and
-    meshes: the exact prim the spawner authors). An empty string targets the spawn prim itself.
-    Only consumed when :attr:`rigid_props` is given as fragments; legacy single-cfg values ignore it.
-    """
-
-    collision_props: (
-        schemas.CollisionPropertiesCfg | schemas.CollisionFragment | list[schemas.CollisionFragment] | None
-    ) = None
+    collision_props: dict[str, list[schemas.CollisionFragment]] | schemas.CollisionPropertiesCfg | None = None
     """Properties to apply to all collision meshes.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`) or a
-    list of :class:`~isaaclab.sim.schemas.CollisionFragment` fragments
-    (e.g. ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]``). When a fragment list is given,
-    ``UsdPhysics.CollisionAPI`` is applied as the implicit anchor and each fragment writes its own
-    namespace.
-    """
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.CollisionFragment` fragments
+    (e.g. ``{"**": [UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]}``) or a single legacy cfg
+    (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`). On the fragment path each fragment
+    writes its own namespace.
 
-    collision_props_prim_path: str | None = None
-    """Target pattern selecting which prims of the spawned asset receive :attr:`collision_props` fragments.
-    Defaults to None.
-
-    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
-    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
-    the spawner default is used (for USD assets: the spawn prim's whole subtree; for shapes and
-    meshes: the exact prim the spawner authors). An empty string targets the spawn prim itself.
-    Only consumed when :attr:`collision_props` is given as fragments; legacy single-cfg values
-    ignore it.
+    Keys are target patterns relative to the prim the spawner anchors this family on (for USD
+    assets: the spawn prim; for shapes and meshes: the geometry prim the spawner authors). Each
+    ``/``-separated token is a regular expression matched per level, a trailing ``**`` token
+    matches a prim and all its descendants, and an empty string targets the anchor prim itself.
+    Entries are applied in insertion order, so on overlapping targets later entries override
+    earlier ones per attribute.
     """
 
     activate_contact_sensors: bool = False

@@ -200,7 +200,7 @@ def test_collision_fragments_zero_targets_warn_and_return_false(caplog):
 
 
 # -------------------------------------------------------------------------------------
-# spawner slot accepts a fragment list + transition routing
+# spawner slot accepts a fragment mapping + routing by type
 # -------------------------------------------------------------------------------------
 
 
@@ -213,7 +213,7 @@ def test_spawn_shape_with_collision_fragment_list():
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = sim_utils.CuboidCfg(
         size=(1, 1, 1),
-        collision_props=[UsdPhysicsCollisionCfg(collision_enabled=True), PhysxCollisionCfg(contact_offset=0.03)],
+        collision_props={"": [UsdPhysicsCollisionCfg(collision_enabled=True), PhysxCollisionCfg(contact_offset=0.03)]},
     )
     cfg.func("/World/Cube", cfg)
     prim = sim_utils.get_current_stage().GetPrimAtPath("/World/Cube/geometry/mesh")

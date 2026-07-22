@@ -34,35 +34,27 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     scale: tuple[float, float, float] | None = None
     """Scale of the asset. Defaults to None, in which case the scale is not modified."""
 
-    articulation_props: (
-        schemas.ArticulationRootBaseCfg
-        | schemas.ArticulationRootFragment
-        | list[schemas.ArticulationRootFragment]
-        | None
-    ) = None
+    articulation_props: dict[str, list[schemas.ArticulationRootFragment]] | schemas.ArticulationRootBaseCfg | None = (
+        None
+    )
     """Properties to apply to the articulation root.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`)
-    or a list of :class:`~isaaclab.sim.schemas.ArticulationRootFragment` fragments
-    (e.g. ``[PhysxArticulationCfg(...), NewtonArticulationCfg(...)]``). When a fragment list is
-    given, ``UsdPhysics.ArticulationRootAPI`` is applied as the anchor (presence-gated) and each
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.ArticulationRootFragment` fragments
+    (e.g. ``{"**": [PhysxArticulationCfg(...), NewtonArticulationCfg(...)]}``) or a single legacy
+    cfg (e.g. :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`). On the fragment path each
     fragment writes its own namespace.
-    """
 
-    articulation_props_prim_path: str | None = None
-    """Target pattern selecting which prims of the spawned asset receive :attr:`articulation_props`
-    fragments. Defaults to None.
-
-    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
-    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
-    the spawner default is used (the spawn prim's whole subtree). An empty string targets the spawn
-    prim itself. Only consumed when :attr:`articulation_props` is given as fragments; legacy
-    single-cfg values ignore it.
+    Keys are target patterns relative to the spawn prim. Each ``/``-separated token is a regular
+    expression matched per level, a trailing ``**`` token matches a prim and all its descendants,
+    and an empty string targets the spawn prim itself. Entries are applied in insertion order, so
+    on overlapping targets later entries override earlier ones per attribute.
     """
 
     articulation_props_create_if_missing: bool = False
     """Whether the articulation writer may apply ``UsdPhysics.ArticulationRootAPI`` when no matched
-    prim carries it. Defaults to False.
+    prim carries it. Defaults to False. The flag applies to every entry of the
+    :attr:`articulation_props` mapping.
 
     Creation requires exactly one matched prim lacking the API. Only consumed when
     :attr:`articulation_props` is given as fragments.
@@ -73,8 +65,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     This is a non-USD, spawner-level behaviour flag consumed by
     :func:`~isaaclab.sim.schemas.apply_articulation_root_properties` on the fragment/topology path,
-    including when :attr:`articulation_props` is ``None`` or an empty fragment collection. It is handled
-    independently of whether any schema properties are supplied:
+    including when :attr:`articulation_props` is ``None`` or an empty mapping. When the mapping has
+    several entries, the flag is honored on the first entry only, since the root topology must not
+    be re-fixed per entry. It is handled independently of whether any schema properties are
+    supplied:
 
     * If set to None, the root link is not modified.
     * If the articulation already has a fixed root link, this flag enables or disables the fixed joint.
@@ -85,57 +79,49 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :attr:`~isaaclab.sim.schemas.ArticulationRootBaseCfg.fix_root_link` on that cfg instead.
     """
 
-    fixed_tendons_props: (
-        schemas.FixedTendonPropertiesCfg | schemas.FixedTendonFragment | list[schemas.FixedTendonFragment] | None
-    ) = None
+    fixed_tendons_props: dict[str, list[schemas.FixedTendonFragment]] | schemas.FixedTendonPropertiesCfg | None = None
     """Properties to apply to the fixed tendons (if any).
 
-    Accepts either the legacy :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`
-    or one or more :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
-    """
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.FixedTendonFragment` fragments or the legacy
+    :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
 
-    fixed_tendons_props_prim_path: str | None = None
-    """Target pattern selecting which prims of the spawned asset receive :attr:`fixed_tendons_props`
-    fragments. Defaults to None.
-
-    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
-    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
-    the spawner default is used (the spawn prim's whole subtree). An empty string targets the spawn
-    prim itself. Only consumed when :attr:`fixed_tendons_props` is given as fragments; legacy
-    single-cfg values ignore it.
+    Keys are target patterns relative to the spawn prim. Each ``/``-separated token is a regular
+    expression matched per level, a trailing ``**`` token matches a prim and all its descendants,
+    and an empty string targets the spawn prim itself. Entries are applied in insertion order, so
+    on overlapping targets later entries override earlier ones per attribute.
     """
 
     spatial_tendons_props: (
-        schemas.SpatialTendonPropertiesCfg | schemas.SpatialTendonFragment | list[schemas.SpatialTendonFragment] | None
+        dict[str, list[schemas.SpatialTendonFragment]] | schemas.SpatialTendonPropertiesCfg | None
     ) = None
     """Properties to apply to the spatial tendons (if any).
 
-    Accepts either the legacy :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`
-    or one or more :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.SpatialTendonFragment` fragments or the legacy
+    :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`.
+
+    Keys are target patterns relative to the spawn prim. Each ``/``-separated token is a regular
+    expression matched per level, a trailing ``**`` token matches a prim and all its descendants,
+    and an empty string targets the spawn prim itself. Entries are applied in insertion order, so
+    on overlapping targets later entries override earlier ones per attribute.
     """
 
-    spatial_tendons_props_prim_path: str | None = None
-    """Target pattern selecting which prims of the spawned asset receive :attr:`spatial_tendons_props`
-    fragments. Defaults to None.
-
-    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
-    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
-    the spawner default is used (the spawn prim's whole subtree). An empty string targets the spawn
-    prim itself. Only consumed when :attr:`spatial_tendons_props` is given as fragments; legacy
-    single-cfg values ignore it.
-    """
-
-    joint_drive_props: (
-        schemas.JointDriveBaseCfg | schemas.JointDriveFragment | list[schemas.JointDriveFragment] | None
-    ) = None
+    joint_drive_props: dict[str, list[schemas.JointDriveFragment]] | schemas.JointDriveBaseCfg | None = None
     """Properties to apply to a joint.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`) or a
-    list of :class:`~isaaclab.sim.schemas.JointDriveFragment` fragments
-    (e.g. ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]``). When a fragment list is given,
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.JointDriveFragment` fragments
+    (e.g. ``{"**": [UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]}``) or a single legacy cfg
+    (e.g. :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`). On the fragment path,
     ``UsdPhysics.DriveAPI`` is applied (presence-gated) only when a
     :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment is present, and each fragment writes
     its own namespace.
+
+    Keys are target patterns relative to the spawn prim. Each ``/``-separated token is a regular
+    expression matched per level, a trailing ``**`` token matches a prim and all its descendants,
+    and an empty string targets the spawn prim itself. Entries are applied in insertion order, so
+    on overlapping targets later entries override earlier ones per attribute.
 
     .. note::
         The joint drive properties set the USD attributes of all the joint drives in the asset.
@@ -144,20 +130,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         for specific joints in an articulation.
     """
 
-    joint_drive_props_prim_path: str | None = None
-    """Target pattern selecting which prims of the spawned asset receive :attr:`joint_drive_props`
-    fragments. Defaults to None.
-
-    The pattern is relative to the spawn prim. Each ``/``-separated token is a regular expression
-    matched per level, and a trailing ``**`` token matches a prim and all its descendants. If None,
-    the spawner default is used (the spawn prim's whole subtree). An empty string targets the spawn
-    prim itself. Only consumed when :attr:`joint_drive_props` is given as fragments; legacy
-    single-cfg values ignore it.
-    """
-
     joint_drive_props_create_if_missing: bool = False
     """Whether the joint-drive writer may apply the defining USD drive API to matched joint prims
-    that lack it. Defaults to False.
+    that lack it. Defaults to False. The flag applies to every entry of the
+    :attr:`joint_drive_props` mapping.
 
     Only consumed when :attr:`joint_drive_props` is given as fragments. This is independent of
     :attr:`ensure_drives_exist`, which instead patches zero-gain drives with a minimal stiffness.
@@ -169,8 +145,8 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     When True, any joint drive whose authored stiffness *and* damping are both zero is given a
     minimal stiffness (``1e-3``) so that backends (e.g. Newton) create proper actuators for it.
     This is a spawner-level behavior flag (not a USD attribute and not a fragment field). It is
-    only consumed when :attr:`joint_drive_props` is given as a fragment list; legacy
-    :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` cfgs carry their own
+    only consumed when :attr:`joint_drive_props` is given as fragments, and applies to every entry
+    of the mapping; legacy :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` cfgs carry their own
     ``ensure_drives_exist`` field.
     """
 

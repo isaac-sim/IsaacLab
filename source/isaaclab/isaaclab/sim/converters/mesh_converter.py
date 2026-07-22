@@ -16,6 +16,7 @@ from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
 from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
+from isaaclab.sim.spawners._utils import props_expr
 from isaaclab.sim.utils import delete_prim, export_prim_to_file
 
 # import logger
@@ -127,14 +128,17 @@ class MeshConverter(AssetConverterBase):
                 # Apply collider properties to mesh
                 if cfg.collision_props is not None:
                     # -- Collider properties such as offset, scale, etc.
-                    # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
-                    coll_frags = (
-                        cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-                    )
-                    if coll_frags and all(isinstance(f, SchemaFragment) for f in coll_frags):
-                        schemas.apply_collision_properties(
-                            str(child_mesh_prim.GetPath()), coll_frags, create_if_missing=True, stage=stage
-                        )
+                    # fragment path: mapping entries anchor at this mesh prim, so ``""`` preserves
+                    # the legacy placement; entries apply in insertion order. Otherwise a legacy
+                    # cfg routes to the legacy writer.
+                    if isinstance(cfg.collision_props, dict):
+                        for pattern, fragments in cfg.collision_props.items():
+                            schemas.apply_collision_properties(
+                                props_expr(str(child_mesh_prim.GetPath()), pattern),
+                                fragments,
+                                create_if_missing=True,
+                                stage=stage,
+                            )
                     else:
                         schemas.define_collision_properties(
                             prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
@@ -205,23 +209,25 @@ class MeshConverter(AssetConverterBase):
         # Apply mass and rigid body properties after everything else
         # Properties are applied to the top level prim to avoid the case where all instances of this
         #   asset unintentionally share the same rigid body properties
-        # apply mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
+        # fragment path: mapping entries anchor at the root Xform prim, so ``""`` preserves the
+        # legacy placement; entries apply in insertion order. Otherwise a legacy cfg routes to the
+        # legacy writer.
+        # apply mass properties
         if cfg.mass_props is not None:
-            # normalize a single fragment to a list so the convenience form routes like a list
-            mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, SchemaFragment) else cfg.mass_props
-            if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, SchemaFragment) for f in mass_frags):
-                schemas.apply_mass_properties(
-                    str(xform_prim.GetPath()), mass_frags, create_if_missing=True, stage=stage
-                )
+            if isinstance(cfg.mass_props, dict):
+                for pattern, fragments in cfg.mass_props.items():
+                    schemas.apply_mass_properties(
+                        props_expr(str(xform_prim.GetPath()), pattern), fragments, create_if_missing=True, stage=stage
+                    )
             else:
                 schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
-        # apply rigid body properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
+        # apply rigid body properties
         if cfg.rigid_props is not None:
-            rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
-            if rigid_frags and all(isinstance(f, SchemaFragment) for f in rigid_frags):
-                schemas.apply_rigid_body_properties(
-                    str(xform_prim.GetPath()), rigid_frags, create_if_missing=True, stage=stage
-                )
+            if isinstance(cfg.rigid_props, dict):
+                for pattern, fragments in cfg.rigid_props.items():
+                    schemas.apply_rigid_body_properties(
+                        props_expr(str(xform_prim.GetPath()), pattern), fragments, create_if_missing=True, stage=stage
+                    )
             else:
                 schemas.define_rigid_body_properties(prim_path=xform_prim.GetPath(), cfg=cfg.rigid_props, stage=stage)
 
