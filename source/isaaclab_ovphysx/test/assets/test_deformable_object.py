@@ -3,12 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# ignore private usage of variables warning
+# pyright: reportPrivateUsage=none
+
 """Real-backend tests for the OVPhysX deformable object."""
 
 from __future__ import annotations
 
 import multiprocessing
 import queue
+import sys
 import traceback
 from typing import Any
 
@@ -68,23 +72,50 @@ class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     )
 
 
-def _ovphysx_sim_context(device: str, *, gravity_enabled: bool = False):
+@configclass
+class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
+    """Interactive scene configuration with two rigid variants and a deformable."""
+
+    deformable: DeformableObjectCfg = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=pre_tetrahedralized_deformable_spawn_cfg(),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    )
+    shape: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Shape",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+                sim_utils.SphereCfg(radius=0.05),
+            ],
+            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
+            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            random_choice=False,
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
+    )
+
+
+def _ovphysx_sim_context(device: str, *, gravity_enabled: bool = True):
     """Build a kitless OVPhysX simulation context."""
     gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 60.0, gravity=gravity)
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, dt=0.01, gravity=gravity)
     return build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=True)
 
 
 def _generate_deformable_scene(
-    spawn: sim_utils.SpawnerCfg, num_objects: int = 2, height: float = 1.0
+    spawn: sim_utils.SpawnerCfg,
+    num_objects: int = 2,
+    height: float = 1.0,
+    initial_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
 ) -> DeformableObject:
     """Create independently authored deformables beneath matching parent prims."""
     for index in range(num_objects):
-        sim_utils.create_prim(f"/World/Table_{index}", "Xform", translation=(index * 0.5, 0.0, height))
+        sim_utils.create_prim(f"/World/Table_{index}", "Xform", translation=(index * 1.0, 0.0, height))
     cfg = DeformableObjectCfg(
         prim_path="/World/Table_.*/Object",
         spawn=spawn,
-        init_state=DeformableObjectCfg.InitialStateCfg(),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )
     return DeformableObject(cfg=cfg)
 
@@ -132,6 +163,7 @@ def _run_cpu_deformable_initialization(result_queue: Any) -> None:
     try:
         with _ovphysx_sim_context(device="cpu") as sim:
             deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=5)
+            assert sys.getrefcount(deformable) < 10
             try:
                 sim.reset()
             except RuntimeError as error:
@@ -161,6 +193,7 @@ def test_initialization(num_objects: int, material_path: str | None):
             pre_tetrahedralized_deformable_spawn_cfg(material_path=material_path), num_objects=num_objects
         )
 
+        assert sys.getrefcount(deformable) < 10
         sim.reset()
 
         assert deformable.is_initialized
@@ -205,6 +238,7 @@ def test_initialization_surface_deformable():
         sim.reset()
 
         assert deformable.is_initialized
+        assert deformable._deformable_type == "surface"
         assert deformable.num_instances == num_objects
         assert deformable.root_view.count == num_objects
         assert deformable.material_physx_view is not None
@@ -590,3 +624,59 @@ def test_mixed_deformable_rigid_scene_does_not_duplicate_runtime_clones():
         scene.update(sim.cfg.dt)
         _assert_finite_deformable_state(deformable)
         assert torch.isfinite(cube.data.root_pos_w.torch).all()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
+def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Materialize missing rigid targets beside full-stage deformable clones without duplicates."""
+    from isaaclab import cloner
+
+    clone_cfg_type = cloner.CloneCfg
+    monkeypatch.setattr(
+        cloner,
+        "CloneCfg",
+        lambda device: clone_cfg_type(device=device, clone_strategy=cloner.sequential),
+    )
+
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        num_envs = 4
+        scene = InteractiveScene(
+            HeterogeneousMixedDeformableRigidSceneCfg(
+                num_envs=num_envs,
+                env_spacing=1.0,
+                lazy_sensor_update=False,
+            )
+        )
+        plan = scene.clone_plan
+        assert plan is not None
+        shape_rows = plan.cfg_rows[id(scene.cfg.shape)]
+        shape_mask = plan.clone_mask[list(shape_rows)]
+        assert shape_mask.sum(dim=1).tolist() == [2, 2]
+        assert shape_mask.sum(dim=0).tolist() == [1, 1, 1, 1]
+
+        expected_paths = {f"/World/envs/env_{index}/Shape" for index in range(num_envs)}
+        source_paths = {plan.sources[row] for row in shape_rows}
+        assert source_paths == {"/World/envs/env_0/Shape", "/World/envs/env_1/Shape"}
+        stage = sim_utils.get_current_stage()
+        authored_paths = {path for path in expected_paths if stage.GetPrimAtPath(path).IsValid()}
+        assert authored_paths == source_paths
+        authored_deformable_paths = {f"/World/envs/env_{index}/Object/simulation" for index in range(num_envs)}
+        assert all(stage.GetPrimAtPath(path).IsValid() for path in authored_deformable_paths)
+
+        sim.reset()
+
+        deformable = scene["deformable"]
+        shape = scene["shape"]
+        assert deformable.root_view.count == num_envs, deformable.root_view.prim_paths
+        assert shape.root_view.count == num_envs, shape.root_view.prim_paths
+        runtime_paths = shape.root_view.prim_paths
+        assert set(runtime_paths) == expected_paths
+        assert len(runtime_paths) == len(set(runtime_paths)) == num_envs
+
+        sim.step()
+        scene.update(sim.cfg.dt)
+        _assert_finite_deformable_state(deformable)
+        assert torch.isfinite(shape.data.root_pos_w.torch).all()
