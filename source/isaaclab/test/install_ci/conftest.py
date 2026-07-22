@@ -118,6 +118,9 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "install_path_uv_pip: tests that exercise the uv pip install <wheel> install path"
     )
+    config.addinivalue_line(
+        "markers", "install_path_uv_run: tests that exercise the uv run (committed lockfile) install path"
+    )
     config.addinivalue_line("markers", "timeout: per-test timeout in seconds")
 
     try:

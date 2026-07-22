@@ -24,67 +24,34 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
     use_albedo = "albedo" in data_types
     use_semantic = "semantic_segmentation" in data_types
     use_instance_seg = "instance_segmentation_fast" in data_types
-    use_instance_id_seg = "instance_id_segmentation_fast" in data_types
     use_normals = "normals" in data_types
     use_motion_vectors = "motion_vectors" in data_types
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
     use_hdr = "rgb_hdr" in data_types
 
     if use_depth and not (
-        use_rgb
-        or use_albedo
-        or use_semantic
-        or use_instance_seg
-        or use_instance_id_seg
-        or use_normals
-        or use_motion_vectors
+        use_rgb or use_albedo or use_semantic or use_instance_seg or use_normals or use_motion_vectors
     ):
         source = "DistanceToCameraSD" if use_distance_to_camera else "DistanceToImagePlaneSD"
         return "/Render/Vars/depth", "depth", source
-    if use_albedo and not (
-        use_rgb or use_semantic or use_instance_seg or use_instance_id_seg or use_normals or use_motion_vectors
-    ):
+    if use_albedo and not (use_rgb or use_semantic or use_instance_seg or use_normals or use_motion_vectors):
         return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
     if use_semantic and not (use_rgb or use_albedo or use_normals or use_motion_vectors):
         return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
     if use_instance_seg and not (
-        use_rgb
-        or use_albedo
-        or use_semantic
-        or use_instance_id_seg
-        or use_normals
-        or use_depth
-        or use_hdr
-        or use_motion_vectors
+        use_rgb or use_albedo or use_semantic or use_normals or use_depth or use_hdr or use_motion_vectors
     ):
         return (
             "/Render/Vars/NonStableInstanceSegmentation",
             "NonStableInstanceSegmentation",
             "NonStableInstanceSegmentation",
         )
-    if use_instance_id_seg and not (
-        use_rgb
-        or use_albedo
-        or use_semantic
-        or use_instance_seg
-        or use_normals
-        or use_depth
-        or use_hdr
-        or use_motion_vectors
-    ):
-        return "/Render/Vars/InstanceSegmentationSD", "InstanceSegmentationSD", "InstanceSegmentationSD"
     if use_normals and not (
-        use_rgb
-        or use_albedo
-        or use_semantic
-        or use_instance_seg
-        or use_instance_id_seg
-        or use_depth
-        or use_motion_vectors
+        use_rgb or use_albedo or use_semantic or use_instance_seg or use_depth or use_motion_vectors
     ):
         return "/Render/Vars/NormalSD", "NormalSD", "NormalSD"
     if use_motion_vectors and not (
-        use_rgb or use_albedo or use_semantic or use_instance_seg or use_instance_id_seg or use_depth or use_normals
+        use_rgb or use_albedo or use_semantic or use_instance_seg or use_depth or use_normals
     ):
         return "/Render/Vars/TargetMotionSD", "TargetMotionSD", "TargetMotionSD"
     if use_hdr and not use_rgb:

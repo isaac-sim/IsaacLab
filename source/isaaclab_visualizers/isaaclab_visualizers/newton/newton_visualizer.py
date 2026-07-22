@@ -394,6 +394,14 @@ class NewtonVisualizer(BaseVisualizer):
         runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
+        if runtime_headless and not self.cfg.headless:
+            # print() instead of logger.warning(): the kitless launch path does not
+            # install a logging handler, so this user-facing notice would be swallowed.
+            print(
+                "[WARNING] [NewtonVisualizer] No display found (DISPLAY is unset); the Newton viewer runs"
+                " headless via EGL and no window will open. Run from a session with a display (or set"
+                " DISPLAY, e.g. 'export DISPLAY=:0') to see the viewer."
+            )
 
         # Use pyglet's EGL headless backend when requested or when no Linux X display is available.
         # This must run before the first ``pyglet.window`` import so ``Window`` resolves to
@@ -627,7 +635,9 @@ class NewtonVisualizer(BaseVisualizer):
             pose = body_physx_view.get_transforms()
         except RuntimeError:
             return None
-        return wp.to_torch(pose).view(*net_forces.shape[:-1], 7)[..., :3]
+        # the flat view data is body-major (one view pattern per body); net_forces is (N, B, 3)
+        num_envs, num_bodies = net_forces.shape[0], net_forces.shape[1]
+        return wp.to_torch(pose).view(num_bodies, num_envs, 7).transpose(0, 1)[..., :3]
 
     def _filter_visible_env_tensor(self, tensor: torch.Tensor, num_envs: int) -> torch.Tensor:
         """Apply Newton visualizer visible-world filtering to a sensor tensor."""

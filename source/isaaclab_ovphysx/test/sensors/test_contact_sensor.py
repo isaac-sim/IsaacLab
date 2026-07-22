@@ -53,7 +53,10 @@ from isaaclab_ovphysx.assets import RigidObject  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ovphysx.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 
+from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
+
 import isaaclab.sim as sim_utils  # noqa: E402
+import isaaclab.sim.schemas as schemas  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
@@ -518,6 +521,74 @@ def test_multi_body_per_sensor_indexing(device, num_envs):
             " e.g. a Cube_low contact was attributed to Cube_high because the kernel"
             " assumed env-major instead of pattern-major flat-buffer layout."
         )
+
+
+def _author_nested_chain(prim_path: str) -> None:
+    """Author a chain of kinematic rigid bodies whose link prims are nested under each other.
+
+    Mirrors the layout produced by the URDF importer in Isaac Sim 6.0+, where each child
+    link prim is authored under its parent link prim instead of as a flat sibling. The
+    bodies are kinematic so their poses stay at the authored values without joints.
+    """
+    stage = get_current_stage()
+    UsdGeom.Xform.Define(stage, prim_path)
+    link_specs = [
+        ("pelvis", (0.0, 0.0, 1.25)),
+        ("pelvis/left_hip", (0.0, 0.0, -0.5)),
+        ("pelvis/left_hip/left_knee", (0.0, 0.0, -0.5)),
+    ]
+    for rel_path, offset in link_specs:
+        link_path = f"{prim_path}/{rel_path}"
+        link = UsdGeom.Xform.Define(stage, link_path)
+        link.AddTranslateOp().Set(Gf.Vec3d(*offset))
+        body_api = UsdPhysics.RigidBodyAPI.Apply(link.GetPrim())
+        body_api.CreateKinematicEnabledAttr(True)
+        geom = UsdGeom.Cube.Define(stage, f"{link_path}/geom")
+        geom.GetSizeAttr().Set(0.5)
+        UsdPhysics.CollisionAPI.Apply(geom.GetPrim())
+    # add the contact-report schema to every nested link
+    schemas.activate_contact_sensors(prim_path)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("num_envs", [1, 3])
+def test_nested_rigid_body_hierarchy(device, num_envs):
+    """Checks contact binding creation and body resolution on nested rigid-body hierarchies.
+
+    Regression test for the sensor-pattern construction: patterns were built from the
+    first matched body's parent plus leaf names, which cannot address bodies nested
+    under other bodies, so the contact binding bound only the first-level links and
+    initialization failed on URDF-importer-style assets.
+
+    The chains are authored directly under each environment prim (no scene/cloner):
+    the sensor path under test only depends on the prims existing on the stage.
+    """
+    with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
+        stage = get_current_stage()
+        for env_id in range(num_envs):
+            env_xform = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+            env_xform.AddTranslateOp().Set(Gf.Vec3d(3.0 * env_id, 0.0, 0.0))
+            _author_nested_chain(f"/World/envs/env_{env_id}/Robot")
+        contact_sensor = ContactSensor(
+            ContactSensorCfg(
+                prim_path="/World/envs/env_.*/Robot/.*",
+                track_pose=False,
+                debug_vis=False,
+                update_period=0.0,
+            )
+        )
+        sim.reset()
+
+        # all three nested bodies must be resolved into the binding (pre-fix: init raised)
+        assert contact_sensor.num_sensors == 3
+        assert contact_sensor.body_names == ["pelvis", "left_hip", "left_knee"]
+
+        # step to fill the sensor buffers; kinematic bodies generate no contact forces
+        for _ in range(2):
+            sim.step()
+            contact_sensor.update(_SIM_DT, force_recompute=True)
+        net_forces = contact_sensor.data.net_forces_w.torch
+        assert net_forces.shape == (num_envs, 3, 3)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
