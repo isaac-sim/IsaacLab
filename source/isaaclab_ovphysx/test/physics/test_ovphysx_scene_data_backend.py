@@ -111,6 +111,47 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets(tmp_
         OvPhysxManager._pending_clones = previous
 
 
+def test_manager_full_stage_materializes_nested_targets_parent_before_child(tmp_path):
+    """Nested clone targets materialize shallow-to-deep regardless of queue order."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    groceries = stage.DefinePrim("/World/envs/env_0/Groceries", "Xform")
+    groceries.CreateAttribute("test:collection", Sdf.ValueTypeNames.String).Set("source")
+    object_prim = stage.DefinePrim("/World/envs/env_0/Groceries/Object", "Xform")
+    object_prim.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+    output = tmp_path / "scene.usda"
+    stage.Export(str(output))
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Groceries/Object",
+                ["/World/envs/env_1/Groceries/Object"],
+                [(1.0, 0.0, 0.0)],
+            ),
+            (
+                "/World/envs/env_0/Groceries",
+                ["/World/envs/env_1/Groceries"],
+                [(1.0, 0.0, 0.0)],
+            ),
+        ]
+        OvPhysxManager._materialize_pending_clones(stage, str(output))
+        exported = Usd.Stage.Open(str(output))
+        target_parent = exported.GetPrimAtPath("/World/envs/env_1/Groceries")
+        target_child = exported.GetPrimAtPath("/World/envs/env_1/Groceries/Object")
+        assert target_parent.GetAttribute("test:collection").Get() == "source"
+        assert target_child.GetAttribute("physics:enabled").Get() is True
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
 def test_manager_full_stage_overlays_existing_ancestor_without_removing_descendants(tmp_path):
     """An ancestor created for another asset gains source physics while retaining descendants."""
     from isaaclab_ovphysx.physics import OvPhysxManager
