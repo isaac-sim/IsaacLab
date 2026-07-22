@@ -21,3 +21,5 @@ Fixed
   when training or result processing fails.
 * Fixed effective throughput metrics to report the conventional sample standard
   deviation of observed rates.
+* Fixed play benchmark environments not closing when policy loading,
+  execution, or result processing failed.

@@ -201,94 +201,93 @@ def run(argv: list[str]) -> None:
                 clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
             )
 
-        # Load the trained policy.
-        agent = PPO.load(resume_path, env, print_system_info=True)
+        with contextlib.closing(env):
+            # Load the trained policy.
+            agent = PPO.load(resume_path, env, print_system_info=True)
 
-        def policy(obs):
-            """Map an observation batch to a deterministic action batch via the sb3 agent.
+            def policy(obs):
+                """Map an observation batch to a deterministic action batch via the sb3 agent.
 
-            Mirrors the inference path in ``isaaclab_rl.entrypoints.backends.play_sb3``:
-            the sb3-wrapped env returns NumPy observations, which ``agent.predict`` consumes
-            directly, returning NumPy actions for ``env.step``.
+                Mirrors the inference path in ``isaaclab_rl.entrypoints.backends.play_sb3``:
+                the sb3-wrapped env returns NumPy observations, which ``agent.predict`` consumes
+                directly, returning NumPy actions for ``env.step``.
 
-            Args:
-                obs: NumPy observation returned by the sb3-wrapped env.
+                Args:
+                    obs: NumPy observation returned by the sb3-wrapped env.
 
-            Returns:
-                The NumPy action array to feed ``env.step``.
-            """
-            actions, _ = agent.predict(obs, deterministic=True)
-            return actions
+                Returns:
+                    The NumPy action array to feed ``env.step``.
+                """
+                actions, _ = agent.predict(obs, deterministic=True)
+                return actions
 
-        environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-            env,
-            measure_synchronized_step_breakdown=args_cli.measure_sync_step,
-            warmup_steps=args_cli.warmup_steps,
-        )
-        total_frames = args_cli.warmup_steps + args_cli.num_frames
-        with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-            all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
+            environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+                env,
+                measure_synchronized_step_breakdown=args_cli.measure_sync_step,
+                warmup_steps=args_cli.warmup_steps,
+            )
+            total_frames = args_cli.warmup_steps + args_cli.num_frames
+            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
 
-        first_step_s = all_step_times[0]
-        step_times = all_step_times[args_cli.warmup_steps :]
+            first_step_s = all_step_times[0]
+            step_times = all_step_times[args_cli.warmup_steps :]
 
-        benchmark.update_manual_recorders()
+            benchmark.update_manual_recorders()
 
-        startup = StartupTime(
-            app_launch=(app_t1 - app_t0) / 1e9,
-            env_creation=(env_t1 - env_t0) / 1e9,
-            first_step=first_step_s,
-        )
+            startup = StartupTime(
+                app_launch=(app_t1 - app_t0) / 1e9,
+                env_creation=(env_t1 - env_t0) / 1e9,
+                first_step=first_step_s,
+            )
 
-        fps = [num_envs / t for t in step_times if t > 0]
-        runtime = builders.build_runtime(
-            startup_time_s=startup,
-            iteration_times_s=step_times,
-            collection_fps=fps,
-            total_fps=fps,
-            steps_per_iteration=num_envs,
-            frames_per_environment_step=env.unwrapped.num_envs,
-            environment_step_times_s=environment_step_timer.step_times_s,
-            simulation_step_times_s=environment_step_timer.simulation_step_times_s,
-            simulation_step_calls=environment_step_timer.simulation_step_calls,
-        )
+            fps = [num_envs / t for t in step_times if t > 0]
+            runtime = builders.build_runtime(
+                startup_time_s=startup,
+                iteration_times_s=step_times,
+                collection_fps=fps,
+                total_fps=fps,
+                steps_per_iteration=num_envs,
+                frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_times_s=environment_step_timer.step_times_s,
+                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
+                simulation_step_calls=environment_step_timer.simulation_step_calls,
+            )
 
-        versions = capture.capture_versions(benchmark)
-        hardware = capture.capture_hardware(benchmark)
-        resources = capture.capture_resources(benchmark)
+            versions = capture.capture_versions(benchmark)
+            hardware = capture.capture_hardware(benchmark)
+            resources = capture.capture_resources(benchmark)
 
-        end_utc = capture.now_utc_iso()
-        stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
-        seed = env_cfg.seed if env_cfg.seed is not None else 0
+            end_utc = capture.now_utc_iso()
+            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
+            seed = env_cfg.seed if env_cfg.seed is not None else 0
 
-        run_identity = builders.build_run_identity(
-            run_id=capture.synth_run_id("sb3", cfg.physics_backend, args_cli.task, seed, stamp),
-            framework="sb3",
-            config=cfg,
-            task=args_cli.task,
-            seed=seed,
-            start_utc=start_utc,
-            end_utc=end_utc,
-            num_envs=num_envs,
-        )
+            run_identity = builders.build_run_identity(
+                run_id=capture.synth_run_id("sb3", cfg.physics_backend, args_cli.task, seed, stamp),
+                framework="sb3",
+                config=cfg,
+                task=args_cli.task,
+                seed=seed,
+                start_utc=start_utc,
+                end_utc=end_utc,
+                num_envs=num_envs,
+            )
 
-        bundle = builders.build_play_bundle(
-            run=run_identity,
-            versions=versions,
-            hardware=hardware,
-            runtime=runtime,
-            resources=resources,
-            success_rate=success_rate,
-            reward=reward,
-            ep_length=ep_length,
-            checkpoint_path=resume_path,
-        )
+            bundle = builders.build_play_bundle(
+                run=run_identity,
+                versions=versions,
+                hardware=hardware,
+                runtime=runtime,
+                resources=resources,
+                success_rate=success_rate,
+                reward=reward,
+                ep_length=ep_length,
+                checkpoint_path=resume_path,
+            )
 
-        benchmark.attach_bundle(bundle)
+            benchmark.attach_bundle(bundle)
 
-        benchmark._finalize_impl()
-
-        env.close()
+            benchmark._finalize_impl()
 
 
 if __name__ == "__main__":
