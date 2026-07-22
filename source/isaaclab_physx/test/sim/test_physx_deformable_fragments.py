@@ -50,3 +50,16 @@ def test_physx_surface_deformable_body_fragment_metadata():
     assert isinstance(cfg, DeformableBodyFragment)
     assert type(cfg)._usd_applied_schema == "PhysxSurfaceDeformableBodyAPI"
     assert type(cfg)._deformable_types == ("surface",)
+
+
+def test_physx_deformable_material_fragments_metadata():
+    from isaaclab_physx.sim.spawners.materials import PhysxDeformableMaterialCfg, PhysxSurfaceDeformableMaterialCfg
+
+    from isaaclab.sim.spawners.materials import DeformableMaterialFragment
+
+    vol = PhysxDeformableMaterialCfg(elasticity_damping=0.005)
+    assert isinstance(vol, DeformableMaterialFragment)
+    assert type(vol)._usd_namespace == "physxDeformableMaterial"
+    assert type(vol)._usd_applied_schema == "PhysxDeformableMaterialAPI"
+    surf = PhysxSurfaceDeformableMaterialCfg(bend_damping=0.1)
+    assert type(surf)._usd_applied_schema == "PhysxSurfaceDeformableMaterialAPI"
