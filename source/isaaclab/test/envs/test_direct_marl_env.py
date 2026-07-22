@@ -32,15 +32,19 @@ def test_initialization_and_close(device):
     sim_utils.create_new_stage()
     env = DirectMARLEnv(cfg=make_empty_direct_marl_env_cfg(device=device))
 
-    # check multi-agent config
-    assert env.num_agents == 2
-    assert env.max_num_agents == 2
-    # check spaces
-    assert env.state_space.shape == (7,)
-    assert len(env.observation_spaces) == 2
-    assert len(env.action_spaces) == 2
-    # close the environment
-    env.close()
+    try:
+        assert not env._is_closed
+        assert sim_utils.SimulationContext.instance() is env.sim
+        assert env.num_agents == 2
+        assert env.max_num_agents == 2
+        assert len(env.observation_spaces) == 2
+        assert len(env.action_spaces) == 2
+        assert env.state_space.shape == (7,)
+    finally:
+        env.close()
+
+    assert env._is_closed
+    assert sim_utils.SimulationContext.instance() is None
 
 
 def test_reset_invalidates_renderer_scene_state_cadence():
@@ -58,16 +62,3 @@ def test_reset_invalidates_renderer_scene_state_cadence():
     finally:
         if env is not None:
             env.close()
-    try:
-        assert not env._is_closed
-        assert sim_utils.SimulationContext.instance() is env.sim
-        assert env.num_agents == 2
-        assert env.max_num_agents == 2
-        assert len(env.observation_spaces) == 2
-        assert len(env.action_spaces) == 2
-        assert env.state_space.shape == (7,)
-    finally:
-        env.close()
-
-    assert env._is_closed
-    assert sim_utils.SimulationContext.instance() is None
