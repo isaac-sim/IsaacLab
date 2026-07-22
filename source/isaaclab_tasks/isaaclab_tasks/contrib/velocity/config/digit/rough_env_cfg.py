@@ -5,13 +5,17 @@
 
 import math
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
 
@@ -210,7 +214,16 @@ class DigitActionsCfg:
 
 
 @configclass
+class DigitPhysicsCfg(PresetCfg):
+    """PhysX-only physics configuration for the Digit velocity environments."""
+
+    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = default
+
+
+@configclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=DigitPhysicsCfg())
     rewards: DigitRewards = DigitRewards()
     observations: DigitObservations = DigitObservations()
     terminations: DigitTerminationsCfg = DigitTerminationsCfg()
