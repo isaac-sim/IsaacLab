@@ -238,9 +238,6 @@ class NewtonViewerViser(ViewerViser):
 
             _SERIES_COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#f97316", "#06b6d4"]
 
-            n = self._plot_history_size
-            x = np.arange(n, dtype=np.float64)
-
             # Identify which term groups (base names) have at least one dirty component.
             dirty_bases: set[str] = {_scalar_base_name(name) for name in self._scalar_dirty}
 
@@ -254,14 +251,14 @@ class NewtonViewerViser(ViewerViser):
                 if base_name not in dirty_bases:
                     continue
 
-                # Build per-component y arrays.
-                ys = []
-                for name in names:
-                    buf = self._scalar_buffers.get(name)
-                    y = np.full(n, np.nan, dtype=np.float64)
-                    if buf:
-                        y[n - len(buf) :] = np.array(buf, dtype=np.float64)
-                    ys.append(y)
+                # Use only the filled portion of the buffer — no NaN padding — so the
+                # chart visibly grows over time rather than appearing static at the right edge.
+                bufs = [self._scalar_buffers.get(name) for name in names]
+                n_actual = max((len(b) for b in bufs if b), default=0)
+                if n_actual == 0:
+                    continue
+                x = np.arange(n_actual, dtype=np.float64)
+                ys = [np.array(list(b)[:n_actual], dtype=np.float64) if b else np.full(n_actual, np.nan) for b in bufs]
                 data = (x, *ys)
 
                 handle = self._plot_handles.get(names[0])
