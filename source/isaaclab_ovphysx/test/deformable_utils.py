@@ -15,6 +15,7 @@ from isaaclab_physx.sim.spawners.materials import (
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
+from isaaclab.utils.configclass import configclass
 
 _VOLUME_MATERIAL_CFG = PhysxDeformableBodyMaterialCfg(
     dynamic_friction=0.5,
@@ -35,6 +36,14 @@ _SURFACE_MATERIAL_CFG = PhysxSurfaceDeformableBodyMaterialCfg(
     elasticity_damping=0.03,
     bend_damping=0.04,
 )
+
+
+@configclass
+class _PreauthoredDeformableSpawnerCfg(sim_utils.SpawnerCfg):
+    """Configuration for a pre-authored deformable test fixture."""
+
+    material_path: str | None = "material"
+    """Physics material path, relative to the body prim or absolute, or None to omit it."""
 
 
 def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
@@ -58,9 +67,12 @@ def _apply_transform(
     xform.AddScaleOp().Set(Gf.Vec3f(1.0, 1.0, 1.0))
 
 
-def _bind_material(prim: Usd.Prim, material_cfg: sim_utils.PhysicsMaterialCfg) -> None:
-    """Spawn and bind a deformable material below an authored body prim."""
-    material_path = f"{prim.GetPath()}/material"
+def _bind_material(prim: Usd.Prim, material_cfg: sim_utils.PhysicsMaterialCfg, material_path: str | None) -> None:
+    """Spawn and optionally bind a deformable material to an authored body prim."""
+    if material_path is None:
+        return
+    if not material_path.startswith("/"):
+        material_path = f"{prim.GetPath()}/{material_path}"
     material_prim = material_cfg.func(material_path, material_cfg)
     material = UsdShade.Material(material_prim)
     UsdShade.MaterialBindingAPI.Apply(prim)
@@ -125,7 +137,7 @@ def spawn_pre_tetrahedralized_deformable(
     body_prim.CreateAttribute("velocities", Sdf.ValueTypeNames.Vector3fArray).Set([Gf.Vec3f()] * len(points))
 
     _apply_transform(root_prim, translation, orientation)
-    _bind_material(body_prim, _VOLUME_MATERIAL_CFG)
+    _bind_material(body_prim, _VOLUME_MATERIAL_CFG, cfg.material_path)
     return root_prim
 
 
@@ -170,15 +182,17 @@ def spawn_pretriangulated_surface_deformable(
     body_prim.CreateAttribute("velocities", Sdf.ValueTypeNames.Vector3fArray).Set([Gf.Vec3f()] * len(points))
 
     _apply_transform(body_prim, translation, orientation)
-    _bind_material(body_prim, _SURFACE_MATERIAL_CFG)
+    _bind_material(body_prim, _SURFACE_MATERIAL_CFG, cfg.material_path)
     return body_prim
 
 
-def pre_tetrahedralized_deformable_spawn_cfg() -> sim_utils.SpawnerCfg:
+def pre_tetrahedralized_deformable_spawn_cfg(
+    material_path: str | None = "material",
+) -> sim_utils.SpawnerCfg:
     """Create the pre-tetrahedralized volume-deformable test spawner."""
-    return sim_utils.SpawnerCfg(func=spawn_pre_tetrahedralized_deformable)
+    return _PreauthoredDeformableSpawnerCfg(func=spawn_pre_tetrahedralized_deformable, material_path=material_path)
 
 
 def pretriangulated_surface_deformable_spawn_cfg() -> sim_utils.SpawnerCfg:
     """Create the pretriangulated surface-deformable test spawner."""
-    return sim_utils.SpawnerCfg(func=spawn_pretriangulated_surface_deformable)
+    return _PreauthoredDeformableSpawnerCfg(func=spawn_pretriangulated_surface_deformable)
