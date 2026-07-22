@@ -83,6 +83,11 @@ _READ_ONLY_NAMES: frozenset[str] = frozenset(
         "articulation_mass_matrix",
         "articulation_coriolis_and_centrifugal_force",
         "articulation_gravity_force",
+        "deformable_rest_nodal_position",
+        "deformable_sim_element_indices",
+        "deformable_collision_element_indices",
+        "surface_deformable_rest_position",
+        "surface_deformable_sim_element_indices",
     }
 )
 
