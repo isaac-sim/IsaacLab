@@ -100,16 +100,15 @@ def contact_force_magnitude(left_sensor_name: str, right_sensor_name: str) -> Si
     names = {ENDPOINT_LEFT: left_sensor_name, ENDPOINT_RIGHT: right_sensor_name}
 
     def signal_fn(env: ManagerBasedRLEnv) -> dict[str, np.ndarray]:
-        # Reduce both hands on-device via the explicit ``.torch`` view (avoids the
-        # ProxyArray deprecation path), then move them to the host in a single
-        # transfer to skip a per-hand CUDA sync. A hand with no sensor data fails
-        # safe to 0.0.
-        reduced = {
-            endpoint: torch.linalg.vector_norm(forces.torch[0], dim=-1).sum()
+        # Reduce each hand on-device via the explicit ``.torch`` view (avoids the
+        # ProxyArray deprecation path); a hand with no sensor data fails safe to 0.0.
+        # There are at most two hands, so bringing each scalar to the host with
+        # ``.item()`` is negligible and keeps the key/value pairing explicit.
+        magnitudes = {
+            endpoint: torch.linalg.vector_norm(forces.torch[0], dim=-1).sum().item()
             for endpoint, name in names.items()
             if (forces := env.scene[name].data.net_forces_w) is not None
         }
-        magnitudes = dict(zip(reduced, torch.stack(list(reduced.values())).tolist())) if reduced else {}
         return {endpoint: np.array([magnitudes.get(endpoint, 0.0)], dtype=np.float32) for endpoint in names}
 
     return signal_fn
