@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 import torch
 import warp as wp
+
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
@@ -118,9 +119,27 @@ class OvPhysxDeformableBodyView:
         """Return simulation nodal positions [m]."""
         return self._get("position")
 
+    def read_simulation_nodal_positions_into(self, values: wp.array(dtype=wp.float32)) -> None:
+        """Read simulation nodal positions [m] into a caller-owned buffer.
+
+        Args:
+            values: Destination buffer [m]. Shape is
+                ``(count, max_simulation_nodes_per_body, 3)``.
+        """
+        self._require_view().read_into(self._tensor_map["position"], values)
+
     def get_simulation_nodal_velocities(self) -> wp.array(dtype=wp.float32):
         """Return simulation nodal velocities [m/s]."""
         return self._get("velocity")
+
+    def read_simulation_nodal_velocities_into(self, values: wp.array(dtype=wp.float32)) -> None:
+        """Read simulation nodal velocities [m/s] into a caller-owned buffer.
+
+        Args:
+            values: Destination buffer [m/s]. Shape is
+                ``(count, max_simulation_nodes_per_body, 3)``.
+        """
+        self._require_view().read_into(self._tensor_map["velocity"], values)
 
     def get_simulation_nodal_kinematic_targets(self) -> wp.array(dtype=wp.float32):
         """Return simulation nodal kinematic targets [m, dimensionless]."""
