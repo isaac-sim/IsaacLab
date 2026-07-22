@@ -299,7 +299,7 @@ validate_warmup_steps(args_cli.warmup_steps, resolved_max_iterations * n_steps_c
 validate_warmup_steps(args_cli.warmup_steps, resolved_max_iterations * rollouts)
 ```
 
-Import `validate_warmup_steps` beside `parse_non_negative_int` and `parse_positive_int` in each adapter’s lazy `_cli` import, and import it inside `run` before the resolved configuration check.
+Import `validate_warmup_steps` inside each adapter’s `run` function with the other lazy benchmark imports before the resolved configuration check.
 
 - [ ] **Step 5: Implement explicit early-stop empty timing behavior**
 
@@ -324,7 +324,7 @@ Only construct `EnvironmentStepTiming` in the nonempty branch. Import `warnings`
 
 - [ ] **Step 6: Make environment cleanup unconditional in all training adapters**
 
-RSL-RL already imports `contextlib` inside `run`; add that lazy import to RL-Games, SB3, and skrl. Immediately after the final environment wrapper is installed, open `with contextlib.closing(env):` and indent the contiguous block through `benchmark._finalize_impl()`. The first indented statement is `runner_types` in RSL-RL, `runner = Runner(observer)` in RL-Games, `policy_arch = agent_cfg.pop("policy")` in SB3, and `from skrl.utils.runner.torch import Runner` in skrl. Remove the trailing `env.close()` from all four files. This ensures close runs for runner, training, parsing, builder, and formatter exceptions.
+RSL-RL already imports `contextlib` inside `run`; add that lazy import to RL-Games, SB3, and skrl. Immediately after the final environment wrapper is installed, open `with contextlib.closing(env):` and indent the contiguous block through `benchmark._finalize_impl()`. The first indented statement is `runner_types` in RSL-RL, `runner = Runner(observer)` in RL-Games, `norm_keys = {"normalize_input", "normalize_value", "clip_obs"}` in SB3, and `from skrl.utils.runner.torch import Runner` in skrl. Remove the trailing `env.close()` from all four files. This ensures close runs for runner, training, parsing, builder, and formatter exceptions.
 
 - [ ] **Step 7: Run focused tests and the original exhaustion reproduction**
 
