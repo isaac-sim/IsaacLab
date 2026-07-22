@@ -159,8 +159,8 @@ def _sync_cable_points(
     fabric_world_matrices: wp.fabricarray(dtype=wp.mat44d),
     offsets: wp.fabricarray(dtype=wp.uint32),
     counts: wp.fabricarray(dtype=wp.uint32),
-    body_ids: wp.array(dtype=wp.int32),
     shape_ids: wp.array(dtype=wp.int32),
+    shape_body: wp.array(dtype=wp.int32),
     body_q: wp.array(dtype=wp.transformf),
     shape_transform: wp.array(dtype=wp.transformf),
     shape_scale: wp.array(dtype=wp.vec3f),
@@ -176,29 +176,21 @@ def _sync_cable_points(
         endpoint_w = wp.vec3f()
         if point == 0:
             shape = shape_ids[offset]
-            shape_q = wp.transform_multiply(body_q[body_ids[offset]], shape_transform[shape])
+            shape_q = wp.transform_multiply(body_q[shape_body[shape]], shape_transform[shape])
             endpoint_w = wp.transform_point(shape_q, wp.vec3f(0.0, 0.0, -shape_scale[shape][1]))
         elif point == segment_count:
             shape = shape_ids[offset + segment_count - 1]
-            shape_q = wp.transform_multiply(body_q[body_ids[offset + segment_count - 1]], shape_transform[shape])
+            shape_q = wp.transform_multiply(body_q[shape_body[shape]], shape_transform[shape])
             endpoint_w = wp.transform_point(shape_q, wp.vec3f(0.0, 0.0, shape_scale[shape][1]))
         else:
             left_shape = shape_ids[offset + point - 1]
-            left_q = wp.transform_multiply(body_q[body_ids[offset + point - 1]], shape_transform[left_shape])
+            left_q = wp.transform_multiply(body_q[shape_body[left_shape]], shape_transform[left_shape])
             left_w = wp.transform_point(left_q, wp.vec3f(0.0, 0.0, shape_scale[left_shape][1]))
             right_shape = shape_ids[offset + point]
-            right_q = wp.transform_multiply(body_q[body_ids[offset + point]], shape_transform[right_shape])
+            right_q = wp.transform_multiply(body_q[shape_body[right_shape]], shape_transform[right_shape])
             right_w = wp.transform_point(right_q, wp.vec3f(0.0, 0.0, -shape_scale[right_shape][1]))
             endpoint_w = 0.5 * (left_w + right_w)
         fabric_points[curve][point] = wp.transform_point(world_to_curve, endpoint_w)
-
-
-@dataclass(frozen=True)
-class _CableVisualPrim:
-    """Body and shape indices used to render one cable curve."""
-
-    body_ids: tuple[int, ...]
-    shape_ids: tuple[int, ...]
 
 
 @dataclass
@@ -414,8 +406,6 @@ class NewtonManager(PhysicsManager):
     _cables_dirty: bool = False
     _newton_cable_offset_attr = "newton:cableOffset"
     _newton_cable_count_attr = "newton:cableSegmentCount"
-    _cable_visual_prims: dict[str, _CableVisualPrim] = {}
-    _cable_body_ids: wp.array | None = None
     _cable_shape_ids: wp.array | None = None
     _newton_particle_offset_attr = "newton:particleOffset"
     _newton_particle_count_attr = "newton:particleCount"
@@ -673,12 +663,7 @@ class NewtonManager(PhysicsManager):
         """Write Newton cable segment endpoints to Fabric curve points."""
         if not cls._cables_dirty:
             return
-        if (
-            cls._usdrt_stage is None
-            or not cls._cable_visual_prims
-            or cls._cable_body_ids is None
-            or cls._cable_shape_ids is None
-        ):
+        if cls._usdrt_stage is None or cls._cable_shape_ids is None:
             NewtonManager._cables_dirty = False
             return
         try:
@@ -703,8 +688,8 @@ class NewtonManager(PhysicsManager):
                     wp.fabricarray(data=selection, attrib="omni:fabric:worldMatrix"),
                     wp.fabricarray(data=selection, attrib=cls._newton_cable_offset_attr),
                     wp.fabricarray(data=selection, attrib=cls._newton_cable_count_attr),
-                    cls._cable_body_ids,
                     cls._cable_shape_ids,
+                    cls._model.shape_body,
                     cls._state_0.body_q,
                     cls._model.shape_transform,
                     cls._model.shape_scale,
@@ -826,22 +811,6 @@ class NewtonManager(PhysicsManager):
         """
         cls._mark_transforms_dirty()
         cls._mark_particles_dirty()
-
-    @classmethod
-    def register_cable_visual_prim(cls, prim_path: str, body_ids: Sequence[int], shape_ids: Sequence[int]) -> None:
-        """Register a cable curve and its ordered Newton segment geometry.
-
-        Args:
-            prim_path: Stage path of the cable ``BasisCurves`` prim.
-            body_ids: Ordered Newton body indices for the cable segments.
-            shape_ids: Ordered Newton capsule-shape indices for the cable segments.
-        """
-        if not body_ids or len(body_ids) != len(shape_ids):
-            raise ValueError("Cable visualization requires one body and shape per segment.")
-        NewtonManager._cable_visual_prims[prim_path] = _CableVisualPrim(
-            body_ids=tuple(int(value) for value in body_ids),
-            shape_ids=tuple(int(value) for value in shape_ids),
-        )
 
     @classmethod
     def register_particle_visual_prim(
@@ -1050,8 +1019,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._transforms_may_change_on_graph_replay = False
         NewtonManager._particles_dirty = False
         NewtonManager._cables_dirty = False
-        NewtonManager._cable_visual_prims = {}
-        NewtonManager._cable_body_ids = None
         NewtonManager._cable_shape_ids = None
         NewtonManager._particle_visual_prims = {}
         NewtonManager._mpm_object_registry = []
@@ -1564,26 +1531,57 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _initialize_fabric_cable_prims(cls, stage, fabric_hierarchy, usdrt) -> None:
         """Initialize Fabric curve tags and packed Newton segment mappings."""
-        body_ids: list[int] = []
+        usd_stage = get_current_stage()
+        cable_shapes: dict[str, dict[int, int]] = {}
+        for shape_id, label in enumerate(cls._model.shape_label):
+            if label is None:
+                continue
+            prim_path, separator, suffix = label.rpartition("_edge_capsule_")
+            if not separator or not suffix.isdigit():
+                continue
+            segment = int(suffix)
+            segments = cable_shapes.setdefault(prim_path, {})
+            if segment in segments:
+                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
+            segments[segment] = shape_id
+
         shape_ids: list[int] = []
-        for prim_path, record in cls._cable_visual_prims.items():
-            prim = stage.GetPrimAtPath(prim_path)
-            if not prim.IsValid():
-                raise RuntimeError(f"Cable visualization prim is missing in Fabric: {prim_path}")
+        for prim_path, segments in cable_shapes.items():
+            usd_prim = usd_stage.GetPrimAtPath(prim_path)
+            if not usd_prim.IsValid() or not usd_prim.IsA(UsdGeom.BasisCurves):
+                continue
+            applied_schemas = usd_prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+            if "PhysicsCurvesDeformableSimAPI" not in applied_schemas:
+                continue
+
+            curve = UsdGeom.BasisCurves(usd_prim)
+            counts = curve.GetCurveVertexCountsAttr().Get()
+            if (
+                len(counts) != 1
+                or int(counts[0]) < 2
+                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
+                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
+            ):
+                continue
+
+            segment_count = int(counts[0]) - 1
+            if set(segments) != set(range(segment_count)):
+                raise RuntimeError(f"Cable visualization requires {segment_count} ordered segment shapes.")
+            segment_shape_ids = [segments[segment] for segment in range(segment_count)]
+            prim = stage.DefinePrim(prim_path, "BasisCurves")
+            prim.RemoveProperty("points")
+            usdrt.UsdGeom.BasisCurves(prim).CreatePointsAttr().Set(usdrt.Vt.Vec3fArray(segment_count + 1))
             usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
-            offset = len(body_ids)
+            offset = len(shape_ids)
             prim.CreateAttribute(cls._newton_cable_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(offset)
             prim.CreateAttribute(cls._newton_cable_count_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(
-                len(record.body_ids)
+                segment_count
             )
-            body_ids.extend(record.body_ids)
-            shape_ids.extend(record.shape_ids)
+            shape_ids.extend(segment_shape_ids)
 
-        if not body_ids:
-            NewtonManager._cable_body_ids = None
+        if not shape_ids:
             NewtonManager._cable_shape_ids = None
             return
-        NewtonManager._cable_body_ids = wp.array(body_ids, dtype=wp.int32, device=PhysicsManager._device)
         NewtonManager._cable_shape_ids = wp.array(shape_ids, dtype=wp.int32, device=PhysicsManager._device)
         fabric_hierarchy.update_world_xforms()
 
@@ -1925,6 +1923,7 @@ class NewtonManager(PhysicsManager):
         # solver-specialized FK delegate, now that the solver and the delegate both exist.
         # Runs before graph capture below so the capture warmup sees a valid body_q.
         cls._eval_fk(None, None)
+        cls._mark_transforms_dirty()
 
         if cls._usdrt_stage is not None:
             cls._setup_cubric_bindings()

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from newton import GeoType, JointType
+from newton import JointType
 from newton.selection import ArticulationView
 
 from pxr import UsdGeom
@@ -18,7 +18,6 @@ from pxr import UsdGeom
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp import ProxyArray
@@ -294,7 +293,6 @@ class CableObject(BaseCableObject):
             PhysicsEvent.PHYSICS_READY,
             name=f"cable_object_rebind_{self.cfg.prim_path}",
         )
-        self._register_visualization()
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None) -> wp.array(
         dtype=wp.int32
@@ -319,37 +317,6 @@ class CableObject(BaseCableObject):
     def _rebind(self, _: object) -> None:
         """Rebind simulation arrays after a Newton model rebuild."""
         self._data._create_simulation_bindings()
-        self._register_visualization()
-
-    def _register_visualization(self) -> None:
-        """Register concrete cable curves for Kit Fabric synchronization."""
-        sim = SimulationContext.instance()
-        if not has_kit() or sim is None or sim.physics_manager._clone_physics_only:
-            return
-
-        model = SimulationManager.get_model()
-        root_body_ids = self.data._sim_bind_root_body_ids.numpy().tolist()
-        link_body_ids = self.data._sim_bind_link_body_ids.numpy().tolist()
-        shape_types = model.shape_type.numpy()
-        for root_body_id, link_ids in zip(root_body_ids, link_body_ids, strict=True):
-            body_ids = [int(root_body_id), *(int(value) for value in link_ids)]
-            shape_ids: list[int] = []
-            for body_id in body_ids:
-                body_shapes = model.body_shapes[body_id]
-                if len(body_shapes) != 1:
-                    raise RuntimeError("Cable visualization requires one capsule shape per segment body.")
-                shape_id = int(body_shapes[0])
-                if int(shape_types[shape_id]) != int(GeoType.CAPSULE):
-                    raise RuntimeError("Cable visualization requires capsule segment shapes.")
-                shape_ids.append(shape_id)
-
-            root_label = model.body_label[body_ids[0]]
-            suffix = "_edge_body_0"
-            if root_label is None or not root_label.endswith(suffix):
-                raise RuntimeError("Cable visualization requires Newton's default segment labels.")
-            SimulationManager.register_cable_visual_prim(
-                root_label[: -len(suffix)], body_ids=body_ids, shape_ids=shape_ids
-            )
 
     def _clear_callbacks(self) -> None:
         """Clear all registered callbacks."""
