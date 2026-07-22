@@ -86,14 +86,12 @@ solver actually needs it:
 
 * ``_initialize_contacts()``: allocate custom contact buffers or support an
   internal contact detector.
-* ``_step_solver(state_0, state_1, control, contacts, substep_dt)``: change
-  one substep of solver execution while keeping the base simulation loop.
+* ``_step_solver(state_0, state_1, control, contacts, substep_dt)``: change one substep of
+  solver execution while keeping the base simulation loop.
 * ``_simulate_physics_only()``: add per-step work around the base substep loop,
   such as rebuilding a BVH.
-* ``_reset_solver_internals(world_mask)``: clear solver-owned state before
-  ``forward()`` consumes reset masks.
-* ``step()``: perform solver-specific model-change notification or other
-  pre-step work before delegating to the base manager.
+* ``_reset_solver_internals(world_mask)``: clear solver-owned state for reset
+  environments.
 * ``start_simulation()`` or ``instantiate_builder_from_stage()``: customize model
   building or post-finalize setup.
 * ``_register_builder_attributes(builder)``: register solver-specific Newton
@@ -120,52 +118,119 @@ with the other Newton solver configs so autocomplete and backend discovery stay
 predictable.
 
 
-Proxy-Coupled Solvers
----------------------
+Custom Coupled Solvers
+----------------------
 
-The Newton proxy coupler partitions one model between named solvers and
-exchanges selected rigid bodies through virtual proxies:
+Coupled solvers use the same abstraction. Instead of wrapping one Newton solver,
+a coupled manager constructs two or more sub-solvers and overrides
+``_step_solver()`` to define the substep order.
+That means a custom coupling usually needs only a config that stores existing
+solver configs plus a manager that defines how data flows between them; the
+component solvers can stay unchanged.
 
-* :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` assigns model ownership
-  and a solver configuration to each named entry.
-* :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` maps selected
-  source bodies into a destination entry.
-* :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` combines the entries and
-  proxy mappings.
+The MJWarp + VBD deformable manager is a concrete example:
 
-:class:`~isaaclab_contrib.coupling.NewtonCouplerManager` resolves ownership,
-validates the model partition, and constructs the Newton ``SolverCoupledProxy``.
-The component solvers remain unchanged.
+* :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` stores a
+  ``rigid_solver_cfg`` for :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, a
+  ``soft_solver_cfg`` for :class:`~isaaclab_contrib.deformable.VBDSolverCfg`,
+  and a ``coupling_mode``.
+* ``NewtonCoupledMJWarpVBDManager._build_solver()`` constructs
+  ``SolverMuJoCo`` and ``SolverVBD`` from those sub-configs.
+* ``_step_solver()`` dispatches to either one-way or two-way coupling.
+* The base ``NewtonManager`` still owns state allocation, substep iteration,
+  Fabric synchronization, and reset/clear lifecycle.
 
-.. warning::
+The two-way MJWarp + VBD substep stays compact because it is expressed as a
+short coupling algorithm:
 
-   The pinned Newton proxy solver clears lagged feedback and proxy contact
-   caches for every replicated world when any world is reset. Use synchronized
-   whole-batch resets until mask-aware upstream reset support is pinned.
+.. admonition:: Algorithm: Two-Way MJWarp + VBD Substep
+   :class: note
 
-The Franka soft-body and cloth lifting tasks use MJWarp for the robot and VBD
-for the deformable object through this proxy coupling:
+   **Inputs:** rigid body state, deformable particle state, and the shared
+   Newton collision pipeline.
 
-.. tab-set::
+   **Output:** updated rigid body and deformable particle state for one Newton
+   substep.
 
-   .. tab-item:: uv (Recommended)
+   1. **Clear output force accumulators.**
+      Clear the next-state force buffers before evaluating contact.
 
-      .. code-block:: bash
+   2. **Detect coupled contacts.**
+      Run Newton collision detection once over the current rigid and
+      deformable state.
 
-         uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+   3. **Apply soft-to-rigid reactions.**
+      Inject body-particle contact reactions into ``body_f`` before the rigid
+      solve.
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   4. **Advance the rigid solver.**
+      Step MJWarp with the coupled contact forces applied.
 
-      .. code-block:: bash
+   5. **Advance the deformable solver.**
+      Step VBD against the same contacts and the updated rigid poses.
 
-         ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
-Use ``--task Isaac-Lift-Cloth-Franka`` for the cloth variant.
+This keeps the custom part focused on the coupling policy. The manager does not
+need to reimplement scene loading, asset buffers, reset handling, or the outer
+simulation loop.
 
-For an opt-in manual MJWarp and VBD example, import
-:mod:`isaaclab_contrib.custom_coupling`. The import registers
-``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` and demonstrates custom
-substep ordering outside the generic coupler.
+.. figure:: ../../../../_static/newton/franka-mjwarp-vbd-coupling.png
+   :align: center
+   :figwidth: 480px
+   :class: square-crop-figure
+   :alt: Franka manipulating a deformable object with MJWarp and VBD coupling
+
+   Franka manipulation using MJWarp for rigid bodies and VBD for the deformable
+   object.
+
+The opt-in example is registered only when its module is imported:
+
+.. code-block:: python
+
+   import isaaclab_contrib.custom_coupling
+
+The import registers ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which
+uses ``coupling_mode="two_way"``. The core ``Isaac-Lift-Soft-Franka`` and
+``Isaac-Lift-Cloth-Franka`` tasks use
+:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` instead.
+
+Tuning the Franka Soft-Body Lift
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tune the coupled contact behavior before training a policy:
+
+* Start with ``coupling_mode="two_way"``. Compared with one-way coupling, two-way
+  coupling can prevent clipping more easily because body-particle contact
+  penalties can push the robot back instead of only moving the deformable.
+* Use a small scripted grasp/lift check before training to confirm that grasping
+  is possible and to inspect what clips when the grasp fails.
+* Lower the arm actuator stiffness enough that the arm can respond to contact
+  penalties. Prefer the arm being pushed back over the gripper clipping into the
+  deformable.
+* Tune :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_ke`
+  first. Increase it only as much as needed to prevent clipping, then adjust
+  :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_mu` so the
+  gripper can carry the object without requiring an obviously unphysical
+  friction value. Use
+  :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_kd` for
+  stabilization if contacts chatter.
+* Tune the ``soft_contact_*`` values together with the rigid shape contact
+  material, because the shape's ``ke``/``kd``/``mu`` also affect the effective
+  contact. Set shape defaults via
+  :class:`~isaaclab_newton.physics.NewtonShapeCfg` on ``NewtonCfg.default_shape_cfg``,
+  or override per asset through the asset's Newton contact material.
+* If ``soft_contact_ke`` is not sufficient, or ``soft_contact_mu`` must be
+  unphysically high, tune the Franka arm and hand actuator stiffness and maximum
+  effort. For the gripper command, fully close the fingers and let the actuator
+  maximum effort limit the actual squeeze.
+* If the deformable no longer visibly deforms, ``soft_contact_ke`` is likely too
+  high.
+* If contacts are unstable or missed, increase the deformable mesh resolution or
+  increase ``particle_radius`` in the deformable material so contact is detected
+  earlier from a larger distance.
+* If the rigid shapes still clip through the deformable, increase
+  :attr:`~isaaclab_contrib.deformable.VBDSolverCfg.iterations`; more VBD
+  iterations can improve contact convergence.
 
 
 When to Add a Coupled Manager

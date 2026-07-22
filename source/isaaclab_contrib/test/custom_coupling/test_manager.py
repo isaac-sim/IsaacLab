@@ -7,7 +7,6 @@
 
 from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg
 
@@ -17,39 +16,41 @@ from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBD
 from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
 
-def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reset the real sub-solvers instead of the dummy solver slot."""
+def test_lifecycle_solver_forwards_model_changes() -> None:
+    rigid_solver = MagicMock()
+    soft_solver = MagicMock()
+    solver = manager_module._CoupledLifecycleSolver(MagicMock(), rigid_solver, soft_solver)
+
+    solver.notify_model_changed(3)
+
+    rigid_solver.notify_model_changed.assert_called_once_with(3)
+    soft_solver.notify_model_changed.assert_called_once_with(3)
+
+
+def test_lifecycle_solver_resets_mjwarp() -> None:
     rigid_solver = MagicMock()
     rigid_solver.use_mujoco_cpu = False
     soft_solver = MagicMock()
     state = object()
     world_mask = object()
+    solver = manager_module._CoupledLifecycleSolver(MagicMock(), rigid_solver, soft_solver)
 
-    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_rigid_solver", rigid_solver, raising=False)
-    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_soft_solver", soft_solver, raising=False)
-    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_state_0", state)
-
-    NewtonCoupledMJWarpVBDManager._reset_solver_internals(world_mask)
+    solver.reset(state, world_mask=world_mask, flags=0)
 
     rigid_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
-    soft_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
+    soft_solver.reset.assert_not_called()
 
 
-def test_reset_skips_all_false_cpu_mask(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep CPU warm-start state when no world needs reset."""
+def test_lifecycle_solver_skips_all_false_cpu_mask() -> None:
     rigid_solver = MagicMock()
     rigid_solver.use_mujoco_cpu = True
-    soft_solver = MagicMock()
     world_mask = MagicMock()
-    world_mask.numpy.return_value = np.zeros(2, dtype=bool)
+    world_mask.numpy.return_value.any.return_value = False
+    solver = manager_module._CoupledLifecycleSolver(MagicMock(), rigid_solver, MagicMock())
 
-    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_rigid_solver", rigid_solver, raising=False)
-    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_soft_solver", soft_solver, raising=False)
-
-    NewtonCoupledMJWarpVBDManager._reset_solver_internals(world_mask)
+    solver.reset(object(), world_mask=world_mask, flags=0)
 
     rigid_solver.reset.assert_not_called()
-    soft_solver.reset.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -90,10 +91,7 @@ def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch)
     rigid_solver = MagicMock()
     soft_solver = MagicMock()
     reactions = MagicMock()
-    model = MagicMock()
-    model.particle_count = 0
 
-    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_model", model)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_contacts", contacts)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_collision_pipeline", collision_pipeline)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_rigid_solver", rigid_solver)

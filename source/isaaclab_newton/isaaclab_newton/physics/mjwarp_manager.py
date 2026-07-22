@@ -95,12 +95,15 @@ class NewtonMJWarpManager(NewtonManager):
         worlds, while the joint state IsaacLab authored during the env reset is
         left untouched.  Without this, a NaN produced in one solve persists
         across :meth:`isaaclab.envs.ManagerBasedEnv.reset` because the next
-        solver substep warm-starts from the NaN; the world is then permanently
+        solver substep warm-starts from the NaN — the world is then permanently
         dead.  See https://github.com/newton-physics/newton/issues/1266.
 
         With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
-        and its reset path clears every world. The all-false guard preserves
-        warm-start state when an invalidation selects no worlds.
+        and its reset path is not mask-aware — it clears the buffers for every
+        world.  Since this hook fires on every step/forward boundary (usually
+        with an all-``False`` mask), the CPU path is gated on at least one
+        world actually being flagged so warm-starting is not defeated on every
+        step.
 
         Args:
             world_mask: Per-world bool mask of shape ``(world_count,)``;

@@ -26,7 +26,6 @@ Covers:
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -481,8 +480,8 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_forward_consumes_pending_reset_once(monkeypatch):
-    """Consume one pending reset through the concrete delegate."""
+def test_forward_consumes_existing_reset_masks(monkeypatch):
+    """The existing device masks are the complete input to masked FK and the solver reset hook."""
     world_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
     fk_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     observed: list[tuple[list[bool], list[bool]]] = []
@@ -491,92 +490,21 @@ def test_forward_consumes_pending_reset_once(monkeypatch):
     def record_fk(worlds, articulations):
         observed.append((worlds.numpy().tolist(), articulations.numpy().tolist()))
 
-    def record_reset(worlds):
-        solver_resets.append(worlds.numpy().tolist())
+    class _RecordingSolver:
+        def reset(self, state, world_mask=None, flags=0):
+            solver_resets.append(world_mask.numpy().tolist())
 
     monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_transforms_may_change_on_graph_replay", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_reset_solver", record_reset, raising=False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
 
     NewtonManager.forward()
-    NewtonManager.forward()
 
-    assert observed == [([False, True], [True, False]), ([False, False], [False, False])]
+    assert observed == [([False, True], [True, False])]
     assert solver_resets == [[False, True]]
-    assert NewtonManager._solver_reset_pending is False
-
-
-def test_forward_rejects_pending_reset_without_delegate(monkeypatch):
-    """Reject a pending reset before a solver delegate is bound."""
-    world_mask = wp.array([True], dtype=wp.bool, device="cpu")
-    fk_mask = wp.array([True], dtype=wp.bool, device="cpu")
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_transforms_may_change_on_graph_replay", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_reset_solver", None, raising=False)
-
-    with pytest.raises(RuntimeError, match="Solver reset hook is not bound"):
-        NewtonManager.forward()
-
-    assert world_mask.numpy().tolist() == [True]
-    assert fk_mask.numpy().tolist() == [True]
-
-
-def test_forward_skips_pending_reset_for_all_false_mask(monkeypatch):
-    """Skip solver reset when no world is selected."""
-    world_mask = wp.array([False, False], dtype=wp.bool, device="cpu")
-    fk_mask = wp.array([False, False], dtype=wp.bool, device="cpu")
-    reset = MagicMock()
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_transforms_may_change_on_graph_replay", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_reset_solver", reset, raising=False)
-    monkeypatch.setattr(NewtonManager, "_eval_fk", lambda *_: None, raising=False)
-
-    NewtonManager.forward()
-
-    reset.assert_not_called()
-    assert NewtonManager._solver_reset_pending is False
-
-
-def test_invalidate_fk_marks_solver_reset_pending(monkeypatch):
-    """Mark a solver reset whenever simulation state is invalidated."""
-    world_mask = MagicMock()
-    fk_mask = MagicMock()
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_mark_transforms_dirty", classmethod(lambda cls: None))
-
-    NewtonManager.invalidate_fk()
-
-    world_mask.fill_.assert_called_once_with(True)
-    fk_mask.fill_.assert_called_once_with(True)
-    assert NewtonManager._solver_reset_pending is True
-
-
-def test_invalidate_fk_ignores_empty_env_ids(monkeypatch):
-    """Keep solver state unchanged for an empty indexed write."""
-    world_mask = MagicMock()
-    fk_mask = MagicMock()
-    mark_dirty = MagicMock()
-    env_ids = wp.array([], dtype=wp.int32, device="cpu")
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver_reset_pending", False, raising=False)
-    monkeypatch.setattr(NewtonManager, "_mark_transforms_dirty", classmethod(lambda cls: mark_dirty()))
-
-    NewtonManager.invalidate_fk(env_ids=env_ids)
-
-    mark_dirty.assert_not_called()
-    world_mask.fill_.assert_not_called()
-    fk_mask.fill_.assert_not_called()
-    assert NewtonManager._solver_reset_pending is False
+    assert world_mask.numpy().tolist() == [False, False]
+    assert fk_mask.numpy().tolist() == [False, False]
 
 
 # ---------------------------------------------------------------------------
@@ -706,7 +634,6 @@ def test_initialize_solver_populates_canonical_state(
         assert isinstance(NewtonManager._solver, expected_solver_cls)
         assert NewtonManager._use_single_state is expected_use_single_state
         assert NewtonManager._needs_collision_pipeline is expected_needs_collision_pipeline
-        assert NewtonManager._reset_solver == expected_manager._reset_solver_internals
 
         # ``_contacts`` is allocated whichever way contacts are handled
         # (MuJoCo internal buffer or Newton pipeline output).

@@ -17,8 +17,12 @@ before it works well with VBD.
 VBD is usually exposed through a task-specific physics preset rather than a
 general ``newton_vbd`` preset. Deformable-only scenes can use
 :class:`~isaaclab_contrib.deformable.VBDSolverCfg` directly. Robot or
-rigid-body scenes can use :class:`~isaaclab_contrib.coupling.CouplerProxyCfg`
-so one solver advances rigid bodies and VBD advances deformable particles.
+rigid-body scenes can use either:
+
+* :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for the proxy coupling
+  used by the core Franka tasks.
+* :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` for the
+  opt-in shared-model example with custom substep ordering.
 
 Start from a Supported Deformable Task
 --------------------------------------
@@ -172,17 +176,61 @@ Self-Contact
       - Default: ``0.0`` [m]. Filters self-contact candidates whose rest-configuration distance is shorter than this distance. Increase it when rest-neighbor contacts produce unwanted resistance.
 
 
+Custom MJWarp + VBD Parameters
+------------------------------
+
+The opt-in
+:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` runs
+MJWarp and VBD over one shared model. Import
+:mod:`isaaclab_contrib.custom_coupling` explicitly before using its registered
+task.
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 70
+
+    * - Parameter
+      - Description
+    * - ``rigid_solver_cfg``
+      - MJWarp configuration for rigid bodies.
+    * - ``soft_solver_cfg``
+      - VBD configuration. Set ``integrate_with_external_rigid_solver=True``
+        so VBD advances only particles.
+    * - ``coupling_mode="one_way"``
+      - Advance rigid bodies first, then particles without rigid reaction
+        forces.
+    * - ``coupling_mode="two_way"``
+      - Inject particle reactions before MJWarp, then advance VBD with the same
+        contacts.
+
+MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
+in the scene. ``ccd_iterations`` can affect fast rigid contacts near
+deformables. See :doc:`mjwarp-solver` for the rigid-solver parameters.
+
+Use the custom manager for direct shared-model substep ordering. Use proxy
+coupling when deformable contact is localized to selected rigid bodies.
+
+
 .. _newton-vbd-proxy-coupling:
 
 Proxy-Coupled MJWarp + VBD
 --------------------------
 
-:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` is the supported MJWarp
-and VBD coupling. It partitions the model between named solver entries and
+:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` is the coupling used by
+the core Franka tasks. It partitions the model between named solver entries and
 exposes selected source bodies to the destination solver as proxies. Contact
 feedback returns to the source solver as lagged impulses. This keeps deformable
 contact work localized to the rigid bodies that need it, such as a gripper hand
-and fingers.
+and fingers. The pinned proxy solver supports at most two entries and rejects
+joints that cross entry boundaries.
+
+The core Franka soft-body task demonstrates the proxy configuration:
+
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
+    :language: python
+    :start-at: newton_mjwarp_vbd_proxy: NewtonCfg
+    :end-before: physx: PhysxCfg = PhysxCfg()
+    :dedent: 4
 
 What the selectors do:
 

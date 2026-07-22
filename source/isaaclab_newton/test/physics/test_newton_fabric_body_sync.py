@@ -228,33 +228,20 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
             # invalidation rather than Python code that ran during capture.
             env_mask = wp.ones(1, dtype=wp.bool, device=device)
             pose_buffer = target_pose.clone()
-
-            reset_masks: list[list[bool]] = []
-            reset_solver = NewtonManager._reset_solver
-            assert reset_solver is not None
-
-            def record_reset(world_mask):
-                reset_masks.append(world_mask.numpy().tolist())
-                reset_solver(world_mask)
-
-            NewtonManager._reset_solver = record_reset
             cube.write_root_link_pose_to_sim_mask(root_pose=pose_buffer, env_mask=env_mask)
             sim.render()
-            reset_masks.clear()
 
             torch.cuda.synchronize(device)
             with wp.ScopedCapture(device=device) as capture:
                 cube.write_root_link_pose_to_sim_mask(root_pose=pose_buffer, env_mask=env_mask)
 
             sim.render()
-            assert reset_masks == []
 
             replay_targets = (
                 torch.tensor([2.5, 0.5, 1.25, 0.0, 0.0, 0.0, 1.0], device=device),
                 torch.tensor([-1.25, 1.0, 3.0, 0.0, 0.0, 0.0, 1.0], device=device),
             )
             for replay_target in replay_targets:
-                reset_count = len(reset_masks)
                 pose_buffer.copy_(replay_target.unsqueeze(0))
                 torch.cuda.synchronize(device)
                 wp.capture_launch(capture.graph)
@@ -264,8 +251,6 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
                 sim.render()
                 wp.synchronize_device(device)
 
-                assert len(reset_masks) == reset_count + 1
-                assert reset_masks[-1] == [True]
                 assert sim.get_physics_step_count() == physics_steps
                 torch.testing.assert_close(
                     _fabric_position(body_path),
