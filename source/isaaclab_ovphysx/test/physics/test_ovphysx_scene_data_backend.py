@@ -163,7 +163,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.Stage = FakeStage
-    fake_ovstage.PopulationDomain = SimpleNamespace(PHYSICS="physics")
+    fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
     fake_ovstage.population = SimpleNamespace(
         open_usd_from_string=lambda stage, usda, ordinal, domains: events.append(
             ("populate", stage, usda, ordinal, domains)
@@ -185,7 +185,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
     assert events == [
         ("stage", "isaaclab"),
-        ("populate", stage, "#usda 1.0", 1, "physics"),
+        ("populate", stage, "#usda 1.0", 1, "all"),
         ("attach", stage, 1),
         ("reset",),
         ("wait", 17),
@@ -211,7 +211,7 @@ def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
 
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.Stage = FakeStage
-    fake_ovstage.PopulationDomain = SimpleNamespace(PHYSICS="physics")
+    fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
     fake_ovstage.population = SimpleNamespace(open_usd_from_string=fail_population)
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
 

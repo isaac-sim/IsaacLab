@@ -423,7 +423,9 @@ class OvPhysxManager(PhysicsManager):
                 stage,
                 stage_usda,
                 ordinal=1,
-                domains=ovstage.PopulationDomain.PHYSICS,
+                # FIXME: Use PHYSICS once OVStage includes native-instance collider
+                # dependencies in physics-only population.
+                domains=ovstage.PopulationDomain.ALL,
             )
             cls._physx.attach_ovstage(stage, read_ordinal=1)
         except Exception:
