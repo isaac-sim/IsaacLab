@@ -86,10 +86,9 @@ SANCTIONED_BOUNDARIES = {
     ("isaaclab/sensors/camera/camera.py", "_env_mask_has_any"),
     # joint-limit writes mutate the solver model (host-side by nature, event-driven)
     ("isaaclab_newton/assets/articulation/articulation.py", "write_joint_position_limit_to_sim_mask"),
-    # develop-era compaction helpers; deleted by Part 3 (#6646) — its rebase must
-    # drop these entries (the stale-entry assertion enforces that).
-    ("isaaclab_newton/assets/rigid_object_collection/rigid_object_collection.py", "_resolve_env_mask"),
-    ("isaaclab_newton/assets/rigid_object_collection/rigid_object_collection.py", "_resolve_body_mask"),
+    # legacy-actuator compatibility fallback: mask-native actuator models override
+    # this; legacy models compact once per reset (event-driven, not per-step).
+    ("isaaclab/actuators/actuator_base.py", "reset_mask"),
 }
 
 
