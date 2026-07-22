@@ -549,6 +549,29 @@ runs:
           exit 0
         fi
 
+        # Emit ::error:: annotations so failures appear as highlighted lines in
+        # the log view and as PR check annotations, without requiring users to
+        # scroll through the full Docker output to find what failed.
+        python3 - "$report" <<'PY'
+        import sys
+        import xml.etree.ElementTree as ET
+        try:
+            root = ET.parse(sys.argv[1]).getroot()
+        except Exception as exc:
+            print(f"::warning::Could not parse test report for annotations: {exc}")
+            sys.exit(0)
+        for tc in root.iter("testcase"):
+            classname = tc.get("classname", "")
+            tc_name = tc.get("name", "unknown")
+            full_name = f"{classname}.{tc_name}" if classname else tc_name
+            for tag in ("failure", "error"):
+                el = tc.find(tag)
+                if el is not None:
+                    raw = (el.get("message") or el.text or "").strip()
+                    msg = raw.split("\n")[0][:200].replace("%", "%25").replace("\r", "")
+                    print(f"::error::{full_name} — {msg}")
+        PY
+
         # Parse JUnit XML and produce a markdown summary.
         # Exit code 2 means the report was corrupt/unreadable - surface the
         # error in the summary but don't mask the real test exit code.
