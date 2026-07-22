@@ -1632,7 +1632,7 @@ def _make_franka_cloth_camera_env_cfg(data_type: str):
     from isaaclab.utils.configclass import configclass
 
     from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg, FrankaClothSceneCfg
-    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, PresetCfg
 
     @configclass
     class TestFrankaClothCameraSceneCfg(FrankaClothSceneCfg):
@@ -1651,6 +1651,19 @@ def _make_franka_cloth_camera_env_cfg(data_type: str):
             height=128,
             renderer_cfg=MultiBackendRendererCfg(),
         )
+
+    @configclass
+    class TestFrankaClothCameraScenePresetCfg(PresetCfg):
+        """Backend-specific camera scenes for the local rendering test."""
+
+        newton_mjwarp_vbd: TestFrankaClothCameraSceneCfg = TestFrankaClothCameraSceneCfg(
+            num_envs=4, env_spacing=3.0, replicate_physics=True
+        )
+        ovphysx: TestFrankaClothCameraSceneCfg = TestFrankaClothCameraSceneCfg(
+            num_envs=4, env_spacing=3.0, replicate_physics=False
+        )
+
+        default = newton_mjwarp_vbd
 
     @configclass
     class TestFrankaClothCameraObservationsCfg:
@@ -1673,19 +1686,18 @@ def _make_franka_cloth_camera_env_cfg(data_type: str):
     class TestFrankaClothCameraEnvCfg(FrankaClothEnvCfg):
         """Test-only camera variant of ``Isaac-Lift-Cloth-Franka``."""
 
-        scene: TestFrankaClothCameraSceneCfg = TestFrankaClothCameraSceneCfg(
-            num_envs=4, env_spacing=3.0, replicate_physics=True
-        )
+        scene: TestFrankaClothCameraScenePresetCfg = TestFrankaClothCameraScenePresetCfg()
         observations: TestFrankaClothCameraObservationsCfg = TestFrankaClothCameraObservationsCfg()
 
         def __post_init__(self) -> None:
             super().__post_init__()
             self.commands.deformable_pose.debug_vis = False
-            self.events.reset_deformable.params["position_range"] = {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-            }
+            for event_cfg in (self.events.newton_mjwarp_vbd, self.events.ovphysx):
+                event_cfg.reset_deformable.params["position_range"] = {
+                    "x": (0.0, 0.0),
+                    "y": (0.0, 0.0),
+                    "z": (0.0, 0.0),
+                }
 
     return TestFrankaClothCameraEnvCfg()
 

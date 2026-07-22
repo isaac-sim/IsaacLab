@@ -36,3 +36,20 @@ def test_cloth_task_ovphysx_preset_selects_complete_authored_scene():
     assert isinstance(cfg.scene.deformable.spawn.deformable_props, PhysxDeformableBodyPropertiesCfg)
     assert isinstance(cfg.scene.deformable.spawn.physics_material, PhysxSurfaceDeformableBodyMaterialCfg)
     assert cfg.events.robot_physics_material.params["asset_cfg"].body_names is None
+
+
+def test_cloth_rendering_variant_updates_all_event_presets():
+    """Test that the rendering variant can override reset ranges before preset resolution."""
+    from rendering_test_utils import _make_franka_cloth_camera_env_cfg
+
+    expected_range = {
+        "x": (0.0, 0.0),
+        "y": (0.0, 0.0),
+        "z": (0.0, 0.0),
+    }
+
+    for preset_name, replicate_physics in (("newton_mjwarp_vbd", True), ("ovphysx", False)):
+        cfg = resolve_presets(_make_franka_cloth_camera_env_cfg("rgb"), (preset_name,))
+
+        assert cfg.scene.replicate_physics is replicate_physics
+        assert cfg.events.reset_deformable.params["position_range"] == expected_range
