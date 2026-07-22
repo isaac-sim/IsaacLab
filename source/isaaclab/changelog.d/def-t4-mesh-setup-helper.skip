@@ -1,0 +1,1 @@
+Internal refactor: extracted a module-private deformable mesh-setup helper. No user-facing change.
