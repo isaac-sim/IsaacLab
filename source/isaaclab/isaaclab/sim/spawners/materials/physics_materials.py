@@ -230,6 +230,9 @@ def spawn_deformable_body_material(
         ValueError: When a prim already exists at the specified prim path and is not a material.
 
     """
+    if isinstance(cfg, physics_materials_cfg.CableMaterialCfg):
+        cfg.validate()
+
     # get stage handle
     stage = get_current_stage()
 

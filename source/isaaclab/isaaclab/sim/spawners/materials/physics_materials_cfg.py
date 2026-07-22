@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import ClassVar
@@ -67,16 +68,27 @@ class CableMaterialCfg(PhysicsMaterialCfg):
     func: Callable | str = "{DIR}.physics_materials:spawn_deformable_body_material"
 
     thickness: float = 0.001
-    """The full cable thickness (diameter) [m]. Defaults to 0.001 m."""
+    """The finite, positive full cable thickness (diameter) [m]. Defaults to 0.001 m."""
 
     density: float = 1000.0
-    """The cable density [kg/m^3]. Defaults to 1000 kg/m^3."""
+    """The finite, positive cable density [kg/m^3]. Defaults to 1000 kg/m^3."""
 
     stretch_stiffness: float = 1.0e9
-    """The cable stretch elastic modulus [Pa]. Defaults to 1e9 Pa."""
+    """The finite, nonnegative cable stretch elastic modulus [Pa]. Defaults to 1e9 Pa."""
 
     bend_stiffness: float = 1.0e6
-    """The cable bend elastic modulus [Pa]. Defaults to 1e6 Pa."""
+    """The finite, nonnegative cable bend elastic modulus [Pa]. Defaults to 1e6 Pa."""
+
+    def validate_config(self):
+        """Validate cable material values."""
+        for field in ("thickness", "density"):
+            value = getattr(self, field)
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f"CableMaterialCfg {field} must be finite and greater than zero.")
+        for field in ("stretch_stiffness", "bend_stiffness"):
+            value = getattr(self, field)
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(f"CableMaterialCfg {field} must be finite and nonnegative.")
 
 
 @configclass

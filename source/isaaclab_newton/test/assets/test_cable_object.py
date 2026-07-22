@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import gc
+import weakref
 from types import SimpleNamespace
 
 import pytest
@@ -200,6 +202,44 @@ def test_cable_rejects_non_vbd_solver():
     with build_simulation_context(sim_cfg=sim_cfg):
         with pytest.raises(RuntimeError, match="VBDSolverCfg"):
             InteractiveScene(_CableSceneCfg(num_envs=1, env_spacing=1.0))
+
+
+def test_cable_rejects_external_rigid_integration():
+    sim_cfg = SimulationCfg(
+        device="cpu",
+        physics=NewtonCfg(
+            solver_cfg=VBDSolverCfg(integrate_with_external_rigid_solver=True),
+            use_cuda_graph=False,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg):
+        with pytest.raises(RuntimeError, match="rigid-body integration"):
+            InteractiveScene(_CableSceneCfg(num_envs=1, env_spacing=1.0))
+
+
+def test_cable_callback_does_not_retain_asset():
+    sim_cfg = SimulationCfg(
+        device="cpu",
+        physics=NewtonCfg(
+            solver_cfg=VBDSolverCfg(iterations=2),
+            use_cuda_graph=False,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(_CableSceneCfg(num_envs=1, env_spacing=1.0))
+        sim.reset()
+        cable = scene["cable"]
+        callback_id = cable._physics_ready_handle.id
+        cable_ref = weakref.ref(cable)
+
+        del cable
+        del scene
+        gc.collect()
+
+        assert cable_ref() is None
+        assert callback_id not in SimulationManager._callbacks
 
 
 @pytest.mark.parametrize(

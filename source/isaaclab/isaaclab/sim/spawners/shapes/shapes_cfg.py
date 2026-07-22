@@ -10,7 +10,7 @@ from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg
+from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils.configclass import configclass
 
 
@@ -132,10 +132,15 @@ class ConeCfg(ShapeCfg):
 
 
 @configclass
-class CableCfg(ShapeCfg):
+class CableCfg(SpawnerCfg):
     """Configuration parameters for an open linear cable."""
 
     func: Callable | str = "{DIR}.shapes:spawn_cable"
+    visual_material_path: str = "material"
+    """Path to the visual material, relative to the cable geometry prim."""
+
+    visual_material: materials.VisualMaterialCfg | None = None
+    """Visual material properties."""
 
     positions: Sequence[tuple[float, float, float]] = MISSING
     """Control points in the cable-local frame [m].

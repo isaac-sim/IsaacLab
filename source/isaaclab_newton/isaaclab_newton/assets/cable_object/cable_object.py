@@ -53,8 +53,12 @@ class CableObject(BaseCableObject):
         self._invalidate_initialize_handle = None
         self._prim_deletion_handle = None
         sim = SimulationContext.instance()
-        if sim is not None and not getattr(sim.physics_manager, "_supports_cable_joints", False):
-            raise RuntimeError("CableObject requires the pure Newton VBD solver. Configure VBDSolverCfg.")
+        if sim is not None:
+            solver_cfg = getattr(sim.cfg.physics, "solver_cfg", None)
+            if not getattr(sim.physics_manager, "_supports_cable_joints", False) or getattr(
+                solver_cfg, "integrate_with_external_rigid_solver", False
+            ):
+                raise RuntimeError("CableObject requires VBDSolverCfg with rigid-body integration enabled.")
 
         super().__init__(cfg)
         self._curve_path_expr, self._num_authored_segments = self._resolve_curve()
@@ -251,7 +255,7 @@ class CableObject(BaseCableObject):
 
         self._data = CableObjectData(self.root_view, self.device)
         self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._rebind(),
+            self._rebind,
             PhysicsEvent.PHYSICS_READY,
             name=f"cable_object_rebind_{self.cfg.prim_path}",
         )
@@ -277,7 +281,7 @@ class CableObject(BaseCableObject):
         if state_1 is not None and state_1 is not state_0:
             yield state_1
 
-    def _rebind(self) -> None:
+    def _rebind(self, _: object) -> None:
         """Rebind simulation arrays after a Newton model rebuild."""
         self._data._create_simulation_bindings()
         self._register_visualization()
