@@ -1111,17 +1111,20 @@ def rendering_test_shadow_hand(
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
         ShadowHandTiledCameraCfg,
-        _ShadowHandBaseTiledCameraCfg,
     )
 
     @configclass
     class _ShadowHandTiledCameraTestCfg(ShadowHandTiledCameraCfg):
-        distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
-        distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
-        normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
-        instance_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation_fast"])
-        instance_id_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
-        motion_vectors = _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
+        distance_to_camera = ShadowHandTiledCameraCfg.BaseTiledCameraCfg(data_types=["distance_to_camera"])
+        distance_to_image_plane = ShadowHandTiledCameraCfg.BaseTiledCameraCfg(data_types=["distance_to_image_plane"])
+        normals = ShadowHandTiledCameraCfg.BaseTiledCameraCfg(data_types=["normals"])
+        instance_segmentation_fast = ShadowHandTiledCameraCfg.BaseTiledCameraCfg(
+            data_types=["instance_segmentation_fast"]
+        )
+        instance_id_segmentation_fast = ShadowHandTiledCameraCfg.BaseTiledCameraCfg(
+            data_types=["instance_id_segmentation_fast"]
+        )
+        motion_vectors = ShadowHandTiledCameraCfg.BaseTiledCameraCfg(data_types=["motion_vectors"])
 
     @configclass
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
