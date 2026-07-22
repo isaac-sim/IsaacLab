@@ -91,6 +91,7 @@ class BaseEnvWindow:
                 self._build_debug_vis_frame()
                 with self.ui_window_elements["debug_frame"]:
                     with self.ui_window_elements["debug_vstack"]:
+                        self._visualize_manager(title="Training Metrics", class_name="episode")
                         self._visualize_manager(title="Actions", class_name="action_manager")
                         self._visualize_manager(title="Observations", class_name="observation_manager")
                 # Visualization Markers — scene element debug overlays

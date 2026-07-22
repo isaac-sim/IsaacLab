@@ -453,7 +453,20 @@ class RerunVisualizer(BaseVisualizer):
         # layout.  ViewerRerun.log_scalar calls _get_blueprint() on the first scalar logged,
         # which would overwrite any blueprint we send here — so we inject the layout into
         # the viewer's own blueprint factory instead of calling rr.send_blueprint directly.
-        self._viewer._live_plot_manager_names = [source.manager_name for source in self._live_plot_sources]
+        # Build the list of Rerun series-view names.  For manager sources, one view per
+        # manager groups all their terms together.  For DirectScalarLivePlots (e.g. episode
+        # metrics), each scalar gets its own view so they have independent Y axes — otherwise
+        # episode_length (~160) and mean_reward (~0-1) share an axis, hiding the smaller one.
+        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots
+
+        names = []
+        for source in self._live_plot_sources:
+            if isinstance(source, DirectScalarLivePlots):
+                for term in source._scalars:
+                    names.append(f"{source.manager_name}/{term}")
+            else:
+                names.append(source.manager_name)
+        self._viewer._live_plot_manager_names = names
 
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to Rerun as time-series scalars."""

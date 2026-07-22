@@ -581,6 +581,10 @@ class DirectRLEnv(gym.Env):
         }
         for viz in self.sim.visualizers:
             viz.add_live_plots({}, scalars=scalars)
+        # Populate manager_visualizers for the Kit window (mirrors ManagerBasedRLEnv).
+        self.manager_visualizers = {
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
+        }
 
     def close(self):
         """Cleanup for the environment."""
