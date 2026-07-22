@@ -220,6 +220,10 @@ class DirectRLEnv(gym.Env):
         self.has_debug_vis_implementation = "NotImplementedError" not in source_code
         self._debug_vis_handle = None
 
+        # wire episode metrics into live plots and populate manager_visualizers for Kit
+        # before the window is created so the UI can query manager_visualizers on init.
+        self.setup_direct_visualizers()
+
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
@@ -288,9 +292,6 @@ class DirectRLEnv(gym.Env):
             )
             if self.cfg.num_rerenders_on_reset == 0:
                 self.cfg.num_rerenders_on_reset = 1
-
-        # wire episode metrics into live plots for standalone visualizer backends
-        self.setup_direct_visualizers()
 
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
