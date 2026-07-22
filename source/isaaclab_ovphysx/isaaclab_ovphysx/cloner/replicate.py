@@ -10,12 +10,13 @@ replication.  Unlike those replicators, ovphysx.PhysX does not exist yet at
 this point in the scene setup — it is created lazily on the first
 :meth:`~isaaclab_ovphysx.physics.OvPhysxManager.reset` call.
 
-This function records a *pending clone* on :class:`OvPhysxManager`.  When
+This function records an active clone recipe on :class:`OvPhysxManager`.  When
 :meth:`~isaaclab_ovphysx.physics.OvPhysxManager._warmup_and_load` eventually
-creates the ``PhysX`` instance and loads the USD stage (which contains only
-``env_0`` physics — env_1..N are empty Xform containers), it replays every
-pending clone via ``physx.clone(source, targets)`` to create the remaining
-environments entirely inside the physics runtime without touching USD.
+creates the ``PhysX`` instance, env_0-only loads replay each recipe via
+``physx.clone(source, targets)`` after loading. Full-stage loads instead
+materialize or overlay every recipe in the temporary export before loading.
+Recipes remain active for the current simulation context so a forced re-warmup
+rebuilds the same topology without modifying the live USD stage.
 """
 
 from __future__ import annotations
@@ -142,8 +143,9 @@ def ovphysx_replicate(
     Translates the generic IsaacLab source/destination/mapping representation
     into ``(source_path, [target_paths])`` pairs and registers them on
     :class:`~isaaclab_ovphysx.physics.OvPhysxManager`.  The actual
-    ``physx.clone()`` calls happen in ``_warmup_and_load()`` after OVStage
-    has been attached.
+    During ``_warmup_and_load()``, env_0-only loads replay the recipes with
+    ``physx.clone()`` after loading the USD stage. Full-stage loads materialize
+    or overlay them in the serialized stage before loading instead.
 
     The ``positions`` parameter contains the 2-D grid world positions for all
     environments.  They are forwarded to the C++ clone plugin so that the

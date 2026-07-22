@@ -111,6 +111,96 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets(tmp_
         OvPhysxManager._pending_clones = previous
 
 
+def test_manager_full_stage_overlays_existing_ancestor_without_removing_descendants(tmp_path):
+    """An ancestor created for another asset gains source physics while retaining descendants."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
+    source.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+    physics = stage.DefinePrim("/World/envs/env_0/Robot/Physics", "Xform")
+    physics.CreateAttribute("physics:mass", Sdf.ValueTypeNames.Float).Set(3.0)
+    camera = stage.DefinePrim("/World/envs/env_1/Robot/Camera", "Xform")
+    camera.CreateAttribute("test:keep", Sdf.ValueTypeNames.Bool).Set(True)
+    output = tmp_path / "scene.usda"
+    stage.Export(str(output))
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0)])]
+        OvPhysxManager._materialize_pending_clones(stage, str(output))
+        exported = Usd.Stage.Open(str(output))
+        robot = exported.GetPrimAtPath("/World/envs/env_1/Robot")
+        assert robot.GetAttribute("physics:enabled").Get() is True
+        assert exported.GetPrimAtPath("/World/envs/env_1/Robot/Physics").GetAttribute("physics:mass").Get() == 3.0
+        assert exported.GetPrimAtPath("/World/envs/env_1/Robot/Camera").GetAttribute("test:keep").Get() is True
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_retains_clone_recipes_across_full_stage_exports(tmp_path):
+    """A second full-stage export rematerializes targets that existed only in the first export."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Object", "Xform")
+    source.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+    previous_pending = OvPhysxManager._pending_clones
+    previous_active = getattr(OvPhysxManager, "_active_clone_recipes", None)
+    try:
+        OvPhysxManager._pending_clones = []
+        OvPhysxManager._active_clone_recipes = []
+        OvPhysxManager.register_clone("/World/envs/env_0/Object", ["/World/envs/env_1/Object"], [(1.0, 0.0, 0.0)])
+        for index in range(2):
+            output = tmp_path / f"scene-{index}.usda"
+            stage.Export(str(output))
+            OvPhysxManager._rearm_pending_clones()
+            OvPhysxManager._materialize_pending_clones(stage, str(output))
+            exported = Usd.Stage.Open(str(output))
+            assert exported.GetPrimAtPath("/World/envs/env_1/Object").GetAttribute("physics:enabled").Get() is True
+            assert OvPhysxManager._pending_clones == []
+        assert len(OvPhysxManager._active_clone_recipes) == 1
+    finally:
+        OvPhysxManager._pending_clones = previous_pending
+        if previous_active is None:
+            del OvPhysxManager._active_clone_recipes
+        else:
+            OvPhysxManager._active_clone_recipes = previous_active
+
+
+def test_manager_full_stage_materialization_raises_when_save_fails(tmp_path, monkeypatch):
+    """A failed layer save aborts warmup-visible materialization."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    stage.DefinePrim("/World/envs/env_0/Object", "Xform")
+    output = tmp_path / "scene.usda"
+    stage.Export(str(output))
+    layer = stage.GetRootLayer().FindOrOpen(str(output))
+    monkeypatch.setattr(layer, "Save", lambda: False)
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [("/World/envs/env_0/Object", ["/World/envs/env_1/Object"], [(1.0, 0.0, 0.0)])]
+        with pytest.raises(RuntimeError, match="failed to save materialized full-stage export"):
+            OvPhysxManager._materialize_pending_clones(stage, str(output))
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
 def test_manager_full_stage_materialization_is_atomic_on_invalid_target(tmp_path):
     """A validation failure clears the queue without partially modifying the export."""
     from isaaclab_ovphysx.physics import OvPhysxManager
@@ -171,13 +261,57 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
         OvPhysxManager._pending_clones = previous
 
 
+def test_manager_retains_clone_recipes_across_runtime_replays():
+    """A second non-full warmup replays the active clone recipes again."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class FakePhysX:
+        def __init__(self):
+            self.calls = []
+
+        def clone(self, source, targets, transforms):
+            self.calls.append((source, targets, transforms))
+            return len(self.calls)
+
+        def wait_op(self, operation):
+            self.calls.append(("wait_op", operation))
+
+    fake = FakePhysX()
+    previous_pending = OvPhysxManager._pending_clones
+    previous_active = getattr(OvPhysxManager, "_active_clone_recipes", None)
+    try:
+        OvPhysxManager._pending_clones = []
+        OvPhysxManager._active_clone_recipes = []
+        OvPhysxManager.register_clone("/env_0", ["/env_1"], [(1.0, 2.0, 3.0)])
+        for _ in range(2):
+            OvPhysxManager._rearm_pending_clones()
+            OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
+        clone_calls = [call for call in fake.calls if call[0] != "wait_op"]
+        assert clone_calls == [
+            ("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
+            ("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
+        ]
+        assert OvPhysxManager._pending_clones == []
+        assert len(OvPhysxManager._active_clone_recipes) == 1
+    finally:
+        OvPhysxManager._pending_clones = previous_pending
+        if previous_active is None:
+            del OvPhysxManager._active_clone_recipes
+        else:
+            OvPhysxManager._active_clone_recipes = previous_active
+
+
 def test_manager_resets_full_stage_requirement_between_contexts():
-    """Closing a manager context resets the full-stage requirement."""
+    """Closing a manager context resets full-stage and clone-recipe state."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
     OvPhysxManager.require_full_stage()
+    OvPhysxManager._active_clone_recipes = [("/env_0", ["/env_1"], [])]
+    OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [])]
     OvPhysxManager.close()
     assert OvPhysxManager._requires_full_stage is False
+    assert OvPhysxManager._active_clone_recipes == []
+    assert OvPhysxManager._pending_clones == []
 
 
 def test_manager_supports_declared_legacy_runtime_api():
