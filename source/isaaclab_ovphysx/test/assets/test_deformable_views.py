@@ -123,6 +123,13 @@ def test_surface_view_maps_common_methods_and_rejects_targets():
         view.get_simulation_nodal_kinematic_targets()
 
 
+def test_surface_view_rejects_collision_elements_with_public_diagnostic():
+    view = OvPhysxDeformableBodyView(_FakePhysX(), "/World/env_*/Cloth", "cpu", "surface")
+
+    with pytest.raises(ValueError, match="collision elements are only available for volume deformables"):
+        view.get_collision_element_indices()
+
+
 def test_body_view_forwards_full_buffer_indices_and_masks():
     view = OvPhysxDeformableBodyView(_FakePhysX(), "/World/env_*/Soft", "cpu", "volume")
     values = wp.zeros((2, 5, 3), dtype=wp.float32)
