@@ -16,10 +16,15 @@ import sys
 
 
 def _find_extscache() -> str:
-    # Binary / symlink install: ISAACLAB_PATH/_isaac_sim/extscache
-    symlink_path = os.path.join(os.environ.get("ISAACLAB_PATH", ""), "_isaac_sim", "extscache")
-    if os.path.isdir(symlink_path):
-        return symlink_path
+    # Binary / symlink install: ISAACLAB_PATH/_isaac_sim/extscache.
+    # Only probe when ISAACLAB_PATH is set; an empty value would produce a
+    # relative path that resolves against CWD and may accidentally match a
+    # _isaac_sim symlink in an unrelated working directory.
+    isaaclab_path = os.environ.get("ISAACLAB_PATH", "")
+    if isaaclab_path:
+        symlink_path = os.path.join(isaaclab_path, "_isaac_sim", "extscache")
+        if os.path.isdir(symlink_path):
+            return symlink_path
 
     # Wheel / pip install: locate the isaacsim package without importing it so
     # that this script can run before PYTHONPATH is fully configured.
@@ -27,11 +32,11 @@ def _find_extscache() -> str:
     if spec is not None and spec.origin:
         return os.path.join(os.path.dirname(spec.origin), "extscache")
 
-    return symlink_path
+    return ""
 
 
 extscache = _find_extscache()
-candidates = sorted(glob.glob(os.path.join(extscache, "omni.usd.libs-*")))
+candidates = sorted(glob.glob(os.path.join(extscache, "omni.usd.libs-*"))) if extscache else []
 if candidates:
     usd_libs_dir = candidates[-1]
     init_py = os.path.join(usd_libs_dir, "pxr", "__init__.py")
