@@ -42,10 +42,11 @@ parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity 
 parser.add_argument(
     "--cloudxr_env",
     type=str,
-    default="cloudxrjs",
+    default=None,
     help=(
-        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico, default) or 'avp' (Apple Vision Pro)."
-        " Set to 'none' to disable CloudXR auto-launch entirely."
+        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico), 'avp' (Apple Vision Pro),"
+        " or 'standalone' (headless, no XR client). Set to 'none' to disable CloudXR auto-launch entirely."
+        " When unset, defaults to 'cloudxrjs' with --xr and 'standalone' without --xr."
     ),
 )
 parser.add_argument(
@@ -115,19 +116,25 @@ logger = logging.getLogger(__name__)
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
 
 
-def _resolve_cloudxr_env(value: str | None) -> str | None:
+def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
     """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
 
     Accepts ``"cloudxrjs"`` (Quest/Pico), ``"avp"`` (Apple Vision Pro),
-    ``"none"`` / ``None`` (disable), or an arbitrary file path.
+    ``"standalone"`` (headless, no XR client), ``"none"`` (disable), or an
+    arbitrary file path. When *value* is ``None`` (flag unset), defaults to
+    ``"cloudxrjs"`` when *xr_enabled* else ``"standalone"`` -- so a run without
+    ``--xr`` uses the clientless headless profile.
     """
-    if value is None or value.strip() == "" or value.lower() == "none":
+    if value is None:
+        value = "cloudxrjs" if xr_enabled else "standalone"
+    if value.strip() == "" or value.lower() == "none":
         return None
     if not _CLOUDXR_ENV_SHORTHANDS:
-        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV
+        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
 
         _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
         _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
+        _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
@@ -195,7 +202,10 @@ def main() -> None:
         not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
     )
 
-    if use_isaac_teleop or args_cli.xr:
+    # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
+    # path. Without --xr, IsaacTeleop runs standalone (I/O only) and renders
+    # normally, so gate on --xr alone.
+    if args_cli.xr:
         env_cfg = remove_camera_configs(env_cfg)
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
@@ -267,11 +277,12 @@ def main() -> None:
         "RESET": reset_recording_instance,
     }
 
-    # For XR devices (hand tracking or IsaacTeleop), default to inactive
-    if use_isaac_teleop or args_cli.xr:
+    # With --xr, XR devices (hand tracking or IsaacTeleop) default to inactive
+    # until START is received. Without --xr, IsaacTeleop runs standalone (I/O
+    # only) and is active immediately, like any other input device.
+    if args_cli.xr:
         teleoperation_active = env_cfg.isaac_teleop.teleoperation_active_default if use_isaac_teleop else False
     else:
-        # Always active for other devices
         teleoperation_active = True
 
     # Create teleop device based on configuration
@@ -285,9 +296,10 @@ def main() -> None:
                 env_cfg.isaac_teleop,
                 sim_device=args_cli.device,
                 callbacks=teleoperation_callbacks,
-                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
+                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env, args_cli.xr),
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 enable_debug_visualization=args_cli.enable_debug_visualization,
+                use_kit_xr_bridge=args_cli.xr,
                 haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
 
