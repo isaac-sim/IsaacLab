@@ -32,14 +32,9 @@ pytestmark = [pytest.mark.isaacsim_ci]
 
 
 def test_cartpole_env_kit_physx(caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]) -> None:
-    """Kit RTX viewport + tiled camera motion tests on PhysX in one env.
+    """Kit RTX viewport and tiled camera motion tests on PhysX.
 
-    Runs both the viewport and tiled motion tests in a single env to avoid creating and
-    destroying two separate envs.  PhysX env setup/teardown (~3–4 min each) dominates the
-    total runtime; sharing one env cuts the expected time roughly in half.
-
-    Newton viewer, Rerun, and Viser are backend-agnostic and are covered by the Newton
-    integration test which runs in ~50 s total.
+    Newton, Rerun, and Viser are backend-agnostic and covered by the Newton integration test.
     """
     _viz_utils.run_cartpole_env_kit_viewport_and_tiled("physx", caplog)
     _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)

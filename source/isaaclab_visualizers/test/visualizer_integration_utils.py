@@ -101,18 +101,10 @@ _CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
 """Cartpole articulation root prim followed by generated visualizer tiled cameras."""
 
 _START_BUFFER_STEPS = 20
-"""Warmup physics steps before capturing the first debug frame.
-
-Referenced by :mod:`visualizer_golden_utils` as ``_viz_utils._START_BUFFER_STEPS`` — do not rename.
-"""
+"""Warmup physics steps before capturing the first debug frame."""
 
 _INTEGRATION_MOTION_BUFFER_STEPS = 10
-"""Physics warmup steps before motion checking in integration tests.
-
-Intentionally shorter than :data:`_START_BUFFER_STEPS`: the cartpole is already in motion (forced
-initial angle/velocity), so 10 steps are enough to establish a dynamic baseline frame before the
-play/pause frame-diff checks begin.
-"""
+"""Warmup physics steps before motion checking in integration tests."""
 
 _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS = 20
 """Render/app updates after creating a Kit RTX render product before sampling RGB."""
@@ -1312,28 +1304,18 @@ def _capture_visualizer_tiled_camera_rgb(visualizer, *, label: str = "capture") 
         visualizer._update_owned_camera_poses()
         if isinstance(visualizer, KitVisualizer):
             visualizer._sync_camera_pose_updates_to_kit()
-            # On the Newton backend, body transforms reach the tiled cameras via Newton Fabric.
-            # Draining until _newton_fabric_ready ensures RTX has committed Fabric writes before
-            # capture; the drain exits after 1 iteration once Newton physics has set the flag.
-            #
-            # On PhysX, _newton_fabric_ready is never set by the Newton physics engine (it is
-            # not simulating), so the drain would exhaust all 600 iterations (~6 min for
-            # 6 captures) without doing anything useful.  We probe with a short cap and skip
-            # the remaining drain if Newton fabric is still not ready after 20 iterations.
-            # PhysX body transforms are immediately available via USD sync; _pump_tiled_until_stable
-            # handles frame convergence without any Newton-specific drain.
+            # Probe with a short drain to detect backend: on Newton, _newton_fabric_ready is set
+            # after the first iteration; on PhysX it is never set so we skip the full drain and
+            # let _pump_tiled_until_stable handle convergence instead.
             _drain_until_newton_fabric_ready(max_updates=20, updates_per_iter=4)
             try:
                 from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
 
                 if NewtonManager._newton_fabric_ready:
-                    # Newton backend: fabric is ready; finish the full drain pass.
                     _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
                     _update_active_simulation_app()
                     _force_newton_transforms_resync()
                 else:
-                    # PhysX backend: fabric never becomes ready; skip and let
-                    # _pump_tiled_until_stable handle frame convergence.
                     _update_active_simulation_app()
             except Exception:
                 _update_active_simulation_app()
@@ -1845,9 +1827,7 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
     Args:
         backend_kind: Physics backend, ``"physx"`` or ``"newton"``.
         caplog: Pytest log capture fixture.
-        visualizer_kinds: Which visualizers to include. Defaults to all four. Pass a
-            subset (e.g. ``("kit",)``) to skip backend-agnostic visualizers whose
-            play/pause behavior is already covered by another backend's integration test.
+        visualizer_kinds: Which visualizers to include.
     """
     env = None
     try:
@@ -1911,25 +1891,10 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
 
 
 def run_cartpole_env_kit_viewport_and_tiled(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Kit RTX viewport + tiled camera motion tests back-to-back in two envs.
+    """Kit RTX viewport and tiled camera motion tests in two sequential Kit-only envs.
 
-    The PhysX integration test originally ran Kit+Newton+Rerun+Viser in the viewport env
-    (~165 env.step() at ~1.5 s each due to GPU contention from Newton GL) and Kit+Newton
-    in the tiled env (~130 steps).  This function restructures the test for speed:
-
-    * **Viewport env (Kit-only)**: removing Newton GL eliminates GPU contention, dropping
-      each env.step() from ~1.5 s to ~0.1 s.
-    * **Tiled env (Kit+Newton)**: Newton tiled is kept because
-      :func:`_drain_until_newton_fabric_ready`, called inside
-      :func:`_capture_visualizer_tiled_camera_rgb` for KitVisualizer, polls
-      ``NewtonManager._newton_fabric_ready``.  On PhysX without Newton, this flag is never
-      set and the drain exhausts all 600 iterations (~6 min).  With Newton present,
-      :meth:`~isaaclab_visualizers.NewtonVisualizer.step` calls Newton's SelectPrims each
-      env.step(), setting the flag immediately so the drain exits on its first check.
-
-    Two envs are still needed because Kit's RTX viewport render product is only active when
-    ``tiled_camera=False``; in tiled mode the GPU targets the tiled render products and the
-    viewport annotator receives empty frames.
+    Two envs are required because the Kit RTX viewport render product is inactive when
+    ``tiled_camera=True``; the GPU only renders tiled products in that mode.
 
     Args:
         backend_kind: Physics backend, ``"physx"`` or ``"newton"``.
@@ -1960,13 +1925,8 @@ def run_cartpole_env_kit_viewport_and_tiled(backend_kind: str, caplog: pytest.Lo
     try:
         _prepare_visualizer_test_process()
         sim_utils.create_new_stage()
-        # Newton tiled is intentionally included here even though only the Kit tiled path is
-        # asserted below.  NewtonVisualizer.step() calls Newton's SelectPrims on every env.step(),
-        # which sets _newton_fabric_ready=True.  This lets _drain_until_newton_fabric_ready
-        # (called inside _capture_visualizer_tiled_camera_rgb for KitVisualizer) exit after its
-        # first iteration rather than exhausting all 600 iterations — a ~6 min difference on PhysX.
         env = _make_cartpole_camera_env(
-            visualizer_kind=("kit", "newton"),
+            visualizer_kind=("kit",),
             backend_kind=backend_kind,
             tiled_camera=True,
         )
@@ -1997,9 +1957,7 @@ def run_cartpole_env_visualizers_tiled_camera_motion(
     Args:
         backend_kind: Physics backend, ``"physx"`` or ``"newton"``.
         caplog: Pytest log capture fixture.
-        visualizer_kinds: Which tiled visualizers to include. Defaults to both Kit and Newton.
-            Pass a subset (e.g. ``("kit",)``) to skip backend-agnostic visualizers whose
-            tiled-camera behavior is already covered by another backend's integration test.
+        visualizer_kinds: Which tiled visualizers to include.
     """
     env = None
     try:
