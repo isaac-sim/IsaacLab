@@ -1007,7 +1007,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vbd_proxy``
+      - **physics=** ``newton_mjwarp_vbd_proxy``, ``ovphysx``
     * - Isaac-Lift-Cloth-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1036,7 +1036,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Soft-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``, ``physx``
     * - Isaac-Lift-Soft-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
