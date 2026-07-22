@@ -25,8 +25,6 @@ import isaaclab.app.sim_launcher as sim_launcher_module
 import isaaclab.utils as isaaclab_utils
 from isaaclab.app import scan
 from isaaclab.app.sim_launcher import _validate_runtime, launch_simulation
-from isaaclab.physics import PhysxAutoCfg
-from isaaclab.physics.physics_manager_cfg import resolve_physx_auto_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -131,6 +129,9 @@ def test_newton_plus_ovrtx_is_valid():
 def test_default_auto_physx_plus_ovrtx_resolves_to_ovphysx():
     """Default automatic PhysX uses OvPhysX when OVRTX is the only renderer signal."""
     env_cfg = _resolve_with_presets("ovrtx")
+
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+
     config_scan = validate_runtime_compatibility(env_cfg)
 
     assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
@@ -141,6 +142,9 @@ def test_default_auto_physx_plus_ovrtx_resolves_to_ovphysx():
 def test_explicit_auto_physx_plus_ovrtx_resolves_to_ovphysx():
     """The ``physx`` preset remains automatic when paired with OVRTX."""
     env_cfg = _resolve_with_presets("physx,ovrtx")
+
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+
     config_scan = validate_runtime_compatibility(env_cfg)
 
     assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
@@ -196,22 +200,6 @@ def test_auto_physx_explicit_experience_resolves_to_isaac_sim_backends():
     assert config_scan.needs_kit is True
 
 
-def test_resolve_physx_auto_cfg_rejects_wrong_isaacsim_alternative():
-    """Auto PhysX should fail early when the Isaac Sim alternative is not concrete PhysX."""
-    auto_physx = PhysxAutoCfg(isaacsim_physx=OvPhysxCfg())
-
-    with pytest.raises(ValueError, match="isaacsim_physx.*PhysxCfg"):
-        resolve_physx_auto_cfg(auto_physx, use_isaac_sim=True)
-
-
-def test_resolve_physx_auto_cfg_rejects_wrong_ovphysx_alternative():
-    """Auto PhysX should fail early when the kitless alternative is not OvPhysX."""
-    auto_physx = PhysxAutoCfg(ovphysx=PhysxCfg())
-
-    with pytest.raises(ValueError, match="ovphysx.*OvPhysxCfg"):
-        resolve_physx_auto_cfg(auto_physx, use_isaac_sim=False)
-
-
 def test_default_preset_is_valid():
     """The default preset (PhysX + Isaac RTX) is supported."""
     env_cfg = _resolve_with_presets("default")
@@ -231,6 +219,9 @@ def test_rtx_with_default_physx_is_valid_and_resolves_to_ovphysx_and_ovrtx():
 def test_renderer_selector_physx_rtx_is_valid_and_resolves_to_ovphysx_and_ovrtx():
     """The automatic PhysX and RTX selectors choose kitless backends without Kit signals."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
+
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+
     config_scan = validate_runtime_compatibility(env_cfg)
 
     assert isinstance(env_cfg.sim.physics, OvPhysxCfg)

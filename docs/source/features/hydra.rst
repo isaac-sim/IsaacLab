@@ -264,16 +264,15 @@ Physics backend selection uses the same preset system. A task can define a
     from isaaclab_ovphysx.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
-    from isaaclab.physics import PhysxAutoCfg
     from isaaclab.utils.configclass import configclass
 
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
     class CartpolePhysicsCfg(PresetCfg):
+        physx: PhysxCfg = PhysxCfg()
         isaacsim_physx: PhysxCfg = PhysxCfg()
         ovphysx: OvPhysxCfg = OvPhysxCfg()
-        physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
         default = physx
         newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),

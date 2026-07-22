@@ -13,7 +13,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
-from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
@@ -25,9 +24,9 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 @configclass
 class CartpolePhysicsCfg(PresetCfg):
+    physx: PhysxCfg = PhysxCfg()
     isaacsim_physx: PhysxCfg = PhysxCfg()
     ovphysx: OvPhysxCfg = OvPhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(

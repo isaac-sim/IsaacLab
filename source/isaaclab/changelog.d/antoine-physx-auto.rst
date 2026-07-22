@@ -1,9 +1,3 @@
-Added
-^^^^^
-
-* Added :class:`~isaaclab.physics.PhysxAutoCfg` for launch-time selection
-  between Isaac Sim PhysX and OvPhysX.
-
 Changed
 ^^^^^^^
 
