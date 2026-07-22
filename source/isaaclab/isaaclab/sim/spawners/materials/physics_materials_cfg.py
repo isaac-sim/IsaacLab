@@ -146,6 +146,61 @@ class UsdPhysicsRigidBodyMaterialCfg(RigidBodyMaterialFragment):
 
 
 @configclass
+class DeformableMaterialFragment(SchemaFragment):
+    """Marker base for deformable physics-material fragments; widens the ``physics_material`` slot.
+
+    Deformable material fragments never imply the ``UsdPhysics.MaterialAPI`` anchor; each
+    fragment applies its own schema when it owns one.
+    """
+
+    pass
+
+
+@configclass
+class OmniPhysicsDeformableMaterialCfg(DeformableMaterialFragment):
+    """``omniphysics:*`` deformable-material attributes from ``OmniPhysicsDeformableMaterialAPI``."""
+
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = "OmniPhysicsDeformableMaterialAPI"
+
+    density: float | None = None
+    """The material density [kg/m^3]."""
+
+    static_friction: float | None = None
+    """The static friction coefficient."""
+
+    dynamic_friction: float | None = None
+    """The dynamic friction coefficient."""
+
+    youngs_modulus: float | None = None
+    """The Young's modulus defining the body's stiffness [Pa]."""
+
+    poissons_ratio: float | None = None
+    """The Poisson's ratio defining the body's volume preservation."""
+
+
+@configclass
+class OmniPhysicsSurfaceDeformableMaterialCfg(DeformableMaterialFragment):
+    """``omniphysics:*`` surface-deformable-material attributes from
+    ``OmniPhysicsSurfaceDeformableMaterialAPI``."""
+
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = "OmniPhysicsSurfaceDeformableMaterialAPI"
+
+    surface_thickness: float | None = None
+    """The thickness of the deformable surface [m]."""
+
+    surface_stretch_stiffness: float | None = None
+    """The stretch stiffness of the deformable surface [Pa]. Zero means solver-derived."""
+
+    surface_shear_stiffness: float | None = None
+    """The shear stiffness of the deformable surface [Pa]. Zero means solver-derived."""
+
+    surface_bend_stiffness: float | None = None
+    """The bend stiffness of the deformable surface [Pa]. Zero means solver-derived."""
+
+
+@configclass
 class DeformableBodyMaterialBaseCfg(PhysicsMaterialCfg):
     """Base physics material parameters for volume deformable bodies.
 

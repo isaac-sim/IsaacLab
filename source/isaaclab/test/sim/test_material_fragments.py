@@ -491,6 +491,23 @@ def test_physx_fragment_and_legacy_cfg_match_material_api_schema():
 # -------------------------------------------------------------------------------------
 
 
+def test_omni_deformable_material_fragment_metadata_and_shadowing():
+    from isaaclab.sim.spawners.materials import (
+        DeformableMaterialFragment,
+        OmniPhysicsDeformableMaterialCfg,
+        OmniPhysicsSurfaceDeformableMaterialCfg,
+    )
+
+    cfg = OmniPhysicsDeformableMaterialCfg(youngs_modulus=1.0e6)
+    assert isinstance(cfg, DeformableMaterialFragment)
+    assert type(cfg)._usd_namespace == "omniphysics"
+    assert type(cfg)._usd_applied_schema == "OmniPhysicsDeformableMaterialAPI"
+    assert cfg.youngs_modulus == 1.0e6 and cfg.density is None
+    surf = OmniPhysicsSurfaceDeformableMaterialCfg(surface_thickness=0.01)
+    assert type(surf)._usd_applied_schema == "OmniPhysicsSurfaceDeformableMaterialAPI"
+    assert not isinstance(surf, OmniPhysicsDeformableMaterialCfg)  # independent 1:1 classes, no inheritance
+
+
 def test_material_slot_unions_match_spawner_kind():
     """Structural slot typing: rigid-only spawner slots admit the rigid base + fragments and
     exclude the deformable-admitting root; mixed spawners keep the broad root. New slots added
