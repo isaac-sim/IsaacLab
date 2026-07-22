@@ -566,8 +566,8 @@ def test_manager_keeps_kit_physx_provider_and_registers_deformable_schema(monkey
     assert registry.registered_paths == [str(deformable_schema_path)]
 
 
-def test_ovphysx_cfg_registers_schemas_before_stage_creation(monkeypatch):
-    """Creating an OvPhysX config registers schemas before SimulationContext creates a stage."""
+def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
+    """Creating an eager preset alternative leaves global USD plugins unchanged."""
     from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
 
     calls = []
@@ -578,6 +578,22 @@ def test_ovphysx_cfg_registers_schemas_before_stage_creation(monkeypatch):
     )
 
     OvPhysxCfg()
+
+    assert calls == []
+
+
+def test_ovphysx_manager_registers_schemas_during_pre_stage_setup(monkeypatch):
+    """The selected OvPhysX manager registers schemas in its pre-stage hook."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    calls = []
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_ensure_physx_schemas_registered",
+        classmethod(lambda cls: calls.append(cls)),
+    )
+
+    OvPhysxManager._prepare_stage_creation()
 
     assert calls == [OvPhysxManager]
 

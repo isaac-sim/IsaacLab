@@ -115,6 +115,15 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
 
+        # Let the selected backend register any USD schemas before stage creation.
+        # Preset alternatives are intentionally ignored until their wrapper selects
+        # its default, preventing inactive backends from mutating global USD state.
+        stage_physics = self.cfg.physics
+        if stage_physics is not None:
+            if not hasattr(stage_physics, "class_type") and hasattr(stage_physics, "default"):
+                stage_physics = stage_physics.default
+            stage_physics.class_type._prepare_stage_creation()
+
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
