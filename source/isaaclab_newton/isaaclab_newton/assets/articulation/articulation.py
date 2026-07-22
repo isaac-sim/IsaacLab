@@ -279,7 +279,7 @@ class Articulation(BaseArticulation):
             actuator_env_ids = env_ids
             if self.actuators and env_mask is not None:
                 torch_mask = wp.to_torch(env_mask)
-                actuator_env_ids = torch_mask.nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: legacy actuators
+                actuator_env_ids = torch_mask.nonzero(as_tuple=False).squeeze(-1)
             for actuator in self.actuators.values():
                 actuator.reset(actuator_env_ids)
         # reset the global Newton actuator adapter (its ``_states_a/_b`` buffers
@@ -3966,7 +3966,7 @@ class Articulation(BaseArticulation):
         default_joint_pos = self._data.default_joint_pos.torch[0]
         out_of_range = default_joint_pos < joint_pos_limits_lower
         out_of_range |= default_joint_pos > joint_pos_limits_upper
-        violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)  # mask-boundary: diagnostics
+        violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         # throw error if any of the default joint positions are out of the limits
         if len(violated_indices) > 0:
             # prepare message for violated joints
@@ -3983,7 +3983,7 @@ class Articulation(BaseArticulation):
         joint_max_vel = self._data.joint_vel_limits.torch[0]
         default_joint_vel = self._data.default_joint_vel.torch[0]
         out_of_range = torch.abs(default_joint_vel) > joint_max_vel
-        violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)  # mask-boundary: diagnostics
+        violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
             # prepare message for violated joints
             msg = "The following joints have default velocities out of the limits: \n"

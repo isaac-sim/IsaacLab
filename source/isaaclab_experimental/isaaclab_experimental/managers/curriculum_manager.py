@@ -254,4 +254,4 @@ class CurriculumManager(ManagerBase):
     @staticmethod
     def _compact_legacy_env_ids(env_mask: wp.array(dtype=wp.bool)) -> torch.Tensor:
         """Materialize compact Torch IDs at the legacy curriculum boundary."""
-        return wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: legacy curriculum terms
+        return wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)

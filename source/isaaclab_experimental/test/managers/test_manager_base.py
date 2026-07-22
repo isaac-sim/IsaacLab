@@ -12,7 +12,7 @@ import pytest
 import warp as wp
 from isaaclab_experimental.managers.action_manager import ActionManager
 from isaaclab_experimental.managers.manager_base import _resolve_reset_mask
-from isaaclab_experimental.utils.warp import warp_capturable
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 
 def test_reset_mask_rejects_wrong_device(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -29,7 +29,7 @@ def test_reset_mask_rejects_wrong_device(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_class_term_capturability_is_registered() -> None:
     """Class-based manager terms should honor explicit capture metadata."""
 
-    @warp_capturable(False)
+    @WarpCapturable(False)
     class HostTerm:
         pass
 

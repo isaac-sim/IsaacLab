@@ -335,7 +335,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         # q and -q represent the same orientation, so compare absolute dot products.
         same_orientation = torch.abs(torch.sum(root_quat_w * root_quat_w[0:1], dim=-1)) > 1.0 - 1e-5
         if not torch.all(same_orientation):
-            bad_env_ids = torch.nonzero(~same_orientation, as_tuple=False).flatten().tolist()  # mask-boundary: errors
+            bad_env_ids = torch.nonzero(~same_orientation, as_tuple=False).flatten().tolist()
             raise RuntimeError(
                 "NewtonInverseKinematicsAction solves against the env 0 prototype root orientation, but "
                 f"root orientations differ in env ids {bad_env_ids}. Use identical fixed-base root orientations "

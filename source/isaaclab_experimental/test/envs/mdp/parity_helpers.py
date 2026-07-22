@@ -383,7 +383,11 @@ class MockScene:
 
     def __init__(self, assets: dict, env_origins, sensors=None):
         self._assets = assets
-        if isinstance(env_origins, wp.array):
+        if env_origins is None:
+            # Action-term tests don't need origins; keep the attributes present but empty.
+            self.env_origins = None
+            self.env_origins_wp = None
+        elif isinstance(env_origins, wp.array):
             self.env_origins_wp = env_origins
             self.env_origins = wp.to_torch(env_origins)
         else:

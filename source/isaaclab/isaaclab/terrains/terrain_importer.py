@@ -349,7 +349,7 @@ class TerrainImporter:
                 origins = torch.from_numpy(origins)
             # store the origins
             self.terrain_origins = self._assign_pointer_stable(
-                self.terrain_origins, origins.to(self.device, dtype=torch.float)
+                self.terrain_origins, origins.to(self.device, dtype=torch.float).contiguous()
             )
             # compute environment origins
             self.env_origins = self._assign_pointer_stable(

@@ -36,7 +36,7 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_shape,
 )
 from isaaclab_experimental.managers import SceneEntityCfg
-from isaaclab_experimental.utils.warp import warp_capturable
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -449,7 +449,7 @@ def _height_scan_kernel(
 
 # Sensor reads go through the lazy-update path, whose host-side timestamp bookkeeping
 # decides when rays are re-cast and has not been audited for graph capture.
-@warp_capturable(False)
+@WarpCapturable(False, reason="sensor lazy-update host bookkeeping is not capture-audited (Part 3 scope)")
 @generic_io_descriptor_warp(units="m", out_dim="sensor:rays", observation_type="SensorState", on_inspect=[record_shape])
 def height_scan(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> None:
     """Height scan from the given sensor w.r.t. the sensor's frame [m]. Writes into ``out``.

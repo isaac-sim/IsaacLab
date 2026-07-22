@@ -29,7 +29,7 @@ from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
-from isaaclab_experimental.utils.warp import increment_all_int64, zero_masked_int64
+from isaaclab_experimental.utils.warp import any_env_set, increment_all_int64, zero_masked_int64
 
 from .manager_based_env_warp import ManagerBasedEnvWarp
 
@@ -477,7 +477,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         curriculum_kwargs: dict[str, Any] = {"env_mask": env_mask}
         if self.curriculum_manager.requires_host_ids:
             if env_ids is None:
-                env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: legacy terms
+                env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
             curriculum_kwargs["env_ids"] = env_ids
 
         self._warp_graph_cache.call(
@@ -577,7 +577,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         reset_mask = self.termination_manager.dones_wp
         # Keep the mask as the canonical selection, but use one host predicate
         # to avoid dispatching the complete reset pipeline when it is empty.
-        if not self.reset_buf.any().item():
+        if not any_env_set(self.reset_buf):
             return
 
         # Same-step autoreset exposes terminal observations before any selected
@@ -593,7 +593,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 enable=DEBUG_TIMER_STEP,
                 time_unit="us",
             ):
-                recorder_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: recorders
+                recorder_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
             self.recorder_manager.record_pre_reset(recorder_env_ids)
 
         with Timer(

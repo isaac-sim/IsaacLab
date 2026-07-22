@@ -433,8 +433,7 @@ class ManagerBasedEnvWarp:
         if self._has_recorders:
             recorder_env_ids = env_ids
             if recorder_env_ids is None or isinstance(recorder_env_ids, wp.array):
-                torch_mask = wp.to_torch(reset_mask)
-                recorder_env_ids = torch_mask.nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: recorders
+                recorder_env_ids = wp.to_torch(reset_mask).nonzero(as_tuple=False).squeeze(-1)
             self.recorder_manager.record_pre_reset(recorder_env_ids)
 
         # set the seed
@@ -507,7 +506,7 @@ class ManagerBasedEnvWarp:
         """
         # reset all envs in the scene if env_ids is None
         if env_mask is not None:
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)  # mask-boundary: host state dict
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         elif env_ids is None:
             env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
 

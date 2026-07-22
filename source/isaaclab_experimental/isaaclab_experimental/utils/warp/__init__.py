@@ -16,9 +16,10 @@ from .kernels import (
     zero_masked_int64,
 )
 from .utils import (
+    SYNC_DEBUG_ENV_VAR,
     WarpCapturable,
-    is_warp_capturable,
-    warp_capturable,
+    any_env_set,
+    sync_debug_enabled,
     wrap_to_pi,
     zero_masked_2d,
 )

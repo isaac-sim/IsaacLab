@@ -387,7 +387,7 @@ class InteractiveScene:
         """
         if self._terrain is not None:
             return self._terrain.env_origins_wp
-        if self._clone_origins_wp is None:
+        if self._clone_origins_wp is None or self._clone_origins_wp.ptr != self.env_origins.data_ptr():
             self._clone_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
         return self._clone_origins_wp
 
@@ -482,6 +482,12 @@ class InteractiveScene:
                 Defaults to None (all instances).
             env_mask: Boolean Warp mask selecting environments. When provided,
                 it takes precedence over :paramref:`env_ids`.
+
+        .. caution::
+            ``env_mask`` is honored by mask-native assets (the Newton backend).
+            Classic PhysX assets currently accept and ignore it, so passing a
+            mask in such scenes resets unintended environments — use
+            :paramref:`env_ids` there.
 
         """
         reset_kwargs = {"env_mask": env_mask} if env_mask is not None else {"env_ids": env_ids}

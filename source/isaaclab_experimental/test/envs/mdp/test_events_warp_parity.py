@@ -345,6 +345,47 @@ class TestEventCapturedDataMutation:
 
     # -- reset_root_state_uniform -----------------------------------------------
 
+    def test_reset_root_state_uniform_composes_orientation_like_stable(self):
+        """Pin the quaternion path: ``final = default ∘ euler_xyz(roll, pitch, yaw)``.
+
+        Zero-width ranges at non-zero angles make the uniform draw deterministic,
+        so the composition order, Euler convention, and xyzw storage layout are
+        all pinned against the stable math reference.
+        """
+        import isaaclab.utils.math as math_utils
+
+        env, data, asset = _make_event_env(1234)
+        # Non-identity default orientation (90 deg about x), xyzw layout.
+        default_pose = np.zeros((NUM_ENVS, 7), dtype=np.float32)
+        default_pose[:, 3] = np.sin(np.pi / 4.0)
+        default_pose[:, 6] = np.cos(np.pi / 4.0)
+        copy_np_to_wp(data.default_root_pose, default_pose)
+        copy_np_to_wp(data.default_root_vel, np.zeros((NUM_ENVS, 6), dtype=np.float32))
+        captured = {}
+        asset.write_root_pose_to_sim_mask = lambda **kwargs: captured.update(kwargs)
+        asset.write_root_velocity_to_sim_mask = lambda **kwargs: None
+        env_mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
+        roll, pitch, yaw = 0.3, -0.4, 1.1
+        term = _make_event_term(
+            warp_evt.reset_root_state_uniform,
+            env,
+            pose_range={"roll": (roll, roll), "pitch": (pitch, pitch), "yaw": (yaw, yaw)},
+            velocity_range={},
+        )
+
+        term(env, env_mask, **term.cfg.params)
+        wp.synchronize()
+
+        result_xyzw = wp.to_torch(captured["root_pose"])[:, 3:7]
+        angles = torch.tensor([[roll], [pitch], [yaw]], device=DEVICE)
+        # Core math utils use the (x, y, z, w) layout, matching the warp buffers.
+        delta_xyzw = math_utils.quat_from_euler_xyz(angles[0], angles[1], angles[2])
+        default_xyzw = torch.tensor([[np.sin(np.pi / 4.0), 0.0, 0.0, np.cos(np.pi / 4.0)]], device=DEVICE)
+        expected_xyzw = math_utils.quat_mul(default_xyzw, delta_xyzw).expand(NUM_ENVS, 4)
+        # Quaternions double-cover rotations: align signs before comparing.
+        sign = torch.sign((result_xyzw * expected_xyzw).sum(dim=1, keepdim=True))
+        assert_close(result_xyzw * sign, expected_xyzw)
+
     # -- env_mask selectivity ---------------------------------------------------
 
     def test_reset_joints_mask_selectivity(self, warp_env, art_data, all_joints_cfg):

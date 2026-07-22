@@ -220,7 +220,7 @@ class Pva(BasePva):
         pos_w_torch = self._data.pos_w.torch
         accel_w = math_utils.quat_apply(self._data.quat_w.torch, self._data.lin_acc_b.torch)
         accel_valid = torch.linalg.norm(accel_w, dim=-1) > 1e-5
-        valid_indices = accel_valid.nonzero(as_tuple=True)[0]  # mask-boundary: debug vis
+        valid_indices = accel_valid.nonzero(as_tuple=True)[0]
         if valid_indices.numel() == 0:
             return
         pos_filtered = pos_w_torch.index_select(0, valid_indices)

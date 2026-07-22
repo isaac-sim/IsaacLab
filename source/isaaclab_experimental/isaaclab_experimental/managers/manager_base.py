@@ -29,7 +29,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
 from isaaclab.utils import class_to_dict, string_to_callable
 
-from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -463,7 +463,11 @@ class ManagerBase(ABC):
 
     def _register_term_capturability(self, term: Callable) -> None:
         """Keep the complete manager eager when a configured term is unsafe."""
-        if not is_warp_capturable(term):
+        # TODO(#6611): granularity is whole-manager — one non-capturable term forces the
+        # entire manager eager. Per-term record/replay could keep the capturable terms
+        # on graphs while only the unsafe term runs eagerly; that is execution-layer
+        # scope and deliberately not part of the mask-first PR.
+        if not WarpCapturable.is_capturable(term):
             graph_cache = getattr(self._env, "_warp_graph_cache", None)
             if graph_cache is not None:
                 graph_cache.register_capturability(type(self).__name__, False)

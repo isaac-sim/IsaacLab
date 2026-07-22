@@ -1284,7 +1284,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if env_mask is not None:
             if isinstance(env_mask, wp.array):
                 env_mask = wp.to_torch(env_mask)
-            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)  # mask-boundary: legacy index write path
+            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)
         else:
             env_ids = self._ALL_ENV_INDICES
         return env_ids
@@ -1294,7 +1294,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if body_mask is not None:
             if isinstance(body_mask, wp.array):
                 body_mask = wp.to_torch(body_mask)
-            body_ids = torch.nonzero(body_mask)[:, 0].to(torch.int32)  # mask-boundary: legacy index write path
+            body_ids = torch.nonzero(body_mask)[:, 0].to(torch.int32)
         else:
             body_ids = self._ALL_BODY_INDICES
         return body_ids

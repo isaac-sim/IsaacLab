@@ -37,7 +37,7 @@ from isaaclab.envs.mdp.events import randomize_rigid_body_material as _StableRan
 
 from isaaclab_experimental.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab_experimental.managers import ManagerTermBase as _WarpManagerTermBase
-from isaaclab_experimental.utils.warp import WarpCapturable, warp_capturable
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 __all__ = [
     "apply_external_force_torque",
@@ -95,7 +95,7 @@ def _randomize_com_kernel(
     rng_state[env_id] = state
 
 
-@warp_capturable(False)
+@WarpCapturable(False, reason="set_coms_mask calls SimulationManager.add_model_change")
 class randomize_rigid_body_com(ManagerTermBase):
     """Randomize rigid-body centers of mass from a persistent default baseline.
 
@@ -122,7 +122,6 @@ class randomize_rigid_body_com(ManagerTermBase):
         self._com_lo = wp.vec3f(ranges[0][0], ranges[1][0], ranges[2][0])
         self._com_hi = wp.vec3f(ranges[0][1], ranges[1][1], ranges[2][1])
 
-    @WarpCapturable(False, reason="set_coms_mask calls SimulationManager.add_model_change")
     def __call__(
         self,
         env: ManagerBasedEnv,
@@ -732,7 +731,7 @@ def reset_joints_by_scale(
 
 def _mask_to_env_ids(env_mask: wp.array) -> torch.Tensor:
     """Convert a Warp boolean env-mask to the torch index tensor the stable terms expect."""
-    return torch.nonzero(wp.to_torch(env_mask), as_tuple=False).squeeze(-1)  # mask-boundary: startup event twins
+    return torch.nonzero(wp.to_torch(env_mask), as_tuple=False).squeeze(-1)
 
 
 class randomize_rigid_body_material(_StableRandomizeRigidBodyMaterial, _WarpManagerTermBase):
