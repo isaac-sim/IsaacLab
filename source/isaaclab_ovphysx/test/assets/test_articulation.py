@@ -384,6 +384,37 @@ def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(
     torch.testing.assert_close(backend_after, expected, rtol=0.0, atol=0.0)
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_live_anymal_c_manual_joint_ordering_reorders_joint_targets(sim, device):
+    """Write nonidentity-ordered joint targets into their intended backend columns."""
+    backend_joint_names = _ANYMAL_PHYSX_JOINT_NAMES
+    joint_ordering = (*backend_joint_names[1:], backend_joint_names[0])
+    articulation_cfg = generate_articulation_cfg("anymal").replace(
+        joint_ordering=joint_ordering,
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0)},
+    )
+    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
+    sim.reset()
+
+    ordering = articulation.joint_ordering
+    assert ordering is not None
+    user_to_backend = torch.as_tensor(ordering.user_to_backend_indices, dtype=torch.long, device=device)
+    backend_to_user = torch.as_tensor(ordering.backend_to_user_indices, dtype=torch.long, device=device)
+    assert not torch.equal(user_to_backend, backend_to_user)
+
+    joint_index = torch.arange(articulation.num_joints, dtype=torch.float32, device=device).unsqueeze(0)
+    position_target = -0.25 + 0.031 * joint_index
+    velocity_target = 0.07 + 0.017 * joint_index
+    articulation.set_joint_position_target_index(target=position_target)
+    articulation.set_joint_velocity_target_index(target=velocity_target)
+    articulation.write_data_to_sim()
+
+    backend_position_target = _read_binding_to_torch(articulation, TT.DOF_POSITION_TARGET, device)
+    backend_velocity_target = _read_binding_to_torch(articulation, TT.DOF_VELOCITY_TARGET, device)
+    torch.testing.assert_close(backend_position_target, position_target[:, backend_to_user])
+    torch.testing.assert_close(backend_velocity_target, velocity_target[:, backend_to_user])
+
+
 @pytest.mark.parametrize("selection", ["full", "partial"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reversed_joint_ordering_joint_state_index_writes_backend_order(sim, selection, device):
