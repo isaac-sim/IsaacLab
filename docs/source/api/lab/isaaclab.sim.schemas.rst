@@ -54,6 +54,8 @@ isaaclab.sim.schemas
     UsdPhysicsDriveCfg
     UsdPhysicsMeshCollisionCfg
     MassCfg
+    DeformableBodyFragment
+    OmniPhysicsDeformableBodyCfg
 
   .. rubric:: Fragment writers
 
@@ -70,6 +72,8 @@ isaaclab.sim.schemas
     apply_namespaced
     apply_drive
     apply_mesh_collision
+    apply_volume_deformable_properties
+    apply_surface_deformable_properties
 
   .. rubric:: Functions
 
@@ -163,6 +167,16 @@ Schema Fragments
     :show-inheritance:
     :exclude-members: __init__
 
+.. autoclass:: DeformableBodyFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: OmniPhysicsDeformableBodyCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
 .. autofunction:: apply_rigid_body_properties
 .. autofunction:: apply_collision_properties
 .. autofunction:: apply_mass_properties
@@ -174,6 +188,8 @@ Schema Fragments
 .. autofunction:: apply_namespaced
 .. autofunction:: apply_drive
 .. autofunction:: apply_mesh_collision
+.. autofunction:: apply_volume_deformable_properties
+.. autofunction:: apply_surface_deformable_properties
 
 Articulation Root
 -----------------

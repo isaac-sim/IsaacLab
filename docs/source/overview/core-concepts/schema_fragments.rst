@@ -61,9 +61,16 @@ imports a backend:
    * - ``spatial_tendons_props``
      - :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`
      - tendon attachment root / leaf prims
+   * - ``volume_deformable_props``
+     - :func:`~isaaclab.sim.schemas.apply_volume_deformable_properties`
+     - volume deformable-body prims (``UsdGeom.TetMesh`` simulation mesh)
+   * - ``surface_deformable_props``
+     - :func:`~isaaclab.sim.schemas.apply_surface_deformable_properties`
+     - surface deformable-body prims (triangle-mesh simulation mesh)
 
 The tendon families are *tune-not-apply*: the tendon topology is authored in the source
-asset, so their writers only tune existing instances and never create them.
+asset, so their writers only tune existing instances and never create them. The deformable
+families sit at the other end of that spectrum: see :ref:`schema-fragments-deformable`.
 
 Targeting expressions
 ---------------------
@@ -166,6 +173,89 @@ The writers trust the expression as written: with creation enabled, every matche
 receives the API, so a too-broad pattern can, for example, give every mesh in a subtree
 its own mass. Which bodies participate in an articulation is still decided by the
 asset's joints, not by the expression. Scope creation patterns deliberately.
+
+.. _schema-fragments-deformable:
+
+Deformable bodies
+------------------
+
+The deformable families invert the "modify existing" default: the
+``volume_deformable_props`` / ``surface_deformable_props`` writers
+(:func:`~isaaclab.sim.schemas.apply_volume_deformable_properties` /
+:func:`~isaaclab.sim.schemas.apply_surface_deformable_properties`) always create a full
+deformable-body setup on a matched prim that lacks one, with no opt-in flag to set. Fragments
+for both slots subclass :class:`~isaaclab.sim.schemas.DeformableBodyFragment`; the
+core-owned :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` carries the
+solver-common fields (``deformable_body_enabled``, ``kinematic_enabled``, ``mass``). PhysX
+adds its own body-tuning fragments (``PhysxDeformableBodyCfg`` for shared solver/damping
+attributes, ``PhysxSurfaceDeformableBodyCfg`` narrowed to surface deformables) in
+:mod:`isaaclab_physx.sim.schemas`; Newton reserves the slot with an empty
+``NewtonDeformableBodyCfg`` placeholder in :mod:`isaaclab_newton.sim.schemas`.
+
+At most one of the two slots may be set on a spawner: a mesh is spawned as either a volume
+deformable (tetrahedralized interior) or a surface deformable (cloth-like), never both. The
+slot's mapping keys are prim-path patterns relative to the *spawn* prim — unlike the other
+families, this holds for every spawner type, including shape and mesh spawners whose other
+families anchor at the geometry or container prim instead. The empty string ``""`` again
+selects the spawn prim itself and a trailing ``**`` selects it together with its subtree.
+
+Creating the deformable setup on a matched prim without the anchor happens in three steps:
+
+#. **Simulation mesh.** A ``sim_mesh`` child prim is authored under the target (the name is
+   configurable via the writer's ``sim_mesh_name`` argument). For surface deformables this is
+   a triangle-mesh copy of the visual mesh; for volume deformables it is a tetrahedralized
+   ``UsdGeom.TetMesh`` — reused in place, without re-tetrahedralizing, when the source asset
+   already ships a pre-tetrahedralized ``UsdGeom.TetMesh`` child.
+#. **Backend anchor.** The active physics backend applies its own anchor schemas through
+   ``PhysicsManager.setup_deformable_body``: PhysX applies the real ``OmniPhysicsDeformableBodyAPI``
+   to the body prim (the same single schema for both deformable types) and the type-dependent
+   ``OmniPhysicsVolumeDeformableSimAPI`` / ``OmniPhysicsSurfaceDeformableSimAPI`` to the
+   simulation-mesh prim, while Newton applies its own (currently token-only) ``Physics*`` schemas.
+   Core fragments own no applied schema of their own —
+   :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` only writes into the
+   ``omniphysics:*`` namespace once the anchor exists.
+#. **Fragment dispatch.** Every fragment in the matched slot is applied to the target, in list
+   order, exactly like the other families.
+
+``UsdPhysics.MassAPI`` is not honored for deformables: set mass through
+:attr:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg.mass` instead.
+
+Because the simulation mesh already carries ``UsdPhysics.CollisionAPI`` once created, its
+collision offsets ride the existing collision family rather than a deformable-specific one:
+key ``collision_props`` to the simulation-mesh child's name (``"sim_mesh"`` by default),
+anchored the same way as the deformable slot itself, relative to the spawn prim.
+
+Physics materials widen the same way: ``physics_material`` accepts deformable material
+fragments (subclasses of ``DeformableMaterialFragment`` in
+:mod:`isaaclab.sim.spawners.materials`, e.g. ``OmniPhysicsDeformableMaterialCfg`` /
+``OmniPhysicsSurfaceDeformableMaterialCfg``) and mixed lists that combine a rigid-body
+material fragment with a deformable one. The ``UsdPhysics.MaterialAPI`` anchor is applied
+only when the list contains a rigid-body material fragment; deformable material fragments
+apply their own schema (e.g. ``OmniPhysicsDeformableMaterialAPI``) independently, since a
+material prim bound only to deformable bodies has no rigid-body material semantics to anchor.
+
+A cuboid mesh spawned as a volume deformable, with PhysX solver tuning, a collision offset on
+the simulation mesh, and a mixed PhysX/Newton material:
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+   from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
+   from isaaclab.sim.spawners.materials import OmniPhysicsDeformableMaterialCfg
+   from isaaclab_newton.sim.spawners.materials import NewtonVolumeDeformableMaterialCfg
+
+   sim_utils.MeshCuboidCfg(
+       size=(0.2, 0.2, 0.2),
+       volume_deformable_props={"": [
+           sim_utils.schemas.OmniPhysicsDeformableBodyCfg(mass=0.5),
+           PhysxDeformableBodyCfg(solver_position_iteration_count=32),
+       ]},
+       collision_props={"sim_mesh": [PhysxCollisionCfg(contact_offset=0.01)]},
+       physics_material=[
+           OmniPhysicsDeformableMaterialCfg(youngs_modulus=1.0e6, poissons_ratio=0.45),
+           NewtonVolumeDeformableMaterialCfg(k_mu=1.0e5),
+       ],
+   )
 
 See also
 --------
