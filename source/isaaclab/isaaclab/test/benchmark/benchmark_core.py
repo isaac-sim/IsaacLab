@@ -95,15 +95,53 @@ def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
             )
         )
 
+    timing = runtime.environment_step_timing
+    serialized_diagnostic = timing is not None and timing.measurement_mode == "serialized_synchronized"
+    metric_prefix = "Serialized Diagnostic " if serialized_diagnostic else ""
     runtime_metrics: list[Measurement] = [
         SingleMeasurement(name="Iterations Completed", value=runtime.iterations_completed, unit="count"),
-        SingleMeasurement(name="Total Wall Time", value=runtime.total_wall_time_s, unit="s"),
+        SingleMeasurement(name=f"{metric_prefix}Total Wall Time", value=runtime.total_wall_time_s, unit="s"),
         SingleMeasurement(name="Steps per Iteration", value=runtime.steps_per_iteration, unit="frames"),
     ]
-    runtime_metrics.extend(_stat_measurements("Iteration Time", runtime.iteration_time_s, "ms", 1000.0))
-    runtime_metrics.extend(_stat_measurements("Collection FPS", runtime.collection_fps, "FPS"))
-    runtime_metrics.extend(_stat_measurements("Total FPS", runtime.total_fps, "FPS"))
-    runtime_metrics.extend(_stat_measurements("Iterations per Second", runtime.iterations_per_s, "iterations/s"))
+    runtime_metrics.extend(_stat_measurements(f"{metric_prefix}Iteration Time", runtime.iteration_time_s, "ms", 1000.0))
+    runtime_metrics.extend(_stat_measurements(f"{metric_prefix}Collection FPS", runtime.collection_fps, "FPS"))
+    runtime_metrics.extend(_stat_measurements(f"{metric_prefix}Total FPS", runtime.total_fps, "FPS"))
+    if timing is not None:
+        step_rate_label = (
+            "Environment Step Host-Return FPS"
+            if timing.measurement_mode == "host_return"
+            else "Serialized Synchronized Environment Step FPS"
+        )
+        runtime_metrics.extend(_stat_measurements(step_rate_label, timing.environment_step_fps, "FPS"))
+        if timing.simulation_step_time_s is not None:
+            assert timing.outside_simulation_step_time_s is not None
+            assert timing.outside_simulation_step_fraction is not None
+            runtime_metrics.extend(
+                _stat_measurements(
+                    "Synchronized Simulation Time per Environment Step",
+                    timing.simulation_step_time_s,
+                    "ms",
+                    1000.0,
+                )
+            )
+            runtime_metrics.extend(
+                _stat_measurements(
+                    "Outside Simulation Time per Environment Step",
+                    timing.outside_simulation_step_time_s,
+                    "ms",
+                    1000.0,
+                )
+            )
+            runtime_metrics.append(
+                SingleMeasurement(
+                    name="Outside Simulation Step Fraction",
+                    value=timing.outside_simulation_step_fraction,
+                    unit="ratio",
+                )
+            )
+    runtime_metrics.extend(
+        _stat_measurements(f"{metric_prefix}Iterations per Second", runtime.iterations_per_s, "iterations/s")
+    )
     return {"startup": startup, "runtime": runtime_metrics}
 
 

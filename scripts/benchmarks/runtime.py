@@ -15,7 +15,7 @@ Usage example::
 
     uv run isaaclab benchmark runtime \\
         --task Isaac-Cartpole-Direct \\
-        --num_envs 16 --num_frames 100 \\
+        --num_envs 16 --num_frames 1000 --warmup_frames 50 \\
         presets=newton_mjwarp --headless
 """
 
@@ -35,13 +35,27 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Parsed arguments and the remaining Hydra overrides.
     """
     from isaaclab.app import add_launcher_args
+    from isaaclab.test.benchmark._cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark environment runtime (random actions, no policy).")
     parser.add_argument("--task", type=str, required=True, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
-    parser.add_argument("--num_frames", type=int, default=100, help="Number of environment steps to benchmark.")
+    parser.add_argument(
+        "--num_frames", type=parse_positive_int, default=1000, help="Number of environment steps to benchmark."
+    )
+    parser.add_argument(
+        "--warmup_frames",
+        type=parse_non_negative_int,
+        default=50,
+        help="Exact number of environment steps to exclude from timing; zero measures the first step.",
+    )
+    parser.add_argument(
+        "--measure_sync_step",
+        action="store_true",
+        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -123,6 +137,11 @@ def run(argv: list[str]) -> None:
                     {"name": "task", "data": args.task},
                     {"name": "num_envs", "data": args.num_envs},
                     {"name": "num_frames", "data": args.num_frames},
+                    {"name": "warmup_frames", "data": args.warmup_frames},
+                    {
+                        "name": "environment_step_measurement_mode",
+                        "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
+                    },
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -134,15 +153,21 @@ def run(argv: list[str]) -> None:
 
             num_envs = env.unwrapped.num_envs
 
-            with BenchmarkMonitor(benchmark, interval=1.0):
-                step_times_s = stepping.run_runtime_loop(env, args.num_frames)
+            warmup_step_times_s = stepping.run_runtime_warmup(env, args.warmup_frames)
+            environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+                env, measure_synchronized_step_breakdown=args.measure_sync_step
+            )
+            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+                step_times_s = stepping.run_runtime_loop(env, args.num_frames, reset=False)
+
+            first_step_s = warmup_step_times_s[0] if warmup_step_times_s else step_times_s[0]
 
             benchmark.update_manual_recorders()
 
             startup = StartupTime(
                 app_launch=(app_t1 - app_t0) / 1e9,
                 env_creation=(env_t1 - env_t0) / 1e9,
-                first_step=(step_times_s[0] if step_times_s else 0.0),
+                first_step=first_step_s,
                 python_imports=(imports_t1 - imports_t0) / 1e9,
                 task_config=(task_config_t1 - task_config_t0) / 1e9,
             )
@@ -154,6 +179,11 @@ def run(argv: list[str]) -> None:
                 collection_fps=fps,
                 total_fps=fps,
                 steps_per_iteration=num_envs,
+                frames_per_environment_step=env.unwrapped.num_envs,
+                aggregate_throughput=True,
+                environment_step_times_s=environment_step_timer.step_times_s,
+                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
+                simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
             versions = capture.capture_versions(benchmark)
@@ -183,6 +213,7 @@ def run(argv: list[str]) -> None:
                 hardware=hardware,
                 runtime=runtime,
                 resources=resources,
+                extra={"warmup_frames": args.warmup_frames},
             )
 
             benchmark.attach_bundle(bundle)
