@@ -16,7 +16,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import Usd, UsdShade
+from pxr import Sdf, Usd, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
@@ -130,6 +130,14 @@ def _to_ovphysx_pattern(path_expr: str) -> str:
     """Convert an Isaac Lab prim-path expression to an OVPhysX glob pattern."""
     pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", path_expr)
     return re.sub(r"\.\*", "*", pattern)
+
+
+def _resolve_material_path_expr(material_path: Sdf.Path, template_path: Sdf.Path, template_path_expr: str) -> str:
+    """Resolve a material path through the template expression when it is a descendant."""
+    if not material_path.HasPrefix(template_path):
+        return material_path.pathString
+    relative_suffix = material_path.pathString[len(template_path.pathString) :]
+    return template_path_expr + relative_suffix
 
 
 class DeformableObject(BaseDeformableObject):
@@ -264,9 +272,14 @@ class DeformableObject(BaseDeformableObject):
             env_ids: Environment indices. If None, all indices are used.
             full_data: Whether :paramref:`nodal_state` contains all instances.
         """
+        env_ids = self._resolve_env_ids(env_ids)
         if isinstance(nodal_state, ProxyArray):
-            nodal_state = nodal_state.torch
-        elif isinstance(nodal_state, wp.array):
+            nodal_state = nodal_state.warp
+        expected_instances = self.num_instances if full_data else env_ids.shape[0]
+        self.assert_shape_and_dtype(
+            nodal_state, (expected_instances, self.max_sim_vertices_per_body), vec6f, "nodal_state"
+        )
+        if isinstance(nodal_state, wp.array):
             nodal_state = wp.to_torch(nodal_state)
         self.write_nodal_pos_to_sim_index(nodal_state[..., :3], env_ids=env_ids, full_data=full_data)
         self.write_nodal_velocity_to_sim_index(nodal_state[..., 3:], env_ids=env_ids, full_data=full_data)
@@ -443,11 +456,9 @@ class DeformableObject(BaseDeformableObject):
             ) from error
 
         if material_prim is not None:
-            material_path = material_prim.GetPath().pathString
-            if material_path.startswith(template_prim_path):
-                material_path_expr = self.cfg.prim_path + material_path[len(template_prim_path) :]
-            else:
-                material_path_expr = material_path
+            material_path_expr = _resolve_material_path_expr(
+                material_prim.GetPath(), template_prim.GetPath(), self.cfg.prim_path
+            )
             material_pattern = _to_ovphysx_pattern(material_path_expr)
             try:
                 self._material_physx_view = OvPhysxDeformableMaterialView(physx_instance, material_pattern)

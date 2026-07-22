@@ -28,6 +28,7 @@ from isaaclab_ovphysx.assets.deformable_object.deformable_object import (  # noq
 from isaaclab_ovphysx.assets.deformable_object.deformable_object_data import (  # noqa: E402
     DeformableObjectData,
 )
+from isaaclab_ovphysx.assets.deformable_object.kernels import vec6f  # noqa: E402
 
 from pxr import Sdf, Usd  # noqa: E402
 
@@ -80,6 +81,8 @@ class _FakeBodyView:
         self.targets = wp.zeros((num_instances, num_vertices, 4), dtype=wp.float32, device="cpu")
         self.position_reads = 0
         self.velocity_reads = 0
+        self.position_write_count = 0
+        self.velocity_write_count = 0
         self.target_write_count = 0
         self.last_indices: torch.Tensor | None = None
         self.last_values: wp.array | None = None
@@ -105,12 +108,14 @@ class _FakeBodyView:
     def set_simulation_nodal_positions(
         self, values: wp.array(dtype=wp.float32), indices: wp.array(dtype=wp.int32) | None = None
     ) -> None:
+        self.position_write_count += 1
         self.last_values = values
         self.last_indices = wp.to_torch(indices) if indices is not None else None
 
     def set_simulation_nodal_velocities(
         self, values: wp.array(dtype=wp.float32), indices: wp.array(dtype=wp.int32) | None = None
     ) -> None:
+        self.velocity_write_count += 1
         self.last_values = values
         self.last_indices = wp.to_torch(indices) if indices is not None else None
 
@@ -157,6 +162,7 @@ def _make_asset_shell(
     asset = object.__new__(DeformableObject)
     asset._device = "cpu"
     asset._check_shapes = True
+    asset._DTYPE_TO_TORCH_TRAILING_DIMS = {**asset._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
     asset._deformable_type = deformable_type
     asset._root_physx_view = _FakeBodyView(num_instances, num_vertices)
     asset._material_physx_view = material_view
@@ -251,6 +257,34 @@ def test_indexed_state_write_updates_position_and_velocity_buffers():
     torch.testing.assert_close(asset.data.nodal_pos_w.torch[1], selected[0, :, :3])
     torch.testing.assert_close(asset.data.nodal_vel_w.torch[1], selected[0, :, 3:])
     assert asset.data._nodal_state_w.timestamp == -1.0
+
+
+@pytest.mark.parametrize("trailing_dimension", [4, 5, 7])
+def test_malformed_state_write_fails_before_mutating_or_writing(trailing_dimension: int):
+    asset = _make_asset_shell(deformable_type="volume", num_instances=2, num_vertices=4)
+    original_positions = asset.data.nodal_pos_w.torch.clone()
+    original_velocities = asset.data.nodal_vel_w.torch.clone()
+    malformed_state = torch.ones((1, 4, trailing_dimension), device=asset.device)
+
+    with pytest.raises(AssertionError, match="nodal_state.*Shape mismatch"):
+        asset.write_nodal_state_to_sim_index(malformed_state, env_ids=[1])
+
+    torch.testing.assert_close(asset.data.nodal_pos_w.torch, original_positions)
+    torch.testing.assert_close(asset.data.nodal_vel_w.torch, original_velocities)
+    assert asset.root_view.position_write_count == 0
+    assert asset.root_view.velocity_write_count == 0
+
+
+def test_material_path_expr_does_not_rewrite_sibling_prefix():
+    deformable_object_module = importlib.import_module("isaaclab_ovphysx.assets.deformable_object.deformable_object")
+
+    path_expr = deformable_object_module._resolve_material_path_expr(
+        Sdf.Path("/World/SoftMaterial"),
+        Sdf.Path("/World/Soft"),
+        "/World/envs/env_.*/Soft",
+    )
+
+    assert path_expr == "/World/SoftMaterial"
 
 
 def test_volume_target_initialization_sets_free_flags_and_writes_full_buffer():
