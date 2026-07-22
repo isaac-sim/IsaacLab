@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
+from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg
 
 import omni.timeline
 
@@ -908,6 +909,50 @@ def test_isaac_event_triggered_on_reset(event_type):
         # cleanup callback
         if callback_id is not None:
             PhysxManager.deregister_callback(callback_id)
+
+
+@pytest.mark.isaacsim_ci
+def test_forward_updates_without_step_callbacks():
+    """Forward updates must not have public physics-step semantics."""
+    sim = SimulationContext(SimulationCfg(dt=0.01))
+    cube_cfg = sim_utils.CuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        rigid_props=PhysxRigidBodyPropertiesCfg(),
+        collision_props=PhysxCollisionPropertiesCfg(),
+    )
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    callback_counts = {"pre": 0, "post": 0}
+
+    def on_pre_step(_dt):
+        callback_counts["pre"] += 1
+
+    def on_post_step(_dt):
+        callback_counts["post"] += 1
+
+    pre_handle = PhysxManager.register_callback(on_pre_step, event=IsaacEvents.PRE_PHYSICS_STEP)
+    post_handle = PhysxManager.register_callback(on_post_step, event=IsaacEvents.POST_PHYSICS_STEP)
+
+    try:
+        sim.reset()
+
+        assert sim.get_physics_step_count() == 0
+        assert callback_counts == {"pre": 0, "post": 0}
+
+        sim.forward()
+
+        assert sim.get_physics_step_count() == 0
+        assert callback_counts == {"pre": 0, "post": 0}
+
+        sim.step(render=False)
+
+        assert sim.get_physics_step_count() == 1
+        assert callback_counts == {"pre": 1, "post": 1}
+    finally:
+        if pre_handle is not None:
+            PhysxManager.deregister_callback(pre_handle)
+        if post_handle is not None:
+            PhysxManager.deregister_callback(post_handle)
 
 
 @pytest.mark.isaacsim_ci

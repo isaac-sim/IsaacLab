@@ -390,6 +390,7 @@ class PhysxManager(PhysicsManager):
     _stage_id: ClassVar[int] = -1
     _subscriptions: ClassVar[dict[str, Any]] = {}
     _fabric: ClassVar[Any] = None
+    _suppress_step_callbacks: ClassVar[bool] = False
     _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
     _callback_exception: ClassVar[Exception | None] = None
@@ -488,8 +489,14 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def forward(cls) -> None:
-        """Update articulation kinematics and fabric for rendering."""
+        """Update tensor state and fabric without advancing simulation time."""
         sim = PhysicsManager._sim
+        suppress_step_callbacks = cls._suppress_step_callbacks
+        cls._suppress_step_callbacks = True
+        try:
+            omni.physx.get_physx_interface().update_simulation(cls.get_physics_dt(), 0.0)
+        finally:
+            cls._suppress_step_callbacks = suppress_step_callbacks
         if cls._fabric is not None and cls._update_fabric is not None:
             if cls._view is not None and sim is not None and sim.is_playing():
                 cls._view.update_articulations_kinematic()
@@ -680,7 +687,7 @@ class PhysxManager(PhysicsManager):
 
         def guarded(cb: Callable) -> Callable:
             def wrapper(dt: float) -> Any:
-                return cb(dt) if cls._view_created else None
+                return cb(dt) if cls._view_created and not cls._suppress_step_callbacks else None
 
             return wrapper
 
