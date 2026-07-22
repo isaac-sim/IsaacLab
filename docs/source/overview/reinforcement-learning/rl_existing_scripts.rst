@@ -75,7 +75,7 @@ For example, ``Isaac-Reorient-Cube-Shadow-Camera-Direct`` defaults to RGB + dept
 
    # Play — must use the same preset to load the matching checkpoint
    ./isaaclab.sh play --rl_library rsl_rl \
-       --task Isaac-Reorient-Cube-Shadow-Camera-Direct-Play \
+       --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
        --enable_cameras presets=rgb
 
 Other available presets for this environment: ``albedo``,

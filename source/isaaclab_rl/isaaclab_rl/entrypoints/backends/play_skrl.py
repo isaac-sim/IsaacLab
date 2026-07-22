@@ -27,7 +27,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 
-from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector, resolve_play_task_name
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
@@ -83,8 +83,15 @@ parser.add_argument(
     help="The RL algorithm used for training the skrl agent.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument(
+    "--train_env_cfg",
+    action="store_true",
+    default=False,
+    help="Play with the training environment configuration as-is, skipping play-mode overrides.",
+)
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
+args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -109,7 +116,9 @@ else:
 
 def main():
     """Play with skrl agent."""
-    env_cfg, experiment_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    env_cfg, experiment_cfg = resolve_task_config(
+        args_cli.task, agent_cfg_entry_point, play_mode=not args_cli.train_env_cfg
+    )
     with launch_simulation(env_cfg, args_cli):
         if args_cli.ml_framework.startswith("torch"):
             from skrl.utils.runner.torch import Runner

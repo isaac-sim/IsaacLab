@@ -22,13 +22,12 @@ It supports multiple workflows: rl_games, rsl_rl, sb3, and skrl.
         -tp "*:Isaac-Cartpole-*Direct-v0" \
         --/persistent/isaaclab/asset_root/pretrained_checkpoints="/some/path"
 
-* To review all reorient cube jobs, excluding the 'Play' tasks and 'skrl' workflows:
+* To review all reorient cube jobs, excluding the 'skrl' workflows:
 
   .. code-block:: shell
 
     python scripts/tools/train_and_publish_checkpoints.py \
         -r "*:*Reorient-Cube*" \
-        --exclude "*:*Play*" \
         --exclude skrl:*
 
 * To publish all results (that have been reviewed and approved).
@@ -58,8 +57,8 @@ Examples:
     train_and_publish_checkpoints.py -tp "*:Isaac-Cartpole-*Direct-v0" \\
       --/persistent/isaaclab/asset_root/pretrained_checkpoints="/some/path"
 
-    # Review all Reorient Cube jobs, excluding Play tasks and skrl jobs.
-    train_and_publish_checkpoints.py -r "*:*Reorient-Cube*" --exclude "*:*Play*" --exclude skrl:*
+    # Review all Reorient Cube jobs, excluding skrl jobs.
+    train_and_publish_checkpoints.py -r "*:*Reorient-Cube*" --exclude skrl:*
 
     # Publish all results that have been reviewed and approved.
     train_and_publish_checkpoints.py --publish --all \\

@@ -234,16 +234,10 @@ class DigitLocoManipEnvCfg(DigitRoughEnvCfg):
         # Remove terrain curriculum.
         self.curriculum.terrain_levels = None
 
+    def play_post_init(self) -> None:
+        # play-mode overrides of parent
+        super().play_post_init()
 
-class DigitLocoManipEnvCfg_PLAY(DigitLocoManipEnvCfg):
-    def __post_init__(self) -> None:
-        super().__post_init__()
-
-        # Make a smaller scene for play.
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # Disable randomization for play.
-        self.observations.policy.enable_corruption = False
         # Remove random pushing.
         self.events.base_external_force_torque = None
         self.events.push_robot = None

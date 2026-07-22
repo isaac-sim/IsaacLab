@@ -102,9 +102,9 @@ Robots whose USD encodes a closed kinematic loop -- such as the achilles rod and
 toe push-rods on the Agility Digit -- do not currently run correctly on the
 ``newton_mjwarp`` physics preset, even though they work on ``physx``. This affects:
 
-* ``Isaac-Velocity-Flat-Digit`` / ``Isaac-Velocity-Flat-Digit-Play``
-* ``Isaac-Velocity-Rough-Digit`` / ``Isaac-Velocity-Rough-Digit-Play``
-* ``IsaacContrib-Tracking-LocoManip-Digit`` / ``IsaacContrib-Tracking-LocoManip-Digit-Play``
+* ``Isaac-Velocity-Flat-Digit``
+* ``Isaac-Velocity-Rough-Digit``
+* ``IsaacContrib-Tracking-LocoManip-Digit``
 
 The root cause sits inside Newton's :class:`~newton.selection.ArticulationView`. When
 it builds its per-link axis it walks each joint in the articulation's joint range and
