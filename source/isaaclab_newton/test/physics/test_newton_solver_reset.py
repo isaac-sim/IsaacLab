@@ -16,7 +16,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonMJWarpManager
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton.solvers import SolverMuJoCo
 
@@ -107,6 +107,17 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         assert torch.count_nonzero(warm_start[0]).item() == 0
         torch.testing.assert_close(warm_start[1], torch.full_like(warm_start[1], 17.0))
 
+        reset_count = 0
+        reset_solver = SimulationManager._reset_solver
+        assert reset_solver is not None
+
+        def record_reset(mask):
+            nonlocal reset_count
+            reset_count += 1
+            reset_solver(mask)
+
+        SimulationManager._reset_solver = record_reset
+
         # sim.step() reaches forward internally when no explicit forward call consumed the mask first.
         articulation.write_joint_state_to_sim_index(
             position=joint_pos,
@@ -118,11 +129,17 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         wp.synchronize_device(device)
 
         with (
+            patch.object(
+                NewtonMJWarpManager,
+                "_reset_solver_internals",
+                classmethod(lambda cls, mask: record_reset(mask)),
+            ),
             patch.object(SimulationManager, "_simulate_full", classmethod(lambda cls: None)),
             patch.object(SimulationManager, "_simulate_physics_only", classmethod(lambda cls: None)),
         ):
             sim.step(render=False)
         wp.synchronize_device(device)
+        assert reset_count == 1
 
         torch.testing.assert_close(wp.to_torch(state.joint_q), joint_q_before)
         torch.testing.assert_close(wp.to_torch(state.joint_qd), joint_qd_before)

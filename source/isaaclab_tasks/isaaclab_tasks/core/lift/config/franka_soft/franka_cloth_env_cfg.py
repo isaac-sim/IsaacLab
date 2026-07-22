@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import NewtonCfg, NewtonShapeCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 
@@ -18,13 +18,14 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 
 from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
-from .franka_soft_env_cfg import FrankaSoftEnvCfg, _coupled_mjwarp_vbd_solver_cfg, _FrankaSoftSceneCfg
+from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
 
 ##
 # Scene definition
@@ -41,12 +42,44 @@ ROBOT_SHAPE_MATERIAL_BODY_NAMES = ".*"
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, coupled through lagged proxies
     newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
-        solver_cfg=_coupled_mjwarp_vbd_solver_cfg(
-            NewtonModelCfg(
+        solver_cfg=CouplerProxyCfg(
+            entries=[
+                CouplerEntryCfg(
+                    name="rigid",
+                    solver_cfg=MJWarpSolverCfg(
+                        njmax=40,
+                        nconmax=20,
+                        cone="elliptic",
+                        ls_iterations=20,
+                        integrator="implicitfast",
+                        ccd_iterations=100,
+                    ),
+                    bodies=[r"/World/envs/env_.*/Robot"],
+                ),
+                CouplerEntryCfg(
+                    name="soft",
+                    solver_cfg=VBDSolverCfg(iterations=10),
+                    all_particles=True,
+                    include_static_shapes=True,
+                ),
+            ],
+            proxies=[
+                CouplerProxyMappingCfg(
+                    source="rigid",
+                    destination="soft",
+                    bodies=[
+                        r"/World/envs/env_.*/Robot/panda_hand",
+                        r"/World/envs/env_.*/Robot/panda_(left|right)finger",
+                    ],
+                    collide_interval=1,
+                )
+            ],
+            iterations=1,
+            model_cfg=NewtonModelCfg(
                 soft_contact_ke=1e3,
                 soft_contact_kd=1e-5,
                 soft_contact_mu=0.5,
-            )
+            ),
         ),
         default_shape_cfg=NewtonShapeCfg(ke=1e3, kd=1e-5, mu=1e-4),
         num_substeps=10,

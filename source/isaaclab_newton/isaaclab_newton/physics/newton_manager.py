@@ -233,11 +233,6 @@ def _eval_fk_unbound(world_reset_mask: wp.array | None, fk_mask: wp.array | None
     )
 
 
-def _reset_solver_unbound(world_mask: wp.array | None) -> None:
-    """Default reset hook before a solver is initialized."""
-    raise RuntimeError("Solver reset hook is not bound. NewtonManager.initialize_solver() must run first.")
-
-
 class NewtonManager(PhysicsManager):
     """Abstract Newton physics manager for Isaac Lab.
 
@@ -308,7 +303,7 @@ class NewtonManager(PhysicsManager):
     _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
     _solver_reset_pending: bool = False
-    _reset_solver: Callable[[wp.array | None], None] = _reset_solver_unbound
+    _reset_solver: Callable[[wp.array | None], None] | None = None
     # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
     _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
 
@@ -480,8 +475,15 @@ class NewtonManager(PhysicsManager):
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
-        if cls._solver_reset_pending:
-            cls._reset_solver(cls._world_reset_mask)
+        reset_requested = cls._solver_reset_pending or NewtonManager._transforms_may_change_on_graph_replay
+        if reset_requested and cls._world_reset_mask is not None:
+            # Replayed writers update only the device mask; all-false masks must not reset coupled solvers.
+            if bool(cls._world_reset_mask.numpy().any()):
+                if cls._reset_solver is None:
+                    raise RuntimeError(
+                        "Solver reset hook is not bound. NewtonManager.initialize_solver() must run first."
+                    )
+                cls._reset_solver(cls._world_reset_mask)
             NewtonManager._solver_reset_pending = False
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
@@ -880,7 +882,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._control = None
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
-        NewtonManager._reset_solver = _reset_solver_unbound
+        NewtonManager._reset_solver = None
         NewtonManager._solver_reset_pending = False
         NewtonManager._eval_fk = _eval_fk_unbound
         NewtonManager._collision_pipeline = None
@@ -1197,10 +1199,10 @@ class NewtonManager(PhysicsManager):
                 index. Shape ``(world_count, count_per_world)``. Obtained from
                 ``ArticulationView.articulation_ids``.
         """
-        cls._mark_transforms_dirty()
-
         if env_mask is None and env_ids is not None and env_ids.shape[0] == 0:
             return
+
+        cls._mark_transforms_dirty()
 
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return

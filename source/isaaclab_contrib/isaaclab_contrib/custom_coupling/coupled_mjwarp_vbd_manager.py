@@ -12,9 +12,9 @@ from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import Contacts, Control, Model, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
-from isaaclab_contrib.deformable.kernels import _kernel_body_particle_reaction
 from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
+from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
 
@@ -59,6 +59,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         cls._rigid_solver = SolverMuJoCo(model, **cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg.rigid_solver_cfg))
         cls._soft_solver = SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg.soft_solver_cfg))
 
+        # The base lifecycle needs a solver slot; substeps use the two solvers above.
         NewtonManager._solver = SolverBase(model)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
@@ -93,6 +94,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
 
     @classmethod
     def _simulate_physics_only(cls) -> None:
+        # Some Newton VBD versions require an explicit BVH rebuild.
         if hasattr(cls._soft_solver, "rebuild_bvh"):
             cls._soft_solver.rebuild_bvh(cls._state_0)
         super()._simulate_physics_only()
