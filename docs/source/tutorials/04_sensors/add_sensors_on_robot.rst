@@ -91,9 +91,10 @@ and ``"front_cam"`` is the name of the prim associated with the camera sensor.
 Height scanner
 --------------
 
-The height-scanner is implemented as a virtual sensor using the NVIDIA Warp ray-casting kernels.
-Through the :class:`sensors.RayCasterCfg`, we can specify the pattern of rays to cast and the
-meshes against which to cast the rays. By default, :attr:`~sensors.RayCasterCfg.spawn` creates
+The height-scanner is implemented as a virtual ray-casting sensor. Through the
+:class:`sensors.RayCasterCfg`, we specify the ray pattern. PhysX-based backends
+cast against the configured meshes, while Newton casts against its live scene
+BVH and ignores the mesh list. By default, :attr:`~sensors.RayCasterCfg.spawn` creates
 a plain USD Xform at :attr:`~sensors.RayCasterCfg.prim_path` to serve as the sensor's
 attachment frame, similar to how :class:`sensors.CameraCfg` spawns a Camera prim.
 

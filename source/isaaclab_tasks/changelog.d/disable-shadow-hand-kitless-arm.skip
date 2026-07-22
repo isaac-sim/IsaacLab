@@ -1,0 +1,2 @@
+Test-only change: removed the ``arm_ci`` marker from the shadow-hand kitless rendering test
+to stop intermittent hangs on the arm64 CI runner. No user-facing changes.
