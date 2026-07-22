@@ -98,7 +98,7 @@ class VisualizerCfg:
     training runs.
     """
 
-    live_plots_update_interval: int = 10
+    live_plots_update_interval: int = 5
     """How often (in simulation steps) to collect and push live plot data.
 
     Collecting manager terms every step is expensive for high-dimensional managers
