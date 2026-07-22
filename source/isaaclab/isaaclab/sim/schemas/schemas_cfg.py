@@ -253,6 +253,42 @@ class SpatialTendonFragment(SchemaFragment):
 
 
 @configclass
+class DeformableBodyFragment(SchemaFragment):
+    """Marker base for deformable-body fragments; types the ``volume_deformable_props`` and
+    ``surface_deformable_props`` slots.
+
+    The deformable anchor schemas (sim and body APIs) are applied by the family writers through
+    the active physics backend, so fragments never own the anchor. A fragment meaningful for only
+    one deformable type narrows :attr:`_deformable_types`; the family writers warn (but still
+    author) when a fragment is passed to the other type's writer.
+    """
+
+    _deformable_types: ClassVar[tuple[str, ...]] = ("volume", "surface")
+
+
+@configclass
+class OmniPhysicsDeformableBodyCfg(DeformableBodyFragment):
+    """``omniphysics:*`` deformable-body attributes from ``OmniPhysicsDeformableBodyAPI``.
+
+    The ``OmniPhysicsDeformableBodyAPI`` anchor is applied by the family writer through the
+    active physics backend, so this fragment owns no applied schema of its own.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = None  # anchor applied by the backend manager
+
+    deformable_body_enabled: bool | None = None
+    """Whether the deformable body participates in the simulation."""
+
+    kinematic_enabled: bool | None = None
+    """Whether the body is kinematic (driven by animated or user-defined poses)."""
+
+    mass: float | None = None
+    """The body mass [kg]. Overrides material-density-derived mass; ``UsdPhysics.MassAPI`` is
+    ignored for deformable bodies."""
+
+
+@configclass
 class UsdPhysicsCollisionCfg(CollisionFragment):
     """``physics:*`` collision attributes from `UsdPhysics.CollisionAPI`_.
 
