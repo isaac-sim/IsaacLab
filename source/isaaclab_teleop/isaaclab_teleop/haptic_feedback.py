@@ -100,15 +100,17 @@ def contact_force_magnitude(left_sensor_name: str, right_sensor_name: str) -> Si
     names = {ENDPOINT_LEFT: left_sensor_name, ENDPOINT_RIGHT: right_sensor_name}
 
     def signal_fn(env: ManagerBasedRLEnv) -> dict[str, np.ndarray]:
-        out: dict[str, np.ndarray] = {}
-        for endpoint, name in names.items():
-            forces = env.scene[name].data.net_forces_w
-            if forces is None:
-                out[endpoint] = np.zeros(1, dtype=np.float32)
-            else:
-                magnitude = torch.linalg.vector_norm(forces[0], dim=-1).sum().item()
-                out[endpoint] = np.array([magnitude], dtype=np.float32)
-        return out
+        # Reduce both hands on-device via the explicit ``.torch`` view (avoids the
+        # ProxyArray deprecation path), then move them to the host in a single
+        # transfer to skip a per-hand CUDA sync. A hand with no sensor data fails
+        # safe to 0.0.
+        reduced = {
+            endpoint: torch.linalg.vector_norm(forces.torch[0], dim=-1).sum()
+            for endpoint, name in names.items()
+            if (forces := env.scene[name].data.net_forces_w) is not None
+        }
+        magnitudes = dict(zip(reduced, torch.stack(list(reduced.values())).tolist())) if reduced else {}
+        return {endpoint: np.array([magnitudes.get(endpoint, 0.0)], dtype=np.float32) for endpoint in names}
 
     return signal_fn
 
@@ -164,11 +166,13 @@ def per_finger_object_grip(
                 channels = body_channels.get(name)
                 if channels is None:
                     channels = body_channels[name] = _resolve(sensor)
-                # Per body: contact-force magnitude summed over the object's filter shapes.
-                per_body = torch.linalg.vector_norm(force_matrix[0], dim=-1).sum(dim=-1)
+                # Per body: contact-force magnitude summed over the object's filter
+                # shapes, via the explicit ``.torch`` view (avoids the ProxyArray
+                # deprecation path) and moved to the host once to skip a per-body sync.
+                per_body = torch.linalg.vector_norm(force_matrix.torch[0], dim=-1).sum(dim=-1).tolist()
                 for body_index, channel in enumerate(channels):
                     if channel is not None:
-                        vec[channel] += float(per_body[body_index])
+                        vec[channel] += per_body[body_index]
             out[endpoint] = vec
         return out
 
