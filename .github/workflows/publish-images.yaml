@@ -6,24 +6,55 @@
 name: Publish Docker Images
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-      - release/**
-
-# Concurrency control to prevent parallel runs
-concurrency:
-  group: publish-images-${{ github.ref }}
-  cancel-in-progress: true
+  # Nightly build + publish from develop and the active release branches listed
+  # in CRON_BRANCHES below. No push triggers — workflow_dispatch also accepts any
+  # publishable branch. main is intentionally excluded: main images are built
+  # by postmerge-ci.yml on push instead.
+  schedule:
+    - cron: '0 2 * * *'  # 6pm PST / 7pm PDT
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build and publish (e.g. develop, release/3.0.0-beta2)'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+# Branches the nightly cron publishes. Single source of truth — append a ref
+# here when a new release/* is cut and drop it once that release is retired, so
+# stale branches aren't rebuilt nightly. Mirrors CRON_BRANCHES in
+# nightly-changelog.yml. Whitespace per entry is stripped. main is excluded on
+# purpose (it builds on the public isaac-sim base via postmerge-ci.yml).
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  CRON_BRANCHES: develop,release/3.0.0-beta2
 
 jobs:
+  resolve-branches:
+    name: Resolve publish branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      branches: ${{ steps.b.outputs.branches }}
+    steps:
+    - id: b
+      env:
+        # Schedule → the CRON_BRANCHES list. Manual → the single branch the
+        # maintainer entered (required input). Same pattern as nightly-changelog.yml.
+        BRANCHES: ${{ github.event_name == 'schedule' && env.CRON_BRANCHES || inputs.branch }}
+      run: |
+        # CSV → newline, trimming surrounding whitespace per entry, then to a
+        # compact JSON array. Manual produces a 1-element array; cron N elements.
+        arr=$(echo "$BRANCHES" | tr ',' '\n' | xargs -n1 | jq -R . | jq -s -c .)
+        if [ "$(echo "$arr" | jq 'length')" -eq 0 ]; then
+          echo "::error::No branches resolved for publishing"
+          exit 1
+        fi
+        echo "branches=$arr" >> "$GITHUB_OUTPUT"
+        echo "Resolved branches: $arr"
+
   config:
     name: Load Config
     runs-on: ubuntu-latest
@@ -34,6 +65,9 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
+        # Preserve the existing controller configuration while the repository
+        # default branch temporarily points at the stable release branch.
+        ref: main
         fetch-depth: 1
         sparse-checkout: .github/workflows/config.yaml
         sparse-checkout-cone-mode: false
@@ -46,9 +80,17 @@ jobs:
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
 
   build-and-push-images:
-    needs: [config]
+    name: Build and Push (${{ matrix.branch }})
+    needs: [config, resolve-branches]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJson(needs.resolve-branches.outputs.branches) }}
+    concurrency:
+      group: publish-images-${{ matrix.branch }}
+      cancel-in-progress: true
     environment:
       name: postmerge-production
       url: https://github.com/${{ github.repository }}
@@ -62,14 +104,15 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
+        ref: ${{ matrix.branch }}
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      uses: docker/setup-qemu-action@v3
       with:
         platforms: linux/arm64
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      uses: docker/setup-buildx-action@v3
       with:
         platforms: linux/amd64,linux/arm64
         driver-opts: |
@@ -78,9 +121,9 @@ jobs:
     - name: Login to NGC
       run: |
         # Only attempt NGC login if API key is available
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+        if [ -n "$NGC_API_KEY" ]; then
           echo "🔵 Logging into NGC registry..."
-          if ! docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io; then
+          if ! echo "$NGC_API_KEY" | docker login -u '$oauthtoken' --password-stdin nvcr.io; then
             echo "🔴 Failed to log into NGC registry"
             exit 1
           fi
@@ -91,53 +134,66 @@ jobs:
 
     - name: Build and Push Docker Images
       run: |
-        BRANCH_NAME="${{ github.ref_name }}"
+        BRANCH_NAME="${{ matrix.branch }}"
         IMAGE_BASE_VERSION="${{ needs.config.outputs.isaacsim_image_tag }}"
-        SHA="${{ github.sha }}"
         IMAGE="${{ needs.config.outputs.isaaclab_image_name }}"
 
+        # Use the SHA actually checked out for this branch (the matrix ref), not
+        # github.sha — on a scheduled run github.sha is the default branch HEAD,
+        # which would mis-tag every nightly image.
+        FULL_SHA="$(git rev-parse HEAD)"
+
         echo "Branch: $BRANCH_NAME"
-        echo "Commit: $SHA"
+        echo "Commit: $FULL_SHA"
         echo "IsaacSim base image: ${{ needs.config.outputs.isaacsim_image_name }}:$IMAGE_BASE_VERSION"
         echo "Target Isaac Lab image: $IMAGE"
 
-        # Build the list of tags based on the branch.
+        # Build the tag list for the branch (main is published separately via
+        # postmerge-ci.yml, so it is not handled here).
         #
         # Tagging scheme:
-        #   - Push to develop:    $IMAGE:latest-develop                          (moves to newest develop build)
-        #                         $IMAGE:latest-develop-<run#>-<sha-stub>        (immutable per-build)
-        #   - Push to release/X:  $IMAGE:latest-release-X                        (moves to newest build on that release branch)
-        #                         $IMAGE:latest-release-X-<run#>-<sha-stub>      (immutable per-build)
-        #   - Push to main:       $IMAGE:latest                                  (moves to newest main build)
-        #                         $IMAGE:v<VERSION>                              (from the VERSION file, e.g. v3.0.0)
-        TAGS=()
+        #   - develop:    $IMAGE:latest-develop               (moves to newest develop build)
+        #                 $IMAGE:latest-develop-<full-sha>    (immutable per-commit)
+        #   - release/X:  $IMAGE:latest-release-X             (moves to newest build on that release branch)
+        #                 $IMAGE:latest-release-X-<full-sha>  (immutable per-commit)
+        #
+        # The immutable per-commit tag doubles as the "already published" marker:
+        # if it exists in the registry the branch has not advanced since the last
+        # publish, so the nightly build is skipped (see the guard below).
+        MOVING_TAG=""
+        IMMUTABLE_TAG=""
 
         case "$BRANCH_NAME" in
           develop)
-            TAGS+=("$IMAGE:latest-develop")
-            TAGS+=("$IMAGE:latest-develop-${{ github.run_number }}-${SHA:0:8}")
-            ;;
-          main)
-            TAGS+=("$IMAGE:latest")
-            VERSION="$(tr -d '[:space:]' < VERSION)"
-            if [ -n "$VERSION" ]; then
-              TAGS+=("$IMAGE:v$VERSION")
-            else
-              echo "🛑 ERROR: VERSION file is empty or missing. Cannot tag build with version tag."
-              exit 1
-            fi
+            MOVING_TAG="$IMAGE:latest-develop"
+            IMMUTABLE_TAG="$IMAGE:latest-develop-$FULL_SHA"
             ;;
           release/*)
             # Sanitize the part after release/ for use as a Docker tag suffix.
             RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
-            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX")
-            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-${{ github.run_number }}-${SHA:0:8}")
+            MOVING_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX"
+            IMMUTABLE_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX-$FULL_SHA"
+            ;;
+          main)
+            # main is intentionally not published here; see postmerge-ci.yml for main.
+            echo "Branch 'main' is not published by this workflow; skipping. See postmerge-ci.yml for main."
+            exit 0
             ;;
           *)
             echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."
             exit 0
             ;;
         esac
+
+        # Skip the (expensive) build when this exact commit was already published.
+        # The immutable per-commit tag is the source of truth for "git advanced":
+        # if it already exists in the registry, nothing new to build for this branch.
+        if docker manifest inspect "$IMMUTABLE_TAG" >/dev/null 2>&1; then
+          echo "🟢 $IMMUTABLE_TAG already exists — $BRANCH_NAME has not advanced since the last publish. Skipping."
+          exit 0
+        fi
+
+        TAGS=("$MOVING_TAG" "$IMMUTABLE_TAG")
 
         # Determine if multiarch is supported by inspecting the base image manifest
         echo "🔵 Checking if base image supports multiarch..."
