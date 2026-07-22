@@ -112,7 +112,6 @@ dependencies = [
 test = [
     "pytest",
     "pytest-mock",
-    "pytest-timeout>=2.0",
     "junitparser",
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
