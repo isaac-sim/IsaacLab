@@ -156,6 +156,8 @@ class OvPhysxDeformableBodyView:
 
     def get_collision_element_indices(self) -> wp.array(dtype=wp.int32):
         """Return collision element connectivity indices."""
+        if self._deformable_type != "volume":
+            raise ValueError("collision elements are only available for volume deformables.")
         return self._get("collision_elements")
 
     def set_simulation_nodal_positions(

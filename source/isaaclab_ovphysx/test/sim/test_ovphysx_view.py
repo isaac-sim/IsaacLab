@@ -43,6 +43,31 @@ wp.init()
 wp.set_device("cpu")
 _HAS_CUDA = wp.get_cuda_device_count() > 0
 
+_EXPECTED_READ_ONLY_NAMES = frozenset(
+    {
+        "rigid_body_acceleration",
+        "rigid_body_inv_mass",
+        "rigid_body_inv_inertia",
+        "articulation_link_acceleration",
+        "articulation_body_inv_mass",
+        "articulation_body_inv_inertia",
+        "articulation_dof_projected_joint_force",
+        "articulation_link_incoming_joint_force",
+        "articulation_mass_center_world",
+        "articulation_mass_center_local",
+        "articulation_jacobian",
+        "articulation_mass_matrix",
+        "articulation_centroidal_momentum",
+        "articulation_coriolis_and_centrifugal_force",
+        "articulation_gravity_force",
+        "deformable_rest_nodal_position",
+        "deformable_sim_element_indices",
+        "deformable_collision_element_indices",
+        "surface_deformable_rest_position",
+        "surface_deformable_sim_element_indices",
+    }
+)
+
 # Per-type shapes used by the fakes (only the types touched by the tests).
 _SHAPES = {
     TensorType.RIGID_BODY_POSE: lambda n: (n, 7),
@@ -149,10 +174,11 @@ def test_resolve_unknown_name_raises():
 
 
 def test_read_only_names_are_valid_vocabulary():
-    # Every read-only name must resolve to a real TensorType, so the hand-maintained
-    # set stays coupled to the wheel enum (no dead names).
+    # The expected inventory keeps the manually maintained production set complete;
+    # vocabulary coverage also rejects stale names after wheel enum changes.
     from isaaclab_ovphysx.sim.views import ovphysx_view as mod
 
+    assert mod._READ_ONLY_NAMES == _EXPECTED_READ_ONLY_NAMES
     assert set(attribute_vocabulary()) >= mod._READ_ONLY_NAMES
 
 
@@ -394,12 +420,14 @@ def test_set_attribute_reinterprets_structured_source():
     assert (dtype, shape) == (wp.float32, (3, 7))
 
 
-def test_set_attribute_read_only_raises_and_does_not_bind():
+@pytest.mark.parametrize("name", sorted(_EXPECTED_READ_ONLY_NAMES))
+def test_set_attribute_read_only_raises_and_does_not_bind(name: str):
     view = _make_view(n=3)
-    values = wp.zeros((3, 6), dtype=wp.float32, device="cpu")
+    values = wp.zeros((3, 1), dtype=wp.float32, device="cpu")
     with pytest.raises(OvPhysxView.ReadOnlyAttribute, match="read-only"):
-        view.set_attribute("rigid_body_acceleration", values)
-    assert TensorType.RIGID_BODY_ACCELERATION not in view._bindings
+        view.set_attribute(name, values)
+    assert resolve_tensor_type(name) not in view._bindings
+    assert view._physx.created == []
 
 
 def test_set_attribute_shape_mismatch_raises():
