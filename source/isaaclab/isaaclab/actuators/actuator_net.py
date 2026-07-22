@@ -74,6 +74,14 @@ class ActuatorNetLSTM(DCMotor):
             self.sea_hidden_state_per_env[:, env_ids] = 0.0
             self.sea_cell_state_per_env[:, env_ids] = 0.0
 
+    def reset_mask(self, env_mask: torch.Tensor) -> None:
+        # Elementwise masked fill keeps the reset free of host synchronization and
+        # data-dependent allocation (boolean advanced indexing would gather indices).
+        with torch.no_grad():
+            mask = env_mask.view(1, -1, 1, 1)
+            self.sea_hidden_state_per_env.masked_fill_(mask, 0.0)
+            self.sea_cell_state_per_env.masked_fill_(mask, 0.0)
+
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
@@ -142,6 +150,13 @@ class ActuatorNetMLP(DCMotor):
         # reset the history for the specified environments
         self._joint_pos_error_history[env_ids] = 0.0
         self._joint_vel_history[env_ids] = 0.0
+
+    def reset_mask(self, env_mask: torch.Tensor) -> None:
+        # Elementwise masked fill keeps the reset free of host synchronization and
+        # data-dependent allocation (boolean advanced indexing would gather indices).
+        mask = env_mask.view(-1, 1, 1)
+        self._joint_pos_error_history.masked_fill_(mask, 0.0)
+        self._joint_vel_history.masked_fill_(mask, 0.0)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor

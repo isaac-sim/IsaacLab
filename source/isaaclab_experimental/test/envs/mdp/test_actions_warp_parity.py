@@ -12,6 +12,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import WarpLaunchCache
+
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
@@ -42,6 +44,7 @@ class MockEnv:
         self.scene = MockScene({"robot": asset}, env_origins=None)
         self.num_envs = NUM_ENVS
         self.device = DEVICE
+        self._warp_launch = WarpLaunchCache(device=DEVICE)
 
 
 # ============================================================================

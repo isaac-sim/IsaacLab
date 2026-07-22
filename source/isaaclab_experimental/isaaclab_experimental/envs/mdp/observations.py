@@ -36,10 +36,12 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_shape,
 )
 from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.sensors import RayCaster
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +54,7 @@ def _vec3_to_out3_kernel(
     src: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Scatter a vec3 array into three float32 columns of a term's ``out`` block."""
     env_id = wp.tid()
     v = src[env_id]
     out[env_id, 0] = v[0]
@@ -65,6 +68,10 @@ def _joint_gather_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Gather selected joints' values into contiguous term columns.
+
+    Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     out[env_id, k] = src[env_id, j]
@@ -80,6 +87,7 @@ def _base_pos_z_kernel(
     root_pos_w: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Write the root height above the world origin [m] into the term's single column."""
     env_id = wp.tid()
     out[env_id, 0] = root_pos_w[env_id][2]
 
@@ -90,11 +98,11 @@ def _base_pos_z_kernel(
 def base_pos_z(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Root height in the simulation world frame."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_pos_z_kernel,
+    env._warp_launch.launch(
+        _base_pos_z_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_pos_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -112,6 +120,10 @@ def _base_lin_vel_kernel(
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Root linear velocity [m/s] in the body frame, derived inline from the root
+
+    pose and CoM velocity (Tier-1 access; avoids non-capturable lazy buffers).
+    """
     i = wp.tid()
     v = body_lin_vel_from_root(root_pose_w[i], root_vel_w[i])
     out[i, 0] = v[0]
@@ -125,11 +137,11 @@ def _base_lin_vel_kernel(
 def base_lin_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Root linear velocity in the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_lin_vel_kernel,
+    env._warp_launch.launch(
+        _base_lin_vel_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -139,6 +151,10 @@ def _base_ang_vel_kernel(
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Root angular velocity [rad/s] in the body frame, derived inline from the root
+
+    pose and CoM velocity (Tier-1 access; avoids non-capturable lazy buffers).
+    """
     i = wp.tid()
     v = body_ang_vel_from_root(root_pose_w[i], root_vel_w[i])
     out[i, 0] = v[0]
@@ -152,11 +168,11 @@ def _base_ang_vel_kernel(
 def base_ang_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Root angular velocity in the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_base_ang_vel_kernel,
+    env._warp_launch.launch(
+        _base_ang_vel_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -166,6 +182,7 @@ def _projected_gravity_kernel(
     gravity_w: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Unit gravity direction rotated into the body frame (flat pose -> (0, 0, -1))."""
     i = wp.tid()
     g = rotate_vec_to_body_frame(wp.normalize(gravity_w[i]), root_pose_w[i])
     out[i, 0] = g[0]
@@ -179,11 +196,11 @@ def _projected_gravity_kernel(
 def projected_gravity(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Gravity projection on the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_projected_gravity_kernel,
+    env._warp_launch.launch(
+        _projected_gravity_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -204,11 +221,11 @@ def joint_pos(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntity
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_gather_kernel,
+    env._warp_launch.launch(
+        _joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_pos.warp, joint_ids_wp, out],
-        device=env.device,
+        site=("joint_pos", out),
     )
 
 
@@ -219,6 +236,10 @@ def _joint_rel_gather_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Gather selected joints' values relative to their per-env defaults into
+
+    contiguous term columns. Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     out[env_id, k] = values[env_id, j] - defaults[env_id, j]
@@ -240,11 +261,11 @@ def joint_pos_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_rel_gather_kernel,
+    env._warp_launch.launch(
+        _joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, joint_ids_wp, out],
-        device=env.device,
+        site=("joint_pos_rel", out),
     )
 
 
@@ -255,6 +276,10 @@ def _joint_pos_limit_normalized_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Selected joints' positions normalized to [-1, 1] within their soft limits.
+
+    Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     pos = joint_pos[env_id, j]
@@ -274,11 +299,11 @@ def joint_pos_limit_normalized(env: ManagerBasedEnv, out, asset_cfg: SceneEntity
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_pos_limit_normalized_kernel,
+    env._warp_launch.launch(
+        _joint_pos_limit_normalized_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, joint_ids_wp, out],
-        device=env.device,
+        site=out,
     )
 
 
@@ -294,11 +319,11 @@ def joint_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntity
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_gather_kernel,
+    env._warp_launch.launch(
+        _joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_vel.warp, joint_ids_wp, out],
-        device=env.device,
+        site=("joint_vel", out),
     )
 
 
@@ -318,11 +343,11 @@ def joint_vel_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
             "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
-    wp.launch(
-        kernel=_joint_rel_gather_kernel,
+    env._warp_launch.launch(
+        _joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_vel.warp, asset.data.default_joint_vel.warp, joint_ids_wp, out],
-        device=env.device,
+        site=("joint_vel_rel", out),
     )
 
 
@@ -353,17 +378,91 @@ def generated_commands(env: ManagerBasedEnv, out, command_name: str) -> None:
     """The generated command from the command manager. Writes into ``out``.
 
     Warp-first override of :func:`isaaclab.envs.mdp.observations.generated_commands`.
-    Uses ``wp.from_torch`` to create a zero-copy warp view of the command tensor on first call.
+    Reads the command manager's pointer-stable Warp storage directly.
     """
-    # TODO(warp-migration): Cross-manager access (observation → command). Replace with direct
-    #  warp getter once all managers are guaranteed to be warp-native.
-    fn = generated_commands
-    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        if isinstance(cmd, wp.array):
-            fn._cmd_wp = cmd
-        else:
-            fn._cmd_wp = wp.from_torch(cmd)
-        fn._cmd_name = command_name
-        fn._is_warmed_up = True
-    wp.copy(out, fn._cmd_wp)
+    wp.copy(out, env.command_manager.get_command_wp(command_name))
+
+
+"""
+Sensors.
+"""
+
+
+@wp.kernel
+def _body_incoming_wrench_kernel(
+    force: wp.array(dtype=wp.vec3f, ndim=2),
+    torque: wp.array(dtype=wp.vec3f, ndim=2),
+    body_ids: wp.array(dtype=wp.int32),
+    out: wp.array(dtype=wp.float32, ndim=2),
+):
+    """Gather selected bodies' incoming force [N] and torque [N·m] into per-body
+
+    ``[fx, fy, fz, tx, ty, tz]`` column blocks.
+    """
+    env_id = wp.tid()
+    for k in range(body_ids.shape[0]):
+        b = body_ids[k]
+        f = force[env_id, b]
+        t = torque[env_id, b]
+        out[env_id, k * 6 + 0] = f[0]
+        out[env_id, k * 6 + 1] = f[1]
+        out[env_id, k * 6 + 2] = f[2]
+        out[env_id, k * 6 + 3] = t[0]
+        out[env_id, k * 6 + 4] = t[1]
+        out[env_id, k * 6 + 5] = t[2]
+
+
+@generic_io_descriptor_warp(out_dim="body:6", observation_type="BodyState", on_inspect=[record_shape, record_dtype])
+def body_incoming_wrench(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg) -> None:
+    """Incoming spatial wrench [N, N·m] on selected bodies, laid out per body as ``[fx, fy, fz, tx, ty, tz]``.
+
+    Warp-first override of :func:`isaaclab.envs.mdp.observations.body_incoming_wrench`. Reads the
+    Newton joint-wrench sensor and gathers the force/torque of the bodies selected by ``sensor_cfg``
+    into ``out`` (shape ``(num_envs, 6 * num_selected_bodies)``).
+    """
+    sensor = env.scene.sensors[sensor_cfg.name]
+    if sensor.data.force is None or sensor.data.torque is None:
+        raise RuntimeError("Joint wrench sensor data is not initialized. Call sim.reset() before reading observations.")
+    wp.launch(
+        kernel=_body_incoming_wrench_kernel,
+        dim=env.num_envs,
+        inputs=[sensor.data.force.warp, sensor.data.torque.warp, sensor_cfg.body_ids_wp, out],
+        device=env.device,
+    )
+
+
+@wp.kernel
+def _height_scan_kernel(
+    pos_w: wp.array(dtype=wp.vec3f),
+    ray_hits_w: wp.array2d(dtype=wp.vec3f),
+    offset: wp.float32,
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Height of the scan frame above each ray hit [m]: sensor_z - hit_z - offset.
+
+    Launch with dim=(num_envs, num_rays). Missed hits carry ``inf`` and produce
+    ``-inf`` heights, matching the stable term (handled by the term's clip).
+    """
+    env_id, ray_id = wp.tid()
+    out[env_id, ray_id] = pos_w[env_id][2] - ray_hits_w[env_id, ray_id][2] - offset
+
+
+# Sensor reads go through the lazy-update path, whose host-side timestamp bookkeeping
+# decides when rays are re-cast and has not been audited for graph capture.
+@WarpCapturable(False, reason="sensor lazy-update host bookkeeping is not capture-audited (Part 3 scope)")
+@generic_io_descriptor_warp(units="m", out_dim="sensor:rays", observation_type="SensorState", on_inspect=[record_shape])
+def height_scan(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> None:
+    """Height scan from the given sensor w.r.t. the sensor's frame [m]. Writes into ``out``.
+
+    Warp-first override of :func:`isaaclab.envs.mdp.observations.height_scan`.
+    The provided offset (Defaults to 0.5) is subtracted from the returned values.
+    Missed rays carry ``inf`` hit positions, matching the stable term's semantics
+    (the resulting ``-inf`` heights are handled by the term's ``clip`` setting).
+    """
+    sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
+    wp.launch(
+        kernel=_height_scan_kernel,
+        dim=(env.num_envs, sensor.num_rays),
+        inputs=[sensor.data.pos_w.warp, sensor.data.ray_hits_w.warp, float(offset), out],
+        device=env.device,
+    )

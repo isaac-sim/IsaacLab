@@ -26,11 +26,13 @@ import torch
 import warp as wp
 from newton.actuators import Actuator, Clamping, Delay
 
+from isaaclab.utils.warp import WarpLaunchCache
+from isaaclab.utils.warp.utils import resolve_1d_mask
+
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
     scatter_gain_kernel,
-    set_mask_kernel,
     zero_at_indices_kernel,
 )
 
@@ -85,6 +87,8 @@ class NewtonActuatorAdapter:
         num_joints: int,
         dof_offset: int,
         device: str,
+        *,
+        warp_launch: WarpLaunchCache | None = None,
     ):
         self.actuators = actuators
         self.num_joints = num_joints
@@ -92,6 +96,7 @@ class NewtonActuatorAdapter:
         self._num_envs = num_envs
         self._dof_offset = dof_offset
         self._device = device
+        self._warp_launch = warp_launch if warp_launch is not None else WarpLaunchCache(mode="eager", device=device)
 
         # Collect the set of local DOFs covered by some actuator. Only the
         # env-0 slice of each actuator's flat ``indices`` array is needed —
@@ -112,6 +117,8 @@ class NewtonActuatorAdapter:
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
+        self._reset_env_mask = wp.zeros(num_envs, dtype=wp.bool, device=device)
+        self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
 
         # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
         # its raw controller output to ``sim_control.joint_computed_f`` when
@@ -157,23 +164,30 @@ class NewtonActuatorAdapter:
         # Zero before scatter-add (actuators accumulate into this buffer).
         self._computed_effort.zero_()
         for act in self.actuators:
-            wp.launch(
+            self._warp_launch.launch(
                 zero_at_indices_kernel,
                 dim=act.indices.shape[0],
                 inputs=[sim_control.joint_f, act.indices],
+                site=act,
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
         self._states_a, self._states_b = self._states_b, self._states_a
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
+    def reset(
+        self,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> None:
         """Reset actuator states for the given environments.
 
         Args:
-            env_ids: Environment indices to reset. ``None`` (or
-                ``slice(None)``, which IsaacLab callers sometimes pass)
-                resets all environments. Otherwise expects a torch tensor
-                or sequence of int indices.
+            env_ids: Environment indices to reset. Accepts a sequence, slice,
+                Torch tensor, or ``wp.int32`` array. ``None`` and
+                ``slice(None)`` reset all environments.
+            env_mask: Boolean Warp mask selecting environments to reset. When
+                provided, it takes precedence over :paramref:`env_ids`. Shape
+                is ``(num_envs,)`` on the adapter device.
 
         Newton's :meth:`Actuator.State.reset` expects a per-DOF boolean
         mask of length ``num_actuators`` (= ``num_envs * dofs_per_actuator``),
@@ -182,7 +196,7 @@ class NewtonActuatorAdapter:
         etc.). We therefore build a per-actuator per-DOF mask from the
         env mask before delegating to each state.
         """
-        if env_ids is None or env_ids == slice(None):
+        if env_mask is None and (env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None))):
             for sa, sb in zip(self._states_a, self._states_b):
                 if sa is not None:
                     sa.reset(None)
@@ -190,19 +204,22 @@ class NewtonActuatorAdapter:
                     sb.reset(None)
             return
 
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.numel() == 0:
-                return
-            idx = wp.from_torch(env_ids.to(device=self._device).contiguous().to(torch.int32), dtype=wp.int32)
-        else:
-            if len(env_ids) == 0:
-                return
-            idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
-        env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-        wp.launch(set_mask_kernel, dim=idx.shape[0], inputs=[env_mask, idx], device=self._device)
+        if env_mask is None:
+            env_mask = resolve_1d_mask(
+                ids=env_ids,
+                all_mask=self._reset_env_mask,
+                scratch_mask=self._reset_env_mask,
+                device=self._device,
+            )
+        if (
+            env_mask.dtype != wp.bool
+            or env_mask.ndim != 1
+            or env_mask.shape[0] != self._num_envs
+            or env_mask.device != wp.get_device(self._device)
+        ):
+            raise ValueError(f"env_mask must have shape ({self._num_envs},) and dtype wp.bool, received {env_mask}.")
 
-        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
+        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
             wp.launch(
                 build_per_dof_env_mask_kernel,
                 dim=act.indices.shape[0],
@@ -324,6 +341,15 @@ class NewtonActuatorAdapter:
             articulation_prim_path=articulation_prim_path,
         )
         return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
+
+    def _invalidate_launch_cache(self) -> None:
+        """Release recorded launches after the owning Newton graph is destroyed.
+
+        Callers clear the Newton graph reference before invoking this method. Device
+        synchronization drains any recorded command work before retained argument
+        owners are released. Disabled caches return without synchronizing.
+        """
+        self._warp_launch.reset()
 
 
 # ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@
 __all__ = [
     "ParticleMeshCounter",
     "ProxyArray",
+    "WarpLaunchCache",
     "convert_to_warp_mesh",
     "make_box_region_mesh",
     "make_frustum_region_mesh",
@@ -17,3 +18,4 @@ __all__ = [
 from .ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
 from .particle_mesh import ParticleMeshCounter, make_box_region_mesh, make_frustum_region_mesh
 from .proxy_array import ProxyArray
+from .warp_launch_cache import WarpLaunchCache

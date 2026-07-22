@@ -231,8 +231,8 @@ class JointAction(ActionTerm):
     """
 
     def process_actions(self, actions: wp.array, action_offset: int = 0):
-        wp.launch(
-            kernel=_process_joint_actions_kernel,
+        self._env._warp_launch.launch(
+            _process_joint_actions_kernel,
             dim=(self.num_envs, self.action_dim),
             inputs=[
                 actions,
@@ -243,7 +243,7 @@ class JointAction(ActionTerm):
                 self._raw_actions,
                 self._processed_actions,
             ],
-            device=self.device,
+            site=(self, int(action_offset)),
         )
 
     def reset(self, env_mask: wp.array | None = None) -> None:
@@ -251,11 +251,11 @@ class JointAction(ActionTerm):
         if env_mask is None:
             self._raw_actions.fill_(0.0)
             return
-        wp.launch(
-            kernel=zero_masked_2d,
+        self._env._warp_launch.launch(
+            zero_masked_2d,
             dim=(self.num_envs, self.action_dim),
             inputs=[env_mask, self._raw_actions],
-            device=self.device,
+            site=(self, env_mask),
         )
 
 

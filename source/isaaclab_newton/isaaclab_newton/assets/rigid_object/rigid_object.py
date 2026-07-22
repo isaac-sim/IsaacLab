@@ -23,6 +23,7 @@ from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp import WarpLaunchCache
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -61,10 +62,19 @@ class RigidObject(BaseRigidObject):
         Args:
             cfg: A configuration instance.
         """
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
         super().__init__(cfg)
         if has_kit():
             queue_usd_replication(cfg)
         queue_newton_physics_replication(cfg)
+
+        sim_ctx = SimulationContext.instance()
+        physics_cfg = sim_ctx.cfg.physics if sim_ctx is not None else None
+        self._warp_launch = WarpLaunchCache(
+            mode=None if getattr(physics_cfg, "use_warp_launch_cache", False) else "eager",
+            device=sim_ctx.device if sim_ctx is not None else None,
+        )
 
     """
     Properties
@@ -125,6 +135,9 @@ class RigidObject(BaseRigidObject):
     Operations.
     """
 
+    reset_capture_safe: bool = True
+    """Whether :meth:`reset` runs only mask-native kernel work (wrench-composer resets)."""
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the rigid object.
 
@@ -136,8 +149,8 @@ class RigidObject(BaseRigidObject):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -1031,7 +1044,7 @@ class RigidObject(BaseRigidObject):
         )
 
         # container for data access
-        self._data = RigidObjectData(self.root_view, self.device)
+        self._data = RigidObjectData(self.root_view, self.device, warp_launch=self._warp_launch)
 
         # Register callback to rebind simulation data after a full reset (model/state recreation).
         self._physics_ready_handle = SimulationManager.register_callback(
@@ -1127,6 +1140,7 @@ class RigidObject(BaseRigidObject):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
+        self._warp_launch.invalidate()
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them

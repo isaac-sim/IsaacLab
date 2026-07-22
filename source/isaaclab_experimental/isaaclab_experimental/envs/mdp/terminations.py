@@ -41,11 +41,11 @@ def _time_out_kernel(
 
 def time_out(env: ManagerBasedRLEnv, out) -> None:
     """Terminate the episode when episode length exceeds the maximum episode length."""
-    wp.launch(
-        kernel=_time_out_kernel,
+    env._warp_launch.launch(
+        _time_out_kernel,
         dim=env.num_envs,
         inputs=[env._episode_length_buf_wp, env.max_episode_length, out],
-        device=env.device,
+        site=(out, int(env.max_episode_length)),
     )
 
 
@@ -69,11 +69,11 @@ def root_height_below_minimum(
 ) -> None:
     """Terminate when the asset's root height is below the minimum height."""
     asset: Articulation = env.scene[asset_cfg.name]
-    wp.launch(
-        kernel=_root_height_below_min_kernel,
+    env._warp_launch.launch(
+        _root_height_below_min_kernel,
         dim=env.num_envs,
         inputs=[asset.data.root_pos_w.warp, minimum_height, out],
-        device=env.device,
+        site=(out, float(minimum_height)),
     )
 
 
@@ -113,11 +113,11 @@ def joint_pos_out_of_manual_limit(
             f"joint_mask length ({asset_cfg.joint_mask.shape[0]}) does not match "
             f"joint_pos dim ({asset.data.joint_pos.warp.shape[1]}) for asset '{asset_cfg.name}'."
         )
-    wp.launch(
-        kernel=_joint_pos_out_of_manual_limit_kernel,
+    env._warp_launch.launch(
+        _joint_pos_out_of_manual_limit_kernel,
         dim=(env.num_envs, asset.data.joint_pos.warp.shape[1]),
         inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, bounds[0], bounds[1], out],
-        device=env.device,
+        site=(out, float(bounds[0]), float(bounds[1])),
     )
 
 
@@ -152,9 +152,9 @@ def illegal_contact(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg: S
     Warp-first override of :func:`isaaclab.envs.mdp.terminations.illegal_contact`.
     """
     contact_sensor = env.scene.sensors[sensor_cfg.name]
-    wp.launch(
-        kernel=_illegal_contact_kernel,
+    env._warp_launch.launch(
+        _illegal_contact_kernel,
         dim=env.num_envs,
         inputs=[contact_sensor.data.net_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
-        device=env.device,
+        site=(out, float(threshold)),
     )

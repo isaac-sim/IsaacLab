@@ -190,6 +190,12 @@ class InteractiveScene:
 
         self._aggregate_scene_data_requirements(requested_viz_types)
 
+        # The terrain importer owns its origins buffer together with its Warp view.
+        # For clone-plan origins, :attr:`env_origins_wp` caches a zero-copy view on
+        # first access (manager/term initialization, outside capture), so scene
+        # construction does not require a published clone plan.
+        self._clone_origins_wp = None
+
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
             self.filter_collisions(self._global_prim_paths)
@@ -372,6 +378,38 @@ class InteractiveScene:
         return self.sim.get_clone_plan().positions
 
     @property
+    def env_origins_wp(self) -> wp.array(dtype=wp.vec3f):
+        """Zero-copy Warp view of environment origins [m], shape ``(num_envs,)``.
+
+        Terrain-backed scenes forward the terrain importer's cached view so both
+        accessors always share one storage owner. Clone-plan origins are wrapped
+        lazily on first access and cached.
+        """
+        if self._terrain is not None:
+            return self._terrain.env_origins_wp
+        if self._clone_origins_wp is None or self._clone_origins_wp.ptr != self.env_origins.data_ptr():
+            self._clone_origins_wp = wp.from_torch(self.env_origins, dtype=wp.vec3f)
+        return self._clone_origins_wp
+
+    @property
+    def reset_capture_safe(self) -> bool:
+        """Whether :meth:`reset` dispatches only mask-native, capture-safe work.
+
+        Conservative composition query: every entity must declare itself reset
+        capture-safe. Host-side consumers (surface grippers, deformable objects,
+        legacy actuator or sensor resets) keep the scene eager.
+        """
+        if self._surface_grippers or self._deformable_objects:
+            return False
+        entities = [
+            *self._articulations.values(),
+            *self._rigid_objects.values(),
+            *self._rigid_object_collections.values(),
+            *self._sensors.values(),
+        ]
+        return all(getattr(entity, "reset_capture_safe", False) for entity in entities)
+
+    @property
     def terrain(self) -> TerrainImporter | None:
         """The terrain in the scene. If None, then the scene has no terrain.
 
@@ -450,27 +488,49 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(
+        self,
+        env_ids: Sequence[int] | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ):
         """Resets the scene entities.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
+            env_mask: Boolean Warp mask selecting environments. When provided,
+                it takes precedence over :paramref:`env_ids`.
+
+        .. caution::
+            ``env_mask`` is honored by mask-native assets (the Newton backend).
+            Classic PhysX assets currently accept and ignore it, so passing a
+            mask in such scenes resets unintended environments — use
+            :paramref:`env_ids` there.
+
         """
+        reset_kwargs = {"env_mask": env_mask} if env_mask is not None else {"env_ids": env_ids}
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(env_ids)
+            articulation.reset(**reset_kwargs)
         for deformable_object in self._deformable_objects.values():
-            deformable_object.reset(env_ids)
+            deformable_object.reset(**reset_kwargs)
         for rigid_object in self._rigid_objects.values():
-            rigid_object.reset(env_ids)
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.reset(env_ids)
+            rigid_object.reset(**reset_kwargs)
+        if env_mask is not None:
+            # Surface grippers are CPU-only assets driven through a Torch API.
+            # Hand them the boolean view and let their compatibility layer own
+            # any index materialization.
+            gripper_env_mask = wp.to_torch(env_mask) if self._surface_grippers else None
+            for surface_gripper in self._surface_grippers.values():
+                surface_gripper.reset_mask(gripper_env_mask)
+        else:
+            for surface_gripper in self._surface_grippers.values():
+                surface_gripper.reset(env_ids)
         for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.reset(env_ids)
+            rigid_object_collection.reset(**reset_kwargs)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+            sensor.reset(**reset_kwargs)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

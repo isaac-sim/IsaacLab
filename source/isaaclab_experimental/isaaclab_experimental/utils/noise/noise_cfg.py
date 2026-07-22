@@ -25,6 +25,9 @@ class NoiseCfg:
     Experimental fork of :class:`isaaclab.utils.noise.NoiseCfg` adapted for the
     Warp-first calling convention where noise functions operate **in-place** on a
     ``wp.array`` buffer and return ``None``.
+
+    The observation manager creates a private runtime copy that owns its persistent
+    RNG state and launch cache; the user configuration remains serializable.
     """
 
     func: Callable[[wp.array, NoiseCfg], None] = MISSING

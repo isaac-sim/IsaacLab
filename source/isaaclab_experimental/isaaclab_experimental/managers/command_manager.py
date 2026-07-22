@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import inspect
-import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -17,10 +16,11 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import CommandTermCfg
+
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import CommandTermCfg
 
 # import omni.kit.app
 
@@ -36,6 +36,11 @@ def _sum_and_zero_masked(
     metric: wp.array(dtype=wp.float32),
     out_mean: wp.array(dtype=wp.float32),
 ):
+    """Fold selected envs' episode metric into a running mean and zero it for the next episode.
+
+    ``scale[0]`` carries the 1/count normalization; the atomic add reduces across all
+    selected envs into ``out_mean[0]``.
+    """
     env_id = wp.tid()
     if mask[env_id]:
         wp.atomic_add(out_mean, 0, metric[env_id] * scale[0])
@@ -44,6 +49,7 @@ def _sum_and_zero_masked(
 
 @wp.kernel
 def _zero_counter_masked(mask: wp.array(dtype=wp.bool), counter: wp.array(dtype=wp.int32)):
+    """Zero the per-env resample counter for envs selected by ``mask``."""
     env_id = wp.tid()
     if mask[env_id]:
         counter[env_id] = 0
@@ -55,6 +61,7 @@ def _step_time_left_and_build_resample_mask(
     dt: wp.float32,
     out_mask: wp.array(dtype=wp.bool),
 ):
+    """Advance each env's resample countdown by ``dt`` [s] and flag expired envs in ``out_mask``."""
     env_id = wp.tid()
     t = time_left[env_id] - dt
     time_left[env_id] = t
@@ -70,6 +77,11 @@ def _resample_time_left_and_increment_counter(
     lower: wp.float32,
     upper: wp.float32,
 ):
+    """Draw a new resampling interval [s] for flagged envs and count the resample.
+
+    Uses the per-env device RNG state with write-back so the random sequence
+    advances across CUDA-graph replays.
+    """
     env_id = wp.tid()
     if mask[env_id]:
         s = rng_state[env_id]
@@ -124,9 +136,11 @@ class CommandTerm(ManagerTermBase):
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        if self._debug_vis_handle:
-            self._debug_vis_handle.unsubscribe()
-            self._debug_vis_handle = None
+        env = getattr(self, "_env", None)
+        sim = getattr(env, "sim", None)
+        registry = getattr(sim, "vis_marker_registry", None)
+        if registry is not None:
+            registry.clear_debug_vis_callback(self)
 
     """
     Properties
@@ -137,6 +151,21 @@ class CommandTerm(ManagerTermBase):
     def command(self) -> torch.Tensor | wp.array:
         """The command tensor. Shape is (num_envs, command_dim)."""
         raise NotImplementedError
+
+    @property
+    def command_wp(self) -> wp.array(dtype=wp.float32, ndim=2):
+        """Pointer-stable Warp command storage with shape ``(num_envs, command_dim)``.
+
+        Existing custom terms that only implement :attr:`command` receive a
+        lazily cached zero-copy Warp view. Warp-native terms may override this
+        property to return their owner-held array directly.
+        """
+        command = self.command
+        if isinstance(command, wp.array):
+            return command
+        if not hasattr(self, "_command_wp_compat"):
+            self._command_wp_compat = wp.from_torch(command, dtype=wp.float32)
+        return self._command_wp_compat
 
     @property
     def has_debug_vis_implementation(self) -> bool:
@@ -171,25 +200,10 @@ class CommandTerm(ManagerTermBase):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
         if debug_vis:
-            # only enable debug_vis if omniverse is available
-            from isaaclab.sim.simulation_context import SimulationContext
-
-            sim_context = SimulationContext.instance()
-            if not sim_context.has_omniverse_visualizer():
-                return False
-            # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                import omni.kit.app
-
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                self._debug_vis_handle = self._env.sim.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            # remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
-                self._debug_vis_handle = None
+            self._env.sim.vis_marker_registry.clear_debug_vis_callback(self)
         # return success
         return True
 
@@ -213,43 +227,41 @@ class CommandTerm(ManagerTermBase):
         Returns:
             A dictionary containing the information to log under the "{name}" key.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "CommandTerm.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         # compute selected count and reset scale
         self._reset_count_wp.zero_()
         self._reset_scale_wp.zero_()
-        wp.launch(kernel=count_masked, dim=self.num_envs, inputs=[env_mask, self._reset_count_wp], device=self.device)
-        wp.launch(
+        self._env._warp_launch.launch(
+            kernel=count_masked,
+            dim=self.num_envs,
+            inputs=[env_mask, self._reset_count_wp],
+            site=("command_term", self, "reset_count", env_mask),
+        )
+        self._env._warp_launch.launch(
             kernel=compute_reset_scale,
             dim=1,
             inputs=[self._reset_count_wp, 1.0, self._reset_scale_wp],
-            device=self.device,
+            site=("command_term", self, "reset_scale"),
         )
 
         # update pre-allocated reset extras and clear selected metric rows
         for metric_name, metric_value_wp in self.metrics.items():
             out_mean_wp = self._reset_metric_mean_wp[metric_name]
             out_mean_wp.zero_()
-            wp.launch(
+            self._env._warp_launch.launch(
                 kernel=_sum_and_zero_masked,
                 dim=self.num_envs,
                 inputs=[env_mask, self._reset_scale_wp, metric_value_wp, out_mean_wp],
-                device=self.device,
+                site=("command_term", self, "reset_metric", metric_name, env_mask),
             )
 
         # set the command counter to zero
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_zero_counter_masked,
             dim=self.num_envs,
             inputs=[env_mask, self.command_counter_wp],
-            device=self.device,
+            site=("command_term", self, "reset_counter", env_mask),
         )
         # resample the command
         self._resample(env_mask=env_mask)
@@ -288,11 +300,11 @@ class CommandTerm(ManagerTermBase):
         # update the metrics based on current state
         self._update_metrics()
         # reduce the time left before resampling and build resample mask
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_step_time_left_and_build_resample_mask,
             dim=self.num_envs,
             inputs=[self.time_left_wp, float(dt), self._resample_mask_wp],
-            device=self.device,
+            site=("command_term", self, "step_time_left", float(dt)),
         )
         # resample masked envs
         self._resample(env_mask=self._resample_mask_wp)
@@ -320,7 +332,9 @@ class CommandTerm(ManagerTermBase):
             raise RuntimeError("Environment rng_state_wp is not initialized.")
 
         # resample time-left and increment command-counter for masked envs
-        wp.launch(
+        lower = float(self.cfg.resampling_time_range[0])
+        upper = float(self.cfg.resampling_time_range[1])
+        self._env._warp_launch.launch(
             kernel=_resample_time_left_and_increment_counter,
             dim=self.num_envs,
             inputs=[
@@ -328,10 +342,10 @@ class CommandTerm(ManagerTermBase):
                 self.time_left_wp,
                 self.command_counter_wp,
                 self._env.rng_state_wp,
-                float(self.cfg.resampling_time_range[0]),
-                float(self.cfg.resampling_time_range[1]),
+                lower,
+                upper,
             ],
-            device=self.device,
+            site=("command_term", self, "resample_time_left", env_mask, lower, upper),
         )
         # resample command values for masked envs
         self._resample_command(env_mask)
@@ -410,9 +424,14 @@ class CommandManager(ManagerBase):
 
         # reset logging extras (persistent holder for orchestrator aggregation)
         self._reset_extras: dict[str, torch.Tensor] = {}
+        success_term_count = sum("success_rate" in term.reset_extras for term in self._terms.values())
         for term_name, term in self._terms.items():
             for metric_name, metric_value in term.reset_extras.items():
-                self._reset_extras[f"Metrics/{term_name}/{metric_name}"] = metric_value
+                if metric_name == "success_rate" and success_term_count == 1:
+                    metric_key = "Metrics/success_rate"
+                else:
+                    metric_key = f"Metrics/{term_name}/{metric_name}"
+                self._reset_extras[metric_key] = metric_value
 
     def __str__(self) -> str:
         """Returns: A string representation for the command manager."""
@@ -513,14 +532,7 @@ class CommandManager(ManagerBase):
         Returns:
             A dictionary containing the information to log under the "Metrics/{term_name}/{metric_name}" key.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "CommandManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         for term in self._terms.values():
             # reset the command term
@@ -556,6 +568,17 @@ class CommandManager(ManagerBase):
             return wp.to_torch(command)
         return command
 
+    def get_command_wp(self, name: str) -> wp.array(dtype=wp.float32, ndim=2):
+        """Return pointer-stable Warp storage for a command term.
+
+        Args:
+            name: The name of the command term.
+
+        Returns:
+            The command array with shape ``(num_envs, command_dim)``.
+        """
+        return self._terms[name].command_wp
+
     def get_term(self, name: str) -> CommandTerm:
         """Returns the command term with the specified name.
 
@@ -590,6 +613,7 @@ class CommandManager(ManagerBase):
                 )
             # create the action term
             term = term_cfg.class_type(term_cfg, self._env)
+            self._register_term_capturability(term_cfg.class_type)
             # sanity check if term is valid type
             if not isinstance(term, CommandTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")

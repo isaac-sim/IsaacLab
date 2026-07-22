@@ -134,6 +134,20 @@ class NewtonCfg(PhysicsCfg):
     If set to False, the simulation performance will be severely degraded.
     """
 
+    use_warp_launch_cache: bool = False
+    """Whether to replay recorded Warp launches outside the Newton solver graph.
+
+    When enabled, cached :class:`warp.Launch` commands reduce Python launch
+    preparation for pointer-stable articulation target publication, eager
+    Newton-actuator stepping, and capture-unsafe lazy derived-state properties.
+    It does not make Python timestamp branches, Torch actuator computation, or
+    the complete Isaac Lab actuator publication path CUDA-graph-safe.
+
+    The execution mode of the enabled caches follows ``ISAACLAB_WARP_LAUNCH_MODE``
+    (default ``auto``: replay on CUDA, eager on CPU). When disabled, these paths
+    always launch eagerly.
+    """
+
     solver_cfg: NewtonSolverCfg | None = None
     """Solver configuration. If None (default), MJWarpSolverCfg is used by default."""
 

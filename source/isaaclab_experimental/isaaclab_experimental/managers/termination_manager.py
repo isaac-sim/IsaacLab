@@ -22,8 +22,11 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import TerminationTermCfg
+
+from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
+
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -92,15 +95,16 @@ def _termination_finalize(
 
 # TODO(jichuanh): Look into wp.tile for better performance
 @wp.kernel
-def _termination_reset_mean_all_2d(
+def _termination_reset_mean_masked_2d(
+    env_mask: wp.array(dtype=wp.bool),
     last_episode_dones: wp.array(dtype=wp.bool, ndim=2),
+    scale: wp.array(dtype=wp.float32),
     term_done_avg: wp.array(dtype=wp.float32),
 ):
-    """Compute mean(done) per term with 2D parallel accumulation."""
+    """Compute mean(done) per term over selected environments."""
     env_id, term_idx = wp.tid()
-    num_envs = last_episode_dones.shape[0]
-    if num_envs > 0 and last_episode_dones[env_id, term_idx]:
-        wp.atomic_add(term_done_avg, term_idx, 1.0 / float(num_envs))
+    if env_mask[env_id] and last_episode_dones[env_id, term_idx]:
+        wp.atomic_add(term_done_avg, term_idx, scale[0])
 
 
 class TerminationManager(ManagerBase):
@@ -129,6 +133,8 @@ class TerminationManager(ManagerBase):
         num_terms = len(self._term_names)
         self._term_dones_wp = wp.zeros((self.num_envs, num_terms), dtype=wp.bool, device=self.device)
         self._term_done_avg_wp = wp.zeros((num_terms,), dtype=wp.float32, device=self.device)
+        self._reset_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
+        self._reset_scale_wp = wp.zeros((1,), dtype=wp.float32, device=self.device)
         self._last_episode_dones_wp = wp.zeros((self.num_envs, num_terms), dtype=wp.bool, device=self.device)
         self._truncated_wp = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
         self._terminated_wp = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
@@ -249,21 +255,28 @@ class TerminationManager(ManagerBase):
         Returns:
             A dictionary containing the information to log under the "Termination/{term_name}" key.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "TerminationManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
         if len(self._term_names) > 0:
             self._term_done_avg_wp.zero_()
-            wp.launch(
-                kernel=_termination_reset_mean_all_2d,
+            self._reset_count_wp.zero_()
+            self._reset_scale_wp.zero_()
+            self._env._warp_launch.launch(
+                kernel=count_masked,
+                dim=self.num_envs,
+                inputs=[env_mask, self._reset_count_wp],
+                site=("termination_manager", "reset_count", env_mask),
+            )
+            self._env._warp_launch.launch(
+                kernel=compute_reset_scale,
+                dim=1,
+                inputs=[self._reset_count_wp, 1.0, self._reset_scale_wp],
+                site=("termination_manager", "reset_scale"),
+            )
+            self._env._warp_launch.launch(
+                kernel=_termination_reset_mean_masked_2d,
                 dim=(self.num_envs, len(self._term_names)),
-                inputs=[self._last_episode_dones_wp, self._term_done_avg_wp],
-                device=self.device,
+                inputs=[env_mask, self._last_episode_dones_wp, self._reset_scale_wp, self._term_done_avg_wp],
+                site=("termination_manager", "reset_means", env_mask),
             )
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_mask=env_mask)
@@ -281,11 +294,11 @@ class TerminationManager(ManagerBase):
             The combined termination signal of shape (num_envs,).
         """
         # reset computation (Warp buffers) in a single kernel launch
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_termination_pre_compute_reset,
             dim=self.num_envs,
             inputs=[self._term_dones_wp, self._truncated_wp, self._terminated_wp, self._dones_wp],
-            device=self.device,
+            site=("termination_manager", "compute_reset"),
         )
 
         # iterate over all the termination terms (fixed list; per-term math is Warp)
@@ -293,7 +306,7 @@ class TerminationManager(ManagerBase):
             term_cfg.func(self._env, term_cfg.out, **term_cfg.params)
 
         # finalize dones and update last-episode term flags (single kernel launch)
-        wp.launch(
+        self._env._warp_launch.launch(
             kernel=_termination_finalize,
             dim=self.num_envs,
             inputs=[
@@ -304,7 +317,7 @@ class TerminationManager(ManagerBase):
                 self._dones_wp,
                 self._last_episode_dones_wp,
             ],
-            device=self.device,
+            site=("termination_manager", "finalize"),
         )
 
         return self._dones_tensor_view

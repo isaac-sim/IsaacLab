@@ -3,14 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for WarpGraphCache capture/replay and warm-up behavior."""
+"""Tests for WarpGraphCache capture/replay and preparation behavior."""
 
 from __future__ import annotations
 
+import os
 import unittest
+import unittest.mock
 
 import warp as wp
-from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+from isaaclab_experimental.utils.warp_graph_cache import CAPTURE_ENV_VAR, WarpGraphCache
 
 
 @wp.kernel
@@ -20,23 +22,156 @@ def _add_one(a: wp.array(dtype=wp.float32), b: wp.array(dtype=wp.float32)):
     b[i] = a[i] + 1.0
 
 
+@wp.kernel
+def _increment(value: wp.array(dtype=wp.int32)):
+    """Increment a scalar state buffer once."""
+    value[0] += 1
+
+
 class TestWarpGraphCache(unittest.TestCase):
     """Tests for :class:`WarpGraphCache`."""
 
     def setUp(self):
         self.device = "cuda:0"
-        self.cache = WarpGraphCache()
+        self.cache = WarpGraphCache(device=self.device)
 
     # ------------------------------------------------------------------
-    # Warm-up
+    # Capture policy
     # ------------------------------------------------------------------
 
-    def test_warmup_runs_before_capture(self):
-        """The function should be called eagerly (warm-up) before graph capture.
+    def test_env_var_forces_eager(self):
+        """Setting the capture environment variable to 0 should force every stage eager."""
+        with unittest.mock.patch.dict(os.environ, {CAPTURE_ENV_VAR: "0"}):
+            cache = WarpGraphCache(device=self.device)
+        call_count = 0
 
-        We verify this by counting total invocations on the first call.
-        Warm-up = 1, capture = 1, so fn should be called exactly 2 times.
-        """
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        for _ in range(3):
+            cache.call("RewardManager_compute", counted_call)
+
+        self.assertEqual(call_count, 3)
+        self.assertEqual(cache.captured_stages, ())
+
+    def test_captured_stages_and_eager_groups_reflect_state(self):
+        """Introspection should report captured stages and non-capturable groups."""
+        self.cache.register_capturability("Scene", False)
+        src = wp.full(4, value=1.0, dtype=wp.float32, device=self.device)
+        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
+
+        def launch():
+            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
+
+        self.cache.call("RewardManager_compute", launch)
+        self.cache.call("RewardManager_compute", launch)
+
+        self.assertEqual(self.cache.captured_stages, ("RewardManager_compute",))
+        self.assertEqual(self.cache.eager_groups, ("Scene",))
+
+    def test_non_capturable_group_stays_eager(self):
+        """Every stage in a non-capturable group should execute eagerly."""
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        self.cache.register_capturability("RewardManager", False)
+        self.cache.call("RewardManager_compute", counted_call)
+        self.cache.call("RewardManager_reset", counted_call)
+
+        self.assertEqual(call_count, 2)
+
+    def test_cpu_device_stays_eager(self):
+        """CPU stages should never attempt CUDA graph capture."""
+        cache = WarpGraphCache(device="cpu")
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        for _ in range(3):
+            cache.call("RewardManager_compute", counted_call)
+
+        self.assertEqual(call_count, 3)
+
+    def test_disabled_cache_stays_eager(self):
+        """An owner should be able to keep an unvalidated stage boundary eager."""
+        cache = WarpGraphCache(enabled=False, device=self.device)
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        for _ in range(3):
+            cache.call("direct_stage", counted_call)
+
+        self.assertEqual(call_count, 3)
+
+    def test_capturability_registration_is_conservative(self):
+        """A positive registration must not override a known unsafe operation."""
+        self.cache.register_capturability("EventManager", False)
+        self.cache.register_capturability("EventManager", True)
+
+        self.assertFalse(self.cache.is_capturable("EventManager"))
+
+    def test_call_forwards_arguments_and_applies_output(self):
+        """The frontend call should forward normal arguments and transform output."""
+        self.cache.register_capturability("RewardManager", False)
+
+        result = self.cache.call(
+            "RewardManager_compute",
+            lambda value, *, scale: value * scale,
+            3,
+            scale=4,
+            output=lambda value: value + 1,
+        )
+
+        self.assertEqual(result, 13)
+
+    def test_call_captures_by_default(self):
+        """A capturable stage should warm up, capture, and then replay across calls."""
+        call_count = 0
+        src = wp.full(4, value=2.0, dtype=wp.float32, device=self.device)
+        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
+
+        def counted_launch():
+            nonlocal call_count
+            call_count += 1
+            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
+            return dst
+
+        result = self.cache.call("RewardManager_compute", counted_launch)
+        captured = self.cache.call("RewardManager_compute", counted_launch)
+        replay = self.cache.call("RewardManager_compute", counted_launch)
+
+        self.assertEqual(call_count, 2)
+        self.assertIs(result, captured)
+        self.assertIs(result, replay)
+        self.assertAlmostEqual(replay.numpy()[0], 3.0, places=5)
+
+    def test_call_executes_stateful_stage_once_per_logical_call(self):
+        """Warm-up and capture should not advance manager state twice in one call."""
+        state = wp.zeros(1, dtype=wp.int32, device=self.device)
+
+        def increment_state():
+            wp.launch(_increment, dim=1, inputs=[state], device=self.device)
+            return state
+
+        for expected in (1, 2, 3):
+            result = self.cache.call("RewardManager_stateful", increment_state)
+            self.assertEqual(result.numpy()[0], expected)
+
+    # ------------------------------------------------------------------
+    # Preparation
+    # ------------------------------------------------------------------
+
+    def test_first_capture_invokes_callable_once(self):
+        """The first captured transition should invoke its Python callable once."""
         call_count = [0]
         src = wp.zeros(4, dtype=wp.float32, device=self.device)
         dst = wp.zeros(4, dtype=wp.float32, device=self.device)
@@ -46,37 +181,13 @@ class TestWarpGraphCache(unittest.TestCase):
             wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
             return dst
 
-        # First call: warm-up + capture
+        # First call: capture once, then launch the resulting graph.
         self.cache.capture_or_replay("stage_a", counted_launch)
-        self.assertEqual(call_count[0], 2, "First call should invoke fn twice (warm-up + capture)")
+        self.assertEqual(call_count[0], 1, "First call should invoke fn exactly once")
 
         # Second call: replay only
         self.cache.capture_or_replay("stage_a", counted_launch)
-        self.assertEqual(call_count[0], 2, "Replay should NOT invoke fn again")
-
-    def test_warmup_flushes_first_call_allocations(self):
-        """Warm-up should handle first-call allocations so capture is clean.
-
-        Simulates a hasattr guard pattern: allocate a buffer on first call only.
-        Without warm-up, the allocation would be recorded in the graph.
-        """
-        holder = {}
-        src = wp.ones(8, dtype=wp.float32, device=self.device)
-
-        def fn_with_hasattr_guard():
-            if "buf" not in holder:
-                holder["buf"] = wp.zeros(8, dtype=wp.float32, device=self.device)
-            wp.launch(_add_one, dim=8, inputs=[src, holder["buf"]], device=self.device)
-            return holder["buf"]
-
-        # Should not raise — warm-up handles the allocation outside capture
-        result = self.cache.capture_or_replay("guarded", fn_with_hasattr_guard)
-        self.assertIsNotNone(result)
-
-        # Verify the kernel produced correct output
-        result_np = result.numpy()
-        for val in result_np:
-            self.assertAlmostEqual(val, 2.0, places=5)
+        self.assertEqual(call_count[0], 1, "Replay should not invoke fn again")
 
     # ------------------------------------------------------------------
     # Capture / replay correctness
@@ -179,13 +290,13 @@ class TestWarpGraphCache(unittest.TestCase):
             return dst
 
         self.cache.capture_or_replay("s1", my_fn)
-        self.assertEqual(call_count[0], 2)  # warm-up + capture
+        self.assertEqual(call_count[0], 1)
 
         self.cache.invalidate()
 
-        # After invalidation, next call should re-warm-up and re-capture
+        # After invalidation, the next call should capture again.
         self.cache.capture_or_replay("s1", my_fn)
-        self.assertEqual(call_count[0], 4)  # 2 more (warm-up + capture)
+        self.assertEqual(call_count[0], 2)
 
     def test_invalidate_single_stage(self):
         """invalidate(stage) should only drop the named stage."""
@@ -208,16 +319,16 @@ class TestWarpGraphCache(unittest.TestCase):
 
         self.cache.capture_or_replay("a", fn_a)
         self.cache.capture_or_replay("b", fn_b)
-        self.assertEqual(count_a[0], 2)
-        self.assertEqual(count_b[0], 2)
+        self.assertEqual(count_a[0], 1)
+        self.assertEqual(count_b[0], 1)
 
         # Invalidate only "a"
         self.cache.invalidate("a")
 
         self.cache.capture_or_replay("a", fn_a)
         self.cache.capture_or_replay("b", fn_b)
-        self.assertEqual(count_a[0], 4, "Stage 'a' should re-capture after invalidation")
-        self.assertEqual(count_b[0], 2, "Stage 'b' should replay (not re-capture)")
+        self.assertEqual(count_a[0], 2, "Stage 'a' should re-capture after invalidation")
+        self.assertEqual(count_b[0], 1, "Stage 'b' should replay (not re-capture)")
 
     def test_invalidate_nonexistent_stage_is_noop(self):
         """Invalidating a stage that was never captured should not raise."""

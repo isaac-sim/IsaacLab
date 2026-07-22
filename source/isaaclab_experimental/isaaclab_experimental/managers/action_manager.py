@@ -20,9 +20,9 @@ from prettytable import PrettyTable
 
 from isaaclab.assets import AssetBase
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
+from isaaclab.managers.manager_term_cfg import ActionTermCfg
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -373,32 +373,21 @@ class ActionManager(ManagerBase):
         Returns:
             An empty dictionary.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "ActionManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         # reset the action history
-        if env_mask is None:
-            self._prev_action.fill_(0.0)
-            self._action.fill_(0.0)
-        else:
-            wp.launch(
-                kernel=_zero_masked_2d,
-                dim=(self.num_envs, self.total_action_dim),
-                inputs=[env_mask, self._prev_action],
-                device=self.device,
-            )
-            wp.launch(
-                kernel=_zero_masked_2d,
-                dim=(self.num_envs, self.total_action_dim),
-                inputs=[env_mask, self._action],
-                device=self.device,
-            )
+        self._env._warp_launch.launch(
+            kernel=_zero_masked_2d,
+            dim=(self.num_envs, self.total_action_dim),
+            inputs=[env_mask, self._prev_action],
+            site=("action_manager", self, "reset_previous", env_mask),
+        )
+        self._env._warp_launch.launch(
+            kernel=_zero_masked_2d,
+            dim=(self.num_envs, self.total_action_dim),
+            inputs=[env_mask, self._action],
+            site=("action_manager", self, "reset_current", env_mask),
+        )
 
         # reset all action terms
         for term in self._terms.values():
@@ -484,6 +473,7 @@ class ActionManager(ManagerBase):
                 )
             # create the action term
             term = term_cfg.class_type(term_cfg, self._env)
+            self._register_term_capturability(term_cfg.class_type)
             # sanity check if term is valid type
             if not isinstance(term, ActionTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type ActionType.")

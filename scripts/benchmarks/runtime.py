@@ -42,6 +42,17 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--task", type=str, required=True, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument("--num_frames", type=int, default=100, help="Number of environment steps to benchmark.")
+    parser.add_argument("--warmup_frames", type=int, default=0, help="Untimed environment steps before measurement.")
+    parser.add_argument(
+        "--synchronize_steps",
+        action="store_true",
+        help="Synchronize CUDA before and after each step to measure completed-step latency.",
+    )
+    parser.add_argument(
+        "--reuse_action_buffer",
+        action="store_true",
+        help="Reuse one action allocation and randomize its contents in-place between steps.",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -123,6 +134,9 @@ def run(argv: list[str]) -> None:
                     {"name": "task", "data": args.task},
                     {"name": "num_envs", "data": args.num_envs},
                     {"name": "num_frames", "data": args.num_frames},
+                    {"name": "warmup_frames", "data": args.warmup_frames},
+                    {"name": "synchronize_steps", "data": args.synchronize_steps},
+                    {"name": "reuse_action_buffer", "data": args.reuse_action_buffer},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -135,24 +149,31 @@ def run(argv: list[str]) -> None:
             num_envs = env.unwrapped.num_envs
 
             with BenchmarkMonitor(benchmark, interval=1.0):
-                step_times_s = stepping.run_runtime_loop(env, args.num_frames)
+                timing = stepping.measure_runtime_loop(
+                    env,
+                    args.num_frames,
+                    warmup_frames=args.warmup_frames,
+                    synchronize_steps=args.synchronize_steps,
+                    reuse_action_buffer=args.reuse_action_buffer,
+                )
 
             benchmark.update_manual_recorders()
 
             startup = StartupTime(
                 app_launch=(app_t1 - app_t0) / 1e9,
                 env_creation=(env_t1 - env_t0) / 1e9,
-                first_step=(step_times_s[0] if step_times_s else 0.0),
+                first_step=timing.first_step_s,
                 python_imports=(imports_t1 - imports_t0) / 1e9,
                 task_config=(task_config_t1 - task_config_t0) / 1e9,
             )
 
-            fps = [num_envs / t for t in step_times_s if t > 0]
+            step_times_s = timing.step_times_s
+            instantaneous_fps = [num_envs / t for t in step_times_s if t > 0]
             runtime = builders.build_runtime(
                 startup_time_s=startup,
                 iteration_times_s=step_times_s,
-                collection_fps=fps,
-                total_fps=fps,
+                collection_fps=instantaneous_fps,
+                total_fps=instantaneous_fps,
                 steps_per_iteration=num_envs,
             )
 

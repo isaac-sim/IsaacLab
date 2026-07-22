@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Sequence
+from copy import copy
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -55,6 +56,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import class_to_dict
 
 from isaaclab_experimental.utils import modifiers, noise
@@ -62,7 +64,6 @@ from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -70,6 +71,7 @@ if TYPE_CHECKING:
 
 @wp.kernel
 def _apply_clip(out: wp.array(dtype=wp.float32, ndim=2), clip_lo: wp.float32, clip_hi: wp.float32):
+    """Clamp every column of a term's ``out`` block to [``clip_lo``, ``clip_hi``] in place."""
     env_id = wp.tid()
     for j in range(out.shape[1]):
         out[env_id, j] = wp.clamp(out[env_id, j], clip_lo, clip_hi)
@@ -77,6 +79,7 @@ def _apply_clip(out: wp.array(dtype=wp.float32, ndim=2), clip_lo: wp.float32, cl
 
 @wp.kernel
 def _apply_scale(out: wp.array(dtype=wp.float32, ndim=2), scale: wp.array(dtype=wp.float32)):
+    """Multiply each column of a term's ``out`` block by its per-column ``scale`` in place."""
     env_id = wp.tid()
     for j in range(out.shape[1]):
         out[env_id, j] = out[env_id, j] * scale[j]
@@ -382,15 +385,7 @@ class ObservationManager(ManagerBase):
         *,
         env_mask: wp.array | None = None,
     ) -> dict[str, float]:
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            # Keep all id->mask resolution strictly outside capture.
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "ObservationManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         # call all terms that are classes
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
@@ -501,26 +496,29 @@ class ObservationManager(ManagerBase):
                 for modifier in term_cfg.modifiers:
                     modifier.func(term_cfg.out_wp, **modifier.params)
 
-            # apply noise (Warp in-place on out_wp)
-            if isinstance(term_cfg.noise, noise.NoiseCfg):
-                term_cfg.noise.func(term_cfg.out_wp, term_cfg.noise)
-            elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
-                term_cfg.noise.func(term_cfg.out_wp)
+            # apply the manager-owned prepared noise runtime (Warp in-place on out_wp)
+            noise_runtime = self._group_obs_noise_runtime[group_name].get(term_name)
+            if isinstance(noise_runtime, noise.NoiseCfg):
+                noise_runtime.func(term_cfg.out_wp, noise_runtime)
+            elif noise_runtime is not None:
+                noise_runtime(term_cfg.out_wp)
 
             # clip then scale (stable semantics); implementation may use Warp kernels
             if term_cfg.clip is not None:
-                wp.launch(
+                clip_lo = float(term_cfg.clip[0])
+                clip_hi = float(term_cfg.clip[1])
+                self._env._warp_launch.launch(
                     kernel=_apply_clip,
                     dim=self.num_envs,
-                    inputs=[term_cfg.out_wp, float(term_cfg.clip[0]), float(term_cfg.clip[1])],
-                    device=self.device,
+                    inputs=[term_cfg.out_wp, clip_lo, clip_hi],
+                    site=("observation_manager", group_name, term_name, "clip", clip_lo, clip_hi),
                 )
             if term_cfg.scale is not None:
-                wp.launch(
+                self._env._warp_launch.launch(
                     kernel=_apply_scale,
                     dim=self.num_envs,
                     inputs=[term_cfg.out_wp, term_cfg.scale_wp],
-                    device=self.device,
+                    site=("observation_manager", group_name, term_name, "scale"),
                 )
 
             # TODO(jichuanh): This is not migrated yet. Need revisit.
@@ -596,6 +594,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_concatenate_dim: dict[str, int] = dict()
 
         self._group_obs_term_history_buffer: dict[str, dict] = dict()
+        self._group_obs_noise_runtime: dict[str, dict[str, noise.NoiseCfg | noise.NoiseModel]] = dict()
         # create a list to store classes instances, e.g., for modifiers and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
         self._group_obs_class_instances: list[modifiers.ModifierBase | noise.NoiseModel] = list()
@@ -638,6 +637,7 @@ class ObservationManager(ManagerBase):
             self._group_obs_term_dim[group_name] = list()
             self._group_obs_term_cfgs[group_name] = list()
             self._group_obs_class_term_cfgs[group_name] = list()
+            self._group_obs_noise_runtime[group_name] = {}
             group_entry_history_buffer: dict[str, CircularBuffer] = dict()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
@@ -679,6 +679,16 @@ class ObservationManager(ManagerBase):
                 # check noise settings
                 if not group_cfg.enable_corruption:
                     term_cfg.noise = None
+                elif term_cfg.noise is not None and not type(term_cfg.noise).__module__.startswith(
+                    "isaaclab_experimental."
+                ):
+                    raise TypeError(
+                        f"Observation term '{term_name}' uses noise cfg"
+                        f" '{type(term_cfg.noise).__module__}.{type(term_cfg.noise).__name__}', which the Warp"
+                        " observation manager would silently ignore. Use the warp-native noise cfgs from"
+                        " isaaclab_experimental.utils.noise (the warp frontend converts stable cfgs"
+                        " automatically)."
+                    )
                 # check group history params and override terms
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
@@ -760,21 +770,36 @@ class ObservationManager(ManagerBase):
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
 
+                # Prepare manager-owned noise runtime state without mutating the serializable config.
+                if isinstance(term_cfg.noise, noise.NoiseCfg):
+                    noise_runtime_cfg = copy(term_cfg.noise)
+                    noise_runtime_cfg.rng_state_wp = self._env.rng_state_wp
+                    noise_runtime_cfg._warp_launch = self._env._warp_launch
+                    self._group_obs_noise_runtime[group_name][term_name] = noise_runtime_cfg
+
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
-                    # plumb the shared per-env RNG state so Warp noise kernels can consume it
-                    term_cfg.noise.rng_state_wp = self._env.rng_state_wp
+                    if not isinstance(term_cfg.noise.noise_cfg, noise.NoiseCfg):
+                        raise TypeError(
+                            f"Noise model for observation term '{term_name}' in group '{group_name}' must use an"
+                            " isaaclab_experimental Warp NoiseCfg. Stable Torch noise configs are not supported by"
+                            " ObservationManager."
+                        )
+                    noise_model_cfg = copy(term_cfg.noise)
+                    noise_model_cfg.noise_cfg = copy(term_cfg.noise.noise_cfg)
+                    noise_model_cfg.noise_cfg.rng_state_wp = self._env.rng_state_wp
+                    noise_model_cfg.noise_cfg._warp_launch = self._env._warp_launch
                     noise_model_cls = term_cfg.noise.class_type
                     if not issubclass(noise_model_cls, noise.NoiseModel):
                         raise TypeError(
                             f"Class type for observation term '{term_name}' NoiseModelCfg"
                             f" is not a subclass of 'NoiseModel'. Received: '{type(noise_model_cls)}'."
                         )
-                    # initialize func to be the noise model class instance
-                    term_cfg.noise.func = noise_model_cls(
-                        term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
+                    noise_runtime = noise_model_cls(
+                        noise_model_cfg, num_envs=self._env.num_envs, device=self._env.device
                     )
-                    self._group_obs_class_instances.append(term_cfg.noise.func)
+                    self._group_obs_noise_runtime[group_name][term_name] = noise_runtime
+                    self._group_obs_class_instances.append(noise_runtime)
 
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
@@ -905,9 +930,17 @@ class ObservationManager(ManagerBase):
         - ``"body:N"``: ``N`` components per selected body from ``asset_cfg``.
         - ``"command"``: query ``command_manager.get_command(name).shape[-1]``.
         - ``"action"``: query ``action_manager.action.shape[-1]``.
+        - ``"sensor:rays"``: number of rays of the ray-caster sensor from ``sensor_cfg``.
         """
         if isinstance(out_dim, int):
             return out_dim
+
+        if out_dim == "sensor:rays":
+            sensor_cfg = term_cfg.params.get("sensor_cfg")
+            if sensor_cfg is None:
+                raise ValueError("out_dim='sensor:rays' requires a 'sensor_cfg' entry in the term's params.")
+            sensor = self._env.scene.sensors[sensor_cfg.name]
+            return int(sensor.num_rays)
 
         if out_dim == "joint":
             asset_cfg = term_cfg.params.get("asset_cfg")
@@ -922,11 +955,12 @@ class ObservationManager(ManagerBase):
 
         if isinstance(out_dim, str) and out_dim.startswith("body:"):
             per_body = int(out_dim.split(":")[1])
-            asset_cfg = term_cfg.params.get("asset_cfg")
-            body_ids = getattr(asset_cfg, "body_ids", None)
+            # Body selection may live on an asset (articulation) or a sensor entity.
+            entity_cfg = term_cfg.params.get("asset_cfg") or term_cfg.params.get("sensor_cfg")
+            body_ids = getattr(entity_cfg, "body_ids", None)
             if body_ids is None or body_ids == slice(None):
-                asset = self._env.scene[asset_cfg.name]
-                return per_body * len(asset.body_names)
+                entity = self._env.scene[entity_cfg.name]
+                return per_body * len(entity.body_names)
             return per_body * len(body_ids)
 
         if out_dim == "command":
