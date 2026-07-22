@@ -41,11 +41,6 @@ def write_scalar_at_indices(
     from_mask: bool,
     out: wp.array(dtype=wp.float32),
 ):
-    """Scatter per-gripper command values into the sim view's flat buffer.
-
-    ``from_mask`` selects the layout of ``data``: full-length (indexed by the
-    target id) vs compact (indexed by the launch thread).
-    """
     i = wp.tid()
     if from_mask:
         out[env_ids[i]] = data[env_ids[i]]
@@ -59,24 +54,8 @@ def fill_scalar_at_indices(
     env_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32),
 ):
-    """Write a constant into the sim view's flat buffer at the selected indices."""
     i = wp.tid()
     out[env_ids[i]] = value
-
-
-@wp.kernel
-def fill_scalar_masked(
-    value: wp.float32,
-    env_mask: wp.array(dtype=wp.bool),
-    out: wp.array(dtype=wp.float32),
-):
-    """Write a constant into the sim view's flat buffer for envs selected by the
-
-    boolean mask (mask-native reset path).
-    """
-    i = wp.tid()
-    if env_mask[i]:
-        out[i] = value
 
 
 class SurfaceGripper(AssetBase):
@@ -437,17 +416,11 @@ class SurfaceGripper(AssetBase):
         Args:
             env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
         """
-        if env_mask is None:
-            self.reset_index(self._ALL_INDICES)
-            return
-        # Reset the selected grippers to an open status with an in-kernel mask test.
-        wp.launch(
-            fill_scalar_masked,
-            dim=self._gripper_state.shape[0],
-            inputs=[wp.float32(-1.0), wp.from_torch(env_mask.contiguous(), dtype=wp.bool)],
-            outputs=[self._gripper_state],
-            device=self._device,
-        )
+        if env_mask is not None:
+            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
+        else:
+            env_ids = self._ALL_INDICES
+        self.reset_index(env_ids)
 
     def reset(self, indices: torch.Tensor | None = None) -> None:
         """Reset the gripper command buffer.
