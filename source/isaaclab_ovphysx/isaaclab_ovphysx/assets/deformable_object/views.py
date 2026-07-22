@@ -114,54 +114,54 @@ class OvPhysxDeformableBodyView:
         """Maximum collision nodes per body, or zero when unavailable."""
         return 0
 
-    def get_simulation_nodal_positions(self) -> wp.array:
+    def get_simulation_nodal_positions(self) -> wp.array(dtype=wp.float32):
         """Return simulation nodal positions [m]."""
         return self._get("position")
 
-    def get_simulation_nodal_velocities(self) -> wp.array:
+    def get_simulation_nodal_velocities(self) -> wp.array(dtype=wp.float32):
         """Return simulation nodal velocities [m/s]."""
         return self._get("velocity")
 
-    def get_simulation_nodal_kinematic_targets(self) -> wp.array:
+    def get_simulation_nodal_kinematic_targets(self) -> wp.array(dtype=wp.float32):
         """Return simulation nodal kinematic targets [m, dimensionless]."""
         self._require_volume_targets()
         return self._get("target")
 
-    def get_rest_nodal_positions(self) -> wp.array:
+    def get_rest_nodal_positions(self) -> wp.array(dtype=wp.float32):
         """Return rest nodal positions [m]."""
         return self._get("rest")
 
-    def get_simulation_element_indices(self) -> wp.array:
+    def get_simulation_element_indices(self) -> wp.array(dtype=wp.int32):
         """Return simulation element connectivity indices."""
         return self._get("elements")
 
-    def get_collision_element_indices(self) -> wp.array:
+    def get_collision_element_indices(self) -> wp.array(dtype=wp.int32):
         """Return collision element connectivity indices."""
         return self._get("collision_elements")
 
     def set_simulation_nodal_positions(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set simulation nodal positions [m]."""
         self._set("position", values, indices=indices, mask=mask)
 
     def set_simulation_nodal_velocities(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set simulation nodal velocities [m/s]."""
         self._set("velocity", values, indices=indices, mask=mask)
 
     def set_simulation_nodal_kinematic_targets(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set simulation nodal kinematic targets [m, dimensionless]."""
         self._require_volume_targets()
@@ -265,93 +265,93 @@ class OvPhysxDeformableMaterialView:
         """USD paths of deformable materials matched by this view."""
         return self._require_view().prim_paths
 
-    def get_dynamic_frictions(self) -> wp.array:
+    def get_dynamic_frictions(self) -> wp.array(dtype=wp.float32):
         """Return dynamic friction coefficients [dimensionless]."""
         return self._get("dynamic_friction")
 
     def set_dynamic_frictions(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set dynamic friction coefficients [dimensionless]."""
         self._set("dynamic_friction", values, indices=indices, mask=mask)
 
-    def get_youngs_moduli(self) -> wp.array:
+    def get_youngs_moduli(self) -> wp.array(dtype=wp.float32):
         """Return Young's moduli [Pa]."""
         return self._get("youngs_modulus")
 
     def set_youngs_moduli(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set Young's moduli [Pa]."""
         self._set("youngs_modulus", values, indices=indices, mask=mask)
 
-    def get_poissons_ratios(self) -> wp.array:
+    def get_poissons_ratios(self) -> wp.array(dtype=wp.float32):
         """Return Poisson's ratios [dimensionless]."""
         return self._get("poissons_ratio")
 
     def set_poissons_ratios(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set Poisson's ratios [dimensionless]."""
         self._set("poissons_ratio", values, indices=indices, mask=mask)
 
-    def get_elasticity_dampings(self) -> wp.array:
+    def get_elasticity_dampings(self) -> wp.array(dtype=wp.float32):
         """Return elasticity damping coefficients [dimensionless]."""
         return self._get("elasticity_damping")
 
     def set_elasticity_dampings(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set elasticity damping coefficients [dimensionless]."""
         self._set("elasticity_damping", values, indices=indices, mask=mask)
 
-    def get_bending_stiffnesses(self) -> wp.array:
+    def get_bending_stiffnesses(self) -> wp.array(dtype=wp.float32):
         """Return bending stiffnesses [N·m]."""
         return self._get("bending_stiffness")
 
     def set_bending_stiffnesses(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set bending stiffnesses [N·m]."""
         self._set("bending_stiffness", values, indices=indices, mask=mask)
 
-    def get_thicknesses(self) -> wp.array:
+    def get_thicknesses(self) -> wp.array(dtype=wp.float32):
         """Return material thicknesses [m]."""
         return self._get("thickness")
 
     def set_thicknesses(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set material thicknesses [m]."""
         self._set("thickness", values, indices=indices, mask=mask)
 
-    def get_bending_dampings(self) -> wp.array:
+    def get_bending_dampings(self) -> wp.array(dtype=wp.float32):
         """Return bending damping coefficients [dimensionless]."""
         return self._get("bending_damping")
 
     def set_bending_dampings(
         self,
-        values: wp.array | torch.Tensor,
-        indices: wp.array | torch.Tensor | None = None,
-        mask: wp.array | torch.Tensor | None = None,
+        values: wp.array(dtype=wp.float32) | torch.Tensor,
+        indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
+        mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
         """Set bending damping coefficients [dimensionless]."""
         self._set("bending_damping", values, indices=indices, mask=mask)
