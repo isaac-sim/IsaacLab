@@ -14,14 +14,15 @@ simulation_app = AppLauncher(headless=True).app
 
 import dataclasses
 
-from isaaclab.sim.schemas import DeformableBodyFragment
-from isaaclab.sim.spawners.materials import DeformableMaterialFragment
-from isaaclab.utils.string import to_camel_case
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonSurfaceDeformableMaterialCfg,
     NewtonVolumeDeformableMaterialCfg,
 )
+
+from isaaclab.sim.schemas import DeformableBodyFragment
+from isaaclab.sim.spawners.materials import DeformableMaterialFragment
+from isaaclab.utils.string import to_camel_case
 
 
 def test_newton_deformable_fragments_metadata():
