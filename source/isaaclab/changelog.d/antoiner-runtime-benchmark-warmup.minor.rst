@@ -12,3 +12,10 @@ Changed
   Added an optional serialized
   synchronized breakdown of time inside and outside simulation calls; the
   outside-simulation remainder is not classified as overhead.
+
+Fixed
+^^^^^
+
+* Fixed training benchmarks to reject warm-up settings that leave no measured
+  steps, omit unavailable timing after early stopping, and close environments
+  when training or result processing fails.

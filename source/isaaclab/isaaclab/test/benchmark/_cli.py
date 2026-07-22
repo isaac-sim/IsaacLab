@@ -24,6 +24,15 @@ def parse_positive_int(value: str) -> int:
     return parsed_value
 
 
+def validate_warmup_steps(warmup_steps: int, available_steps: int) -> None:
+    """Validate that training warm-up leaves at least one measured environment step."""
+    if warmup_steps >= available_steps:
+        raise ValueError(
+            f"warmup_steps ({warmup_steps}) must be less than resolved training environment steps "
+            f"({available_steps})"
+        )
+
+
 def _parse_int(value: str) -> int:
     """Parse an integer and report conversion errors through argparse."""
     try:

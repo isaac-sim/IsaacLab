@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 import statistics
+import warnings
 from collections.abc import Sequence
 from datetime import datetime
 
@@ -143,6 +144,7 @@ def build_runtime(
     environment_step_times_s: Sequence[float] | None = None,
     simulation_step_times_s: Sequence[float] | None = None,
     simulation_step_calls: int | None = None,
+    allow_empty_environment_step_timing: bool = False,
 ) -> Runtime:
     """Assemble a :class:`~isaaclab.test.benchmark.schema.Runtime` from raw series.
 
@@ -161,6 +163,9 @@ def build_runtime(
         environment_step_times_s: Positive per-environment-step wall times [s].
         simulation_step_times_s: Synchronized simulation wall times per environment step [s].
         simulation_step_calls: Number of measured simulation-step calls.
+        allow_empty_environment_step_timing: Whether to omit environment-step
+            timing when a workload stops before the nominal resolved length and
+            warm-up consumes every observed step.
 
     Returns:
         Populated :class:`~isaaclab.test.benchmark.schema.Runtime` with
@@ -178,6 +183,25 @@ def build_runtime(
         collection_fps_agg = _with_effective_mean(collection_fps_agg, collection_fps, effective_fps)
         total_fps_agg = _with_effective_mean(total_fps_agg, total_fps, effective_fps)
         iterations_per_s_agg = _with_effective_mean(iterations_per_s_agg, iter_per_s, effective_iterations_per_s)
+    if environment_step_times_s is not None and len(environment_step_times_s) == 0:
+        if allow_empty_environment_step_timing:
+            if simulation_step_times_s is not None and len(simulation_step_times_s) > 0:
+                raise ValueError("simulation timing cannot be present without environment-step timing samples")
+            if simulation_step_calls not in (None, 0):
+                raise ValueError("simulation_step_calls must be zero when environment-step timing is omitted")
+            warnings.warn(
+                "environment-step timing omitted because no samples remained after warm-up",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            environment_step_times_s = None
+            simulation_step_times_s = None
+            simulation_step_calls = None
+        else:
+            raise ValueError(
+                "environment_step_times_s must contain only positive samples; no samples remained after warm-up, "
+                "so reduce warmup_steps or increase the workload"
+            )
     if environment_step_times_s is None and (simulation_step_times_s is not None or simulation_step_calls is not None):
         raise ValueError("environment_step_times_s is required with simulation timing")
     environment_step_timing = None
@@ -185,11 +209,6 @@ def build_runtime(
         if frames_per_environment_step is None or frames_per_environment_step <= 0:
             raise ValueError("frames_per_environment_step must be greater than zero")
         environment_samples = list(environment_step_times_s)
-        if not environment_samples:
-            raise ValueError(
-                "environment_step_times_s must contain only positive samples; no samples remained after warm-up, "
-                "so reduce warmup_steps or increase the workload"
-            )
         if any(value <= 0 for value in environment_samples):
             raise ValueError("environment_step_times_s must contain only positive samples")
         total_environment_time_s = sum(environment_samples)

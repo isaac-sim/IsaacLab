@@ -221,6 +221,24 @@ def test_build_runtime_rejects_non_positive_environment_step_times(environment_s
         )
 
 
+def test_build_runtime_can_omit_timing_when_early_stop_exhausts_samples():
+    with pytest.warns(RuntimeWarning, match="environment-step timing omitted"):
+        runtime = builders.build_runtime(
+            startup_time_s=StartupTime(0.1, 0.2, 0.3),
+            iteration_times_s=[1.0],
+            collection_fps=[8.0],
+            total_fps=[8.0],
+            steps_per_iteration=8,
+            frames_per_environment_step=8,
+            environment_step_times_s=[],
+            simulation_step_times_s=[],
+            simulation_step_calls=0,
+            allow_empty_environment_step_timing=True,
+        )
+
+    assert runtime.environment_step_timing is None
+
+
 @pytest.mark.parametrize(
     ("simulation_step_times_s", "simulation_step_calls"),
     [([0.5], None), (None, 1), ([0.5], 1)],

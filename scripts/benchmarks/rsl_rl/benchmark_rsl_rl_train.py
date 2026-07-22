@@ -120,6 +120,7 @@ def run(argv: list[str]) -> None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture, stepping
+    from isaaclab.test.benchmark._cli import validate_warmup_steps
     from isaaclab.test.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.test.benchmark.schema import StartupTime
 
@@ -166,6 +167,7 @@ def run(argv: list[str]) -> None:
         )
         installed_rsl_rl = metadata.version("rsl-rl-lib")
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
+        validate_warmup_steps(args_cli.warmup_steps, agent_cfg.max_iterations * agent_cfg.num_steps_per_env)
         env_cfg.seed = agent_cfg.seed
 
         cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
@@ -215,115 +217,117 @@ def run(argv: list[str]) -> None:
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-        runner_types = {"OnPolicyRunner": OnPolicyRunner, "DistillationRunner": DistillationRunner}
-        if agent_cfg.class_name not in runner_types:
-            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-        runner = runner_types[agent_cfg.class_name](env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-        _disable_code_state_capture(runner)
-        if resume_path is not None:
-            runner.load(resume_path)
+        with contextlib.closing(env):
+            runner_types = {"OnPolicyRunner": OnPolicyRunner, "DistillationRunner": DistillationRunner}
+            if agent_cfg.class_name not in runner_types:
+                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+            runner = runner_types[agent_cfg.class_name](
+                env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device
+            )
+            _disable_code_state_capture(runner)
+            if resume_path is not None:
+                runner.load(resume_path)
 
-        early = RslRlEarlyStopWrapper(
-            env, runner, num_steps_per_env=agent_cfg.num_steps_per_env, **build_success_kwargs(args_cli)
-        )
-
-        environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-            env,
-            measure_synchronized_step_breakdown=args_cli.measure_sync_step,
-            warmup_steps=args_cli.warmup_steps,
-        )
-        with early, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-            runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
-
-        benchmark.update_manual_recorders()
-
-        desc = RL_LIBRARY_DESCRIPTORS["rsl_rl"]
-        log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
-        if not log_data or (not log_data.get(desc.reward_tag) and agent_cfg.max_iterations >= 1):
-            print(
-                f"[WARNING] No TensorBoard data parsed from {log_dir!r};"
-                " the emitted bundle will report zero metrics. Check the log directory.",
-                file=sys.stderr,
+            early = RslRlEarlyStopWrapper(
+                env, runner, num_steps_per_env=agent_cfg.num_steps_per_env, **build_success_kwargs(args_cli)
             )
 
-        # RSL-RL reports collection and learning durations separately in seconds.
-        coll = log_data.get("Perf/collection_time", [])
-        learn_ = log_data.get("Perf/learning_time", [])
-        iteration_times_s = [c + lrn for c, lrn in zip(coll, learn_)]
-        collection_fps_series = [env.unwrapped.num_envs * agent_cfg.num_steps_per_env / c for c in coll if c > 0]
-        total_fps_series = list(log_data.get("Perf/total_fps", []))
+            environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+                env,
+                measure_synchronized_step_breakdown=args_cli.measure_sync_step,
+                warmup_steps=args_cli.warmup_steps,
+            )
+            with early, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+                runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
-        startup = StartupTime(
-            app_launch=(app_t1 - app_t0) / 1e9,
-            env_creation=(env_t1 - env_t0) / 1e9,
-            first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
-            python_imports=(imports_t1 - imports_t0) / 1e9,
-            task_config=(config_t1 - config_t0) / 1e9,
-        )
+            benchmark.update_manual_recorders()
 
-        runtime = builders.build_runtime(
-            startup_time_s=startup,
-            iteration_times_s=iteration_times_s,
-            collection_fps=collection_fps_series,
-            total_fps=total_fps_series,
-            steps_per_iteration=env.unwrapped.num_envs * agent_cfg.num_steps_per_env,
-            frames_per_environment_step=env.unwrapped.num_envs,
-            environment_step_times_s=environment_step_timer.step_times_s,
-            simulation_step_times_s=environment_step_timer.simulation_step_times_s,
-            simulation_step_calls=environment_step_timer.simulation_step_calls,
-        )
+            desc = RL_LIBRARY_DESCRIPTORS["rsl_rl"]
+            log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
+            if not log_data or (not log_data.get(desc.reward_tag) and agent_cfg.max_iterations >= 1):
+                print(
+                    f"[WARNING] No TensorBoard data parsed from {log_dir!r};"
+                    " the emitted bundle will report zero metrics. Check the log directory.",
+                    file=sys.stderr,
+                )
 
-        learning = builders.build_learning(
-            reward_series=log_data.get(desc.reward_tag, []),
-            ep_length_series=log_data.get(desc.ep_length_tag, []),
-            ema_alpha=args_cli.ema_alpha,
-            keep_series=not args_cli.no_series,
-        )
+            # RSL-RL reports collection and learning durations separately in seconds.
+            coll = log_data.get("Perf/collection_time", [])
+            learn_ = log_data.get("Perf/learning_time", [])
+            iteration_times_s = [c + lrn for c, lrn in zip(coll, learn_)]
+            collection_fps_series = [env.unwrapped.num_envs * agent_cfg.num_steps_per_env / c for c in coll if c > 0]
+            total_fps_series = list(log_data.get("Perf/total_fps", []))
 
-        tracker = get_success_tracker(args_cli, early.tracker, log_data)
-        success_rate = round(tracker.tail_mean, 4) if (tracker and tracker.history) else None
+            startup = StartupTime(
+                app_launch=(app_t1 - app_t0) / 1e9,
+                env_creation=(env_t1 - env_t0) / 1e9,
+                first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
+                python_imports=(imports_t1 - imports_t0) / 1e9,
+                task_config=(config_t1 - config_t0) / 1e9,
+            )
 
-        versions = capture.capture_versions(benchmark)
-        hardware = capture.capture_hardware(benchmark)
-        resources = capture.capture_resources(benchmark)
+            runtime = builders.build_runtime(
+                startup_time_s=startup,
+                iteration_times_s=iteration_times_s,
+                collection_fps=collection_fps_series,
+                total_fps=total_fps_series,
+                steps_per_iteration=env.unwrapped.num_envs * agent_cfg.num_steps_per_env,
+                frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_times_s=environment_step_timer.step_times_s,
+                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
+                simulation_step_calls=environment_step_timer.simulation_step_calls,
+                allow_empty_environment_step_timing=True,
+            )
 
-        end_utc = capture.now_utc_iso()
-        stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
-        seed = agent_cfg.seed if agent_cfg.seed is not None else 0
+            learning = builders.build_learning(
+                reward_series=log_data.get(desc.reward_tag, []),
+                ep_length_series=log_data.get(desc.ep_length_tag, []),
+                ema_alpha=args_cli.ema_alpha,
+                keep_series=not args_cli.no_series,
+            )
 
-        run_identity = builders.build_run_identity(
-            run_id=capture.synth_run_id("rsl_rl", cfg.physics_backend, args_cli.task, seed, stamp),
-            framework="rsl_rl",
-            config=cfg,
-            task=args_cli.task,
-            seed=seed,
-            start_utc=start_utc,
-            end_utc=end_utc,
-            num_envs=env.unwrapped.num_envs,
-            max_iterations=agent_cfg.max_iterations,
-        )
+            tracker = get_success_tracker(args_cli, early.tracker, log_data)
+            success_rate = round(tracker.tail_mean, 4) if (tracker and tracker.history) else None
 
-        checkpoint_path = None
-        video_path = os.path.join(log_dir, "videos") if getattr(args_cli, "video", False) else None
+            versions = capture.capture_versions(benchmark)
+            hardware = capture.capture_hardware(benchmark)
+            resources = capture.capture_resources(benchmark)
 
-        bundle = builders.build_training_bundle(
-            run=run_identity,
-            versions=versions,
-            hardware=hardware,
-            runtime=runtime,
-            resources=resources,
-            learning=learning,
-            success_rate=success_rate,
-            checkpoint_path=checkpoint_path,
-            video_path=video_path,
-        )
+            end_utc = capture.now_utc_iso()
+            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
+            seed = agent_cfg.seed if agent_cfg.seed is not None else 0
 
-        benchmark.attach_bundle(bundle)
-        benchmark.add_measurement("train", success_measurements(tracker))
+            run_identity = builders.build_run_identity(
+                run_id=capture.synth_run_id("rsl_rl", cfg.physics_backend, args_cli.task, seed, stamp),
+                framework="rsl_rl",
+                config=cfg,
+                task=args_cli.task,
+                seed=seed,
+                start_utc=start_utc,
+                end_utc=end_utc,
+                num_envs=env.unwrapped.num_envs,
+                max_iterations=agent_cfg.max_iterations,
+            )
 
-        benchmark._finalize_impl()
+            checkpoint_path = None
+            video_path = os.path.join(log_dir, "videos") if getattr(args_cli, "video", False) else None
 
-        env.close()
+            bundle = builders.build_training_bundle(
+                run=run_identity,
+                versions=versions,
+                hardware=hardware,
+                runtime=runtime,
+                resources=resources,
+                learning=learning,
+                success_rate=success_rate,
+                checkpoint_path=checkpoint_path,
+                video_path=video_path,
+            )
+
+            benchmark.attach_bundle(bundle)
+            benchmark.add_measurement("train", success_measurements(tracker))
+
+            benchmark._finalize_impl()
 
 
 if __name__ == "__main__":
