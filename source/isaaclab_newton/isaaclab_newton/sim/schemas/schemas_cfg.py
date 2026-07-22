@@ -13,6 +13,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootFragment,
     CollisionBaseCfg,
     CollisionFragment,
+    DeformableBodyFragment,
     DeformableBodyPropertiesBaseCfg,
     FixedTendonFragment,
     JointDriveBaseCfg,
@@ -63,6 +64,18 @@ class NewtonDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
+
+
+@configclass
+class NewtonDeformableBodyCfg(DeformableBodyFragment):
+    """Placeholder deformable-body fragment reserving the ``newton:*`` namespace.
+
+    Newton registers no deformable-body attributes today; this fragment authors nothing and
+    exists as a stable public name. Fields are added when Newton grows body attributes.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = None
 
 
 @configclass

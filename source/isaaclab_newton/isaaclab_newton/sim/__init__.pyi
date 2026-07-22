@@ -4,11 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "NewtonDeformableBodyCfg",
     "NewtonDeformableBodyPropertiesCfg",
     "NewtonDeformableBodyMaterialCfg",
     "NewtonDeformableMaterialCfg",
     "NewtonMaterialCfg",
     "NewtonSurfaceDeformableBodyMaterialCfg",
+    "NewtonSurfaceDeformableMaterialCfg",
+    "NewtonVolumeDeformableMaterialCfg",
     "MPMGridCfg",
     "MPMParticleMaterialCfg",
     "MPMParticleSpawnerCfg",
@@ -19,11 +22,13 @@ __all__ = [
 ]
 
 from . import schemas, spawners, views
-from .schemas import NewtonDeformableBodyPropertiesCfg
+from .schemas import NewtonDeformableBodyCfg, NewtonDeformableBodyPropertiesCfg
 from .spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
     NewtonDeformableMaterialCfg,
     NewtonMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
+    NewtonSurfaceDeformableMaterialCfg,
+    NewtonVolumeDeformableMaterialCfg,
 )
 from .spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMParticleSpawnerCfg, MPMPointsCfg
