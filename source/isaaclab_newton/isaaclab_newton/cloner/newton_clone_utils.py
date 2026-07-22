@@ -158,7 +158,6 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
-    post_replicate_hooks: Sequence[Callable[[ModelBuilder], None]] = (),
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
     """Replicate source builders into per-env Newton worlds."""
     source_site_indices = source_site_indices or {}
@@ -230,8 +229,6 @@ def replicate_builder_mapping(
             hook(builder, col, positions[col].tolist(), quaternions[col].tolist())
         builder.end_world()
 
-    for hook in post_replicate_hooks:
-        hook(builder)
     return local_site_map, world_xforms
 
 

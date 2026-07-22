@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model, ModelBuilder
+from newton import Model
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -72,8 +72,6 @@ class NewtonVBDManager(NewtonManager):
         # Experimental deformable support registers callbacks here so the manager
         # and cloner can invoke them without hard-coding deformable logic.
         install_deformable_builder_hooks()
-        if ModelBuilder.color not in NewtonManager._post_replicate_hooks:
-            NewtonManager._post_replicate_hooks.append(ModelBuilder.color)
 
         super().initialize(sim_context)
 
@@ -114,6 +112,8 @@ class NewtonVBDManager(NewtonManager):
         having Newton bind a surface mesh to volume deformable tetrahedral mesh
         in addition to removing the deformable_registry data structure.
         """
+        if cls._builder is not None:
+            cls._builder.color()
         super().start_simulation()
 
         if cls._model is not None:
