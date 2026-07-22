@@ -24,8 +24,8 @@ itself::
 Design intent: be usable as the binding-management layer *inside* the OVPhysX asset
 classes (see ``docs/superpowers/specs/2026-06-17-ovphysx-view-design.md`` §6), so it
 exposes a raw :meth:`binding_for` accessor and a zero-copy :meth:`read_into` that
-fills a caller-owned, possibly structured-dtype buffer via a ``float32`` reinterpret
-view -- the same mechanism the data containers use today.
+fills a caller-owned, possibly structured-dtype buffer via a binding-reported scalar
+dtype reinterpret view -- the same mechanism the data containers use today.
 
 **Device policy: no implicit CPU<->GPU conversion.** OVPhysX serves DOF/body
 *property* tensor types from CPU memory even on a GPU sim (see :data:`_CPU_ONLY_NAMES`),
@@ -34,15 +34,13 @@ its native device and **raises** :class:`OvPhysxView.DeviceMismatch` if a caller
 it a buffer on the wrong device. Staging a CPU property to/from the simulation device
 is the caller's explicit responsibility, never hidden here.
 
-**Dtype: float32 only (interim).** The wheel's ``TensorBinding.read``/``write`` are
-float32-only and expose no dtype metadata, so this view treats every binding as ``float32``
-(the structured dtypes in :data:`_ATTR_DTYPE`, e.g. ``wp.transformf``, are byte-compatible
-views over float32, not a different scalar type). Every ``TensorType`` in the current wheel
-is float32; a future non-float binding (e.g. a ``uint8``/``bool`` control tensor) could not be
-read correctly here until the wheel exposes dtype metadata. Rather than guess a dtype-supported
-subset, the public surface (:attr:`~OvPhysxView.attribute_names`) deliberately stays at
-name-validity; narrowing it to a dtype-aware subset is deferred to wheel dtype metadata
-(design doc §7 ask).
+**Dtype: binding-reported DLPack scalar dtype.** The view resolves each binding's DLPack
+``code``, ``bits``, and ``lanes`` metadata to a Warp scalar dtype. Structured dtypes in
+:data:`_ATTR_DTYPE`, e.g. ``wp.transformf``, are used only when they share that scalar.
+All reads and writes reinterpret matching bits without conversion; a mismatched scalar or
+unsupported DLPack dtype raises :class:`OvPhysxView.DtypeMismatch`. The public surface
+(:attr:`~OvPhysxView.attribute_names`) remains name-validity rather than availability or
+dtype compatibility.
 """
 
 from __future__ import annotations
@@ -94,11 +92,10 @@ _READ_ONLY_NAMES: frozenset[str] = frozenset(
 _CPU_ONLY_NAMES: frozenset[str] = frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES)
 
 # Structured Warp dtype for attributes whose flat trailing dimension has a fixed semantic
-# layout: 7-float poses -> ``wp.transformf``, 6-float spatial vectors -> ``wp.spatial_vectorf``.
+# layout: 7-scalar poses -> ``wp.transformf``, 6-scalar spatial vectors -> ``wp.spatial_vectorf``.
 # :meth:`OvPhysxView.get_attribute` returns an array of this dtype, so callers get a typed
-# ``[N, ...]`` array rather than a flat ``[N, ..., k]`` float32 one. Attributes absent from this
-# map default to flat ``float32``. The wheel exposes only flat float32 shapes, so this map is
-# hand-maintained.
+# ``[N, ...]`` array rather than a flat ``[N, ..., k]`` scalar one. Attributes absent from this
+# map default to the binding-reported scalar dtype. The semantic layouts are hand-maintained.
 # TODO(ovphysx): source structured layouts from a wheel dtype query if one is added.
 _ATTR_DTYPE: dict[str, Any] = {
     "articulation_root_pose": wp.transformf,
@@ -124,6 +121,7 @@ class _BindingLike(Protocol):
     """
 
     shape: tuple[int, ...]
+    dtype: Any
     count: int
     prim_paths: list[str]
     dof_names: list[str]
@@ -194,6 +192,28 @@ def is_read_only(name: str) -> bool:
 def is_cpu_only(name: str) -> bool:
     """Return whether an attribute is CPU-resident even on a GPU simulation."""
     return name.lower() in _CPU_ONLY_NAMES
+
+
+_DLPACK_TO_WARP_SCALAR: dict[tuple[int, int, int], Any] = {
+    (2, 32, 1): wp.float32,
+    (0, 32, 1): wp.int32,
+    (1, 8, 1): wp.uint8,
+}
+
+
+def _binding_scalar_dtype(binding: _BindingLike) -> Any:
+    dtype = getattr(binding, "dtype", None)
+    if dtype is None:
+        raise OvPhysxView.DtypeMismatch(
+            "OVPhysX binding does not expose DLPack dtype metadata; install the OVPhysX 0.5 dependency."
+        )
+    key = (int(dtype.code), int(dtype.bits), int(dtype.lanes))
+    try:
+        return _DLPACK_TO_WARP_SCALAR[key]
+    except KeyError:
+        raise OvPhysxView.DtypeMismatch(
+            f"Unsupported OVPhysX DLPack dtype code={key[0]}, bits={key[1]}, lanes={key[2]}."
+        ) from None
 
 
 # -----------------------------------------------------------------------------
@@ -298,7 +318,7 @@ class OvPhysxView:
                 )
             self._key_aliases[req_tt] = made_tt
         self._bindings: dict[Any, Any] = {}
-        # Cache of float32 reinterpret views for read_into / get_attribute, keyed by the
+        # Cache of binding-scalar reinterpret views for read_into / get_attribute, keyed by the
         # destination buffer's id(). Reusing the same reinterpret object across calls keeps the
         # wheel's object-identity read cache (the TensorBinding.read fast path) warm.
         self._read_views: dict[int, wp.array] = {}
@@ -361,7 +381,7 @@ class OvPhysxView:
         """Fill ``dst`` in place from the attribute binding (zero-copy).
 
         ``dst`` may be a structured-dtype buffer (e.g. ``wp.transformf``); it is read
-        through a ``float32`` reinterpret view that matches the binding's flat shape, so
+        through a binding-scalar reinterpret view that matches the binding's flat shape, so
         the structured GPU/CPU buffer is filled directly with no extra copy. This is the
         path the asset data containers use. The reinterpret view for a given ``dst`` is
         built once and reused across calls (see :meth:`_read_view`) so the wheel's
@@ -457,11 +477,8 @@ class OvPhysxView:
         actually instantiated.
 
         .. note::
-            A listed name is **not** a promise of correct dtype handling. The view is
-            float32-only (see the module docstring); every ``TensorType`` in the current wheel
-            is float32, but a future non-float binding would still be listed here yet not be
-            correctly readable until the wheel exposes dtype metadata. Filtering this to a
-            dtype-aware supported subset is deferred to that metadata (design doc §7 ask).
+            A listed name is **not** a promise of binding availability or supported DLPack dtype
+            metadata. Those are validated when the view creates and accesses the binding.
         """
         return attribute_vocabulary()
 
@@ -476,7 +493,7 @@ class OvPhysxView:
         This checks name *validity* for any view, not availability for these prims: it can
         return ``True`` for a name whose binding does not apply to this view's prims (in which
         case :meth:`get_attribute` raises :class:`AttributeUnavailable`). It likewise does not
-        promise dtype support -- the view is float32-only (see :attr:`attribute_names`).
+        promise binding availability or supported DLPack dtype metadata.
         """
         try:
             self._resolve(name)
@@ -612,54 +629,55 @@ class OvPhysxView:
             )
 
     def _as_binding_view(self, arr: wp.array, binding: Any, role: str) -> wp.array:
-        """Return a ``float32`` view of ``arr`` matching the binding's flat shape.
+        """Return a binding-scalar view of ``arr`` matching the binding's flat shape.
 
-        ``arr`` must have a ``float32`` scalar element type (``float32`` itself or a
-        composite built on it, e.g. ``wp.transformf``/``wp.vec3f``): the view
-        **reinterprets bits, not values**, so a non-``float32`` dtype (``int32``,
-        ``float64``, ``float16``) would corrupt the data and is rejected. Given a matching
-        scalar, validates the flat ``float32`` element count and returns ``arr`` directly
-        when it is already ``float32`` with the binding's shape, else a zero-copy
-        reinterpret view.
+        ``arr`` must have the scalar dtype reported by the binding's DLPack metadata (or a
+        composite built on it). The view **reinterprets bits, not values**, so a mismatched
+        scalar type would corrupt the data and is rejected. Given a matching scalar, it
+        validates the byte count and returns ``arr`` directly when it already matches the
+        binding shape; otherwise it returns a zero-copy reinterpret view.
         """
+        binding_scalar = _binding_scalar_dtype(binding)
         scalar = getattr(arr.dtype, "_wp_scalar_type_", arr.dtype)
-        if scalar is not wp.float32:
+        if scalar is not binding_scalar:
             raise OvPhysxView.DtypeMismatch(
-                f"{role} must have float32 scalar elements (got dtype "
+                f"{role} must have {binding_scalar.__name__} scalar elements (got dtype "
                 f"{getattr(arr.dtype, '__name__', arr.dtype)}); the view reinterprets bits, "
-                "not values, so a non-float32 dtype would silently corrupt the buffer."
+                "not values, so a mismatched scalar type would silently corrupt the buffer."
             )
         if not arr.is_contiguous:
             raise OvPhysxView.ShapeMismatch(
                 f"{role} must be a contiguous array; the view reinterprets the buffer's raw memory, "
                 "so a strided/sliced view would read or write the wrong elements."
             )
-        expected = math.prod(tuple(binding.shape))
-        actual = arr.size * (wp.types.type_size_in_bytes(arr.dtype) // 4)  # scalar is float32 -> exact
-        if actual != expected:
+        expected_bytes = math.prod(tuple(binding.shape)) * wp.types.type_size_in_bytes(binding_scalar)
+        actual_bytes = arr.size * wp.types.type_size_in_bytes(arr.dtype)
+        if actual_bytes != expected_bytes:
             raise OvPhysxView.ShapeMismatch(
-                f"Shape mismatch for {role}: {actual} float32 elements, "
-                f"binding expects {expected} (shape {tuple(binding.shape)})."
+                f"Shape mismatch for {role}: {actual_bytes} bytes, "
+                f"binding expects {expected_bytes} (shape {tuple(binding.shape)})."
             )
-        if arr.dtype == wp.float32 and tuple(arr.shape) == tuple(binding.shape):
+        if arr.dtype == binding_scalar and tuple(arr.shape) == tuple(binding.shape):
             return arr
-        return wp.array(ptr=arr.ptr, shape=tuple(binding.shape), dtype=wp.float32, device=str(arr.device), copy=False)
+        return wp.array(
+            ptr=arr.ptr, shape=tuple(binding.shape), dtype=binding_scalar, device=str(arr.device), copy=False
+        )
 
     def _read_view(self, dst: wp.array, binding: Any) -> wp.array:
-        """Return the ``float32`` view of ``dst`` to hand to ``binding.read``, reused across calls.
+        """Return the binding-scalar view of ``dst`` to hand to ``binding.read``, reused across calls.
 
         The wheel's ``TensorBinding.read`` has an object-identity read cache: it skips DLPack
         acquisition and the attribute-chain lookup when handed the *same* tensor object as the
-        previous read. To keep that cache warm, the ``float32`` reinterpret of a structured
+        previous read. To keep that cache warm, the binding-scalar reinterpret of a structured
         ``dst`` is built once and reused for that destination buffer; a pointer-staleness guard
         rebuilds it if the buffer's backing storage moved. A ``dst`` that is already flat
-        ``float32`` is its own stable identity, so it is returned directly (and not cached).
+        binding scalar is its own stable identity, so it is returned directly (and not cached).
         """
         cached = self._read_views.get(id(dst))
         if cached is not None and cached.ptr == dst.ptr:
             return cached
         view = self._as_binding_view(dst, binding, "destination")
-        if view is not dst:  # structured dst -> cache the reinterpret; a flat float32 dst caches nothing
+        if view is not dst:  # structured dst -> cache the reinterpret; a flat scalar dst caches nothing
             self._read_views[id(dst)] = view
         return view
 
@@ -667,15 +685,21 @@ class OvPhysxView:
         """Return ``(alloc_shape, dtype)`` for :meth:`get_attribute`.
 
         Maps an attribute to its structured Warp dtype (see :data:`_ATTR_DTYPE`) when the
-        binding's trailing dimension matches that dtype's ``float32`` count, dropping the
-        trailing dimension from the allocation shape (e.g. ``[N, 7] -> ([N], wp.transformf)``).
-        Falls back to the flat ``float32`` shape for unmapped attributes or a mismatched layout.
+        binding reports the dtype's scalar type and its trailing dimension matches that scalar
+        count, dropping the trailing dimension from the allocation shape (e.g. ``[N, 7] -> ([N], wp.transformf)``).
+        Falls back to the flat binding-scalar shape for unmapped attributes or a mismatched layout.
         """
+        binding_scalar = _binding_scalar_dtype(binding)
         dtype = _ATTR_DTYPE.get(tensor_type_name(tensor_type))
         shape = tuple(binding.shape)
-        if dtype is not None and shape and shape[-1] == wp.types.type_size_in_bytes(dtype) // 4:
+        if (
+            dtype is not None
+            and getattr(dtype, "_wp_scalar_type_", dtype) is binding_scalar
+            and shape
+            and shape[-1] == wp.types.type_size_in_bytes(dtype) // wp.types.type_size_in_bytes(binding_scalar)
+        ):
             return shape[:-1], dtype
-        return shape, wp.float32
+        return shape, binding_scalar
 
     def _as_wp(self, values: Any, device: str) -> wp.array:
         """Coerce ``values`` to a :class:`warp.array`.
