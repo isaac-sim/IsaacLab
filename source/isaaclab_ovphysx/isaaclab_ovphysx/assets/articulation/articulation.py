@@ -1488,7 +1488,6 @@ class Articulation(BaseArticulation):
             self._data._joint_pos_limits.data,
             self._data._joint_pos_limits_backend,
             cpu_buffer=self.data._cpu_joint_position_limit,
-            component_count=2,
             indices=self._get_cpu_env_ids(env_ids),
         )
 
@@ -1583,7 +1582,6 @@ class Articulation(BaseArticulation):
             self._data._joint_pos_limits.data,
             self._data._joint_pos_limits_backend,
             cpu_buffer=self.data._cpu_joint_position_limit,
-            component_count=2,
             mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
