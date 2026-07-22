@@ -52,6 +52,14 @@ def test_terrain_importer_env_origins(device, env_spacing, num_envs):
         # obtain env origins using terrain importer
         terrain_importer_origins = terrain_importer.env_origins
 
+        # check that the cached Warp view shares the canonical Torch storage
+        assert isinstance(terrain_importer.env_origins, torch.Tensor)
+        assert terrain_importer.env_origins_wp.dtype == wp.vec3f
+        assert terrain_importer.env_origins_wp.shape == (num_envs,)
+        assert terrain_importer_origins.shape == (num_envs, 3)
+        assert terrain_importer.env_origins_wp is terrain_importer.env_origins_wp
+        assert terrain_importer_origins.data_ptr() == terrain_importer.env_origins_wp.ptr
+
         # obtain env origins using Lab's grid_transforms
         lab_grid_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=env_spacing, device=sim.device)
 

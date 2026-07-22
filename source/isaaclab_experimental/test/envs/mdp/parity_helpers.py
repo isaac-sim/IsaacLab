@@ -383,7 +383,16 @@ class MockScene:
 
     def __init__(self, assets: dict, env_origins, sensors=None):
         self._assets = assets
-        self.env_origins = env_origins
+        if env_origins is None:
+            # Action-term tests don't need origins; keep the attributes present but empty.
+            self.env_origins = None
+            self.env_origins_wp = None
+        elif isinstance(env_origins, wp.array):
+            self.env_origins_wp = env_origins
+            self.env_origins = wp.to_torch(env_origins)
+        else:
+            self.env_origins = env_origins
+            self.env_origins_wp = wp.from_torch(env_origins, dtype=wp.vec3f)
         self.sensors = sensors or {}
         self.articulations = dict(assets)
         self.rigid_objects = {}
@@ -533,10 +542,14 @@ class MockCommandManager:
 
     def __init__(self, command_tensor: torch.Tensor, cmd_term: MockCommandTerm):
         self._cmd = command_tensor
+        self._cmd_wp = wp.from_torch(command_tensor, dtype=wp.float32)
         self._term = cmd_term
 
     def get_command(self, name: str) -> torch.Tensor:
         return self._cmd
+
+    def get_command_wp(self, name: str) -> wp.array(dtype=wp.float32, ndim=2):
+        return self._cmd_wp
 
     def get_term(self, name: str):
         return self._term

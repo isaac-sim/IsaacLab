@@ -38,6 +38,7 @@ General.
 
 @wp.kernel
 def _is_alive_kernel(terminated: wp.array(dtype=wp.bool), out: wp.array(dtype=wp.float32)):
+    """1.0 for envs still running, 0.0 for terminated ones."""
     i = wp.tid()
     out[i] = wp.where(terminated[i], 0.0, 1.0)
 
@@ -54,6 +55,7 @@ def is_alive(env: ManagerBasedRLEnv, out: wp.array(dtype=wp.float32)) -> None:
 
 @wp.kernel
 def _is_terminated_kernel(terminated: wp.array(dtype=wp.bool), out: wp.array(dtype=wp.float32)):
+    """1.0 for envs terminated by a non-timeout cause, else 0.0."""
     i = wp.tid()
     out[i] = wp.where(terminated[i], 1.0, 0.0)
 
@@ -87,6 +89,10 @@ def _lin_vel_z_l2_kernel(
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     out: wp.array(dtype=wp.float32),
 ):
+    """Squared body-frame vertical velocity [(m/s)^2] per env, derived inline from
+
+    the root state.
+    """
     i = wp.tid()
     vz = body_lin_vel_from_root(root_pose_w[i], root_vel_w[i])[2]
     out[i] = vz * vz
@@ -109,6 +115,7 @@ def _ang_vel_xy_l2_kernel(
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     out: wp.array(dtype=wp.float32),
 ):
+    """Sum of squared body-frame roll/pitch rates [(rad/s)^2] per env."""
     i = wp.tid()
     v = body_ang_vel_from_root(root_pose_w[i], root_vel_w[i])
     out[i] = v[0] * v[0] + v[1] * v[1]
@@ -131,6 +138,10 @@ def _flat_orientation_l2_kernel(
     gravity_w: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32),
 ):
+    """Sum of squared xy components of body-frame projected gravity (zero when the
+
+    base is perfectly flat).
+    """
     # ``gravity_w`` is per-env and may carry magnitude (Newton, m/s^2), so index
     # per env and normalize before projecting.
     i = wp.tid()
@@ -160,6 +171,7 @@ Joint penalties.
 def _sum_sq_masked_kernel(
     x: wp.array(dtype=wp.float32, ndim=2), joint_mask: wp.array(dtype=wp.bool), out: wp.array(dtype=wp.float32)
 ):
+    """Per-env sum of squares over mask-selected joint columns."""
     i = wp.tid()
     s = float(0.0)
     for j in range(x.shape[1]):
@@ -184,6 +196,7 @@ def joint_torques_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
 def _sum_abs_masked_kernel(
     x: wp.array(dtype=wp.float32, ndim=2), joint_mask: wp.array(dtype=wp.bool), out: wp.array(dtype=wp.float32)
 ):
+    """Per-env L1 sum over mask-selected joint columns."""
     i = wp.tid()
     s = float(0.0)
     for j in range(x.shape[1]):
@@ -233,6 +246,7 @@ def _sum_abs_diff_masked_kernel(
     joint_mask: wp.array(dtype=wp.bool),
     out: wp.array(dtype=wp.float32),
 ):
+    """Per-env L1 sum of ``a - b`` over mask-selected joint columns."""
     i = wp.tid()
     s = float(0.0)
     for j in range(a.shape[1]):
@@ -260,6 +274,11 @@ def _joint_pos_limits_kernel(
     joint_mask: wp.array(dtype=wp.bool),
     out: wp.array(dtype=wp.float32),
 ):
+    """Per-env sum of soft-limit violations [rad or m, depending on joint type]:
+
+    distance each selected joint sits below its lower or above its upper soft
+    limit (zero inside the limits).
+    """
     i = wp.tid()
     s = float(0.0)
     for j in range(joint_pos.shape[1]):
@@ -302,6 +321,7 @@ def _sum_sq_diff_2d_kernel(
     b: wp.array(dtype=wp.float32, ndim=2),
     out: wp.array(dtype=wp.float32),
 ):
+    """Per-env sum of squared differences across all columns (action-rate penalty)."""
     i = wp.tid()
     s = float(0.0)
     for j in range(a.shape[1]):
@@ -323,6 +343,7 @@ def action_rate_l2(env: ManagerBasedRLEnv, out) -> None:
 # TODO(warp-migration): Revisit 2D kernel + wp.atomic_add vs 1D inner loop.
 @wp.kernel
 def _sum_sq_2d_kernel(x: wp.array(dtype=wp.float32, ndim=2), out: wp.array(dtype=wp.float32)):
+    """Per-env sum of squares across all columns (action-magnitude penalty)."""
     i = wp.tid()
     s = float(0.0)
     for j in range(x.shape[1]):
@@ -395,6 +416,10 @@ def _track_lin_vel_xy_exp_kernel(
     std_sq_inv: float,
     out: wp.array(dtype=wp.float32),
 ):
+    """Exponential tracking shaping ``exp(-err^2 / std^2)`` of planar body-frame
+
+    linear velocity vs the command's (vx, vy).
+    """
     i = wp.tid()
     v = body_lin_vel_from_root(root_pose_w[i], root_vel_w[i])
     dx = command[i, 0] - v[0]
@@ -415,24 +440,13 @@ def track_lin_vel_xy_exp(
     Warp-first override of :func:`isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp`.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    # cache the warp view of the command tensor on first call (zero-copy)
-    # TODO(warp-migration): Cross-manager access (reward → command). Replace with direct
-    #  warp getter once all managers are guaranteed to be warp-native.
-    if not getattr(track_lin_vel_xy_exp, "_is_warmed_up", False) or track_lin_vel_xy_exp._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        if isinstance(cmd, wp.array):
-            track_lin_vel_xy_exp._cmd_wp = cmd
-        else:
-            track_lin_vel_xy_exp._cmd_wp = wp.from_torch(cmd)
-        track_lin_vel_xy_exp._cmd_name = command_name
-        track_lin_vel_xy_exp._is_warmed_up = True
     wp.launch(
         kernel=_track_lin_vel_xy_exp_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_link_pose_w.warp,
             asset.data.root_com_vel_w.warp,
-            track_lin_vel_xy_exp._cmd_wp,
+            env.command_manager.get_command_wp(command_name),
             1.0 / (std * std),
             out,
         ],
@@ -449,6 +463,10 @@ def _track_ang_vel_z_exp_kernel(
     std_sq_inv: float,
     out: wp.array(dtype=wp.float32),
 ):
+    """Exponential tracking shaping ``exp(-err^2 / std^2)`` of body-frame yaw rate
+
+    vs the command's wz.
+    """
     i = wp.tid()
     dz = command[i, cmd_col] - body_ang_vel_from_root(root_pose_w[i], root_vel_w[i])[2]
     out[i] = wp.exp(-dz * dz * std_sq_inv)
@@ -466,23 +484,13 @@ def track_ang_vel_z_exp(
     Warp-first override of :func:`isaaclab.envs.mdp.rewards.track_ang_vel_z_exp`.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    # TODO(warp-migration): Cross-manager access (reward → command). Replace with direct
-    #  warp getter once all managers are guaranteed to be warp-native.
-    if not getattr(track_ang_vel_z_exp, "_is_warmed_up", False) or track_ang_vel_z_exp._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        if isinstance(cmd, wp.array):
-            track_ang_vel_z_exp._cmd_wp = cmd
-        else:
-            track_ang_vel_z_exp._cmd_wp = wp.from_torch(cmd)
-        track_ang_vel_z_exp._cmd_name = command_name
-        track_ang_vel_z_exp._is_warmed_up = True
     wp.launch(
         kernel=_track_ang_vel_z_exp_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_link_pose_w.warp,
             asset.data.root_com_vel_w.warp,
-            track_ang_vel_z_exp._cmd_wp,
+            env.command_manager.get_command_wp(command_name),
             2,
             1.0 / (std * std),
             out,

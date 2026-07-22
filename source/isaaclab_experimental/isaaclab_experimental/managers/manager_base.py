@@ -20,27 +20,52 @@ import copy
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
 import isaaclab.utils.string as string_utils
+from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
 from isaaclab.utils import class_to_dict, string_to_callable
 
-from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp import WarpCapturable
 
-from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 # import omni.timeline
 
 
 if TYPE_CHECKING:
+    import torch
+
     from isaaclab.envs import ManagerBasedEnv
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _resolve_reset_mask(
+    owner: ManagerBase | ManagerTermBase,
+    env_ids: Sequence[int] | None,
+    env_mask: wp.array(dtype=wp.bool) | None,
+) -> wp.array(dtype=wp.bool):
+    """Resolve reset input once while keeping ID conversion outside capture."""
+    if isinstance(env_mask, wp.array):
+        if env_mask.dtype != wp.bool or env_mask.ndim != 1 or env_mask.shape[0] != owner.num_envs:
+            raise ValueError(
+                f"env_mask must be a Warp boolean array with shape ({owner.num_envs},), received {env_mask}."
+            )
+        expected_device = wp.get_device(owner.device)
+        if env_mask.device != expected_device:
+            raise ValueError(f"env_mask must be on {expected_device}, received {env_mask.device}.")
+        return env_mask
+    if wp.get_device(owner.device).is_capturing:
+        raise RuntimeError(
+            f"{type(owner).__name__}.reset requires env_mask(wp.array[bool]) during capture. "
+            "Resolve environment IDs before entering the captured stage."
+        )
+    return owner._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
 
 
 class ManagerTermBase(ABC):
@@ -107,14 +132,28 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
-    def reset(self, env_mask: wp.array | None = None) -> None:
+    def reset(self, env_mask: wp.array | None = None) -> dict[str, torch.Tensor] | None:
         """Resets the manager term (mask-based).
 
         Args:
             env_mask: Boolean mask of shape (num_envs,) indicating which envs to reset.
                 If None, all envs are considered.
+
+        Returns:
+            An optional dictionary of logging values to merge into the owning manager's
+            reset extras. To stay CUDA-graph capturable, values must be persistent
+            tensor views over device buffers written by kernels (no host readback);
+            the same objects must be returned on every call.
         """
-        pass
+        return None
+
+    def _resolve_reset_mask(
+        self,
+        env_ids: Sequence[int] | None,
+        env_mask: wp.array(dtype=wp.bool) | None,
+    ) -> wp.array(dtype=wp.bool):
+        """Resolve a legacy reset selection to the canonical Warp mask."""
+        return _resolve_reset_mask(self, env_ids, env_mask)
 
     def serialize(self) -> dict:
         """General serialization call. Includes the configuration dict."""
@@ -226,7 +265,11 @@ class ManagerBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> dict[str, float]:
+    def reset(
+        self,
+        env_ids: Sequence[int] | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> dict[str, float]:
         """Resets the manager and returns logging information for the current time-step.
 
         Args:
@@ -237,6 +280,14 @@ class ManagerBase(ABC):
             Dictionary containing the logging information.
         """
         return {}
+
+    def _resolve_reset_mask(
+        self,
+        env_ids: Sequence[int] | None,
+        env_mask: wp.array(dtype=wp.bool) | None,
+    ) -> wp.array(dtype=wp.bool):
+        """Resolve a legacy reset selection to the canonical Warp mask."""
+        return _resolve_reset_mask(self, env_ids, env_mask)
 
     def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:
         """Find terms in the manager based on the names.
@@ -403,16 +454,23 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        # register non-capturable terms with the call switch for mode=2 fallback
-        if not is_warp_capturable(term_cfg.func):
-            switch = getattr(self._env, "_manager_call_switch", None)
-            if switch is not None:
-                switch.register_manager_capturability(type(self).__name__, False)
+        self._register_term_capturability(term_cfg.func)
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
         if self._env.sim.is_playing():
             self._process_term_cfg_at_play(term_name, term_cfg)
+
+    def _register_term_capturability(self, term: Callable) -> None:
+        """Keep the complete manager eager when a configured term is unsafe."""
+        # TODO(#6611): granularity is whole-manager — one non-capturable term forces the
+        # entire manager eager. Per-term record/replay could keep the capturable terms
+        # on graphs while only the unsafe term runs eagerly; that is execution-layer
+        # scope and deliberately not part of the mask-first PR.
+        if not WarpCapturable.is_capturable(term):
+            graph_cache = getattr(self._env, "_warp_graph_cache", None)
+            if graph_cache is not None:
+                graph_cache.register_capturability(type(self).__name__, False)
 
     def _process_term_cfg_at_play(self, term_name: str, term_cfg: ManagerTermBaseCfg):
         """Process the term configuration at runtime.

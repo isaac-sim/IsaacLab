@@ -25,6 +25,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_direct_env_cfg:CartpoleEnvCfg",
+        "warp_entry_point": "isaaclab_tasks_experimental.core.cartpole.cartpole_warp_env:CartpoleWarpEnv",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleDirectPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",

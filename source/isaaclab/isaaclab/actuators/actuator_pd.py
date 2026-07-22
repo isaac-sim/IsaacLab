@@ -114,6 +114,10 @@ class ImplicitActuator(ActuatorBase):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
+    def reset_mask(self, env_mask: torch.Tensor) -> None:
+        # This is a no-op. There is no state to reset for implicit actuators.
+        pass
+
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
@@ -181,6 +185,10 @@ class IdealPDActuator(ActuatorBase):
     """
 
     def reset(self, env_ids: Sequence[int]):
+        pass
+
+    def reset_mask(self, env_mask: torch.Tensor) -> None:
+        # This is a no-op. There is no state to reset for ideal PD actuators.
         pass
 
     def compute(

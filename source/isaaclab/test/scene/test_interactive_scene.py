@@ -13,9 +13,11 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -130,6 +132,81 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
     scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
     assert_state_equal(prev_state, scene.get_state())
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_env_origins_wp_is_cached_zero_copy_view(device, setup_scene):
+    """The scene should expose one persistent Warp view of its Torch origins."""
+    make_scene, sim = setup_scene
+    scene = InteractiveScene(make_scene(num_envs=4))
+    sim.reset()
+
+    assert scene.env_origins_wp is scene.env_origins_wp
+    assert scene.env_origins_wp.dtype == wp.vec3f
+    assert scene.env_origins_wp.shape == (scene.num_envs,)
+    assert scene.env_origins_wp.ptr == scene.env_origins.data_ptr()
+
+
+def test_reset_dispatches_warp_mask_to_supported_entities() -> None:
+    """Mask reset should remain mask-based across assets and sensors."""
+    scene = object.__new__(InteractiveScene)
+    articulation = Mock()
+    deformable = Mock()
+    rigid_object = Mock()
+    rigid_collection = Mock()
+    sensor = Mock()
+    scene._articulations = {"articulation": articulation}
+    scene._deformable_objects = {"deformable": deformable}
+    scene._rigid_objects = {"rigid_object": rigid_object}
+    scene._rigid_object_collections = {"collection": rigid_collection}
+    scene._sensors = {"sensor": sensor}
+    scene._surface_grippers = {}
+    env_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
+
+    scene.reset(env_mask=env_mask)
+
+    for entity in (articulation, deformable, rigid_object, rigid_collection, sensor):
+        entity.reset.assert_called_once_with(env_mask=env_mask)
+
+
+def test_scene_reset_capture_safe_reflects_entity_composition() -> None:
+    """Capture safety should require every entity to declare a mask-native reset."""
+    scene = object.__new__(InteractiveScene)
+    safe_entity = SimpleNamespace(reset_capture_safe=True)
+    scene._articulations = {"articulation": safe_entity}
+    scene._rigid_objects = {"rigid_object": safe_entity}
+    scene._rigid_object_collections = {"collection": safe_entity}
+    scene._sensors = {"sensor": SimpleNamespace(reset_capture_safe=True)}
+    scene._deformable_objects = {}
+    scene._surface_grippers = {}
+    assert scene.reset_capture_safe
+
+    scene._sensors = {"sensor": SimpleNamespace()}
+    assert not scene.reset_capture_safe
+
+    scene._sensors = {}
+    scene._surface_grippers = {"gripper": object()}
+    assert not scene.reset_capture_safe
+
+
+def test_mask_reset_forwards_boolean_mask_to_surface_grippers() -> None:
+    """Mask reset should hand surface grippers a boolean Torch view, not compact IDs."""
+    scene = object.__new__(InteractiveScene)
+    gripper = Mock()
+    scene._articulations = {}
+    scene._deformable_objects = {}
+    scene._rigid_objects = {}
+    scene._rigid_object_collections = {}
+    scene._sensors = {}
+    scene._surface_grippers = {"gripper": gripper}
+    env_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
+
+    scene.reset(env_mask=env_mask)
+
+    gripper.reset.assert_not_called()
+    gripper_env_mask = gripper.reset_mask.call_args.args[0]
+    assert gripper_env_mask.dtype == torch.bool
+    assert torch.equal(gripper_env_mask, torch.tensor([True, False, True]))
 
 
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):

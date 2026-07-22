@@ -169,6 +169,15 @@ class SensorBase(ABC):
         # return success
         return True
 
+    @property
+    def reset_capture_safe(self) -> bool:
+        """Whether :meth:`reset` runs only mask-native kernel work.
+
+        Conservative: a sensor that overrides :meth:`reset` must opt in explicitly by
+        overriding this property after validating its reset path for CUDA graph capture.
+        """
+        return type(self).reset is SensorBase.reset
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets the sensor internals.
 

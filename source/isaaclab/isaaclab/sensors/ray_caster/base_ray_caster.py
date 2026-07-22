@@ -107,11 +107,23 @@ class BaseRayCaster(SensorBase):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
         super().reset(env_ids, env_mask)
+        range_list = [self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+        ranges = torch.tensor(range_list, device=self.device)
+        if env_mask is not None:
+            # Mask-native path: full-size resample with an elementwise select keeps
+            # the reset free of host synchronization and data-dependent allocation.
+            mask = wp.to_torch(env_mask).view(-1, 1)
+            drift = self.drift.torch
+            new_drift = torch.empty_like(drift).uniform_(*self.cfg.drift_range)
+            drift.copy_(torch.where(mask, new_drift, drift))
+            ray_cast_drift = self.ray_cast_drift.torch
+            new_ray_cast_drift = math_utils.sample_uniform(
+                ranges[:, 0], ranges[:, 1], tuple(ray_cast_drift.shape), device=self.device
+            )
+            ray_cast_drift.copy_(torch.where(mask, new_ray_cast_drift, ray_cast_drift))
+            return
         # resolve to indices for torch indexing
         if env_ids is not None:
-            num_envs_ids = len(env_ids)
-        elif env_mask is not None:
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
             num_envs_ids = len(env_ids)
         else:
             env_ids = slice(None)
@@ -120,8 +132,6 @@ class BaseRayCaster(SensorBase):
         r = torch.empty(num_envs_ids, 3, device=self.device)
         self.drift.torch[env_ids] = r.uniform_(*self.cfg.drift_range)
         # resample the ray cast drift
-        range_list = [self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        ranges = torch.tensor(range_list, device=self.device)
         self.ray_cast_drift.torch[env_ids] = math_utils.sample_uniform(
             ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
         )

@@ -125,6 +125,9 @@ class RigidObject(BaseRigidObject):
     Operations.
     """
 
+    reset_capture_safe: bool = True
+    """Whether :meth:`reset` runs only mask-native kernel work (wrench-composer resets)."""
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the rigid object.
 
@@ -136,8 +139,8 @@ class RigidObject(BaseRigidObject):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.

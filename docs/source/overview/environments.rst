@@ -887,6 +887,14 @@ For environments that have a different task name listed under ``Inference Task N
 provided when running ``play.py`` or any inferencing workflows. These tasks provide more suitable configurations for
 inferencing, including reading from an already trained checkpoint and disabling runtime perturbations used for training.
 
+.. note::
+
+   Warp-native environment implementations no longer register separate ``-Warp`` task ids.
+   The same stable tasks run on the Warp runtime by passing ``--frontend warp`` (together
+   with ``presets=newton_mjwarp``) to the training and play entrypoints; direct tasks
+   declare their Warp implementation through the ``warp_entry_point`` registration. See
+   :doc:`/overview/core-concepts/physical-backends/newton/warp-environments` for details.
+
 .. START-AUTO-GENERATED: comprehensive-environment-list
 
 .. list-table::
@@ -907,16 +915,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Ant-Direct-Warp-v0
-      -
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
-    * - Isaac-Ant-Warp-v0
-      -
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
     * - Isaac-Cartpole
       -
       - Manager Based
@@ -941,16 +939,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Cartpole-Direct-Warp-v0
-      -
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
-    * - Isaac-Cartpole-Warp-v0
-      -
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
     * - Isaac-Fourbar-Pole-Swingup
       -
       - Manager Based
@@ -966,16 +954,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Humanoid-Direct-Warp-v0
-      -
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
-    * - Isaac-Humanoid-Warp-v0
-      -
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
     * - Isaac-Lift-Cloth-Franka
       -
       - Manager Based
@@ -1040,11 +1018,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - Isaac-Reach-Franka-Warp-v0
-      - Isaac-Reach-Franka-Warp-Play-v0
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Reach-UR10
       - Isaac-Reach-UR10-Play
       - Manager Based
@@ -1060,11 +1033,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Reorient-Cube-Allegro-Direct-Warp-v0
-      -
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Reorient-Cube-Shadow-Camera-Direct
       - Isaac-Reorient-Cube-Shadow-Camera-Direct-Play
       - Direct
@@ -1111,36 +1079,16 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-AnymalB-Warp-v0
-      - Isaac-Velocity-Flat-AnymalB-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
-    * - Isaac-Velocity-Flat-AnymalC-Warp-v0
-      - Isaac-Velocity-Flat-AnymalC-Warp-Play-v0
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-AnymalD
       - Isaac-Velocity-Flat-AnymalD-Play
       - Manager Based
       - **rsl_rl** (PPO, DISTILLATION, DISTILLATION_RECURRENT, RECURRENT), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Velocity-Flat-AnymalD-Warp-v0
-      - Isaac-Velocity-Flat-AnymalD-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-Cassie
       - Isaac-Velocity-Flat-Cassie-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Cassie-Warp-v0
-      - Isaac-Velocity-Flat-Cassie-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-Digit
       - Isaac-Velocity-Flat-Digit-Play
       - Manager Based
@@ -1151,46 +1099,21 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-G1-Warp-v0
-      - Isaac-Velocity-Flat-G1-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-H1
       - Isaac-Velocity-Flat-H1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-H1-Warp-v0
-      - Isaac-Velocity-Flat-H1-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-Spot
       - Isaac-Velocity-Flat-Spot-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-UnitreeA1-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeA1-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      -
-    * - Isaac-Velocity-Flat-UnitreeGo1-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeGo1-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Flat-UnitreeGo2
       - Isaac-Velocity-Flat-UnitreeGo2-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-UnitreeGo2-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeGo2-Warp-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Velocity-Rough-AnymalD
       - Isaac-Velocity-Rough-AnymalD-Play
       - Manager Based
