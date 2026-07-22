@@ -593,6 +593,27 @@ def _physics_preset_name_deformable(physics_backend: str) -> str:
     return "newton_mjwarp_vbd" if physics_backend == "newton" else physics_backend
 
 
+def _supported_presets_for_concrete_physics(physics_cfg: Any) -> set[str]:
+    """Map a fixed (non-``PresetCfg``) physics cfg to Hydra preset names it can satisfy.
+
+    Returns an empty set when the concrete physics type is unrecognized.
+    """
+    supported_presets = set()
+
+    name = type(physics_cfg).__name__
+    if name == "NewtonCfg":
+        # Fixed Newton backends accept any newton_* Hydra label used by these tests.
+        supported_presets.add("newton")
+        supported_presets.add("newton_mjwarp")
+        supported_presets.add("newton_mjwarp_vbd")
+    if name == "PhysxCfg":
+        supported_presets.add("physx")
+    if name == "OvPhysxCfg":
+        supported_presets.add("ovphysx")
+
+    return supported_presets
+
+
 def _skip_if_physics_preset_unsupported(env_cfg: Any, physics_preset_name: str) -> None:
     """Skip the test when the env does not support the given physics preset.
 
@@ -1919,22 +1940,18 @@ def rendering_test_franka_pour(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend in ("physx", "ovphysx"):
-        pytest.skip("FrankaPour env cfg is Newton-only.")
-
     _skip_if_newton_motion_vectors(physics_backend, data_type)
-
-    import warp as wp
-
-    if not wp.is_cuda_available():
-        pytest.skip("FrankaPour rendering tests require a CUDA device.")
-
-    import isaaclab.sim as sim_utils
 
     from isaaclab_tasks.contrib.franka_pour.pour_env import FrankaPourEnv
 
     env_cfg = _make_franka_pour_camera_env_cfg(data_type)
-    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer}"])
+
+    # Skip if the physics preset is not supported by the env cfg.
+    physics_preset_name = _physics_preset_name(physics_backend)
+    if physics_preset_name not in _supported_presets_for_concrete_physics(env_cfg.sim.physics):
+        pytest.skip(f"FrankaPour env cfg does not support '{physics_preset_name}'.")
+
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
 
     env_cfg.scene.num_envs = 4
 
@@ -1944,17 +1961,19 @@ def rendering_test_franka_pour(
     test_name = "franka_pour"
     env = None
 
+    FRAMES_BEFORE_POURING_PARTICLES = 40
+
     try:
-        # Kit-based RTX tests need a fresh stage between parametrized cases. Kitless OVRTX uses a
-        # different USD bootstrap path and can segfault if we force-create a stage here.
-        if renderer == "isaacsim_rtx_renderer":
-            sim_utils.create_new_stage()
         env = FrankaPourEnv(env_cfg)
         env.sim._app_control_on_stop_handle = None
 
         _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
+
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        for _ in range(FRAMES_BEFORE_POURING_PARTICLES):
+            env.step(zero_actions)
 
         camera_outputs = env.scene.sensors["tiled_camera"].data.output
         validate_camera_outputs(
@@ -1966,21 +1985,21 @@ def rendering_test_franka_pour(
             comparison_scores=comparison_scores,
         )
 
-        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-        pour_frames = _pour_frame_count()
-        frame_images: list[Image.Image] = []
-        for step_index in range(pour_frames):
-            env.step(zero_actions)
-            frame_images = maybe_save_camera_frames(
-                test_name,
-                physics_backend,
-                renderer,
-                data_type,
-                env.scene.sensors["tiled_camera"].data.output,
-                step_index,
-                frame_images=frame_images,
-            )
-        maybe_write_pour_frame_gif(test_name, physics_backend, renderer, data_type, frame_images)
+        # zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        # pour_frames = 40
+        # frame_images: list[Image.Image] = []
+        # for step_index in range(pour_frames):
+        #     env.step(zero_actions)
+        #     frame_images = maybe_save_camera_frames(
+        #         test_name,
+        #         physics_backend,
+        #         renderer,
+        #         data_type,
+        #         env.scene.sensors["tiled_camera"].data.output,
+        #         step_index,
+        #         frame_images=frame_images,
+        #     )
+        # maybe_write_pour_frame_gif(test_name, physics_backend, renderer, data_type, frame_images)
     finally:
         if env is not None:
             env.close()

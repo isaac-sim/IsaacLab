@@ -30,12 +30,14 @@ if not _MISSING_MODULES:
     from isaaclab_newton.physics import NewtonManager  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
-    from ovrtx import DataAccess  # noqa: E402
+    from ovrtx import BindingFlag, DataAccess  # noqa: E402
 else:
     NewtonManager = None
     OVRTXRenderer = None
     OVRTXRendererCfg = None
     ovrtx_renderer_module = None
+    BindingFlag = None
+    DataAccess = None
 
 
 class _FakePointsBinding:
@@ -87,6 +89,9 @@ class _FakeOVRTXBackend:
     def write_attribute(self, **kwargs):
         self.writes.append(kwargs)
 
+    def write_array_attribute(self, **kwargs):
+        self.writes.append(kwargs)
+
 
 def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, _FakeOVRTXBackend]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
@@ -100,6 +105,7 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._particle_points_binding = None
     renderer._particle_visual_offsets = []
     renderer._particle_visual_counts = []
+    renderer._particle_workaround_applied = False
     return renderer, renderer._renderer
 
 
@@ -322,7 +328,7 @@ def test_update_geometries_rejects_inconsistent_deformable_mapping(monkeypatch: 
 
 
 def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pytest.MonkeyPatch):
-    """MPM particle visual prims create OVRTX ``points`` array bindings."""
+    """MPM particle visual prims create an OPTIMIZE ``points`` array binding."""
     renderer, backend = _make_renderer_without_backend()
     particle_visual_prims = {
         "/World/envs/env_0/Media/Particles": SimpleNamespace(offset=10, count=5),
@@ -339,7 +345,9 @@ def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pyte
         "/World/envs/env_1/Media/Particles",
     ]
     assert backend.calls[0]["attribute_name"] == "points"
+    assert backend.calls[0]["flags"] is BindingFlag.OPTIMIZE
     assert renderer._particle_points_binding is backend.bindings["points"]
+    assert renderer._particle_workaround_applied is False
     assert renderer._particle_visual_offsets == [10, 15]
     assert renderer._particle_visual_counts == [5, 5]
     assert len(backend.writes) == 2
@@ -360,12 +368,13 @@ def test_setup_particle_points_bindings_rejects_env_count_mismatch(monkeypatch: 
         renderer._setup_particle_points_bindings(num_envs=2)
 
 
-def test_update_particle_points_writes_host_particle_positions(monkeypatch: pytest.MonkeyPatch):
-    """MPM ``UsdGeom.Points`` clouds are written from host memory (OVRTX drops GPU point writes)."""
-    renderer, _backend = _make_renderer_without_backend()
+def test_update_particle_points_primes_with_host_sync_then_gpu_async(monkeypatch: pytest.MonkeyPatch):
+    """First MPM ``points`` update host-SYNC primes via binding; later frames use GPU ASYNC."""
+    renderer, backend = _make_renderer_without_backend()
     renderer._particle_points_binding = _FakePointsBinding("points")
     renderer._particle_visual_offsets = [2]
     renderer._particle_visual_counts = [2]
+    renderer._particle_workaround_applied = False
     particle_q = wp.array(
         [
             wp.vec3f(0.0, 0.0, 0.0),
@@ -378,31 +387,47 @@ def test_update_particle_points_writes_host_particle_positions(monkeypatch: pyte
     )
     monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(particle_q=particle_q)))
 
+    class _FakeStream:
+        cuda_stream = 42
+
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: _FakeStream())  # noqa: ARG005
+
+    renderer.update_geometries()
+
+    assert renderer._particle_workaround_applied is True
+    assert len(backend.writes) == 0
+    written = renderer._particle_points_binding.written
+    assert written is not None
+    assert len(written) == 1
+    assert isinstance(written[0], np.ndarray)
+    assert written[0].tolist() == [
+        [2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0],
+    ]
+    assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.SYNC
+    assert "cuda_stream" not in renderer._particle_points_binding.write_kwargs
+
     renderer.update_geometries()
 
     written = renderer._particle_points_binding.written
     assert written is not None
     assert len(written) == 1
-    # Host copy, not a view aliasing the GPU/Newton buffer.
-    assert isinstance(written[0], np.ndarray)
-    assert renderer._particle_points_binding.write_kwargs is not None
-    assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.SYNC
-    assert "cuda_stream" not in renderer._particle_points_binding.write_kwargs
-    assert written[0].tolist() == [
-        [2.0, 3.0, 4.0],
-        [5.0, 6.0, 7.0],
-    ]
+    assert written[0].ptr == particle_q[2:4].ptr
+    assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._particle_points_binding.write_kwargs["cuda_stream"] == 42
+    assert len(backend.writes) == 0
 
 
 def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytest.MonkeyPatch):
-    """Deformable mesh and MPM point bindings both receive the correct ``particle_q`` slices."""
-    renderer, _backend = _make_renderer_without_backend()
-    renderer._deformable_points_binding = _FakePointsBinding("points")
+    """Deformable mesh stays GPU ASYNC; MPM primes once with host SYNC then switches to ASYNC."""
+    renderer, backend = _make_renderer_without_backend()
+    renderer._deformable_points_binding = _FakePointsBinding("deformable_points")
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [2]
     renderer._particle_points_binding = _FakePointsBinding("points")
     renderer._particle_visual_offsets = [2]
     renderer._particle_visual_counts = [2]
+    renderer._particle_workaround_applied = False
     particle_q = wp.array(
         [
             wp.vec3f(0.0, 0.0, 0.0),
@@ -423,15 +448,24 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
     renderer.update_geometries()
 
     deformable_written = renderer._deformable_points_binding.written
-    particle_written = renderer._particle_points_binding.written
     assert deformable_written is not None
-    assert particle_written is not None
     assert len(deformable_written) == 1
-    assert len(particle_written) == 1
-    # Deformable meshes keep the zero-copy GPU path (view aliases ``particle_q``); MPM points are
-    # copied to host memory because OVRTX does not refresh point geometry from a GPU write.
     assert deformable_written[0].ptr == particle_q[0:2].ptr
     assert renderer._deformable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
-    assert isinstance(particle_written[0], np.ndarray)
+
+    assert renderer._particle_workaround_applied is True
+    assert len(backend.writes) == 0
+    mpm_written = renderer._particle_points_binding.written
+    assert mpm_written is not None
+    assert isinstance(mpm_written[0], np.ndarray)
+    assert mpm_written[0].tolist() == [[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]
     assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.SYNC
-    assert particle_written[0].tolist() == [[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]
+
+    renderer.update_geometries()
+
+    mpm_written = renderer._particle_points_binding.written
+    assert mpm_written is not None
+    assert len(mpm_written) == 1
+    assert mpm_written[0].ptr == particle_q[2:4].ptr
+    assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert len(backend.writes) == 0

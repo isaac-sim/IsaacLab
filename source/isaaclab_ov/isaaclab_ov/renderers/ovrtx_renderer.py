@@ -306,6 +306,7 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_points_binding = None
         self._particle_visual_offsets: list[int] = []
         self._particle_visual_counts: list[int] = []
+        self._particle_workaround_applied = False
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
@@ -422,13 +423,19 @@ class OVRTXRenderer(BaseRenderer):
         self._renderer.open_usd_from_string(combined_usd_string)
         logger.info("OVRTX loaded USD from string successfully")
 
+        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+
         if num_envs > 1:
             self._clone_sources_in_ovrtx()
             self._update_scene_partitions_after_clone(num_envs)
+            self._renderer.write_array_attribute(
+                prim_paths=[render_product_path],
+                attribute_name="camera",
+                tensors=[camera_paths],
+            )
 
         self._initialized_scene = True
 
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
         self._camera_xform_binding = self._renderer.bind_attribute(
             prim_paths=camera_paths,
             attribute_name="omni:xform",
@@ -739,8 +746,7 @@ class OVRTXRenderer(BaseRenderer):
             flags=BindingFlag.OPTIMIZE,
         )
 
-        if self._particle_points_binding is None:
-            raise RuntimeError("Failed to create OVRTX MPM particle point bindings")
+        self._particle_workaround_applied = False
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
@@ -816,7 +822,6 @@ class OVRTXRenderer(BaseRenderer):
         particle_q: wp.array,
         particle_offsets: list[int],
         particle_counts: list[int],
-        to_host: bool = False,
     ) -> None:
         """Write world-space ``particle_q`` slices into one OVRTX array-attribute binding.
 
@@ -825,23 +830,7 @@ class OVRTXRenderer(BaseRenderer):
             particle_q: Flat world-space particle positions [m], shape ``[total_particles]``.
             particle_offsets: Start index of each prim's slice into :paramref:`particle_q`.
             particle_counts: Number of particles in each prim's slice.
-            to_host: Copy the slices to host memory and write them synchronously. Required for
-                ``UsdGeom.Points`` prims, whose sphere geometry OVRTX does not refresh from a
-                GPU-buffer write. Meshes leave this ``False`` to keep the zero-copy GPU path.
         """
-        if to_host:
-            # ``numpy()`` copies device -> host and synchronizes the kernels that wrote
-            # ``particle_q``, so the host slices are complete before OVRTX reads them.
-            # ``DataAccess.SYNC`` is required because OVRTX rejects SYNC for GPU buffers and
-            # ASYNC would alias the freed host copy.
-            particle_q_host = particle_q.numpy()
-            host_slices = [
-                particle_q_host[particle_offset : particle_offset + particle_count]
-                for particle_offset, particle_count in zip(particle_offsets, particle_counts, strict=True)
-            ]
-            binding.write(cast(Any, host_slices), data_access=DataAccess.SYNC)
-            return
-
         particle_slices = [
             particle_q[particle_offset : particle_offset + particle_count]
             for particle_offset, particle_count in zip(particle_offsets, particle_counts, strict=True)
@@ -860,6 +849,24 @@ class OVRTXRenderer(BaseRenderer):
             data_access=DataAccess.ASYNC,
             cuda_stream=cuda_stream,
         )
+
+    def _apply_particle_workaround(self, particle_q: wp.array) -> None:
+        """Host-SYNC seed ``UsdGeom.Points`` so later GPU ASYNC writes can work correctly.
+
+        OVRTX does not initialize UsdGeom.Points prims from a GPU ASYNC ``points`` write as expected.
+        A host SYNC write + a renderer step call are needed to finish initialization; later frames
+        can then use zero-copy GPU ASYNC write with the same binding.
+
+        TODO: The workaround will be removed when OVRTX fixes the issue (OMPE-102610).
+        """
+        particle_q_host = particle_q.numpy()
+        host_slices = [
+            particle_q_host[particle_offset : particle_offset + particle_count]
+            for particle_offset, particle_count in zip(
+                self._particle_visual_offsets, self._particle_visual_counts, strict=True
+            )
+        ]
+        self._particle_points_binding.write(cast(Any, host_slices), data_access=DataAccess.SYNC)
 
     def update_geometries(self) -> None:
         """Sync deformable meshes and MPM particle points to OVRTX."""
@@ -888,16 +895,16 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         if self._particle_points_binding is not None:
-            # MPM clouds are ``UsdGeom.Points`` prims. OVRTX's GPU-buffer write path does not
-            # refresh point-sphere geometry (unlike deformable meshes, whose surface is topology
-            # defined), so the particles would silently vanish. Write from host memory instead.
-            self._write_particle_q_slices(
-                self._particle_points_binding,
-                particle_q,
-                self._particle_visual_offsets,
-                self._particle_visual_counts,
-                to_host=True,
-            )
+            if not self._particle_workaround_applied:
+                self._apply_particle_workaround(particle_q)
+                self._particle_workaround_applied = True
+            else:
+                self._write_particle_q_slices(
+                    self._particle_points_binding,
+                    particle_q,
+                    self._particle_visual_offsets,
+                    self._particle_visual_counts,
+                )
 
     def update_camera(
         self,
@@ -1337,6 +1344,7 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []
         self._particle_visual_counts = []
+        self._particle_workaround_applied = False
 
         if self._renderer:
             try:
