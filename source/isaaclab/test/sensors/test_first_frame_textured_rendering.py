@@ -14,10 +14,12 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest
 import torch
+from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg
 
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -71,6 +73,21 @@ def setup_sim(device):
     sim_utils.update_stage()
     yield sim, dt
     # Teardown
+    rep.vp_manager.destroy_hydra_textures("Replicator")
+    sim.stop()
+    sim.clear_instance()
+
+
+@pytest.fixture(scope="function")
+def setup_pose_sim(device):
+    """Set up a local-only RTX scene for the tensor-pose regression test."""
+    sim_utils.create_new_stage()
+    dt = 0.01
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=dt, device=device, gravity=(0.0, 0.0, 0.0)))
+    light_cfg = sim_utils.DomeLightCfg(intensity=DOME_LIGHT_INTENSITY, color=(1.0, 1.0, 1.0))
+    light_cfg.func("/World/Light", light_cfg)
+    sim_utils.update_stage()
+    yield sim, dt
     rep.vp_manager.destroy_hydra_textures("Replicator")
     sim.stop()
     sim.clear_instance()
@@ -137,6 +154,75 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     del camera
 
     _assert_first_frame_textured(first_frame, stable_frame)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+def test_tensor_pose_is_visible_in_first_camera_frame(setup_pose_sim, device):
+    """A tensor pose write after reset must be visible without a public physics step."""
+    sim, dt = setup_pose_sim
+    cube = RigidObject(
+        RigidObjectCfg(
+            prim_path="/World/Objects/MovingCube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=PhysxRigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=PhysxCollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(5.0, 0.0, 0.2)),
+        )
+    )
+    camera = Camera(
+        CameraCfg(
+            height=HEIGHT,
+            width=WIDTH,
+            offset=CameraCfg.OffsetCfg(pos=(0.5, 0.0, 2.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
+            prim_path="/World/PoseCamera",
+            update_period=0,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0,
+                focus_distance=400.0,
+                horizontal_aperture=20.955,
+                clipping_range=(0.1, 1.0e5),
+            ),
+        )
+    )
+
+    sim.reset()
+
+    root_pose = cube.data.default_root_pose.torch.clone()
+    root_pose[:, :3] = torch.tensor((0.5, 0.0, 0.2), device=sim.device)
+    cube.write_root_pose_to_sim_index(root_pose=root_pose)
+    sim.forward()
+
+    camera.update(dt)
+    first_frame = camera.data.output["rgb"].torch[0].clone().to(dtype=torch.float32)
+    first_frame_step = sim.get_physics_step_count()
+
+    sim.step()
+    camera.update(dt)
+    stable_frame = camera.data.output["rgb"].torch[0].clone().to(dtype=torch.float32)
+
+    def red_fraction(frame: torch.Tensor) -> float:
+        red, green, blue = frame.unbind(dim=-1)
+        red_pixels = (red > 40.0) & (red > 1.5 * green) & (red > 1.5 * blue)
+        return red_pixels.float().mean().item()
+
+    first_red_fraction = red_fraction(first_frame)
+    stable_red_fraction = red_fraction(stable_frame)
+
+    assert first_frame_step == 0
+    assert stable_red_fraction > 0.005, "The moved red cube is not visible in the stable reference frame."
+    assert first_red_fraction > 0.5 * stable_red_fraction, (
+        f"The tensor pose is stale in the first frame: first red fraction={first_red_fraction:.6f}, "
+        f"stable red fraction={stable_red_fraction:.6f}."
+    )
+
+    del camera
+    del cube
 
 
 """
