@@ -546,9 +546,11 @@ def run_simulation_loop(
     current_recorded_demo_count = 0
     success_step_count = 0
     should_reset_recording_instance = False
-    # With --xr, default to inactive until START is triggered. Without --xr,
-    # IsaacTeleop runs standalone (I/O only) and records immediately.
-    running_recording_instance = not args_cli.xr
+    # For IsaacTeleop or XR, default to inactive until START is triggered. Without
+    # --xr, recording is started locally (see ``request_start`` below) instead of by
+    # a headset; it flows through the same state machine so keyboard/host pause/resume
+    # keeps working.
+    running_recording_instance = not (args_cli.xr or use_isaac_teleop)
 
     # Callback closures for the teleop device
     def reset_recording_instance():
@@ -596,6 +598,22 @@ def run_simulation_loop(
         if _haptic_driver is not None:
             haptic_update, haptic_stop = _haptic_driver.update, _haptic_driver.stop
 
+    # Optional keyboard for headset-free IsaacTeleop control (start / pause / reset).
+    # Captured through the Kit app window, so only wired when a UI is present; a
+    # headless run still auto-starts in ``inner_loop``. Kept in a local so its carb
+    # input subscription is not garbage-collected.
+    control_keyboard = None
+    if use_isaac_teleop and not args_cli.headless:
+        try:
+            control_keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
+            control_keyboard.add_callback("B", teleop_interface.request_start)
+            control_keyboard.add_callback("P", teleop_interface.request_stop)
+            control_keyboard.add_callback("R", reset_recording_instance)
+            print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
+        except Exception as e:
+            logger.warning(f"Control keyboard unavailable ({e}); recording still auto-starts without --xr")
+            control_keyboard = None
+
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
 
@@ -609,6 +627,11 @@ def run_simulation_loop(
             env.sim.reset()
         env.reset()
         teleop_interface.reset()
+
+        # Without --xr there is no headset to send START, so drive the IsaacTeleop
+        # state machine to RUNNING locally ([B]/[P] can still pause/resume).
+        if use_isaac_teleop and not args_cli.xr:
+            teleop_interface.request_start()
 
         subtasks = {}
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"

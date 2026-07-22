@@ -381,6 +381,28 @@ class TeleopSessionLifecycle:
         else:
             self._pending_reset = True
 
+    def request_start(self) -> None:
+        """Locally drive the teleop state machine toward RUNNING (headset-free start).
+
+        Injects a ``"start"`` command into
+        :meth:`TeleopMessageProcessor.inject_command` so
+        :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`
+        transitions to RUNNING without an XR client. No-op when no control
+        pipeline is configured.
+        """
+        if self._message_processor is not None:
+            self._message_processor.inject_command("start")
+
+    def request_stop(self) -> None:
+        """Locally drive the teleop state machine to PAUSED (headset-free stop).
+
+        Injects a ``"stop"`` command into
+        :meth:`TeleopMessageProcessor.inject_command`. No-op when no control
+        pipeline is configured.
+        """
+        if self._message_processor is not None:
+            self._message_processor.inject_command("stop")
+
     # ------------------------------------------------------------------
     # Lifecycle: start / stop
     # ------------------------------------------------------------------

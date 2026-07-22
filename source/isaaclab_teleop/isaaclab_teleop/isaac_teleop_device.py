@@ -242,6 +242,25 @@ class IsaacTeleopDevice:
         self._session_lifecycle.request_reset()
         self._session_lifecycle.reset_haptics()
 
+    def request_start(self) -> None:
+        """Start teleoperation without an XR client.
+
+        Drives the internal teleop state machine toward RUNNING (see
+        :meth:`TeleopSessionLifecycle.request_start`). Useful for headless or
+        keyboard-driven control when no headset UI is available to send START.
+        No-op when no control channel is configured.
+        """
+        self._session_lifecycle.request_start()
+
+    def request_stop(self) -> None:
+        """Stop (pause) teleoperation without an XR client.
+
+        Drives the internal teleop state machine to PAUSED (see
+        :meth:`TeleopSessionLifecycle.request_stop`). No-op when no control
+        channel is configured.
+        """
+        self._session_lifecycle.request_stop()
+
     @property
     def last_control_events(self) -> ControlEvents:
         """Control events from the most recent :meth:`advance`.

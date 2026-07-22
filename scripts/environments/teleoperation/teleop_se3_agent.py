@@ -169,6 +169,42 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     return driver.update, driver.stop
 
 
+def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, headless: bool, reset_cb: Callable[[], None]):
+    """Create an optional keyboard for headset-free IsaacTeleop control.
+
+    Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
+    the teleop state machine without an XR headset. Keys are captured through the Kit
+    app window, so this returns ``None`` when running headless or when IsaacTeleop is
+    not the active stack (a headless run still auto-starts teleop). The returned
+    device must be kept referenced by the caller so its carb input subscription
+    survives.
+    """
+    if not use_isaac_teleop or headless:
+        return None
+    try:
+        keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
+        keyboard.add_callback("B", teleop_interface.request_start)
+        keyboard.add_callback("P", teleop_interface.request_stop)
+        keyboard.add_callback("R", reset_cb)
+        print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
+        return keyboard
+    except Exception as e:
+        logger.warning(f"Control keyboard unavailable ({e}); teleop still auto-starts without --xr")
+        return None
+
+
+def _auto_start_teleop(teleop_interface, use_isaac_teleop: bool, xr: bool) -> None:
+    """Start IsaacTeleop locally when no XR headset will send START.
+
+    Without ``--xr`` there is no client to START the session, so drive its state
+    machine to RUNNING via :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start`.
+    The command flows through the normal state machine, so keyboard pause/resume
+    still works afterwards. No-op with ``--xr`` or for non-IsaacTeleop devices.
+    """
+    if use_isaac_teleop and not xr:
+        teleop_interface.request_start()
+
+
 def main() -> None:
     """
     Run teleoperation with an Isaac Lab manipulation environment.
@@ -277,12 +313,14 @@ def main() -> None:
         "RESET": reset_recording_instance,
     }
 
-    # With --xr, XR devices (hand tracking or IsaacTeleop) default to inactive
-    # until START is received. Without --xr, IsaacTeleop runs standalone (I/O
-    # only) and is active immediately, like any other input device.
-    if args_cli.xr:
+    # For XR devices (hand tracking or IsaacTeleop), default to inactive. Without
+    # --xr, teleop is started locally (see ``request_start`` below) rather than by
+    # a headset, so it still begins running -- but it flows through the same state
+    # machine, so keyboard/host pause/resume keeps working.
+    if use_isaac_teleop or args_cli.xr:
         teleoperation_active = env_cfg.isaac_teleop.teleoperation_active_default if use_isaac_teleop else False
     else:
+        # Always active for other devices
         teleoperation_active = True
 
     # Create teleop device based on configuration
@@ -356,6 +394,13 @@ def main() -> None:
     # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
     haptic_update, haptic_stop = _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop)
 
+    # Optional keyboard for headset-free IsaacTeleop control. Kept in a local so its
+    # carb input subscription is not garbage-collected; a headless run auto-starts
+    # (in ``run_loop``) without it.
+    control_keyboard = _make_control_keyboard(  # noqa: F841
+        teleop_interface, use_isaac_teleop, args_cli.headless, reset_recording_instance
+    )
+
     def run_loop():
         """Inner function to run the teleop loop with access to nonlocal variables."""
         nonlocal should_reset_recording_instance, teleoperation_active
@@ -363,6 +408,10 @@ def main() -> None:
         # reset environment
         env.reset()
         teleop_interface.reset()
+
+        # Without --xr there is no headset to send START, so start locally; the
+        # [B]/[P] keys can still pause/resume afterwards.
+        _auto_start_teleop(teleop_interface, use_isaac_teleop, args_cli.xr)
 
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
         print(f"{stack_name} teleoperation started. Press 'R' to reset the environment.")
