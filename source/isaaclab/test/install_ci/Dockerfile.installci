@@ -115,5 +115,5 @@ RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkg
 WORKDIR ${ISAACLAB_PATH}
 
 # Run all installation CI tests by default
-ENTRYPOINT ["python", "-m", "pytest", "-c", "tests/integration/install_ci/pytest.ini", "tests/integration/install_ci"]
+ENTRYPOINT ["python", "-m", "pytest", "-c", "source/isaaclab/test/install_ci/pytest.ini", "source/isaaclab/test/install_ci"]
 CMD ["-v", "--tb=short"]

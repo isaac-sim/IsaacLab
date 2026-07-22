@@ -5,7 +5,7 @@
 
 name: 'Run Installation CI Tests'
 description: >
-  Runs the install_ci suite (tests/integration/install_ci/) inside the
+  Runs the install_ci suite (source/isaaclab/test/install_ci/) inside the
   project's Docker harness via tools/run_install_ci.py and writes JUnit XML
   to <workspace>/results/results.xml.
 
