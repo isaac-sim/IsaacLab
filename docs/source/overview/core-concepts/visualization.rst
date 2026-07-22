@@ -590,7 +590,8 @@ server, allowing you to view and interact with the scene from any browser.
 - Optional public share URL for remote viewing
 - Recording to ``.viser`` format for replay
 - Environment filtering to control which environments are rendered
-- Visualization debug markers
+- Visualization debug markers (joints, contacts, center of mass, particles, and more — toggled
+  from the **Isaac Lab → Visualization Markers** sidebar panel)
 
 .. important::
 

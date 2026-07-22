@@ -91,21 +91,14 @@ class VisualizerCfg:
 
     # Live Plots
     enable_live_plots: bool = True
-    """Enable live plotting of manager terms (actions, observations) in the visualizer.
+    """Stream per-step scalar data (manager terms, episode reward, episode length) into the visualizer.
 
-    When ``True``, manager-based environments wire their action and observation managers
-    into the visualizer each step.  Disabled by default to avoid overhead during headless
-    training runs.
+    Plot windows start hidden or collapsed by default and can be toggled open at runtime.
+    Set to ``False`` to disable live plots entirely and avoid any collection overhead.
     """
 
     live_plots_update_interval: int = 5
-    """How often (in simulation steps) to collect and push live plot data.
-
-    Collecting manager terms every step is expensive for high-dimensional managers
-    (observations, actions).  Setting this to ``N`` means plots update once every
-    ``N`` simulation steps — no visible quality loss on slowly-changing curves while
-    reducing scalar-collection CPU cost by ~N×.
-    """
+    """Collect and push live plot data every ``N`` simulation steps (default: every 5 steps)."""
 
     # Internal
     visualizer_type: str | None = None
