@@ -38,11 +38,17 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
            --num_envs=4096 \
            physics=newton_mjwarp --visualizer newton
 
-         # With Isaac Sim: PhysX
+         # Automatic PhysX-family selection: OvPhysX unless Kit is requested
          ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=physx
+
+         # Force Isaac Sim PhysX with the Kit visualizer
+         ./isaaclab.sh train --rl_library rsl_rl \
+           --task=Isaac-Cartpole-Direct \
+           --num_envs=4096 \
+           physics=isaacsim_physx --visualizer kit
 
          # Camera task: physics + renderer + domain preset
          ./isaaclab.sh train --rl_library rsl_rl \
@@ -74,7 +80,8 @@ Available Presets
 
 **Physics backends** (``physics=NAME``):
 
-- ``physx`` — PhysX via Isaac Sim (default when no selector is given)
+- ``physx`` — automatic PhysX-family selection: Isaac Sim PhysX when a Kit renderer or Kit viewer is requested, otherwise OvPhysX
+- ``isaacsim_physx`` — force PhysX via Isaac Sim / Kit
 - ``newton_mjwarp`` — Newton with the MuJoCo-Warp solver
 - ``newton_kamino`` — Newton with the Kamino solver (beta, limited tasks)
 - ``ovphysx`` — OV PhysX (kit-less; incompatible with ``--visualizer kit``)
@@ -91,9 +98,9 @@ Available Presets
 
 Use ``renderer=rtx`` for automatic RTX selection on tasks that expose the
 multi-backend renderer selector. The selection follows the runtime: it uses
-Isaac Sim RTX when the run needs Isaac Sim/Kit, such as ``physics=physx`` or
-``--visualizer kit``, and uses OVRTX when the run is fully kit-less. For example,
-``physics=ovphysx renderer=rtx`` selects OVRTX;
+Isaac Sim RTX when the run needs Isaac Sim/Kit, such as ``physics=isaacsim_physx``
+or ``--visualizer kit``, and uses OVRTX when the run is fully kit-less. For example,
+``physics=physx renderer=rtx`` selects OvPhysX + OVRTX unless a Kit viewer is requested.
 
 Common combinations:
 
@@ -102,9 +109,10 @@ Common combinations:
    physics=newton_mjwarp renderer=newton_renderer presets=rgb
    physics=newton_mjwarp renderer=newton_renderer presets=depth
    physics=newton_mjwarp renderer=rtx presets=rgb
-   physics=physx renderer=isaacsim_rtx_renderer presets=rgb
-   physics=physx renderer=isaacsim_rtx_renderer presets=depth
-   physics=physx renderer=isaacsim_rtx_renderer presets=albedo
+   physics=physx renderer=rtx presets=rgb
+   physics=isaacsim_physx renderer=isaacsim_rtx_renderer presets=rgb
+   physics=isaacsim_physx renderer=isaacsim_rtx_renderer presets=depth
+   physics=isaacsim_physx renderer=isaacsim_rtx_renderer presets=albedo
    physics=newton_mjwarp renderer=ovrtx_renderer presets=rgb
    physics=newton_mjwarp renderer=ovrtx_renderer presets=simple_shading_diffuse_mdl
 
