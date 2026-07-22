@@ -141,59 +141,65 @@ class InteractiveSceneCfg:
 
 
 def add(
-    this: InteractiveSceneCfg,
-    other: InteractiveSceneCfg,
+    target: InteractiveSceneCfg,
+    source: InteractiveSceneCfg,
     *,
     asset_skip: Callable[[AssetBaseCfg], bool] | None = None,
 ) -> InteractiveSceneCfg:
-    """Fold another scene's environment assets into ``this`` as a new clone combination.
+    """Fold the source scene's environment assets into ``target`` as a new clone combination.
 
-    ``this`` accumulates the fold: it keeps its execution settings and clone
-    combinations, gains the added scene's assets, and is returned. Both scenes
+    ``target`` accumulates the fold: it keeps its execution settings and clone
+    combinations, gains the source scene's assets, and is returned. Both scenes
     contribute spawned :class:`~isaaclab.assets.AssetBaseCfg` fields at literal
     ``{ENV_REGEX_NS}/Leaf`` roots. An asset equal to an existing binding reuses
     it (each binding at most once per call); other assets receive a unique field
     name and prim path. Sensors, terrain importers, rigid-object collections,
-    and spawnless assets do not participate and are cleared from ``this``.
+    and spawnless assets do not participate and are cleared from ``target``.
     Global assets are not composed: skip them with :paramref:`asset_skip` and
     attach shared world assets after the fold. Both operands are consumed.
 
     Args:
-        this: Scene that accumulates the fold.
-        other: Scene whose environment assets are added. It must not declare
+        target: Scene that accumulates the fold.
+        source: Scene whose environment assets are added. It must not declare
             clone combinations of its own.
         asset_skip: Optional predicate called with each spawned asset
             configuration. An asset is omitted when the predicate returns
             :data:`True`. The predicate must not mutate the configuration.
 
     Returns:
-        ``this``, extended with the added scene's assets and one new clone combination.
+        ``target``, extended with the source scene's assets and one new clone combination.
 
     Raises:
         ValueError: If a scene has no environment asset or an asset root is
             global or malformed, or if the added scene declares clone combinations.
     """
-    if other.clone_cfg.clone_combinations:
+    if source.clone_cfg.clone_combinations:
         raise ValueError("the added scene must not declare clone combinations; fold it as the base scene instead.")
 
-    left, right = _scene_assets(this, asset_skip), _scene_assets(other, asset_skip)
-    if not left or not right:
+    target_assets = _scene_assets(target, asset_skip)
+    source_assets = _scene_assets(source, asset_skip)
+    if not target_assets or not source_assets:
         raise ValueError("both scenes must contain at least one spawned environment asset.")
 
-    # ``this`` accumulates only the participating assets: clear everything else
-    base_fields, left_names = InteractiveSceneCfg.__dataclass_fields__, {name for name, _ in left}
-    for name in [n for n, v in vars(this).items() if n not in base_fields and v is not None and n not in left_names]:
-        setattr(this, name, None)
+    # ``target`` accumulates only the participating assets: clear everything else
+    base_fields = InteractiveSceneCfg.__dataclass_fields__
+    target_names = {name for name, _ in target_assets}
+    for name in [
+        n for n, v in vars(target).items() if n not in base_fields and v is not None and n not in target_names
+    ]:
+        setattr(target, name, None)
 
     # an empty clone configuration is homogeneous: make the base combination explicit
-    if not this.clone_cfg.clone_combinations:
-        clone_add(this.clone_cfg, InclusionSet(assets=[name for name, _ in left]))
+    if not target.clone_cfg.clone_combinations:
+        clone_add(target.clone_cfg, InclusionSet(assets=[name for name, _ in target_assets]))
 
     # a duplicate is an asset equal to an existing binding; each binding is
     # reused at most once per call so distinct twins survive
-    available, right_names, used_names = dict(left), [], set(dir(this))
-    paths = {cfg.prim_path for _, cfg in left}
-    for source_name, cfg in right:
+    available = dict(target_assets)
+    added_names: list[str] = []
+    used_names = set(dir(target))
+    paths = {cfg.prim_path for _, cfg in target_assets}
+    for source_name, cfg in source_assets:
         target_name = next((name for name, existing in available.items() if existing == cfg), None)
         if target_name is not None:
             del available[target_name]
@@ -201,13 +207,13 @@ def add(
             target_name = find_unique_string_name(source_name, lambda name: name not in used_names)
             if cfg.prim_path in paths:
                 cfg = cfg.replace(prim_path=find_unique_string_name(cfg.prim_path, lambda path: path not in paths))
-            setattr(this, target_name, cfg)
+            setattr(target, target_name, cfg)
             used_names.add(target_name)
             paths.add(cfg.prim_path)
-        right_names.append(target_name)
+        added_names.append(target_name)
 
-    clone_add(this.clone_cfg, InclusionSet(assets=list(dict.fromkeys(right_names))))
-    return this
+    clone_add(target.clone_cfg, InclusionSet(assets=list(dict.fromkeys(added_names))))
+    return target
 
 
 def _scene_assets(
