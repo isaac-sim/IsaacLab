@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Velocity-tracking walk environment for the Disney DR Legs closed-loop biped (Kamino).
+"""Velocity-tracking walk environment for the Disney DR Legs closed-loop biped.
 
 Extends the hold-pose task with a base-velocity command, a gait-phase clock, a foot
 contact sensor, and gait / contact / foot-clearance rewards.
@@ -12,6 +12,7 @@ contact sensor, and gait / contact / foot-clearance rewards.
 import math
 
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
+from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -19,6 +20,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
+from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.dr_legs import DR_LEGS_ACTUATED_JOINTS
 
@@ -40,12 +42,25 @@ _FOOT_SENSOR_CFG = SceneEntityCfg("contact_forces", body_names=["foot_l", "foot_
 
 
 @configclass
-class WalkSceneCfg(HoldPoseSceneCfg):
-    contact_forces = NewtonContactSensorCfg(
+class DrLegsContactSensorCfg(PresetCfg):
+    """Backend-specific foot contact sensor configuration."""
+
+    default = NewtonContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
         history_length=3,
         track_air_time=True,
     )
+    newton_kamino = default
+    physx = PhysXContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
+        history_length=3,
+        track_air_time=True,
+    )
+
+
+@configclass
+class WalkSceneCfg(HoldPoseSceneCfg):
+    contact_forces = DrLegsContactSensorCfg()
 
 
 @configclass
@@ -143,7 +158,7 @@ class WalkRewardsCfg:
 
 @configclass
 class DrLegsWalkEnvCfg(DrLegsHoldPoseEnvCfg):
-    """DR Legs velocity-tracking walk environment (Newton/Kamino backend)."""
+    """DR Legs velocity-tracking walk environment."""
 
     scene: WalkSceneCfg = WalkSceneCfg(num_envs=4096, env_spacing=2.0)
     observations: WalkObservationsCfg = WalkObservationsCfg()
