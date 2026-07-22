@@ -19,9 +19,5 @@ Fixed
 * Fixed training benchmarks to reject warm-up settings that leave no measured
   steps, omit unavailable timing after early stopping, and close environments
   when training or result processing fails.
-
-* Fixed environment-step timing setup to restore partially installed wrappers
-  when setup fails.
-
 * Fixed effective throughput metrics to report the conventional sample standard
   deviation of observed rates.
