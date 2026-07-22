@@ -455,6 +455,11 @@ def launch_simulation(
     if not needs_kit:
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
+    if needs_kit and config_scan.has_kit_camera and launcher_args is not None:
+        if not _get_arg(launcher_args, "enable_cameras", False):
+            logger.info("Auto-enabling camera rendering because the scene contains Kit camera sensors.")
+            _set_arg(launcher_args, "enable_cameras", True)
+
     # Resolve distributed device early, before AppLauncher or physics init.
     _resolve_distributed_device(effective_cfg, launcher_args)
 
