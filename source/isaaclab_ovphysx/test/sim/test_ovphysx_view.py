@@ -18,6 +18,8 @@ that adopt this view as ``root_view``; it is not (and is not meant to be) re-cov
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pytest
 
@@ -38,6 +40,7 @@ from isaaclab_ovphysx.sim.views.ovphysx_view import (  # noqa: E402
 from ovphysx.types import TensorType  # noqa: E402
 
 wp.init()
+wp.set_device("cpu")
 _HAS_CUDA = wp.get_cuda_device_count() > 0
 
 # Per-type shapes used by the fakes (only the types touched by the tests).
@@ -46,6 +49,25 @@ _SHAPES = {
     TensorType.RIGID_BODY_VELOCITY: lambda n: (n, 6),
     TensorType.RIGID_BODY_MASS: lambda n: (n,),  # CPU-only
     TensorType.RIGID_BODY_ACCELERATION: lambda n: (n, 6),  # read-only
+    TensorType.DEFORMABLE_SIM_ELEMENT_INDICES: lambda n: (n, 1),
+    TensorType.RIGID_BODY_DISABLE_SIMULATION: lambda n: (n, 1),
+}
+
+
+@dataclass(frozen=True)
+class _FakeDtype:
+    code: int
+    bits: int
+    lanes: int = 1
+
+
+_FLOAT32 = _FakeDtype(code=2, bits=32)
+_INT32 = _FakeDtype(code=0, bits=32)
+_UINT8 = _FakeDtype(code=1, bits=8)
+
+_DTYPES = {
+    TensorType.DEFORMABLE_SIM_ELEMENT_INDICES: _INT32,
+    TensorType.RIGID_BODY_DISABLE_SIMULATION: _UINT8,
 }
 
 
@@ -55,6 +77,7 @@ class _FakeBinding:
     def __init__(self, tensor_type, n: int):
         self.tensor_type = tensor_type
         self.shape = _SHAPES.get(tensor_type, lambda k: (k, 1))(n)
+        self.dtype = _DTYPES.get(tensor_type, _FLOAT32)
         self.count = n
         self.prim_paths = [f"/World/env_{i}/body" for i in range(n)]
         self.dof_names: list[str] = []
@@ -184,6 +207,40 @@ def test_eager_default_sweep_empty_view_raises():
 # -----------------------------------------------------------------------------
 # get_attribute / read_into
 # -----------------------------------------------------------------------------
+
+
+def test_get_attribute_uses_binding_reported_int32_dtype():
+    view = _make_view(n=2)
+    values = view.get_attribute(TensorType.DEFORMABLE_SIM_ELEMENT_INDICES)
+    assert values.dtype == wp.int32
+    assert tuple(values.shape) == (2, 1)
+
+
+def test_get_attribute_uses_binding_reported_uint8_dtype():
+    view = _make_view(n=2)
+    values = view.get_attribute(TensorType.RIGID_BODY_DISABLE_SIMULATION)
+    assert values.dtype == wp.uint8
+
+
+def test_int32_binding_accepts_int32_and_rejects_float32():
+    view = _make_view(n=2)
+    view.read_into(
+        TensorType.DEFORMABLE_SIM_ELEMENT_INDICES,
+        wp.zeros((2, 1), dtype=wp.int32),
+    )
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="int32"):
+        view.read_into(
+            TensorType.DEFORMABLE_SIM_ELEMENT_INDICES,
+            wp.zeros((2, 1), dtype=wp.float32),
+        )
+
+
+def test_missing_or_unsupported_binding_dtype_raises_compatibility_error():
+    view = _make_view(n=1)
+    binding = view.binding_for(TensorType.RIGID_BODY_MASS)
+    binding.dtype = _FakeDtype(code=2, bits=64)
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="DLPack"):
+        view.get_attribute(TensorType.RIGID_BODY_MASS)
 
 
 def test_get_attribute_allocates_fresh_typed_buffer_each_call():
