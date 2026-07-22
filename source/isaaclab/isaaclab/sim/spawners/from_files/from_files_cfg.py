@@ -56,7 +56,8 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     prim carries it. Defaults to False. The flag applies to every entry of the
     :attr:`articulation_props` mapping.
 
-    Creation requires exactly one matched prim lacking the API. Only consumed when
+    Creation applies to every matched prim lacking the API; when enabling this, narrow the
+    pattern -- typically ``{"": [...]}`` to anchor the spawn prim itself. Only consumed when
     :attr:`articulation_props` is given as fragments.
     """
 

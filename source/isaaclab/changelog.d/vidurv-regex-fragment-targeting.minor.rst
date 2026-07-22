@@ -36,3 +36,12 @@ Changed
 * **Breaking:** Changed :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
   to author on every matched articulation root, warning when they nest, instead of
   silently pruning nested roots; asset validity is the author's responsibility.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.sim.schemas.apply_rigid_body_properties` and
+  :func:`~isaaclab.sim.schemas.apply_mass_properties` only reaching the outermost
+  schema-bearing prim on assets with nested rigid-body hierarchies (child links authored
+  under their parent link prims, as produced by the URDF importer in Isaac Sim 6.0 and
+  later). A whole-subtree target pattern (``{"**": [...]}``) reaches every carrier.

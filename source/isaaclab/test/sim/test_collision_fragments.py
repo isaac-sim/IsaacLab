@@ -237,3 +237,26 @@ def test_public_imports():
         apply_collision_properties,
         apply_namespaced,
     )
+
+
+def test_collision_fragments_create_on_every_matched_prim():
+    """Creation applies ``CollisionAPI`` to every matched prim lacking it."""
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+
+    from isaaclab.sim.schemas import apply_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
+        UsdGeom.Xform.Define(stage, path)
+
+    result = apply_collision_properties(
+        "/World/Grp/**", [PhysxCollisionCfg(contact_offset=0.02)], create_if_missing=True, stage=stage
+    )
+
+    assert result is True
+    for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
+        prim = stage.GetPrimAtPath(path)
+        assert prim.HasAPI(UsdPhysics.CollisionAPI), path
+        assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02), path

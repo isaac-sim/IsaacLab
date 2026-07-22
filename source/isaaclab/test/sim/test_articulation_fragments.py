@@ -777,3 +777,29 @@ def test_public_imports():
         SchemaFragment,
         apply_articulation_root_properties,
     )
+
+
+def test_apply_articulation_root_properties_creates_on_every_matched_prim():
+    """Creation applies the root API to every matched sibling prim; the expression is trusted."""
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Rig")
+    left = UsdGeom.Xform.Define(stage, "/World/Rig/armL").GetPrim()
+    right = UsdGeom.Xform.Define(stage, "/World/Rig/armR").GetPrim()
+
+    result = apply_articulation_root_properties(
+        "/World/Rig/.*",
+        [PhysxArticulationCfg(solver_position_iteration_count=8)],
+        stage=stage,
+        create_if_missing=True,
+    )
+
+    assert result is True
+    for prim in (left, right):
+        assert prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+        assert prim.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 8
