@@ -620,6 +620,8 @@ def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path)
     fake_pxr.Plug = SimpleNamespace(Registry=lambda: registry)
     fake_ovphysx = ModuleType("ovphysx")
     fake_ovphysx.__file__ = str(tmp_path / "ovphysx" / "__init__.py")
+    deformable_schema_path = tmp_path / "ovphysx" / "plugins" / "usd" / "OmniUsdPhysicsDeformableSchema" / "resources"
+    deformable_schema_path.mkdir(parents=True)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
     monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
 
@@ -631,7 +633,39 @@ def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path)
         OvPhysxManager._physx_schemas_registered = previous
 
     assert registry.get_all_calls == 1
-    assert registry.registered_paths == []
+    assert registry.registered_paths == [str(deformable_schema_path)]
+
+
+def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
+    """Creating an eager preset alternative leaves global USD plugins unchanged."""
+    from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
+
+    calls = []
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_ensure_physx_schemas_registered",
+        classmethod(lambda cls: calls.append(cls)),
+    )
+
+    OvPhysxCfg()
+
+    assert calls == []
+
+
+def test_ovphysx_manager_registers_schemas_during_pre_stage_setup(monkeypatch):
+    """The selected OvPhysX manager registers schemas in its pre-stage hook."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    calls = []
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_ensure_physx_schemas_registered",
+        classmethod(lambda cls: calls.append(cls)),
+    )
+
+    OvPhysxManager._prepare_stage_creation()
+
+    assert calls == [OvPhysxManager]
 
 
 def _make_stub_binding(prim_paths: list[str]) -> SimpleNamespace:

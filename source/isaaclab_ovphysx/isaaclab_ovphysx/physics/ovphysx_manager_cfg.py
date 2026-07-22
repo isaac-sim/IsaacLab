@@ -22,6 +22,12 @@ class OvPhysxCfg(PhysicsCfg):
 
     class_type = "{DIR}.ovphysx_manager:OvPhysxManager"
 
+    def __post_init__(self) -> None:
+        """Register OvPhysX USD schemas before any simulation stage is created."""
+        from .ovphysx_manager import OvPhysxManager  # noqa: PLC0415
+
+        OvPhysxManager._ensure_physx_schemas_registered()
+
     enable_enhanced_determinism: bool = False
     """Enable/disable improved determinism at the expense of performance. Defaults to False.
 
