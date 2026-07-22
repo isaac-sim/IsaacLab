@@ -77,10 +77,11 @@ class _FakeBinding:
         self.last_indices: wp.array | None = None
         self.last_mask: wp.array | None = None
         self.last_values: wp.array | None = None
+        self.last_read_values: wp.array | None = None
         self.destroyed = False
 
     def read(self, values: wp.array) -> None:
-        pass
+        self.last_read_values = values
 
     def write(self, values: wp.array, indices: wp.array | None = None, mask: wp.array | None = None) -> None:
         self.last_values = values
@@ -133,6 +134,21 @@ def test_body_view_forwards_full_buffer_indices_and_masks():
     assert binding.last_indices is indices
     view.set_simulation_nodal_positions(values, mask=mask)
     assert binding.last_mask is mask
+
+
+def test_body_view_reads_positions_and_velocities_into_caller_buffers():
+    physx = _FakePhysX()
+    view = OvPhysxDeformableBodyView(physx, "/World/env_*/Soft", "cpu", "volume")
+    positions = wp.zeros((2, 5, 3), dtype=wp.float32)
+    velocities = wp.zeros((2, 5, 3), dtype=wp.float32)
+
+    assert view.read_simulation_nodal_positions_into(positions) is None
+    assert view.read_simulation_nodal_velocities_into(velocities) is None
+
+    position_binding = physx.bindings[TensorType.DEFORMABLE_SIM_NODAL_POSITION]
+    velocity_binding = physx.bindings[TensorType.DEFORMABLE_SIM_NODAL_VELOCITY]
+    assert position_binding.last_read_values is positions
+    assert velocity_binding.last_read_values is velocities
 
 
 def test_body_view_converts_torch_state_and_target_inputs():
