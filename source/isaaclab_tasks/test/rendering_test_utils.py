@@ -1524,7 +1524,7 @@ def rendering_test_franka_cloth(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.core.lift.config.franka_soft.franka_camera_env_cfg import FrankaClothCameraEnvCfg
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothCameraEnvCfg
 
     env_cfg = FrankaClothCameraEnvCfg()
 
@@ -1591,7 +1591,7 @@ def rendering_test_franka_soft(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.core.lift.config.franka_soft.franka_camera_env_cfg import FrankaSoftCameraEnvCfg
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftCameraEnvCfg
 
     env_cfg = FrankaSoftCameraEnvCfg()
 

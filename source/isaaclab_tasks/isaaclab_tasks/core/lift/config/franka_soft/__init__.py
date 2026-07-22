@@ -36,7 +36,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.franka_camera_env_cfg:FrankaSoftCameraEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.franka_soft_env_cfg:FrankaSoftCameraEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaDeformableCameraPPORunnerCfg",
     },
 )
@@ -46,7 +46,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.franka_camera_env_cfg:FrankaClothCameraEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.franka_cloth_env_cfg:FrankaClothCameraEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaDeformableCameraPPORunnerCfg",
     },
 )
