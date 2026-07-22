@@ -91,8 +91,9 @@ exercise additional Isaac Lab parameters in the current scope, so they are not p
 | Shape transform relative to body | Contact fixtures use transforms; Kamino notify test maps storage | Storage/notification only for parameter variation | Add first-contact or resting-pose control pair |
 | Shape scale or dimensions | Contact fixtures use dimensions; Kamino notify maps scale | Storage/notification only for parameter variation | Add known contact-time or resting-height response |
 | Collision radius | Kamino notify mapping | Storage/notification only | Add paired first-contact-distance response |
-| Static friction | Inclined-plane threshold using Newton's combined `mu` | Analytical for a combined Coulomb coefficient | Verify each backend's static/dynamic material mapping separately |
-| Dynamic friction | Stopping distance using Newton's combined `mu` | Analytical for a combined Coulomb coefficient | Verify distinct dynamic-friction behavior where exposed |
+| Combined contact friction `mu` | Inclined-plane threshold and stopping distance using Newton's `shape_material_mu` | Analytical Coulomb coefficient on MJWarp; Kamino supports combined contact `mu` | Add Isaac Lab `MAT-03` coverage through USD, Python, and runtime paths on both Newton backends; each backend requires both `FIX-FRICTION-STATIC` and `FIX-FRICTION-DYNAMIC` |
+| Static friction (PhysX) | Inclined-plane threshold | Analytical where distinct static coefficient is exposed | Exercise PhysX `MAT-01` through all authoring paths |
+| Dynamic friction (PhysX) | Stopping distance | Analytical where distinct dynamic coefficient is exposed | Exercise PhysX `MAT-02` through all authoring paths |
 | Restitution | Sphere rebound | Analytical for XPBD and Kamino ([newton-physics/newton#3588](https://github.com/newton-physics/newton/pull/3588)); behavioral MuJoCo control | Add Isaac Lab `FIX-RESTITUTION` coverage through USD, Python, and runtime paths |
 | Contact margin | Kamino notify and contact-geometry tests | Storage/notification or geometry only | Add slow-approach first-contact response |
 | Contact gap | Kamino notify and contact-geometry tests | Storage/notification or geometry only | Add slow-approach first-contact response |
@@ -148,6 +149,7 @@ The property mapping and runtime behavior below are based on
   - Transform is stored in `shape_transform`.
   - Scale is stored in `shape_scale`.
   - Collision radius is stored in `shape_collision_radius`.
+  - Combined contact friction is stored in `shape_material_mu`.
   - Contact margin and gap are stored in `shape_margin` and `shape_gap`.
 - Joint geometry: parent and child frames are stored in `joint_X_p` and `joint_X_c`.
 - Joint degree-of-freedom properties:
@@ -159,7 +161,9 @@ The property mapping and runtime behavior below are based on
 - Actuator target mode is stored in `joint_target_mode`.
 
 The Kamino notify test establishes aliasing or refresh behavior for shape transform, scale, collision radius,
-margin, and gap. It does not by itself establish Kamino support for friction. Kamino restitution is covered
+margin, and gap. It does not by itself establish Isaac Lab black-box coverage for combined contact `mu`
+(`MAT-03`); Kamino applies `shape_material_mu` in its contact model and the planned friction fixtures should
+validate both the inclined-plane threshold and stopping-distance responses. Kamino restitution is covered
 upstream by the rebound-height verification in
 [newton-physics/newton#3588](https://github.com/newton-physics/newton/pull/3588); positive contact gap remains
 tracked separately in [vastsoun/newton#375](https://github.com/vastsoun/newton/issues/375).
@@ -186,9 +190,9 @@ tracked separately in [vastsoun/newton#375](https://github.com/vastsoun/newton/i
   value and emits `MODEL_PROPERTIES`.
 - Body pose/velocity and inertial properties use Newton's body state, mass, inertia, and center-of-mass arrays.
   Public `set_masses_*`, `set_inertias_*`, and `set_coms_*` methods emit `BODY_INERTIAL_PROPERTIES`.
-- Shape geometry uses Newton shape transform, scale, collision-radius, margin, and gap arrays. Material
-  friction uses one `shape_material_mu`; restitution is stored separately. Runtime material and collider-offset
-  paths emit `SHAPE_PROPERTIES`.
+- Shape geometry uses Newton shape transform, scale, collision-radius, margin, and gap arrays. Combined contact
+  friction uses one `shape_material_mu` array; restitution is stored separately. Runtime material and
+  collider-offset paths emit `SHAPE_PROPERTIES`.
 - Joint state, limits, armature, damping, friction, and implicit drive gains use the Newton joint arrays.
   Public joint-property writers emit `JOINT_DOF_PROPERTIES`.
 - Newton-MJWarp joint friction is an absolute dry-friction force or torque, mapped to MuJoCo
