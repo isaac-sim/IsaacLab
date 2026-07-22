@@ -120,6 +120,37 @@ class EventManager(ManagerBase):
         return list(self._mode_term_names.keys())
 
     """
+    Lifecycle hooks.
+    """
+
+    @classmethod
+    def initialize_pre_physics_ready_terms(cls, cfg: object, env: ManagerBasedEnv) -> None:
+        """Call each opted-in event term's ``pre_physics_ready_setup`` classmethod before scene bake.
+
+        A term opts in with ``init_before_physics_ready = True``. The classmethod is used instead of
+        constructing the term, so ``term_cfg.func`` stays a class and the later
+        ``EventManager.__init__`` deepcopy is unaffected.
+
+        Args:
+            cfg: Event-manager cfg (a configclass or ``{term_name: EventTermCfg}`` dict).
+            env: Owning environment, passed to each term's setup classmethod.
+        """
+        items = cfg.items() if isinstance(cfg, dict) else vars(cfg).items()
+        for term_name, term_cfg in items:
+            if term_cfg is None:
+                continue
+            func = getattr(term_cfg, "func", None)
+            if func is None or not inspect.isclass(func):
+                continue
+            if not getattr(func, "init_before_physics_ready", False):
+                continue
+            setup = getattr(func, "pre_physics_ready_setup", None)
+            if setup is None:
+                continue
+            logger.info("Running pre-PHYSICS_READY setup for event term '%s' (%s)", term_name, func.__name__)
+            setup(cfg=term_cfg, env=env)
+
+    """
     Operations.
     """
 
