@@ -19,7 +19,11 @@ from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
 
 class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
-    """Alternate MJWarp and VBD steps with optional reaction forces."""
+    """:class:`NewtonVBDManager` specialization for custom MJWarp and VBD coupling.
+
+    Reuses the VBD manager's deformable stage handling and adds a custom rigid-deformable coupling step.
+    Newton's :class:`CollisionPipeline` provides deformable contacts.
+    """
 
     _rigid_solver: SolverMuJoCo | None = None
     _soft_solver: SolverVBD | None = None
@@ -27,13 +31,14 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
 
     @classmethod
     def step(cls) -> None:
-        """Step the simulation."""
+        """Step the physics simulation."""
         from isaaclab.physics import PhysicsManager
 
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
             return
 
+        # Notify both sub-solvers of model changes.
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
                 for change in cls._model_changes:
@@ -44,7 +49,10 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
-        """Construct both solvers."""
+        """Construct the coupled solvers and populate the base lifecycle slots.
+
+        VBD uses Newton's collision pipeline and separate input/output states, so the lifecycle flags are fixed.
+        """
         if solver_cfg.coupling_mode not in ("one_way", "two_way"):
             raise ValueError("coupling_mode must be 'one_way' or 'two_way'.")
         if not solver_cfg.rigid_solver_cfg.use_mujoco_contacts:
@@ -68,7 +76,15 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     def _step_solver(
         cls, state_in: State, state_out: State, control: Control, contacts: Contacts | None, substep_dt: float
     ) -> None:
-        """Run one coupled substep."""
+        """Run one coupled substep.
+
+        Args:
+            state_in: Current read/write state.
+            state_out: Next state.
+            control: Joint-level control inputs.
+            contacts: Unused; the coupling helpers use the manager-owned contact buffer.
+            substep_dt: Substep timestep [s].
+        """
         if cls._coupling_mode == "one_way":
             cls._step_one_way(state_in, state_out, control, substep_dt)
         else:
@@ -94,33 +110,61 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
 
     @classmethod
     def _simulate_physics_only(cls) -> None:
-        # Some Newton VBD versions require an explicit BVH rebuild.
+        # Rebuild the BVH before stepping solvers that require it, such as VBD cloth.
         if hasattr(cls._soft_solver, "rebuild_bvh"):
             cls._soft_solver.rebuild_bvh(cls._state_0)
         super()._simulate_physics_only()
 
     @classmethod
     def _step_one_way(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:
+        """Advance rigid bodies and particles without deformable reaction forces."""
+        # 1. Clear output forces.
         state_out.clear_forces()
+
+        # 2. Detect deformable-rigid contacts.
         cls._collision_pipeline.collide(state_in, cls._contacts)
+
+        # 3. Advance rigid bodies without injected deformable reactions.
         cls._rigid_step(state_in, state_out, control, dt)
+
+        # 4. Advance particles using the updated rigid poses.
         cls._soft_solver.step(state_in, state_out, control, cls._contacts, dt)
 
     @classmethod
     def _step_two_way(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:
+        """Advance rigid bodies and particles with deformable reaction forces."""
+        # 1. Clear output forces.
         state_out.clear_forces()
+
+        # 2. Detect contacts before advancing rigid bodies.
         cls._collision_pipeline.collide(state_in, cls._contacts)
+
+        # 3. Inject contact reactions before MJWarp consumes body_f.
+        # The inactive state buffer supplies reference poses for friction velocity estimation.
+        # The kernel reconstructs particle history because VBD mutates particle_q in place.
         if state_in.body_f is not None:
             cls._apply_reactions(state_in, state_out, dt)
+
+        # 4. Advance rigid bodies with the injected reactions.
         cls._rigid_step(state_in, state_out, control, dt)
+
+        # 5. Advance particles using the contacts detected above.
         cls._soft_solver.step(state_in, state_out, control, cls._contacts, dt)
 
     @classmethod
     def _rigid_step(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:
+        """Advance rigid bodies with the configured sub-solver."""
         cls._rigid_solver.step(state_in, state_out, control, None, dt)
 
     @classmethod
     def _apply_reactions(cls, state: State, state_prev: State, dt: float) -> None:
+        """Inject normal and friction reaction forces into body_f.
+
+        Args:
+            state: Current particle and body state.
+            state_prev: Inactive state buffer providing reference poses for friction velocity estimation.
+            dt: Substep timestep [s].
+        """
         model = cls._model
         contacts = cls._contacts
         if contacts is None:
@@ -130,6 +174,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         if contact_capacity == 0:
             return
 
+        # VBD mutates particle_q in place, so the kernel reconstructs prior positions from particle_qd.
         wp.launch(
             _kernel_body_particle_reaction,
             dim=contact_capacity,

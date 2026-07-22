@@ -36,7 +36,13 @@ def _kernel_body_particle_reaction(
     dt: float,
     body_f: wp.array(dtype=wp.spatial_vector),
 ):
-    """Apply body-particle contact reactions to rigid bodies."""
+    """Apply body-particle contact reactions to rigid bodies.
+
+    Newton's contact model evaluates normal, damping, and Coulomb friction forces on each particle. This kernel
+    applies the equal and opposite force and torque to the contacted rigid body. One thread runs per allocated contact
+    slot, and unused slots exit through ``contact_count``. Previous particle positions are reconstructed because VBD
+    mutates them in place.
+    """
     tid = wp.tid()
     if tid >= contact_count[0]:
         return
@@ -50,6 +56,7 @@ def _kernel_body_particle_reaction(
     # VBD mutates particle positions in place, so reconstruct the prior position.
     particle_pos = particle_q[particle_idx]
     particle_pos_prev = particle_pos - particle_qd[particle_idx] * dt
+    # Use Newton's contact model to stay consistent with VBD.
     particle_force, _ = _evaluate_body_particle_contact(
         particle_idx,
         particle_pos,
@@ -74,6 +81,7 @@ def _kernel_body_particle_reaction(
         dt,
     )
 
+    # Apply the equal and opposite particle force as a rigid-body wrench.
     body_pose = body_q[body_idx]
     contact_pos = wp.transform_point(body_pose, contact_body_pos[tid])
     com_pos = wp.transform_point(body_pose, body_com[body_idx])
