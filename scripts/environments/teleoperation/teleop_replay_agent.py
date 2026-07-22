@@ -933,10 +933,11 @@ def _exit_code_for_outcomes(all_runs: list[_RunStats]) -> int:
 def _resolve_cloudxr_env(value: str | None) -> str | None:
     """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
 
-    Mirrors :func:`scripts.tools.record_demos._resolve_cloudxr_env` so the same
-    short names (``"cloudxrjs"``, ``"avp"``, ``"standalone"``) behave identically
-    on the recording and replay sides. Accepts ``"none"`` / empty / ``None`` to
-    mean "no CloudXR" and otherwise returns the value unchanged.
+    Resolves the same short names (``"cloudxrjs"``, ``"avp"``, ``"standalone"``) to
+    the same absolute paths as :func:`scripts.tools.record_demos._resolve_cloudxr_env`.
+    The two differ on ``None``: that function auto-defaults a profile from ``--xr``,
+    whereas replay treats ``None`` (like ``"none"`` / empty) as "no CloudXR". Any other
+    value is returned unchanged.
     """
     if value is None or value.strip() == "" or value.lower() == "none":
         return None

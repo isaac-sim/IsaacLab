@@ -169,15 +169,18 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     return driver.update, driver.stop
 
 
-def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, headless: bool, reset_cb: Callable[[], None]):
+def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, headless: bool):
     """Create an optional keyboard for headset-free IsaacTeleop control.
 
     Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
     the teleop state machine without an XR headset. Keys are captured through the Kit
     app window, so this returns ``None`` when running headless or when IsaacTeleop is
-    not the active stack (a headless run still auto-starts teleop). The returned
-    device must be kept referenced by the caller so its carb input subscription
-    survives.
+    not the active stack (a headless run still auto-starts teleop). ``R`` calls
+    :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset`, which injects a single RESET
+    pulse that the loop's control-event handler turns into one environment reset
+    (binding it straight to the reset callback would reset the env twice). The
+    returned device must be kept referenced by the caller so its carb input
+    subscription survives.
     """
     if not use_isaac_teleop or headless:
         return None
@@ -185,7 +188,7 @@ def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, headless: b
         keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
         keyboard.add_callback("B", teleop_interface.request_start)
         keyboard.add_callback("P", teleop_interface.request_stop)
-        keyboard.add_callback("R", reset_cb)
+        keyboard.add_callback("R", teleop_interface.reset)
         print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
         return keyboard
     except Exception as e:
@@ -397,9 +400,7 @@ def main() -> None:
     # Optional keyboard for headset-free IsaacTeleop control. Kept in a local so its
     # carb input subscription is not garbage-collected; a headless run auto-starts
     # (in ``run_loop``) without it.
-    control_keyboard = _make_control_keyboard(  # noqa: F841
-        teleop_interface, use_isaac_teleop, args_cli.headless, reset_recording_instance
-    )
+    control_keyboard = _make_control_keyboard(teleop_interface, use_isaac_teleop, args_cli.headless)  # noqa: F841
 
     def run_loop():
         """Inner function to run the teleop loop with access to nonlocal variables."""
