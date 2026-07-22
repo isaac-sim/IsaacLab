@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from types import ModuleType, SimpleNamespace
 
@@ -99,7 +100,7 @@ def test_manager_supports_current_runtime_api():
     assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
 
 
-def test_manager_serializes_env0_only_stage_in_memory():
+def test_manager_serializes_env0_only_stage_in_memory(caplog):
     """The OVPhysX input keeps globals and env 0 without writing cloned envs."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
@@ -109,7 +110,8 @@ def test_manager_serializes_env0_only_stage_in_memory():
     for path in ("/World/Ground", "/World/envs/env_0/Cube", "/World/envs/env_1/Cube"):
         UsdGeom.Xform.Define(stage, path)
 
-    usda = OvPhysxManager._serialize_env0_only_stage(stage)
+    with caplog.at_level(logging.INFO, logger=OvPhysxManager.__module__):
+        usda = OvPhysxManager._serialize_env0_only_stage(stage)
     layer = Sdf.Layer.CreateAnonymous("filtered.usda")
     assert layer.ImportFromString(usda)
     filtered = Usd.Stage.Open(layer)
@@ -117,6 +119,22 @@ def test_manager_serializes_env0_only_stage_in_memory():
     assert filtered.GetPrimAtPath("/World/Ground").IsValid()
     assert filtered.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
     assert not filtered.GetPrimAtPath("/World/envs/env_1").IsValid()
+    assert "stripped 1 env_<i!=0> subtrees from in-memory USD" in caplog.text
+
+
+def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
+    """The in-memory serializer diagnoses stages without the standard env namespace."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/Ground")
+
+    with caplog.at_level(logging.DEBUG, logger=OvPhysxManager.__module__):
+        OvPhysxManager._serialize_env0_only_stage(stage)
+
+    assert "no /World/envs prim — serialized stage as-is" in caplog.text
 
 
 def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):

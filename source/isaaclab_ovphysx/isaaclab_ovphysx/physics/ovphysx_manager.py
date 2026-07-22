@@ -492,13 +492,22 @@ class OvPhysxManager(PhysicsManager):
         layer = sim_stage.Flatten()
         envs_spec = layer.GetPrimAtPath("/World/envs")
         if envs_spec is None or not envs_spec:
+            logger.debug("OvPhysxManager: no /World/envs prim — serialized stage as-is.")
             return layer.ExportToString()
 
         env_name_re = re.compile(r"^env_(\d+)$")
-        for child_name in list(envs_spec.nameChildren.keys()):
-            match = env_name_re.match(child_name)
-            if match and match.group(1) != "0":
-                del envs_spec.nameChildren[child_name]
+        names_to_remove = [
+            child_name
+            for child_name in list(envs_spec.nameChildren.keys())
+            if (match := env_name_re.match(child_name)) and match.group(1) != "0"
+        ]
+        for child_name in names_to_remove:
+            del envs_spec.nameChildren[child_name]
+        if names_to_remove:
+            logger.info(
+                "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
+                len(names_to_remove),
+            )
         return layer.ExportToString()
 
     @classmethod

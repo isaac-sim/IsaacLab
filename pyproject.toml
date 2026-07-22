@@ -137,7 +137,7 @@ rerun = [
 # Isaac Sim (PhysX backend); co-resolves with the base install via the [tool.uv] conflicts table.
 isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 # Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
-ov = ["ovphysx>=0.5,<0.6", "ovstage>=0.1.0,<0.2.0"]
+ov = ["ovphysx==0.5.9", "ovstage>=0.1.0,<0.2.0"]
 rtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
 mimic = [
     "isaaclab-mimic",
@@ -178,7 +178,7 @@ isaacsim = "6.0.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = ">=0.5,<0.6"
+ovphysx = "0.5.9"
 ovrtx = ">=0.4.0,<0.5.0"
 ovstage = ">=0.1.0,<0.2.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
@@ -328,6 +328,11 @@ url = "https://pypi.nvidia.com"
 explicit = false
 
 [[tool.uv.index]]
+name = "pypi-public"
+url = "https://pypi.org/simple"
+explicit = true
+
+[[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
@@ -377,6 +382,9 @@ python-preference = "only-managed"
 package = false
 
 [tool.uv.sources]
+omniverseclient = { index = "pypi-public" }
+ovphysx = { index = "pypi-public" }
+ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }

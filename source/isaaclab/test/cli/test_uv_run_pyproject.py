@@ -86,8 +86,9 @@ def test_version_single_source_matches_literal_pins():
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == ">=0.5,<0.6"
+    assert versions["ovphysx"] == "0.5.9"
     assert "omniverseclient==2.72.3" in dependencies
+    assert "ovstage" in optional["ov"]
 
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
@@ -128,6 +129,21 @@ def test_version_single_source_matches_literal_pins():
     warp_value = versions["warp"]
     warp_spec = f"warp-lang=={warp_value}" if warp_value[0].isdigit() else f"warp-lang{warp_value}"
     assert warp_spec in dependencies
+
+
+def test_public_ov_packages_use_public_pypi_index():
+    """Public OV packages must not resolve from the NVIDIA package index."""
+    pyproject = _root_pyproject()
+    indexes = {index.get("name"): index for index in pyproject["tool"]["uv"]["index"]}
+    sources = pyproject["tool"]["uv"]["sources"]
+
+    assert indexes["pypi-public"] == {
+        "name": "pypi-public",
+        "url": "https://pypi.org/simple",
+        "explicit": True,
+    }
+    for package in ("omniverseclient", "ovphysx", "ovstage"):
+        assert sources[package] == {"index": "pypi-public"}
 
 
 def test_uv_run_isaacsim_extra_is_conflict_forked():
