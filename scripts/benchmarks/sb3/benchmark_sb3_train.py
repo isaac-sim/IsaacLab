@@ -366,7 +366,6 @@ def run(argv: list[str]) -> None:
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
-                allow_empty_environment_step_timing=True,
             )
 
             learning = builders.build_learning(
