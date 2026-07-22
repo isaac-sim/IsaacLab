@@ -9,40 +9,13 @@ from __future__ import annotations
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Contacts, Control, Model, ModelFlags, State, StateFlags
+from newton import Contacts, Control, Model, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
 from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
-
-
-class _CoupledLifecycleSolver(SolverBase):
-    """Route base lifecycle operations to the coupled solvers."""
-
-    def __init__(self, model: Model, rigid_solver: SolverMuJoCo, soft_solver: SolverVBD):
-        super().__init__(model)
-        self._rigid_solver = rigid_solver
-        self._soft_solver = soft_solver
-
-    def notify_model_changed(self, flags: ModelFlags | int) -> None:
-        """Notify both sub-solvers of model changes."""
-        self._rigid_solver.notify_model_changed(flags)
-        self._soft_solver.notify_model_changed(flags)
-
-    def reset(
-        self,
-        state: State,
-        world_mask: wp.array | None = None,
-        flags: StateFlags | int | None = None,
-    ) -> None:
-        """Reset MJWarp state for selected worlds."""
-        if world_mask is None:
-            return
-        if self._rigid_solver.use_mujoco_cpu and not world_mask.numpy().any():
-            return
-        self._rigid_solver.reset(state, world_mask=world_mask, flags=flags)
 
 
 class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
@@ -55,6 +28,24 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     _rigid_solver: SolverMuJoCo | None = None
     _soft_solver: SolverVBD | None = None
     _coupling_mode: str | None = None
+
+    @classmethod
+    def step(cls) -> None:
+        """Step the physics simulation."""
+        from isaaclab.physics import PhysicsManager
+
+        sim = PhysicsManager._sim
+        if sim is None or not sim.is_playing():
+            return
+
+        # Notify both sub-solvers of model changes.
+        if cls._model_changes:
+            with wp.ScopedDevice(PhysicsManager._device):
+                for change in cls._model_changes:
+                    cls._rigid_solver.notify_model_changed(change)
+                    cls._soft_solver.notify_model_changed(change)
+                NewtonManager._model_changes = set()
+        super().step()
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
@@ -76,8 +67,8 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         cls._rigid_solver = SolverMuJoCo(model, **cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg.rigid_solver_cfg))
         cls._soft_solver = SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg.soft_solver_cfg))
 
-        # The lifecycle adapter handles shared operations; substeps use the two solvers above.
-        NewtonManager._solver = _CoupledLifecycleSolver(model, cls._rigid_solver, cls._soft_solver)
+        # The base lifecycle needs a solver slot; substeps use the two solvers above.
+        NewtonManager._solver = SolverBase(model)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
 
@@ -98,6 +89,16 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
             cls._step_one_way(state_in, state_out, control, substep_dt)
         else:
             cls._step_two_way(state_in, state_out, control, substep_dt)
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Reset both sub-solvers."""
+        if world_mask is None:
+            return
+        if cls._rigid_solver.use_mujoco_cpu and not world_mask.numpy().any():
+            return
+        cls._rigid_solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+        cls._soft_solver.reset(cls._state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _solver_specific_clear(cls) -> None:
