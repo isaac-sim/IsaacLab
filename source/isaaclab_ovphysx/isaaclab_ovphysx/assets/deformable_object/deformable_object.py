@@ -173,6 +173,9 @@ class DeformableObject(BaseDeformableObject):
     velocities of its simulation nodes. Volume deformables additionally expose
     per-node kinematic targets. OVPhysX surface deformables do not support those
     targets and reject target writes with the same error as the PhysX backend.
+
+    OVPhysX deformable tensor bindings are supported only on CUDA simulation
+    devices.
     """
 
     cfg: DeformableObjectCfg
@@ -334,6 +337,13 @@ class DeformableObject(BaseDeformableObject):
         )
         if isinstance(nodal_pos, torch.Tensor):
             nodal_pos = wp.from_torch(nodal_pos.contiguous(), dtype=wp.vec3f)
+        if (
+            full_data
+            and env_ids.shape[0] < self.num_instances
+            and self._data._nodal_pos_w.timestamp < self._data._sim_timestamp
+            and nodal_pos.ptr == self._data._nodal_pos_w.data.ptr
+        ):
+            nodal_pos = wp.clone(nodal_pos)
         if env_ids.shape[0] < self.num_instances:
             _ = self._data.nodal_pos_w
 
@@ -373,6 +383,13 @@ class DeformableObject(BaseDeformableObject):
         )
         if isinstance(nodal_vel, torch.Tensor):
             nodal_vel = wp.from_torch(nodal_vel.contiguous(), dtype=wp.vec3f)
+        if (
+            full_data
+            and env_ids.shape[0] < self.num_instances
+            and self._data._nodal_vel_w.timestamp < self._data._sim_timestamp
+            and nodal_vel.ptr == self._data._nodal_vel_w.data.ptr
+        ):
+            nodal_vel = wp.clone(nodal_vel)
         if env_ids.shape[0] < self.num_instances:
             _ = self._data.nodal_vel_w
 

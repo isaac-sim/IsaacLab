@@ -338,6 +338,32 @@ def test_read_into_caches_per_destination_buffer():
     assert view_a.ptr == a.ptr and view_b.ptr == b.ptr
 
 
+def test_read_into_revalidates_shape_when_destination_crosses_bindings():
+    view = _make_view(n=3)
+    dst = wp.zeros((3,), dtype=wp.transformf, device="cpu")
+    view.read_into("rigid_body_pose", dst)
+
+    velocity_binding = view.binding_for(TensorType.RIGID_BODY_VELOCITY)
+    with pytest.raises(OvPhysxView.ShapeMismatch):
+        view.read_into("rigid_body_velocity", dst)
+    assert velocity_binding.read_calls == 0
+
+
+def test_get_attribute_out_revalidates_dtype_when_destination_crosses_bindings():
+    view = _make_view(n=2)
+    int3 = wp.types.vector(length=3, dtype=wp.int32)
+    dst = wp.zeros((2,), dtype=int3, device="cpu")
+    index_binding = view.binding_for(TensorType.DEFORMABLE_SIM_ELEMENT_INDICES)
+    index_binding.shape = (2, 3)
+    view.read_into(TensorType.DEFORMABLE_SIM_ELEMENT_INDICES, dst)
+
+    mass_binding = view.binding_for(TensorType.RIGID_BODY_MASS)
+    mass_binding.shape = (2, 3)
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="float32"):
+        view.get_attribute(TensorType.RIGID_BODY_MASS, out=dst)
+    assert mass_binding.read_calls == 0
+
+
 def test_get_attribute_out_param_is_filled_and_returned():
     view = _make_view(n=2)
     out = wp.zeros((2, 7), dtype=wp.float32, device="cpu")
