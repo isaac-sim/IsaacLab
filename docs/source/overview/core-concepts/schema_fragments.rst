@@ -207,11 +207,13 @@ Creating the deformable setup on a matched prim without the anchor happens in th
    ``UsdGeom.TetMesh`` — reused in place, without re-tetrahedralizing, when the source asset
    already ships a pre-tetrahedralized ``UsdGeom.TetMesh`` child.
 #. **Backend anchor.** The active physics backend applies its own anchor schemas through
-   ``PhysicsManager.setup_deformable_body``: PhysX applies the real
-   ``OmniPhysicsDeformableBodyAPI`` / ``OmniPhysicsSurfaceDeformableBodyAPI`` schemas, while
-   Newton applies its own (currently token-only) ``Physics*`` schemas. Core fragments own no
-   applied schema of their own — :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`
-   only writes into the ``omniphysics:*`` namespace once the anchor exists.
+   ``PhysicsManager.setup_deformable_body``: PhysX applies the real ``OmniPhysicsDeformableBodyAPI``
+   to the body prim (the same single schema for both deformable types) and the type-dependent
+   ``OmniPhysicsVolumeDeformableSimAPI`` / ``OmniPhysicsSurfaceDeformableSimAPI`` to the
+   simulation-mesh prim, while Newton applies its own (currently token-only) ``Physics*`` schemas.
+   Core fragments own no applied schema of their own —
+   :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` only writes into the
+   ``omniphysics:*`` namespace once the anchor exists.
 #. **Fragment dispatch.** Every fragment in the matched slot is applied to the target, in list
    order, exactly like the other families.
 
