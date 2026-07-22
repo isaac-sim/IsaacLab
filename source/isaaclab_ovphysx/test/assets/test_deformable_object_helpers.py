@@ -274,6 +274,12 @@ def test_detect_deformable_type_uses_descendant_volume_schema_with_visual_mesh()
     assert _detect_deformable_type(root, material) == "volume"
 
 
+def test_detect_deformable_type_mixed_topology_prefers_tet_mesh_without_schemas() -> None:
+    root, material = _make_deformable_prims([], ["TetMesh", "Mesh"])
+
+    assert _detect_deformable_type(root, material) == "volume"
+
+
 @pytest.mark.parametrize(
     "path_expr,expected",
     [
@@ -387,6 +393,23 @@ def test_indexed_state_write_refreshes_unselected_stale_cache_rows():
     )
     torch.testing.assert_close(asset.data.root_pos_w.torch, expected_positions.mean(dim=1))
     torch.testing.assert_close(asset.data.root_vel_w.torch, expected_velocities.mean(dim=1))
+
+
+def test_full_overwrite_stale_cache_does_not_read_simulator() -> None:
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+
+    asset.data.nodal_pos_w
+    asset.data.nodal_vel_w
+    position_reads = asset.root_view.position_reads
+    velocity_reads = asset.root_view.velocity_reads
+    asset.update(0.1)
+
+    full_state = torch.arange(36, dtype=torch.float32, device=asset.device).reshape(3, 2, 6)
+    asset.write_nodal_state_to_sim_index(full_state, full_data=True)
+
+    assert asset.root_view.position_reads == position_reads
+    assert asset.root_view.velocity_reads == velocity_reads
+    torch.testing.assert_close(asset.data.nodal_state_w.torch, full_state)
 
 
 @pytest.mark.parametrize("trailing_dimension", [4, 5, 7])
