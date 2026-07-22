@@ -96,6 +96,10 @@ class RenderData:
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
+        self._camera_quat_scratch: wp.array = None
+        # Name under which this camera's render launch is registered with the
+        # Newton sensor manager (set on first render).
+        self.sensor_task_name: str | None = None
         self.outputs = RenderData.CameraOutputs()
         # Requested depth-family destination views keyed by data-type name. Each view aliases the
         # caller's output buffer as ``(world_count, 1, H, W)`` float32.
@@ -253,7 +257,17 @@ class RenderData:
             replace_background_depth_wp(dest, self.far_clip, device=dest.device)
 
     def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
-        converted_wp = wp.empty_like(orientations)
+        # Buffers are persistent: the sensor manager graph captures the render
+        # launch against `camera_transforms`, so it must be updated in place.
+        if self._camera_quat_scratch is None:
+            self._camera_quat_scratch = wp.empty_like(orientations)
+        if self.camera_transforms is None:
+            self.camera_transforms = wp.empty(
+                (1, self.newton_sensor.model.world_count),
+                dtype=wp.transformf,
+                device=self.newton_sensor.model.device,
+            )
+        converted_wp = self._camera_quat_scratch
         convert_camera_frame_orientation_convention_wp(
             src=orientations,
             dst=converted_wp,
@@ -262,9 +276,6 @@ class RenderData:
             device=self.newton_sensor.model.device,
         )
 
-        self.camera_transforms = wp.empty(
-            (1, self.newton_sensor.model.world_count), dtype=wp.transformf, device=self.newton_sensor.model.device
-        )
         wp.launch(
             RenderData._update_transforms,
             self.newton_sensor.model.world_count,
@@ -320,10 +331,10 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
-        self._newton_model: newton.Model = NewtonManager.get_model()
+        self._newton_model = NewtonManager.get_model()
         if self._newton_model is None:
             raise RuntimeError(
-                "NewtonWarpRenderer requires a Newton model but NewtonManager.get_model() returned None. "
+                "NewtonWarpRenderer requires a Newton model but the Newton manager has no model. "
                 "This usually means the Newton model failed to build from the USD stage "
                 "(e.g., unsupported PhysX schemas such as tendons). "
                 "Check the log for earlier Newton model build errors."
@@ -351,14 +362,6 @@ class NewtonWarpRenderer(BaseRenderer):
             self.newton_sensor.default_render_config.render_order = (
                 newton.sensors.SensorTiledCamera.RenderOrder.VIEW_PRIORITY
             )
-
-        # Newton ``v1.2.0rc2`` made shape-BVH construction explicit; ``SensorTiledCamera.update``
-        # no longer auto-builds when a non-``None`` state is passed, and the underlying
-        # ``RenderContext.render`` raises if ``build_bvh_shape`` was never called for the model.
-        # Build it once per model — idempotent across multiple sensors that share ``newton_model``
-        # because subsequent calls overwrite the same model-level BVH attributes.
-        if self._newton_model.shape_count > 0 and self._newton_model.bvh_shapes is None:
-            newton.geometry.build_bvh_shape(self._newton_model, self._newton_model.state())
 
         if self.cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
@@ -438,14 +441,25 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        newton_state: newton.State = NewtonManager.get_state()
+        # Refresh the shadow state under PhysX before the manager refits the BVH.
+        NewtonManager.get_state()
+        if render_data.sensor_task_name is None:
+            render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
+            NewtonManager._register_sensor_task(render_data.sensor_task_name, lambda: self._launch_render(render_data))
+        NewtonManager._update_sensor_tasks(render_data.sensor_task_name)
 
-        # Refit the shape BVH against the current state since env body poses move every frame.
-        # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
-        if self.newton_sensor.model.shape_count > 0:
-            newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
+        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
+        # tensors were bound once in ``set_outputs``.
+        if render_data.ppisp_pipeline is not None:
+            render_data.ppisp_pipeline.apply(
+                render_data._ppisp_hdr_source,
+                render_data._ppisp_rgba_dest,
+            )
 
-        # Cameras can have different far clipping planes, so update the sensor config before rendering.
+    def _launch_render(self, render_data: RenderData) -> None:
+        """Launch the tiled-camera render kernels for sensor graph capture."""
+        # default_render_config is shared state across all Newton sensors, so set max_distance
+        # immediately before each render call rather than once in create_render_data.
         self.newton_sensor.default_render_config.max_distance = (
             render_data.far_clip if render_data.far_clip is not None else self.cfg.max_distance
         )
@@ -465,7 +479,7 @@ class NewtonWarpRenderer(BaseRenderer):
         )
 
         self.newton_sensor.update(
-            newton_state,
+            NewtonManager.get_state_0(),
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -483,21 +497,10 @@ class NewtonWarpRenderer(BaseRenderer):
         )
 
         if _depth_kinds & render_data._PLANE_DEPTH_KINDS:
-            # Derive planar depth (``depth`` / ``distance_to_image_plane``) from Newton's ray-hit
-            # distance, then apply far-plane clipping. We cannot use ``clear_depth`` here because
-            # the ray-depth buffer feeds ``convert_plane_depth``; pre-clearing to ``far_clip`` would
-            # produce ``far_clip * cos(θ)`` per pixel in the planar outputs instead of ``0.0``,
-            # breaking the ``<= 0`` sentinel that ``apply_depth_clipping`` relies on.
+            # Derive planar depth from the ray-hit distance, then clip. Deliberately no clear_depth
+            # here: the ray-depth buffer feeds convert_plane_depth() (see the _use_depth_clear note).
             render_data.convert_plane_depth()
             render_data.apply_depth_clipping(self.cfg.depth_clipping_behavior)
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # tensors were bound once in ``set_outputs``.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data._ppisp_hdr_source,
-                render_data._ppisp_rgba_dest,
-            )
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
         """Copy rendered outputs to the camera data buffers.
@@ -512,7 +515,10 @@ class NewtonWarpRenderer(BaseRenderer):
                     wp.copy(output_wp, image_data)
 
     def cleanup(self, render_data: RenderData | None):
-        """Release resources. No-op for Newton Warp.
+        """Release resources and drop the camera's sensor task.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
+            if render_data.sensor_task_name is not None:
+                NewtonManager._unregister_sensor_task(render_data.sensor_task_name)
+                render_data.sensor_task_name = None
             render_data.sensor = None
