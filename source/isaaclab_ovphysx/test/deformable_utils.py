@@ -80,7 +80,8 @@ def spawn_pre_tetrahedralized_deformable(
 ) -> Usd.Prim:
     """Spawn a five-node volume deformable with two authored tetrahedra."""
     stage = sim_utils.get_current_stage()
-    tet_mesh = UsdGeom.TetMesh.Define(stage, prim_path)
+    root_prim = UsdGeom.Xform.Define(stage, prim_path).GetPrim()
+    tet_mesh = UsdGeom.TetMesh.Define(stage, f"{prim_path}/simulation")
     body_prim = tet_mesh.GetPrim()
     _add_api_schemas(
         body_prim,
@@ -89,7 +90,6 @@ def spawn_pre_tetrahedralized_deformable(
             "OmniPhysicsVolumeDeformableSimAPI",
             "OmniPhysicsDeformablePoseAPI:default",
             "PhysicsCollisionAPI",
-            "MaterialBindingAPI",
         ],
     )
 
@@ -110,6 +110,10 @@ def spawn_pre_tetrahedralized_deformable(
         Gf.Vec3i(3, 1, 4),
     ]
     body_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(points)
+    visual_mesh = UsdGeom.Mesh.Define(stage, f"{prim_path}/visual")
+    visual_mesh.CreatePointsAttr(points)
+    visual_mesh.CreateFaceVertexCountsAttr([3] * len(surface_indices))
+    visual_mesh.CreateFaceVertexIndicesAttr([vertex_index for face in surface_indices for vertex_index in face])
     body_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
         ["bindPose"]
     )
@@ -120,9 +124,9 @@ def spawn_pre_tetrahedralized_deformable(
     body_prim.CreateAttribute("tetVertexIndices", Sdf.ValueTypeNames.Int4Array).Set(tet_indices)
     body_prim.CreateAttribute("velocities", Sdf.ValueTypeNames.Vector3fArray).Set([Gf.Vec3f()] * len(points))
 
-    _apply_transform(body_prim, translation, orientation)
+    _apply_transform(root_prim, translation, orientation)
     _bind_material(body_prim, _VOLUME_MATERIAL_CFG)
-    return body_prim
+    return root_prim
 
 
 @sim_utils.clone
