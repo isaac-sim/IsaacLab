@@ -9,7 +9,6 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.cloner import add as clone_add
 from isaaclab.utils import find_unique_string_name
@@ -216,6 +215,10 @@ def _scene_assets(
     asset_skip: Callable[[AssetBaseCfg], bool] | None,
 ) -> list[tuple[str, AssetBaseCfg]]:
     """List the environment-scoped spawned assets of one scene."""
+    # Deferred: config construction must stay importable without isaaclab.assets
+    # (kitless factories); only scene composition pays for it.
+    from isaaclab.assets import AssetBaseCfg  # noqa: PLC0415
+
     env_root = "{ENV_REGEX_NS}/"
     base_fields, assets = InteractiveSceneCfg.__dataclass_fields__, []
     for name, value in vars(scene_cfg).items():
