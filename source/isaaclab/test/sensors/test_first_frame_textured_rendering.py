@@ -196,7 +196,7 @@ def test_tensor_pose_is_visible_in_first_camera_frame(setup_pose_sim, device):
     root_pose = cube.data.default_root_pose.torch.clone()
     root_pose[:, :3] = torch.tensor((0.5, 0.0, 0.2), device=sim.device)
     cube.write_root_pose_to_sim_index(root_pose=root_pose)
-    sim.forward()
+    sim.render()
 
     camera.update(dt)
     first_frame = camera.data.output["rgb"].torch[0].clone().to(dtype=torch.float32)

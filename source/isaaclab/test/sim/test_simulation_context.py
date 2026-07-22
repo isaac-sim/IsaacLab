@@ -21,9 +21,11 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
 from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg
 
+import omni.physx
 import omni.timeline
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationCfg, SimulationContext
 
@@ -912,15 +914,20 @@ def test_isaac_event_triggered_on_reset(event_type):
 
 
 @pytest.mark.isaacsim_ci
-def test_forward_updates_without_step_callbacks():
-    """Forward updates must not have public physics-step semantics."""
+def test_forward_and_clean_render_do_not_emit_native_step_callbacks():
+    """Forward and clean renders must not emit native physics-step callbacks."""
     sim = SimulationContext(SimulationCfg(dt=0.01))
-    cube_cfg = sim_utils.CuboidCfg(
-        size=(0.1, 0.1, 0.1),
-        rigid_props=PhysxRigidBodyPropertiesCfg(),
-        collision_props=PhysxCollisionPropertiesCfg(),
+    cube = RigidObject(
+        RigidObjectCfg(
+            prim_path="/World/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=PhysxRigidBodyPropertiesCfg(),
+                collision_props=PhysxCollisionPropertiesCfg(),
+            ),
+        )
     )
-    cube_cfg.func("/World/Cube", cube_cfg)
+    sim.reset()
 
     callback_counts = {"pre": 0, "post": 0}
 
@@ -930,29 +937,44 @@ def test_forward_updates_without_step_callbacks():
     def on_post_step(_dt):
         callback_counts["post"] += 1
 
-    pre_handle = PhysxManager.register_callback(on_pre_step, event=IsaacEvents.PRE_PHYSICS_STEP)
-    post_handle = PhysxManager.register_callback(on_post_step, event=IsaacEvents.POST_PHYSICS_STEP)
+    physx_interface = omni.physx.get_physx_interface()
+    subscriptions = [
+        physx_interface.subscribe_physics_on_step_events(on_pre_step, pre_step=True, order=0),
+        physx_interface.subscribe_physics_on_step_events(on_post_step, pre_step=False, order=0),
+    ]
 
     try:
-        sim.reset()
-
-        assert sim.get_physics_step_count() == 0
-        assert callback_counts == {"pre": 0, "post": 0}
-
         sim.forward()
+        sim.render()
 
         assert sim.get_physics_step_count() == 0
         assert callback_counts == {"pre": 0, "post": 0}
+
+        root_pose = cube.data.default_root_pose.torch.clone()
+        root_pose[:, 0] += 0.1
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        sim.render()
+
+        assert sim.get_physics_step_count() == 0
+        assert callback_counts == {"pre": 1, "post": 1}
+
+        sim.render()
+
+        assert callback_counts == {"pre": 1, "post": 1}
 
         sim.step(render=False)
 
         assert sim.get_physics_step_count() == 1
-        assert callback_counts == {"pre": 1, "post": 1}
+        assert callback_counts == {"pre": 2, "post": 2}
+
+        root_pose[:, 0] += 0.1
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        sim.step(render=True)
+
+        assert sim.get_physics_step_count() == 2
+        assert callback_counts == {"pre": 3, "post": 3}
     finally:
-        if pre_handle is not None:
-            PhysxManager.deregister_callback(pre_handle)
-        if post_handle is not None:
-            PhysxManager.deregister_callback(post_handle)
+        subscriptions.clear()
 
 
 @pytest.mark.isaacsim_ci
