@@ -528,13 +528,64 @@ class OvPhysxManager(PhysicsManager):
         return cls._serialize_env0_only_stage(sim_stage)
 
     @classmethod
+    def _materialize_pending_clones(cls, stage_usda: str) -> str:
+        """Copy missing queued clone targets into serialized full-stage USDA.
+
+        OVPhysX runtime cloning is unsafe after a heterogeneous full-stage load:
+        cloning one leaf can disturb tensor discovery for already loaded sibling
+        assets. Copying only absent prim specs into the serialized stage gives
+        the runtime one coherent stage while leaving the live USD stage unchanged.
+
+        Args:
+            stage_usda: Flattened full-stage USDA content to augment.
+
+        Returns:
+            Full-stage USDA content containing every missing clone target.
+        """
+        from pxr import Sdf  # noqa: PLC0415
+
+        pending_clones = list(cls._pending_clones)
+        cls._pending_clones.clear()
+        if not pending_clones:
+            return stage_usda
+
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        if not layer.ImportFromString(stage_usda):
+            raise RuntimeError("OvPhysxManager: failed to import serialized full stage.")
+
+        copies: list[tuple[Sdf.Path, Sdf.Path]] = []
+        for source, targets, _ in pending_clones:
+            source_path = Sdf.Path(source)
+            if layer.GetPrimAtPath(source_path) is None:
+                raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from serialized full stage.")
+            for target in targets:
+                target_path = Sdf.Path(target)
+                if layer.GetPrimAtPath(target_path) is not None:
+                    continue
+                if layer.GetPrimAtPath(target_path.GetParentPath()) is None:
+                    raise RuntimeError(f"OvPhysxManager: clone target parent is absent for {target!r}.")
+                copies.append((source_path, target_path))
+
+        for source_path, target_path in copies:
+            if not Sdf.CopySpec(layer, source_path, layer, target_path):
+                raise RuntimeError(f"OvPhysxManager: failed to materialize clone target {str(target_path)!r}.")
+
+        if copies:
+            logger.info("OvPhysxManager: materialized %d missing clone targets in full-stage USDA", len(copies))
+        return layer.ExportToString()
+
+    @classmethod
     def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:
         """Replay runtime clones unless the serialized stage already contains them."""
+        pending_clones = list(cls._pending_clones)
+        cls._pending_clones.clear()
+
         if requires_full_stage:
-            cls._pending_clones.clear()
             return
 
-        for source, targets, parent_positions in cls._pending_clones:
+        for source, targets, parent_positions in pending_clones:
+            if not targets:
+                continue
             logger.info(
                 "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
                 source,
@@ -548,7 +599,6 @@ class OvPhysxManager(PhysicsManager):
                 transforms = None
             op_idx = physx.clone(source, targets, transforms)
             physx.wait_op(op_idx)
-        cls._pending_clones.clear()
 
     @classmethod
     def _warmup_and_load(cls) -> None:
@@ -605,8 +655,11 @@ class OvPhysxManager(PhysicsManager):
         #
         # By default the serialized stage keeps only env_0 and runtime cloning
         # re-populates env_1..N. Features that need distinct authored physics in
-        # every environment request the full stage and skip runtime cloning.
+        # every environment request the full stage. Missing heterogeneous clone
+        # targets are copied into the serialized stage before it is attached.
         stage_usda = cls._serialize_selected_stage(sim.stage)
+        if cls._requires_full_stage:
+            stage_usda = cls._materialize_pending_clones(stage_usda)
         cls._stage_usda = stage_usda
         logger.info("OvPhysxManager: serialized selected USD stage in memory")
 
