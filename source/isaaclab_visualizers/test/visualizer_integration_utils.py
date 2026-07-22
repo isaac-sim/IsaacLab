@@ -479,7 +479,7 @@ def _visualizer_debug_case(viz_kind: str, physics_kind: str, *, tiled: bool = Fa
             os.environ[_VIS_DEBUG_TEST_ID_OVERRIDE_ENV] = previous
 
 
-def _save_visualizer_debug_image(frame, file_name: str, *, tiled: bool = False) -> None:
+def _save_visualizer_debug_image(frame, file_name: str) -> None:
     """Save a visualizer frame to a clearly named PNG for pause/motion debugging."""
     if not _WRITE_VIS_DEBUG_FRAMES:
         return
@@ -491,7 +491,7 @@ def _save_visualizer_debug_image(frame, file_name: str, *, tiled: bool = False) 
     Image.fromarray(rgb).save(debug_dir / file_name)
 
 
-def _save_visualizer_debug_delta(frame_a, frame_b, file_name: str, *, tiled: bool = False) -> None:
+def _save_visualizer_debug_delta(frame_a, frame_b, file_name: str) -> None:
     """Save an amplified absolute-difference image for a start/end frame pair."""
     if not _WRITE_VIS_DEBUG_FRAMES:
         return
@@ -514,16 +514,14 @@ def _save_visualizer_debug_phase_images(
     phase: str,
     frame_start_idx: int,
     frame_end_idx: int,
-    tiled: bool = False,
 ) -> None:
     """Save start/end/delta PNGs for one visualizer test phase."""
-    _save_visualizer_debug_image(frame_a, f"{prefix}a_{phase}_frame_{frame_start_idx:02d}.png", tiled=tiled)
-    _save_visualizer_debug_image(frame_b, f"{prefix}b_{phase}_frame_{frame_end_idx:02d}.png", tiled=tiled)
+    _save_visualizer_debug_image(frame_a, f"{prefix}a_{phase}_frame_{frame_start_idx:02d}.png")
+    _save_visualizer_debug_image(frame_b, f"{prefix}b_{phase}_frame_{frame_end_idx:02d}.png")
     _save_visualizer_debug_delta(
         frame_a,
         frame_b,
         f"{prefix}c_{phase}_frame_{frame_start_idx:02d}_{frame_end_idx:02d}_delta.png",
-        tiled=tiled,
     )
 
 
@@ -601,18 +599,6 @@ def _assert_tiled_camera_frames_differ(frame_a, frame_b, *, case_label: str, pha
         channel_diff_threshold=_TILED_CAMERA_MOTION_CHANNEL_DIFF_THRESHOLD,
         min_differing_pixels=_TILED_CAMERA_MOTION_MIN_DIFFERING_PIXELS,
     )
-
-
-def _assert_tiled_camera_frame_non_flat(frame) -> None:
-    """Assert the tiled camera frame has visible content."""
-    _assert_non_flat_frame_array(frame)
-
-
-def _assert_tiled_camera_frames_remain_stable(
-    frame_a, frame_b, *, case_label: str, phase: str, debug_phase: str
-) -> None:
-    """Assert tiled camera frames are stable."""
-    _assert_frames_remain_stable(frame_a, frame_b, case_label=case_label, phase=phase, debug_phase=debug_phase)
 
 
 def _cartpole_body_state(env) -> torch.Tensor:
@@ -934,7 +920,7 @@ def _annotator_rgb_to_numpy(rgb_data) -> np.ndarray:
     rgb_array = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
     if rgb_array.size == 0:
         return np.zeros((1, 1, 3), dtype=np.uint8)
-    return rgb_array[:, :, :3]
+    return rgb_array[:, :, :3].copy()
 
 
 def _update_active_simulation_app() -> None:
@@ -1347,9 +1333,8 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
         phase="playing",
         frame_start_idx=0,
         frame_end_idx=play_end_idx,
-        tiled=True,
     )
-    _assert_tiled_camera_frame_non_flat(motion_end_frame)
+    _assert_non_flat_frame_array(motion_end_frame)
     _assert_tiled_camera_frames_differ(
         motion_start_frame,
         motion_end_frame,
@@ -1374,10 +1359,9 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
             phase="pausing",
             frame_start_idx=pause_start_idx,
             frame_end_idx=pause_end_idx,
-            tiled=True,
         )
-        _assert_tiled_camera_frame_non_flat(paused_end_frame)
-        _assert_tiled_camera_frames_remain_stable(
+        _assert_non_flat_frame_array(paused_end_frame)
+        _assert_frames_remain_stable(
             paused_start_frame,
             paused_end_frame,
             case_label=case_label,
@@ -1406,9 +1390,8 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
             phase="playing",
             frame_start_idx=replay_start_idx,
             frame_end_idx=replay_end_idx,
-            tiled=True,
         )
-        _assert_tiled_camera_frame_non_flat(play_end_frame)
+        _assert_non_flat_frame_array(play_end_frame)
         _assert_tiled_camera_frames_differ(
             play_start_frame,
             play_end_frame,
