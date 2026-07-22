@@ -109,6 +109,23 @@ class BaseCableObject(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    def write_segment_pose_to_sim_mask(
+        self,
+        *,
+        segment_pose: torch.Tensor | wp.array(dtype=wp.transformf) | ProxyArray,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> None:
+        """Set segment poses using an environment mask.
+
+        Args:
+            segment_pose: Segment actor-frame poses in simulation world frame. The Torch shape is
+                (num_instances, num_segments, 7), with position (x, y, z) [m] followed by quaternion
+                (x, y, z, w). The Warp shape is (num_instances, num_segments), dtype wp.transformf.
+            env_mask: Environment mask. If None, all instances are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def write_segment_velocity_to_sim_index(
         self,
         *,
@@ -123,5 +140,23 @@ class BaseCableObject(AssetBase):
                 ``(x, y, z)`` [rad/s] velocity. The Warp shape is (len(env_ids), num_segments), dtype
                 ``wp.spatial_vectorf``.
             env_ids: Environment indices. If None, all instances are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_segment_velocity_to_sim_mask(
+        self,
+        *,
+        segment_velocity: torch.Tensor | wp.array(dtype=wp.spatial_vectorf) | ProxyArray,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> None:
+        """Set segment velocities using an environment mask.
+
+        Args:
+            segment_velocity: Segment center-of-mass velocities in simulation world frame. The Torch shape is
+                (num_instances, num_segments, 6), with linear (x, y, z) [m/s] followed by angular
+                (x, y, z) [rad/s] velocity. The Warp shape is (num_instances, num_segments), dtype
+                wp.spatial_vectorf.
+            env_mask: Environment mask. If None, all instances are used.
         """
         raise NotImplementedError()

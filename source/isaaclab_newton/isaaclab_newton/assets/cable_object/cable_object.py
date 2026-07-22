@@ -28,7 +28,12 @@ from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .cable_object_data import CableObjectData
-from .kernels import set_segment_pose_to_sim_index, set_segment_velocity_to_sim_index
+from .kernels import (
+    set_segment_pose_to_sim_index,
+    set_segment_pose_to_sim_mask,
+    set_segment_velocity_to_sim_index,
+    set_segment_velocity_to_sim_mask,
+)
 
 if TYPE_CHECKING:
     from isaaclab.assets.cable_object.cable_object_cfg import CableObjectCfg
@@ -140,6 +145,46 @@ class CableObject(BaseCableObject):
         SimulationManager.invalidate_body_state(env_ids)
         self.update(0.0)
 
+    def write_segment_pose_to_sim_mask(
+        self,
+        *,
+        segment_pose: torch.Tensor | wp.array(dtype=wp.transformf) | ProxyArray,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> None:
+        """Set segment poses using an environment mask.
+
+        Args:
+            segment_pose: Actor-frame poses in simulation world frame. The Torch shape is
+                (num_instances, num_segments, 7), with position (x, y, z) [m] followed by quaternion
+                (x, y, z, w). The Warp shape is (num_instances, num_segments), dtype wp.transformf.
+            env_mask: Environment mask. If None, all instances are used.
+        """
+        if env_mask is None:
+            env_mask = self._ALL_ENV_MASK
+        if isinstance(segment_pose, ProxyArray):
+            segment_pose = segment_pose.warp
+        if isinstance(segment_pose, torch.Tensor):
+            segment_pose = segment_pose.contiguous()
+        self.assert_shape_and_dtype_mask(
+            segment_pose, (env_mask,), wp.transformf, "segment_pose", trailing_dims=(self.num_segments,)
+        )
+
+        for state in self._iter_states():
+            wp.launch(
+                set_segment_pose_to_sim_mask,
+                dim=(env_mask.shape[0], self.num_segments),
+                inputs=[
+                    segment_pose,
+                    env_mask,
+                    self.data._sim_bind_root_body_ids,
+                    self.data._sim_bind_link_body_ids,
+                ],
+                outputs=[state.body_q],
+                device=self.device,
+            )
+        SimulationManager.invalidate_body_state(env_mask=env_mask)
+        self.update(0.0)
+
     def write_segment_velocity_to_sim_index(
         self,
         *,
@@ -178,6 +223,51 @@ class CableObject(BaseCableObject):
                 device=self.device,
             )
         SimulationManager.invalidate_body_state(env_ids)
+        self.update(0.0)
+
+    def write_segment_velocity_to_sim_mask(
+        self,
+        *,
+        segment_velocity: torch.Tensor | wp.array(dtype=wp.spatial_vectorf) | ProxyArray,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> None:
+        """Set segment center-of-mass velocities using an environment mask.
+
+        Args:
+            segment_velocity: Segment center-of-mass velocities in simulation world frame. The Torch shape is
+                (num_instances, num_segments, 6), with linear (x, y, z) [m/s] followed by angular
+                (x, y, z) [rad/s] velocity. The Warp shape is (num_instances, num_segments), dtype
+                wp.spatial_vectorf.
+            env_mask: Environment mask. If None, all instances are used.
+        """
+        if env_mask is None:
+            env_mask = self._ALL_ENV_MASK
+        if isinstance(segment_velocity, ProxyArray):
+            segment_velocity = segment_velocity.warp
+        if isinstance(segment_velocity, torch.Tensor):
+            segment_velocity = segment_velocity.contiguous()
+        self.assert_shape_and_dtype_mask(
+            segment_velocity,
+            (env_mask,),
+            wp.spatial_vectorf,
+            "segment_velocity",
+            trailing_dims=(self.num_segments,),
+        )
+
+        for state in self._iter_states():
+            wp.launch(
+                set_segment_velocity_to_sim_mask,
+                dim=(env_mask.shape[0], self.num_segments),
+                inputs=[
+                    segment_velocity,
+                    env_mask,
+                    self.data._sim_bind_root_body_ids,
+                    self.data._sim_bind_link_body_ids,
+                ],
+                outputs=[state.body_qd],
+                device=self.device,
+            )
+        SimulationManager.invalidate_body_state(env_mask=env_mask)
         self.update(0.0)
 
     def _resolve_curve(self) -> tuple[str, int]:
@@ -252,6 +342,7 @@ class CableObject(BaseCableObject):
                     raise RuntimeError(topology_error)
 
         self._ALL_INDICES = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
+        self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
 
         self._data = CableObjectData(self.root_view, self.device)
         self._physics_ready_handle = SimulationManager.register_callback(

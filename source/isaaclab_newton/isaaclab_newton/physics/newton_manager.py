@@ -241,6 +241,14 @@ def _scatter_reset_masks_from_ids(
 
 
 @wp.kernel(enable_backward=False)
+def _or_world_reset_mask_from_mask(env_mask: wp.array(dtype=wp.bool), world_mask: wp.array(dtype=wp.bool)):
+    """Mark masked worlds for solver reset without requesting FK."""
+    world = wp.tid()
+    if env_mask[world]:
+        world_mask[world] = True
+
+
+@wp.kernel(enable_backward=False)
 def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)):
     """Mark selected worlds for solver reset without requesting FK."""
     world_mask[env_ids[wp.tid()]] = True
@@ -1357,22 +1365,38 @@ class NewtonManager(PhysicsManager):
             NewtonManager._fk_reset_mask.fill_(True)
 
     @classmethod
-    def invalidate_body_state(cls, env_ids: wp.array(dtype=wp.int32)) -> None:
+    def invalidate_body_state(
+        cls,
+        env_ids: wp.array(dtype=wp.int32) | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> None:
         """Mark selected maximal-coordinate body state as changed without requesting FK.
 
         Args:
-            env_ids: Integer indices of dirtied environments.
+            env_ids: Integer indices of dirtied environments. Used by index write methods.
+            env_mask: Boolean mask of dirtied environments. Used by mask write methods.
         """
         cls._mark_transforms_dirty()
         if cls._world_reset_mask is None:
             return
-        wp.launch(
-            _scatter_world_reset_mask_from_ids,
-            dim=env_ids.shape[0],
-            inputs=[env_ids],
-            outputs=[NewtonManager._world_reset_mask],
-            device=PhysicsManager._device,
-        )
+        if env_mask is not None:
+            wp.launch(
+                _or_world_reset_mask_from_mask,
+                dim=env_mask.shape[0],
+                inputs=[env_mask],
+                outputs=[NewtonManager._world_reset_mask],
+                device=PhysicsManager._device,
+            )
+        elif env_ids is not None:
+            wp.launch(
+                _scatter_world_reset_mask_from_ids,
+                dim=env_ids.shape[0],
+                inputs=[env_ids],
+                outputs=[NewtonManager._world_reset_mask],
+                device=PhysicsManager._device,
+            )
+        else:
+            NewtonManager._world_reset_mask.fill_(True)
 
     @classmethod
     def _drain_stale_cuda_error(cls) -> None:
