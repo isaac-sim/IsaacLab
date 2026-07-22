@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import gc
+import inspect
 import logging
 import re
 from abc import abstractmethod
@@ -73,6 +74,7 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
@@ -294,6 +296,7 @@ class NewtonManager(PhysicsManager):
     _pending_extended_state_attributes: set[str] = set()
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
+    _supports_contact_sensors: bool = True
 
     # Per-world reset masks (allocated in start_simulation, consumed in step/forward).
     _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
@@ -397,7 +400,7 @@ class NewtonManager(PhysicsManager):
             from isaaclab.app.settings_manager import get_settings_manager
 
             cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))
-            cls._clone_physics_only = "kit" not in requested and not cameras_enabled
+            cls._clone_physics_only = not has_kit() or ("kit" not in requested and not cameras_enabled)
 
         cls._scene_data_backend = NewtonSceneDataBackend()
 
@@ -405,10 +408,27 @@ class NewtonManager(PhysicsManager):
     def reset(cls, soft: bool = False) -> None:
         """Reset physics simulation.
 
+        A hard reset (``soft=False``) re-finalizes the Newton model, reallocating
+        its device arrays. The cached collision pipeline, contacts and any
+        captured CUDA graph reference the old buffers, so they are released here
+        and rebuilt against the re-finalized model by :meth:`initialize_solver`.
+        This avoids the illegal CUDA memory access (CUDA error 700) that would
+        otherwise occur on the first step after a hard reset.
+
+        A soft reset (``soft=True``) skips this full reinitialization and reuses
+        the existing model, solver, collision pipeline and CUDA graph.
+
         Args:
             soft: If True, skip full reinitialization.
         """
         if not soft:
+            # Release the cached collision pipeline, contacts and CUDA graph;
+            # they point at the old model's freed buffers (CUDA 700 on next step).
+            NewtonManager._graph = None
+            NewtonManager._graph_capture_pending = False
+            NewtonManager._collision_pipeline = None
+            NewtonManager._contacts = None
+
             cls.start_simulation()
             cls.initialize_solver()
 
@@ -848,6 +868,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._newton_frame_transform_sensors = []
         NewtonManager._newton_imu_sensors = []
         NewtonManager._report_contacts = False
+        NewtonManager._supports_contact_sensors = True
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
         NewtonManager._post_step_callbacks = []
@@ -1473,6 +1494,15 @@ class NewtonManager(PhysicsManager):
     # ----- Solver construction (subclass contract) ------------------------
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg) -> SolverBase:
+        """Construct a solver without changing the active manager state.
+
+        Solver-manager subclasses override this hook so nested consumers can
+        reuse their typed construction logic through ``solver_cfg.class_type``.
+        """
+        raise NotImplementedError(f"{cls.__name__} does not implement solver construction.")
+
+    @classmethod
     @abstractmethod
     def _build_solver(cls, model: Model, solver_cfg) -> None:
         """Construct the solver this manager owns and assign it onto the base class.
@@ -1501,6 +1531,17 @@ class NewtonManager(PhysicsManager):
                 :class:`NewtonCfg`).
         """
         raise NotImplementedError("NewtonManager subclasses must implement _build_solver()")
+
+    @staticmethod
+    def _filter_solver_kwargs(solver_cls: type, solver_cfg) -> dict:
+        """Return cfg fields that match ``solver_cls.__init__`` parameters.
+
+        Drops keys that the solver constructor doesn't accept (e.g. cfg-only
+        metadata like ``solver_type`` / ``class_type``). ``self`` and ``model``
+        are always excluded — ``model`` is passed positionally at construction.
+        """
+        valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
+        return {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
 
     @classmethod
     def _step_solver(
@@ -2264,6 +2305,11 @@ class NewtonManager(PhysicsManager):
             contact_partners_shape_expr: Expression for contact partner shape names.
             verbose: Print verbose information.
         """
+        if not NewtonManager._supports_contact_sensors:
+            raise NotImplementedError(
+                "Newton contact sensors are not yet supported by the active coupled solver because its "
+                "contact forces live in per-entry buffers."
+            )
         if body_names_expr is None and shape_names_expr is None:
             raise ValueError("At least one of body_names_expr or shape_names_expr must be provided")
         if body_names_expr is not None and shape_names_expr is not None:
