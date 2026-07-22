@@ -42,10 +42,10 @@ backend_args, _ = parser.parse_known_args()
 parser.set_defaults(visualizer=None if backend_args.physics == "ovphysx" else ["kit"])
 args_cli = parser.parse_args()
 
-if args_cli.visualizer and "newton" in args_cli.visualizer and args_cli.physics not in {"newton_vbd", "ovphysx"}:
+if args_cli.visualizer and "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":
     raise ValueError(
-        "Newton visualizer is only compatible with Newton VBD or OvPhysX for deformables. "
-        "Please use --physics newton_vbd or --physics ovphysx."
+        "Newton visualizer is only compatible with newton physics backend for deformables. "
+        "Please use --physics newton_vbd."
     )
 
 import random
