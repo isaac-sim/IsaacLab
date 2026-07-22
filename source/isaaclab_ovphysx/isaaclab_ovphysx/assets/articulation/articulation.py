@@ -25,6 +25,7 @@ from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsManager
+from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -1243,12 +1244,13 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_stiffness.data],
             device=self._device,
         )
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        joint_stiffness_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_stiffness.data, self._data._joint_stiffness_backend
+        self._push_joint_property(
+            TT.DOF_STIFFNESS,
+            self._data._joint_stiffness.data,
+            self._data._joint_stiffness_backend,
+            cpu_buffer=self.data._cpu_joint_stiffness,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        wp.copy(self.data._cpu_joint_stiffness, joint_stiffness_backend)
-        self._root_view.set_attribute(TT.DOF_STIFFNESS, self.data._cpu_joint_stiffness, indices=cpu_env_ids)
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1290,12 +1292,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_stiffness.data],
             device=self._device,
         )
-        joint_stiffness_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_stiffness.data, self._data._joint_stiffness_backend
-        )
-        wp.copy(self.data._cpu_joint_stiffness, joint_stiffness_backend)
-        self._root_view.set_attribute(
-            TT.DOF_STIFFNESS, self.data._cpu_joint_stiffness, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_STIFFNESS,
+            self._data._joint_stiffness.data,
+            self._data._joint_stiffness_backend,
+            cpu_buffer=self.data._cpu_joint_stiffness,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     def write_joint_damping_to_sim_index(
@@ -1337,12 +1339,13 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_damping.data],
             device=self._device,
         )
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        joint_damping_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_damping.data, self._data._joint_damping_backend
+        self._push_joint_property(
+            TT.DOF_DAMPING,
+            self._data._joint_damping.data,
+            self._data._joint_damping_backend,
+            cpu_buffer=self.data._cpu_joint_damping,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        wp.copy(self.data._cpu_joint_damping, joint_damping_backend)
-        self._root_view.set_attribute(TT.DOF_DAMPING, self.data._cpu_joint_damping, indices=cpu_env_ids)
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1384,12 +1387,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_damping.data],
             device=self._device,
         )
-        joint_damping_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_damping.data, self._data._joint_damping_backend
-        )
-        wp.copy(self.data._cpu_joint_damping, joint_damping_backend)
-        self._root_view.set_attribute(
-            TT.DOF_DAMPING, self.data._cpu_joint_damping, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_DAMPING,
+            self._data._joint_damping.data,
+            self._data._joint_damping_backend,
+            cpu_buffer=self.data._cpu_joint_damping,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     def write_joint_position_limit_to_sim_index(
@@ -1480,19 +1483,14 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         # Stage to pinned-host CPU: flatten the vec2f buffer to float32 view.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        joint_pos_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_pos_limits.data, self._data._joint_pos_limits_backend
+        self._push_joint_property(
+            TT.DOF_LIMIT,
+            self._data._joint_pos_limits.data,
+            self._data._joint_pos_limits_backend,
+            cpu_buffer=self.data._cpu_joint_position_limit,
+            component_count=2,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        flat_src = wp.array(
-            ptr=joint_pos_limits_backend.ptr,
-            shape=(self._num_instances, self._num_joints, 2),
-            dtype=wp.float32,
-            device=self._device,
-            copy=False,
-        )
-        wp.copy(self.data._cpu_joint_position_limit, flat_src)
-        self._root_view.set_attribute(TT.DOF_LIMIT, self.data._cpu_joint_position_limit, indices=cpu_env_ids)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1580,19 +1578,13 @@ class Articulation(BaseArticulation):
                 logger.warning(violation_message)
             else:
                 logger.info(violation_message)
-        joint_pos_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_pos_limits.data, self._data._joint_pos_limits_backend
-        )
-        flat_src = wp.array(
-            ptr=joint_pos_limits_backend.ptr,
-            shape=(self._num_instances, self._num_joints, 2),
-            dtype=wp.float32,
-            device=self._device,
-            copy=False,
-        )
-        wp.copy(self.data._cpu_joint_position_limit, flat_src)
-        self._root_view.set_attribute(
-            TT.DOF_LIMIT, self.data._cpu_joint_position_limit, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_LIMIT,
+            self._data._joint_pos_limits.data,
+            self._data._joint_pos_limits_backend,
+            cpu_buffer=self.data._cpu_joint_position_limit,
+            component_count=2,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     def write_joint_velocity_limit_to_sim_index(
@@ -1634,12 +1626,13 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_vel_limits.data],
             device=self._device,
         )
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        joint_vel_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_vel_limits.data, self._data._joint_vel_limits_backend
+        self._push_joint_property(
+            TT.DOF_MAX_VELOCITY,
+            self._data._joint_vel_limits.data,
+            self._data._joint_vel_limits_backend,
+            cpu_buffer=self.data._cpu_joint_velocity_limit,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        wp.copy(self.data._cpu_joint_velocity_limit, joint_vel_limits_backend)
-        self._root_view.set_attribute(TT.DOF_MAX_VELOCITY, self.data._cpu_joint_velocity_limit, indices=cpu_env_ids)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1681,12 +1674,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_vel_limits.data],
             device=self._device,
         )
-        joint_vel_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_vel_limits.data, self._data._joint_vel_limits_backend
-        )
-        wp.copy(self.data._cpu_joint_velocity_limit, joint_vel_limits_backend)
-        self._root_view.set_attribute(
-            TT.DOF_MAX_VELOCITY, self.data._cpu_joint_velocity_limit, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_MAX_VELOCITY,
+            self._data._joint_vel_limits.data,
+            self._data._joint_vel_limits_backend,
+            cpu_buffer=self.data._cpu_joint_velocity_limit,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     def write_joint_effort_limit_to_sim_index(
@@ -1728,12 +1721,13 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_effort_limits.data],
             device=self._device,
         )
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        joint_effort_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_effort_limits.data, self._data._joint_effort_limits_backend
+        self._push_joint_property(
+            TT.DOF_MAX_FORCE,
+            self._data._joint_effort_limits.data,
+            self._data._joint_effort_limits_backend,
+            cpu_buffer=self.data._cpu_joint_effort_limit,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        wp.copy(self.data._cpu_joint_effort_limit, joint_effort_limits_backend)
-        self._root_view.set_attribute(TT.DOF_MAX_FORCE, self.data._cpu_joint_effort_limit, indices=cpu_env_ids)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1775,12 +1769,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_effort_limits.data],
             device=self._device,
         )
-        joint_effort_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_effort_limits.data, self._data._joint_effort_limits_backend
-        )
-        wp.copy(self.data._cpu_joint_effort_limit, joint_effort_limits_backend)
-        self._root_view.set_attribute(
-            TT.DOF_MAX_FORCE, self.data._cpu_joint_effort_limit, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_MAX_FORCE,
+            self._data._joint_effort_limits.data,
+            self._data._joint_effort_limits_backend,
+            cpu_buffer=self.data._cpu_joint_effort_limit,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     def write_joint_armature_to_sim_index(
@@ -1822,12 +1816,13 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_armature.data],
             device=self._device,
         )
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        joint_armature_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_armature.data, self._data._joint_armature_backend
+        self._push_joint_property(
+            TT.DOF_ARMATURE,
+            self._data._joint_armature.data,
+            self._data._joint_armature_backend,
+            cpu_buffer=self.data._cpu_joint_armature,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        wp.copy(self.data._cpu_joint_armature, joint_armature_backend)
-        self._root_view.set_attribute(TT.DOF_ARMATURE, self.data._cpu_joint_armature, indices=cpu_env_ids)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -1869,12 +1864,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_armature.data],
             device=self._device,
         )
-        joint_armature_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_armature.data, self._data._joint_armature_backend
-        )
-        wp.copy(self.data._cpu_joint_armature, joint_armature_backend)
-        self._root_view.set_attribute(
-            TT.DOF_ARMATURE, self.data._cpu_joint_armature, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_ARMATURE,
+            self._data._joint_armature.data,
+            self._data._joint_armature_backend,
+            cpu_buffer=self.data._cpu_joint_armature,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     def write_joint_friction_coefficient_to_sim_index(
@@ -1945,12 +1940,13 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # Stage the combined (N, J, 3) buffer to pinned-host CPU and write to the binding.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
+        self._push_joint_property(
+            TT.DOF_FRICTION_PROPERTIES,
+            self._data._joint_friction_props_buf.data,
+            self._data._joint_friction_props_backend,
+            component_count=3,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -1999,12 +1995,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_friction_props_buf.data],
             device=self._device,
         )
-        friction_props_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
-        )
-        cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(
-            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_FRICTION_PROPERTIES,
+            self._data._joint_friction_props_buf.data,
+            self._data._joint_friction_props_backend,
+            component_count=3,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     def write_joint_dynamic_friction_coefficient_to_sim_index(
@@ -2061,12 +2057,13 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_friction_props_buf.data],
             device=self._device,
         )
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
+        self._push_joint_property(
+            TT.DOF_FRICTION_PROPERTIES,
+            self._data._joint_friction_props_buf.data,
+            self._data._joint_friction_props_backend,
+            component_count=3,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
@@ -2107,12 +2104,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_friction_props_buf.data],
             device=self._device,
         )
-        friction_props_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
-        )
-        cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(
-            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_FRICTION_PROPERTIES,
+            self._data._joint_friction_props_buf.data,
+            self._data._joint_friction_props_backend,
+            component_count=3,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     def write_joint_viscous_friction_coefficient_to_sim_index(
@@ -2170,12 +2167,13 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_friction_props_buf.data],
             device=self._device,
         )
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
+        self._push_joint_property(
+            TT.DOF_FRICTION_PROPERTIES,
+            self._data._joint_friction_props_buf.data,
+            self._data._joint_friction_props_backend,
+            component_count=3,
+            indices=self._get_cpu_env_ids(env_ids),
         )
-        cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
         self,
@@ -2217,12 +2215,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_friction_props_buf.data],
             device=self._device,
         )
-        friction_props_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
-        )
-        cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(
-            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        self._push_joint_property(
+            TT.DOF_FRICTION_PROPERTIES,
+            self._data._joint_friction_props_buf.data,
+            self._data._joint_friction_props_backend,
+            component_count=3,
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     """
@@ -4589,6 +4587,41 @@ class Articulation(BaseArticulation):
         if env_ids.ptr == self._ALL_INDICES.ptr:
             return self._cpu_env_ids_all
         return wp.clone(env_ids, device="cpu")
+
+    def _push_joint_property(
+        self,
+        tensor_type: int,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        *,
+        cpu_buffer: wp.array | None = None,
+        component_count: int | None = None,
+        indices: wp.array | None = None,
+        mask: wp.array | None = None,
+    ) -> None:
+        """Push a public-order joint property through backend and CPU staging."""
+        property_backend = self._get_backend_ordered_joint_buffer(
+            user_buffer,
+            backend_buffer,
+            component_count=component_count,
+        )
+        if cpu_buffer is None:
+            cpu_buffer = self._data._stage_to_pinned_cpu(tensor_type, "write", property_backend)
+        else:
+            source = property_backend
+            if source.dtype != wp.float32:
+                source = wp.array(
+                    ptr=source.ptr,
+                    shape=cpu_buffer.shape,
+                    dtype=wp.float32,
+                    device=str(source.device),
+                    copy=False,
+                )
+            wp.copy(cpu_buffer, source)
+        if indices is not None:
+            self._root_view.set_attribute(tensor_type, cpu_buffer, indices=indices)
+        else:
+            self._root_view.set_attribute(tensor_type, cpu_buffer, mask=mask)
 
     """
     Deprecated methods.
