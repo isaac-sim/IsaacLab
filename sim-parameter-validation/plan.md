@@ -183,7 +183,7 @@ storage-only tests remain `T`.
 | MAT-01 | Contact static friction | T / T / T | T / T / T | D / D / D |
 | MAT-02 | Contact dynamic friction | T / T / T | D / D / D | D / D / D |
 | MAT-03 | Combined contact friction `mu` | N / N / N | T / T / T | X / X / X |
-| MAT-04 | Restitution | T / T / T | T / T / T | X / X / X |
+| MAT-04 | Restitution | T / T / T | T / T / T | T / T / T |
 | CONTACT-01 | Rest/contact offset mapped to margin/gap | T / T / T | T / T / T | T / T / T |
 | JOINT-01 | Parent and child joint frames | T / T / N | T / T / N | T / T / N |
 | JOINT-02 | Reset/live joint position | N / T / T | N / T / T | N / T / T |
@@ -223,7 +223,6 @@ backend, parameter, and authoring path. Related issues provide implementation co
 | Parameter ID | Backend and `X` authoring paths | Qualifying issue | Related context |
 |---|---|---|---|
 | `MAT-03` | Newton-Kamino: USD, Python, runtime | TODO: exact Kamino contact-friction issue required | None |
-| `MAT-04` | Newton-Kamino: USD, Python, runtime | TODO: exact Kamino restitution-support issue required | [vastsoun/newton#375](https://github.com/vastsoun/newton/issues/375) tracks restitution artifacts with positive contact gap |
 | `JOINT-04` | Newton-Kamino: runtime | TODO: exact runtime position-limit issue required | [vastsoun/newton#104](https://github.com/vastsoun/newton/issues/104) tracks the general model-change integration |
 | `JOINT-05` | Newton-MJWarp: USD, Python, runtime | TODO: exact upstream Newton velocity-limit issue required | None |
 | `JOINT-05` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397) | [newton-physics/newton#161](https://github.com/newton-physics/newton/issues/161) added model storage; does not establish Kamino enforcement |
@@ -412,7 +411,7 @@ Tolerances are attached to fixture/backend pairs, not copied between backends:
 | Contact separation | `abs(error) <= max(2 mm, 2 v_approach dt)` unless the backend documents a larger solver tolerance |
 | Static friction | Test on both sides of a dead band of at least `max(2 degrees, 5% of theta_c)`; no assertion exactly at the threshold |
 | Dynamic friction | Stopping-distance relative error at most `10%`, plus one-step distance `v dt` |
-| Restitution | First-apex relative error at most `10%`, plus the height uncertainty caused by one-step impact timing |
+| Restitution | First-apex relative error at most `10%`, plus the height uncertainty caused by one-step impact timing; Kamino uses `3%` per [newton-physics/newton#3588](https://github.com/newton-physics/newton/pull/3588) because first-order integration adds O(dt) rebound error |
 | Paired controls | The changed case must exceed both the analytical tolerance and five times the repeated-run control spread |
 
 Any tolerance looser than these initial rules requires a backend-specific rationale in the test. Failures must
@@ -478,9 +477,8 @@ API tests unless a mask-only graphed pipeline has distinct physical behavior.
 - **Newton-MJWarp:** contact cases use the single combined `mu` interpretation. Runtime material and
   collider-offset tests invoke the public Isaac Lab event/API path and must not substitute a raw buffer write
   plus manual notification. Joint-friction cases use absolute dry-friction force/torque semantics.
-- **Newton-Kamino:** blocked limit, friction, restitution, and actuator cells remain `X`; tests must not encode
-  silent or ineffective writes as expected behavior. Single-step joint cases use the pinned Kamino profile and
-  oracle defined above.
+- **Newton-Kamino:** blocked limit, friction, and actuator cells remain `X`; tests must not encode silent or
+  ineffective writes as expected behavior. Single-step joint cases use the pinned Kamino profile and oracle defined above.
 
 ### Proposed test architecture
 
@@ -552,7 +550,7 @@ defects to [isaac-sim/IsaacLab](https://github.com/isaac-sim/IsaacLab/issues).
 
 Phase 0 test classification is implemented for `DRIVE-01`, `DRIVE-02`, `JOINT-04`, `JOINT-07`, `CMD-01`, and
 `CMD-02`. The `X`-cell register is complete, but Phase 0 does not fully satisfy `REQ-07` while qualifying issues
-are still missing for Kamino contact/restitution, Kamino runtime position limits, MJWarp velocity limits, and
+are still missing for Kamino contact friction, Kamino runtime position limits, MJWarp velocity limits, and
 runtime actuator gain updates.
 
 The appropriate CI selection, gating policy, and scheduling are intentionally left to the implementation
@@ -579,7 +577,7 @@ These decisions do not block the document structure, but each blocks promotion o
 | Decision | Owner role | Exit criterion |
 |---|---|---|
 | Kamino runtime position limits: support or explicit rejection | Newton/Kamino integration maintainer | Physical limit test passes or public writer emits documented error |
-| MJWarp/Kamino restitution support | Newton contact maintainer | Backend-specific rebound oracle and qualifying Isaac Lab test |
+| Kamino/MJWarp restitution Isaac Lab integration | Newton contact maintainer | `FIX-RESTITUTION` passes through Isaac Lab authoring paths; Kamino oracle per [newton-physics/newton#3588](https://github.com/newton-physics/newton/pull/3588) |
 | Newton explicit actuator gain notification | Newton actuator integration maintainer | Runtime writer updates the active controller and `FIX-ACTUATOR` passes |
 | Kamino joint-friction mapping | Newton/Kamino integration maintainer | Dry-friction semantics implemented or public API documents a distinct viscous parameter |
 | MJWarp velocity-limit enforcement | Newton/MJWarp integration maintainer | Sustained-drive and above-limit braking behavior are documented and tested |

@@ -69,7 +69,7 @@ The inventory below records the Newton fixtures that are directly relevant to th
 | Pendulum reaction force | Joint frames, mass, gravity, angular velocity | \(F=mg\) and \(F_c=m\omega^2r\) | `test_parent_force.py` | Featherstone, MJWarp |
 | Boxes on inclined planes | Coulomb friction | Static threshold \(\theta_c=\arctan(\mu)\) | `test_rigid_friction_ramp.py::test_friction_ramp` | XPBD, MuJoCo CPU/MJWarp, VBD |
 | Sliding boxes on level ground | Coulomb friction, initial velocity | Stopping distance \(d=v_0^2/(2\mu|g|)\) | `test_rigid_friction_ramp.py::test_friction_stopping_distance` | XPBD, MuJoCo CPU/MJWarp, VBD |
-| Sphere dropped onto a plane | Restitution | Rebound height \(h_r=e^2h_0\) | `test_physics_verification.py::test_restitution` | XPBD |
+| Sphere dropped onto a plane | Restitution | Rebound height \(h_r=e^2h_0\) | `test_physics_verification.py::test_restitution`, `test_restitution_kamino` | XPBD, Kamino |
 | Elastic and inelastic dropped spheres | Contact damping as MuJoCo's restitution control | Full versus near-zero rebound | `test_physics_verification.py::test_restitution_mujoco` | MuJoCo CPU/MJWarp |
 | PD/PID actuator components | Actuator stiffness/damping, feed-forward effort, delay, effort and motor limits | Controller and clamping force equations | `test_actuators.py` | Component tests; not solver trajectories |
 | Non-aligned Kamino joint frames | Parent and child joint frames | Frame conversion identities; finite gravity-driven motion | `test_solver_kamino_joint_frames.py` | Kamino; analytical conversion plus behavioral stepping |
@@ -93,7 +93,7 @@ exercise additional Isaac Lab parameters in the current scope, so they are not p
 | Collision radius | Kamino notify mapping | Storage/notification only | Add paired first-contact-distance response |
 | Static friction | Inclined-plane threshold using Newton's combined `mu` | Analytical for a combined Coulomb coefficient | Verify each backend's static/dynamic material mapping separately |
 | Dynamic friction | Stopping distance using Newton's combined `mu` | Analytical for a combined Coulomb coefficient | Verify distinct dynamic-friction behavior where exposed |
-| Restitution | Sphere rebound | Analytical for XPBD; behavioral MuJoCo control | Establish Kamino support and backend-specific restitution controls |
+| Restitution | Sphere rebound | Analytical for XPBD and Kamino ([newton-physics/newton#3588](https://github.com/newton-physics/newton/pull/3588)); behavioral MuJoCo control | Add Isaac Lab `FIX-RESTITUTION` coverage through USD, Python, and runtime paths |
 | Contact margin | Kamino notify and contact-geometry tests | Storage/notification or geometry only | Add slow-approach first-contact response |
 | Contact gap | Kamino notify and contact-geometry tests | Storage/notification or geometry only | Add slow-approach first-contact response |
 | Parent joint frame | Reaction-force fixtures; Kamino frame conversion | Partial analytical/behavioral | Add known-effort motion-direction test |
@@ -119,9 +119,9 @@ exercise additional Isaac Lab parameters in the current scope, so they are not p
 - Newton-MJWarp participates in most shared analytical free-body, articulation, friction, and MuJoCo contact
   fixtures.
 - Kamino is covered by shared public simulation tests for runtime gravity and passive joint damping. Its notify
-  tests and internal joint-frame/kinematics tests provide additional storage and component evidence, but Kamino
-  is not registered in `test_physics_verification.py`; they do not replace the planned Isaac Lab black-box
-  trajectories.
+  tests and internal joint-frame/kinematics tests provide additional storage and component evidence. Upstream
+  Kamino restitution verification in [newton-physics/newton#3588](https://github.com/newton-physics/newton/pull/3588)
+  supplies the rebound oracle but does not replace the planned Isaac Lab black-box trajectories.
 - Existing Newton tests strongly support the proposed free-body, single-DOF, friction, and restitution
   experiments. Physical limit behavior, velocity limits, armature variation, joint friction, shape geometry,
   collision radius, contact margin/gap, and actuator-layer gain updates remain the highest-priority new
@@ -159,7 +159,10 @@ The property mapping and runtime behavior below are based on
 - Actuator target mode is stored in `joint_target_mode`.
 
 The Kamino notify test establishes aliasing or refresh behavior for shape transform, scale, collision radius,
-margin, and gap. It does not by itself establish Kamino support for friction or restitution.
+margin, and gap. It does not by itself establish Kamino support for friction. Kamino restitution is covered
+upstream by the rebound-height verification in
+[newton-physics/newton#3588](https://github.com/newton-physics/newton/pull/3588); positive contact gap remains
+tracked separately in [vastsoun/newton#375](https://github.com/vastsoun/newton/issues/375).
 
 #### Runtime behavior
 

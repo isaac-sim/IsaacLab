@@ -505,40 +505,86 @@ def test_cmd_02_velocity_reference_single_step(joint_type, dq_ref):
 
 
 # ---------------------------------------------------------------------------
-# Position limits (USD authoring path only)
+# Position limits
 # ---------------------------------------------------------------------------
 
+_PROBE_TARGET = 0.45
+_LIMIT_LOWER = -1.0
+_ACTIVE_UPPER = 0.3
+_INACTIVE_UPPER = 2.0
 
-@pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
-@pytest.mark.parametrize("upper", [0.3, 2.0])
-def test_joint_04_position_limit_usd(joint_type, upper):
-    """JOINT-04: A USD-authored upper position limit is enforced by Kamino.
 
-    Driving the joint toward a target beyond the limit clamps it at the limit (``upper=0.3``); with a
-    far limit (``upper=2.0``) the same drive carries the joint well past ``0.3`` toward the target,
-    confirming the clamp above was due to the limit and not the drive. A gentle, damped drive keeps
-    the soft-constraint penetration small.
-    """
-    target = 0.45
+def _position_limit_authoring_spec(authoring: str, upper: float) -> dict:
+    """Map an authoring path to USD limits and runtime limits."""
+    if authoring == "usd":
+        return dict(usd_lower=_LIMIT_LOWER, usd_upper=upper, runtime_limit=None)
+    if authoring == "runtime":
+        # USD carries the opposite probe limit; the runtime write selects the limit under test.
+        usd_upper = _INACTIVE_UPPER if upper < _PROBE_TARGET else _ACTIVE_UPPER
+        return dict(usd_lower=_LIMIT_LOWER, usd_upper=usd_upper, runtime_limit=(_LIMIT_LOWER, upper))
+    if authoring == "runtime-error":
+        return dict(usd_lower=None, usd_upper=None, runtime_limit=(_LIMIT_LOWER, upper))
+    raise ValueError(f"unknown authoring path: {authoring}")
+
+
+def _assert_position_limit_behavior(upper: float, q_max: float, q_final: float) -> None:
+    """Assert active/inactive upper-limit trajectories for FIX-LIMIT-POS."""
+    if upper < _PROBE_TARGET:
+        assert q_max <= upper + 0.03, "JOINT-04: active upper limit was exceeded"
+        assert q_final == pytest.approx(upper, abs=0.03), "JOINT-04: joint did not settle at the active upper limit"
+    else:
+        assert q_final > 0.35, "JOINT-04: inactive-limit control did not pass the low-limit position"
+
+
+def _run_position_limit_probe(joint_type: str, authoring: str, upper: float) -> tuple[float, float]:
+    """Drive toward ``_PROBE_TARGET`` and return ``(q_max, q_final)``."""
+    spec = _position_limit_authoring_spec(authoring, upper)
     with build_simulation_context(device=DEVICE, sim_cfg=_sim_cfg(alpha=0.01, beta=0.01)) as sim:
         sim._app_control_on_stop_handle = None
-        _build_single_dof(joint_type, usd_ke=30.0, usd_lower=-1.0, usd_upper=upper)
+        _build_single_dof(
+            joint_type,
+            usd_ke=30.0,
+            usd_lower=spec["usd_lower"],
+            usd_upper=spec["usd_upper"],
+        )
         art = Articulation(_make_cfg(30.0, 60.0, None))
         sim.reset()
 
-        art.set_joint_position_target_index(target=torch.full((1, 1), target, device=DEVICE))
+        if spec["runtime_limit"] is not None:
+            lower, runtime_upper = spec["runtime_limit"]
+            art.write_joint_position_limit_to_sim_index(
+                limits=torch.tensor([[[lower, runtime_upper]]], device=DEVICE)
+            )
+
+        art.set_joint_position_target_index(target=torch.full((1, 1), _PROBE_TARGET, device=DEVICE))
         q_max = -1.0e9
         for _ in range(600):
             art.write_data_to_sim()
             sim.step()
             art.update(DT)
             q_max = max(q_max, float(art.data.joint_pos.torch[0, 0]))
-        q_final = float(art.data.joint_pos.torch[0, 0])
+        return q_max, float(art.data.joint_pos.torch[0, 0])
 
-        if upper < target:
-            # active limit: joint clamps at the limit and never overshoots it appreciably
-            assert q_max <= upper + 0.03, "JOINT-04: active upper limit was exceeded"
-            assert q_final == pytest.approx(upper, abs=0.03), "JOINT-04: joint did not settle at the active upper limit"
-        else:
-            # inactive limit: joint moves well past where the low limit would have clamped it
-            assert q_final > 0.35, "JOINT-04: inactive-limit control did not pass the low-limit position"
+
+@pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
+@pytest.mark.parametrize("authoring", ["usd", "runtime", "runtime-error"])
+@pytest.mark.parametrize("upper", [_ACTIVE_UPPER, _INACTIVE_UPPER])
+def test_joint_04_position_limit(joint_type, authoring, upper):
+    """JOINT-04: Authored upper position limits are enforced by Kamino.
+
+    Driving the joint toward a target beyond the limit clamps it at the limit (``upper=0.3``); with a
+    far limit (``upper=2.0``) the same drive carries the joint well past ``0.3`` toward the target,
+    confirming the clamp above was due to the limit and not the drive. A gentle, damped drive keeps
+    the soft-constraint penetration small.
+
+    USD and runtime :meth:`~isaaclab.assets.Articulation.write_joint_position_limit_to_sim_index` paths
+    are covered. Runtime writes that introduce limits on a previously unlimited joint must raise instead
+    of silently changing Kamino joint-limit topology.
+    """
+    if authoring == "runtime-error":
+        with pytest.raises(RuntimeError, match="Changing the existence of a joint limit"):
+            _run_position_limit_probe(joint_type, authoring, upper)
+        return
+
+    q_max, q_final = _run_position_limit_probe(joint_type, authoring, upper)
+    _assert_position_limit_behavior(upper, q_max, q_final)
