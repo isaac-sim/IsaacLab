@@ -37,19 +37,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import CableObject, CableObjectCfg
 
 
-def create_sim_cfg() -> sim_utils.SimulationCfg:
-    """Create the Newton VBD simulation configuration."""
-    from isaaclab_newton.physics import NewtonCfg
-
-    from isaaclab_contrib.deformable import VBDSolverCfg
-
-    return sim_utils.SimulationCfg(
-        dt=0.01,
-        device=args_cli.device,
-        physics=NewtonCfg(solver_cfg=VBDSolverCfg(iterations=20), num_substeps=8),
-    )
-
-
 def design_scene(num_cables: int, num_segments: int) -> dict[str, CableObject]:
     """Spawn a ground plane, light, and randomly oriented cable pile."""
     ground_cfg = sim_utils.GroundPlaneCfg()
@@ -88,9 +75,6 @@ def design_scene(num_cables: int, num_segments: int) -> dict[str, CableObject]:
                 physics_material=sim_utils.CableMaterialCfg(
                     thickness=thickness,
                     density=100.0,
-                    # Match the historical cable's axial and bending rigidity.
-                    stretch_stiffness=1.273e10,
-                    bend_stiffness=2.037e5,
                 ),
             ),
             init_state=CableObjectCfg.InitialStateCfg(pos=position, rot=orientation),
@@ -128,7 +112,15 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObj
 
 def main() -> None:
     """Launch and run the cable pile demo."""
-    sim_cfg = create_sim_cfg()
+    from isaaclab_newton.physics import NewtonCfg
+
+    from isaaclab_contrib.deformable import VBDSolverCfg
+
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=0.01,
+        device=args_cli.device,
+        physics=NewtonCfg(solver_cfg=VBDSolverCfg(iterations=20), num_substeps=8),
+    )
     with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))

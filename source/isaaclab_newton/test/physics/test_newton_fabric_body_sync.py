@@ -25,6 +25,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
+from isaaclab.utils import math as math_utils
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable import VBDSolverCfg
@@ -84,12 +85,6 @@ def _fabric_curve_points_world(curve_path: str) -> torch.Tensor:
     return torch.tensor(transformed)
 
 
-def _quat_rotate_xyzw(quaternion: torch.Tensor, vector: torch.Tensor) -> torch.Tensor:
-    """Rotate a vector by an ``(x, y, z, w)`` quaternion."""
-    twice_cross = 2.0 * torch.linalg.cross(quaternion[:3], vector)
-    return vector + quaternion[3] * twice_cross + torch.linalg.cross(quaternion[:3], twice_cross)
-
-
 def _expected_cable_points_world(cable) -> torch.Tensor:
     """Reconstruct curve points from Newton body and shape state."""
     model = NewtonManager.get_model()
@@ -109,8 +104,8 @@ def _expected_cable_points_world(cable) -> torch.Tensor:
         for sign, endpoints in ((-1.0, negative_endpoints), (1.0, positive_endpoints)):
             local_axis = torch.tensor([0.0, 0.0, sign], dtype=shape_scale.dtype)
             local_endpoint = local_axis * shape_scale[shape_id, 1]
-            body_endpoint = shape_pose[:3] + _quat_rotate_xyzw(shape_pose[3:], local_endpoint)
-            endpoints.append(body_pose[:3] + _quat_rotate_xyzw(body_pose[3:], body_endpoint))
+            body_endpoint = shape_pose[:3] + math_utils.quat_apply(shape_pose[3:], local_endpoint)
+            endpoints.append(body_pose[:3] + math_utils.quat_apply(body_pose[3:], body_endpoint))
 
     points = [negative_endpoints[0]]
     points.extend(
@@ -360,7 +355,6 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
             curve_path = "/World/envs/env_0/Cable/geometry/mesh"
             initial_points = _fabric_curve_points_world(curve_path)
             torch.testing.assert_close(initial_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
-            assert NewtonManager._cable_body_ids.shape[0] == cable.num_segments
 
             for _ in range(8):
                 scene.write_data_to_sim()
@@ -376,8 +370,8 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
             scene.update(0.0)
             sim.render()
             wp.synchronize_device(device)
-            assert NewtonManager._cable_body_ids.shape[0] == cable.num_segments
             reset_points = _fabric_curve_points_world(curve_path)
+            torch.testing.assert_close(reset_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
 
             for _ in range(8):
                 scene.write_data_to_sim()

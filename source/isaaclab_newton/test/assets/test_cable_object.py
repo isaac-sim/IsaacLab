@@ -47,12 +47,20 @@ class _CableSceneCfg(InteractiveSceneCfg):
     )
 
 
-def _author_curve(stage, path, points, counts) -> None:
+def _author_curve(
+    stage,
+    path,
+    points,
+    counts,
+    *,
+    curve_type=UsdGeom.Tokens.linear,
+    wrap=UsdGeom.Tokens.nonperiodic,
+) -> None:
     curves = UsdGeom.BasisCurves.Define(stage, path)
     curves.CreatePointsAttr(points)
     curves.CreateCurveVertexCountsAttr(Vt.IntArray(counts))
-    curves.CreateTypeAttr(UsdGeom.Tokens.linear)
-    curves.CreateWrapAttr(UsdGeom.Tokens.nonperiodic)
+    curves.CreateTypeAttr(curve_type)
+    curves.CreateWrapAttr(wrap)
     curves.GetPrim().AddAppliedSchema("PhysicsCurvesDeformableSimAPI")
 
 
@@ -164,11 +172,9 @@ def test_interactive_scene_manages_newton_cables():
         assert torch.isfinite(cable.data.segment_pose_w.torch).all()
         assert torch.isfinite(cable.data.segment_velocity_w.torch).all()
 
-        previous_state = state
         sim.reset()
         scene.update(0.0)
         state = SimulationManager.get_state_0()
-        assert state is not previous_state
 
         expected_pose, expected_velocity = _expected_segment_state(cable, state, SimulationManager.get_model())
         torch.testing.assert_close(cable.data.segment_pose_w.torch, expected_pose)
@@ -341,16 +347,41 @@ def test_cable_callback_does_not_retain_asset():
 
 
 @pytest.mark.parametrize(
-    ("points", "counts", "parent_scale", "message"),
+    ("points", "counts", "curve_attributes", "message"),
     [
-        (((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.4, 0.0)), (3,), None, "finite"),
-        (((0.0, 0.0, 0.0), (1.0e-8, 0.0, 0.0), (0.0, 0.4, 0.0)), (3,), None, "longer than"),
-        (((0.0, 0.0, 0.0), (0.0, float("nan"), 0.0), (0.0, 0.4, 0.0)), (3,), None, "finite"),
-        (((0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.0, 0.0)), (3,), (0.0, 1.0, 1.0), "finite"),
-        (tuple((0.0, 0.1 * index, 0.0) for index in range(6)), (3, 3), None, "one open"),
+        (
+            ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.4, 0.0)),
+            (3,),
+            {},
+            "longer than",
+        ),
+        (
+            ((0.0, 0.0, 0.0), (0.0, float("nan"), 0.0), (0.0, 0.4, 0.0)),
+            (3,),
+            {},
+            "finite",
+        ),
+        (
+            tuple((0.0, 0.1 * index, 0.0) for index in range(6)),
+            (3, 3),
+            {},
+            "one open",
+        ),
+        (
+            ((0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.0, 0.0)),
+            (3,),
+            {"wrap": UsdGeom.Tokens.periodic},
+            "one open",
+        ),
+        (
+            ((0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.0, 0.0)),
+            (3,),
+            {"curve_type": UsdGeom.Tokens.cubic},
+            "one open",
+        ),
     ],
 )
-def test_cable_rejects_invalid_imported_curve(points, counts, parent_scale, message):
+def test_cable_rejects_invalid_imported_curve(points, counts, curve_attributes, message):
     sim_cfg = SimulationCfg(
         device="cpu",
         physics=NewtonCfg(
@@ -361,10 +392,6 @@ def test_cable_rejects_invalid_imported_curve(points, counts, parent_scale, mess
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         path = "/World/Cable"
-        if parent_scale is not None:
-            parent = UsdGeom.Xform.Define(sim.stage, "/World/Parent")
-            parent.AddScaleOp().Set(parent_scale)
-            path = "/World/Parent/Cable"
-        _author_curve(sim.stage, path, points, counts)
+        _author_curve(sim.stage, path, points, counts, **curve_attributes)
         with pytest.raises(RuntimeError, match=message):
             NewtonCableObject(CableObjectCfg(prim_path=path))

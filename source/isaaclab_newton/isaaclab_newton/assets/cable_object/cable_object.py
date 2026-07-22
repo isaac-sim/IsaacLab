@@ -60,10 +60,12 @@ class CableObject(BaseCableObject):
         sim = SimulationContext.instance()
         if sim is not None:
             solver_cfg = getattr(sim.cfg.physics, "solver_cfg", None)
-            if not getattr(sim.physics_manager, "_supports_cable_joints", False) or getattr(
-                solver_cfg, "integrate_with_external_rigid_solver", False
+            if not hasattr(solver_cfg, "integrate_with_external_rigid_solver") or (
+                solver_cfg.integrate_with_external_rigid_solver
             ):
-                raise RuntimeError("CableObject requires VBDSolverCfg with rigid-body integration enabled.")
+                raise RuntimeError(
+                    "CableObject requires a standalone VBDSolverCfg with internal rigid-body integration."
+                )
 
         super().__init__(cfg)
         self._curve_path_expr, self._num_authored_segments = self._resolve_curve()
@@ -321,7 +323,6 @@ class CableObject(BaseCableObject):
             and self.root_view.joint_count == expected_joint_count
             and self.root_view.joint_dof_count == 2 * expected_joint_count
             and self.root_view.link_count == expected_joint_count
-            and self.num_segments == num_segments
             and bool((joint_types == int(JointType.CABLE)).all())
         )
         if not valid_topology:

@@ -61,11 +61,6 @@ def test_public_coupler_config_resolves_renamed_class():
     assert CouplerCfg().class_type.__name__ == "NewtonCouplerManager"
 
 
-def test_coupler_does_not_advertise_cable_joint_support():
-    """The generic coupler must reject cable joints."""
-    assert NewtonCouplerManager._supports_cable_joints is False
-
-
 def test_public_coupling_exports_are_importable():
     """The lazy-export stub must not retain deleted public symbols."""
     import isaaclab_contrib.coupling as coupling

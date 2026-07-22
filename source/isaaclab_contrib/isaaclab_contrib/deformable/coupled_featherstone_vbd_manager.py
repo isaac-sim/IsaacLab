@@ -25,7 +25,6 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonVBDManager):
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
     """
 
-    _supports_cable_joints: bool = False
     _rigid_solver: SolverFeatherstone
     _soft_solver: SolverVBD
     _coupling_mode: str | None = None
