@@ -68,7 +68,7 @@ parser.add_argument("--real-time", action="store_true", default=False, help="Run
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
-args_cli, remaining_args = setup_preset_cli(parser)
+args_cli, remaining_args = setup_preset_cli(parser, agent_library="rsl_rl")
 
 if args_cli.video:
     args_cli.enable_cameras = True

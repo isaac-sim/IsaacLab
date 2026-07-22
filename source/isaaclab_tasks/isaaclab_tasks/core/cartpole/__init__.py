@@ -13,7 +13,19 @@ disambiguate the two workflows within the flat package layout.
 
 import gymnasium as gym
 
+from isaaclab_tasks.utils import TaskVariantCfg
+
 from . import agents
+
+_RAW_CAMERA_PRESETS = (
+    "albedo",
+    "depth",
+    "rgb",
+    "semantic_segmentation",
+    "simple_shading_constant_diffuse",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+)
 
 ##
 # Register Gym environments -- direct workflow.
@@ -75,6 +87,27 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraPPORunnerCfg",
         "rsl_rl_feature_cfg_entry_point": (
             f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraFeaturePPORunnerCfg"
+        ),
+        "task_variant_cfg": TaskVariantCfg(
+            default_preset="rgb",
+            agents={
+                "rl_games_cfg_entry_point": TaskVariantCfg.AgentCfg(
+                    preset_names=_RAW_CAMERA_PRESETS,
+                    description="CNN policy for raw camera observations.",
+                ),
+                "rl_games_feature_cfg_entry_point": TaskVariantCfg.AgentCfg(
+                    preset_names=("resnet18", "theia_tiny"),
+                    description="MLP policy for frozen vision features.",
+                ),
+                "rsl_rl_cfg_entry_point": TaskVariantCfg.AgentCfg(
+                    preset_names=_RAW_CAMERA_PRESETS,
+                    description="CNN policy for raw camera observations.",
+                ),
+                "rsl_rl_feature_cfg_entry_point": TaskVariantCfg.AgentCfg(
+                    preset_names=("resnet18", "theia_tiny"),
+                    description="MLP policy for frozen vision features.",
+                ),
+            },
         ),
     },
 )

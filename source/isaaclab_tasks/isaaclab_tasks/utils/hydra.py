@@ -615,6 +615,16 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         else:
             override_items.append((key, val, arg))
 
+    # Some domain presets change the observation or action interface and
+    # therefore require a matching agent network. Validate task-owned
+    # compatibility metadata before resolving configs or launching the sim.
+    from isaaclab_tasks.utils.task_variant import validate_task_variant
+
+    selected_task_presets = global_presets + [
+        value for key, value, _arg in override_items if key == "env" or key.startswith("env.")
+    ]
+    validate_task_variant(task_name, agent_entry, selected_task_presets)
+
     explicit = {key: val for key, val, _arg in override_items}
     consumed_presets: set[str] = set()
     typed_hits: dict[str, set[PresetTarget]] = {}

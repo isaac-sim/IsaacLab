@@ -65,7 +65,7 @@ parser.add_argument(
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
 add_launcher_args(parser)
-args_cli, hydra_args = setup_preset_cli(parser)
+args_cli, hydra_args = setup_preset_cli(parser, agent_library="sb3")
 
 if args_cli.video:
     args_cli.enable_cameras = True

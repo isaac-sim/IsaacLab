@@ -84,7 +84,7 @@ parser.add_argument(
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 add_launcher_args(parser)
-args_cli, hydra_args = setup_preset_cli(parser)
+args_cli, hydra_args = setup_preset_cli(parser, agent_library="skrl")
 
 if args_cli.video:
     args_cli.enable_cameras = True
