@@ -200,6 +200,23 @@ class EventCfg(FrankaSoftEventCfg):
     )
 
 
+def _make_ovphysx_event_cfg() -> EventCfg:
+    """Create cloth events that select all robot shapes on OvPhysX."""
+    cfg = EventCfg()
+    cfg.robot_physics_material.params["asset_cfg"] = SceneEntityCfg("robot")
+    return cfg
+
+
+@configclass
+class EventPresetCfg(PresetCfg):
+    """Preset config for Franka cloth startup and reset events."""
+
+    newton_mjwarp_vbd: EventCfg = EventCfg()
+    ovphysx: EventCfg = _make_ovphysx_event_cfg()
+
+    default = newton_mjwarp_vbd
+
+
 ##
 # Environment configuration
 ##
@@ -214,7 +231,7 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
     # Basic settings
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
-    events: EventCfg = EventCfg()
+    events: EventPresetCfg = EventPresetCfg()
 
     def __post_init__(self) -> None:
         # general settings
