@@ -170,8 +170,9 @@ def test_mesh_surface_deformable_spawn_with_collision_props(monkeypatch, caplog)
     """Surface slot end-to-end on the mesh path (no tetrahedralization needed), with collision
     offsets riding the collision family keyed to the sim mesh.
 
-    A deformable ``physics_material`` is bound before the deformable slot is authored, so the
-    happy path must not emit the "without a physics material binding" warning.
+    With a deformable ``physics_material`` configured, the spawner suppresses the writer's
+    missing-material check (the material binds after authoring), so the happy path must not
+    emit the "without a physics material binding" warning.
     """
     import logging
 
