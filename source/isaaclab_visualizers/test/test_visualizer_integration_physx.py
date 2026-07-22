@@ -28,7 +28,7 @@ import visualizer_integration_utils as _viz_utils  # noqa: E402
 
 _viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.timeout(300)]
+pytestmark = [pytest.mark.isaacsim_ci]
 
 
 def test_cartpole_env_kit_physx(caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]) -> None:

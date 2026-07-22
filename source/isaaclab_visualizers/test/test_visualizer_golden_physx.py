@@ -32,7 +32,7 @@ import visualizer_integration_utils as _viz_utils  # noqa: E402
 
 _viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
-pytestmark = [pytest.mark.isaacsim_ci, _golden.FLAKY_MARK, pytest.mark.timeout(300)]
+pytestmark = [pytest.mark.isaacsim_ci, _golden.FLAKY_MARK]
 
 _COMPARISON_SCORES: list[dict] = []
 

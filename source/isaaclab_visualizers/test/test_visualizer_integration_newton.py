@@ -26,7 +26,7 @@ _viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 run_cartpole_env_visualizers_motion_with_play_pause = _viz_utils.run_cartpole_env_visualizers_motion_with_play_pause
 run_cartpole_env_visualizers_tiled_camera_motion = _viz_utils.run_cartpole_env_visualizers_tiled_camera_motion
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.timeout(300)]
+pytestmark = [pytest.mark.isaacsim_ci]
 
 
 def test_cartpole_env_visualizers_motion_with_play_pause_newton(

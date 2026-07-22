@@ -70,10 +70,3 @@ Fixed
   because ``NewtonManager._newton_fabric_ready`` is never set when Newton MJWarp physics is not
   simulating — a 20-iteration probe now detects the PhysX path and skips the remaining drain,
   letting ``_pump_tiled_until_stable`` handle frame convergence instead.
-
-Added
-^^^^^
-
-* Added ``pytest.mark.timeout(300)`` to all four visualizer test files (integration and golden,
-  Newton and PhysX) and added ``pytest-timeout>=2.0`` to the ``test`` optional-dependency group,
-  so hung tests are killed after 5 minutes rather than blocking CI indefinitely.
