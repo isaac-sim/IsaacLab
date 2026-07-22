@@ -212,7 +212,8 @@ def _binding_scalar_dtype(binding: _BindingLike) -> Any:
         raise OvPhysxView.DtypeMismatch(
             "OVPhysX binding does not expose DLPack dtype metadata; install the OVPhysX 0.5 dependency."
         )
-    key = (int(dtype.code), int(dtype.bits), int(dtype.lanes))
+    code = getattr(dtype.code, "value", dtype.code)
+    key = (int(code), int(dtype.bits), int(dtype.lanes))
     try:
         return _DLPACK_TO_WARP_SCALAR[key]
     except KeyError:
