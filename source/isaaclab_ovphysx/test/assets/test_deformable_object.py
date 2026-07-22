@@ -21,10 +21,10 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg  # noqa: E402
 
-from pxr import Gf, UsdGeom  # noqa: E402
+from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -661,8 +661,11 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         source_paths = {plan.sources[row] for row in shape_rows}
         assert source_paths == {"/World/envs/env_0/Shape", "/World/envs/env_1/Shape"}
         stage = sim_utils.get_current_stage()
+        ancestor_path = "/World/envs/env_2/Shape"
+        camera_path = f"{ancestor_path}/Camera"
+        UsdGeom.Xform.Define(stage, camera_path)
         authored_paths = {path for path in expected_paths if stage.GetPrimAtPath(path).IsValid()}
-        assert authored_paths == source_paths
+        assert authored_paths == source_paths | {ancestor_path}
         authored_deformable_paths = {f"/World/envs/env_{index}/Object/simulation" for index in range(num_envs)}
         assert all(stage.GetPrimAtPath(path).IsValid() for path in authored_deformable_paths)
 
@@ -675,6 +678,11 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         runtime_paths = shape.root_view.prim_paths
         assert set(runtime_paths) == expected_paths
         assert len(runtime_paths) == len(set(runtime_paths)) == num_envs
+        assert OvPhysxManager._stage_usda is not None
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        assert layer.ImportFromString(OvPhysxManager._stage_usda)
+        materialized_stage = Usd.Stage.Open(layer)
+        assert materialized_stage.GetPrimAtPath(camera_path).IsValid()
 
         sim.step()
         scene.update(sim.cfg.dt)

@@ -362,7 +362,7 @@ class OvPhysxDeformableMaterialView:
         self._set("poissons_ratio", values, indices=indices, mask=mask)
 
     def get_elasticity_dampings(self) -> wp.array(dtype=wp.float32):
-        """Return elasticity damping coefficients [dimensionless]."""
+        """Return elasticity damping coefficients [1/s]."""
         return self._get("elasticity_damping")
 
     def set_elasticity_dampings(
@@ -371,17 +371,17 @@ class OvPhysxDeformableMaterialView:
         indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
         mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
-        """Set elasticity damping coefficients [dimensionless].
+        """Set elasticity damping coefficients [1/s].
 
         Args:
-            values: Elasticity damping coefficient values [dimensionless].
+            values: Elasticity damping coefficient values [1/s].
             indices: Optional deformable material indices selecting rows to write.
             mask: Optional boolean deformable material mask selecting rows to write.
         """
         self._set("elasticity_damping", values, indices=indices, mask=mask)
 
     def get_bending_stiffnesses(self) -> wp.array(dtype=wp.float32):
-        """Return bending stiffnesses [N·m]."""
+        """Return bending stiffnesses [Pa]."""
         return self._get("bending_stiffness")
 
     def set_bending_stiffnesses(
@@ -390,10 +390,10 @@ class OvPhysxDeformableMaterialView:
         indices: wp.array(dtype=wp.int32) | torch.Tensor | None = None,
         mask: wp.array(dtype=wp.bool) | torch.Tensor | None = None,
     ) -> None:
-        """Set bending stiffnesses [N·m].
+        """Set bending stiffnesses [Pa].
 
         Args:
-            values: Bending stiffness values [N·m].
+            values: Bending stiffness values [Pa].
             indices: Optional deformable material indices selecting rows to write.
             mask: Optional boolean deformable material mask selecting rows to write.
         """

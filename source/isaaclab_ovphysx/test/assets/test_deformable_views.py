@@ -199,6 +199,19 @@ def test_material_view_exposes_all_properties_on_cpu(getter: str, setter: str):
     getattr(view, setter)(wp.zeros((2,), dtype=wp.float32))
 
 
+@pytest.mark.parametrize(
+    ("method_name", "unit"),
+    [
+        ("get_elasticity_dampings", "[1/s]"),
+        ("set_elasticity_dampings", "[1/s]"),
+        ("get_bending_stiffnesses", "[Pa]"),
+        ("set_bending_stiffnesses", "[Pa]"),
+    ],
+)
+def test_material_view_docstrings_state_physical_units(method_name: str, unit: str):
+    assert unit in getattr(OvPhysxDeformableMaterialView, method_name).__doc__
+
+
 def test_material_view_converts_torch_inputs_and_cpu_selection():
     view = OvPhysxDeformableMaterialView(_FakePhysX(), "/World/env_*/material")
     values = torch.zeros((2, 2), dtype=torch.float32)[:, 0]

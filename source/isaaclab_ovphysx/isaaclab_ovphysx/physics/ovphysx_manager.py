@@ -215,10 +215,13 @@ class OvPhysxManager(PhysicsManager):
     # :meth:`_release_physx`); we mirror it here so a clear Python error is raised
     # if a later :class:`~isaaclab.sim.SimulationContext` requests a different device.
     _locked_device: ClassVar[str | None] = None
-    # Pending (source, targets, parent_positions) triples queued by
-    # replication is queued before the PhysX instance exists.  Replayed via
-    # physx.clone() in _warmup_and_load().
+    # Active (source, targets, parent_positions) replication recipes for the
+    # current SimulationContext. They survive the consumable pending queue so a
+    # forced re-warmup can rebuild serialized-stage or runtime-only clones.
     # parent_positions is a list of (x, y, z) tuples — one per target.
+    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
+    # Consumable snapshot of the active recipes. Full-stage warmup materializes
+    # these into serialized USDA; env-0-only warmup replays them with physx.clone().
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
@@ -249,12 +252,13 @@ class OvPhysxManager(PhysicsManager):
     def register_clone(
         cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:
-        """Register a (source, targets, parent_positions) triple for replay via physx.clone().
+        """Register a clone recipe for the current simulation context.
 
         Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
-        scene setup, before the PhysX instance exists.  The clone operations
-        are executed in :meth:`_warmup_and_load` immediately after
-        attaching the populated OVStage.
+        scene setup, before the PhysX instance exists. Full-stage warmups
+        materialize the recipe in serialized USDA before attaching OVStage;
+        env-0-only warmups replay it through ``physx.clone()`` after loading.
+        Recipes are retained so forced re-warmups rebuild the same topology.
 
         Args:
             source: Source prim path (env_0 articulation root).
@@ -265,7 +269,17 @@ class OvPhysxManager(PhysicsManager):
                 at their correct grid locations, preventing solver divergence
                 during the warmup step.
         """
-        cls._pending_clones.append((source, targets, parent_positions or []))
+        recipe = (source, list(targets), list(parent_positions or []))
+        cls._active_clone_recipes.append(recipe)
+        cls._pending_clones.append(recipe)
+
+    @classmethod
+    def _rearm_pending_clones(cls) -> None:
+        """Refresh the consumable clone queue from active context recipes."""
+        cls._pending_clones = [
+            (source, list(targets), list(parent_positions))
+            for source, targets, parent_positions in cls._active_clone_recipes
+        ]
 
     _physx_schemas_registered: ClassVar[bool] = False
 
@@ -325,6 +339,7 @@ class OvPhysxManager(PhysicsManager):
         cls._requires_full_stage = False
         cls._stage_usda = None
         cls._pending_clones = []
+        cls._active_clone_recipes = []
         # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
         # captures a real instance (not ``None``) when it builds the central
         # :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
@@ -388,6 +403,8 @@ class OvPhysxManager(PhysicsManager):
         cls._stage_usda = None
         cls._warmup_done = False
         cls._requires_full_stage = False
+        cls._active_clone_recipes = []
+        cls._pending_clones = []
         # Drop the SceneDataBackend singleton: its cached ``TensorBinding`` handles
         # point into the wheel's prior scene which we just cleared.
         # The next :class:`SimulationContext` re-creates the backend in
@@ -529,20 +546,22 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _materialize_pending_clones(cls, stage_usda: str) -> str:
-        """Copy missing queued clone targets into serialized full-stage USDA.
+        """Materialize queued clone targets into serialized full-stage USDA.
 
         OVPhysX runtime cloning is unsafe after a heterogeneous full-stage load:
         cloning one leaf can disturb tensor discovery for already loaded sibling
-        assets. Copying only absent prim specs into the serialized stage gives
-        the runtime one coherent stage while leaving the live USD stage unchanged.
+        assets. Missing targets are copied into the serialized stage. When another
+        clone has already created a target ancestor, an internal reference overlays
+        the source physics without replacing authored descendants. The live USD
+        stage remains unchanged.
 
         Args:
             stage_usda: Flattened full-stage USDA content to augment.
 
         Returns:
-            Full-stage USDA content containing every missing clone target.
+            Full-stage USDA content containing every materialized clone target.
         """
-        from pxr import Sdf  # noqa: PLC0415
+        from pxr import Sdf, Usd  # noqa: PLC0415
 
         pending_clones = list(cls._pending_clones)
         cls._pending_clones.clear()
@@ -552,26 +571,35 @@ class OvPhysxManager(PhysicsManager):
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
         if not layer.ImportFromString(stage_usda):
             raise RuntimeError("OvPhysxManager: failed to import serialized full stage.")
+        exported_stage = Usd.Stage.Open(layer)
+        if exported_stage is None:
+            raise RuntimeError("OvPhysxManager: failed to open serialized full stage.")
 
-        copies: list[tuple[Sdf.Path, Sdf.Path]] = []
+        operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
+        processed_targets: set[Sdf.Path] = set()
         for source, targets, _ in pending_clones:
             source_path = Sdf.Path(source)
             if layer.GetPrimAtPath(source_path) is None:
                 raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from serialized full stage.")
             for target in targets:
                 target_path = Sdf.Path(target)
-                if layer.GetPrimAtPath(target_path) is not None:
+                if target_path in processed_targets:
                     continue
                 if layer.GetPrimAtPath(target_path.GetParentPath()) is None:
                     raise RuntimeError(f"OvPhysxManager: clone target parent is absent for {target!r}.")
-                copies.append((source_path, target_path))
+                operations.append((source_path, target_path, layer.GetPrimAtPath(target_path) is not None))
+                processed_targets.add(target_path)
 
-        for source_path, target_path in copies:
-            if not Sdf.CopySpec(layer, source_path, layer, target_path):
+        for source_path, target_path, target_exists in operations:
+            if target_exists:
+                target_prim = exported_stage.GetPrimAtPath(target_path)
+                if not target_prim.GetReferences().AddInternalReference(source_path):
+                    raise RuntimeError(f"OvPhysxManager: failed to overlay clone target {str(target_path)!r}.")
+            elif not Sdf.CopySpec(layer, source_path, layer, target_path):
                 raise RuntimeError(f"OvPhysxManager: failed to materialize clone target {str(target_path)!r}.")
 
-        if copies:
-            logger.info("OvPhysxManager: materialized %d missing clone targets in full-stage USDA", len(copies))
+        if operations:
+            logger.info("OvPhysxManager: materialized %d clone targets in full-stage USDA", len(operations))
         return layer.ExportToString()
 
     @classmethod
@@ -657,6 +685,7 @@ class OvPhysxManager(PhysicsManager):
         # re-populates env_1..N. Features that need distinct authored physics in
         # every environment request the full stage. Missing heterogeneous clone
         # targets are copied into the serialized stage before it is attached.
+        cls._rearm_pending_clones()
         stage_usda = cls._serialize_selected_stage(sim.stage)
         if cls._requires_full_stage:
             stage_usda = cls._materialize_pending_clones(stage_usda)

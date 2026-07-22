@@ -96,6 +96,72 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
         OvPhysxManager._pending_clones = previous
 
 
+def test_manager_full_stage_overlays_existing_ancestor_without_removing_descendants():
+    """An ancestor created for another asset gains source physics while retaining descendants."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
+    source.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+    physics = stage.DefinePrim("/World/envs/env_0/Robot/Physics", "Xform")
+    physics.CreateAttribute("physics:mass", Sdf.ValueTypeNames.Float).Set(3.0)
+    camera = stage.DefinePrim("/World/envs/env_1/Robot/Camera", "Xform")
+    camera.CreateAttribute("test:keep", Sdf.ValueTypeNames.Bool).Set(True)
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0)])
+        ]
+        materialized_usda = OvPhysxManager._materialize_pending_clones(stage.Flatten().ExportToString())
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        assert layer.ImportFromString(materialized_usda)
+        exported = Usd.Stage.Open(layer)
+        robot = exported.GetPrimAtPath("/World/envs/env_1/Robot")
+        assert robot.GetAttribute("physics:enabled").Get() is True
+        assert exported.GetPrimAtPath("/World/envs/env_1/Robot/Physics").GetAttribute("physics:mass").Get() == 3.0
+        assert exported.GetPrimAtPath("/World/envs/env_1/Robot/Camera").GetAttribute("test:keep").Get() is True
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_retains_clone_recipes_across_full_stage_serializations():
+    """A second full-stage serialization rematerializes targets from active recipes."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Object", "Xform")
+    source.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+    previous_pending = OvPhysxManager._pending_clones
+    previous_active = OvPhysxManager._active_clone_recipes
+    try:
+        OvPhysxManager._pending_clones = []
+        OvPhysxManager._active_clone_recipes = []
+        OvPhysxManager.register_clone(
+            "/World/envs/env_0/Object", ["/World/envs/env_1/Object"], [(1.0, 0.0, 0.0)]
+        )
+        for _ in range(2):
+            OvPhysxManager._rearm_pending_clones()
+            materialized_usda = OvPhysxManager._materialize_pending_clones(stage.Flatten().ExportToString())
+            layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+            assert layer.ImportFromString(materialized_usda)
+            exported = Usd.Stage.Open(layer)
+            assert exported.GetPrimAtPath("/World/envs/env_1/Object").GetAttribute("physics:enabled").Get() is True
+            assert OvPhysxManager._pending_clones == []
+        assert len(OvPhysxManager._active_clone_recipes) == 1
+    finally:
+        OvPhysxManager._pending_clones = previous_pending
+        OvPhysxManager._active_clone_recipes = previous_active
+
+
 def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
     """A validation failure clears the queue without partially modifying the export."""
     from isaaclab_ovphysx.physics import OvPhysxManager
