@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cartpole env + all non-tiled and tiled visualizers on PhysX."""
+"""Cartpole env + Kit visualizer integration tests on PhysX.
+
+Tests focus on Kit RTX rendering with the PhysX backend — the behavior that is unique to this
+combination.  Newton viewer, Rerun, and Viser play/pause behavior is backend-agnostic and is
+already covered by the Newton integration test (which runs in ~50 s vs ~8 min on PhysX).
+"""
 
 import sys
 from pathlib import Path
@@ -23,25 +28,20 @@ import visualizer_integration_utils as _viz_utils  # noqa: E402
 
 _viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
-run_cartpole_env_visualizers_motion_with_play_pause = _viz_utils.run_cartpole_env_visualizers_motion_with_play_pause
-run_cartpole_env_visualizers_tiled_camera_motion = _viz_utils.run_cartpole_env_visualizers_tiled_camera_motion
-
 pytestmark = [pytest.mark.isaacsim_ci]
 
 
-def test_cartpole_env_visualizers_motion_with_play_pause_physx(
-    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Cartpole env + all non-tiled visualizers on PhysX."""
-    run_cartpole_env_visualizers_motion_with_play_pause("physx", caplog)
-    _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
+def test_cartpole_env_kit_physx(caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]) -> None:
+    """Kit RTX viewport + tiled camera motion tests on PhysX in one env.
 
+    Runs both the viewport and tiled motion tests in a single env to avoid creating and
+    destroying two separate envs.  PhysX env setup/teardown (~3–4 min each) dominates the
+    total runtime; sharing one env cuts the expected time roughly in half.
 
-def test_visualizer_tiled_integration_physx(
-    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Cartpole env + tiled Kit/Newton visualizers on PhysX."""
-    run_cartpole_env_visualizers_tiled_camera_motion("physx", caplog)
+    Newton viewer, Rerun, and Viser are backend-agnostic and are covered by the Newton
+    integration test which runs in ~50 s total.
+    """
+    _viz_utils.run_cartpole_env_kit_viewport_and_tiled("physx", caplog)
     _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
