@@ -274,7 +274,7 @@ class NewtonViewerViser(ViewerViser):
                     if self._plot_folder is None:
                         self._plot_folder = folder
 
-                    series_list = [uplot.Series(show=False)]
+                    series_list = [uplot.Series(label="step", show=False)]
                     for i, name in enumerate(names):
                         suffix = name[len(base_name) :]  # "" for scalar, "[0]" etc. for vector
                         series_list.append(
