@@ -3263,7 +3263,7 @@ requires-dist = [
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
-    { name = "omniverseclient", specifier = "==2.72.1" },
+    { name = "omniverseclient", specifier = "==2.72.3" },
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "onnxscript", specifier = ">=0.5" },
     { name = "onnxscript", marker = "extra == 'rsl-rl'", specifier = ">=0.5" },
@@ -5454,12 +5454,12 @@ wheels = [
 
 [[package]]
 name = "omniverseclient"
-version = "2.72.1"
+version = "2.72.3"
 source = { registry = "https://pypi.nvidia.com/" }
 wheels = [
-    { url = "https://pypi.nvidia.com/omniverseclient/omniverseclient-2.72.1-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:d054c2aaa1f71925c1ca35772dd4a76d3bd99bc85ec264d6598ef64aae280c1b" },
-    { url = "https://pypi.nvidia.com/omniverseclient/omniverseclient-2.72.1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:82a386c6919985ff6f230f88b49f56c2d3859ac77d404343a4d7caefc0631cf5" },
-    { url = "https://pypi.nvidia.com/omniverseclient/omniverseclient-2.72.1-cp312-cp312-win_amd64.whl", hash = "sha256:ddd555e2b84a910381b8d17128ec2100ce0f25f0197e689b5f91eb4adb88a887" },
+    { url = "https://pypi.nvidia.com/omniverseclient/omniverseclient-2.72.3-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:cc3cf460bb95517b6b610b142bec5809105310f8fe57a913dc404d8801c91b7b" },
+    { url = "https://pypi.nvidia.com/omniverseclient/omniverseclient-2.72.3-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:4cb9af5953be9940b462b954055ec2397e77d1117e742eb20703ed3e38db540f" },
+    { url = "https://pypi.nvidia.com/omniverseclient/omniverseclient-2.72.3-cp312-cp312-win_amd64.whl", hash = "sha256:35197d0fda6f0c4cd2e145a2741a420d095a4107b4b24dd395d5918c4206351b" },
 ]
 
 [[package]]

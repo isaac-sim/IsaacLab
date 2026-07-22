@@ -87,6 +87,7 @@ def test_version_single_source_matches_literal_pins():
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
     assert versions["ovphysx"] == ">=0.5,<0.6"
+    assert "omniverseclient==2.72.3" in dependencies
 
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
