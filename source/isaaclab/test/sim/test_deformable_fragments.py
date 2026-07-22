@@ -14,10 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
-from pxr import UsdGeom, UsdPhysics
-
-import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationCfg, SimulationContext
+from pxr import UsdGeom
 
 pytestmark = pytest.mark.integration
 
