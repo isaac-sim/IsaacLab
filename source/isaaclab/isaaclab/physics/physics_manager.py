@@ -151,6 +151,32 @@ class PhysicsManager(ABC):
         joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_xform.ExtractRotationQuat()))
         return articulation_prim
 
+    @classmethod
+    def setup_deformable_body(
+        cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any, stage: Any = None
+    ) -> None:
+        """Apply the backend's deformable anchor schemas to a prepared deformable body.
+
+        Called by the deformable family writers after the backend-neutral mesh setup: the
+        simulation mesh already exists (a ``UsdGeom.TetMesh`` for volume, a triangle
+        ``UsdGeom.Mesh`` for surface) with collision enabled. The backend applies its sim and
+        body anchor schemas and any backend-specific authoring (rest state, pose bindings,
+        visual-mesh synchronization).
+
+        The base raises: backends with deformable support override.
+
+        Args:
+            prim: The deformable-body prim to anchor.
+            deformable_type: The deformable type, ``"volume"`` or ``"surface"``.
+            sim_mesh_prim: The prepared simulation-mesh prim.
+            vis_mesh_prim: The visual-mesh prim.
+            stage: The stage containing the prims. Defaults to the current stage.
+
+        Raises:
+            NotImplementedError: If the backend does not support deformable bodies.
+        """
+        raise NotImplementedError(f"Physics backend '{cls.__name__}' does not support deformable bodies.")
+
     @staticmethod
     def _relocate_articulation_root(
         articulation_prim: Any,

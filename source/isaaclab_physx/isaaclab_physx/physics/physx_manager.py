@@ -30,7 +30,7 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from pxr import Sdf, Usd, UsdPhysics, UsdUtils
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
@@ -317,6 +317,43 @@ class PhysxManager(PhysicsManager):
                 companion_namespace="physxArticulation",
             )
         return root
+
+    @classmethod
+    def setup_deformable_body(
+        cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any, stage: Any = None
+    ) -> None:
+        """Apply the OmniPhysics deformable anchor APIs, rest state, and bind pose."""
+        sim_mesh_path = sim_mesh_prim.GetPath().pathString
+        if deformable_type == "surface":
+            if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
+                raise RuntimeError(f"Failed to set surface deformable sim API on prim '{sim_mesh_path}'.")
+            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+            sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(
+                sim_mesh_prim.GetAttribute("faceVertexIndices").Get()
+            )
+        else:
+            if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
+                raise RuntimeError(f"Failed to set volume deformable sim API on prim '{sim_mesh_path}'.")
+            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+            sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
+                sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
+            )
+        # bind visual to sim mesh through the default bind pose
+        purposes = ["bindPose"]
+        vis_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
+        vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+            purposes
+        )
+        points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
+        vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(
+            points
+        )
+        sim_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
+        sim_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+            purposes
+        )
+        if not prim.ApplyAPI("OmniPhysicsDeformableBodyAPI"):
+            raise RuntimeError(f"Failed to set deformable body API on prim '{prim.GetPath().pathString}'.")
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:

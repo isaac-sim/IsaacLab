@@ -16,8 +16,9 @@ import re
 from abc import abstractmethod
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -264,6 +265,36 @@ class NewtonManager(PhysicsManager):
     def provides_implicit_damping(cls) -> bool:
         # Newton's symplectic integrator has no implicit damping.
         return False
+
+    @classmethod
+    def setup_deformable_body(
+        cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any, stage: Any = None
+    ) -> None:
+        """Apply Newton's token deformable anchor schemas and sync the visual mesh geometry."""
+        sim_mesh_path = sim_mesh_prim.GetPath().pathString
+        token = "PhysicsVolumeDeformableSimAPI" if deformable_type == "volume" else "PhysicsSurfaceDeformableSimAPI"
+        if not sim_mesh_prim.AddAppliedSchema(token):
+            raise RuntimeError(f"Failed to set {deformable_type} deformable sim API on prim '{sim_mesh_path}'.")
+        # Newton renders the simulation mesh directly: overwrite the visual mesh geometry until
+        # separate visual/simulation meshes are supported.
+        vis_mesh = UsdGeom.Mesh(vis_mesh_prim)
+        if deformable_type == "volume":
+            tet_mesh = UsdGeom.TetMesh(sim_mesh_prim)
+            surface_indices = tet_mesh.GetSurfaceFaceVertexIndicesAttr().Get()
+            if surface_indices is None or len(surface_indices) == 0:
+                raise ValueError(
+                    f"Deformable body at '{prim.GetPath().pathString}' has no surface indices on its TetMesh"
+                    " prim; cannot sync to visual mesh."
+                )
+            vis_mesh.GetPointsAttr().Set(tet_mesh.GetPointsAttr().Get())
+            vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
+            vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
+        else:
+            sim_mesh = UsdGeom.Mesh(sim_mesh_prim)
+            vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
+            vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
+        if not prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
+            raise RuntimeError(f"Failed to set deformable body API on prim '{prim.GetPath().pathString}'.")
 
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
