@@ -26,64 +26,64 @@ Installation
    :target: https://www.microsoft.com/en-ca/windows/windows-11
    :alt: Windows 11
 
-Choose the path that matches your workflow. Start with ``uv`` unless you need a specific Python
-environment, Isaac Sim distribution, or deployment target. Each card jumps to its instructions on
-this page.
+Choose the path that matches what you want to install and how you want to run it. Start with the
+automatic ``uv`` setup unless you need to manage your own environment, use a downloaded Isaac Sim
+package, or deploy to Docker or the cloud. Each card jumps to complete instructions on this page.
 
-How to choose an installation method
-------------------------------------
+Choose an installation path
+---------------------------
 
 .. grid:: 1 1 2 2
    :gutter: 2
 
-   .. grid-item-card:: **Method 1 - uv**
+   .. grid-item-card:: **Automatic setup with uv**
       :link: installation-method-uv
       :link-type: ref
 
-      Automatically manage the environment and run from the Isaac Lab checkout.
+      Run from the Isaac Lab checkout while ``uv`` creates and manages the environment.
       **Recommended for most users.**
 
-   .. grid-item-card:: **Method 2 - Kit-less**
-      :link: installation-method-kitless
+   .. grid-item-card:: **isaaclab.sh installer (legacy)**
+      :link: installation-legacy-installer
       :link-type: ref
 
-      Install Isaac Lab without Isaac Sim for Newton-based workflows.
+      Use the legacy installer script to select packages in a virtual environment.
 
-   .. grid-item-card:: **Method 3 - pip / venv / conda**
+   .. grid-item-card:: **Python environment with Isaac Sim**
       :link: installation-method-python-env
       :link-type: ref
 
-      Use a classic Python environment with full Isaac Sim support.
+      Manage a uv, venv, or conda environment and install Isaac Sim with pip.
 
-   .. grid-item-card:: **Method 4 - Isaac Lab wheel**
+   .. grid-item-card:: **Isaac Lab Python package**
       :link: installation-method-wheel
       :link-type: ref
 
-      Use Isaac Lab as a dependency in a project with its own runner scripts.
+      Install the released Isaac Lab package as a dependency of your own project.
 
-   .. grid-item-card:: **Method 5 - Isaac Sim binary**
+   .. grid-item-card:: **Downloaded Isaac Sim package**
       :link: installation-method-binary
       :link-type: ref
 
-      Use a downloaded Isaac Sim package and its bundled Python.
+      Download Isaac Sim and use the Python interpreter included with it.
 
-   .. grid-item-card:: **Method 6 - Isaac Sim source**
+   .. grid-item-card:: **Build Isaac Sim from source**
       :link: installation-method-source
       :link-type: ref
 
-      Build and modify Isaac Sim itself. This is an advanced workflow.
+      Build or modify Isaac Sim itself. This is an advanced workflow.
 
-   .. grid-item-card:: **Method 7 - Docker / clusters**
+   .. grid-item-card:: **Docker and HPC clusters**
       :link: installation-method-container
       :link-type: ref
 
-      Run in a container or submit containerized jobs to an HPC cluster.
+      Develop in a container or submit containerized jobs to an HPC cluster.
 
-   .. grid-item-card:: **Method 8 - Cloud**
+   .. grid-item-card:: **Cloud workstations**
       :link: installation-method-cloud
       :link-type: ref
 
-      Provision and manage a remote GPU workstation with Isaac Automator.
+      Provision a remote GPU workstation on a supported cloud provider.
 
 System requirements
 -------------------
@@ -97,6 +97,15 @@ require additional VRAM. Confirm your machine against the `Isaac Sim system requ
 
 Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.0 with Python 3.12.
 
+Use the latest NVIDIA production branch driver. Version ``580.95.05`` or later is recommended on
+Linux x86_64 and aarch64, ``580.142`` on DGX Spark, and ``581.42.00`` on Windows. If a new GPU or
+driver issue requires a newer release, use the production driver from the `Unix Driver Archive
+<https://www.nvidia.com/en-us/drivers/unix/>`__. On Linux, the `Isaac Sim Compatibility Checker
+<https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html#isaac-sim-compatibility-checker>`__
+and `Linux troubleshooting guide
+<https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__ can identify
+unsupported host configurations.
+
 .. dropdown:: Linux aarch64 and DGX Spark requirements
 
    DGX Spark requires CUDA 13 or newer and the corresponding PyTorch build. Install the build
@@ -109,15 +118,17 @@ Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.0 with Python 3.12.
 
    SkillGen, XR teleoperation, livestream, Hub Workstation Cache, Cosmos Transfer1, and RLinf are
    not currently supported or validated on DGX Spark. Newton VBD deformables are limited because
-   no pre-built ``pytetwild`` wheel is available for aarch64.
+   no pre-built ``pytetwild`` wheel is available for aarch64. SkillGen depends on native CUDA/C++
+   extensions whose toolchain has not been validated on DGX Spark, while XR remains limited by
+   unvalidated encoding performance.
 
 .. _installation-method-uv:
 
-Method 1 - uv (recommended)
----------------------------
+Automatic setup with uv (recommended)
+-------------------------------------
 
-``uv`` resolves the project environment on each invocation, so no manual environment activation
-is required.
+Use this path for the fastest setup from an Isaac Lab checkout. ``uv`` resolves the project
+environment on each invocation, so you do not need to create or activate an environment manually.
 
 Install ``uv`` and clone Isaac Lab:
 
@@ -152,15 +163,20 @@ Evaluate a policy with:
 Supported values for ``--rl_library`` are ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``, and
 ``rlinf``.
 
-.. _installation-method-kitless:
+.. dropdown:: Detailed ``uv run`` setup
 
-Method 2 - Kit-less
--------------------
+   .. include:: uv_run_details.inc
 
-Kit-less mode installs Isaac Lab without Isaac Sim. It supports Newton physics, compatible RL
-environments, robot assets, OVRTX, and OVPhysX. Isaac Sim remains required for its PhysX and RTX
-backends, Kit visualizer, GUI importers, surface gripper, PhysX deformables, teleoperation, and
-imitation-learning workflows.
+.. _installation-legacy-installer:
+
+``isaaclab.sh`` installer (legacy)
+----------------------------------
+
+Use this path when you need the legacy ``isaaclab.sh`` installer on Linux or ``isaaclab.bat`` on
+Windows. The example below installs Isaac Lab without Isaac Sim for a smaller Newton-based setup.
+It supports Newton physics, compatible RL environments, robot assets, OVRTX, and OVPhysX. Install
+Isaac Sim when you need its PhysX or RTX backends, graphical visualizer, GUI importers, surface
+gripper, PhysX deformables, teleoperation, or imitation-learning workflows.
 
 Clone the repository and create a Python 3.12 environment:
 
@@ -212,14 +228,18 @@ Use ``-i`` without a value to install the core packages, optional ``mimic`` and 
 submodules, and the default Newton, RL, and visualizer extras. Other useful selectors include
 ``rl[skrl]``, ``visualizer[rerun]``, ``ov[ovrtx]``, ``contrib[rlinf]``, and ``isaacsim``.
 
+.. dropdown:: Detailed legacy installer setup and feature matrix
+
+   .. include:: legacy_installer_details.inc
+
 .. _installation-method-python-env:
 
-Method 3 - pip / venv / conda
-------------------------------
+Python environment with Isaac Sim
+---------------------------------
 
-Use this method for an editable Isaac Lab checkout with full Isaac Sim support. Isaac Sim's pip
-packages require GLIBC 2.35 or newer on Linux. Enable Windows long-path support before installing
-on Windows.
+Use this path when you want an editable Isaac Lab checkout with full Isaac Sim support while
+managing the Python environment yourself. Isaac Sim's pip packages require GLIBC 2.35 or newer on
+Linux. Enable Windows long-path support before installing on Windows.
 
 Create and activate a Python 3.12 environment:
 
@@ -317,13 +337,18 @@ Clone and install Isaac Lab:
 The verification command should open a black simulator viewport. The initial launch can take over
 ten minutes while Isaac Sim downloads extensions.
 
+.. dropdown:: Detailed pip, uv, venv, and conda setup
+
+   .. include:: pip_details.inc
+
 .. _installation-method-wheel:
 
-Method 4 - Isaac Lab wheel
---------------------------
+Isaac Lab Python package
+------------------------
 
-The released ``isaaclab`` wheel is intended for external projects with their own runner scripts.
-It does not include the repository's training, inference, demo, or example scripts.
+Use this path when Isaac Lab is a dependency of an external Python project. The released
+``isaaclab`` package does not include the repository's training, inference, demo, or example
+scripts, so your project must provide its own runner scripts.
 
 Create a Python 3.12 environment, then install the full wheel:
 
@@ -355,12 +380,17 @@ workspace with:
 
    python -m isaaclab --generate-vscode-settings
 
+.. dropdown:: Detailed Isaac Lab wheel setup
+
+   .. include:: wheel_details.inc
+
 .. _installation-method-binary:
 
-Method 5 - Isaac Sim binary
----------------------------
+Downloaded Isaac Sim package
+----------------------------
 
-Download and extract the `Isaac Sim pre-built package
+Use this path when you prefer a downloaded Isaac Sim package instead of pip. Download and extract
+the `Isaac Sim pre-built package
 <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html>`__. Binary installs
 must use Isaac Sim's bundled Python; combining them with conda, ``uv``, or ``venv`` is unsupported.
 
@@ -429,9 +459,13 @@ Clone Isaac Lab, create the ``_isaac_sim`` link, install, and verify:
          isaaclab.bat -i
          isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
 
+.. dropdown:: Detailed Isaac Sim binary setup
+
+   .. include:: binaries_details.inc
+
 .. _installation-method-source:
 
-Method 6 - Isaac Sim source
+Build Isaac Sim from source
 ---------------------------
 
 Build Isaac Sim only when you need to modify it or test a nightly revision. Building requires
@@ -465,13 +499,18 @@ Ubuntu 22.04 or newer on Linux. Clone and build:
          %ISAACSIM_PATH%\isaac-sim.bat
 
 Then clone Isaac Lab and follow the same ``_isaac_sim`` link, install, and verification commands
-shown in Method 5, using the source build path above as ``ISAACSIM_PATH``. On Linux aarch64, use
-``linux-aarch64`` instead of ``linux-x86_64``.
+from :ref:`the downloaded Isaac Sim package setup <installation-method-binary>`, using the source
+build path above as ``ISAACSIM_PATH``. On Linux aarch64, use ``linux-aarch64`` instead of
+``linux-x86_64``.
+
+.. dropdown:: Detailed Isaac Sim source-build setup
+
+   .. include:: source_details.inc
 
 .. _installation-method-container:
 
-Method 7 - Docker / clusters
-----------------------------
+Docker and HPC clusters
+-----------------------
 
 Install `Docker Engine <https://docs.docker.com/engine/install/>`__, `Docker Compose
 <https://docs.docker.com/compose/install/>`__, and the `NVIDIA Container Toolkit
@@ -495,10 +534,13 @@ For HPC, build the image on a machine with Docker, convert it to an Apptainer/Si
 and submit it with the cluster's SLURM or PBS workflow. Keep cluster-specific paths and scheduler
 settings outside the base image.
 
+See :ref:`docker-cloud` for volume management, X11, image extensions, pre-built containers,
+worked examples, and complete cluster instructions.
+
 .. _installation-method-cloud:
 
-Method 8 - Cloud
-----------------
+Cloud workstations
+------------------
 
 Isaac Automator provisions GPU workstations on AWS, GCP, Azure, and Alibaba Cloud. Install Docker,
 then clone and build Isaac Automator:
@@ -525,6 +567,9 @@ Manage the workstation from the Automator container:
    ./destroy <deployment-name>
 
 Preserve the ``state`` directory because it contains the deployment metadata.
+
+See :ref:`docker-cloud-cloud` for credentials, provider options, connection methods, data transfer,
+and the complete workstation lifecycle.
 
 Asset caching
 -------------
@@ -559,6 +604,10 @@ still downloads each asset; later runs use the local cache.
    :align: center
    :figwidth: 100%
    :alt: Isaac Sim cache status message.
+
+.. dropdown:: Detailed asset caching and Nucleus migration notes
+
+   .. include:: asset_caching_details.inc
 
 Omniverse Nucleus and Omniverse Launcher are deprecated starting with Isaac Sim 4.5. Existing local
 Nucleus installations continue to work.

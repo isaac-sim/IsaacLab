@@ -1,5 +1,4 @@
-Verifying the Isaac Lab installation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Verifying the Isaac Lab installation
 
 To verify that the installation was successful, run the following command from the
 top of the repository:
@@ -66,8 +65,7 @@ If you see this, then the installation was successful! |:tada:|
    environment is activated and ``source _isaac_sim/setup_conda_env.sh`` has been executed (for uv as well).
 
 
-Train a robot!
-~~~~~~~~~~~~~~
+.. rubric:: Train a robot!
 
 You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robot tasks. Execute the following command to quickly train an ant to walk!
 These commands do not select a visualizer, so they run without a viewer for faster training.

@@ -1,5 +1,4 @@
-Cloud Deployment
-================
+.. rubric:: Cloud Deployment
 
 Isaac Lab can be run in various cloud infrastructures with the use of
 `Isaac Automator <https://github.com/isaac-sim/IsaacAutomator>`__ (v4).
@@ -13,19 +12,17 @@ to save on cloud costs, and provides tools to aid the workflow
 (uploading and downloading data, autorun scripts, deployment management, etc.).
 
 
-System Requirements
--------------------
+.. rubric:: System Requirements
 
 Isaac Automator requires having ``docker`` pre-installed on the system.
 
 * To install Docker, please follow the instructions for your operating system on the
-  `Docker website`_.
-* Follow the post-installation steps for Docker on the `post-installation steps`_ page.
+  `Docker Engine website`_.
+* Follow the post-installation steps for Docker on the `Docker post-installation steps`_ page.
   These steps allow you to run Docker without using ``sudo``.
 
 
-Installing Isaac Automator
----------------------------
+.. rubric:: Installing Isaac Automator
 
 For the most up-to-date and complete installation instructions, please refer to
 the `Isaac Automator README <https://github.com/isaac-sim/IsaacAutomator?tab=readme-ov-file#installation>`__.
@@ -47,8 +44,7 @@ To use Isaac Automator, first clone the repo:
          git clone git@github.com:isaac-sim/IsaacAutomator.git
 
 
-Building the Container
-----------------------
+.. rubric:: Building the Container
 
 Build the Isaac Automator container:
 
@@ -72,8 +68,7 @@ Build the Isaac Automator container:
 This will build the Isaac Automator container and tag it as ``isaac_automator``.
 
 
-Deploying an Isaac Workstation
-------------------------------
+.. rubric:: Deploying an Isaac Workstation
 
 .. tab-set::
    :sync-group: os
@@ -132,8 +127,7 @@ Key deployment options:
 - ``--from-image`` -- Deploy from a pre-built VM image for faster provisioning
   (AWS only at this time).
 
-Connecting to the Isaac Workstation
------------------------------------
+.. rubric:: Connecting to the Isaac Workstation
 
 Deployed Isaac Workstations can be accessed via:
 
@@ -145,8 +139,7 @@ Connection instructions are displayed at the end of the deployment command
 output and saved in ``state/<deployment-name>/info.txt``.
 
 
-Running Isaac Lab on the Cloud
-------------------------------
+.. rubric:: Running Isaac Lab on the Cloud
 
 Isaac Lab is installed from source on the deployed workstation at ``~/IsaacLab``.
 To run Isaac Lab commands, open a terminal on the workstation:
@@ -157,8 +150,7 @@ To run Isaac Lab commands, open a terminal on the workstation:
      --task=Isaac-Cartpole-Direct
 
 
-Pausing and Resuming
---------------------
+.. rubric:: Pausing and Resuming
 
 You can stop and restart instances to save on cloud costs:
 
@@ -172,8 +164,7 @@ Use ``./start <deployment-name> --quick`` to skip full Ansible provisioning
 and only run the autorun script.
 
 
-Uploading and Downloading Data
-------------------------------
+.. rubric:: Uploading and Downloading Data
 
 .. code-block:: bash
 
@@ -184,8 +175,7 @@ Uploading and Downloading Data
    ./download <deployment-name>
 
 
-Destroying a Deployment
------------------------
+.. rubric:: Destroying a Deployment
 
 To save costs, destroy deployments when no longer needed:
 
@@ -200,5 +190,5 @@ To save costs, destroy deployments when no longer needed:
    directory, as it is required for managing deployments.
 
 
-.. _`Docker website`: https://docs.docker.com/engine/install/
-.. _`post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/
+.. _`Docker Engine website`: https://docs.docker.com/engine/install/
+.. _`Docker post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/

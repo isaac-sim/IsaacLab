@@ -19,7 +19,7 @@ your workflow:
 
 .. tab-set::
 
-   .. tab-item:: Kit-less (no Isaac Sim)
+   .. tab-item:: Without Isaac Sim
 
       Fastest start — Newton physics only, no Isaac Sim download required.
 
@@ -40,9 +40,9 @@ your workflow:
                :kitless:
                :platform: windows
 
-      See :ref:`installation-selective-install` for install tokens and
-      :doc:`/source/setup/installation/kitless_installation` for feature
-      availability without Isaac Sim.
+      See :ref:`modularized installation <installation-selective-install>` for install tokens and
+      :ref:`legacy installer setup <installation-legacy-installer>` for feature availability
+      without Isaac Sim.
 
    .. tab-item:: With Isaac Sim (full features)
 
@@ -90,7 +90,7 @@ Use the reinforcement learning training command with a **task name** and
 
             .. code-block:: bash
 
-               # Kit-less: Newton MJWarp physics + Newton visualizer
+               # Without Isaac Sim: Newton MJWarp physics + Newton visualizer
                uv run isaaclab train --rl_library rsl_rl \
                  --task=Isaac-Cartpole-Direct \
                  --num_envs=16 --max_iterations=10 \
@@ -111,7 +111,7 @@ Use the reinforcement learning training command with a **task name** and
 
             .. code-block:: bash
 
-               # Kit-less: Newton MJWarp physics + Newton visualizer
+               # Without Isaac Sim: Newton MJWarp physics + Newton visualizer
                ./isaaclab.sh train --rl_library rsl_rl \
                  --task=Isaac-Cartpole-Direct \
                  --num_envs=16 --max_iterations=10 \

@@ -165,22 +165,30 @@ html[data-theme="dark"] .environment-browser {
 }
 
 .environment-command-output {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.75rem;
     min-height: 2.6rem;
     margin-top: 1rem;
     padding: 0.65rem 0.8rem;
-    overflow-x: auto;
     border-left: 3px solid var(--pst-color-primary);
     color: var(--pst-color-text-base);
     background: color-mix(in srgb, var(--pst-color-surface) 70%, transparent);
 }
 
 .environment-command-output code {
+    min-width: 0;
     color: inherit;
     background: transparent;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.environment-command-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
 }
 
 .environment-copy-status {
@@ -198,16 +206,27 @@ html[data-theme="dark"] .environment-browser {
 
 .environment-preview-stage {
     display: grid;
-    align-content: center;
-    justify-items: center;
-    gap: 0.75rem;
+    grid-template-rows: minmax(0, 1fr) auto;
     min-width: 0;
-    padding: 2.5rem 1.5rem;
     border-right: 1px solid var(--environment-border);
-    background:
-        linear-gradient(var(--environment-border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--environment-border) 1px, transparent 1px);
-    background-size: 32px 32px;
+    background: #111;
+}
+
+.environment-preview-stage img {
+    width: 100%;
+    height: 100%;
+    min-height: 12rem;
+    object-fit: contain;
+}
+
+.environment-preview-caption {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--environment-border);
+    background: var(--pst-color-background);
 }
 
 .environment-preview-label {
@@ -221,9 +240,9 @@ html[data-theme="dark"] .environment-browser {
     max-width: 100%;
     color: var(--pst-color-text-base);
     font-family: var(--pst-font-family-monospace);
-    font-size: 1.5rem;
+    font-size: 0.95rem;
     overflow-wrap: anywhere;
-    text-align: center;
+    text-align: right;
 }
 
 .environment-preview-details {

@@ -31,10 +31,6 @@ Command Builder
            <span>--task</span>
            <select data-environment-field="task" aria-label="Core task"></select>
          </label>
-         <button type="button" class="environment-copy-button" data-copy-command
-                 aria-label="Copy command" title="Copy command">
-           <i class="fa-regular fa-copy" aria-hidden="true"></i>
-         </button>
        </div>
        <div class="environment-command-row environment-command-row-options">
          <label class="environment-selector environment-selector-physics">
@@ -52,7 +48,13 @@ Command Builder
        </div>
        <div class="environment-command-output">
          <code data-command-output></code>
-         <span class="environment-copy-status" data-copy-status aria-live="polite"></span>
+         <div class="environment-command-actions">
+           <span class="environment-copy-status" data-copy-status aria-live="polite"></span>
+           <button type="button" class="environment-copy-button" data-copy-command
+                   aria-label="Copy command" title="Copy command">
+             <i class="fa-regular fa-copy" aria-hidden="true"></i>
+           </button>
+         </div>
        </div>
      </section>
    </div>
@@ -65,8 +67,11 @@ Task Preview
    <div class="environment-browser" data-environment-preview>
      <section class="environment-preview-panel" aria-live="polite">
        <div class="environment-preview-stage">
-         <span class="environment-preview-label">Selected core task</span>
-         <strong data-preview-task>Isaac-Cartpole-Direct</strong>
+         <img data-preview-image src="../../_images/cartpole.jpg" alt="Isaac-Cartpole-Direct preview">
+         <div class="environment-preview-caption">
+           <span class="environment-preview-label">Selected core task</span>
+           <strong data-preview-task>Isaac-Cartpole-Direct</strong>
+         </div>
        </div>
        <dl class="environment-preview-details">
          <div><dt>Mode</dt><dd data-preview-mode>Train</dd></div>
@@ -75,6 +80,21 @@ Task Preview
          <div><dt>Renderer</dt><dd data-preview-renderer>Default</dd></div>
          <div><dt>Preset</dt><dd data-preview-presets>Default</dd></div>
        </dl>
+     </section>
+   </div>
+
+Benchmarks
+----------
+
+.. raw:: html
+
+   <div class="environment-browser">
+     <section class="environment-benchmark-stub">
+       <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+       <div>
+         <strong>Benchmark data is not available yet</strong>
+         <p>Performance history will appear here when benchmark collection is enabled.</p>
+       </div>
      </section>
    </div>
 
@@ -104,19 +124,3 @@ Available Core Tasks
      <div class="environment-task-list" data-task-list></div>
      <p class="environment-empty-state" data-task-empty hidden>No core tasks match this search.</p>
    </div>
-
-Benchmarks
-----------
-
-.. raw:: html
-
-   <div class="environment-browser">
-     <section class="environment-benchmark-stub">
-       <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
-       <div>
-         <strong>Benchmark data is not available yet</strong>
-         <p>Performance history will appear here when benchmark collection is enabled.</p>
-       </div>
-     </section>
-   </div>
-

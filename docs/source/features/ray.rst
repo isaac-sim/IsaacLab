@@ -107,8 +107,7 @@ The following script can be used to easily create clusters on Google GKE.
 Docker-based Local Quickstart
 -----------------------------
 
-First, follow the `Docker Guide <https://isaac-sim.github.io/IsaacLab/main/source/deployment/docker.html>`_
-to set up the NVIDIA Container Toolkit and Docker Compose.
+First, follow the :ref:`deployment-docker` guide to set up the NVIDIA Container Toolkit and Docker Compose.
 
 Then, run the following steps to start a tuning run.
 

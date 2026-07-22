@@ -1,13 +1,9 @@
-.. _kitless-installation:
+.. rubric:: Legacy ``isaaclab.sh`` installation
 
-Kit-less Installation
-=====================
+Isaac Lab can be installed and used **without Isaac Sim** through the legacy installer script.
+This smaller installation is intended for users who only need the Newton physics backend.
 
-Isaac Lab can be installed and used **without Isaac Sim** using the kit-less mode. This is the
-fastest way to get started and is ideal for users who only need the Newton physics backend.
-
-Cloning Isaac Lab
------------------
+.. rubric:: Cloning Isaac Lab
 
 Clone the repository:
 
@@ -15,8 +11,7 @@ Clone the repository:
 
 .. include:: include/pip_python_virtual_env.rst
 
-Installing Isaac Lab
---------------------
+.. rubric:: Installing Isaac Lab
 
 With the virtual environment activated, install Isaac Lab (Newton backend, no Isaac Sim required)
 and kickoff training with MJWarp physics and the Newton visualizer:
@@ -71,7 +66,7 @@ and kickoff training with MJWarp physics and the Newton visualizer:
          physics=newton_mjwarp --visualizer newton
 
 
-**Features available in kit-less mode (Newton backend, no Isaac Sim):**
+**Features available without Isaac Sim (Newton backend):**
 
 - Newton physics simulation (GPU-accelerated, including MuJoCo-Warp solver)
 - All manager-based and direct RL environments that support Newton
@@ -89,7 +84,7 @@ and kickoff training with MJWarp physics and the Newton visualizer:
 - PhysX Deformable simulation (Isaac Sim PhysX-only)
 - Teleoperation and imitation learning workflows
 
-To install Isaac Sim, use the pip method described in :doc:`pip_installation`.
+To install Isaac Sim, use :ref:`installation-method-python-env`.
 
 .. _installation-selective-install:
 

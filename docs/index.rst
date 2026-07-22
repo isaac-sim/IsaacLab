@@ -90,9 +90,6 @@ Table of Contents
    source/setup/ecosystem
    source/setup/installation/index
    source/setup/environments
-   Local Installation <source/setup/installation/local_installation>
-   source/deployment/index
-   source/setup/installation/cloud_installation
    source/refs/reference_architecture/index
 
 
@@ -129,6 +126,7 @@ Table of Contents
    :caption: Features
 
    source/features/isaac_teleop
+   source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training

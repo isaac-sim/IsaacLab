@@ -1,5 +1,4 @@
-Asset Caching
-=============
+.. rubric:: Asset Caching
 
 Assets used in Isaac Lab are hosted on AWS S3 buckets on the cloud.
 Asset loading time can depend on your network connection and geographical location.
@@ -46,8 +45,7 @@ in environments with limited or intermittent internet access.
    The first time you run Isaac Lab, assets will still need to be pulled from the cloud, which could lead
    to longer loading times.  Once cached, loading times will be significantly reduced on subsequent runs.
 
-Nucleus
--------
+.. rubric:: Nucleus
 
 
 Before Isaac Sim 4.5, assets were accessed via the Omniverse Nucleus server, including setups with local Nucleus instances.

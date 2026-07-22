@@ -126,6 +126,42 @@
 
     const selectedTask = () => tasks.find((task) => task.task === state.task) || tasks[0];
 
+    const previewImageFor = (taskName) => {
+        const imageRules = [
+            [/Fourbar/, "tasks/classic/fourbar_pole.jpg"],
+            [/Cartpole/, "tasks/classic/cartpole.jpg"],
+            [/Pendulum/, "tasks/classic/cart_double_pendulum.jpg"],
+            [/^Isaac-Ant/, "tasks/classic/ant.jpg"],
+            [/^Isaac-Humanoid/, "tasks/classic/humanoid.jpg"],
+            [/Lift-Cloth-Franka/, "tasks/manipulation/franka_lift_cloth.jpg"],
+            [/Lift-Soft-Franka/, "newton/franka-mjwarp-vbd-coupling.png"],
+            [/Lift-(Cube-)?Franka/, "tasks/manipulation/franka_lift.jpg"],
+            [/Lift-KukaAllegro/, "tasks/manipulation/kuka_allegro_lift.jpg"],
+            [/Open-Drawer-Franka/, "tasks/manipulation/franka_open_drawer.jpg"],
+            [/Reach-Franka/, "tasks/manipulation/franka_reach.jpg"],
+            [/Reach-UR10/, "tasks/manipulation/ur10_reach.jpg"],
+            [/Reorient-Cube-Allegro/, "tasks/manipulation/allegro_cube.jpg"],
+            [/Reorient-Cube-Shadow/, "tasks/manipulation/shadow_cube.jpg"],
+            [/Reorient-Franka/, "tasks/manipulation/franka_lift.jpg"],
+            [/Reorient-KukaAllegro/, "tasks/manipulation/kuka_allegro_reorient.jpg"],
+            [/Shadow-Handover/, "tasks/manipulation/shadow_hand_over.jpg"],
+            [/AnymalB/, "tasks/locomotion/anymal_b_flat.jpg"],
+            [/AnymalC/, "tasks/locomotion/anymal_c_flat.jpg"],
+            [/AnymalD/, "tasks/locomotion/anymal_d_flat.jpg"],
+            [/Cassie/, "tasks/locomotion/agility_digit_flat.jpg"],
+            [/Digit/, "tasks/locomotion/agility_digit_flat.jpg"],
+            [/Velocity-Flat-G1/, "tasks/locomotion/g1_flat.jpg"],
+            [/Velocity-Rough-G1/, "tasks/locomotion/g1_rough.jpg"],
+            [/Velocity-Flat-H1/, "tasks/locomotion/h1_flat.jpg"],
+            [/Velocity-Rough-H1/, "tasks/locomotion/h1_rough.jpg"],
+            [/Spot/, "tasks/locomotion/spot_flat.jpg"],
+            [/UnitreeA1/, "tasks/locomotion/a1_flat.jpg"],
+            [/UnitreeGo1/, "tasks/locomotion/go1_flat.jpg"],
+            [/UnitreeGo2/, "tasks/locomotion/go2_flat.jpg"],
+        ];
+        return imageRules.find(([pattern]) => pattern.test(taskName))?.[1] || "tasks/classic/cartpole.jpg";
+    };
+
     const updateTaskControls = () => {
         const task = selectedTask();
         populateSelect(fields.rl, task.rl, [fields.rl.value, "rsl_rl", "rl_games", "skrl", "sb3"]);
@@ -146,6 +182,10 @@
     };
 
     const updatePreview = () => {
+        const previewImage = preview.querySelector("[data-preview-image]");
+        const previewImageName = previewImageFor(state.task).split("/").pop();
+        previewImage.src = new URL(`../../_images/${previewImageName}`, window.location.href).href;
+        previewImage.alt = `${state.task} preview`;
         preview.querySelector("[data-preview-task]").textContent = state.task;
         preview.querySelector("[data-preview-mode]").textContent = state.mode === "train" ? "Train" : "Play";
         preview.querySelector("[data-preview-rl]").textContent = fields.rl.value || "Default";

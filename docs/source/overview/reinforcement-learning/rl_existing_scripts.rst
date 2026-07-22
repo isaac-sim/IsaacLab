@@ -57,7 +57,7 @@ See :doc:`/source/features/hydra` for all available names and how the selectors 
    for more details, and the :ref:`migrating-to-isaaclab-3-0`
    guide for how to add Newton support to your own environments.
 
-Newton does not require Isaac Sim (kit-less mode). See :ref:`kitless-installation` for setup.
+Newton does not require Isaac Sim. See :ref:`installation-legacy-installer` for the legacy installer setup.
 
 Programmatic use
 ----------------

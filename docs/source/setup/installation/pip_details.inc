@@ -1,9 +1,8 @@
 .. _isaaclab-pip-installation:
 
-Installation using Isaac Sim Pip Package
-========================================
+.. rubric:: Detailed Python environment setup
 
-The following steps first installs Isaac Sim from pip, then Isaac Lab from source code.
+These steps install Isaac Sim with pip, then install an editable Isaac Lab checkout.
 
 .. attention::
 
@@ -19,8 +18,7 @@ The following steps first installs Isaac Sim from pip, then Isaac Lab from sourc
    If you plan to :ref:`Set up Visual Studio Code <setup-vs-code>` later, we recommend following the
    :ref:`Isaac Sim Binaries Installation <isaaclab-binaries-installation>` approach.
 
-Installing Isaac Sim
---------------------
+.. rubric:: Installing Isaac Sim
 
 From Isaac Sim 4.0 onwards, it is possible to install Isaac Sim using pip.
 This approach makes it easier to install Isaac Sim without requiring to download the Isaac Sim binaries.
@@ -34,8 +32,7 @@ If you encounter any issues, please report them to the
 
 .. include:: include/pip_python_virtual_env.rst
 
-Installing dependencies
-~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Installing dependencies
 
 .. note::
 
@@ -125,8 +122,7 @@ Installing dependencies
 
 .. include:: include/pip_verify_isaacsim.rst
 
-Installing Isaac Lab
---------------------
+.. rubric:: Installing Isaac Lab
 
 .. include:: include/src_clone_isaaclab.rst
 
