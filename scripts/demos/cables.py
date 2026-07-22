@@ -47,6 +47,9 @@ def design_scene(num_cables: int, num_segments: int) -> dict[str, CableObject]:
     cable_length = 0.5
     segment_length = cable_length / num_segments
     thickness = 0.01
+    radius = 0.5 * thickness
+    stretch_modulus = 5.0e5 * segment_length / (math.pi * radius**2)
+    bend_modulus = 20.0 * segment_length / (0.25 * math.pi * radius**4)
     xy_jitter = 0.3
     z_spacing = 1.5 * thickness
     z_base = 0.8
@@ -68,14 +71,17 @@ def design_scene(num_cables: int, num_segments: int) -> dict[str, CableObject]:
                 diffuse_color=(random.random(), random.random(), random.random())
             )
         cfg = CableObjectCfg(
-            prim_path=f"/World/Origin/Cable{index:03d}",
+            prim_path=f"/World/Env_0/Cable{index:03d}",
             spawn=sim_utils.CableCfg(
                 positions=positions,
                 visual_material=visual_material,
                 physics_material=sim_utils.CableMaterialCfg(
                     thickness=thickness,
                     density=100.0,
+                    stretch_stiffness=stretch_modulus,
+                    bend_stiffness=bend_modulus,
                 ),
+                collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
             ),
             init_state=CableObjectCfg.InitialStateCfg(pos=position, rot=orientation),
         )

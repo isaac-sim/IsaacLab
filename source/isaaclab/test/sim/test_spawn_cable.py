@@ -66,6 +66,20 @@ def test_spawn_cable_authors_newton_import_contract(stage):
     assert physics_material_prim.GetAttribute("physics:bendStiffness").Get() == pytest.approx(1.0e6)
 
 
+def test_spawn_cable_authors_optional_collision_properties(stage):
+    cfg = CableCfg(
+        positions=((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.2, 0.0, 0.0)),
+        physics_material=CableMaterialCfg(),
+        collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+    )
+
+    cfg.func("/World/Cable", cfg)
+    curve_prim = stage.GetPrimAtPath("/World/Cable/geometry/mesh")
+
+    assert curve_prim.HasAPI(UsdPhysics.CollisionAPI)
+    assert UsdPhysics.CollisionAPI(curve_prim).GetCollisionEnabledAttr().Get() is True
+
+
 @pytest.mark.parametrize(
     ("positions", "message"),
     [

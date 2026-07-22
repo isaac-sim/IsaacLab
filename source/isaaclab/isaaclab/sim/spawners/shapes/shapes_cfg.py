@@ -7,11 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import MISSING
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from isaaclab.sim import schemas
 
 
 @configclass
@@ -153,3 +156,8 @@ class CableCfg(SpawnerCfg):
 
     physics_material: materials.CableMaterialCfg = MISSING
     """Cable physics material."""
+
+    collision_props: (
+        schemas.CollisionPropertiesCfg | schemas.CollisionFragment | list[schemas.CollisionFragment] | None
+    ) = None
+    """Collision properties applied to the cable geometry."""

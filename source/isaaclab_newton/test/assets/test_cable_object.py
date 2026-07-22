@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import CableObjectCfg, RigidObjectCfg
 from isaaclab.envs.mdp.events import reset_scene_to_default
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.sim import GroundPlaneCfg, SimulationCfg, UsdPhysicsCollisionCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -68,6 +68,64 @@ def _expected_segment_state(cable, state, model) -> tuple[torch.Tensor, torch.Te
     link_pose = wp.to_torch(cable.root_view.get_link_transforms(state)[:, 0])
     link_velocity = wp.to_torch(cable.root_view.get_link_velocities(state)[:, 0])
     return torch.cat((root_pose, link_pose), dim=1), torch.cat((root_velocity, link_velocity), dim=1)
+
+
+def test_cable_collides_with_ground():
+    sim_cfg = SimulationCfg(
+        dt=0.01,
+        device="cpu",
+        physics=NewtonCfg(
+            solver_cfg=VBDSolverCfg(iterations=20),
+            num_substeps=8,
+            use_cuda_graph=False,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        ground_cfg = GroundPlaneCfg()
+        ground_cfg.func("/World/Ground", ground_cfg)
+        cable = NewtonCableObject(
+            CableObjectCfg(
+                prim_path="/World/Env_0/Cable",
+                spawn=CableCfg(
+                    positions=[(0.05 * index, 0.0, 0.0) for index in range(11)],
+                    physics_material=CableMaterialCfg(
+                        thickness=0.01,
+                        density=100.0,
+                        stretch_stiffness=3.18309886e8,
+                        bend_stiffness=2.03718327e9,
+                    ),
+                    collision_props=[UsdPhysicsCollisionCfg(collision_enabled=True)],
+                ),
+                init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.8)),
+            )
+        )
+        sim.reset()
+
+        contact_seen = False
+        for _ in range(120):
+            sim.step(render=False)
+            cable.update(sim_cfg.dt)
+            contact_seen |= bool(SimulationManager._contacts.rigid_contact_count.numpy()[0])
+
+        segment_z = cable.data.segment_pose_w.torch[..., 2]
+        assert contact_seen
+        assert torch.isfinite(segment_z).all()
+        assert segment_z.min() > 0.0
+        assert segment_z.max() < 0.02
+
+        default_pose = cable.data.default_segment_pose_w.torch.clone()
+        default_velocity = cable.data.default_segment_velocity_w.torch.clone()
+        cable.write_segment_pose_to_sim_index(segment_pose=default_pose)
+        cable.write_segment_velocity_to_sim_index(segment_velocity=default_velocity)
+        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True]
+
+        sim.step(render=False)
+        cable.update(sim_cfg.dt)
+        assert torch.isfinite(cable.data.segment_pose_w.torch).all()
+        assert torch.isfinite(cable.data.segment_velocity_w.torch).all()
+        assert torch.max(torch.abs(cable.data.segment_pose_w.torch - default_pose)) < 0.05
+        assert torch.max(torch.abs(cable.data.segment_velocity_w.torch - default_velocity)) < 1.0
 
 
 def test_interactive_scene_manages_newton_cables():

@@ -43,3 +43,21 @@ def test_newton_imports_cable_without_registry():
     assert cable_attrs["material"]["density"] == pytest.approx(material.density)
     assert cable_attrs["material"]["stretchStiffness"] == pytest.approx(material.stretch_stiffness)
     assert cable_attrs["material"]["bendStiffness"] == pytest.approx(material.bend_stiffness)
+
+
+def test_newton_imports_cable_with_adjacent_collision_filtering():
+    """Test that only connected cable segments are collision-filtered."""
+    stage = sim_utils.create_new_stage()
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.0, 0.0), (0.6, 0.0, 0.0)],
+        physics_material=CableMaterialCfg(),
+        collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+    )
+    cfg.func("/World/Cable", cfg)
+
+    builder = newton.ModelBuilder()
+    builder.add_usd(stage, root_path="/World/Cable")
+    filter_pairs = {tuple(sorted(pair)) for pair in builder.shape_collision_filter_pairs}
+
+    assert all(flag & newton.ShapeFlags.COLLIDE_SHAPES for flag in builder.shape_flags)
+    assert filter_pairs == {(0, 1), (1, 2)}
