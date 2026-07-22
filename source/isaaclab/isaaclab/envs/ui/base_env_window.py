@@ -296,7 +296,7 @@ class BaseEnvWindow:
             class_name: The name of the manager to visualize.
         """
 
-        if class_name in self.env.manager_visualizers:
+        if hasattr(self.env, "manager_visualizers") and class_name in self.env.manager_visualizers:
             manager = self.env.manager_visualizers[class_name]
             if hasattr(manager, "has_content") and not manager.has_content:
                 return
