@@ -5,9 +5,22 @@
 
 """Tests for benchmark CLI value validation."""
 
+import argparse
+
 import pytest
 
-from isaaclab.test.benchmark._cli import validate_warmup_steps
+from isaaclab.test.benchmark._cli import parse_non_negative_int, parse_positive_int, validate_warmup_steps
+
+
+@pytest.mark.parametrize("argument_type", [parse_non_negative_int, parse_positive_int])
+def test_integer_parsers_report_native_conversion_errors(argument_type, capsys):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--value", type=argument_type)
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--value", "invalid"])
+
+    assert f"argument --value: invalid {argument_type.__name__} value: 'invalid'" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(("warmup_steps", "available_steps"), [(0, 1), (15, 16)])
