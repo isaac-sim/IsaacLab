@@ -43,6 +43,27 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("h5py").setLevel(logging.WARNING)
 
 
+def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
+    """Remove pytest arguments that Kit would otherwise interpret."""
+    if "pytest" not in sys.modules:
+        return argv
+
+    indexes_to_remove: set[int] = set()
+    for index, argument in enumerate(argv):
+        if argument == "-m" and index + 1 < len(argv):
+            marker_expression = argv[index + 1]
+            if any(marker in marker_expression for marker in ("pytest", "isaacsim_ci", "windows_ci", "arm_ci")):
+                indexes_to_remove.update((index, index + 1))
+        elif (
+            (argument.startswith("--config-file=") and "pyproject.toml" in argument)
+            or argument == "--capture=no"
+            or re.fullmatch(r"-v+", argument)
+        ):
+            indexes_to_remove.add(index)
+
+    return [argument for index, argument in enumerate(argv) if index not in indexes_to_remove]
+
+
 class ExplicitAction(argparse.Action):
     """Custom action to track if an argument was explicitly passed by the user."""
 
@@ -1222,27 +1243,7 @@ class AppLauncher:
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
-        # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest, -m isaacsim_ci, -m windows_ci, -m arm_ci,
-        # and -c **/pyproject.toml
-        indexes_to_remove = []
-        for idx, arg in enumerate(sys.argv[:-1]):
-            if arg == "-m":
-                value_for_dash_m = sys.argv[idx + 1]
-                if (
-                    "pytest" in value_for_dash_m
-                    or "isaacsim_ci" in value_for_dash_m
-                    or "windows_ci" in value_for_dash_m
-                    or "arm_ci" in value_for_dash_m
-                ):
-                    indexes_to_remove.append(idx)
-                    indexes_to_remove.append(idx + 1)
-            if arg.startswith("--config-file=") and "pyproject.toml" in arg:
-                indexes_to_remove.append(idx)
-            if arg == "--capture=no":
-                indexes_to_remove.append(idx)
-        for idx in sorted(indexes_to_remove, reverse=True):
-            sys.argv = sys.argv[:idx] + sys.argv[idx + 1 :]
+        sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
 

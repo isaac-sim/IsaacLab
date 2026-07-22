@@ -34,21 +34,15 @@ pip extras include:
    * - ``all``
      - RL frameworks (SB3, SKRL, RSL-RL). Combine with ``isaacsim`` for a full install.
 
-Install with ``isaaclab[isaacsim,all]`` for the full workflow.
+Install with ``isaaclab[isaacsim,all]`` for the full workflow. Isaac Sim currently
+publishes exact dependency pins that conflict with the Newton viewer stack, so the
+combined installation requires uv's override support:
 
-.. tab-set::
+.. isaaclab-uv-wheel-install::
 
-   .. tab-item:: uv
-
-      .. code-block:: bash
-
-         uv pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
-
-   .. tab-item:: pip
-
-      .. code-block:: bash
-
-         pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --pre
+The checked-in override file is tested against the dependencies used to build the
+Isaac Lab wheel. A combined full installation through ``pip`` is not supported until
+the conflicting upstream Isaac Sim pins are updated.
 
 .. note::
 

@@ -39,8 +39,7 @@ import logging
 import traceback
 
 import torch
-
-from isaacsim.core.rendering_manager import ViewportManager
+from isaaclab_physx.renderers.kit_viewport_utils import _set_kit_camera_view
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -122,7 +121,7 @@ def main():
     # Load kit helper
     sim = SimulationContext(SimulationCfg())
     # Set main camera
-    ViewportManager.set_camera_view("/OmniverseKit_Persp", eye=[0.0, 30.0, 25.0], target=[0.0, 0.0, -2.5])
+    _set_kit_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5], "/OmniverseKit_Persp")
 
     # Parameters
     num_envs = args_cli.num_envs

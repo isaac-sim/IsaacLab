@@ -36,7 +36,7 @@ import math
 
 import torch
 
-from isaacsim.core.experimental.utils.app import enable_extension
+from isaaclab.sim.utils import enable_extension
 
 enable_extension("isaacsim.util.debug_draw")
 

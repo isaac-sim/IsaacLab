@@ -2256,7 +2256,7 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
    * - ``isaacsim.core.utils.semantics``
      - :mod:`isaaclab.sim.utils.semantics`
    * - ``isaacsim.core.utils.extensions.enable_extension``
-     - ``isaacsim.core.experimental.utils.app.enable_extension`` (no Isaac Lab equivalent)
+     - :func:`isaaclab.sim.utils.enable_extension`
    * - ``isaacsim.core.utils.viewports.set_camera_view``
      - ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view`` (or
        ``omni.kit.viewport.utility.camera_state.ViewportCameraState`` for lower-level control)
@@ -2287,6 +2287,32 @@ To keep call-site code symmetric across backends when migrating off
    # or, for the Newton backend
    from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+Isaac Sim extension modules must be explicitly enabled before direct import
+-----------------------------------------------------------------------------
+
+Isaac Lab 3.0 no longer automatically initializes Isaac Sim extensions only to
+make their Python modules importable. Stock Isaac Lab Kit experiences now load a
+smaller set of extensions so unused Isaac Sim packages do not pull in
+unnecessary dependencies or deprecated aliases.
+
+If your project imports an Isaac Sim extension module directly, enable the
+extension after the Kit application has started and before importing from that
+module:
+
+.. code-block:: python
+
+   from isaaclab.sim.utils import enable_extension
+
+   enable_extension("isaacsim.core.experimental.prims")
+   from isaacsim.core.experimental.prims import XformPrim
+
+This is especially important for migration replacements such as
+``isaacsim.core.experimental.*`` and ``isaacsim.sensors.experimental.*``. Do not
+import ``enable_extension`` from ``isaacsim.core.experimental.utils.app`` unless
+that extension is already enabled; use :func:`isaaclab.sim.utils.enable_extension`
+from Isaac Lab instead. The helper requires a running Kit application and raises
+``RuntimeError`` if called from plain Python before Kit is launched.
+
 
 Kit experience (``.kit``) updates
 ---------------------------------
@@ -2300,6 +2326,10 @@ If you maintain a custom Kit experience derived from one of the Isaac Lab apps u
 * **Switch explicit Isaac Sim extension dependencies** to the non-deprecated equivalents
   listed above (``isaacsim.core.experimental.*``, ``isaacsim.sensors.experimental.*``,
   ``isaacsim.robot.experimental.wheeled_robots``).
+* **Do not rely on stock Isaac Lab apps to preload Isaac Sim extensions** that your
+  project imports directly. Either add those extensions to your custom ``.kit`` file
+  or enable them with :func:`isaaclab.sim.utils.enable_extension` before importing
+  their Python modules.
 * **Remove unused Isaac Sim extensions that pull in** ``isaacsim.core.api`` — Isaac Lab
   no longer depends on those, and keeping them resurrects the deprecated stack.
 

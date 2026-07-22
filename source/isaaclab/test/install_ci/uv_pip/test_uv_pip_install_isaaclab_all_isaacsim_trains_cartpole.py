@@ -7,8 +7,8 @@
 Setup:
     - (wheel supplied by runner: tools/run_install_ci.py --build-wheel or --wheel <path>)
     - ./isaaclab.sh -u
-    - uv pip install <wheel>[all,isaacsim] --extra-index-url https://pypi.nvidia.com
-        --index-strategy unsafe-best-match --prerelease=allow
+    - uv pip install <wheel>[all,isaacsim] --overrides uv_pip/uv-overrides.txt
+        --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
     - uv pip install --reinstall-package torch --reinstall-package torchvision
         torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>
         (versions read from [tool.isaaclab.versions] in the root pyproject.)
@@ -45,7 +45,9 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(4800)
-    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(self, isaaclab_root, wheel, cartpole_smoke_script):
+    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(
+        self, isaaclab_root, wheel, uv_overrides, cartpole_smoke_script
+    ):
         """Install the runner-supplied wheel with ``[all,isaacsim]`` via ``uv pip``, run cartpole training."""
         try:
             # 1. Create the uv env and install the wheel with [all,isaacsim] extras.
@@ -62,6 +64,8 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
                     "pip",
                     "install",
                     f"{wheel}[all,isaacsim]",
+                    "--overrides",
+                    str(uv_overrides),
                     "--extra-index-url",
                     "https://pypi.nvidia.com",
                     "--index-strategy",
