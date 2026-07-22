@@ -61,3 +61,19 @@ Fixed
   the same buffer in place, both the start-frame and end-frame captures reflected the same
   (current) buffer contents, producing zero pixel differences.  The frame capture helper now calls
   ``.copy()`` to take an independent snapshot at capture time.
+
+* Fixed the PhysX visualizer integration test taking ~8 minutes instead of ~55 seconds.  Two
+  independent bottlenecks were eliminated: (1) running Newton GL alongside Kit RTX on the PhysX
+  backend caused GPU contention that pushed each ``env.step()`` from ~0.1 s to ~1.5 s across 165
+  steps — the PhysX test now uses a Kit-only environment so Newton GL is absent; (2)
+  ``_drain_until_newton_fabric_ready`` exhausted all 600 iterations per tiled capture on PhysX
+  because ``NewtonManager._newton_fabric_ready`` is never set when Newton MJWarp physics is not
+  simulating — a 20-iteration probe now detects the PhysX path and skips the remaining drain,
+  letting ``_pump_tiled_until_stable`` handle frame convergence instead.
+
+Added
+^^^^^
+
+* Added ``pytest.mark.timeout(300)`` to all four visualizer test files (integration and golden,
+  Newton and PhysX) and added ``pytest-timeout>=2.0`` to the ``test`` optional-dependency group,
+  so hung tests are killed after 5 minutes rather than blocking CI indefinitely.
