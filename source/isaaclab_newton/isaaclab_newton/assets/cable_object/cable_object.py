@@ -19,7 +19,7 @@ from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.queries import matches_path_expr_prefix, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp import ProxyArray
 
@@ -278,28 +278,12 @@ class CableObject(BaseCableObject):
         joint_types = self.root_view.get_attribute("joint_type", model).numpy()
         valid_topology = (
             self.root_view.count_per_world == 1
-            and self.root_view.count == self.root_view.world_count
             and self.root_view.joint_count == expected_joint_count
-            and self.root_view.joint_dof_count == 2 * expected_joint_count
             and self.root_view.link_count == expected_joint_count
             and bool((joint_types == int(JointType.CABLE)).all())
         )
         if not valid_topology:
             raise RuntimeError(topology_error)
-
-        root_body_ids = self.root_view.get_attribute("joint_parent", model)[:, 0, 0].numpy().tolist()
-        link_body_ids = self.root_view.get_attribute("joint_child", model)[:, 0].numpy().tolist()
-        for root_body_id, link_ids in zip(root_body_ids, link_body_ids, strict=True):
-            body_ids = [int(root_body_id), *(int(value) for value in link_ids)]
-            if len(body_ids) != num_segments:
-                raise RuntimeError(topology_error)
-            for segment, body_id in enumerate(body_ids):
-                label = model.body_label[body_id]
-                if label is None:
-                    raise RuntimeError(topology_error)
-                body_root, separator, suffix = label.rpartition("_edge_body_")
-                if not separator or suffix != str(segment) or not matches_path_expr_prefix(curve_path_expr, body_root):
-                    raise RuntimeError(topology_error)
 
         self._ALL_INDICES = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)

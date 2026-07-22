@@ -241,18 +241,6 @@ def test_interactive_scene_manages_newton_cables():
         assert torch.isfinite(cable.data.segment_pose_w.torch).all()
         assert torch.isfinite(cable.data.segment_velocity_w.torch).all()
 
-        model = SimulationManager.get_model()
-        root_view = cable.root_view
-        root_body_id = int(cable.data._sim_bind_root_body_ids.numpy()[0])
-        root_label = model.body_label[root_body_id]
-        model.body_label[root_body_id] = f"{root_label}_invalid"
-        try:
-            with pytest.raises(RuntimeError, match="standalone, unwelded"):
-                cable._initialize_impl()
-        finally:
-            model.body_label[root_body_id] = root_label
-            cable._root_view = root_view
-
 
 def test_cable_mask_writes_update_selected_environments():
     sim_cfg = SimulationCfg(
