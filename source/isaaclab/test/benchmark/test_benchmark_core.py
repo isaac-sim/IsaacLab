@@ -12,7 +12,7 @@ from dataclasses import replace
 import pytest
 
 from isaaclab.test.benchmark import formatters
-from isaaclab.test.benchmark.benchmark_core import BaseIsaacLabBenchmark
+from isaaclab.test.benchmark.benchmark_core import BaseIsaacLabBenchmark, _runtime_measurements
 from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata
 
 pytestmark = pytest.mark.benchmark
@@ -273,6 +273,62 @@ def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
         with open(benchmark.output_file_path) as f:
             data = json.load(f)
         assert data[phase][metric] == expected
+
+
+def test_environment_step_timing_flat_labels_describe_measurement_mode():
+    from isaaclab.test.benchmark.schema import EnvironmentStepTiming, MeanStd
+
+    bundle = _minimal_runtime_bundle()
+    host_return = EnvironmentStepTiming(
+        environment_step_time_s=MeanStd(mean=0.08, std=0.01, peak=0.1),
+        environment_step_fps=MeanStd(mean=200.0, std=2.0, peak=205.0),
+        simulation_step_time_s=None,
+        outside_simulation_step_time_s=None,
+        outside_simulation_step_fraction=None,
+        environment_step_calls=100,
+        simulation_step_calls=None,
+        measurement_mode="host_return",
+    )
+    serialized = EnvironmentStepTiming(
+        environment_step_time_s=MeanStd(mean=0.08, std=0.01, peak=0.1),
+        environment_step_fps=MeanStd(mean=200.0, std=2.0, peak=205.0),
+        simulation_step_time_s=MeanStd(mean=0.05, std=0.01, peak=0.07),
+        outside_simulation_step_time_s=MeanStd(mean=0.03, std=0.005, peak=0.04),
+        outside_simulation_step_fraction=0.375,
+        environment_step_calls=100,
+        simulation_step_calls=400,
+        measurement_mode="serialized_synchronized",
+    )
+
+    host_names = {
+        measurement.name
+        for measurement in _runtime_measurements(replace(bundle.runtime, environment_step_timing=host_return))[
+            "runtime"
+        ]
+    }
+    synchronized_names = {
+        measurement.name
+        for measurement in _runtime_measurements(replace(bundle.runtime, environment_step_timing=serialized))["runtime"]
+    }
+
+    assert "Mean Environment Step Host-Return FPS" in host_names
+    assert "Mean Serialized Synchronized Environment Step FPS" in synchronized_names
+    assert "Mean Total FPS" in host_names
+    assert "Mean Total FPS" not in synchronized_names
+    assert {
+        "Serialized Diagnostic Total Wall Time",
+        "Mean Serialized Diagnostic Iteration Time",
+        "Mean Serialized Diagnostic Collection FPS",
+        "Mean Serialized Diagnostic Total FPS",
+        "Mean Serialized Diagnostic Iterations per Second",
+    } <= synchronized_names
+    synchronized_breakdown_names = {
+        "Mean Synchronized Simulation Time per Environment Step",
+        "Mean Outside Simulation Time per Environment Step",
+        "Outside Simulation Step Fraction",
+    }
+    assert synchronized_breakdown_names <= synchronized_names
+    assert host_names.isdisjoint(synchronized_breakdown_names)
 
 
 def test_metrics_formatter_factory_registration_cache_and_errors():
