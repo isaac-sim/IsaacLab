@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -110,6 +111,26 @@ class TeleopSessionLifecycle:
     _CONTROLLER_RIGHT_KEY = "_controller_right"
     """Internal pipeline output key for the right controller ``TensorGroup``."""
 
+    _CONTROLLER_LEFT_KEY = "_controller_left"
+    """Internal pipeline output key for the left controller ``TensorGroup``.
+    Only chained when debug visualization is enabled."""
+
+    HAND_LEFT_KEY = "hand_left"
+    """Pipeline output key for the left hand ``TensorGroup`` when the debug
+    outputs are chained (matches ``HandsSource.LEFT``)."""
+
+    HAND_RIGHT_KEY = "hand_right"
+    """Pipeline output key for the right hand ``TensorGroup`` when the debug
+    outputs are chained (matches ``HandsSource.RIGHT``)."""
+
+    _STEP_FAILURE_RESTART_COOLDOWN_S = 1.0
+    """Minimum delay [s] before recreating the session after a step failure
+    while the XR session is still active (i.e. a retargeting pipeline error,
+    not an external XR teardown).  The async retarget worker dies permanently
+    on any pipeline exception, so session re-entry is the only recovery; the
+    cooldown prevents a persistent data error (e.g. degenerate tracking
+    input) from churning teardown/restart cycles every frame."""
+
     def __init__(
         self,
         cfg: IsaacTeleopCfg,
@@ -117,6 +138,7 @@ class TeleopSessionLifecycle:
         auto_launch_cloudxr: bool = True,
         mcap_record_path: str | None = None,
         mcap_replay_path: str | None = None,
+        enable_debug_visualization: bool = False,
     ):
         """Initialize the session lifecycle manager.
 
@@ -140,6 +162,10 @@ class TeleopSessionLifecycle:
                 OpenXR connection and feeds the recorded tracker stream
                 through the pipeline.  Mutually exclusive with
                 *mcap_record_path*.
+            enable_debug_visualization: Whether the tracking debug outputs
+                (hand joints, controller poses) are chained into the session
+                outputs when enabled at :meth:`start` time.  When ``False``
+                (the default), the pipeline carries no visualization overhead.
 
         Raises:
             ValueError: If both *mcap_record_path* and *mcap_replay_path*
@@ -158,6 +184,7 @@ class TeleopSessionLifecycle:
         self._mcap_record_path = mcap_record_path
         self._mcap_replay_path = mcap_replay_path
         self._is_replay = mcap_replay_path is not None
+        self._enable_debug_visualization = enable_debug_visualization
 
         # Session state (populated during start)
         self._session: TeleopSession | None = None
@@ -165,7 +192,11 @@ class TeleopSessionLifecycle:
         self._teleop_control_pipeline = None
         self._message_processor: TeleopMessageProcessor | None = None
         self._last_right_controller = None
+        self._last_left_controller = None
+        self._last_step_result: dict | None = None
         self._session_start_deferred_logged = False
+        # Monotonic deadline gating session re-creation after a step failure
+        self._restart_holdoff_until = 0.0
         # Fallback for host-initiated resets when no control pipeline is configured
         self._pending_reset = False
 
@@ -249,6 +280,25 @@ class TeleopSessionLifecycle:
         return self._last_right_controller
 
     @property
+    def last_left_controller(self):
+        """Left controller ``TensorGroup`` from the most recent step, or ``None``.
+
+        Only populated when debug visualization was enabled at session start;
+        the left controller is not part of the default pipeline outputs.
+        """
+        return self._last_left_controller
+
+    @property
+    def last_step_result(self) -> dict | None:
+        """Full pipeline output from the most recent :meth:`step`, or ``None``.
+
+        Contains at least ``"action"`` and the right-controller entry.  When
+        debug visualization was enabled at session start, :attr:`HAND_LEFT_KEY`
+        and :attr:`HAND_RIGHT_KEY` are included when a ``HandsSource`` exists.
+        """
+        return self._last_step_result
+
+    @property
     def has_control_channel(self) -> bool:
         """Whether a message-channel-based control pipeline is configured."""
         return self._message_processor is not None
@@ -319,19 +369,13 @@ class TeleopSessionLifecycle:
         if self._cloudxr_env_file is not None:
             self._ensure_cloudxr_runtime()
 
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-        from isaacteleop.retargeting_engine.interface import OutputCombiner
-
         user_pipeline = self._cfg.pipeline_builder()
         self._session_start_deferred_logged = False
         self._last_right_controller = None
+        self._last_left_controller = None
+        self._last_step_result = None
 
-        button_controllers = ControllersSource("_button_controllers")
-        pipeline_outputs: dict[str, Any] = {
-            "action": user_pipeline.output("action"),
-            self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
-        }
-        self._pipeline = OutputCombiner(pipeline_outputs)
+        self._pipeline = self._build_combined_pipeline(user_pipeline)
 
         # Build the optional teleop_control_pipeline for message-channel control.
         # Live and replay both build it: in replay mode the underlying
@@ -392,6 +436,8 @@ class TeleopSessionLifecycle:
         self._pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor = None
+        self._last_step_result = None
+        self._last_left_controller = None
 
         if self._cloudxr_launcher is not None:
             try:
@@ -403,6 +449,67 @@ class TeleopSessionLifecycle:
                 logger.info("CloudXR runtime stopped")
 
         logger.info("IsaacTeleop session ended")
+
+    # ------------------------------------------------------------------
+    # Pipeline construction and hand debug outputs
+    # ------------------------------------------------------------------
+
+    def _build_combined_pipeline(self, user_pipeline):
+        """Wrap the user pipeline with the session-internal outputs.
+
+        Combines the user pipeline's ``action`` output with a parallel
+        ``ControllersSource`` for button polling and, optionally, the debug
+        visualization outputs: the left controller (the right one is always
+        chained for button polling) and, when the pipeline contains a
+        ``HandsSource``, the hand outputs.
+
+        Args:
+            user_pipeline: The pipeline returned by the configured
+                ``pipeline_builder()``.
+
+        Returns:
+            An ``OutputCombiner`` ready for ``TeleopSessionConfig``.
+        """
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+        from isaacteleop.retargeting_engine.interface import OutputCombiner
+
+        button_controllers = ControllersSource("_button_controllers")
+        pipeline_outputs: dict[str, Any] = {
+            "action": user_pipeline.output("action"),
+            self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
+        }
+        if self._enable_debug_visualization:
+            pipeline_outputs[self._CONTROLLER_LEFT_KEY] = button_controllers.output(ControllersSource.LEFT)
+            self._chain_hand_debug_outputs(user_pipeline, pipeline_outputs)
+        return OutputCombiner(pipeline_outputs)
+
+    @staticmethod
+    def _chain_hand_debug_outputs(user_pipeline, pipeline_outputs: dict) -> None:
+        """Auto-discover a ``HandsSource`` and chain its raw outputs.
+
+        Walks the leaf nodes of *user_pipeline*; if a ``HandsSource`` is
+        found, its raw (XR-anchor-frame) ``hand_left`` / ``hand_right``
+        outputs are added to *pipeline_outputs* so they appear in the step
+        result.  The anchor-to-world transform is applied on the Isaac Lab
+        side by the visualizer, so the markers stay world-frame correct even
+        when a ``target_T_world`` rebase is active in the pipeline.
+
+        Args:
+            user_pipeline: The pipeline returned by ``pipeline_builder()``.
+            pipeline_outputs: Mutable mapping of output name to
+                ``OutputSelector`` being assembled for the ``OutputCombiner``.
+        """
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
+
+        # HandsSource owns its HandTracker; the tracker API has no reverse
+        # source-node lookup, so use the graph's public leaf discovery API.
+        for leaf in user_pipeline.get_leaf_nodes():
+            if isinstance(leaf, HandsSource):
+                pipeline_outputs[TeleopSessionLifecycle.HAND_LEFT_KEY] = leaf.output(HandsSource.LEFT)
+                pipeline_outputs[TeleopSessionLifecycle.HAND_RIGHT_KEY] = leaf.output(HandsSource.RIGHT)
+                logger.debug(f"Auto-discovered HandsSource '{leaf.name}'; chained hand debug outputs")
+                return
+        logger.info("No HandsSource found in the teleop pipeline; hand joint visualization unavailable")
 
     # ------------------------------------------------------------------
     # Control pipeline construction
@@ -682,8 +789,12 @@ class TeleopSessionLifecycle:
         if self._pipeline is None:
             raise RuntimeError("TeleopSessionLifecycle.start() must be called before step()")
 
-        # Lazily start the session when OpenXR handles become available
+        # Lazily start the session when OpenXR handles become available.
+        # After a step failure the restart is held off briefly so a
+        # persistent pipeline error cannot churn restarts every frame.
         if self._session is None:
+            if time.monotonic() < self._restart_holdoff_until:
+                return None
             if not self._try_start_session():
                 return None
 
@@ -712,12 +823,25 @@ class TeleopSessionLifecycle:
                 execution_events=execution_events,
             )
         except Exception as e:
-            logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
+            # The async retarget worker dies permanently on any pipeline
+            # exception, so session re-entry is the only recovery either way;
+            # what differs is the cause and the restart pacing.
+            if not self._is_replay and self._kit_xr_session_is_active():
+                logger.warning(
+                    "IsaacTeleop retargeting step failed (pipeline error, XR session still active); "
+                    f"restarting the teleop session in {self._STEP_FAILURE_RESTART_COOLDOWN_S:.0f}s: {e}"
+                )
+                self._restart_holdoff_until = time.monotonic() + self._STEP_FAILURE_RESTART_COOLDOWN_S
+            else:
+                logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
             self._teardown_dead_session()
             return None
 
-        # Store the right controller TensorGroup for button polling
+        self._last_step_result = result
+
+        # Store the controller TensorGroups for button polling / debug viz
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
+        self._last_left_controller = result.get(self._CONTROLLER_LEFT_KEY)
 
         # Extract the flattened action array (DLPack-compatible) from
         # TensorReorderer and move to the simulation device.
@@ -749,6 +873,7 @@ class TeleopSessionLifecycle:
                 logger.debug(f"Suppressed error tearing down dead session: {e}")
             self._session = None
         self._session_start_deferred_logged = False
+        self._last_step_result = None
         logger.info("IsaacTeleop session torn down after external XR shutdown")
 
     # ------------------------------------------------------------------
