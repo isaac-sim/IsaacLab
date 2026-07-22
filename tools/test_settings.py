@@ -55,6 +55,11 @@ PER_TEST_TIMEOUTS = {
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
     "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
+    # Newton cloth (VBD) physics steps take ~15 s each in CI vs ~0.5 s locally; the
+    # franka_cloth-kit-viewport convergence warmup runs up to 50 render frames, pushing
+    # total subprocess time to ~1900 s (well above the 1000 s default).  The cold-cache
+    # buffer (+700 s) is added automatically for the first camera-enabled test.
+    "test_visualizer_golden_newton.py": 3000,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 1500,
