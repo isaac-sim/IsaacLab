@@ -1,0 +1,1 @@
+Test-only: removed stale skipped test that imported isaaclab_physx; copied shared USD fixture into package-local test data so newton tests no longer reach into isaaclab_physx at runtime.
