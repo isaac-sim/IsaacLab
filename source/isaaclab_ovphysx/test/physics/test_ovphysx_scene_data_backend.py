@@ -529,8 +529,8 @@ def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     assert destroyed == ["isaaclab"]
 
 
-def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path):
-    """Kit's registered ``physxSchema`` provider prevents duplicate wheel registration."""
+def test_manager_keeps_kit_physx_provider_and_registers_deformable_schema(monkeypatch, tmp_path):
+    """Keep Kit's PhysX provider while registering the wheel's deformable schema."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
     class FakeRegistry:
@@ -550,6 +550,8 @@ def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path)
     fake_pxr.Plug = SimpleNamespace(Registry=lambda: registry)
     fake_ovphysx = ModuleType("ovphysx")
     fake_ovphysx.__file__ = str(tmp_path / "ovphysx" / "__init__.py")
+    deformable_schema_path = tmp_path / "ovphysx" / "plugins" / "usd" / "OmniUsdPhysicsDeformableSchema" / "resources"
+    deformable_schema_path.mkdir(parents=True)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
     monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
 
@@ -561,7 +563,23 @@ def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path)
         OvPhysxManager._physx_schemas_registered = previous
 
     assert registry.get_all_calls == 1
-    assert registry.registered_paths == []
+    assert registry.registered_paths == [str(deformable_schema_path)]
+
+
+def test_ovphysx_cfg_registers_schemas_before_stage_creation(monkeypatch):
+    """Creating an OvPhysX config registers schemas before SimulationContext creates a stage."""
+    from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
+
+    calls = []
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_ensure_physx_schemas_registered",
+        classmethod(lambda cls: calls.append(cls)),
+    )
+
+    OvPhysxCfg()
+
+    assert calls == [OvPhysxManager]
 
 
 def _make_stub_binding(prim_paths: list[str]) -> SimpleNamespace:
