@@ -62,6 +62,17 @@ class _Env:
         return (None, None, None, {})
 
 
+class _ReadOnlyStepEnv(_Env):
+    def __setattr__(self, name, value):
+        if name == "step" and getattr(self, "_lock_step", False):
+            raise AttributeError("step is read-only")
+        super().__setattr__(name, value)
+
+    def __init__(self):
+        super().__init__()
+        self._lock_step = True
+
+
 def test_sample_single_agent_shape_and_range():
     a = sample_random_actions(_Env())
     assert isinstance(a, torch.Tensor)
@@ -91,6 +102,18 @@ def test_run_runtime_warmup_runs_exact_requested_steps(num_frames: int):
     assert env.reset_called
     assert env.steps == num_frames
     assert len(times) == num_frames
+
+
+def test_environment_step_timer_rolls_back_partial_wrapper_installation():
+    env = _ReadOnlyStepEnv()
+    recorder = EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True)
+
+    with pytest.raises(AttributeError, match="step is read-only"):
+        recorder.__enter__()
+
+    assert "step" not in vars(env.unwrapped.sim)
+    assert recorder._original_env_step is None
+    assert recorder._original_sim_step is None
 
 
 def test_environment_step_timer_measures_env_step_without_simulation_timing():

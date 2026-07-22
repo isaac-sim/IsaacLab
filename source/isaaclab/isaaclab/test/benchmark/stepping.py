@@ -13,7 +13,7 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, suppress
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -126,6 +126,8 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         )
         self._original_env_step = None
         self._original_sim_step = None
+        self._env_wrapper_installed = False
+        self._sim_wrapper_installed = False
         self._simulation_total_time_s = 0.0
         self._simulation_step_calls = 0
         self._inside_environment_step = False
@@ -182,8 +184,6 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
                     self._simulation_total_time_s += timer.total_run_time
                     self._simulation_step_calls += 1
 
-            self._simulation_context.step = timed_simulation_step
-
             def timed_environment_step(*args, **kwargs):
                 nonlocal active_cuda_devices
                 recording = self._environment_step_index >= self._warmup_steps
@@ -224,23 +224,43 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
                     if recording:
                         self.step_times_s.append((time.perf_counter_ns() - start_time_ns) / 1e9)
 
-        self._env.step = timed_environment_step
+        try:
+            if self._measure_synchronized_step_breakdown:
+                assert self._simulation_context is not None
+                self._simulation_context.step = timed_simulation_step
+                self._sim_wrapper_installed = True
+            self._env.step = timed_environment_step
+            self._env_wrapper_installed = True
+        except BaseException:
+            with suppress(BaseException):
+                self._restore_wrappers()
+            raise
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         """Restore the original methods."""
-        if self._original_env_step is not None:
-            if self._had_env_instance_step:
-                self._env.step = self._env_instance_step
-            else:
-                del self._env.step
+        self._restore_wrappers()
+
+    def _restore_wrappers(self) -> None:
+        """Restore every successfully installed wrapper and clear installation state."""
+        try:
+            if self._env_wrapper_installed:
+                if self._had_env_instance_step:
+                    self._env.step = self._env_instance_step
+                else:
+                    del self._env.step
+        finally:
+            self._env_wrapper_installed = False
             self._original_env_step = None
-        if self._original_sim_step is not None:
-            if self._had_sim_instance_step:
-                self._simulation_context.step = self._sim_instance_step
-            else:
-                del self._simulation_context.step
-            self._original_sim_step = None
+            try:
+                if self._sim_wrapper_installed:
+                    if self._had_sim_instance_step:
+                        self._simulation_context.step = self._sim_instance_step
+                    else:
+                        del self._simulation_context.step
+            finally:
+                self._sim_wrapper_installed = False
+                self._original_sim_step = None
 
 
 def run_runtime_loop(env, num_frames: int, *, reset: bool = True) -> list[float]:
