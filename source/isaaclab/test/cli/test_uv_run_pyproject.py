@@ -86,6 +86,8 @@ def test_version_single_source_matches_literal_pins():
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
+    assert versions["ovphysx"] == ">=0.5,<0.6"
+
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
@@ -105,6 +107,7 @@ def test_version_single_source_matches_literal_pins():
     # either by carrying the literal range, or by referencing the ``resolve-ov-pins``
     # action output, which reads the pin from this same table. Never a bare ``ovrtx``.
     build_workflow = (_repo_root() / ".github/workflows/build.yaml").read_text(encoding="utf-8")
+    assert "ovphysx==0.4.13" not in build_workflow
     ovrtx_install_lines = [
         line.strip() for line in build_workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
     ]

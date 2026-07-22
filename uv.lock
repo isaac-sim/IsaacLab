@@ -3009,7 +3009,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "13.2.0"
+version = "13.2.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -3267,7 +3267,7 @@ requires-dist = [
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "onnxscript", specifier = ">=0.5" },
     { name = "onnxscript", marker = "extra == 'rsl-rl'", specifier = ">=0.5" },
-    { name = "ovphysx", marker = "extra == 'ov'", specifier = ">=0.4.13" },
+    { name = "ovphysx", marker = "extra == 'ov'", specifier = ">=0.5,<0.6" },
     { name = "ovrtx", marker = "extra == 'rtx'", specifier = ">=0.4.0,<0.5.0" },
     { name = "ovstage", marker = "extra == 'ov'", specifier = ">=0.1.0,<0.2.0" },
     { name = "ovstage", marker = "extra == 'rtx'", specifier = ">=0.1.0,<0.2.0" },
@@ -5742,15 +5742,16 @@ wheels = [
 
 [[package]]
 name = "ovphysx"
-version = "0.4.13"
+version = "0.5.9"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
+    { name = "ovstage" },
     { name = "packaging", version = "23.2", source = { registry = "https://pypi.org/simple" } },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/ovphysx/ovphysx-0.4.13-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:b65be30c0bb535b830a3215bc89367b2abd0bfa78b45a3acd82270ea57b39d1e" },
-    { url = "https://pypi.nvidia.com/ovphysx/ovphysx-0.4.13-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:4bc5bd9976529f86248826916a12243813833607131ed17149f976262f04dec6" },
-    { url = "https://pypi.nvidia.com/ovphysx/ovphysx-0.4.13-py3-none-win_amd64.whl", hash = "sha256:43be701bf37dfd7f71c540fb3696bab5d9a24cedec1576f7d268f809acffb5ef" },
+    { url = "https://pypi.nvidia.com/ovphysx/ovphysx-0.5.9-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:1b8c1919e477f2db41aef969b8941e5e01ce289646ee5434cef8f48e32dc013f" },
+    { url = "https://pypi.nvidia.com/ovphysx/ovphysx-0.5.9-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:0363b407833ffe911bd3f77a1496d90b4b882e6b28fc5276681e607bc247cafa" },
+    { url = "https://pypi.nvidia.com/ovphysx/ovphysx-0.5.9-py3-none-win_amd64.whl", hash = "sha256:5caaeef75ac0df6ac8ee547ba4ef4a15393b0bbe60e767d3b60c83498b5c7c07" },
 ]
 
 [[package]]

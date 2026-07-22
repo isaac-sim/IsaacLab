@@ -10,14 +10,13 @@ eliminated safely.
 
 ## Dependency Policy
 
-- Declare the OVPhysX optional dependency as `ovphysx>=0.5,<0.6` in
-  `source/isaaclab_ovphysx/pyproject.toml`.
-- Require exactly `warp-lang==1.15.0` in the Isaac Lab source package and both
-  mirrored wheel-builder dependency lists.
-- Run daily compatibility coverage against the concrete public release
-  `ovphysx==0.5.9`.
-- Do not commit `uv.lock`. The repository does not track it; uv resolution is a
-  verification step that must resolve OVPhysX 0.5.9 and Warp 1.15.0.
+- Declare the OVPhysX optional dependency as `ovphysx>=0.5,<0.6` in the root
+  `pyproject.toml`, which is the repository's dependency source of truth.
+- Require exactly `warp-lang==1.15.0` in the same root dependency table.
+- Remove the aarch64 OVPhysX 0.4.13 CI override now that 0.5.9 publishes an
+  aarch64 wheel.
+- Update the tracked `uv.lock`; resolution must select OVPhysX 0.5.9 and Warp
+  1.15.0.
 
 ## OVPhysX Runtime Migration
 
@@ -38,16 +37,14 @@ Warmup will:
 
 Reset and close will invalidate tensor bindings before detaching or resetting
 the attached ovstage. The manager will destroy its owned ovstage only after
-OVPhysX no longer references it. Existing `_stage_path` behavior will remain
-available because articulation tendon-name recovery currently reads the
-filtered USD stage independently of OVPhysX.
+OVPhysX no longer references it. Articulation tendon-name recovery will parse
+the retained in-memory USDA instead of reopening a stage file.
 
 ## In-Memory Stage Investigation
 
 The installed 0.5.9 wheel will be inspected and exercised for a public,
-supported population API that can consume either the existing `pxr.Usd.Stage`,
-an anonymous `Sdf.Layer`, or serialized USD bytes. The acceptance criteria for
-removing the temporary file are all of the following:
+supported population API that can consume serialized USD. The acceptance
+criteria for removing the temporary file are all of the following:
 
 - no dependency on private or undocumented ovstage symbols;
 - no mutation of Isaac Lab's live stage;
@@ -55,20 +52,34 @@ removing the temporary file are all of the following:
 - correct resolution of referenced assets and schema data;
 - passing the same CPU OVPhysX scene-loading smoke test.
 
-The published 0.5.9 documentation currently exposes
-`ovstage.population.open_usd(stage, path, ...)` and describes a distinct,
-namespaced OpenUSD runtime. Therefore, the default implementation retains the
-temporary env-0-scoped USDA file as the supported bridge. The implementation
-will remove it only if the installed public API demonstrably meets every
-criterion above. Directly translating the complete Isaac Lab USD stage into
-ovstage is outside this PR's scope.
+OVStage 0.1.0 exposes
+`ovstage.population.open_usd_from_string(stage, usda, ...)`. A real runtime
+probe confirmed that it can populate the physics domain and attach to OVPhysX
+0.5.9. The manager will therefore flatten the composed live stage to an
+anonymous layer, remove cloned environments other than env 0 from that layer,
+serialize it to USDA text, and populate OVStage directly from the string. The
+live Isaac Lab stage remains unmodified and no temporary file is required.
+
+## OmniClient Compatibility Gate
+
+OVPhysX 0.5.9's paired OVStage runtime declares OmniClient
+`2.72.3-release.7151+gl.5390bed9`. Isaac Lab currently pins the publicly
+available `omniverseclient==2.72.1`. Runtime probes show that loading 2.72.1
+first makes OVPhysX fail closed because the versions differ, while loading the
+OVStage runtime first and then importing the 2.72.1 Python binding segfaults.
+
+The final dependency set therefore requires `omniverseclient==2.72.3`. At
+implementation time NVIDIA's public package index does not yet list that
+wheel, so lock regeneration and the end-to-end Cartpole smoke remain gated on
+its publication. The PR must not claim runtime compatibility while 2.72.1 is
+resolved.
 
 ## Tests and Verification
 
 Regression coverage will be test-first:
 
-- Extend `source/isaaclab/test/cli/test_wheel_builder_metadata.py` to require
-  the exact Warp 1.15.0 pin and the OVPhysX 0.5 dependency range.
+- Extend `source/isaaclab/test/cli/test_uv_run_pyproject.py` to require the
+  exact Warp 1.15.0 pin and the OVPhysX 0.5 dependency range.
 - Add focused OVPhysX manager lifecycle tests for ovstage population,
   attachment, reset, and cleanup order using small fakes around the external
   runtime boundary.
@@ -78,7 +89,8 @@ Regression coverage will be test-first:
   `ovphysx==0.5.9` and `warp-lang==1.15.0`.
 - Install the public wheel and run a CPU OVPhysX runtime/scene-loading smoke
   test that exercises a real stage, rather than only testing imports.
-- Run the focused unit suites, then `./isaaclab.sh -f` on all files.
+- Run the focused unit suites and a Cartpole OVPhysX smoke, then
+  `./isaaclab.sh -f` on all files.
 
 If the real-wheel smoke test reveals additional OVPhysX 0.5.9 API changes in
 the stage-loading lifecycle, those compatibility changes are in scope when
@@ -92,7 +104,7 @@ Add one patch changelog fragment for `isaaclab` describing the stable Warp
 ovstage migration. Existing compiled changelogs and `config/extension.toml`
 files will not be edited.
 
-The PR will contain the dependency declarations, mirrored wheel metadata,
-daily compatibility input, required manager migration, regression tests, and
-the two changelog fragments. It will not add dependencies beyond those already
-provided transitively by the OVPhysX distribution.
+The PR will contain the root dependency declarations, tracked lock update, CI
+input, required manager migration, regression tests, and the two changelog
+fragments. It will not add dependencies beyond the matching OmniClient runtime
+required by OVPhysX 0.5.9.
