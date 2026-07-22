@@ -10,6 +10,7 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
@@ -102,6 +103,8 @@ class DeformableCfg(PresetCfg):
         ),
     )
 
+    ovphysx: DeformableObjectCfg = physx
+
     newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
 
     default = newton_mjwarp_vbd_proxy
@@ -181,6 +184,8 @@ class PhysicsCfg(PresetCfg):
     )
 
     physx: PhysxCfg = PhysxCfg()
+
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
     default = newton_mjwarp_vbd_proxy
 
@@ -435,6 +440,8 @@ class FrankaSoftSceneCfg(PresetCfg):
 
     # PhysX does not support replicating physics for deformable objects
     physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+
+    ovphysx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
 
     newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
 
