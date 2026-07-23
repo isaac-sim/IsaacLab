@@ -223,7 +223,6 @@ def _export_args(task_name: str):
             task_name,
             "--use_pretrained_checkpoint",
             "--disable_graph_visualization",
-            "--headless",
         ]
     )
     return args_cli

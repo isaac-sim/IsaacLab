@@ -19,7 +19,6 @@ tactile sensing with the GelSight finger setup.
         --num_envs 16 \
         --contact_object_type nut \
         --save_viz \
-        --enable_cameras \
         --viz kit/newton
 
 """

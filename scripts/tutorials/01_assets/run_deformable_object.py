@@ -9,7 +9,7 @@ This script demonstrates how to work with the deformable object and interact wit
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py
+    uv run python scripts/tutorials/01_assets/run_deformable_object.py
 
 """
 

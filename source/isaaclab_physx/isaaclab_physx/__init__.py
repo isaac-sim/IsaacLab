@@ -7,14 +7,19 @@
 
 import importlib.metadata
 import sys
+from contextlib import suppress
+from types import ModuleType
+from typing import Any
 
 try:
     __version__ = importlib.metadata.version("isaaclab_physx")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0"
 
+_SIMULATION_MANAGER_ENABLE_HOOK: Any | None = None
 
-def _patch_isaacsim_simulation_manager():
+
+def _patch_isaacsim_simulation_manager() -> None:
     """Patch Isaac Sim's ``SimulationManager`` to use :class:`PhysxManager`.
 
     This redirects future ``from isaacsim.core.simulation_manager import SimulationManager``
@@ -47,13 +52,12 @@ def _patch_isaacsim_simulation_manager():
     *before* swapping the module attribute, so :class:`PhysxManager` becomes
     the single owner of the simulation lifecycle.
 
-    This function is intentionally lazy: it only patches if
-    ``isaacsim.core.simulation_manager`` is already present in ``sys.modules``.
-    Config loading may import :mod:`isaaclab_physx` before Kit has launched. In
-    that case, the module is absent and this function is a no-op because no
-    callbacks have been registered yet. :meth:`PhysxManager.initialize` invokes
-    this function again after Kit startup, guaranteeing that the original
-    callbacks are disabled before Isaac Lab creates PhysX tensor views.
+    This function is intentionally lazy. Config loading may import
+    :mod:`isaaclab_physx` before Kit has launched; in that case, there is no app
+    interface and no Isaac Sim callbacks to patch yet.
+
+    :meth:`PhysxManager.initialize` subscribes to extension enablement so the
+    patch is re-applied if optional Isaac Sim code loads the manager later.
     """
     original_module = sys.modules.get("isaacsim.core.simulation_manager")
     if original_module is None:
@@ -67,7 +71,7 @@ def _patch_isaacsim_simulation_manager():
     # covers warm_start (PLAY), on_stop (STOP), stage_open (OPENED) and
     # stage_close (CLOSED). Older Isaac Sim builds may not expose this API, so
     # fall back gracefully.
-    original_class = getattr(original_module, "SimulationManager", None)
+    original_class = _get_original_simulation_manager_class(original_module, PhysxManager)
     if original_class is not None and original_class is not PhysxManager:
         try:
             original_class.enable_all_default_callbacks(False)
@@ -86,6 +90,47 @@ def _patch_isaacsim_simulation_manager():
 
     original_module.SimulationManager = PhysxManager
     original_module.IsaacEvents = IsaacEvents
+
+
+def _get_original_simulation_manager_class(original_module: ModuleType, physx_manager: type) -> type | None:
+    """Return Isaac Sim's implementation class, including after a module-level patch."""
+    original_class = getattr(original_module, "SimulationManager", None)
+    if original_class is not physx_manager:
+        return original_class
+
+    implementation_module = sys.modules.get("isaacsim.core.simulation_manager.impl.simulation_manager")
+    return getattr(implementation_module, "SimulationManager", None)
+
+
+def _get_kit_extension_manager() -> Any | None:
+    """Return Kit's extension manager when Kit is running."""
+    try:
+        import omni.kit.app  # noqa: PLC0415
+    except Exception:
+        return None
+
+    with suppress(RuntimeError):
+        app = omni.kit.app.get_app()
+        return app.get_extension_manager()
+    return None
+
+
+def _subscribe_to_simulation_manager_enable() -> None:
+    """Patch Isaac Sim's manager if it is enabled after PhysxManager starts."""
+    global _SIMULATION_MANAGER_ENABLE_HOOK
+    if _SIMULATION_MANAGER_ENABLE_HOOK is not None:
+        return
+
+    extension_manager = _get_kit_extension_manager()
+    if extension_manager is None:
+        return
+
+    _SIMULATION_MANAGER_ENABLE_HOOK = extension_manager.subscribe_to_extension_enable(
+        on_enable_fn=lambda _: _patch_isaacsim_simulation_manager(),
+        on_disable_fn=lambda _: None,
+        ext_name="isaacsim.core.simulation_manager",
+        hook_name="isaaclab_physx simulation manager lifecycle patch",
+    )
 
 
 _patch_isaacsim_simulation_manager()

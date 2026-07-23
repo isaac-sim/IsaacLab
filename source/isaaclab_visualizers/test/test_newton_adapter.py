@@ -14,6 +14,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
@@ -114,6 +115,49 @@ def test_newton_visualizer_cfg_exposes_particle_options():
 
     assert cfg.show_particles is True
     assert cfg.particle_color == (0.1, 0.2, 0.3)
+
+
+def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
+    """Construction caches the registry; close survives context teardown and is idempotent."""
+
+    class _Registry:
+        def __init__(self) -> None:
+            self.groups: dict[str, object] = {}
+
+        def set_group(self, group_id: str, marker) -> None:
+            self.groups[group_id] = marker
+
+        def remove_group(self, group_id: str) -> None:
+            self.groups.pop(group_id)
+
+    class _FakeContext:
+        def __init__(self, registry: _Registry) -> None:
+            self.vis_marker_registry = registry
+
+    class _FakeSimulationContext:
+        current: object | None = None
+
+        @classmethod
+        def instance(cls):
+            return cls.current
+
+    registry = _Registry()
+    monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", _FakeSimulationContext)
+    _FakeSimulationContext.current = _FakeContext(registry)
+
+    marker = newton_markers.NewtonVisualizationMarkers(
+        newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
+    )
+    assert registry.groups == {marker.group_id: marker}
+
+    # the context is torn down before markers close during interpreter shutdown
+    _FakeSimulationContext.current = None
+
+    marker.close()
+    marker.close()
+
+    assert marker._registry is None
+    assert registry.groups == {}
 
 
 def test_newton_visualizer_cfg_exposes_world_spacing():

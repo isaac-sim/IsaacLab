@@ -261,19 +261,43 @@ These friction values were determined through iterative visual comparison:
 
        .. tab-item:: UR10e
 
-           .. code-block:: bash
+           .. tab-set::
 
-               ./isaaclab.sh train --rl_library rsl_rl \
-                   --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
-                   --video --video_length 800 --video_interval 5000
+              .. tab-item:: uv (Recommended)
+
+                 .. code-block:: bash
+
+                     uv run isaaclab train --rl_library rsl_rl \
+                         --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
+                         --video --video_length 800 --video_interval 5000
+
+              .. tab-item:: isaaclab.sh / isaaclab.bat
+
+                 .. code-block:: bash
+
+                     ./isaaclab.sh train --rl_library rsl_rl \
+                         --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
+                         --video --video_length 800 --video_interval 5000
 
        .. tab-item:: Flexiv Rizon 4s
 
-           .. code-block:: bash
+           .. tab-set::
 
-               ./isaaclab.sh train --rl_library rsl_rl \
-                   --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
-                   --video --video_length 800 --video_interval 5000
+              .. tab-item:: uv (Recommended)
+
+                 .. code-block:: bash
+
+                     uv run isaaclab train --rl_library rsl_rl \
+                         --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
+                         --video --video_length 800 --video_interval 5000
+
+              .. tab-item:: isaaclab.sh / isaaclab.bat
+
+                 .. code-block:: bash
+
+                     ./isaaclab.sh train --rl_library rsl_rl \
+                         --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
+                         --video --video_length 800 --video_interval 5000
 
 8. Review the recorded videos and compare with real hardware videos to verify physics behavior
 
@@ -646,30 +670,69 @@ First, launch the training with a small number of environments and visualization
 
     .. tab-item:: UR10e (2F-140)
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
-                --num_envs 4 \
-                --visualizer kit
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
 
     .. tab-item:: UR10e (2F-85)
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
-                --num_envs 4 \
-                --visualizer kit
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
 
     .. tab-item:: Flexiv Rizon 4s + Grav
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
-                --num_envs 4 \
-                --visualizer kit
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
 
 This will open the Isaac Sim viewer where you can observe the training process in real-time.
 
@@ -693,30 +756,69 @@ Now launch the full training run with more parallel environments in headless mod
 
     .. tab-item:: UR10e (2F-140)
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
-                --num_envs 256 \
-                --video --video_length 200 --video_interval 76800
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
+                      --num_envs 256 \
+                      --video --video_length 200 --video_interval 76800
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
+                      --num_envs 256 \
+                      --video --video_length 200 --video_interval 76800
 
     .. tab-item:: UR10e (2F-85)
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
-                --num_envs 256 \
-                --video --video_length 200 --video_interval 76800
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
+                      --num_envs 256 \
+                      --video --video_length 200 --video_interval 76800
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
+                      --num_envs 256 \
+                      --video --video_length 200 --video_interval 76800
 
     .. tab-item:: Flexiv Rizon 4s + Grav
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
-                --num_envs 256 \
-                --video --video_length 200 --video_interval 76800
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
+                      --num_envs 256 \
+                      --video --video_length 200 --video_interval 76800
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
+                      --num_envs 256 \
+                      --video --video_length 200 --video_interval 76800
 
 **Command breakdown:**
 
@@ -739,15 +841,35 @@ You can monitor training metrics in real-time using TensorBoard. Open a new term
 
     .. tab-item:: UR10e
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_ur10e
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_ur10e
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_ur10e
 
     .. tab-item:: Flexiv Rizon 4s
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_rizon4s_grav
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_rizon4s_grav
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_rizon4s_grav
 
 Replace the log directory path with your actual training log location if different. TensorBoard will display plots showing rewards, episode lengths, and other metrics. Verify that the rewards are increasing over iterations to ensure the policy is learning successfully.
 
@@ -815,11 +937,23 @@ CUDA Out of Memory
 
 1. **Reduce the number of parallel environments:**
 
-   .. code-block:: bash
+   .. tab-set::
 
-       ./isaaclab.sh train --rl_library rsl_rl \
-           --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
-           --num_envs 128  # Reduce from 256 to 128, 64, etc.
+      .. tab-item:: uv (Recommended)
+
+         .. code-block:: bash
+
+             uv run isaaclab train --rl_library rsl_rl \
+                 --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
+                 --num_envs 128  # Reduce from 256 to 128, 64, etc.
+
+      .. tab-item:: isaaclab.sh / isaaclab.bat
+
+         .. code-block:: bash
+
+             ./isaaclab.sh train --rl_library rsl_rl \
+                 --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
+                 --num_envs 128  # Reduce from 256 to 128, 64, etc.
 
    **Trade-off:** Using fewer environments will reduce sample diversity per training iteration and may slow down training convergence. You may need to train for more iterations to achieve the same performance. However, the final policy quality should be similar.
 
@@ -845,11 +979,23 @@ CUDA Out of Memory
 
    Remove the ``--video`` flags to save GPU memory:
 
-   .. code-block:: bash
+   .. tab-set::
 
-       ./isaaclab.sh train --rl_library rsl_rl \
-           --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
-           --num_envs 256
+      .. tab-item:: uv (Recommended)
+
+         .. code-block:: bash
+
+             uv run isaaclab train --rl_library rsl_rl \
+                 --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
+                 --num_envs 256
+
+      .. tab-item:: isaaclab.sh / isaaclab.bat
+
+         .. code-block:: bash
+
+             ./isaaclab.sh train --rl_library rsl_rl \
+                 --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
+                 --num_envs 256
 
    You can always evaluate the trained policy later with visualization.
 
@@ -864,12 +1010,25 @@ identical on every reset.
 
 To use it, run the standard play command:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh play --rl_library rsl_rl \
-        --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \
-        --num_envs 1 \
-        --checkpoint <path_to_model.pt>
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab play --rl_library rsl_rl \
+              --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \
+              --num_envs 1 \
+              --checkpoint <path_to_model.pt>
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh play --rl_library rsl_rl \
+              --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \
+              --num_envs 1 \
+              --checkpoint <path_to_model.pt>
 
 To match a specific real-world setup, edit the constants at the top of the
 ``Rizon4sGearAssemblyEnvCfg_PLAY`` class in

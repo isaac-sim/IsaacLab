@@ -6,7 +6,8 @@
 __all__ = [
     "InteractiveScene",
     "InteractiveSceneCfg",
+    "add",
 ]
 
 from .interactive_scene import InteractiveScene
-from .interactive_scene_cfg import InteractiveSceneCfg
+from .interactive_scene_cfg import InteractiveSceneCfg, add

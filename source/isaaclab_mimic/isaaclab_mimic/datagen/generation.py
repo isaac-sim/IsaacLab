@@ -167,7 +167,7 @@ def setup_env_config(
         num_envs: Number of environments to run
         device: Device to run on
         generation_num_trials: Optional override for number of trials
-        recorder_cfg: Recorder manager configuration
+        recorder_cfg: Recorder manager configuration. Overrides recorder configurations supplied by the environment.
         dataset_compression: Whether to enable dataset compression
 
     Returns:
@@ -201,9 +201,8 @@ def setup_env_config(
 
     # Setup recorders
     if recorder_cfg is None:
-        env_cfg.recorders = ActionStateRecorderManagerCfg()
-    else:
-        env_cfg.recorders = recorder_cfg
+        recorder_cfg = env_cfg.mimic_recorder_config
+    env_cfg.recorders = recorder_cfg if recorder_cfg is not None else ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
 
