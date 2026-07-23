@@ -328,6 +328,7 @@ jobs:
           --baseline_remote origin \
           --gpu_model "${GPU_MODEL}" \
           --target_branch "${SEED_TARGET_BRANCH}" \
+          --expected_records seed-artifacts/seed_records.json \
           --tasks "${SEED_TASKS/__ALL_TASKS__/}" \
           --backends "${SEED_BACKENDS}" \
           --repo_dir "${{ github.workspace }}" \

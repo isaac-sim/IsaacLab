@@ -278,6 +278,7 @@ def _stable_sample_id(metadata: dict[str, Any]) -> str:
         "fps",
         "attempt",
         "was_retried",
+        "sample_index",
     )
     payload = {key: metadata.get(key) for key in keys if metadata.get(key) is not None}
     if not payload.get("ci_run_id"):
@@ -306,6 +307,7 @@ def make_sample_metadata(
     source_branch: str | None = None,
     trusted_source: str = "protected_branch",
     commit_sha: str | None = None,
+    sample_index: int | None = None,
 ) -> dict[str, Any]:
     bench_result = bench_result or {}
     launch_config = bench_result.get("launch_config") or {}
@@ -338,6 +340,7 @@ def make_sample_metadata(
         "baseline_epoch": bench_result.get("baseline_epoch") or launch_config.get("baseline_epoch", 1),
         "attempt": bench_result.get("attempt"),
         "was_retried": bench_result.get("was_retried"),
+        "sample_index": sample_index,
         "ci_run_id": os.environ.get("GITHUB_RUN_ID"),
         "ci_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
         "ci_workflow": os.environ.get("GITHUB_WORKFLOW"),

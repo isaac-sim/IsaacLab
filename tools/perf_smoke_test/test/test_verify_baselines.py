@@ -6,7 +6,8 @@
 """GPU-free checks for the seeded-baseline usability verifier.
 
 Mirrors how the gate selects samples: a sample counts only if it shares a single
-fingerprint bucket AND its ``commit_sha`` is an ancestor of the target tip.
+fingerprint bucket, targets the evaluated branch, and its ``commit_sha`` is an
+ancestor of the target tip.
 """
 
 from __future__ import annotations
@@ -23,14 +24,23 @@ if str(_GATE_DIR) not in sys.path:
 import verify_baselines  # noqa: E402
 
 
-def _sample(fps: float, commit: str, runtime_hash: str = "rt-a", epoch: int = 1) -> dict:
+def _sample(
+    fps: float,
+    commit: str,
+    runtime_hash: str = "rt-a",
+    epoch: int = 1,
+    target_branch: str = "develop",
+    sample_id: str | None = None,
+) -> dict:
     return {
         "fps": fps,
         "commit_sha": commit,
+        "target_branch": target_branch,
         "launch_config_hash": "lc-a",
         "benchmark_contract_hash": "bc-a",
         "runtime_contract_hash": runtime_hash,
         "baseline_epoch": epoch,
+        "sample_id": sample_id or f"{commit}-{fps}",
     }
 
 
@@ -78,6 +88,73 @@ def test_usable_count_excludes_samples_missing_commit_sha_under_ancestry() -> No
     usable, _, _ = verify_baselines.usable_sample_count(records, lambda c: True)
 
     assert usable == 1
+
+
+def test_usable_count_requires_target_branch_match() -> None:
+    """Staging samples cannot satisfy a develop verification."""
+    records = [
+        _sample(100.0, "develop", target_branch="develop"),
+        _sample(100.0, "staging", target_branch="perf-smoke/develop-staging"),
+    ]
+
+    usable, total, _ = verify_baselines.usable_sample_count(records, target_branch="develop")
+
+    assert usable == 1
+    assert total == 2
+
+
+def test_usable_count_requires_current_seeder_sample_ids() -> None:
+    """Old matching fingerprints cannot hide missing samples from the current run."""
+    records = [
+        _sample(100.0, "old1", sample_id="old-1"),
+        _sample(100.0, "old2", sample_id="old-2"),
+        _sample(100.0, "new1", sample_id="new-1"),
+    ]
+
+    usable, total, _ = verify_baselines.usable_sample_count(
+        records,
+        target_branch="develop",
+        expected_sample_ids={"new-1", "new-2"},
+    )
+
+    assert usable == 1
+    assert total == 3
+
+
+def test_expected_sample_ids_are_scoped_to_gpu_and_target_branch(tmp_path: Path) -> None:
+    """The current-run verification ignores records for other gate contexts."""
+    summary = tmp_path / "seed_records.json"
+    summary.write_text(
+        json.dumps(
+            [
+                {
+                    "gpu_model": "l40s",
+                    "task_id": "task-a",
+                    "backend": "physx",
+                    "target_branch": "develop",
+                    "sample_id": "expected",
+                },
+                {
+                    "gpu_model": "l40s",
+                    "task_id": "task-a",
+                    "backend": "physx",
+                    "target_branch": "perf-smoke/develop-staging",
+                    "sample_id": "wrong-branch",
+                },
+                {
+                    "gpu_model": "rtx6000",
+                    "task_id": "task-a",
+                    "backend": "physx",
+                    "target_branch": "develop",
+                    "sample_id": "wrong-gpu",
+                },
+            ]
+        )
+    )
+
+    expected = verify_baselines._load_expected_sample_ids(summary, "l40s", "develop")
+
+    assert expected == {("task-a", "physx"): {"expected"}}
 
 
 # --------------------------------------------------------------------------------------

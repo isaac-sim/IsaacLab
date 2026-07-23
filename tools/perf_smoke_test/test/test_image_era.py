@@ -273,3 +273,10 @@ def test_era_roll_policy_new_then_recorded_then_changed(tmp_path) -> None:
     assert image_era.era_key_from_tree(work) != era_key
     assert _resolve_matched(work) is False
     assert image_era.load_manifest_from_git(remote="origin", repo_dir=work)["eras"][era_key]["image"] == "repo:sha-a"
+
+
+def test_era_roll_seeds_full_task_matrix() -> None:
+    """A new image era immediately fills every perf-smoke task bucket."""
+    workflow = Path(__file__).resolve().parents[3] / ".github/workflows/perf-smoke-era-roll.yaml"
+
+    assert 'tasks: "__ALL_TASKS__"' in workflow.read_text()

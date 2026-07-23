@@ -60,6 +60,12 @@ from oracle import compare  # noqa: E402
 from task_config import TaskConfig, load_tasks  # noqa: E402
 
 _TOOL_DIR = Path(__file__).resolve().parent
+_CONTAINER_LOCAL_JIT_CACHE_BUCKETS = frozenset(
+    {
+        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "physx"),
+        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "newton"),
+    }
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -364,6 +370,11 @@ def _prepare_jit_cache(cache_dir: Path) -> Path:
     return cache_dir
 
 
+def _uses_container_local_jit_cache(task: TaskConfig) -> bool:
+    """Return whether a task/backend must avoid the host-mounted JIT cache."""
+    return (task.task_id, task.backend_key) in _CONTAINER_LOCAL_JIT_CACHE_BUCKETS
+
+
 def _prepare_kit_cache(cache_dir: Path) -> Path:
     """Create a writable Kit cache directory for one task/backend bucket."""
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -398,7 +409,7 @@ def _docker_run_benchmark(
     image: str,
     task: TaskConfig,
     artifact_dir: Path,
-    jit_cache: Path,
+    jit_cache: Path | None,
     kit_cache: Path,
     seed_src_dir: Path | None,
     container_name: str,
@@ -411,7 +422,7 @@ def _docker_run_benchmark(
         # Warp and Kit create nested cache directories at runtime. A permissive
         # umask keeps them writable for successive containers.
         "umask 000\n"
-        "mkdir -p /tmp/bench_out\n"
+        "mkdir -p /tmp/bench_out /tmp/jit-cache/warp /tmp/jit-cache/nv\n"
         "cd /workspace/isaaclab\n"
         "rm -f _isaac_sim\n"
         "ln -s /isaac-sim _isaac_sim\n"
@@ -461,11 +472,10 @@ def _docker_run_benchmark(
         "WARP_CACHE_PATH=/tmp/jit-cache/warp",
         "-e",
         "CUDA_CACHE_PATH=/tmp/jit-cache/nv",
-        "-v",
-        f"{jit_cache}:/tmp/jit-cache",
-        "-v",
-        f"{kit_cache}:/isaac-sim/kit/cache",
     ]
+    if jit_cache is not None:
+        cmd += ["-v", f"{jit_cache}:/tmp/jit-cache"]
+    cmd += ["-v", f"{kit_cache}:/isaac-sim/kit/cache"]
     if seed_src_dir is not None:
         # Bind-mount the historical source over the image's IsaacLab tree so the
         # container runs (and git-tags) the seed commit, not the baked source.
@@ -539,7 +549,11 @@ def _write_launch_config(task: TaskConfig, artifact_dir: Path, gpu_model: str) -
 
 
 def _record_from_result(
-    artifact_dir: Path, gpu_model: str, target_branch: str, known_commit: str | None = None
+    artifact_dir: Path,
+    gpu_model: str,
+    target_branch: str,
+    sample_index: int,
+    known_commit: str | None = None,
 ) -> BaselineUpdateRecord | None:
     """Turn one built ``perf_smoke_test_result.json`` into a baseline sample.
 
@@ -587,6 +601,7 @@ def _record_from_result(
         target_branch=target_branch,
         trusted_source="seed",
         commit_sha=commit_sha,
+        sample_index=sample_index,
     )
     short = (commit_sha or "????????")[:8]
     print(
@@ -700,9 +715,13 @@ def main() -> int:
                 prep_skips.append(f"{target_branch}/{short}")
                 continue
         for task in tasks:
-            task_jit_cache = _prepare_jit_cache(
-                _cache_bucket_path(jit_cache_root, target_branch, commit, task.task_id, task.backend_key)
-            )
+            if _uses_container_local_jit_cache(task):
+                task_jit_cache = None
+                print(f"[seed] using container-local JIT cache for {task.task_id}/{task.backend_key}")
+            else:
+                task_jit_cache = _prepare_jit_cache(
+                    _cache_bucket_path(jit_cache_root, target_branch, commit, task.task_id, task.backend_key)
+                )
             task_kit_cache = _prepare_kit_cache(
                 _cache_bucket_path(kit_cache_root, target_branch, commit, task.task_id, task.backend_key)
             )
@@ -735,7 +754,13 @@ def main() -> int:
                 wall_time_s = int(time.time() - start)
                 _build_bench_result(task, artifact_dir, exit_code, wall_time_s)
 
-                record = _record_from_result(artifact_dir, gpu_model, target_branch, known_commit=commit)
+                record = _record_from_result(
+                    artifact_dir,
+                    gpu_model,
+                    target_branch,
+                    sample_index=sample_idx,
+                    known_commit=commit,
+                )
                 if record is not None:
                     records.append(record)
                     continue
@@ -764,6 +789,12 @@ def main() -> int:
                     "fps": r.fps,
                     "commit_sha": (r.sample_metadata or {}).get("commit_sha"),
                     "target_branch": (r.sample_metadata or {}).get("target_branch"),
+                    "launch_config_hash": (r.sample_metadata or {}).get("launch_config_hash"),
+                    "benchmark_contract_hash": (r.sample_metadata or {}).get("benchmark_contract_hash"),
+                    "runtime_contract_hash": (r.sample_metadata or {}).get("runtime_contract_hash"),
+                    "baseline_epoch": (r.sample_metadata or {}).get("baseline_epoch"),
+                    "sample_index": (r.sample_metadata or {}).get("sample_index"),
+                    "sample_id": (r.sample_metadata or {}).get("sample_id"),
                 }
                 for r in records
             ],
