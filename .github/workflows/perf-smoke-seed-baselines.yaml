@@ -1,0 +1,344 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Seed the perf-baselines branch from real commit history.
+#
+# This is the deployment-simulation counterpart to the live gate: instead of
+# benchmarking one PR head, it walks a slice of a protected branch's history,
+# re-runs each commit's own benchmark inside the CI image (source-mounted so the
+# container git-tags the real commit), and appends the results to perf-baselines.
+# The samples are keyed by their real commit SHA, so the gate's merge-base /
+# ancestry isolation has a populated, branch-correct baseline to compare against.
+# A preflight drops any seed commit that is not an ancestor of the target branch
+# tip (the gate would silently ignore it), and a post-publish step replays the
+# gate's per-bucket match logic to confirm every bucket has MIN_BASELINE_SAMPLES
+# usable samples -- i.e. that the seeded baselines will actually be used.
+#
+# Resolves the CI image exactly like the gate: the era-pinned immutable image for
+# the seeded commit's container era when recorded in the manifest on perf-baselines,
+# otherwise the moving prebuilt tag. Seeding through the same resolver guarantees
+# baselines and later PR runs share an identical environment. Set repo variable
+# PERF_SMOKE_CI_IMAGE only to override that default, e.g. to pin an immutable tag.
+#
+# Manual dispatch defaults to dry-run so maintainers can validate the L40S
+# runner/image path before explicitly choosing dry_run=false to publish samples.
+# The exact perf-smoke/develop-staging branch also auto-seeds on push: that staging
+# branch is reviewed/merged same-repo specifically to validate L40S baseline
+# publication before the gate is integrated into develop.
+
+name: Performance Smoke - Seed Baselines
+
+on:
+  push:
+    branches: ['perf-smoke/develop-staging']
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: "Branches to seed in one run (comma/space separated). Use 'branch:target' to override the stamp. Empty = use commit_branch/commits. NOTE: only seed branches whose code matches the prebuilt CI image's era."
+        required: false
+        default: "develop"
+      commits:
+        description: "Explicit commit SHAs/refs (space/comma separated). Used only when branches is empty."
+        required: false
+        default: ""
+      commit_branch:
+        description: "Single branch to seed when branches and commits are empty."
+        required: false
+        default: "develop"
+      commit_count:
+        description: "Number of recent commits to seed from commit_branch."
+        required: false
+        default: "5"
+      samples_per_commit:
+        description: "Benchmark repetitions per commit/backend."
+        required: false
+        default: "5"
+      tasks:
+        description: "Comma-separated task_id allowlist (empty = all tasks.json tasks)."
+        required: false
+        default: "Isaac-Cartpole-Direct"
+      backends:
+        description: "Comma-separated backend_key allowlist (empty = all backends)."
+        required: false
+        default: ""
+      target_branch:
+        description: "Protected branch stamped onto each seeded sample."
+        required: false
+        default: "develop"
+      strict_ancestry:
+        description: "Abort if any seed commit is not an ancestor of the target branch tip (default: skip+warn). Enable when you require every seeded sample to be gate-usable."
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: "Run benchmarks + build samples but DO NOT push to perf-baselines."
+        type: boolean
+        required: false
+        default: true
+  # Reusable: the era-roll orchestrator calls this to fill a new era's baselines.
+  # Caller must pass `secrets: inherit` (NGC_API_KEY). Only the inputs the
+  # orchestrator sets are declared; the run steps default the rest. The booleans
+  # are declared explicitly so a missing value can never coerce to "publish".
+  workflow_call:
+    inputs:
+      branches:
+        description: "Branches/refs to seed ('ref:target' overrides the stamp)."
+        required: false
+        default: "develop"
+        type: string
+      commits:
+        description: "Explicit commit SHAs/refs (space/comma separated). Used only when branches is empty."
+        required: false
+        default: ""
+        type: string
+      commit_branch:
+        description: "Single branch to seed when branches and commits are empty."
+        required: false
+        default: "develop"
+        type: string
+      commit_count:
+        description: "Number of recent commits to seed per branch/ref."
+        required: false
+        default: "5"
+        type: string
+      samples_per_commit:
+        description: "Benchmark repetitions per commit/backend."
+        required: false
+        default: "5"
+        type: string
+      tasks:
+        description: "Comma-separated task_id allowlist (empty = all tasks.json tasks)."
+        required: false
+        default: "Isaac-Cartpole-Direct"
+        type: string
+      backends:
+        description: "Comma-separated backend_key allowlist (empty = all backends)."
+        required: false
+        default: ""
+        type: string
+      target_branch:
+        description: "Protected branch stamped onto each seeded sample."
+        required: false
+        default: "develop"
+        type: string
+      strict_ancestry:
+        description: "Abort if any seed commit is not an ancestor of the target branch tip."
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: "Run benchmarks + build samples but DO NOT push to perf-baselines."
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  # Serialize seeding so concurrent pushes can't race the append-only baseline branch.
+  group: perf-smoke-seed
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # push appended samples to the perf-baselines branch
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  CI_IMAGE_TAG: isaac-lab-ci:seed-${{ github.run_id }}
+
+jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaaclab_image_ref: ${{ steps.load.outputs.isaaclab_image_ref }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        ISAACLAB_IMAGE_NAME="$(yq -r .isaaclab_image_name "$f")"
+        echo "isaaclab_image_ref=${ISAACLAB_IMAGE_NAME}:latest-develop" >> "$GITHUB_OUTPUT"
+
+  seed:
+    name: Seed baselines (${{ github.event_name == 'push' && github.ref_name || inputs.commit_branch || 'develop' }} x${{ github.event_name == 'push' && '1' || inputs.commit_count || '1' }})
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    needs: [config]
+    timeout-minutes: 600
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        # Full history so historical commits are resolvable and ancestry checks work.
+        fetch-depth: 0
+        lfs: true
+
+    # Make the seed/target branch history and the baseline branch available to the
+    # orchestrator. The repo only auto-fetches the checked-out ref, so pull these
+    # explicitly; the clone the orchestrator makes draws its objects from here.
+    - name: Fetch seed + baseline refs
+      env:
+        SEED_BRANCHES: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging:perf-smoke/develop-staging' || inputs.branches || 'develop' }}
+        SEED_COMMIT_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging' || inputs.commit_branch || 'develop' }}
+      run: |
+        set -euo pipefail
+        # Collect every branch we might seed from: the multi-branch list (stripping
+        # any ':target' suffix) plus the single-branch fallback. Fetch each so the
+        # orchestrator's clone can resolve their commits offline.
+        BRANCHES="${SEED_BRANCHES//,/ } ${SEED_COMMIT_BRANCH}"
+        for entry in ${BRANCHES}; do
+          BRANCH="${entry%%:*}"
+          [ -z "${BRANCH}" ] && continue
+          git fetch --no-tags origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" || \
+            echo "::warning::Could not fetch ${BRANCH}; skipping (explicit commits may still work)"
+        done
+        git fetch --no-tags origin "+refs/heads/perf-baselines:refs/remotes/origin/perf-baselines" || \
+          echo "::notice::perf-baselines not found yet; first seed run will create it"
+
+    # Resolve the era-pinned immutable image so seeded baselines share the exact
+    # image the gate will later pin for this era (no seed-vs-gate environment
+    # offset). An explicit PERF_SMOKE_CI_IMAGE wins outright; otherwise resolve the
+    # container era (docker/.env.base) against the manifest on perf-baselines and
+    # fall back to the config job's moving tag on a miss.
+    - name: Resolve era-pinned CI image
+      id: era
+      env:
+        FALLBACK_REF: ${{ needs.config.outputs.isaaclab_image_ref }}
+        EXPLICIT_IMAGE: ${{ vars.PERF_SMOKE_CI_IMAGE }}
+      run: |
+        set -euo pipefail
+        if [ -n "${EXPLICIT_IMAGE}" ]; then
+          echo "🔵 Using explicit PERF_SMOKE_CI_IMAGE=${EXPLICIT_IMAGE}"
+          echo "image_ref=${EXPLICIT_IMAGE}" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        ERA_JSON="$(python3 tools/perf_smoke_test/image_era.py \
+          --source_root . \
+          --manifest_from_git \
+          --branch perf-baselines \
+          --remote origin \
+          --fallback_image "${FALLBACK_REF}")"
+        echo "${ERA_JSON}"
+        IMAGE_REF="$(echo "${ERA_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["image"])')"
+        echo "image_ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
+
+    # Pull the published CI image and retag it locally (the exact image the gate pulls,
+    # so seeded baselines and PR runs share one environment). Unlike the gate there is no
+    # build fallback: seeding is a deliberate, baseline-writing op, so a missing image
+    # should fail fast.
+    - name: Pull prebuilt CI image
+      env:
+        CI_IMAGE_REF: ${{ steps.era.outputs.image_ref }}
+      run: |
+        set -euo pipefail
+
+        # The runner's docker credential store backend is broken ("not implemented"),
+        # so disable credsStore before any login (same trick as ecr-build-push-pull).
+        # With credsStore disabled, docker writes the NGC key to config.json in clear
+        # text, so wipe the temp dir on ANY exit -- a failed docker pull must not leave
+        # the long-lived credential on the self-hosted runner's filesystem.
+        DOCKER_CONFIG_DIR="$(mktemp -d)"
+        trap 'rm -rf "${DOCKER_CONFIG_DIR}"' EXIT
+        echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        REGISTRY="${CI_IMAGE_REF%%/*}"
+        case "${REGISTRY}" in
+          nvcr.io)
+            if [ -n "${NGC_API_KEY:-}" ]; then
+              echo "🔵 Logging into nvcr.io..."
+              echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+            else
+              echo "::warning::NGC_API_KEY not set; attempting anonymous pull from nvcr.io"
+            fi
+            ;;
+          *)
+            echo "::notice::No known login for registry '${REGISTRY}'; attempting anonymous pull"
+            ;;
+        esac
+
+        echo "🔵 Pulling prebuilt image ${CI_IMAGE_REF}..."
+        docker pull "${CI_IMAGE_REF}" || {
+          echo "::error::Failed to pull ${CI_IMAGE_REF}. Publish the main IsaacLab CI image or set PERF_SMOKE_CI_IMAGE."
+          exit 1
+        }
+        docker tag "${CI_IMAGE_REF}" "${{ env.CI_IMAGE_TAG }}"
+        echo "🟢 Tagged ${CI_IMAGE_REF} as ${{ env.CI_IMAGE_TAG }}"
+
+    - name: Seed baselines from commit history
+      env:
+        # A same-repo push to perf-smoke/develop-staging is the L40S staging path:
+        # publish one commit x MIN_BASELINE_SAMPLES for the full tasks.json matrix
+        # so the merge immediately starts pre-seeding and verifies perf-baselines
+        # writes across the gate's intended coverage.
+        SEED_BRANCHES: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging:perf-smoke/develop-staging' || inputs.branches || 'develop' }}
+        SEED_COMMITS: ${{ inputs.commits || '' }}
+        SEED_COMMIT_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging' || inputs.commit_branch || 'develop' }}
+        SEED_COMMIT_COUNT: ${{ github.event_name == 'push' && '1' || inputs.commit_count || '1' }}
+        SEED_SAMPLES_PER_COMMIT: ${{ github.event_name == 'push' && '5' || inputs.samples_per_commit || '3' }}
+        SEED_TASKS: ${{ github.event_name == 'push' && '__ALL_TASKS__' || inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_BACKENDS: ${{ inputs.backends || '' }}
+        SEED_TARGET_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging' || inputs.target_branch || 'develop' }}
+        SEED_STRICT_ANCESTRY: ${{ github.event_name == 'push' && 'true' || inputs.strict_ancestry == true && 'true' || 'false' }}
+        SEED_DRY_RUN: ${{ github.event_name == 'push' && 'false' || inputs.dry_run == false && 'false' || 'true' }}
+      run: |
+        set -euo pipefail
+        GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
+        python3 tools/perf_smoke_test/seed_baselines.py \
+          --branches "${SEED_BRANCHES}" \
+          --commits "${SEED_COMMITS}" \
+          --commit_branch "${SEED_COMMIT_BRANCH}" \
+          --commit_count "${SEED_COMMIT_COUNT}" \
+          --samples_per_commit "${SEED_SAMPLES_PER_COMMIT}" \
+          --tasks "${SEED_TASKS/__ALL_TASKS__/}" \
+          --backends "${SEED_BACKENDS}" \
+          --image "${{ env.CI_IMAGE_TAG }}" \
+          --gpu_model "${GPU_MODEL}" \
+          --target_branch "${SEED_TARGET_BRANCH}" \
+          --strict_ancestry "${SEED_STRICT_ANCESTRY}" \
+          --baseline_branch perf-baselines \
+          --baseline_remote origin \
+          --baseline_push_retries 3 \
+          --workdir "${{ github.workspace }}" \
+          --artifacts_root seed-artifacts \
+          --source_mount true \
+          --dry_run "${SEED_DRY_RUN}"
+
+    # Prove the just-pushed samples will actually be used by the gate: replay the
+    # gate's per-bucket match logic (fingerprint + commit ancestry) against the
+    # target branch tip and require MIN_BASELINE_SAMPLES usable samples per bucket.
+    # Only meaningful on a real publish (dry-run pushes nothing to verify).
+    - name: Verify seeded baselines are gate-usable
+      if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+      env:
+        SEED_TASKS: ${{ github.event_name == 'push' && '__ALL_TASKS__' || inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_BACKENDS: ${{ inputs.backends || '' }}
+        SEED_TARGET_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging' || inputs.target_branch || 'develop' }}
+      run: |
+        set -euo pipefail
+        GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
+        python3 tools/perf_smoke_test/verify_baselines.py \
+          --baseline_branch perf-baselines \
+          --baseline_remote origin \
+          --gpu_model "${GPU_MODEL}" \
+          --target_branch "${SEED_TARGET_BRANCH}" \
+          --expected_records seed-artifacts/seed_records.json \
+          --tasks "${SEED_TASKS/__ALL_TASKS__/}" \
+          --backends "${SEED_BACKENDS}" \
+          --repo_dir "${{ github.workspace }}" \
+          --require
+
+    - name: Upload seed artifacts
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: seed-baselines-${{ github.run_id }}
+        path: seed-artifacts/
+        retention-days: 7
+        if-no-files-found: warn

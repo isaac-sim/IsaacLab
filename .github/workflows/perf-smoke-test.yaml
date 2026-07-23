@@ -1,0 +1,934 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Performance Smoke Test
+#
+# GPU jobs default to the shared IsaacLab L40S runner pool. Override with repo
+# variable PERF_SMOKE_RUNS_ON, e.g. a JSON array of runner labels.
+#
+# Runs a matrix of benchmark tasks on self-hosted runners, compares
+# results to the rolling baseline in the perf-baselines branch, and posts a verdict
+# table to the job summary.  Non-blocking by default (gate_config.json).
+#
+# Architecture:
+#   config   → load isaacsim version from config.yaml (ubuntu-latest)
+#   bench    → per-task/backend matrix, each pulling the CI image and running
+#              perf_runtime.py inside Docker  (self-hosted, gpu)
+#   aggregate → download all bench artifacts, run oracle, update baselines
+#              (self-hosted, gpu)
+#
+# Baseline updates are published from protected-branch push events
+# (main/develop/release). Pull requests and merge queue candidates are read-only
+# and post verdicts without updating the rolling baselines.
+#
+# backend_key: "{physics_backend}_{render_backend}" when render_backend is
+# set, otherwise just physics_backend.  Matches TaskConfig.backend_key.
+
+name: Performance Smoke Test
+
+on:
+  pull_request:
+    branches: [main, develop, 'release/**']
+  merge_group:
+    branches: [main, develop, 'release/**']
+  push:
+    branches: [main, develop, 'release/**', 'perf-smoke/develop-staging']
+  workflow_dispatch:
+
+concurrency:
+  group: perf-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write          # post/update the sticky verdict comment on the PR
+  pull-requests: read
+  statuses: write        # post per-task benchmark commit statuses on the PR head
+
+env:
+  # NGC_API_KEY is intentionally NOT set workflow-wide: a same-repo PR runs
+  # checked-out PR code on the host (e.g. tasks_to_ci_matrix.py, aggregate.py),
+  # and a workflow-level secret would be in that code's environment. It is scoped
+  # per-step to only the nvcr.io login/pull (and the fallback build) instead.
+  CI_IMAGE_TAG: >-
+    isaac-lab-ci:${{
+      github.event_name == 'pull_request'
+      && format('pr-{0}', github.event.pull_request.number)
+      || 'sha'
+    }}-${{ github.sha }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Load shared image config (matches build.yaml pattern)
+  # ---------------------------------------------------------------------------
+  config:
+    name: Load Config
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+      isaaclab_image_ref: ${{ steps.load.outputs.isaaclab_image_ref }}
+      bench_matrix: ${{ steps.build_matrix.outputs.bench_matrix }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        ISAACSIM_IMAGE_NAME="$(yq -r .isaacsim_image_name "$f")"
+        ISAACSIM_IMAGE_TAG="$(yq -r .isaacsim_image_tag "$f")"
+        ISAACLAB_IMAGE_NAME="$(yq -r .isaaclab_image_name "$f")"
+
+        # Match the image tags published by .github/workflows/publish-images.yaml.
+        case "${GITHUB_REF_NAME}" in
+          main)
+            ISAACLAB_IMAGE_TAG="latest"
+            ;;
+          release/*)
+            RELEASE_SUFFIX="$(echo "${GITHUB_REF_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')"
+            ISAACLAB_IMAGE_TAG="latest-release-${RELEASE_SUFFIX}"
+            ;;
+          *)
+            ISAACLAB_IMAGE_TAG="latest-develop"
+            ;;
+        esac
+
+        FALLBACK_REF="${ISAACLAB_IMAGE_NAME}:${ISAACLAB_IMAGE_TAG}"
+
+        # Resolve the era-pinned immutable image for this commit's container era
+        # (hashed from docker/.env.base) against the manifest on perf-baselines.
+        # On a manifest miss -- a new era whose image has not been published yet --
+        # this degrades to FALLBACK_REF (the moving tag used before eras existed),
+        # so the gate never hard-fails on a new era. A hit pins an immutable image
+        # so a nightly rebuild of latest-develop can't shift the baseline under us.
+        ERA_JSON="$(python3 tools/perf_smoke_test/image_era.py \
+          --source_root . \
+          --manifest_from_git \
+          --branch perf-baselines \
+          --remote origin \
+          --fallback_image "${FALLBACK_REF}")"
+        echo "${ERA_JSON}"
+        ISAACLAB_IMAGE_REF="$(echo "${ERA_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["image"])')"
+
+        echo "isaacsim_image_name=${ISAACSIM_IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=${ISAACSIM_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_name=${ISAACLAB_IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_ref=${ISAACLAB_IMAGE_REF}" >> "$GITHUB_OUTPUT"
+    - id: build_matrix
+      run: |
+        set -euo pipefail
+        MATRIX=$(python3 tools/perf_smoke_test/tasks_to_ci_matrix.py)
+        echo "bench_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+        echo "Matrix: $MATRIX"
+
+  # ---------------------------------------------------------------------------
+  # Static pre-flight: catch stale task_ids / bad task config before burning a
+  # GPU runner (no Isaac Sim needed). Fails fast with a clear message.
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validate tasks.json
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - run: python3 tools/perf_smoke_test/validate_tasks.py
+
+  # ---------------------------------------------------------------------------
+  # Per-task/backend benchmark jobs
+  # ---------------------------------------------------------------------------
+  bench:
+    name: Bench / ${{ matrix.task_id }} / ${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    needs: [config, validate]
+    continue-on-error: true
+    timeout-minutes: ${{ matrix.job_timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Load the benchmark matrix from the canonical tasks.json task definition file.
+        include: ${{ fromJson(needs.config.outputs.bench_matrix) }}
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    # Warm JIT-cache sidecar: restore the Warp/CUDA compile cache for this
+    # task/backend so repeat runs skip cold Newton/Warp compilation. Saved
+    # automatically on job end; purely a speed optimization (never affects the verdict).
+    #
+    # The primary key embeds the run id so it is unique per run: actions/cache only
+    # saves when the primary key did NOT already exist, so a static key would freeze
+    # the cache after its first save and never pick up newly compiled kernels. The
+    # restore-keys fall back to the newest prior cache by prefix, giving a rolling
+    # cache that refills every run.
+    # Derive the Warp version from the pinned dependency so the JIT cache key
+    # tracks the toolchain automatically: bumping the pin invalidates stale
+    # kernels instead of silently reusing a cache compiled by a different Warp.
+    - name: Resolve Warp version for JIT cache key
+      id: warp_version
+      run: |
+        version="$(sed -n 's/.*warp-lang[^0-9]*\([0-9][0-9A-Za-z.\-]*\).*/\1/p' source/isaaclab/pyproject.toml | head -n1)"
+        [ -z "$version" ] && version="unpinned"
+        echo "value=$version" >> "$GITHUB_OUTPUT"
+        echo "JIT cache keyed to Warp $version"
+
+    - name: Restore warm JIT cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/jit-cache
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_smoke_test/tasks.json') }}-${{ github.run_id }}
+        restore-keys: |
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_smoke_test/tasks.json') }}-
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.task_id }}-
+
+    # Image source — pull the published image (primary), build only as a fallback:
+    #
+    #  Primary: `docker pull` the ref resolved by the config job. That ref is the
+    #      era-pinned immutable image for this commit's container era when the era is
+    #      recorded in the manifest on perf-baselines; otherwise it degrades to the
+    #      moving tag (latest-develop/latest/latest-release-*). Pinning stops a nightly
+    #      rebuild of latest-develop from shifting the environment (and the baseline)
+    #      under a PR. Set the optional PERF_SMOKE_CI_IMAGE repo variable to force a
+    #      specific image. The seeder resolves the same era ref, so baselines and PR
+    #      runs share an identical environment (same runtime_contract_hash, no seed-vs-
+    #      gate offset). The pulled image is retagged to the workflow-local
+    #      CI_IMAGE_TAG so nothing downstream changes.
+    #
+    #  Fallback: if the pull fails (e.g. a new era before the image is republished), build
+    #      from source via ecr-build-push-pull, matching the main IsaacLab CI build path.
+    #      This makes a missing image self-heal (slowly) instead of hard-failing the gate.
+    - name: Pull prebuilt CI image
+      id: pull_image
+      continue-on-error: true
+      env:
+        # Scoped here (not workflow-level) so PR-checked-out code in other steps
+        # never sees the registry secret.
+        NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || needs.config.outputs.isaaclab_image_ref }}
+      run: |
+        set -euo pipefail
+
+        # The runner's docker credential store backend is broken ("not implemented"),
+        # so disable credsStore before any login (same trick as ecr-build-push-pull).
+        # With credsStore disabled, docker writes the NGC key to config.json in clear
+        # text, so wipe the temp dir on ANY exit -- a failed docker pull must not leave
+        # the long-lived credential on the self-hosted runner's filesystem.
+        DOCKER_CONFIG_DIR="$(mktemp -d)"
+        trap 'rm -rf "${DOCKER_CONFIG_DIR}"' EXIT
+        echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        REGISTRY="${CI_IMAGE_REF%%/*}"
+        case "${REGISTRY}" in
+          nvcr.io)
+            if [ -n "${NGC_API_KEY:-}" ]; then
+              echo "🔵 Logging into nvcr.io..."
+              echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+            else
+              echo "::warning::NGC_API_KEY not set; attempting anonymous pull from nvcr.io"
+            fi
+            ;;
+          *)
+            echo "::notice::No known login for registry '${REGISTRY}'; attempting anonymous pull"
+            ;;
+        esac
+
+        echo "🔵 Pulling prebuilt image ${CI_IMAGE_REF}..."
+        docker pull "${CI_IMAGE_REF}"
+        docker tag "${CI_IMAGE_REF}" "${{ env.CI_IMAGE_TAG }}"
+        echo "🟢 Tagged ${CI_IMAGE_REF} as ${{ env.CI_IMAGE_TAG }}"
+
+    - name: Build CI image (fallback)
+      if: ${{ steps.pull_image.outcome == 'failure' }}
+      # Scoped here (not workflow-level) so PR-checked-out code in other steps
+      # never sees the registry secret; the action logs into nvcr.io to pull the base.
+      env:
+        NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+        # Keep a dedicated GHA cache scope so perf-smoke fallback builds do not collide
+        # with the main Docker test workflow's cache entries.
+        gha-cache-scope: perf-smoke-base
+
+    - name: Run benchmark in Docker
+      id: bench_run
+      env:
+        # When the env image was pulled prebuilt, overlay the PR checkout over the image's
+        # baked source so the benchmark runs the PR's code (the editable install resolves to
+        # the mounted tree), not the image's era source. When the image was built from source
+        # the PR code is already baked in, so no mount (preserves the proven build path).
+        IMAGE_WAS_PULLED: ${{ steps.pull_image.outcome == 'success' }}
+        # Matrix values from tasks.json flow through the environment, never interpolated into
+        # into shell source, to prevent injection. They are referenced as
+        # "$VAR" below and forwarded into the container with `docker run -e`.
+        TASK_ID: ${{ matrix.task_id }}
+        PHYSICS_BACKEND: ${{ matrix.physics_backend }}
+        RENDER_BACKEND: ${{ matrix.render_backend }}
+        NUM_ENVS: ${{ matrix.num_envs }}
+        NUM_FRAMES: ${{ matrix.num_frames }}
+        WARMUP_FRAMES: ${{ matrix.warmup_frames }}
+        SEED: ${{ matrix.seed }}
+        HYDRA_ARGS: ${{ matrix.hydra_args }}
+      run: |
+        set -euo pipefail
+
+        # Compute backend_key: "{physics}_{render}" when render is set, else "{physics}"
+        if [ -n "${RENDER_BACKEND}" ]; then
+          BACKEND_KEY="${PHYSICS_BACKEND}_${RENDER_BACKEND}"
+        else
+          BACKEND_KEY="${PHYSICS_BACKEND}"
+        fi
+
+        ARTIFACT_DIR="$(pwd)/artifacts/${TASK_ID}/${BACKEND_KEY}"
+
+        # Sanitize task_id and backend_key for Docker container name
+        SAFE_TASK_ID="${TASK_ID//[^a-zA-Z0-9]/-}"
+        SAFE_BACKEND="${BACKEND_KEY//[^a-zA-Z0-9]/-}"
+        CONTAINER_NAME="perf-bench-${SAFE_TASK_ID}-${SAFE_BACKEND}-${{ github.run_id }}"
+        LOG_FILE="${ARTIFACT_DIR}/benchmark.log"
+
+        mkdir -p "${ARTIFACT_DIR}"
+        mkdir -p "${{ github.workspace }}/jit-cache/warp" "${{ github.workspace }}/jit-cache/nv"
+        mkdir -p "${{ github.workspace }}/kit-cache"
+
+        # The CI image runs as non-root user `isaaclab` (uid 1000), but these host
+        # dirs are created by the runner user (root on the NVIDIA fleet), so the
+        # in-container user can't write them by default. That manifests as a
+        # PermissionError in wp.init() creating WARP_CACHE_PATH/<ver>, which the
+        # lazy task loader then masks as a misleading `mdp.<attr>` AttributeError.
+        #
+        # kit-cache covers the Omniverse Kit / RTX shader cache (mounted over
+        # /isaac-sim/kit/cache, which is root-owned 755 in the image). Without a
+        # writable location the RTX renderer cannot create its shader DB
+        # ("Failed to initialize rtx::shaderdb::ContextManager"), leaving the
+        # renderer broken and crashing later with cudaErrorIllegalAddress. Only
+        # the RTX-renderer camera configs need it; the Warp renderer does not.
+        # World-writable bind mounts fix all of these, independent of runner uid.
+        chmod -R 0777 "${ARTIFACT_DIR}" "${{ github.workspace }}/jit-cache" "${{ github.workspace }}/kit-cache"
+
+        GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
+        if [[ -z "${GPU_MODEL}" ]]; then
+          GPU_MODEL="unknown-gpu"
+        fi
+        python3 tools/perf_smoke_test/write_launch_config.py \
+          --task_id "${TASK_ID}" \
+          --physics_backend "${PHYSICS_BACKEND}" \
+          --render_backend "${RENDER_BACKEND}" \
+          --gpu_model "${GPU_MODEL}" \
+          --artifact_dir "${ARTIFACT_DIR}"
+
+        # Remove any stale container from a previous run attempt
+        docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
+
+        # Overlay the PR checkout when running a pulled (prebuilt) env image, so the
+        # benchmark runs the PR's code instead of the image's baked era source. The
+        # in-container user (uid 1000) must be able to write _isaac_sim into the mounted
+        # root, so open up perms on the runner-owned checkout (mirrors the seeder).
+        SRC_MOUNT=""
+        if [ "${IMAGE_WAS_PULLED}" = "true" ]; then
+          chmod -R a+rwX "${{ github.workspace }}" 2>/dev/null || true
+          SRC_MOUNT="-v ${{ github.workspace }}:/workspace/isaaclab"
+        fi
+
+        # Start the benchmark container in detached mode
+        docker run -d --name "${CONTAINER_NAME}" \
+          --init --stop-timeout 10 \
+          --entrypoint bash --gpus all --network=host \
+          --security-opt=no-new-privileges:true \
+          --ulimit nofile=65536:65536 \
+          --ulimit nproc=4096:4096 \
+          -e OMNI_KIT_ACCEPT_EULA=yes \
+          -e ACCEPT_EULA=Y \
+          -e OMNI_KIT_DISABLE_CUP=1 \
+          -e ISAAC_SIM_HEADLESS=1 \
+          -e PYTHONUNBUFFERED=1 \
+          -e PYTHONDONTWRITEBYTECODE=1 \
+          -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
+          -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+          -e TASK_ID -e NUM_ENVS -e NUM_FRAMES -e WARMUP_FRAMES -e SEED -e HYDRA_ARGS \
+          -v "${ARTIFACT_DIR}:/tmp/bench_out" \
+          -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
+          -v "${{ github.workspace }}/kit-cache:/isaac-sim/kit/cache" \
+          ${SRC_MOUNT} \
+          "${{ env.CI_IMAGE_TAG }}" \
+          -c '
+            set -e
+            cd /workspace/isaaclab
+            rm -f _isaac_sim
+            ln -s /isaac-sim _isaac_sim
+            ./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py \
+              --task "$TASK_ID" \
+              --num_envs "$NUM_ENVS" \
+              --num_frames "$NUM_FRAMES" \
+              --warmup_frames "$WARMUP_FRAMES" \
+              --benchmark_formatter schema \
+              --output_path /tmp/bench_out \
+              ${SEED:+--seed "$SEED"} \
+              $HYDRA_ARGS
+          '
+
+        START=$(date +%s)
+
+        # Stream container logs to file and terminal while benchmark runs
+        docker logs -f "${CONTAINER_NAME}" 2>&1 | tee "${LOG_FILE}" &
+        LOGS_PID=$!
+
+        # Wait for the container to exit, with a hard wall-clock timeout
+        BENCH_EXIT=1
+        if docker_exit=$(timeout ${{ matrix.bench_timeout_s }} docker wait "${CONTAINER_NAME}" 2>/dev/null); then
+          BENCH_EXIT="${docker_exit:-1}"
+        else
+          echo "::warning::Benchmark for ${TASK_ID}/${BACKEND_KEY} timed out after ${{ matrix.bench_timeout_s }}s"
+        fi
+
+        END=$(date +%s)
+        WALL_TIME_S=$((END - START))
+
+        kill "${LOGS_PID}" 2>/dev/null || true
+        wait "${LOGS_PID}" 2>/dev/null || true
+
+        docker kill "${CONTAINER_NAME}" 2>/dev/null || true
+        docker rm "${CONTAINER_NAME}" 2>/dev/null || true
+
+        echo "exit_code=${BENCH_EXIT}" >> "$GITHUB_OUTPUT"
+        echo "wall_time_s=${WALL_TIME_S}" >> "$GITHUB_OUTPUT"
+        echo "artifact_dir=${ARTIFACT_DIR}" >> "$GITHUB_OUTPUT"
+        echo "backend_key=${BACKEND_KEY}" >> "$GITHUB_OUTPUT"
+
+    # Retry once on first-attempt failure before giving up.
+    # Runs only when bench_run reports a non-zero exit code.
+    - name: Retry benchmark on failure
+      id: bench_retry
+      if: always() && steps.bench_run.outputs.exit_code != '0' && steps.bench_run.outputs.exit_code != ''
+      env:
+        # Same source-overlay rule as the first attempt (see "Run benchmark in Docker").
+        IMAGE_WAS_PULLED: ${{ steps.pull_image.outcome == 'success' }}
+        TASK_ID: ${{ matrix.task_id }}
+        PHYSICS_BACKEND: ${{ matrix.physics_backend }}
+        RENDER_BACKEND: ${{ matrix.render_backend }}
+        NUM_ENVS: ${{ matrix.num_envs }}
+        NUM_FRAMES: ${{ matrix.num_frames }}
+        WARMUP_FRAMES: ${{ matrix.warmup_frames }}
+        SEED: ${{ matrix.seed }}
+        HYDRA_ARGS: ${{ matrix.hydra_args }}
+      run: |
+        set -uo pipefail
+
+        if [ -n "${RENDER_BACKEND}" ]; then
+          BACKEND_KEY="${PHYSICS_BACKEND}_${RENDER_BACKEND}"
+        else
+          BACKEND_KEY="${PHYSICS_BACKEND}"
+        fi
+
+        ARTIFACT_DIR="$(pwd)/artifacts/${TASK_ID}/${BACKEND_KEY}"
+        SAFE_TASK_ID="${TASK_ID//[^a-zA-Z0-9]/-}"
+        SAFE_BACKEND="${BACKEND_KEY//[^a-zA-Z0-9]/-}"
+        CONTAINER_NAME="perf-bench-${SAFE_TASK_ID}-${SAFE_BACKEND}-${{ github.run_id }}-retry"
+        LOG_FILE="${ARTIFACT_DIR}/benchmark.log"
+
+        echo "::notice::First attempt failed (exit=${{ steps.bench_run.outputs.exit_code }}); retrying benchmark for ${TASK_ID}/${BACKEND_KEY}"
+
+        # Remove any partial perf output from the failed first attempt so the retry's
+        # output is picked up cleanly by build_bench_result's normalize step.
+        rm -f "${ARTIFACT_DIR}/perf_smoke_test_info.json"
+
+        docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
+
+        # Overlay the PR checkout when running a pulled (prebuilt) env image (see the
+        # first attempt for rationale).
+        SRC_MOUNT=""
+        if [ "${IMAGE_WAS_PULLED}" = "true" ]; then
+          chmod -R a+rwX "${{ github.workspace }}" 2>/dev/null || true
+          SRC_MOUNT="-v ${{ github.workspace }}:/workspace/isaaclab"
+        fi
+
+        docker run -d --name "${CONTAINER_NAME}" \
+          --init --stop-timeout 10 \
+          --entrypoint bash --gpus all --network=host \
+          --security-opt=no-new-privileges:true \
+          --ulimit nofile=65536:65536 \
+          --ulimit nproc=4096:4096 \
+          -e OMNI_KIT_ACCEPT_EULA=yes \
+          -e ACCEPT_EULA=Y \
+          -e OMNI_KIT_DISABLE_CUP=1 \
+          -e ISAAC_SIM_HEADLESS=1 \
+          -e PYTHONUNBUFFERED=1 \
+          -e PYTHONDONTWRITEBYTECODE=1 \
+          -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
+          -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+          -e TASK_ID -e NUM_ENVS -e NUM_FRAMES -e WARMUP_FRAMES -e SEED -e HYDRA_ARGS \
+          -v "${ARTIFACT_DIR}:/tmp/bench_out" \
+          -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
+          -v "${{ github.workspace }}/kit-cache:/isaac-sim/kit/cache" \
+          ${SRC_MOUNT} \
+          "${{ env.CI_IMAGE_TAG }}" \
+          -c '
+            set -e
+            cd /workspace/isaaclab
+            rm -f _isaac_sim
+            ln -s /isaac-sim _isaac_sim
+            ./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py \
+              --task "$TASK_ID" \
+              --num_envs "$NUM_ENVS" \
+              --num_frames "$NUM_FRAMES" \
+              --warmup_frames "$WARMUP_FRAMES" \
+              --benchmark_formatter schema \
+              --output_path /tmp/bench_out \
+              ${SEED:+--seed "$SEED"} \
+              $HYDRA_ARGS
+          '
+
+        START=$(date +%s)
+
+        docker logs -f "${CONTAINER_NAME}" 2>&1 | tee "${LOG_FILE}" &
+        LOGS_PID=$!
+
+        BENCH_EXIT=1
+        if docker_exit=$(timeout ${{ matrix.bench_timeout_s }} docker wait "${CONTAINER_NAME}" 2>/dev/null); then
+          BENCH_EXIT="${docker_exit:-1}"
+        else
+          echo "::warning::Retry benchmark for ${TASK_ID}/${BACKEND_KEY} timed out after ${{ matrix.bench_timeout_s }}s"
+        fi
+
+        END=$(date +%s)
+        WALL_TIME_S=$((END - START))
+
+        kill "${LOGS_PID}" 2>/dev/null || true
+        wait "${LOGS_PID}" 2>/dev/null || true
+
+        docker kill "${CONTAINER_NAME}" 2>/dev/null || true
+        docker rm "${CONTAINER_NAME}" 2>/dev/null || true
+
+        echo "exit_code=${BENCH_EXIT}" >> "$GITHUB_OUTPUT"
+        echo "wall_time_s=${WALL_TIME_S}" >> "$GITHUB_OUTPUT"
+
+    # Build bench_result.json from the Docker run outputs.
+    # Runs even when bench_run/bench_retry fail so partial results are always uploaded.
+    # Uses the retry's exit code and wall time when a retry ran, and sets was_retried accordingly.
+    - name: Build bench_result
+      if: always()
+      env:
+        # Matrix values via env, never interpolated into shell (see "Run benchmark in Docker").
+        TASK_ID: ${{ matrix.task_id }}
+        PHYSICS_BACKEND: ${{ matrix.physics_backend }}
+        RENDER_BACKEND: ${{ matrix.render_backend }}
+      run: |
+        if [ -n "${RENDER_BACKEND}" ]; then
+          BACKEND_KEY="${PHYSICS_BACKEND}_${RENDER_BACKEND}"
+        else
+          BACKEND_KEY="${PHYSICS_BACKEND}"
+        fi
+        ARTIFACT_DIR="$(pwd)/artifacts/${TASK_ID}/${BACKEND_KEY}"
+
+        # If a retry ran, use its exit code/wall time and mark was_retried.
+        RETRY_EXIT="${{ steps.bench_retry.outputs.exit_code }}"
+        if [ -n "${RETRY_EXIT}" ]; then
+          FINAL_EXIT="${RETRY_EXIT}"
+          FINAL_WALL="${{ steps.bench_retry.outputs.wall_time_s || '0' }}"
+          EXTRA_FLAGS="--was_retried --attempt 2"
+        else
+          FINAL_EXIT="${{ steps.bench_run.outputs.exit_code || '1' }}"
+          FINAL_WALL="${{ steps.bench_run.outputs.wall_time_s || '0' }}"
+          EXTRA_FLAGS=""
+        fi
+
+        python3 tools/perf_smoke_test/build_bench_result.py \
+          --task_id "${TASK_ID}" \
+          --physics_backend "${PHYSICS_BACKEND}" \
+          --render_backend "${RENDER_BACKEND}" \
+          --artifact_dir "${ARTIFACT_DIR}" \
+          --exit_code "${FINAL_EXIT}" \
+          --wall_time_s "${FINAL_WALL}" \
+          --timeout_s "${{ matrix.bench_timeout_s }}" \
+          --log_file "${ARTIFACT_DIR}/benchmark.log" \
+          --launch_config "${ARTIFACT_DIR}/launch_config.json" \
+          --gate_config tools/perf_smoke_test/gate_config.json \
+          ${EXTRA_FLAGS}
+
+    # Surface per-task benchmark execution health as an independent commit status
+    # on the PR head. This reads build_bench_result's structured result so a green
+    # job (bench is continue-on-error) can no longer hide a benchmark that failed.
+    # Note: this reports whether the benchmark *ran*, not the regression verdict —
+    # that is the separate `perf-smoke-test` status posted by aggregate.
+    - name: Report per-task status
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const taskId = ${{ toJSON(matrix.task_id) }};
+          const physics = ${{ toJSON(matrix.physics_backend) }};
+          const render = ${{ toJSON(matrix.render_backend) }};
+          const backendKey = render ? `${physics}_${render}` : physics;
+          const resultPath = `artifacts/${taskId}/${backendKey}/perf_smoke_test_result.json`;
+          let ok = false;
+          let description = 'no benchmark result produced';
+          try {
+            const r = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+            ok = r.exit_code === 0 && !r.failure_phase && r.perf_smoke_test_info_present === true;
+            description = ok
+              ? 'benchmark completed'
+              : `benchmark failed (${r.failure_phase || 'exit ' + r.exit_code})`;
+          } catch (e) {
+            description = 'benchmark result missing — job crashed before build_bench_result';
+          }
+          const statusSha = context.payload.pull_request?.head?.sha || context.sha;
+          await github.rest.repos.createCommitStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: statusSha,
+            state: ok ? 'success' : 'failure',
+            context: `perf-smoke (${taskId}/${backendKey})`,
+            description: description.slice(0, 140),
+          });
+
+    - name: Upload bench artifacts
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: bench-${{ matrix.task_id }}-${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}-${{ github.run_id }}
+        path: artifacts/${{ matrix.task_id }}/${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}/
+        retention-days: 7
+        if-no-files-found: warn
+
+    # Force-clean the container if the job is cancelled mid-run
+    - name: Cleanup container on cancellation
+      if: cancelled()
+      env:
+        TASK_ID: ${{ matrix.task_id }}
+        PHYSICS_BACKEND: ${{ matrix.physics_backend }}
+        RENDER_BACKEND: ${{ matrix.render_backend }}
+      run: |
+        if [ -n "${RENDER_BACKEND}" ]; then
+          BACKEND_KEY="${PHYSICS_BACKEND}_${RENDER_BACKEND}"
+        else
+          BACKEND_KEY="${PHYSICS_BACKEND}"
+        fi
+        SAFE_TASK_ID="${TASK_ID//[^a-zA-Z0-9]/-}"
+        SAFE_BACKEND="${BACKEND_KEY//[^a-zA-Z0-9]/-}"
+        CONTAINER_NAME="perf-bench-${SAFE_TASK_ID}-${SAFE_BACKEND}-${{ github.run_id }}"
+        docker kill "${CONTAINER_NAME}" 2>/dev/null || true
+        docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
+
+  # ---------------------------------------------------------------------------
+  # Aggregate: oracle verdicts, baseline update, step summary
+  # ---------------------------------------------------------------------------
+  aggregate:
+    name: Aggregate + Verdict
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    needs: [config, bench]
+    # Always run for real gate attempts, even when some bench jobs fail.
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    outputs:
+      # Tasks whose current runtime_contract_hash bucket is under-filled (a valid
+      # measurement but < MIN_BASELINE_SAMPLES matching samples). Drives the reseed
+      # job below on protected develop pushes. Empty string when nothing to reseed.
+      reseed_tasks: ${{ steps.aggregate.outputs.reseed_tasks }}
+      reseed_min_samples: ${{ steps.aggregate.outputs.reseed_min_samples }}
+    # Read-only on purpose: this job runs checked-out PR code (aggregate.py) on
+    # same-repo PRs, so it must not hold a write-capable token. Baseline writes
+    # happen only in the trusted-push-gated baseline_update job below.
+    permissions:
+      contents: read
+      issues: write       # post/update the sticky verdict comment on the PR
+      pull-requests: read
+      statuses: write
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    # Prime the remote-tracking baseline ref. aggregate.py refetches immediately
+    # before reading and again inside the transactional push retry loop.
+    - name: Fetch baselines branch
+      run: |
+        git fetch origin +refs/heads/perf-baselines:refs/remotes/origin/perf-baselines || \
+          echo "::warning::Baseline branch not found; gate will run as a seed run (no baseline comparison)"
+
+    - name: Download bench artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: bench-*-${{ github.run_id }}
+        path: artifacts/
+        merge-multiple: false
+
+    - name: Resolve gate context
+      id: gate_context
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        python3 tools/perf_smoke_test/github_gate_context.py
+
+    - name: Run aggregate oracle
+      id: aggregate
+      run: |
+        GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
+        if [[ -z "${GPU_MODEL}" ]]; then
+          GPU_MODEL="unknown-gpu"
+        fi
+        # omni-github app.platform mirrors the shared upload action's derivation so
+        # dashboard rows are grouped consistently with the rest of IsaacLab CI.
+        case "${RUNNER_OS:-Linux}-${RUNNER_ARCH:-X64}" in
+          Linux-X64)    APP_PLATFORM="linux-x86_64" ;;
+          Linux-ARM64)  APP_PLATFORM="linux-aarch64" ;;
+          Windows-X64)  APP_PLATFORM="windows-x86_64" ;;
+          *) APP_PLATFORM="$(printf '%s-%s' "${RUNNER_OS:-linux}" "${RUNNER_ARCH:-x64}" | tr '[:upper:]' '[:lower:]')" ;;
+        esac
+        # Write the verdict table to a dedicated file so it can be reused for the
+        # sticky PR comment, then mirror it into the run's step summary. The
+        # omni-github artifact carries the same verdicts plus per-task diagnostics
+        # (FPS, regression, hardware, software, contract hashes) as custom.perf_smoke.* fields.
+        SUMMARY_FILE="${{ github.workspace }}/verdict_summary.md"
+        python3 tools/perf_smoke_test/aggregate.py \
+          --artifacts_dir artifacts/ \
+          --gpu_model "${GPU_MODEL}" \
+          --gate_config tools/perf_smoke_test/gate_config.json \
+          --baseline_branch perf-baselines \
+          --baseline_remote origin \
+          --baseline_push_retries 3 \
+          --base_sha "${{ steps.gate_context.outputs.base_sha }}" \
+          --target_branch "${{ steps.gate_context.outputs.target_branch }}" \
+          --source_branch "${{ steps.gate_context.outputs.source_branch }}" \
+          --allow_baseline_update false \
+          --trusted_source "${{ steps.gate_context.outputs.trusted_source }}" \
+          --summary_file "${SUMMARY_FILE}" \
+          --omni_github_dir "${{ github.workspace }}/omni-github-artifact" \
+          --omni_platform "${APP_PLATFORM}" \
+          --omni_app_config "${GITHUB_JOB}"
+        cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}" || true
+
+    # Sanity-check the emitted omni-github result before upload so a malformed
+    # payload is caught here (with a clear log) rather than silently dropped by
+    # omni-github ingestion. Kept dependency-free (stdlib json only): the shared
+    # result-json.schema.json is a stricter lint whose customValue oneOf rejects
+    # integral numbers, so it cannot gate a numeric-diagnostics payload. Additive:
+    # a missing result (e.g. aggregate crashed before writing) is skipped with a
+    # warning, never fails the job.
+    - name: Validate omni-github artifact
+      id: omni_validate
+      if: always()
+      run: |
+        set -euo pipefail
+        result_json="${{ github.workspace }}/omni-github-artifact/_testoutput/test_results.json"
+        if [ ! -f "${result_json}" ]; then
+          echo "::warning::No omni-github result produced; skipping upload"
+          echo "upload=false" >> "${GITHUB_OUTPUT}"
+          exit 0
+        fi
+        python3 - "${result_json}" <<'PY'
+        import json, sys
+
+        result = json.load(open(sys.argv[1]))
+        assert result.get("test_tool_id"), "missing test_tool_id"
+        assert result.get("app", {}).get("platform"), "missing app.platform"
+        tests = result.get("tests")
+        assert isinstance(tests, list) and tests, "tests must be a non-empty list"
+        for row in tests:
+            assert row.get("test_id"), "row missing test_id"
+            assert isinstance(row.get("passed"), bool), "row.passed must be bool"
+            assert isinstance(row.get("duration"), (int, float)), "row.duration must be numeric"
+            namespaces = row.get("custom", {})
+            assert namespaces, "row.custom must be a non-empty namespace map"
+            for name, fields in namespaces.items():
+                assert fields, f"custom namespace {name!r} must be non-empty"
+        print(f"omni-github result OK: {len(tests)} rows")
+        PY
+        echo "upload=true" >> "${GITHUB_OUTPUT}"
+
+    # Upload the artifact under the omni-github name contract
+    # (<prefix>--v1-<repo_id>-<run_id>-<run_attempt>-<check_run_id>) so omni-github
+    # ingests it for the registered NVIDIA-Omniverse/IsaacLab repository.
+    - name: Upload perf results to omni-github
+      if: always() && steps.omni_validate.outputs.upload == 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: perf-smoke-results--v1-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ job.check_run_id }}
+        path: ${{ github.workspace }}/omni-github-artifact
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 9
+
+    # Aggregate gate signal as a single stable commit status on the PR head. This
+    # is the status maintainers can mark required: it stays green while the gate is
+    # advisory (gate_config.blocking=false, aggregate.py always exits 0), and turns
+    # red once blocking is enabled and the oracle reports a BLOCK/HARD_FAILURE
+    # (which fails the aggregate step above). Distinct from the per-task
+    # `perf-smoke (...)` statuses, which only report whether each benchmark ran.
+    - name: Report aggregate status
+      if: always()
+      uses: actions/github-script@v7
+      env:
+        AGGREGATE_OUTCOME: ${{ steps.aggregate.outcome }}
+      with:
+        script: |
+          const ok = process.env.AGGREGATE_OUTCOME === 'success';
+          const statusSha = context.payload.pull_request?.head?.sha || context.sha;
+          await github.rest.repos.createCommitStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: statusSha,
+            state: ok ? 'success' : 'failure',
+            context: 'perf-smoke-test',
+            description: ok
+              ? 'perf-smoke verdicts posted (advisory)'
+              : 'perf-smoke gate reported a regression',
+          });
+
+    # Post the verdict table as a single sticky comment on the PR (updated in place
+    # each run), so reviewers see regressions without opening the Actions tab.
+    # Skipped on manual dispatch / protected-branch pushes where there is no PR.
+    - name: Post verdict PR comment
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const issue_number = context.issue && context.issue.number;
+          if (!issue_number) {
+            core.info('no pull request issue number in context; skipping PR comment');
+            return;
+          }
+          let table = '_No verdict summary was produced._';
+          try {
+            table = fs.readFileSync(`${process.env.GITHUB_WORKSPACE}/verdict_summary.md`, 'utf8');
+          } catch (e) {
+            core.info('verdict_summary.md not found; posting placeholder');
+          }
+          const marker = '<!-- perf-smoke-test-verdict -->';
+          const body = `${marker}\n${table}\n\n_Updated for ${context.sha.slice(0, 8)} · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
+          const { owner, repo } = context.repo;
+          const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+          const existing = comments.find(c => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+          }
+
+  # ---------------------------------------------------------------------------
+  # Baseline update (trusted writes only)
+  #
+  # Appends this run's healthy samples to the perf-baselines branch. Split out of
+  # the aggregate job so the write-capable token is only ever granted on a trusted
+  # protected-branch push -- never while the aggregate job runs checked-out PR code.
+  # ---------------------------------------------------------------------------
+  baseline_update:
+    name: Update baselines (protected)
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    needs: [config, bench]
+    permissions:
+      contents: write     # push protected-branch baseline updates to perf-baselines
+    # Only trusted protected-branch pushes (main/develop/release) publish baselines --
+    # exactly where github_gate_context resolves allow_update=true and the checked-out
+    # code is already-merged trusted code, not PR code.
+    if: >-
+      ${{ github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+      || startsWith(github.ref, 'refs/heads/release/')) }}
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Fetch baselines branch
+      run: |
+        git fetch origin +refs/heads/perf-baselines:refs/remotes/origin/perf-baselines || \
+          echo "::warning::Baseline branch not found; first push will create it"
+
+    - name: Download bench artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: bench-*-${{ github.run_id }}
+        path: artifacts/
+        merge-multiple: false
+
+    - name: Resolve gate context
+      id: gate_context
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        python3 tools/perf_smoke_test/github_gate_context.py
+
+    - name: Append trusted baselines
+      run: |
+        GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
+        if [[ -z "${GPU_MODEL}" ]]; then
+          GPU_MODEL="unknown-gpu"
+        fi
+        # Push-only: no summary/omni/comment side effects (the aggregate job already
+        # produced those). allow_baseline_update is re-checked in-tool via gate_context
+        # (true only on protected pushes).
+        python3 tools/perf_smoke_test/aggregate.py \
+          --artifacts_dir artifacts/ \
+          --gpu_model "${GPU_MODEL}" \
+          --gate_config tools/perf_smoke_test/gate_config.json \
+          --baseline_branch perf-baselines \
+          --baseline_remote origin \
+          --baseline_push_retries 3 \
+          --base_sha "${{ steps.gate_context.outputs.base_sha }}" \
+          --target_branch "${{ steps.gate_context.outputs.target_branch }}" \
+          --source_branch "${{ steps.gate_context.outputs.source_branch }}" \
+          --allow_baseline_update "${{ steps.gate_context.outputs.allow_update }}" \
+          --trusted_source "${{ steps.gate_context.outputs.trusted_source }}"
+
+  # ---------------------------------------------------------------------------
+  # Reseed: post-gate under-filled-bucket detector.
+  #
+  # When a protected develop push observes a valid measurement whose current
+  # runtime_contract_hash bucket has < MIN_BASELINE_SAMPLES samples (a new bucket
+  # opened by, e.g., a Warp/Newton/IsaacLab bump), the self-seed-forward step only
+  # adds one sample -- the bucket would stay advisory (NO_BASELINE /
+  # INSUFFICIENT_WINDOW) for several more pushes. This fills it in one shot by
+  # reseeding exactly the flagged tasks for the pushed commit through the same
+  # era-image resolver the gate used, so the samples share the gate's environment.
+  #
+  # Self-limiting: once filled the bucket is no longer under-filled, so the next
+  # push emits no reseed_tasks. No loop risk -- seeding writes to perf-baselines,
+  # which triggers neither this gate nor the era-roll workflow.
+  # ---------------------------------------------------------------------------
+  reseed:
+    name: Reseed under-filled buckets
+    needs: [aggregate]
+    # The called seed workflow pushes to perf-baselines (contents: write). A reusable
+    # workflow can only downgrade the caller job's permissions, so grant write here;
+    # the gate's top-level contents:read would otherwise fail the call at startup.
+    permissions:
+      contents: write
+    # Protected develop push is the production trigger. workflow_dispatch on develop
+    # is also allowed: dispatch is write-access-only (trusted) and lets the reseed
+    # chain be exercised manually, including on forks whose default branch is develop.
+    if: >-
+      ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      && github.ref == 'refs/heads/develop'
+      && needs.aggregate.outputs.reseed_tasks != '' }}
+    uses: ./.github/workflows/perf-smoke-seed-baselines.yaml
+    secrets: inherit
+    with:
+      branches: "${{ github.sha }}:develop"
+      commit_count: "1"
+      samples_per_commit: ${{ needs.aggregate.outputs.reseed_min_samples }}
+      tasks: ${{ needs.aggregate.outputs.reseed_tasks }}
+      target_branch: develop
+      strict_ancestry: true
+      dry_run: false
