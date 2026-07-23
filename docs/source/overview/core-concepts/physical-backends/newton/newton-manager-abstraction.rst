@@ -137,8 +137,10 @@ The MJWarp + VBD deformable manager is a concrete example:
 * ``NewtonCoupledMJWarpVBDManager._build_solver()`` constructs
   ``SolverMuJoCo`` and ``SolverVBD`` from those sub-configs.
 * ``_step_solver()`` dispatches to either one-way or two-way coupling.
+* ``_reset_solver_internals()`` and ``_solver_specific_clear()`` forward the
+  solver-specific lifecycle to both sub-solvers.
 * The base ``NewtonManager`` still owns state allocation, substep iteration,
-  Fabric synchronization, and reset/clear lifecycle.
+  Fabric synchronization, and the outer lifecycle.
 
 The two-way MJWarp + VBD substep stays compact because it is expressed as a
 short coupling algorithm:
@@ -170,9 +172,8 @@ short coupling algorithm:
       Step VBD against the same contacts and the updated rigid poses.
 
 
-This keeps the custom part focused on the coupling policy. The manager does not
-need to reimplement scene loading, asset buffers, reset handling, or the outer
-simulation loop.
+This keeps the custom part focused on the coupling policy. The manager does not need to reimplement scene loading, asset buffers, or the
+outer simulation loop.
 
 .. figure:: ../../../../_static/newton/franka-mjwarp-vbd-coupling.png
    :align: center

@@ -12,6 +12,7 @@ isaaclab_contrib.deformable
     newton_manager_cfg.NewtonModelCfg
     newton_manager_cfg.NewtonModelSolverCfg
     newton_manager_cfg.VBDSolverCfg
+    newton_manager_cfg.CoupledMJWarpVBDSolverCfg
     vbd_manager.NewtonVBDManager
 
 Deformable Object
@@ -42,6 +43,11 @@ Newton Solver Configurations
   :exclude-members: __init__
 
 .. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.VBDSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.CoupledMJWarpVBDSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

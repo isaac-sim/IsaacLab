@@ -26,8 +26,6 @@ class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
     class_type: type[NewtonManager] | str = "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
     """Manager class for the coupled solver."""
 
-    solver_type: str = "coupledmjwarpvbd"
-
     rigid_solver_cfg: MJWarpSolverCfg = MJWarpSolverCfg()
     """MJWarp rigid-body solver configuration."""
 

@@ -103,12 +103,12 @@ class DeformableCfg(PresetCfg):
 
     newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
 
-    default = newton_mjwarp_vbd_proxy
+    default = newton_mjwarp_vbd
 
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
+    newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
         solver_cfg=CouplerProxyCfg(
             entries=[
                 CouplerEntryCfg(
@@ -149,11 +149,11 @@ class PhysicsCfg(PresetCfg):
         num_substeps=10,
     )
 
-    newton_mjwarp_vbd = newton_mjwarp_vbd_proxy
+    newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
 
     physx: PhysxCfg = PhysxCfg()
 
-    default = newton_mjwarp_vbd_proxy
+    default = newton_mjwarp_vbd
 
 
 ##
@@ -402,14 +402,15 @@ class TerminationsCfg:
 
 @configclass
 class FrankaSoftSceneCfg(PresetCfg):
-    newton_mjwarp_vbd: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+    # Proxy coupling reset state is global across replicated worlds.
+    newton_mjwarp_vbd: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
 
     # PhysX does not support replicating physics for deformable objects
     physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
 
     newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
 
-    default = newton_mjwarp_vbd_proxy
+    default = newton_mjwarp_vbd
 
 
 @configclass

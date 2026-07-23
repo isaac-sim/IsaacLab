@@ -64,12 +64,13 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
 
         cls._coupling_mode = solver_cfg.coupling_mode
 
-        cls._rigid_solver = SolverMuJoCo(model, **cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg.rigid_solver_cfg))
-        cls._soft_solver = SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg.soft_solver_cfg))
+        cls._rigid_solver = solver_cfg.rigid_solver_cfg.class_type._create_solver(model, solver_cfg.rigid_solver_cfg)
+        cls._soft_solver = solver_cfg.soft_solver_cfg.class_type._create_solver(model, solver_cfg.soft_solver_cfg)
 
         # The base lifecycle needs a solver slot; substeps use the two solvers above.
         NewtonManager._solver = SolverBase(model)
         NewtonManager._use_single_state = False
+        NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = True
 
     @classmethod

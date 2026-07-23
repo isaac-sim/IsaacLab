@@ -47,4 +47,5 @@ class FrankaSoftCustomCouplingEnvCfg(FrankaSoftEnvCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        self.scene.num_envs = 128
         self.sim.physics = PhysicsCfg()

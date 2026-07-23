@@ -176,7 +176,8 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a surface deformable."""
 
     # Scene settings
-    scene: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+    # Proxy coupling reset state is global across replicated worlds.
+    scene: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # Basic settings
     actions: ActionsCfg = ActionsCfg()
     # MDP settings

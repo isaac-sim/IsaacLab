@@ -30,15 +30,35 @@ Start from a Supported Deformable Task
 Before adding VBD to a new task, first run one of the experimental Franka
 deformable tasks:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
 For the surface-deformable cloth variant, use:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
 
 Both tasks configure MJWarp for the rigid Franka and VBD for the deformable
 object through
@@ -50,7 +70,8 @@ tuning.
 
    With the pinned Newton version, resetting any world clears proxy feedback
    and contact caches for every replicated world. Use synchronized whole-batch
-   resets until mask-aware upstream reset support is pinned.
+   resets until mask-aware upstream reset support is pinned. The Franka proxy
+   task configurations therefore default to one environment.
 
 Add a VBD Physics Preset
 ------------------------
@@ -61,13 +82,7 @@ the preset is a plain :class:`~isaaclab_newton.physics.NewtonCfg` whose solver
 config carries :class:`~isaaclab_contrib.deformable.NewtonModelCfg` through its
 :class:`~isaaclab_contrib.deformable.NewtonModelSolverCfg` base class.
 
-The Franka soft-body and cloth tasks define task-specific proxy presets. The
-soft-body preset is:
-
-.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
-    :language: python
-    :start-at: class PhysicsCfg
-    :end-before: ##
+The Franka soft-body and cloth tasks define task-specific proxy presets.
 
 The important pieces are:
 
@@ -87,18 +102,38 @@ The important pieces are:
 
 You can select the deformable Newton preset globally:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
 
 or select the physics field directly:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
 
 Use the direct path override when only one task field should use the VBD preset.
-Use ``physics=newton_mjwarp_vbd_proxy`` when you want every matching preset
+Use ``physics=newton_mjwarp_vbd`` when you want every matching preset
 field in the task config to resolve to that preset. Isaac Lab training commands
 accept these Hydra overrides after the regular command line flags; no separator is
 needed for the examples above.
@@ -228,7 +263,7 @@ The core Franka soft-body task demonstrates the proxy configuration:
 
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
-    :start-at: newton_mjwarp_vbd_proxy: NewtonCfg
+    :start-at: newton_mjwarp_vbd: NewtonCfg
     :end-before: physx: PhysxCfg = PhysxCfg()
     :dedent: 4
 
@@ -299,13 +334,27 @@ Body selectors must use full Newton body-label regexes, such as
 
 Try the demo:
 
-.. code-block:: bash
+.. tab-set::
 
-    # zero-agent visual smoke test (default preset is now the proxy-coupled one)
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
 
-    # scripted pick-and-lift via state machine
-    ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+      .. code-block:: bash
+
+          # zero-agent visual smoke test
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+          # scripted pick-and-lift via state machine
+          uv run python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # zero-agent visual smoke test
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+          # scripted pick-and-lift via state machine
+          ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
 
 
 Contact and Material Parameters

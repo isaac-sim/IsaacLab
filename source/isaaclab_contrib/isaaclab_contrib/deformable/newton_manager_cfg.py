@@ -7,9 +7,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import warnings
+from typing import TYPE_CHECKING, Literal
 
-from isaaclab_newton.physics import NewtonSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonSolverCfg
 
 from isaaclab.utils.configclass import configclass
 
@@ -116,3 +117,32 @@ class VBDSolverCfg(NewtonModelSolverCfg):
 
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for all rigid body contacts [N/m]."""
+
+
+@configclass
+class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
+    """Deprecated configuration for the coupled MJWarp and VBD solver.
+
+    .. deprecated:: 0.5.0
+        Use :class:`isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg`.
+    """
+
+    class_type: type[NewtonManager] | str = "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
+    """Manager class for the coupled MJWarp and VBD solver."""
+
+    rigid_solver_cfg: MJWarpSolverCfg = MJWarpSolverCfg()
+    """Rigid-body sub-solver configuration."""
+
+    soft_solver_cfg: VBDSolverCfg = VBDSolverCfg(integrate_with_external_rigid_solver=True)
+    """VBD sub-solver configuration."""
+
+    coupling_mode: Literal["one_way", "two_way"] = "two_way"
+    """Coupling direction between the rigid and VBD solvers."""
+
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg is deprecated. "
+            "Use isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
