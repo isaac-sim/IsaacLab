@@ -108,8 +108,7 @@ class PhysxReplicateContext:
             if len(target_envs) != 1:
                 return False
             pre, suf = split_clone_template(destination)
-            env_id = src.removeprefix(pre).removesuffix(suf)
-            return env_id.isdigit() and int(env_id) == target_envs[0]
+            return src == f"{pre}{target_envs[0]}{suf}"
 
         if all(_is_self_only(src, dst, envs) for src, dst, envs in physx_queue):
             return

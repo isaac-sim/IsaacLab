@@ -65,8 +65,12 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     """
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
-    queued = list(REPLICATION_QUEUE)
+    queued = REPLICATION_QUEUE.copy()
     REPLICATION_QUEUE.clear()
+
+    backend_physics_ctx = getattr(
+        importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "PHYSICS_CONTEXT", None
+    )
 
     # Group queued cfgs by backend, taking the union of row indices each backend owns.
     # In the homogeneous plan every cfg maps to row 0, so multiple queue_replication
@@ -78,10 +82,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         if rows is None:
             continue
         if cfg.cloning_contexts is None:
-            physics_ctx = getattr(
-                importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "PHYSICS_CONTEXT", None
-            )
-            contexts = [physics_ctx] if physics_ctx else []
+            contexts = [backend_physics_ctx] if backend_physics_ctx else []
         else:
             contexts = [string_to_callable(c) if isinstance(c, str) else c for c in cfg.cloning_contexts]
         if not replicate_physics:
