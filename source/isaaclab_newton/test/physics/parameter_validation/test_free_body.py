@@ -349,7 +349,10 @@ def test_body_01_mass_wrench_response(kamino, authoring):
             "runtime",
             marks=pytest.mark.xfail(
                 strict=True,
-                reason="IsaacLab#6518: Kamino does not refresh inverse inertia after the public runtime inertia writer",
+                reason=(
+                    "IsaacLab#6518: The articulation / rigid object does not refresh inverse mass "
+                    "after the public runtime mass writer"
+                ),
             ),
         ),
     ],

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kamino physical validation for joint parameters and state writers."""
+"""Newton physical validation for joint parameters and state writers."""
 
 import pytest
 from isaaclab_newton.assets import Articulation
@@ -206,9 +206,10 @@ def test_joint_08_passive_damping_usd_single_step(kamino, joint_type, passive_da
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("drive_authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("effort", [5.0, 20.0])
-def test_cmd_01_feedforward_torque_implicit_single_step(kamino, joint_type, drive_authoring, effort):
-    """CMD-01: Feed-forward effort with implicit dynamics reproduces the Kamino step."""
-    result = kamino.run_single_dof_step(
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_cmd_01_feedforward_torque_implicit_single_step(parameter_adapter, joint_type, drive_authoring, effort):
+    """CMD-01: Feed-forward effort with implicit dynamics reproduces the backend step."""
+    result = parameter_adapter.run_single_dof_step(
         joint_type,
         drive_authoring,
         stiffness=100.0,
@@ -217,7 +218,7 @@ def test_cmd_01_feedforward_torque_implicit_single_step(kamino, joint_type, driv
         position_target=0.0,
         effort=effort,
     )
-    velocity, position = predict_implicit_joint_step(
+    velocity, position = parameter_adapter.predict_dof_step(
         stiffness=100.0,
         drive_damping=0.0,
         armature=0.0,
@@ -225,27 +226,16 @@ def test_cmd_01_feedforward_torque_implicit_single_step(kamino, joint_type, driv
         body_inertia=result["body_inertia"],
         effort=effort,
     )
-    _assert_step(kamino, "CMD-01", "runtime", result, velocity, position)
+    _assert_step(parameter_adapter, "CMD-01", "runtime", result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
-@pytest.mark.parametrize("drive_authoring", ["usd", "cfg", "runtime", "runtime-error"])
+@pytest.mark.parametrize("drive_authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("effort", [5.0, 20.0])
-def test_cmd_01_feedforward_torque_explicit_single_step(kamino, joint_type, drive_authoring, effort):
-    """CMD-01: Feed-forward effort without joint dynamics reproduces the Kamino step."""
-    if drive_authoring == "runtime-error":
-        with pytest.raises(RuntimeError, match="Changing dynamic constraint topology"):
-            kamino.run_single_dof_step(
-                joint_type,
-                drive_authoring,
-                stiffness=0.0,
-                damping=0.0,
-                armature=0.0,
-                position_target=0.0,
-                effort=effort,
-            )
-        return
-    result = kamino.run_single_dof_step(
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_cmd_01_feedforward_torque_explicit_single_step(parameter_adapter, joint_type, drive_authoring, effort):
+    """CMD-01: Feed-forward effort without joint dynamics reproduces the backend step."""
+    result = parameter_adapter.run_single_dof_step(
         joint_type,
         drive_authoring,
         stiffness=0.0,
@@ -254,7 +244,7 @@ def test_cmd_01_feedforward_torque_explicit_single_step(kamino, joint_type, driv
         position_target=0.0,
         effort=effort,
     )
-    velocity, position = predict_implicit_joint_step(
+    velocity, position = parameter_adapter.predict_dof_step(
         stiffness=0.0,
         drive_damping=0.0,
         armature=0.0,
@@ -262,15 +252,32 @@ def test_cmd_01_feedforward_torque_explicit_single_step(kamino, joint_type, driv
         body_inertia=result["body_inertia"],
         effort=effort,
     )
-    _assert_step(kamino, "CMD-01", "runtime", result, velocity, position)
+    _assert_step(parameter_adapter, "CMD-01", "runtime", result, velocity, position)
+
+
+@pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
+@pytest.mark.parametrize("effort", [5.0, 20.0])
+def test_cmd_01_feedforward_torque_explicit_runtime_topology_error(kamino, joint_type, effort):
+    """CMD-01: Kamino rejects adding dynamic-constraint topology at runtime."""
+    with pytest.raises(RuntimeError, match="Changing dynamic constraint topology"):
+        kamino.run_single_dof_step(
+            joint_type,
+            "runtime-error",
+            stiffness=0.0,
+            damping=0.0,
+            armature=0.0,
+            position_target=0.0,
+            effort=effort,
+        )
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("velocity_target", [2.0, 5.0])
-def test_cmd_02_velocity_reference_single_step(kamino, joint_type, velocity_target):
-    """CMD-02: A joint velocity target reproduces the analytical Kamino step."""
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_cmd_02_velocity_reference_single_step(parameter_adapter, joint_type, velocity_target):
+    """CMD-02: A joint velocity target reproduces the analytical backend step."""
     damping = 40.0
-    result = kamino.run_single_dof_step(
+    result = parameter_adapter.run_single_dof_step(
         joint_type,
         "cfg",
         stiffness=0.0,
@@ -279,7 +286,7 @@ def test_cmd_02_velocity_reference_single_step(kamino, joint_type, velocity_targ
         position_target=0.0,
         velocity_target=velocity_target,
     )
-    velocity, position = predict_implicit_joint_step(
+    velocity, position = parameter_adapter.predict_dof_step(
         stiffness=0.0,
         drive_damping=damping,
         armature=0.0,
@@ -288,7 +295,7 @@ def test_cmd_02_velocity_reference_single_step(kamino, joint_type, velocity_targ
         velocity_target=velocity_target,
     )
     # The cfg drive seed establishes VELOCITY mode; the target itself is a runtime command.
-    _assert_step(kamino, "CMD-02", "runtime", result, velocity, position)
+    _assert_step(parameter_adapter, "CMD-02", "runtime", result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])

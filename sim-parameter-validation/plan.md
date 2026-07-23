@@ -203,8 +203,8 @@ storage-only tests remain `T`.
 | JOINT-09 | Joint dry-friction force/torque | T / T / T | T / T / T | X / X / X |
 | DRIVE-01 | Implicit drive stiffness | T / T / T | I / I / I | I / I / I |
 | DRIVE-02 | Implicit drive damping | T / T / T | I / I / I | I / I / I |
-| CMD-01 | Feed-forward joint effort | N / N / T | N / N / T | N / N / I |
-| CMD-02 | Joint velocity target | N / N / T | N / N / T | N / N / I |
+| CMD-01 | Feed-forward joint effort | N / N / T | N / N / I | N / N / I |
+| CMD-02 | Joint velocity target | N / N / T | N / N / I | N / N / I |
 | ACT-01 | Explicit actuator stiffness integration | N / T / T | N / T / T | N / T / T |
 | ACT-02 | Explicit actuator damping integration | N / T / T | N / T / T | N / T / T |
 | ACT-03 | Runtime actuation/target mode | N / N / N | N / N / N | N / N / N |
@@ -446,6 +446,7 @@ Tolerances are attached to fixture/backend pairs, not copied between backends:
 | Fixture class | Initial acceptance rule |
 |---|---|
 | Kamino one-step DOF | `rtol = 5e-3`, `atol = 2e-4`, matching the existing float32 P-ADMM single-step test |
+| MJWarp implicitFast one-step DOF | `rtol = 2e-4`, `atol = 2e-5`; command cases were qualified by three consecutive CUDA runs |
 | Other one-step analytical cases | `abs(error) <= max(50 eps scale, 10 solver_residual scale, truncation_bound)`; if the backend exposes no residual, establish `truncation_bound` with a `dt` versus `dt/2` convergence check |
 | Free-body checkpoints | Velocity uses the one-step analytical rule; position includes the pinned integrator's accumulated truncation bound rather than comparing blindly with the continuous equation |
 | Contact event time | Measured event differs from the predicted/control event by at most one simulation step |
@@ -632,11 +633,13 @@ implemented; Python override and runtime paths remain `T` until
 [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) exposes passive joint damping separately from
 implicit drive damping.
 
-Phase 1a, the Kamino portion of Phase 1b, and the first MJWarp Phase 1c batch are implemented under
+Phase 1a, the Kamino portion of Phase 1b, and two MJWarp Phase 1c batches are implemented under
 `source/isaaclab_newton/test/physics/parameter_validation/`. The shared importable fixture and oracle modules
-live under `source/isaaclab/isaaclab/test/physics/parameter_validation/`. The MJWarp batch implements all
-authoring paths for `DRIVE-01`, `DRIVE-02`, and `JOINT-07` against a pinned collision-free implicitFast profile
-and implicitFast one-step oracle. Kamino physical coverage implements
+live under `source/isaaclab/isaaclab/test/physics/parameter_validation/`. The first MJWarp batch implements all
+authoring paths for `DRIVE-01`, `DRIVE-02`, and `JOINT-07`; the second implements the `CMD-01` feed-forward
+effort and `CMD-02` velocity-target runtime command paths. All use a pinned collision-free implicitFast profile
+and implicitFast one-step oracle. The command batch retains Kamino's topology-change error case separately
+rather than applying its reconstruction behavior to MJWarp. Kamino physical coverage implements
 the `I` cells for `SIM-01`, `STATE-01`, `STATE-02`, `BODY-01`, `BODY-02`, `BODY-03`, `JOINT-02`, and
 `JOINT-03`; `BODY-01` and `BODY-02` runtime `X` cells retain strict expected-failure coverage in the `X`-cell
 register.
