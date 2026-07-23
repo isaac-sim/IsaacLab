@@ -20,7 +20,7 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+from isaaclab_assets.robots.allegro import ALLEGRO_HAND_MENAGERIE_CFG
 
 
 @configclass
@@ -88,8 +88,11 @@ class PhysicsCfg(PresetCfg):
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
             integrator="implicitfast",
-            njmax=80,
-            nconmax=70,
+            # Sized for the legacy asset's colliders; the Menagerie conversion carries more
+            # contact-generating primitives (per-link boxes/capsules + welded tips) and
+            # saturates the smaller pools, dropping contacts.
+            njmax=200,
+            nconmax=150,
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
@@ -100,6 +103,18 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     ovphysx = OvPhysxCfg()
+    default = physx
+
+
+@configclass
+class AllegroHandRobotCfg(PresetCfg):
+    """Robot presets: the same Menagerie asset with the physics variant matching each engine."""
+
+    newton_mjwarp = ALLEGRO_HAND_MENAGERIE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    physx = ALLEGRO_HAND_MENAGERIE_CFG.replace(
+        prim_path="/World/envs/env_.*/Robot",
+        spawn=ALLEGRO_HAND_MENAGERIE_CFG.spawn.replace(variants={"Physics": "physx"}),
+    )
     default = physx
 
 
@@ -124,31 +139,33 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         physics=PhysicsCfg(),
     )
     # robot
-    robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: AllegroHandRobotCfg = AllegroHandRobotCfg()
 
     actuated_joint_names = [
-        "index_joint_0",
-        "middle_joint_0",
-        "ring_joint_0",
-        "thumb_joint_0",
-        "index_joint_1",
-        "index_joint_2",
-        "index_joint_3",
-        "middle_joint_1",
-        "middle_joint_2",
-        "middle_joint_3",
-        "ring_joint_1",
-        "ring_joint_2",
-        "ring_joint_3",
-        "thumb_joint_1",
-        "thumb_joint_2",
-        "thumb_joint_3",
+        "ffj0",
+        "mfj0",
+        "rfj0",
+        "thj0",
+        "ffj1",
+        "ffj2",
+        "ffj3",
+        "mfj1",
+        "mfj2",
+        "mfj3",
+        "rfj1",
+        "rfj2",
+        "rfj3",
+        "thj1",
+        "thj2",
+        "thj3",
     ]
+    # The *_tip bodies carry the fingertip collision geometry (the *_distal bodies are
+    # collider-less in the Menagerie conversion), so contact wrenches resolve on them.
     fingertip_body_names = [
-        "index_link_3",
-        "middle_link_3",
-        "ring_link_3",
-        "thumb_link_3",
+        "ff_tip",
+        "mf_tip",
+        "rf_tip",
+        "th_tip",
     ]
 
     # in-hand object
