@@ -170,8 +170,8 @@ This matrix is the canonical v1 registry. The three letters in each backend cell
 - **E:** an error-path test is required because the update is not supported in place.
 - **N:** Isaac Lab does not expose that authoring path.
 - **D:** intentionally deferred from v1.
-- **X:** a known defect or semantic mismatch blocks valid coverage; retain a strict expected-failure or issue
-  reference until it is fixed.
+- **X:** a known defect or semantic mismatch blocks valid coverage; retain a strict expected-failure, qualifying
+  issue, or explicit accepted-gap record until it is fixed or removed from scope.
 
 An `I` disposition records current coverage only when the existing test uses a physical observable. Existing
 storage-only tests remain `T`.
@@ -182,8 +182,8 @@ storage-only tests remain `T`.
 | STATE-01 | Initial/reset link pose | T / T / T | T / T / T | I / I / I |
 | STATE-02 | Initial/reset COM spatial velocity | T / T / T | T / T / T | I / I / I |
 | BODY-01 | Mass | T / T / T | T / T / T | I / I / X |
-| BODY-02 | Inertia tensor and inertial-frame orientation | T / T / T | T / T / T | I / T / X |
-| BODY-03 | Center-of-mass position | T / T / T | T / T / T | I / T / I |
+| BODY-02 | Inertia tensor and inertial-frame orientation | T / N / T | T / N / T | I / N / X |
+| BODY-03 | Center-of-mass position | T / N / T | T / N / T | I / N / I |
 | SHAPE-01 | Shape transform relative to body | T / T / N | T / T / N | T / T / N |
 | SHAPE-02 | Shape scale or dimensions | T / T / E | T / T / E | T / T / E |
 | SHAPE-03 | Collision radius | T / T / N | T / T / N | T / T / N |
@@ -246,10 +246,11 @@ model-change notification because the gains are not solver-owned properties.
 #### `X`-cell issue register
 
 The register below covers every `X` cell in the matrix. An issue is qualifying only when its scope matches the
-backend, parameter, and authoring path. Related issues provide implementation context but do not satisfy
-`REQ-07`.
+backend, parameter, and authoring path. An accepted-gap record is qualifying only when it names the solver owner,
+documents why Isaac Lab will not fix the behavior, and remains linked to a detecting test once that fixture is
+implemented. Related issues provide implementation context but do not satisfy `REQ-07`.
 
-| Parameter ID | Backend and `X` authoring paths | Qualifying issue | Related context |
+| Parameter ID | Backend and `X` authoring paths | Qualifying issue or accepted-gap record | Related context |
 |---|---|---|---|
 | `JOINT-05` | Newton-MJWarp: USD, Python, runtime | No Isaac Lab issue (out of scope) | MJWarp is maintained by [newton-physics/newton](https://github.com/newton-physics/newton); Isaac Lab does not intend to fix velocity-limit enforcement on this solver. The `X` disposition records the known gap only. |
 | `JOINT-05` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397) | [newton-physics/newton#161](https://github.com/newton-physics/newton/issues/161) added model storage; does not establish Kamino enforcement |
@@ -259,7 +260,8 @@ backend, parameter, and authoring path. Related issues provide implementation co
 
 Newton-Kamino `JOINT-05` is tracked by [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397).
 Newton-MJWarp `JOINT-05` remains `X` but is explicitly out of Isaac Lab fix scope; do not open a qualifying
-issue in this repository for MJWarp velocity-limit enforcement.
+issue in this repository for MJWarp velocity-limit enforcement. Its register entry is the accepted-gap record
+until `FIX-LIMIT-VEL` provides a detecting test.
 
 Newton-Kamino `BODY-03` USD authoring is implemented after
 [newton-physics/newton#3605](https://github.com/newton-physics/newton/pull/3605) fixed preserve-reset conversion
@@ -486,9 +488,9 @@ collisions, gravity, damping, or drives unless they are part of the parameter un
 
 ### Supporting evidence
 
-The existing-test inventory, parameter-to-evidence map, backend storage and notification mappings, current
-implementation status, and collected integration gaps live in the
-[background and evidence document](background.md).
+The parameter-to-evidence map, backend storage and notification mappings, and collected integration gaps live in
+the [background and evidence document](background.md). The coverage matrix is the sole implementation-status
+record.
 
 ### Isaac Lab authoring-path mapping
 
@@ -499,7 +501,8 @@ but are not the action under test.
 |---|---|---|
 | Gravity | `SimulationCfg.gravity` (Newton backends: USD scene gravity is not an independent authoring path; see backend notes) | `randomize_physics_scene_gravity` |
 | Reset pose/velocity | USD state plus asset `init_state` configuration | `write_root_link_pose_to_sim_index`, `write_root_com_velocity_to_sim_index`, `write_joint_position_to_sim_index`, and `write_joint_velocity_to_sim_index` |
-| Mass/inertia/COM | USD Mass API or Isaac Lab mass-property schema | `set_masses_index`, `set_inertias_index`, and `set_coms_index` |
+| Mass | USD Mass API or Isaac Lab mass-property schema | `set_masses_index` |
+| Inertia/COM | USD Mass API; no common Python override | `set_inertias_index` and `set_coms_index` |
 | Shape dimensions | USD geometry or spawn/schema configuration | `randomize_rigid_body_scale` before simulation only; an after-start call is an error-path case |
 | Materials | USD material binding or material configuration | `randomize_rigid_body_material` |
 | Collider offsets | USD/PhysX/Newton collision schemas | `randomize_rigid_body_collider_offsets` |
@@ -523,15 +526,16 @@ API tests unless a mask-only graphed pipeline has distinct physical behavior.
   behavior here. `SIM-01` USD is `N`: every simulation carries a `SimulationCfg`, and
   :class:`~isaaclab_newton.physics.NewtonManager` initializes ``model.gravity`` from
   :attr:`~isaaclab.sim.SimulationCfg.gravity` after finalize, overwriting USD-imported scene gravity.
-- **Newton-Kamino:** blocked joint-friction and actuator cells remain `X`; tests must not encode silent or
-  ineffective writes as expected behavior. Contact combined `mu` (`MAT-03`) is in scope and requires the same
+- **Newton-Kamino:** blocked joint-friction cells (`JOINT-09`) remain `X`; tests must not encode silent or
+  ineffective writes as expected behavior. Explicit actuator rows (`ACT-01`, `ACT-02`) remain `T` until
+  end-to-end physical coverage exists. Contact combined `mu` (`MAT-03`) is in scope and requires the same
   static-threshold and stopping-distance fixtures as MJWarp. Position-limit runtime writes (`JOINT-04`) may
   change existing finite limits in place; writes that change limit existence must assert the documented error.
   Single-step joint cases use the pinned Kamino profile and oracle defined above. `SIM-01` USD is `N` for the
   same Newton integration reason as MJWarp; Kamino cfg and runtime gravity cells are implemented in
   `test_sim_01_gravity_vector`.
 
-### Proposed test architecture
+### Target test architecture
 
 Keep backend launch and adapter code in the backend packages while sharing only backend-neutral fixture
 construction and oracle logic:
@@ -552,9 +556,9 @@ source/isaaclab_newton/test/physics/parameter_validation/
   test_contact_parameters.py
 ```
 
-The existing Kamino test may remain in its current location, but new shared coverage should use the layout
-above. A small case descriptor should carry `parameter_id`, `backend`, `authoring_path`, `profile`, `act`,
-`observe`, `predict`, and `tolerance`; it is test infrastructure, not a public Isaac Lab API.
+The Kamino implementation already uses the shared portion of this layout. PhysX, MJWarp, and contact modules are
+future targets. A small case descriptor should carry `parameter_id`, `backend`, `authoring_path`, `profile`,
+`act`, `observe`, `predict`, and `tolerance`; it is test infrastructure, not a public Isaac Lab API.
 
 Tests are parameterized over authoring path only when the path invokes a genuinely different Isaac Lab
 integration route. Index and mask writers require focused selection/coherence tests, but one physical test per
@@ -571,7 +575,7 @@ The matrix parameter ID is the stable key used in test IDs and failure messages.
 |---|---|---|
 | REQ-01 | Coverage matrix and fixture contracts | One physical test for every `T`; existing test path for every `I` |
 | REQ-02 | `E` and `X` matrix cells plus linked backend evidence | Exception/warning assertion for `E`; strict expected-failure or linked issue for `X` |
-| REQ-03 | Linked background evidence and implementation-status inventory | Physical observable in addition to any buffer/read-back assertion |
+| REQ-03 | Linked background evidence and coverage matrix | Physical observable in addition to any buffer/read-back assertion |
 | REQ-04 | Fixture contracts, profiles, and tolerance policy | Case descriptor and diagnostic assertion context |
 | REQ-05 | STATE-01/02 and JOINT-02/03 rows | Separate reset/live and link/COM cases |
 | REQ-06 | Coverage-matrix friction taxonomy and linked backend evidence | Backend-specific oracle selected by fixture adapter |
@@ -594,16 +598,16 @@ defects to [isaac-sim/IsaacLab](https://github.com/isaac-sim/IsaacLab/issues).
    across the scoped backends. Phase 1 is intentionally split into three sub-steps so the shared fixture
    architecture is validated on Kamino before it is replicated on MJWarp and PhysX:
 
-   - **Phase 1a — extract shared fixtures:** refactor the existing Kamino single-DOF test into the proposed
-     layout without changing coverage. Move procedural scene construction and pure oracle logic into
-     `source/isaaclab/isaaclab/test/physics/parameter_validation/fixtures.py` and `oracles.py`; keep Kamino launch,
-     profiles, and public API adapters in `source/isaaclab_newton/test/physics/parameter_validation/conftest.py`.
-     The legacy Kamino test file may remain as a thin wrapper until all cases migrate.
-   - **Phase 1b — deepen Kamino coverage:** add the Phase 1 fixtures that do not yet exist in any backend:
-     `FIX-FREE-FALL`, `FIX-JOINT-STATE`, `FIX-WRENCH-LIN`, `FIX-WRENCH-ANG`, and `FIX-COM`. Implement them on
-     Kamino only first, using the pinned `PROFILE-DOF` and `PROFILE-FREE` oracles. Finish Kamino `JOINT-08`
-     Python override and runtime paths when [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517)
-     exposes passive joint damping separately from implicit drive damping.
+   - **Phase 1a — extract shared fixtures (complete):** the Kamino single-DOF test was refactored into the
+     proposed layout without changing coverage. Procedural scene construction and pure oracle logic live in
+     `source/isaaclab/isaaclab/test/physics/parameter_validation/fixtures.py` and `oracles.py`; Kamino launch,
+     profiles, and public API adapters remain in
+     `source/isaaclab_newton/test/physics/parameter_validation/conftest.py`.
+   - **Phase 1b — deepen Kamino coverage (complete except `JOINT-08`):** `FIX-FREE-FALL`,
+     `FIX-JOINT-STATE`, `FIX-WRENCH-LIN`, `FIX-WRENCH-ANG`, and `FIX-COM` were implemented on Kamino using the
+     pinned `PROFILE-DOF` and `PROFILE-FREE` oracles. Kamino `JOINT-08` Python override and runtime paths remain
+     pending [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517), which must expose passive joint
+     damping separately from implicit drive damping.
    - **Phase 1c — port in batches:** replicate validated fixture contracts horizontally. Port `FIX-DOF-STEP` and
      the existing Phase 0 Kamino cases to MJWarp and PhysX first because they are the highest matrix ROI and
      upstream Newton evidence already exists. Then port `FIX-FREE-FALL`, `FIX-JOINT-STATE`, `FIX-WRENCH-LIN`,
@@ -630,16 +634,17 @@ implicit drive damping.
 
 Phase 1a and the Kamino portion of Phase 1b are implemented under
 `source/isaaclab_newton/test/physics/parameter_validation/`. The shared importable fixture and oracle modules
-live under `source/isaaclab/isaaclab/test/physics/parameter_validation/`. Kamino physical coverage now implements
-the successful matrix cells for `SIM-01`, `STATE-01`, `STATE-02`, `BODY-01`, `BODY-02`, `BODY-03`, `JOINT-02`,
-and `JOINT-03`; strict expected failures retain the integration gaps recorded in the `X`-cell register.
+live under `source/isaaclab/isaaclab/test/physics/parameter_validation/`. Kamino physical coverage implements
+the `I` cells for `SIM-01`, `STATE-01`, `STATE-02`, `BODY-01`, `BODY-02`, `BODY-03`, `JOINT-02`, and
+`JOINT-03`; `BODY-01` and `BODY-02` runtime `X` cells retain strict expected-failure coverage in the `X`-cell
+register.
 `STATE-01` USD authoring passes after the fixture supplies `translation` and `orientation` to
 `sim_utils.create_prim` directly, rather than calling :class:`pxr.UsdGeom.XformCommonAPI` after
 `create_prim` has standardized the transform stack. `STATE-02` USD authoring passes after the fixture converts
 the requested angular velocity from [rad/s] to the [deg/s] convention of ``UsdPhysics.RigidBodyAPI``.
 `BODY-03` USD authoring passes with the pinned Newton fix, and its cache-primed runtime path passes after
 [IsaacLab#6689](https://github.com/isaac-sim/IsaacLab/pull/6689) invalidated the derived world COM data.
-`BODY-02` and `BODY-03` Python overrides remain `T` because the common mass schema does not expose inertia,
+`BODY-02` and `BODY-03` Python overrides are `N` because the common mass schema does not expose inertia,
 inertial-frame orientation, or center-of-mass fields.
 
 The appropriate CI selection, gating policy, and scheduling are intentionally left to the implementation

@@ -9,7 +9,6 @@ from dataclasses import dataclass
 
 import torch
 
-
 PROFILE_DOF_DT = 1.0 / 120.0
 PROFILE_FREE_DT = 1.0 / 120.0
 
@@ -23,6 +22,8 @@ class PhysicalCase:
     authoring_path: str
     profile: str
     dt: float
+    substeps: int
+    api: str
     rtol: float
     atol: float
 
@@ -30,7 +31,8 @@ class PhysicalCase:
         """Format diagnostic context for a failed assertion."""
         return (
             f"{self.parameter_id}: backend={self.backend}, authoring={self.authoring_path}, "
-            f"profile={self.profile}, dt={self.dt}, measured={measured}, expected={expected}, "
+            f"profile={self.profile}, dt={self.dt}, substeps={self.substeps}, api={self.api}, "
+            f"measured={measured}, expected={expected}, "
             f"rtol={self.rtol}, atol={self.atol}"
         )
 
@@ -50,15 +52,9 @@ def predict_implicit_joint_step(
     dt: float = PROFILE_DOF_DT,
 ) -> tuple[float, float]:
     """Predict one implicit semi-Euler step for a fixed-base single-DOF joint."""
-    effective_inertia = (
-        body_inertia + armature + dt * (drive_damping + passive_damping) + dt * dt * stiffness
-    )
-    drive_effort = (
-        effort + stiffness * (position_target - position) + drive_damping * velocity_target
-    )
-    velocity_next = (
-        (body_inertia + armature) * velocity + dt * drive_effort
-    ) / effective_inertia
+    effective_inertia = body_inertia + armature + dt * (drive_damping + passive_damping) + dt * dt * stiffness
+    drive_effort = effort + stiffness * (position_target - position) + drive_damping * velocity_target
+    velocity_next = ((body_inertia + armature) * velocity + dt * drive_effort) / effective_inertia
     return velocity_next, position + dt * velocity_next
 
 
@@ -105,10 +101,18 @@ def assert_physical_close(
     """Assert physical values with complete parameter-validation diagnostics."""
     measured_tensor = torch.as_tensor(measured)
     expected_tensor = torch.as_tensor(expected, device=measured_tensor.device, dtype=measured_tensor.dtype)
+    absolute_error = torch.max(torch.abs(measured_tensor - expected_tensor)).item()
+    relative_error = torch.max(
+        torch.abs(measured_tensor - expected_tensor)
+        / torch.clamp(torch.abs(expected_tensor), min=torch.finfo(measured_tensor.dtype).eps)
+    ).item()
     torch.testing.assert_close(
         measured_tensor,
         expected_tensor,
         rtol=case.rtol,
         atol=case.atol,
-        msg=lambda msg: f"{case.message(measured, expected)}\n{msg}",
+        msg=lambda msg: (
+            f"{case.message(measured, expected)}, max_absolute_error={absolute_error}, "
+            f"max_relative_error={relative_error}\n{msg}"
+        ),
     )

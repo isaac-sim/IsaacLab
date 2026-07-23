@@ -26,6 +26,8 @@ PROBE_TARGET = 0.45
 LIMIT_LOWER = -1.0
 ACTIVE_UPPER = 0.3
 INACTIVE_UPPER = 2.0
+ACTIVE_LOWER = -0.3
+INACTIVE_LOWER = -2.0
 
 FREE_BODY_SIZE = 0.2
 FREE_BODY_MASS = 2.0
@@ -44,6 +46,7 @@ def build_single_dof(
     usd_passive_damping: float = 0.0,
     usd_lower: float | None = None,
     usd_upper: float | None = None,
+    center_of_mass: tuple[float, float, float] = (0.0, 0.0, 0.0),
 ) -> None:
     """Author a fixed-base single-DOF articulation on the current stage."""
     base_path = f"{SINGLE_DOF_PRIM_PATH}/base"
@@ -66,7 +69,7 @@ def build_single_dof(
     link_mass = UsdPhysics.MassAPI.Apply(stage.GetPrimAtPath(link_path))
     link_mass.CreateMassAttr().Set(JOINT_MASS[joint_type])
     link_mass.CreateDiagonalInertiaAttr().Set(Gf.Vec3f(*JOINT_INERTIA))
-    link_mass.CreateCenterOfMassAttr().Set(Gf.Vec3f(0.0, 0.0, 0.0))
+    link_mass.CreateCenterOfMassAttr().Set(Gf.Vec3f(*center_of_mass))
 
     joint_path = f"{link_path}/joint"
     if joint_type == "revolute":

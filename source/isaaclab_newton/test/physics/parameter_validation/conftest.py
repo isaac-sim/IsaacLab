@@ -17,7 +17,9 @@ from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.physics.parameter_validation.fixtures import (
+    ACTIVE_LOWER,
     ACTIVE_UPPER,
+    INACTIVE_LOWER,
     INACTIVE_UPPER,
     LIMIT_LOWER,
     PROBE_TARGET,
@@ -25,7 +27,6 @@ from isaaclab.test.physics.parameter_validation.fixtures import (
     make_single_dof_cfg,
 )
 from isaaclab.test.physics.parameter_validation.oracles import PROFILE_DOF_DT, PROFILE_FREE_DT
-
 
 DEVICE = "cuda:0"
 KAMINO_RTOL = 5.0e-3
@@ -99,21 +100,11 @@ class KaminoParameterAdapter:
                 articulation.write_joint_damping_to_sim_index(damping=runtime_damping)
                 articulation.write_joint_armature_to_sim_index(armature=runtime_armature)
 
-            articulation.write_joint_position_to_sim_index(
-                position=torch.full((1, 1), position, device=DEVICE)
-            )
-            articulation.write_joint_velocity_to_sim_index(
-                velocity=torch.full((1, 1), velocity, device=DEVICE)
-            )
-            articulation.set_joint_position_target_index(
-                target=torch.full((1, 1), position_target, device=DEVICE)
-            )
-            articulation.set_joint_velocity_target_index(
-                target=torch.full((1, 1), velocity_target, device=DEVICE)
-            )
-            articulation.set_joint_effort_target_index(
-                target=torch.full((1, 1), effort, device=DEVICE)
-            )
+            articulation.write_joint_position_to_sim_index(position=torch.full((1, 1), position, device=DEVICE))
+            articulation.write_joint_velocity_to_sim_index(velocity=torch.full((1, 1), velocity, device=DEVICE))
+            articulation.set_joint_position_target_index(target=torch.full((1, 1), position_target, device=DEVICE))
+            articulation.set_joint_velocity_target_index(target=torch.full((1, 1), velocity_target, device=DEVICE))
+            articulation.set_joint_effort_target_index(target=torch.full((1, 1), effort, device=DEVICE))
             articulation.update(0.0)
             position_before = float(articulation.data.joint_pos.torch[0, 0])
             velocity_before = float(articulation.data.joint_vel.torch[0, 0])
@@ -130,10 +121,11 @@ class KaminoParameterAdapter:
             }
 
     def run_position_limit_probe(
-        self, joint_type: str, authoring: str, upper: float
+        self, joint_type: str, authoring: str, limit: str, bound: float
     ) -> tuple[float, float]:
-        """Drive toward the limit probe target and return maximum and final position."""
-        spec = self._position_limit_authoring_spec(authoring, upper)
+        """Drive toward one limit and return the extreme and final position."""
+        spec = self._position_limit_authoring_spec(authoring, limit, bound)
+        target = PROBE_TARGET if limit == "upper" else -PROBE_TARGET
         with build_simulation_context(
             device=DEVICE,
             sim_cfg=self.profile_dof_cfg(alpha=0.01, beta=0.01),
@@ -152,16 +144,18 @@ class KaminoParameterAdapter:
                 articulation.write_joint_position_limit_to_sim_index(
                     limits=torch.tensor([[[lower, runtime_upper]]], device=DEVICE)
                 )
-            articulation.set_joint_position_target_index(
-                target=torch.full((1, 1), PROBE_TARGET, device=DEVICE)
-            )
-            position_max = -1.0e9
+            articulation.set_joint_position_target_index(target=torch.full((1, 1), target, device=DEVICE))
+            position_extreme = -1.0e9 if limit == "upper" else 1.0e9
             for _ in range(600):
                 articulation.write_data_to_sim()
                 sim.step()
                 articulation.update(PROFILE_DOF_DT)
-                position_max = max(position_max, float(articulation.data.joint_pos.torch[0, 0]))
-            return position_max, float(articulation.data.joint_pos.torch[0, 0])
+                position = float(articulation.data.joint_pos.torch[0, 0])
+                if limit == "upper":
+                    position_extreme = max(position_extreme, position)
+                else:
+                    position_extreme = min(position_extreme, position)
+            return position_extreme, float(articulation.data.joint_pos.torch[0, 0])
 
     def run_joint_state(
         self,
@@ -193,19 +187,11 @@ class KaminoParameterAdapter:
             articulation.write_joint_position_to_sim_index(position=disturbance)
             articulation.write_joint_velocity_to_sim_index(velocity=disturbance)
             if authoring == "cfg":
-                articulation.write_joint_position_to_sim_index(
-                    position=articulation.data.default_joint_pos.torch
-                )
-                articulation.write_joint_velocity_to_sim_index(
-                    velocity=articulation.data.default_joint_vel.torch
-                )
+                articulation.write_joint_position_to_sim_index(position=articulation.data.default_joint_pos.torch)
+                articulation.write_joint_velocity_to_sim_index(velocity=articulation.data.default_joint_vel.torch)
             elif authoring == "runtime":
-                articulation.write_joint_position_to_sim_index(
-                    position=torch.full((1, 1), position, device=DEVICE)
-                )
-                articulation.write_joint_velocity_to_sim_index(
-                    velocity=torch.full((1, 1), velocity, device=DEVICE)
-                )
+                articulation.write_joint_position_to_sim_index(position=torch.full((1, 1), position, device=DEVICE))
+                articulation.write_joint_velocity_to_sim_index(velocity=torch.full((1, 1), velocity, device=DEVICE))
             else:
                 raise ValueError(f"Unknown joint-state authoring path: {authoring}")
 
@@ -219,6 +205,31 @@ class KaminoParameterAdapter:
             result["position_after"] = float(articulation.data.joint_pos.torch[0, 0])
             result["velocity_after"] = float(articulation.data.joint_vel.torch[0, 0])
             return result
+
+    def run_com_gravity_probe(self, center_of_mass: tuple[float, float, float]) -> tuple[float, float]:
+        """Step a fixed-pivot body under gravity and return velocity and effective inertia."""
+        with build_simulation_context(
+            device=DEVICE,
+            sim_cfg=self._sim_cfg(
+                dt=PROFILE_DOF_DT,
+                gravity=(0.0, -9.81, 0.0),
+                alpha=0.0,
+                beta=0.0,
+            ),
+        ) as sim:
+            sim._app_control_on_stop_handle = None
+            build_single_dof(
+                "revolute",
+                usd_stiffness=0.0,
+                center_of_mass=center_of_mass,
+            )
+            articulation = Articulation(make_single_dof_cfg(0.0, 0.0, 0.0))
+            sim.reset()
+            articulation.update(0.0)
+            body_inertia = float(articulation.data.mass_matrix.torch[0, 0, 0])
+            sim.step()
+            articulation.update(PROFILE_DOF_DT)
+            return float(articulation.data.joint_vel.torch[0, 0]), body_inertia
 
     @staticmethod
     def _sim_cfg(
@@ -287,25 +298,42 @@ class KaminoParameterAdapter:
         raise ValueError(f"Unknown authoring path: {authoring}")
 
     @staticmethod
-    def _position_limit_authoring_spec(authoring: str, upper: float) -> dict:
+    def _position_limit_authoring_spec(authoring: str, limit: str, bound: float) -> dict:
+        if limit not in {"lower", "upper"}:
+            raise ValueError(f"Unsupported position-limit direction: {limit}")
+        inactive_bound = INACTIVE_UPPER if limit == "upper" else INACTIVE_LOWER
+        opposite_bound = INACTIVE_LOWER if limit == "upper" else INACTIVE_UPPER
+        usd_lower = opposite_bound if limit == "upper" else bound
+        usd_upper = bound if limit == "upper" else opposite_bound
         if authoring == "usd":
             return {
-                "usd_lower": LIMIT_LOWER,
-                "usd_upper": upper,
+                "usd_lower": usd_lower,
+                "usd_upper": usd_upper,
                 "runtime_limit": None,
             }
         if authoring == "runtime":
-            usd_upper = INACTIVE_UPPER if upper < PROBE_TARGET else ACTIVE_UPPER
+            initial_bound = (
+                inactive_bound
+                if abs(bound) < abs(PROBE_TARGET)
+                else (ACTIVE_UPPER if limit == "upper" else ACTIVE_LOWER)
+            )
+            initial_lower = opposite_bound if limit == "upper" else initial_bound
+            initial_upper = initial_bound if limit == "upper" else opposite_bound
+            runtime_lower = opposite_bound if limit == "upper" else bound
+            runtime_upper = bound if limit == "upper" else opposite_bound
             return {
-                "usd_lower": LIMIT_LOWER,
-                "usd_upper": usd_upper,
-                "runtime_limit": (LIMIT_LOWER, upper),
+                "usd_lower": initial_lower,
+                "usd_upper": initial_upper,
+                "runtime_limit": (runtime_lower, runtime_upper),
             }
         if authoring == "runtime-error":
             return {
                 "usd_lower": None,
                 "usd_upper": None,
-                "runtime_limit": (LIMIT_LOWER, upper),
+                "runtime_limit": (
+                    bound if limit == "lower" else LIMIT_LOWER,
+                    bound if limit == "upper" else INACTIVE_UPPER,
+                ),
             }
         raise ValueError(f"Unknown authoring path: {authoring}")
 

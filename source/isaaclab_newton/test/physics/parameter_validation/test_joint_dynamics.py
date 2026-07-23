@@ -10,9 +10,12 @@ from isaaclab_newton.assets import Articulation
 
 from isaaclab.sim import build_simulation_context
 from isaaclab.test.physics.parameter_validation.fixtures import (
+    ACTIVE_LOWER,
     ACTIVE_UPPER,
+    INACTIVE_LOWER,
     INACTIVE_UPPER,
     JOINT_EFFECTIVE_INERTIA,
+    JOINT_MASS,
     PROBE_TARGET,
     Q_REF,
     build_single_dof,
@@ -25,14 +28,33 @@ from isaaclab.test.physics.parameter_validation.oracles import (
     predict_implicit_joint_step,
 )
 
+_PUBLIC_APIS = {
+    "BODY-03": "USD MassAPI center-of-mass authoring",
+    "CMD-01": "set_joint_effort_target_index",
+    "CMD-02": "set_joint_velocity_target_index",
+    "DRIVE-01": "write_joint_stiffness_to_sim_index",
+    "DRIVE-02": "write_joint_damping_to_sim_index",
+    "JOINT-02": "write_joint_position_to_sim_index",
+    "JOINT-03": "write_joint_velocity_to_sim_index",
+    "JOINT-07": "write_joint_armature_to_sim_index",
+    "JOINT-08": "USD newton:damping authoring",
+}
+
 
 def _case(parameter_id: str, authoring: str) -> PhysicalCase:
+    api = _PUBLIC_APIS[parameter_id]
+    if authoring == "usd":
+        api = "UsdPhysics joint or drive schema"
+    elif authoring == "cfg":
+        api = "ImplicitActuatorCfg or ArticulationCfg initialization"
     return PhysicalCase(
         parameter_id=parameter_id,
         backend="newton-kamino",
         authoring_path=authoring,
         profile="PROFILE-DOF",
         dt=PROFILE_DOF_DT,
+        substeps=1,
+        api=api,
         rtol=5.0e-3,
         atol=2.0e-4,
     )
@@ -176,13 +198,13 @@ def test_joint_08_passive_damping_usd_single_step(kamino, joint_type, passive_da
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
-@pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
+@pytest.mark.parametrize("drive_authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("effort", [5.0, 20.0])
-def test_cmd_01_feedforward_torque_implicit_single_step(kamino, joint_type, authoring, effort):
+def test_cmd_01_feedforward_torque_implicit_single_step(kamino, joint_type, drive_authoring, effort):
     """CMD-01: Feed-forward effort with implicit dynamics reproduces the Kamino step."""
     result = kamino.run_single_dof_step(
         joint_type,
-        authoring,
+        drive_authoring,
         stiffness=100.0,
         damping=0.0,
         armature=0.0,
@@ -197,19 +219,19 @@ def test_cmd_01_feedforward_torque_implicit_single_step(kamino, joint_type, auth
         body_inertia=result["body_inertia"],
         effort=effort,
     )
-    _assert_step("CMD-01", authoring, result, velocity, position)
+    _assert_step("CMD-01", "runtime", result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
-@pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime", "runtime-error"])
+@pytest.mark.parametrize("drive_authoring", ["usd", "cfg", "runtime", "runtime-error"])
 @pytest.mark.parametrize("effort", [5.0, 20.0])
-def test_cmd_01_feedforward_torque_explicit_single_step(kamino, joint_type, authoring, effort):
+def test_cmd_01_feedforward_torque_explicit_single_step(kamino, joint_type, drive_authoring, effort):
     """CMD-01: Feed-forward effort without joint dynamics reproduces the Kamino step."""
-    if authoring == "runtime-error":
+    if drive_authoring == "runtime-error":
         with pytest.raises(RuntimeError, match="Changing dynamic constraint topology"):
             kamino.run_single_dof_step(
                 joint_type,
-                authoring,
+                drive_authoring,
                 stiffness=0.0,
                 damping=0.0,
                 armature=0.0,
@@ -219,7 +241,7 @@ def test_cmd_01_feedforward_torque_explicit_single_step(kamino, joint_type, auth
         return
     result = kamino.run_single_dof_step(
         joint_type,
-        authoring,
+        drive_authoring,
         stiffness=0.0,
         damping=0.0,
         armature=0.0,
@@ -234,7 +256,7 @@ def test_cmd_01_feedforward_torque_explicit_single_step(kamino, joint_type, auth
         body_inertia=result["body_inertia"],
         effort=effort,
     )
-    _assert_step("CMD-01", authoring, result, velocity, position)
+    _assert_step("CMD-01", "runtime", result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
@@ -259,26 +281,42 @@ def test_cmd_02_velocity_reference_single_step(kamino, joint_type, velocity_targ
         body_inertia=result["body_inertia"],
         velocity_target=velocity_target,
     )
+    # The cfg drive seed establishes VELOCITY mode; the target itself is a runtime command.
     _assert_step("CMD-02", "runtime", result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["usd", "runtime", "runtime-error"])
-@pytest.mark.parametrize("upper", [ACTIVE_UPPER, INACTIVE_UPPER])
-def test_joint_04_position_limit(kamino, joint_type, authoring, upper):
-    """JOINT-04: Authored upper position limits are enforced by Kamino."""
+@pytest.mark.parametrize(
+    ("limit", "active_bound", "inactive_bound"),
+    [
+        ("lower", ACTIVE_LOWER, INACTIVE_LOWER),
+        ("upper", ACTIVE_UPPER, INACTIVE_UPPER),
+    ],
+)
+@pytest.mark.parametrize("bound_kind", ["active", "inactive"])
+def test_joint_04_position_limit(kamino, joint_type, authoring, limit, active_bound, inactive_bound, bound_kind):
+    """JOINT-04: Authored lower and upper position limits are enforced by Kamino."""
+    bound = active_bound if bound_kind == "active" else inactive_bound
     if authoring == "runtime-error":
         with pytest.raises(RuntimeError, match="Changing the existence of a joint limit"):
-            kamino.run_position_limit_probe(joint_type, authoring, upper)
+            kamino.run_position_limit_probe(joint_type, authoring, limit, bound)
         return
-    position_max, position_final = kamino.run_position_limit_probe(joint_type, authoring, upper)
-    if upper < PROBE_TARGET:
-        assert position_max <= upper + 0.03, "JOINT-04: active upper limit was exceeded"
-        assert position_final == pytest.approx(upper, abs=0.03), (
-            "JOINT-04: joint did not settle at the active upper limit"
+    position_extreme, position_final = kamino.run_position_limit_probe(joint_type, authoring, limit, bound)
+    is_active = abs(bound) < PROBE_TARGET
+    if is_active:
+        if limit == "upper":
+            assert position_extreme <= bound + 0.03, "JOINT-04: active upper limit was exceeded"
+        else:
+            assert position_extreme >= bound - 0.03, "JOINT-04: active lower limit was exceeded"
+        assert position_final == pytest.approx(bound, abs=0.03), (
+            f"JOINT-04: joint did not settle at the active {limit} limit"
         )
     else:
-        assert position_final > 0.35, "JOINT-04: inactive limit control did not pass the low limit"
+        if limit == "upper":
+            assert position_final > 0.35, "JOINT-04: inactive upper-limit control did not pass the low limit"
+        else:
+            assert position_final < -0.35, "JOINT-04: inactive lower-limit control did not pass the low limit"
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
@@ -315,3 +353,16 @@ def test_joint_03_velocity_state(kamino, joint_type, authoring):
     assert_physical_close(result["velocity_before"], velocity, case)
     assert_physical_close(result["position_after"], velocity * PROFILE_DOF_DT, case)
     assert_physical_close(result["velocity_after"], velocity, case)
+
+
+def test_body_03_center_of_mass_gravity_moment(kamino):
+    """BODY-03: An authored COM offset produces the expected fixed-pivot gravity moment."""
+    offset = (0.1, 0.0, 0.0)
+    velocity, body_inertia = kamino.run_com_gravity_probe(offset)
+    torque_z = offset[0] * JOINT_MASS["revolute"] * -9.81
+    expected_velocity = torque_z * PROFILE_DOF_DT / body_inertia
+    case = _case("BODY-03", "usd")
+    assert_physical_close(velocity, expected_velocity, case)
+
+    control_velocity, _ = kamino.run_com_gravity_probe((0.0, 0.0, 0.0))
+    assert_physical_close(control_velocity, 0.0, case)
