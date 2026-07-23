@@ -1,0 +1,10 @@
+---
+description: Target IsaacLab pull requests to develop by default
+alwaysApply: true
+---
+
+# Pull Request Target Branch
+
+- Create IsaacLab pull requests against the `develop` branch by default.
+- Create a pull request against `main` only when the user explicitly requests it.
+- Before creating a pull request against `main`, ask the user to confirm the target branch.

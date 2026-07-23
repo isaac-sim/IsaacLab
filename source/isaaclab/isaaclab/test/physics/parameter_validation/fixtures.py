@@ -7,7 +7,7 @@
 
 import math
 
-from pxr import Gf, Sdf, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -148,11 +148,14 @@ def build_free_body_usd(
     stage = sim_utils.get_current_stage()
     if not stage.GetPrimAtPath("/World/Env_0").IsValid():
         sim_utils.create_prim("/World/Env_0", "Xform")
-    sim_utils.create_prim(FREE_BODY_PRIM_PATH, "Cube", attributes={"size": FREE_BODY_SIZE})
+    sim_utils.create_prim(
+        FREE_BODY_PRIM_PATH,
+        "Cube",
+        translation=position,
+        orientation=orientation,
+        attributes={"size": FREE_BODY_SIZE},
+    )
     prim = stage.GetPrimAtPath(FREE_BODY_PRIM_PATH)
-    xform = UsdGeom.XformCommonAPI(prim)
-    xform.SetTranslate(Gf.Vec3d(*position))
-    prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(orientation[3], Gf.Vec3d(*orientation[:3])))
 
     rigid_api = UsdPhysics.RigidBodyAPI.Apply(prim)
     rigid_api.CreateVelocityAttr().Set(Gf.Vec3f(*linear_velocity))

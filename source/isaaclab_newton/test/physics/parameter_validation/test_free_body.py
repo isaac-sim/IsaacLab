@@ -185,20 +185,7 @@ def test_sim_01_gravity_vector(kamino, authoring):
             assert_physical_close(body.data.root_com_lin_vel_w.torch[0], velocity_expected, case)
 
 
-@pytest.mark.parametrize(
-    "authoring",
-    [
-        pytest.param(
-            "usd",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="Kamino hard reset currently restores the floating-base joint state instead of USD xform state",
-            ),
-        ),
-        "cfg",
-        "runtime",
-    ],
-)
+@pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 def test_state_01_initial_and_live_link_pose(kamino, authoring):
     """STATE-01: Reset-default and live writes establish the requested link pose."""
     target_position = torch.tensor(_INITIAL_POSITION, device="cuda:0")
@@ -377,13 +364,7 @@ def test_body_02_inertia_wrench_response(kamino, authoring, torque_axis):
     "authoring",
     [
         "usd",
-        pytest.param(
-            "runtime",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="RigidObject.set_coms_index does not invalidate the cached world COM position",
-            ),
-        ),
+        "runtime",
     ],
 )
 def test_body_03_center_of_mass_force_response(kamino, authoring):
