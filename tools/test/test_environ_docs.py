@@ -42,7 +42,6 @@ from environ_docs import (  # noqa: E402
     _physics_names_for_docs,
     apply_rl_library_overrides,
     collect_environment_doc_rows,
-    find_inference_task_name,
     format_presets_rst,
     format_rl_libraries,
     is_training_task,
@@ -94,21 +93,6 @@ def test_apply_rl_library_overrides_supplements_registry_gaps():
         {},
     )
     assert agents == {"rlinf": ["PPO"]}
-
-
-def test_find_inference_task_name_supports_eval():
-    registry_ids = {
-        "Isaac-Ant-v0",
-        "Isaac-Ant-Eval",
-        "IsaacContrib-Assemble-Trocar-G129-Dex3",
-        "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval",
-    }
-    assert find_inference_task_name("Isaac-Ant-v0", registry_ids) == "Isaac-Ant-Eval"
-    assert (
-        find_inference_task_name("IsaacContrib-Assemble-Trocar-G129-Dex3", registry_ids)
-        == "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval"
-    )
-    assert find_inference_task_name("Isaac-Cartpole", registry_ids) is None
 
 
 def test_format_presets_rst_single_and_multi_line():
@@ -189,7 +173,6 @@ def test_collect_environment_doc_rows_from_mock_specs():
     rows = collect_environment_doc_rows(specs)
     assert len(rows) == 1
     assert rows[0].task_name == "Isaac-Cartpole-Direct"
-    assert rows[0].inference_task_name == "Isaac-Cartpole-Direct-Eval"
     assert rows[0].workflow == "Direct"
     assert "sb3" in rows[0].rl_libraries
 
@@ -242,7 +225,6 @@ def test_render_comprehensive_list_table_uses_blank_cells_for_missing_values():
         [
             EnvironmentDocRow(
                 task_name="Isaac-Ant-v0",
-                inference_task_name=None,
                 workflow="Manager Based",
                 rl_libraries="",
                 presets="",
@@ -251,12 +233,12 @@ def test_render_comprehensive_list_table_uses_blank_cells_for_missing_values():
     )
     assert "Isaac-Ant-v0" in table
     assert "      - -\n" not in table
-    assert "      -\n      - Manager Based" in table
+    assert "    * - Isaac-Ant-v0\n      - Manager Based" in table
 
 
 def test_render_comprehensive_list_table_uses_narrower_task_column_width():
     table = render_comprehensive_list_table([])
-    assert ":widths: 18 17 10 22 33" in table
+    assert ":widths: 22 12 30 36" in table
 
 
 def test_patch_environments_rst_replaces_marked_section():
