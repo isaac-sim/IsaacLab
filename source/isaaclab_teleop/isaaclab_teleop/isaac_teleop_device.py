@@ -21,6 +21,7 @@ from .session_lifecycle import TeleopSessionLifecycle
 from .xr_anchor_manager import XrAnchorManager
 
 if TYPE_CHECKING:
+    from .haptic_feedback import HapticFeedbackCfg
     from .session_lifecycle import SupportsDLPack
     from .visualizers.controller_aim_visualizer import ControllerAimVisualizer
     from .visualizers.hand_joint_visualizer import HandJointVisualizer
@@ -110,6 +111,7 @@ class IsaacTeleopDevice:
         mcap_record_path: str | None = None,
         mcap_replay_path: str | None = None,
         enable_debug_visualization: bool = False,
+        haptic_cfg: HapticFeedbackCfg | None = None,
     ):
         """Initialize the IsaacTeleop device.
 
@@ -137,6 +139,10 @@ class IsaacTeleopDevice:
                 markers at the controller aim poses) is enabled at session
                 start.  When ``False`` (the default), the pipeline carries no
                 visualization overhead.
+            haptic_cfg: Optional haptic-feedback configuration.  When provided,
+                the device renders per-hand contact forces pushed via
+                :meth:`send_haptic` as controller vibration.  ``None`` disables
+                haptics.
         """
         self._cfg = cfg
 
@@ -149,6 +155,7 @@ class IsaacTeleopDevice:
             mcap_record_path=mcap_record_path,
             mcap_replay_path=mcap_replay_path,
             enable_debug_visualization=enable_debug_visualization,
+            haptic_cfg=haptic_cfg,
         )
 
         self._prev_right_a_pressed = False
@@ -221,10 +228,13 @@ class IsaacTeleopDevice:
         Resets the XR anchor synchronizer and schedules a
         ``reset`` :class:`~isaacteleop.retargeting_engine.interface.execution_events.ExecutionEvents`
         for the next pipeline step so that all retargeters reinitialize
-        their cross-step state.
+        their cross-step state.  Also clears any pending haptic force so a
+        pulse in progress at reset time does not persist into the next episode.
         """
         self._anchor_manager.reset()
         self._session_lifecycle.request_reset()
+        self._session_lifecycle.push_haptic("left", 0.0)
+        self._session_lifecycle.push_haptic("right", 0.0)
 
     @property
     def last_control_events(self) -> ControlEvents:
@@ -301,6 +311,21 @@ class IsaacTeleopDevice:
         self._dispatch_control_callbacks()
 
         return action
+
+    def send_haptic(self, endpoint: str, force: float) -> None:
+        """Render a haptic pulse on one controller from a contact force.
+
+        Implements the :class:`~isaaclab_teleop.HapticFeedbackReceiver` protocol.
+        The force is cached and injected into the haptic sink on the next
+        :meth:`advance`.  This is a no-op unless the device was constructed with
+        a ``haptic_cfg``.
+
+        Args:
+            endpoint: ``"left"`` or ``"right"`` (see
+                :data:`~isaaclab_teleop.haptic_feedback.ENDPOINT_LEFT`).
+            force: Contact-force magnitude [N]; ``0`` stops any active pulse.
+        """
+        self._session_lifecycle.push_haptic(endpoint, force)
 
     # ------------------------------------------------------------------
     # Debug visualization
@@ -485,6 +510,7 @@ def create_isaac_teleop_device(
     mcap_record_path: str | None = None,
     mcap_replay_path: str | None = None,
     enable_debug_visualization: bool = False,
+    haptic_cfg: HapticFeedbackCfg | None = None,
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
 
@@ -526,6 +552,10 @@ def create_isaac_teleop_device(
         enable_debug_visualization: Whether tracking debug visualization is
             enabled at session start.  See
             :paramref:`IsaacTeleopDevice.enable_debug_visualization`.
+        haptic_cfg: Optional haptic-feedback configuration.  When provided, the
+            returned device implements
+            :class:`~isaaclab_teleop.HapticFeedbackReceiver` and renders
+            per-hand contact forces as controller vibration.
 
     Returns:
         A fully configured :class:`IsaacTeleopDevice` ready for use in a
@@ -556,6 +586,7 @@ def create_isaac_teleop_device(
         mcap_record_path=mcap_record_path,
         mcap_replay_path=mcap_replay_path,
         enable_debug_visualization=enable_debug_visualization,
+        haptic_cfg=haptic_cfg,
     )
 
     if callbacks is not None:

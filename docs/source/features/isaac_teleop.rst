@@ -932,6 +932,117 @@ XR device's view.
    camera sensors. Additional cameras cause GPU contention and degrade XR performance.
 
 
+.. _isaac-teleop-haptics:
+
+Haptic Feedback (Controller Vibration)
+--------------------------------------
+
+Isaac Teleop can render **haptic feedback** on the operator's device: when a teleoperated robot
+hand applies force to an object, the corresponding motion controller vibrates. This closes the loop
+on grasp feel during teleoperation and demonstration recording.
+
+Feedback is an *output* path that mirrors the input retargeting pipeline in reverse. A per-hand
+:class:`~isaaclab.sensors.ContactSensor` measures the contact force, a
+:class:`~isaaclab_teleop.HapticFeedbackDriver` reads it each step, and the
+:class:`~isaaclab_teleop.IsaacTeleopDevice` renders it as controller vibration through an Isaac
+Teleop ``HapticSink``. The force-to-amplitude mapping runs inside the retargeting graph, so no
+controller-specific code lives in your environment.
+
+Enable it on an environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Three additions to the environment config:
+
+#. Add a per-hand :class:`~isaaclab.sensors.ContactSensor` over the hand's finger links to the
+   scene config.
+#. Enable contact reporting on the robot spawn (``activate_contact_sensors=True``).
+#. Attach a :class:`~isaaclab_teleop.HapticFeedbackCfg` as a sibling of ``isaac_teleop``, naming
+   the two sensors.
+
+.. code-block:: python
+
+   from isaaclab.sensors import ContactSensorCfg
+   from isaaclab_teleop import HapticFeedbackCfg, IsaacTeleopCfg
+
+   @configclass
+   class MySceneCfg(InteractiveSceneCfg):
+       # ... robot, objects ...
+       left_hand_contact = ContactSensorCfg(
+           prim_path="{ENV_REGEX_NS}/Robot/left_hand_.*_link",
+           update_period=0.0,
+           history_length=3,
+       )
+       right_hand_contact = ContactSensorCfg(
+           prim_path="{ENV_REGEX_NS}/Robot/right_hand_.*_link",
+           update_period=0.0,
+           history_length=3,
+       )
+
+   @configclass
+   class MyTeleopEnvCfg(ManagerBasedRLEnvCfg):
+       def __post_init__(self):
+           super().__post_init__()
+           self.isaac_teleop = IsaacTeleopCfg(pipeline_builder=_build_my_pipeline, ...)
+
+           # Enable contact reporting and drive controller haptics from it.
+           self.scene.robot.spawn.activate_contact_sensors = True
+           self.haptic_feedback = HapticFeedbackCfg(
+               left_sensor_name="left_hand_contact",
+               right_sensor_name="right_hand_contact",
+           )
+
+The teleop scripts (``teleop_se3_agent.py`` and ``record_demos.py``) detect the ``haptic_feedback``
+attribute automatically -- no extra flags are needed. If the active device cannot render haptics
+(e.g. keyboard) or the env has no ``haptic_feedback``, the feature is silently skipped.
+
+Tuning the response
+~~~~~~~~~~~~~~~~~~~
+
+:class:`~isaaclab_teleop.HapticFeedbackCfg` maps contact force [N] to a vibration amplitude in
+``[0, 1]`` via ``amplitude = clamp(gain * (force - deadband), 0, saturation)``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 54 20
+
+   * - Field
+     - Description
+     - Default
+   * - ``left_sensor_name`` / ``right_sensor_name``
+     - Scene entity names of the per-hand contact sensors.
+     - ``"left_hand_contact"`` / ``"right_hand_contact"``
+   * - ``gain``
+     - Force-to-amplitude gain [1/N] applied after the deadband. Default maps ~20 N to full scale.
+     - ``0.05``
+   * - ``deadband``
+     - Contact force [N] below which no vibration is produced (rejects sensor noise).
+     - ``0.5``
+   * - ``saturation``
+     - Upper clamp on the normalized amplitude.
+     - ``1.0``
+   * - ``frequency_hz``
+     - Vibration frequency [Hz]. ``0`` selects the XR runtime default.
+     - ``0.0``
+   * - ``duration_s``
+     - Pulse duration [s]. ``0`` selects the shortest supported pulse; refreshed each frame while
+       the force persists.
+     - ``0.0``
+
+Supported environments
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Controller haptics are enabled on the two G1 loco-manipulation teleop environments:
+
+* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+* ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
+
+.. note::
+
+   Controller vibration is delivered over OpenXR (``xrApplyHapticFeedback``), so no CloudXR
+   ``.env`` profile change is required. The contact-sensor ``prim_path`` must match your robot's
+   finger body names -- adjust the regex if your hand uses a different naming convention.
+
+
 .. _isaac-teleop-imitation-learning:
 
 Record Demonstrations for Imitation Learning
@@ -1296,6 +1407,10 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
 * :class:`~isaaclab_teleop.SupportsControlEvents`
 * :func:`~isaaclab_teleop.poll_control_events`
 * :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
+* :class:`~isaaclab_teleop.HapticFeedbackCfg`
+* :class:`~isaaclab_teleop.HapticFeedbackReceiver`
+* :class:`~isaaclab_teleop.HapticFeedbackDriver`
+* :func:`~isaaclab_teleop.create_haptic_feedback_driver`
 * :class:`~isaaclab_teleop.XrCfg`
 * :class:`~isaaclab_teleop.XrAnchorRotationMode`
 

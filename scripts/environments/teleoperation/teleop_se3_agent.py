@@ -143,6 +143,25 @@ def _create_builtin_device(device_name: str, sensitivity: float) -> object | Non
     return None
 
 
+def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
+    """Return ``(update, stop)`` callables driving controller haptics, or no-ops.
+
+    Keeps haptics opt-in without branching in the main loop: both callables are
+    no-ops unless the active device is an IsaacTeleop device and the env declares
+    a ``haptic_feedback`` config. ``update`` renders the current contact force;
+    ``stop`` zeroes it so a stale pulse does not persist while teleop is paused.
+    """
+    noop = lambda: None  # noqa: E731
+    if not use_isaac_teleop:
+        return noop, noop
+    from isaaclab_teleop import create_haptic_feedback_driver
+
+    driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
+    if driver is None:
+        return noop, noop
+    return driver.update, driver.stop
+
+
 def main() -> None:
     """
     Run teleoperation with an Isaac Lab manipulation environment.
@@ -269,6 +288,7 @@ def main() -> None:
                 cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 enable_debug_visualization=args_cli.enable_debug_visualization,
+                haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
 
         elif teleop_device_explicitly_set:
@@ -320,6 +340,10 @@ def main() -> None:
 
     print(f"Using teleop device: {teleop_interface}")
 
+    # Optional controller haptics: no-ops unless the env declares a
+    # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
+    haptic_update, haptic_stop = _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop)
+
     def run_loop():
         """Inner function to run the teleop loop with access to nonlocal variables."""
         nonlocal should_reset_recording_instance, teleoperation_active
@@ -350,13 +374,18 @@ def main() -> None:
                     # (e.g. waiting for user to click "Start AR")
                     if action is None:
                         env.sim.render()
+                        haptic_stop()
                     elif teleoperation_active:
                         # process actions
                         actions = action.repeat(env.num_envs, 1)
                         # apply actions
                         env.step(actions)
+                        # render controller haptics from post-step contact forces
+                        haptic_update()
                     else:
                         env.sim.render()
+                        # not stepping: zero haptics so a paused grip stops buzzing
+                        haptic_stop()
 
                     if should_reset_recording_instance:
                         env.reset()
