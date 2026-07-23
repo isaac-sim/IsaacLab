@@ -337,7 +337,7 @@ def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pyte
 
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", particle_visual_prims)
 
-    renderer._setup_particle_points_bindings(num_envs=2)
+    renderer._setup_particle_bindings()
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == [
@@ -355,17 +355,29 @@ def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pyte
     assert backend.writes[1]["attribute_name"] == "omni:xform"
 
 
-def test_setup_particle_points_bindings_rejects_env_count_mismatch(monkeypatch: pytest.MonkeyPatch):
-    """MPM particle visual prim count must match the number of environments."""
-    renderer, _backend = _make_renderer_without_backend()
+def test_setup_particle_points_bindings_binds_multiple_mpm_assets(monkeypatch: pytest.MonkeyPatch):
+    """Multiple MPM assets bind as ``num_assets * num_envs`` points prims, like deformables."""
+    renderer, backend = _make_renderer_without_backend()
     particle_visual_prims = {
         "/World/envs/env_0/Media/Particles": SimpleNamespace(offset=0, count=5),
+        "/World/envs/env_1/Media/Particles": SimpleNamespace(offset=5, count=5),
+        "/World/envs/env_0/Foam/Particles": SimpleNamespace(offset=10, count=3),
+        "/World/envs/env_1/Foam/Particles": SimpleNamespace(offset=13, count=3),
     }
 
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", particle_visual_prims)
 
-    with pytest.raises(RuntimeError, match="one MPM particle visual prim per environment"):
-        renderer._setup_particle_points_bindings(num_envs=2)
+    renderer._setup_particle_bindings()
+
+    # Binding order follows dict insertion order (no path sort).
+    assert backend.calls[0]["prim_paths"] == [
+        "/World/envs/env_0/Media/Particles",
+        "/World/envs/env_1/Media/Particles",
+        "/World/envs/env_0/Foam/Particles",
+        "/World/envs/env_1/Foam/Particles",
+    ]
+    assert renderer._particle_visual_offsets == [0, 5, 10, 13]
+    assert renderer._particle_visual_counts == [5, 5, 3, 3]
 
 
 def test_update_particle_points_primes_with_host_sync_then_gpu_async(monkeypatch: pytest.MonkeyPatch):
