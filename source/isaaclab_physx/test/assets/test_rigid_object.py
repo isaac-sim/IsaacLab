@@ -1254,8 +1254,8 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
 
 
 @pytest.mark.isaacsim_ci
-def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: attach_stage() must not be called for CPU in _warmup_and_create_views().
+def test_warmup_cpu_attaches_stage_without_force_load():
+    """Regression test: CPU warmup must attach the stage without force-loading it.
 
     Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
     ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
@@ -1263,12 +1263,12 @@ def test_warmup_attach_stage_not_called_for_cpu():
     double-initialization that corrupts the CPU MBP broadphase, producing
     non-deterministic collision failures (objects passing through surfaces).
 
-    Fix: guard ``attach_stage()`` with ``if is_gpu:`` — it is only required by the
-    GPU pipeline, which needs explicit stage attachment before the physics load step.
-    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()``.
+    The legacy CPU pipeline attached implicitly via ``force_load_physics_from_usd()``.
+    In Isaac Sim 6, the legacy force-load call no longer attaches the stage, so CPU
+    warmup must instead use the explicit attachment pattern without force-loading.
 
-    This test verifies the guard is in place by monkeypatching ``attach_stage`` on
-    the PhysX simulation interface and asserting it is *not* called during CPU warmup.
+    This test verifies that ``attach_stage`` is called exactly once and
+    ``force_load_physics_from_usd`` is not called during CPU warmup.
     The simulation test itself (1 cube falling onto a ground plane) is intentionally
     omitted here because the MBP corruption is non-deterministic and depends on scene
     complexity (multiple dynamic actors on a mesh collider), making it unreliable as a
@@ -1284,16 +1284,21 @@ def test_warmup_attach_stage_not_called_for_cpu():
 
         # PhysxManager no longer caches the simulation interface; it resolves it on each use
         # via ``omni.physx.get_physx_simulation_interface()`` (the accessor memoizes it).
-        # IPhysxSimulation is a C++ binding whose attributes are read-only, so we cannot
-        # assign to ``attach_stage`` directly.  Instead, patch the accessor to return a
-        # MagicMock that wraps the real interface so all other calls still work, and spy on
-        # ``attach_stage``.
-        spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
-        with patch("omni.physx.get_physx_simulation_interface", return_value=spy):
+        # The PhysX interfaces are C++ bindings whose attributes are read-only. Patch
+        # their accessors with wrapping mocks so the real calls still execute.
+        physx_spy = MagicMock(wraps=omni.physx.get_physx_interface())
+        physx_sim_spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
+        with (
+            patch("omni.physx.get_physx_interface", return_value=physx_spy),
+            patch("omni.physx.get_physx_simulation_interface", return_value=physx_sim_spy),
+        ):
             sim.reset()
 
-        assert spy.attach_stage.call_count == 0, (
-            f"attach_stage() was called {spy.attach_stage.call_count} time(s) during CPU warmup. "
-            f"This indicates the CPU MBP broadphase double-initialization regression is present: "
-            f"attach_stage() + force_load_physics_from_usd() must not be combined for CPU."
+        assert physx_sim_spy.attach_stage.call_count == 1, (
+            f"attach_stage() was called {physx_sim_spy.attach_stage.call_count} time(s) during CPU warmup; "
+            "the CPU pipeline requires one explicit stage attachment."
+        )
+        assert physx_spy.force_load_physics_from_usd.call_count == 0, (
+            "force_load_physics_from_usd() was called during CPU warmup. Calling it after attach_stage() "
+            "causes CPU MBP broadphase double-initialization."
         )

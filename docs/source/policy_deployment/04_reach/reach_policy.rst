@@ -419,21 +419,47 @@ Before starting full training, launch a quick visualization run to verify the en
 
     .. tab-item:: UR10e
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
-                --num_envs 4 \
-                --visualizer kit
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
 
     .. tab-item:: Flexiv Rizon 4s
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
-                --num_envs 4 \
-                --visualizer kit
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
+                      --num_envs 4 \
+                      --visualizer kit
 
 This opens the Isaac Sim viewer where you can observe the training in real-time.
 
@@ -463,21 +489,47 @@ Launch full training with many parallel environments in headless mode:
 
     .. tab-item:: UR10e
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
-                --num_envs 4096 \
-                --video --video_length 720 --video_interval 72000
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
+                      --num_envs 4096 \
+                      --video --video_length 720 --video_interval 72000
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
+                      --num_envs 4096 \
+                      --video --video_length 720 --video_interval 72000
 
     .. tab-item:: Flexiv Rizon 4s
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
-                --num_envs 4096 \
-                --video --video_length 720 --video_interval 72000
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
+                      --num_envs 4096 \
+                      --video --video_length 720 --video_interval 72000
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
+                      --num_envs 4096 \
+                      --video --video_length 720 --video_interval 72000
 
 **Command breakdown:**
 
@@ -536,15 +588,35 @@ Use TensorBoard to monitor training metrics:
 
     .. tab-item:: UR10e
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_ur10e
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python -m tensorboard.main --logdir logs/rsl_rl/reach_ur10e
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_ur10e
 
     .. tab-item:: Flexiv Rizon 4s
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_rizon4s
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python -m tensorboard.main --logdir logs/rsl_rl/reach_rizon4s
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_rizon4s
 
 Replace the log directory path with your actual training log location if different.
 
@@ -570,21 +642,47 @@ Once training completes, evaluate the policy in the play environment:
 
     .. tab-item:: UR10e
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh play --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-Reach-UR10e-Play \
-                --num_envs 50 \
-                --visualizer kit
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab play --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-UR10e-Play \
+                      --num_envs 50 \
+                      --visualizer kit
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh play --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-UR10e-Play \
+                      --num_envs 50 \
+                      --visualizer kit
 
     .. tab-item:: Flexiv Rizon 4s
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh play --rl_library rsl_rl \
-                --task IsaacContrib-Deploy-Reach-Rizon4s-Play \
-                --num_envs 50 \
-                --visualizer kit
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab play --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-Rizon4s-Play \
+                      --num_envs 50 \
+                      --visualizer kit
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh play --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-Reach-Rizon4s-Play \
+                      --num_envs 50 \
+                      --visualizer kit
 
 The play environments disable observation corruption for cleaner evaluation and use fewer environments for better visualization.
 
@@ -596,17 +694,36 @@ It searches in ``logs/rsl_rl/<experiment_name>/`` and selects the latest run fol
 
 To load a specific checkpoint, use these arguments:
 
-.. code-block:: bash
+.. tab-set::
 
-    # Load from a specific run folder
-    ./isaaclab.sh play --rl_library rsl_rl \
-        --task IsaacContrib-Deploy-Reach-UR10e-Play \
-        --load_run 2025-01-15_14-30-00
+   .. tab-item:: uv (Recommended)
 
-    # Load a specific checkpoint file
-    ./isaaclab.sh play --rl_library rsl_rl \
-        --task IsaacContrib-Deploy-Reach-UR10e-Play \
-        --checkpoint /path/to/model_1500.pt
+      .. code-block:: bash
+
+          # Load from a specific run folder
+          uv run isaaclab play --rl_library rsl_rl \
+              --task IsaacContrib-Deploy-Reach-UR10e-Play \
+              --load_run 2025-01-15_14-30-00
+
+          # Load a specific checkpoint file
+          uv run isaaclab play --rl_library rsl_rl \
+              --task IsaacContrib-Deploy-Reach-UR10e-Play \
+              --checkpoint /path/to/model_1500.pt
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Load from a specific run folder
+          ./isaaclab.sh play --rl_library rsl_rl \
+              --task IsaacContrib-Deploy-Reach-UR10e-Play \
+              --load_run 2025-01-15_14-30-00
+
+          # Load a specific checkpoint file
+          ./isaaclab.sh play --rl_library rsl_rl \
+              --task IsaacContrib-Deploy-Reach-UR10e-Play \
+              --checkpoint /path/to/model_1500.pt
 
 
 Step 5: Deploy on Real Robot

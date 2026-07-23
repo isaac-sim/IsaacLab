@@ -15,6 +15,7 @@ import os
 import re
 import runpy
 import sys
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
@@ -240,6 +241,7 @@ def add_common_train_args(
     agent_help: str,
     include_agent: bool = True,
     include_distributed: bool = True,
+    max_iterations_type: Callable[[str], int] = int,
 ) -> None:
     """Add common Isaac Lab reinforcement learning training arguments.
 
@@ -249,6 +251,7 @@ def add_common_train_args(
         agent_help: Help text for the ``--agent`` argument.
         include_agent: Whether to include the ``--agent`` argument.
         include_distributed: Whether to include the ``--distributed`` argument.
+        max_iterations_type: Converter and validator for ``--max_iterations``.
     """
     parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
     parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
@@ -264,7 +267,9 @@ def add_common_train_args(
         parser.add_argument(
             "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
         )
-    parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+    parser.add_argument(
+        "--max_iterations", type=max_iterations_type, default=None, help="RL Policy training iterations."
+    )
     parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
     parser.add_argument(
         "--ray-proc-id",

@@ -23,8 +23,8 @@ from Isaac Lab 2.x to Isaac Lab 3.0.
 Visualizer CLI and Headless Behavior
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--visualizer`` / ``--viz``
-to determine whether viewer apps are launched with an Isaac Lab command.
+In Isaac Lab 3.0, use ``--visualizer`` / ``--viz`` to determine whether viewer apps are launched
+with an Isaac Lab command. Without a visualizer, commands run headless by default.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
 (see :doc:`/source/overview/core-concepts/visualization`).
@@ -35,10 +35,9 @@ The details below describe how CLI visualizer arguments resolve together with
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
 - If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
 - ``--viz none`` explicitly disables all visualizers, including config-defined ones.
-- ``--headless`` is deprecated (still supported) and overrides ``--viz`` by forcing headless mode.
 
-For the full behavior of visualizer resolution, with the visualizer CLI arg, visualizer configs,
-and ``--headless``, see :ref:`visualization-common-modes`.
+For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
+see :ref:`visualization-common-modes`.
 
 
 Reinforcement Learning CLI Entrypoints
@@ -49,16 +48,37 @@ and play. Instead of launching library-specific scripts under
 ``scripts/reinforcement_learning/<library>/``, select the library with
 ``--rl_library``.
 
-.. code-block:: bash
+.. tab-set::
 
-   # Isaac Lab 3.0
-   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         # Isaac Lab 3.0
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Isaac Lab 3.0
+         ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
 
 The same pattern applies to the play workflow:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
 
 Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
 ``sb3``, and ``rlinf``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
@@ -1188,10 +1208,21 @@ the finder tool can't reach.
 
 Enable it by setting an environment variable before launching your script:
 
-.. code-block:: bash
+.. tab-set::
 
-   export WARN_ON_TORCH_QUATF_ACCESS=1
-   ./isaaclab.sh -p my_script.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         export WARN_ON_TORCH_QUATF_ACCESS=1
+         uv run python my_script.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         export WARN_ON_TORCH_QUATF_ACCESS=1
+         ./isaaclab.sh -p my_script.py
 
 Every read of ``.torch`` on a ``ProxyArray`` whose underlying ``wp.array`` has
 dtype ``wp.quatf`` then emits a :class:`UserWarning` with the message:
@@ -1643,25 +1674,55 @@ automatically by the importer based on the robot name and cannot be overridden.
 
 **Before (Isaac Lab 2.x):**
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-     robot.urdf \
-     /output/dir/robot.usd \
-     --fix-base \
-     --merge-joints
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/convert_urdf.py \
+           robot.urdf \
+           /output/dir/robot.usd \
+           --fix-base \
+           --merge-joints
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
+           robot.urdf \
+           /output/dir/robot.usd \
+           --fix-base \
+           --merge-joints
 
 **After (Isaac Lab 3.0):**
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-     robot.urdf \
-     /output/dir \
-     --fix-base \
-     --joint-stiffness 100.0 \
-     --joint-damping 1.0 \
-     --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/convert_urdf.py \
+           robot.urdf \
+           /output/dir \
+           --fix-base \
+           --joint-stiffness 100.0 \
+           --joint-damping 1.0 \
+           --viz kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
+           robot.urdf \
+           /output/dir \
+           --fix-base \
+           --joint-stiffness 100.0 \
+           --joint-damping 1.0 \
+           --viz kit
 
 .. note::
 
@@ -1799,24 +1860,53 @@ are no longer available.
 
 **Before (Isaac Lab 2.x):**
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-     ../mujoco_menagerie/unitree_h1/h1.xml \
-     source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-     --import-sites \
-     --make-instanceable
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/convert_mjcf.py \
+           ../mujoco_menagerie/unitree_h1/h1.xml \
+           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+           --import-sites \
+           --make-instanceable
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
+           ../mujoco_menagerie/unitree_h1/h1.xml \
+           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+           --import-sites \
+           --make-instanceable
 
 **After (Isaac Lab 3.0):**
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-     ../mujoco_menagerie/unitree_h1/h1.xml \
-     source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-     --merge-mesh \
-     --self-collision \
-     --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/convert_mjcf.py \
+           ../mujoco_menagerie/unitree_h1/h1.xml \
+           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+           --merge-mesh \
+           --self-collision \
+           --viz kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
+           ../mujoco_menagerie/unitree_h1/h1.xml \
+           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+           --merge-mesh \
+           --self-collision \
+           --viz kit
 
 New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
 
@@ -1939,37 +2029,79 @@ exactly as for ``train.py``. There is no ``--physics`` or ``--render`` flag; pas
 
 **Before (Isaac Lab 2.x):**
 
-.. code-block:: bash
+.. tab-set::
 
-   # Non-RL (random-action) runtime benchmark
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
+   .. tab-item:: uv (Recommended)
 
-   # Training benchmark (RSL-RL)
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
+      .. code-block:: bash
 
-   # Wrapper shell runners
-   ./scripts/benchmarks/run_non_rl_benchmarks.sh
-   ./scripts/benchmarks/run_training_benchmarks.sh
+         # Non-RL (random-action) runtime benchmark
+         uv run python scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
+
+         # Training benchmark (RSL-RL)
+         uv run python scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
+
+         # Wrapper shell runners
+         ./scripts/benchmarks/run_non_rl_benchmarks.sh
+         ./scripts/benchmarks/run_training_benchmarks.sh
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Non-RL (random-action) runtime benchmark
+         ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
+
+         # Training benchmark (RSL-RL)
+         ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
+
+         # Wrapper shell runners
+         ./scripts/benchmarks/run_non_rl_benchmarks.sh
+         ./scripts/benchmarks/run_training_benchmarks.sh
 
 **After (Isaac Lab 3.0):**
 
-.. code-block:: bash
+.. tab-set::
 
-   # Non-RL (random-action) runtime benchmark — PhysX (default)
-   ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct
+   .. tab-item:: uv (Recommended)
 
-   # Same benchmark on Newton/MJWarp — select the backend via presets=
-   ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
+      .. code-block:: bash
 
-   # Training benchmark — choose the RL library with --rl_library
-   ./isaaclab.sh -p scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library rsl_rl
-   ./isaaclab.sh -p scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
+         # Non-RL (random-action) runtime benchmark — PhysX (default)
+         uv run python scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct
 
-   # Play (inference) benchmark — loads a checkpoint produced by training.py
-   ./isaaclab.sh -p scripts/benchmarks/play.py --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
+         # Same benchmark on Newton/MJWarp — select the backend via presets=
+         uv run python scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
 
-   # Startup profiling
-   ./isaaclab.sh -p scripts/benchmarks/startup.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
+         # Training benchmark — choose the RL library with --rl_library
+         uv run python scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library rsl_rl
+         uv run python scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
+
+         # Play (inference) benchmark — loads a checkpoint produced by training.py
+         uv run python scripts/benchmarks/play.py --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
+
+         # Startup profiling
+         uv run python scripts/benchmarks/startup.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Non-RL (random-action) runtime benchmark — PhysX (default)
+         ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct
+
+         # Same benchmark on Newton/MJWarp — select the backend via presets=
+         ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
+
+         # Training benchmark — choose the RL library with --rl_library
+         ./isaaclab.sh -p scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library rsl_rl
+         ./isaaclab.sh -p scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
+
+         # Play (inference) benchmark — loads a checkpoint produced by training.py
+         ./isaaclab.sh -p scripts/benchmarks/play.py --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
+
+         # Startup profiling
+         ./isaaclab.sh -p scripts/benchmarks/startup.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
 
 Output Format
 -------------
@@ -1980,11 +2112,23 @@ comma-separated list to emit several formats at once. Supported values are ``sch
 ``omniperf``, ``osmo``, ``json``, and ``summary`` (legacy long-form aliases such as
 ``OmniPerfKPIFile`` are still accepted).
 
-.. code-block:: bash
+.. tab-set::
 
-   # Emit the typed schema bundle and an OmniPerf KPI file in one run
-   ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct \
-       --benchmark_formatter schema,omniperf
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         # Emit the typed schema bundle and an OmniPerf KPI file in one run
+         uv run python scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct \
+             --benchmark_formatter schema,omniperf
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Emit the typed schema bundle and an OmniPerf KPI file in one run
+         ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct \
+             --benchmark_formatter schema,omniperf
 
 Migration Steps
 ---------------
@@ -2256,7 +2400,7 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
    * - ``isaacsim.core.utils.semantics``
      - :mod:`isaaclab.sim.utils.semantics`
    * - ``isaacsim.core.utils.extensions.enable_extension``
-     - ``isaacsim.core.experimental.utils.app.enable_extension`` (no Isaac Lab equivalent)
+     - :func:`isaaclab.sim.utils.enable_extension`
    * - ``isaacsim.core.utils.viewports.set_camera_view``
      - ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view`` (or
        ``omni.kit.viewport.utility.camera_state.ViewportCameraState`` for lower-level control)
@@ -2287,6 +2431,32 @@ To keep call-site code symmetric across backends when migrating off
    # or, for the Newton backend
    from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+Isaac Sim extension modules must be explicitly enabled before direct import
+-----------------------------------------------------------------------------
+
+Isaac Lab 3.0 no longer automatically initializes Isaac Sim extensions only to
+make their Python modules importable. Stock Isaac Lab Kit experiences now load a
+smaller set of extensions so unused Isaac Sim packages do not pull in
+unnecessary dependencies or deprecated aliases.
+
+If your project imports an Isaac Sim extension module directly, enable the
+extension after the Kit application has started and before importing from that
+module:
+
+.. code-block:: python
+
+   from isaaclab.sim.utils import enable_extension
+
+   enable_extension("isaacsim.core.experimental.prims")
+   from isaacsim.core.experimental.prims import XformPrim
+
+This is especially important for migration replacements such as
+``isaacsim.core.experimental.*`` and ``isaacsim.sensors.experimental.*``. Do not
+import ``enable_extension`` from ``isaacsim.core.experimental.utils.app`` unless
+that extension is already enabled; use :func:`isaaclab.sim.utils.enable_extension`
+from Isaac Lab instead. The helper requires a running Kit application and raises
+``RuntimeError`` if called from plain Python before Kit is launched.
+
 
 Kit experience (``.kit``) updates
 ---------------------------------
@@ -2300,6 +2470,10 @@ If you maintain a custom Kit experience derived from one of the Isaac Lab apps u
 * **Switch explicit Isaac Sim extension dependencies** to the non-deprecated equivalents
   listed above (``isaacsim.core.experimental.*``, ``isaacsim.sensors.experimental.*``,
   ``isaacsim.robot.experimental.wheeled_robots``).
+* **Do not rely on stock Isaac Lab apps to preload Isaac Sim extensions** that your
+  project imports directly. Either add those extensions to your custom ``.kit`` file
+  or enable them with :func:`isaaclab.sim.utils.enable_extension` before importing
+  their Python modules.
 * **Remove unused Isaac Sim extensions that pull in** ``isaacsim.core.api`` — Isaac Lab
   no longer depends on those, and keeping them resurrects the deprecated stack.
 

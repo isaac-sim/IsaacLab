@@ -45,3 +45,20 @@ def test_initialization_and_close(device):
 
     assert env._is_closed
     assert sim_utils.SimulationContext.instance() is None
+
+
+def test_reset_invalidates_renderer_scene_state_cadence():
+    """A same-step multi-agent reset must republish renderer scene state."""
+    env = None
+    try:
+        sim_utils.create_new_stage()
+        env = DirectMARLEnv(cfg=make_empty_direct_marl_env_cfg())
+        env._get_observations = lambda: {}
+        env.sim.render_context._last_scene_state_step = 7
+
+        env.reset()
+
+        assert env.sim.render_context._last_scene_state_step is None
+    finally:
+        if env is not None:
+            env.close()

@@ -25,6 +25,7 @@ from isaaclab.test.benchmark.measurements import (
     TestPhase,
 )
 from isaaclab.test.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from isaaclab.utils import has_kit
 
 if TYPE_CHECKING:
     from isaaclab.test.benchmark.schema import (
@@ -95,15 +96,53 @@ def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
             )
         )
 
+    timing = runtime.environment_step_timing
+    serialized_diagnostic = timing is not None and timing.measurement_mode == "serialized_synchronized"
+    metric_prefix = "Serialized Diagnostic " if serialized_diagnostic else ""
     runtime_metrics: list[Measurement] = [
         SingleMeasurement(name="Iterations Completed", value=runtime.iterations_completed, unit="count"),
-        SingleMeasurement(name="Total Wall Time", value=runtime.total_wall_time_s, unit="s"),
+        SingleMeasurement(name=f"{metric_prefix}Total Wall Time", value=runtime.total_wall_time_s, unit="s"),
         SingleMeasurement(name="Steps per Iteration", value=runtime.steps_per_iteration, unit="frames"),
     ]
-    runtime_metrics.extend(_stat_measurements("Iteration Time", runtime.iteration_time_s, "ms", 1000.0))
-    runtime_metrics.extend(_stat_measurements("Collection FPS", runtime.collection_fps, "FPS"))
-    runtime_metrics.extend(_stat_measurements("Total FPS", runtime.total_fps, "FPS"))
-    runtime_metrics.extend(_stat_measurements("Iterations per Second", runtime.iterations_per_s, "iterations/s"))
+    runtime_metrics.extend(_stat_measurements(f"{metric_prefix}Iteration Time", runtime.iteration_time_s, "ms", 1000.0))
+    runtime_metrics.extend(_stat_measurements(f"{metric_prefix}Collection FPS", runtime.collection_fps, "FPS"))
+    runtime_metrics.extend(_stat_measurements(f"{metric_prefix}Total FPS", runtime.total_fps, "FPS"))
+    if timing is not None:
+        step_rate_label = (
+            "Environment Step Host-Return FPS"
+            if timing.measurement_mode == "host_return"
+            else "Serialized Synchronized Environment Step FPS"
+        )
+        runtime_metrics.extend(_stat_measurements(step_rate_label, timing.environment_step_fps, "FPS"))
+        if timing.simulation_step_time_s is not None:
+            assert timing.outside_simulation_step_time_s is not None
+            assert timing.outside_simulation_step_fraction is not None
+            runtime_metrics.extend(
+                _stat_measurements(
+                    "Synchronized Simulation Time per Environment Step",
+                    timing.simulation_step_time_s,
+                    "ms",
+                    1000.0,
+                )
+            )
+            runtime_metrics.extend(
+                _stat_measurements(
+                    "Outside Simulation Time per Environment Step",
+                    timing.outside_simulation_step_time_s,
+                    "ms",
+                    1000.0,
+                )
+            )
+            runtime_metrics.append(
+                SingleMeasurement(
+                    name="Outside Simulation Step Fraction",
+                    value=timing.outside_simulation_step_fraction,
+                    unit="ratio",
+                )
+            )
+    runtime_metrics.extend(
+        _stat_measurements(f"{metric_prefix}Iterations per Second", runtime.iterations_per_s, "iterations/s")
+    )
     return {"startup": startup, "runtime": runtime_metrics}
 
 
@@ -254,10 +293,12 @@ class BaseIsaacLabBenchmark:
             # gracefully skip or fall back while still allowing mixed modes (e.g., kit-full physics
             # with kit-less rendering).
             # If we're using Kit, then we can use IsaacSim's benchmark services to peek into the frametimes.
-            if self._use_frametime_recorders:
+            if self._use_frametime_recorders and not has_kit():
+                logger.warning("Kit is not running. Kit related measurements will not be available.")
+            elif self._use_frametime_recorders:
                 try:
                     # Enable the benchmark services extension first
-                    from isaacsim.core.experimental.utils.app import enable_extension
+                    from isaaclab.sim.utils import enable_extension
 
                     enable_extension("isaacsim.benchmark.services")
 
@@ -311,9 +352,12 @@ class BaseIsaacLabBenchmark:
                                 "Could not import bundled frametime recorder: "
                                 f"{e}. Frametime measurements will not be available."
                             )
-                except ImportError as e:
+                # Kit may stop after the availability check above. Frametime recorders are
+                # optional, so retain the non-Kit recorders if the IApp interface disappears.
+                except (ImportError, RuntimeError) as e:
                     logger.warning(
-                        f"Could not import kit recorders: {e}. Kit related measurements will not be available."
+                        f"Could not initialize Kit frametime recorders: {e}. "
+                        "Kit related measurements will not be available."
                     )
 
                 # Start collecting frametime recorders.
