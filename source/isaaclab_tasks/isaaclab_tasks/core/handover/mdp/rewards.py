@@ -14,7 +14,7 @@ import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 
-from isaaclab_tasks.core.utils import EpisodeErrorRecorder
+from isaaclab_tasks.core.reorient.mdp.rewards import EpisodeErrorRecorder
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject

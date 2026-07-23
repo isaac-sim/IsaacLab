@@ -12,7 +12,6 @@ from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import SHADOW_FINGERTIP_BODY_NAMES
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandTiledCameraCfg,
     validate_shadow_hand_camera_settings,
@@ -24,6 +23,8 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
 )
 from isaaclab_tasks.core.reorient.reorient_common import CAMERA_GOAL_MARKER_POSITION, CAMERA_PLAY_NUM_ENVS
 from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.shadow_hand import SHADOW_FINGERTIP_BODY_NAMES
 
 
 @configclass
@@ -45,7 +46,7 @@ class ShadowHandCameraManagerSceneCfg(PresetCfg):
     physx = _ShadowHandCameraManagerSceneCfg(clone_in_fabric=True)
     newton_mjwarp = _ShadowHandCameraManagerSceneCfg(clone_in_fabric=False)
     ovphysx = physx
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass
@@ -55,7 +56,7 @@ class ShadowHandCameraManagerPlaySceneCfg(PresetCfg):
     physx = _ShadowHandCameraManagerSceneCfg(num_envs=CAMERA_PLAY_NUM_ENVS, clone_in_fabric=True)
     newton_mjwarp = _ShadowHandCameraManagerSceneCfg(num_envs=CAMERA_PLAY_NUM_ENVS, clone_in_fabric=False)
     ovphysx = _ShadowHandCameraManagerSceneCfg(num_envs=CAMERA_PLAY_NUM_ENVS, clone_in_fabric=True)
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass

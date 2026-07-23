@@ -10,16 +10,76 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
-
-from isaaclab_tasks.core.utils import random_xy_rotation, sample_joint_positions_within_limits
+from isaaclab.utils.math import quat_from_angle_axis, quat_mul
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+def sample_joint_positions_within_limits(
+    default_position: torch.Tensor,
+    limits: torch.Tensor,
+    noise_scale: float,
+) -> torch.Tensor:
+    """Sample reset positions between each joint's default position and limits.
+
+    Args:
+        default_position: Default joint positions [m or rad, depending on joint type], shape ``(..., J)``.
+        limits: Lower and upper joint-position limits [m or rad, depending on joint type], shape ``(..., J, 2)``.
+        noise_scale: Dimensionless interpolation scale from the default position toward the sampled limits.
+
+    Returns:
+        Sampled joint positions [m or rad, depending on joint type], shape ``(..., J)``.
+
+    Raises:
+        ValueError: If :paramref:`noise_scale` is outside ``[0, 1]``.
+    """
+    if not 0.0 <= noise_scale <= 1.0:
+        raise ValueError(f"Expected noise_scale in [0, 1], got {noise_scale}.")
+    position_sample = math_utils.sample_uniform(
+        -1.0,
+        1.0,
+        default_position.shape,
+        device=default_position.device,
+    )
+    position_fraction = 0.5 * (position_sample + 1.0)
+    position_delta = limits[..., 0] - default_position
+    position_delta = position_delta + (limits[..., 1] - limits[..., 0]) * position_fraction
+    joint_position = default_position + noise_scale * position_delta
+    return torch.clamp(joint_position, min=limits[..., 0], max=limits[..., 1])
+
+
+def random_xy_rotation(count: int, device: str | torch.device) -> torch.Tensor:
+    """Sample the Direct tasks' sequential random X/Y rotation.
+
+    Args:
+        count: Number of rotations to sample.
+        device: Device on which to sample.
+
+    Returns:
+        Sampled ``(x, y, z, w)`` unit quaternions, shape ``(count, 4)``.
+    """
+    random_values = math_utils.sample_uniform(-1.0, 1.0, (count, 2), device=device)
+    x_unit = torch.tensor([1.0, 0.0, 0.0], device=device).repeat(count, 1)
+    y_unit = torch.tensor([0.0, 1.0, 0.0], device=device).repeat(count, 1)
+    return math_utils.quat_mul(
+        math_utils.quat_from_angle_axis(random_values[:, 0] * torch.pi, x_unit),
+        math_utils.quat_from_angle_axis(random_values[:, 1] * torch.pi, y_unit),
+    )
+
+
+@torch.jit.script
+def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
+    """Compose ``[-pi, pi]``-scaled random X- and Y-axis rotations into ``(x, y, z, w)`` quaternions."""
+    return quat_mul(
+        quat_from_angle_axis(rand0 * np.pi, x_unit_tensor), quat_from_angle_axis(rand1 * np.pi, y_unit_tensor)
+    )
 
 
 def reset_reorient_state(

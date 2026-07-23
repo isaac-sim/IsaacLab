@@ -59,7 +59,7 @@ class HandoverManagerSceneCfg(PresetCfg):
     physx = SceneCfg(clone_in_fabric=True)
     newton_mjwarp = SceneCfg(clone_in_fabric=False)
     ovphysx = physx
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass

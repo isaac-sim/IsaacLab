@@ -23,34 +23,6 @@ from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
-ALLEGRO_FINGERTIP_BODY_NAMES: list[str] = [
-    "index_link_3",
-    "middle_link_3",
-    "ring_link_3",
-    "thumb_link_3",
-]
-"""Allegro Hand fingertip body names."""
-
-ALLEGRO_ACTUATED_JOINT_NAMES: list[str] = [
-    "index_joint_0",
-    "middle_joint_0",
-    "ring_joint_0",
-    "thumb_joint_0",
-    "index_joint_1",
-    "index_joint_2",
-    "index_joint_3",
-    "middle_joint_1",
-    "middle_joint_2",
-    "middle_joint_3",
-    "ring_joint_1",
-    "ring_joint_2",
-    "ring_joint_3",
-    "thumb_joint_1",
-    "thumb_joint_2",
-    "thumb_joint_3",
-]
-"""Allegro Hand actuated joint names, in the Direct task's actuation order."""
-
 
 @configclass
 class ObjectCfg(PresetCfg):
@@ -105,7 +77,7 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
     )
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass
@@ -115,21 +87,17 @@ class PhysicsCfg(PresetCfg):
     )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            solver="newton",
             integrator="implicitfast",
             njmax=80,
             nconmax=70,
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
-            iterations=100,
-            # save_to_mjcf="AllegroHand.xml",
         ),
         num_substeps=2,
-        debug_mode=False,
     )
     ovphysx = OvPhysxCfg()
-    default = physx
+    default = newton_mjwarp
 
 
 # Scene pieces shared verbatim by the manager-based variant.

@@ -21,7 +21,8 @@ from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, satura
 from isaaclab_tasks.core.handover.handover_common import GOAL_POSITION_OFFSET
 from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg
 from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
-from isaaclab_tasks.core.utils import EpisodeErrorRecorder, randomize_rotation, sample_joint_positions_within_limits
+from isaaclab_tasks.core.reorient.mdp.events import randomize_rotation, sample_joint_positions_within_limits
+from isaaclab_tasks.core.reorient.mdp.rewards import EpisodeErrorRecorder
 
 
 class HandoverEnv(DirectMARLEnv):
