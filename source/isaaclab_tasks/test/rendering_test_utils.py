@@ -147,6 +147,35 @@ _NEWTON_WARP_DATA_TYPES = (
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
 
 
+def make_xfail_rendering_params(
+    params: list[pytest.param],
+    expected_failures: dict[tuple[str, str, str], str],
+) -> list[pytest.param]:
+    """Mark selected rendering parameter combinations as expected failures.
+
+    Args:
+        params: Rendering parameters containing physics backend, renderer, and data type values.
+        expected_failures: Mapping from parameter value tuples to expected-failure reasons.
+
+    Returns:
+        Rendering parameters with non-strict ``xfail`` marks applied to matching combinations.
+    """
+    marked_params = []
+    for param in params:
+        reason = expected_failures.get(tuple(param.values))
+        if reason is None:
+            marked_params.append(param)
+            continue
+        marked_params.append(
+            pytest.param(
+                *param.values,
+                id=param.id,
+                marks=[*param.marks, pytest.mark.xfail(reason=reason, strict=False)],
+            )
+        )
+    return marked_params
+
+
 def _make_sensor_data_type_params(
     physics_backend: str,
     renderer: str,
