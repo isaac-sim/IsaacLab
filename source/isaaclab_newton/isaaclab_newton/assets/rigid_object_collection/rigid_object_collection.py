@@ -966,9 +966,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate derived buffers that depend on com position
-        self.data._body_com_pose_b.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
+        self.data._reset_body_com_pos_b_dependents()
         # Tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -1017,9 +1015,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate derived buffers that depend on com position
-        self.data._body_com_pose_b.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
+        self.data._reset_body_com_pos_b_dependents()
         # Tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 

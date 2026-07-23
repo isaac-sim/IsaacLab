@@ -967,6 +967,70 @@ class TestRigidObjectWritersBody:
 
 
 # ---------------------------------------------------------------------------
+# Tests: COM setter cache invalidation
+# ---------------------------------------------------------------------------
+
+
+_physics_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+)
+
+
+class TestRigidObjectComSetterCacheInvalidation:
+    """Test immediate cache refresh after center-of-mass writes."""
+
+    @_physics_backends
+    @pytest.mark.parametrize("num_instances", [2])
+    @_default_devices
+    @pytest.mark.parametrize("setter", ["index", "mask"])
+    def test_set_coms_refreshes_derived_caches(self, backend, num_instances, device, rigid_object_iface, setter):
+        obj, _ = rigid_object_iface
+        obj.data.update(dt=0.01)
+
+        root_com_velocity = torch.zeros((2, 6), device=device)
+        root_com_velocity[:, 5] = 1.0
+        obj.write_root_com_velocity_to_sim_index(root_velocity=root_com_velocity)
+
+        if backend == "newton":
+            coms = torch.zeros((num_instances, 1, 3), device=device)
+            dtype = wp.vec3f
+        else:
+            coms = _make_data_torch((num_instances, 1), device, wp.transformf)
+            dtype = wp.transformf
+        coms[0, 0, 0] = 0.2
+
+        data = obj.data
+        _ = data.root_com_pose_w
+        _ = data.root_link_vel_w
+        _ = data.root_link_lin_vel_b
+        _ = data.root_link_state_w
+        _ = data.root_com_state_w
+
+        if setter == "index":
+            obj.set_coms_index(coms=wp.from_torch(coms[:1].contiguous(), dtype=dtype), env_ids=[0])
+        else:
+            obj.set_coms_mask(
+                coms=wp.from_torch(coms.contiguous(), dtype=dtype), env_mask=_make_env_mask(2, device, True)
+            )
+
+        dependents = (
+            data._root_com_pose_w,
+            data._root_link_vel_w,
+            data._root_link_lin_vel_b,
+            data._root_link_state_w,
+            data._root_com_state_w,
+        )
+        assert all(buffer.timestamp == -1.0 for buffer in dependents), [buffer.timestamp for buffer in dependents]
+
+        _ = data.root_com_pose_w
+        _ = data.root_link_vel_w
+        _ = data.root_link_lin_vel_b
+        _ = data.root_link_state_w
+        _ = data.root_com_state_w
+        assert all(buffer.timestamp == data._sim_timestamp for buffer in dependents)
+
+
+# ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
 

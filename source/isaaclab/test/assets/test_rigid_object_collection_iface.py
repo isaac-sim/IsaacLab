@@ -1114,6 +1114,78 @@ class TestCollectionWritersBody:
 
 
 # ---------------------------------------------------------------------------
+# Tests: COM setter cache invalidation
+# ---------------------------------------------------------------------------
+
+
+_physics_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+)
+
+
+class TestCollectionComSetterCacheInvalidation:
+    """Test immediate cache refresh after center-of-mass writes."""
+
+    @_physics_backends
+    @pytest.mark.parametrize("num_instances", [2])
+    @pytest.mark.parametrize("num_bodies", [2])
+    @_default_devices
+    @pytest.mark.parametrize("setter", ["index", "mask"])
+    def test_set_coms_refreshes_derived_caches(
+        self, backend, num_instances, num_bodies, device, collection_iface, setter
+    ):
+        obj, _ = collection_iface
+        obj.data.update(dt=0.01)
+
+        body_com_velocity = torch.zeros((num_instances, num_bodies, 6), device=device)
+        body_com_velocity[..., 5] = 1.0
+        velocity_kwargs = {"body_velocities": body_com_velocity}
+        if backend != "ovphysx":
+            velocity_kwargs["full_data"] = True
+        obj.write_body_com_velocity_to_sim_index(**velocity_kwargs)
+
+        if backend == "newton":
+            coms = torch.zeros((num_instances, num_bodies, 3), device=device)
+            dtype = wp.vec3f
+        else:
+            coms = _make_data_torch((num_instances, num_bodies), device, wp.transformf)
+            dtype = wp.transformf
+        coms[0, 1, 0] = 0.2
+
+        data = obj.data
+        _ = data.body_com_pose_w
+        _ = data.body_link_vel_w
+        _ = data.body_link_lin_vel_b
+        _ = data.body_link_state_w
+        _ = data.body_com_state_w
+
+        if setter == "index":
+            obj.set_coms_index(coms=wp.from_torch(coms[:1, 1:2].contiguous(), dtype=dtype), env_ids=[0], body_ids=[1])
+        else:
+            obj.set_coms_mask(
+                coms=wp.from_torch(coms.contiguous(), dtype=dtype),
+                env_mask=_make_env_mask(num_instances, device, True),
+                body_mask=_make_item_mask(num_bodies, [1], device),
+            )
+
+        dependents = (
+            data._body_com_pose_w,
+            data._body_link_vel_w,
+            data._body_link_lin_vel_b,
+            data._body_link_state_w,
+            data._body_com_state_w,
+        )
+        assert all(buffer.timestamp == -1.0 for buffer in dependents)
+
+        _ = data.body_com_pose_w
+        _ = data.body_link_vel_w
+        _ = data.body_link_lin_vel_b
+        _ = data.body_link_state_w
+        _ = data.body_com_state_w
+        assert all(buffer.timestamp == data._sim_timestamp for buffer in dependents)
+
+
+# ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
 
