@@ -223,13 +223,13 @@ def _color_keys_for_ids(ids: list[int], device: str) -> list[RgbaColor]:
 
 def build_semantic_id_to_labels(
     labels_by_id: dict[int, dict[str, str]], colorize: bool, device: str
-) -> dict[RgbaColor | str, dict[str, str]]:
+) -> dict[RgbaColor | int, dict[str, str]]:
     """Build the ``idToLabels`` mapping from decoded semantic IDs, keyed by RGBA color tuple or ID.
 
     Args:
         labels_by_id: Decoded ``{semantic_id: {type: label}}`` for IDs >= 2 from the SemanticIdMap.
         colorize: If True, keys are ``(r, g, b, a)`` color tuples matching the colorized segmentation buffer
-            (the Replicator fast-node contract); otherwise keys are the decimal semantic ID strings (matching
+            (the Replicator fast-node contract); otherwise keys are the raw integer semantic IDs (matching
             the raw ``int32`` output).
         device: Warp device used to compute colors when ``colorize`` is True.
 
@@ -241,7 +241,7 @@ def build_semantic_id_to_labels(
     sorted_ids = sorted(id_labels)
 
     if not colorize:
-        return {str(semantic_id): id_labels[semantic_id] for semantic_id in sorted_ids}
+        return {semantic_id: id_labels[semantic_id] for semantic_id in sorted_ids}
 
     color_keys = _color_keys_for_ids(sorted_ids, device)
     return {color_keys[idx]: id_labels[semantic_id] for idx, semantic_id in enumerate(sorted_ids)}
@@ -253,7 +253,7 @@ def build_instance_id_to_labels_and_semantics(
     semantic_id_to_labels: dict[int, dict[str, str]],
     colorize: bool,
     device: str,
-) -> tuple[dict[RgbaColor | str, str], dict[RgbaColor | str, dict[str, str]]]:
+) -> tuple[dict[RgbaColor | int, str], dict[RgbaColor | int, dict[str, str]]]:
     """Build the instance-segmentation ``idToLabels`` and ``idToSemantics`` mappings.
 
     Resolves each instance pixel ID through the three decoded maps, following the ovrtx / Replicator chain:
@@ -269,7 +269,7 @@ def build_instance_id_to_labels_and_semantics(
         stable_id_to_path: Decoded ``{stable_id: prim_path}`` from :func:`decode_stable_id_map`.
         semantic_id_to_labels: Decoded ``{semantic_id: {type: label}}`` from :func:`decode_semantic_id_map`.
         colorize: If True, keys are ``(r, g, b, a)`` color tuples matching the colorized segmentation buffer
-            (the Replicator fast-node contract); otherwise keys are the decimal pixel ID strings (matching the
+            (the Replicator fast-node contract); otherwise keys are the raw integer pixel IDs (matching the
             raw ``uint32`` output).
         device: Warp device used to compute colors when ``colorize`` is True.
 
@@ -294,7 +294,7 @@ def build_instance_id_to_labels_and_semantics(
         prim_paths.append(stable_id_to_path.get(stable_id, _RESERVED_INSTANCE_LABELS[UNLABELLED_ID]))
         semantics.append(semantic_id_to_labels.get(semantic_id, _RESERVED_SEMANTIC_LABELS[UNLABELLED_ID]))
 
-    keys = _color_keys_for_ids(pixel_ids, device) if colorize else [str(pixel_id) for pixel_id in pixel_ids]
+    keys = _color_keys_for_ids(pixel_ids, device) if colorize else pixel_ids
     id_to_labels = {key: prim_paths[idx] for idx, key in enumerate(keys)}
     id_to_semantics = {key: semantics[idx] for idx, key in enumerate(keys)}
     return id_to_labels, id_to_semantics
