@@ -225,17 +225,20 @@ class KaminoParameterAdapter(_SingleDofParameterAdapter):
                     limits=torch.tensor([[[lower, runtime_upper]]], device=DEVICE)
                 )
             articulation.set_joint_position_target_index(target=torch.full((1, 1), target, device=DEVICE))
-            position_extreme = -1.0e9 if limit == "upper" else 1.0e9
-            for _ in range(600):
+            position_extreme = torch.tensor(
+                -float("inf") if limit == "upper" else float("inf"),
+                device=DEVICE,
+            )
+            for _ in range(250):
                 articulation.write_data_to_sim()
                 sim.step()
                 articulation.update(PROFILE_DOF_DT)
-                position = float(articulation.data.joint_pos.torch[0, 0])
+                position = articulation.data.joint_pos.torch[0, 0]
                 if limit == "upper":
-                    position_extreme = max(position_extreme, position)
+                    position_extreme = torch.maximum(position_extreme, position)
                 else:
-                    position_extreme = min(position_extreme, position)
-            return position_extreme, float(articulation.data.joint_pos.torch[0, 0])
+                    position_extreme = torch.minimum(position_extreme, position)
+            return float(position_extreme), float(articulation.data.joint_pos.torch[0, 0])
 
     def run_joint_state(
         self,
