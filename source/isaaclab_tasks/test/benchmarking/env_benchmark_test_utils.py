@@ -8,9 +8,18 @@ import json
 import math
 import os
 import re
+from numbers import Real
 
 import numpy as np
 import yaml
+
+
+def _is_training_task(task_id: str) -> bool:
+    """Return whether a registered task is intended for training benchmarks."""
+    stem, separator, version = task_id.rpartition("-v")
+    if separator and version.isdigit():
+        task_id = stem
+    return not {"Play", "Benchmark"}.intersection(task_id.split("-"))
 
 
 def _get_repo_path():
@@ -81,14 +90,27 @@ def evaluate_job(workflow, task, env_config, duration):
     thresholds = {**env_config.get("lower_thresholds", {}), **env_config.get("upper_thresholds", {})}
 
     # evaluate all thresholds from the config
-    for threshold_name, threshold_val in thresholds.items():
+    for threshold_name, threshold_spec in thresholds.items():
         uses_lower_threshold = threshold_name in env_config.get("lower_thresholds", {})
+        threshold_val, consecutive_samples = _parse_threshold_spec(threshold_spec)
         if threshold_name == "duration":
             val = duration
         else:
-            val = _extract_log_val(threshold_name, log_data, uses_lower_threshold, workflow)
-        # skip non-numeric values
-        if val is None or not isinstance(val, (int, float)) or (isinstance(val, float) and math.isnan(val)):
+            val = _extract_log_val(
+                threshold_name,
+                log_data,
+                uses_lower_threshold,
+                workflow,
+                consecutive_samples=consecutive_samples,
+            )
+        if val is None or not isinstance(val, Real) or not math.isfinite(float(val)):
+            kpi_payload[threshold_name] = None
+            kpi_payload[f"{threshold_name}_threshold"] = threshold_val
+            if consecutive_samples is not None:
+                kpi_payload[f"{threshold_name}_consecutive_samples"] = consecutive_samples
+            kpi_payload["success"] = False
+            if not kpi_payload["msg"]:
+                kpi_payload["msg"] = f"{threshold_name} metric is missing or non-numeric"
             continue
         val = round(val, 4)
         threshold_val_rounded = round(threshold_val, 4)
@@ -107,6 +129,8 @@ def evaluate_job(workflow, task, env_config, duration):
             normalized_reward = val / threshold_val
             kpi_payload[f"{threshold_name}_normalized"] = normalized_reward
         kpi_payload[f"{threshold_name}_threshold"] = threshold_val
+        if consecutive_samples is not None:
+            kpi_payload[f"{threshold_name}_consecutive_samples"] = consecutive_samples
 
     # add max iterations to the payload
     max_iterations = env_config.get("max_iterations")
@@ -219,9 +243,26 @@ def _parse_tf_logs(log):
     return log_data
 
 
-def _extract_log_val(name, log_data, uses_lower_threshold, workflow):
+def _parse_threshold_spec(threshold_spec):
+    """Return a threshold value and optional sustained-sample requirement."""
+    if isinstance(threshold_spec, Real):
+        return threshold_spec, None
+    if not isinstance(threshold_spec, dict):
+        raise TypeError(f"Threshold must be a number or mapping, got {type(threshold_spec).__name__}")
+
+    threshold_val = threshold_spec.get("value")
+    consecutive_samples = threshold_spec.get("consecutive_samples")
+    if not isinstance(threshold_val, Real):
+        raise TypeError("Structured thresholds require a numeric 'value'")
+    if not isinstance(consecutive_samples, int) or isinstance(consecutive_samples, bool) or consecutive_samples < 1:
+        raise ValueError("Structured thresholds require 'consecutive_samples' to be a positive integer")
+    return threshold_val, consecutive_samples
+
+
+def _extract_log_val(name, log_data, uses_lower_threshold, workflow, consecutive_samples=None):
     """Extract the value from the log data."""
     try:
+        tag = None
         if name == "reward":
             reward_tags = {
                 "rl_games": "rewards/iter",
@@ -230,7 +271,7 @@ def _extract_log_val(name, log_data, uses_lower_threshold, workflow):
                 "skrl": "Reward / Total reward (mean)",
             }
             tag = reward_tags.get(workflow)
-            if tag:
+            if tag and consecutive_samples is None:
                 return _extract_reward(log_data, tag)
 
         elif name == "episode_length":
@@ -241,8 +282,20 @@ def _extract_log_val(name, log_data, uses_lower_threshold, workflow):
                 "skrl": "Episode / Total timesteps (mean)",
             }
             tag = episode_tags.get(workflow)
-            if tag:
-                return _extract_feature(log_data, tag, uses_lower_threshold)
+        elif name == "success_rate":
+            success_rate_tags = {
+                "rl_games": "Episode/Metrics/success_rate",
+                "rsl_rl": "Metrics/success_rate",
+                "skrl": "Metrics/success_rate",
+            }
+            tag = success_rate_tags.get(workflow)
+
+        if tag:
+            if consecutive_samples is not None:
+                return _extract_sustained_feature(log_data, tag, uses_lower_threshold, consecutive_samples)
+            return _extract_feature(log_data, tag, uses_lower_threshold)
+        if name == "success_rate":
+            return None
     except KeyError as e:
         print(f"Warning: Metric '{name}' not found in logs for workflow '{workflow}': {e}")
         return None
@@ -261,6 +314,21 @@ def _extract_feature(log_data, feature, uses_lower_threshold):
         return max(log_data)
     else:
         return min(log_data)
+
+
+def _extract_sustained_feature(log_data, feature, uses_lower_threshold, consecutive_samples):
+    """Extract the best threshold-facing value sustained over a sample window."""
+    values = np.asarray(log_data[feature], dtype=float)[:, 1]
+    if len(values) < consecutive_samples:
+        return None
+    if not np.all(np.isfinite(values)):
+        return math.nan
+
+    window_extrema = []
+    for start in range(len(values) - consecutive_samples + 1):
+        window = values[start : start + consecutive_samples]
+        window_extrema.append(min(window) if uses_lower_threshold else max(window))
+    return max(window_extrema) if uses_lower_threshold else min(window_extrema)
 
 
 def _extract_reward(log_data, feature, k=8):
