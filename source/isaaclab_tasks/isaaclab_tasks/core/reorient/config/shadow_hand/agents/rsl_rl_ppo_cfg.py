@@ -105,6 +105,7 @@ class ShadowHandCameraFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 50000
     save_interval = 250
     experiment_name = "shadow_hand_camera"
+    obs_groups = {"actor": ["policy"], "critic": ["critic"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[1024, 512, 512, 256, 128],
         activation="elu",

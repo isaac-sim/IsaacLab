@@ -36,7 +36,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
 from isaaclab.renderers import RendererCfg  # noqa: E402
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (  # noqa: E402
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (  # noqa: E402
     ShadowHandCameraEnvCfg,
 )
 from isaaclab_tasks.utils.hydra import collect_presets  # noqa: E402
@@ -185,6 +185,7 @@ _CAMERA_DATA_TYPE_PRESETS = [
     ("default", ["rgb", "depth", "semantic_segmentation"]),
     ("full", ["rgb", "depth", "semantic_segmentation"]),
     ("rgb", ["rgb"]),
+    ("rgb_depth", ["rgb", "depth"]),
     ("albedo", ["albedo"]),
     ("simple_shading_constant_diffuse", ["simple_shading_constant_diffuse"]),
     ("simple_shading_diffuse_mdl", ["simple_shading_diffuse_mdl"]),
@@ -277,7 +278,7 @@ def test_all_renderer_presets_present(shadow_hand_camera_presets):
 # when paired with the warp renderer preset
 # ---------------------------------------------------------------------------
 
-_WARP_VALID_CAMERA_PRESETS = ["rgb", "depth"]
+_WARP_VALID_CAMERA_PRESETS = ["rgb", "rgb_depth", "depth"]
 _WARP_INVALID_CAMERA_PRESETS = [
     "default",
     "full",
@@ -290,7 +291,7 @@ _WARP_INVALID_CAMERA_PRESETS = [
 
 @pytest.mark.parametrize("camera_preset", _WARP_VALID_CAMERA_PRESETS)
 def test_warp_with_valid_camera_preset(shadow_hand_camera_presets, camera_preset):
-    """Warp + {rgb, depth} camera presets must not raise (depth with CNN disabled)."""
+    """Warp + {rgb, rgb_depth, depth} camera presets must not raise (depth with CNN disabled)."""
     camera_cfg = shadow_hand_camera_presets["tiled_camera"][camera_preset]
     warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
     enabled = camera_cfg.data_types != ["depth"]  # disable CNN for depth-only
