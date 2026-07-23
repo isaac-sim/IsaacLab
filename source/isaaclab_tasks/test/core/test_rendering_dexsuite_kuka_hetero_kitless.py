@@ -14,20 +14,11 @@ from rendering_test_utils import (
     make_determinism_fixture,
     make_generate_html_report_fixture,
     make_require_ovlibs_install_fixture,
-    make_xfail_rendering_params,
     rendering_test_dexsuite_kuka,
 )
 
 pytestmark = pytest.mark.isaacsim_ci
 
-_OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before ground textures are ready (NVBUG#6505191)."
-_RENDERING_PARAMS = make_xfail_rendering_params(
-    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
-    {
-        ("newton", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
-        for data_type in ("albedo", "simple_shading_diffuse_mdl", "simple_shading_full_mdl")
-    },
-)
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -36,7 +27,7 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
-@pytest.mark.parametrize("physics_backend,renderer,data_type", _RENDERING_PARAMS)
+@pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def test_rendering_dexsuite_kuka_hetero_kitless(physics_backend, renderer, data_type):
     """Camera output must match golden images (Dexsuite KukaAllegro Lift, single camera)."""
     rendering_test_dexsuite_kuka(physics_backend, renderer, data_type, False, _COMPARISON_SCORES)
