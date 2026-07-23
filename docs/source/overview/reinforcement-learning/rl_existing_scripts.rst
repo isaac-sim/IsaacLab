@@ -97,12 +97,12 @@ For example, ``Isaac-Reorient-Cube-Shadow-Camera-Direct`` defaults to RGB + dept
          # Train with RGB-only observations
          uv run isaaclab train --rl_library rsl_rl \
              --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
-       presets=rgb
+             --enable_cameras presets=rgb
 
          # Play — must use the same preset to load the matching checkpoint
          uv run isaaclab play --rl_library rsl_rl \
-             --task Isaac-Reorient-Cube-Shadow-Camera-Direct-Play \
-       presets=rgb
+             --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
+             --enable_cameras presets=rgb
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -111,12 +111,12 @@ For example, ``Isaac-Reorient-Cube-Shadow-Camera-Direct`` defaults to RGB + dept
          # Train with RGB-only observations
          ./isaaclab.sh train --rl_library rsl_rl \
              --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
-       presets=rgb
+             --enable_cameras presets=rgb
 
          # Play — must use the same preset to load the matching checkpoint
          ./isaaclab.sh play --rl_library rsl_rl \
-             --task Isaac-Reorient-Cube-Shadow-Camera-Direct-Play \
-       presets=rgb
+             --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
+             --enable_cameras presets=rgb
 
 Other available presets for this environment: ``albedo``,
 ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``,
