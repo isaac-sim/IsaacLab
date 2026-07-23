@@ -992,8 +992,7 @@ class TeleopSessionLifecycle:
 
         Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
         setting which the :class:`~isaaclab.app.AppLauncher` stores after
-        resolving the headless state (covers both explicit ``--headless`` and
-        implicit headless when no Kit visualizer is requested).  In
+        resolving the headless state from visualizer intent. In
         non-headless mode this is a no-op because Kit's profile system manages
         AR activation through the UI.
         """

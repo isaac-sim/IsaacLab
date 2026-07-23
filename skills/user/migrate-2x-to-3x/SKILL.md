@@ -48,7 +48,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/uv_run.rst`, `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py`, and the uv-based `train` and `play` entry points. If code changes invalidate migration guidance, update the official migration document first and keep this skill as a router plus checklist.
+Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py`, and the uv-based `train` and `play` entry points. If code changes invalidate migration guidance, update the official migration document first and keep this skill as a router plus checklist.
 
 ## References
 

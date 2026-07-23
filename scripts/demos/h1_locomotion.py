@@ -9,7 +9,7 @@ This script demonstrates an interactive demo with the H1 rough terrain environme
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/demos/h1_locomotion.py
+    uv run python scripts/demos/h1_locomotion.py
 
 """
 

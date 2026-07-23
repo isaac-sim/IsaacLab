@@ -42,7 +42,6 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool)
         "schema,omniperf",
         *(["--measure_sync_step"] if measure_sync_step else []),
         "presets=newton_mjwarp",
-        "--headless",
     ]
     res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=900)
     if res.returncode != 0:

@@ -9,7 +9,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
+    uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
 
 """
 

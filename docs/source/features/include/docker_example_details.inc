@@ -1,5 +1,4 @@
-Running an example with Docker
-==============================
+.. rubric:: Running an example with Docker
 
 From the root of the Isaac Lab repository,  the ``docker`` directory contains all the Docker relevant files. These include the three files
 (**Dockerfile**, **docker-compose.yaml**, **.env**) which are used by Docker, and an additional script that we use to interface with them,
@@ -10,8 +9,7 @@ including installation and obtaining access to an Isaac Sim image, please refere
 of Docker in general, please refer to `their official documentation <https://docs.docker.com/get-started/overview/>`_.
 
 
-Building the Container
-~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Building the Container
 
 To build the Isaac Lab container from the root of the Isaac Lab repository, we will run the following:
 
@@ -52,8 +50,7 @@ reflected immediately within the container without requiring us to rebuild the D
 We will now run a sample script from within the container to demonstrate how to extract artifacts
 from the Isaac Lab Docker container.
 
-The Code
-~~~~~~~~
+.. rubric:: The Code
 
 The tutorial corresponds to the ``log_time.py`` script in the ``IsaacLab/scripts/tutorials/00_sim`` directory.
 
@@ -66,8 +63,7 @@ The tutorial corresponds to the ``log_time.py`` script in the ``IsaacLab/scripts
       :linenos:
 
 
-The Code Explained
-~~~~~~~~~~~~~~~~~~
+.. rubric:: The Code Explained
 
 The Isaac Lab Docker container has several `volumes`_ to facilitate persistent storage between the host computer and the
 container. One such volume is the ``/workspace/isaaclab/logs`` directory.
@@ -89,8 +85,7 @@ The output will be a file, ``log.txt``, with the ``sim_time`` written on a newli
    :end-at: sim_time += sim_dt
 
 
-Executing the Script
-~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Executing the Script
 
 This command does not select a visualizer, so it runs without a GUI while producing the log:
 

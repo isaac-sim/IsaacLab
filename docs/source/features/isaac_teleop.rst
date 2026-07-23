@@ -796,13 +796,27 @@ The ``--cloudxr_env`` flag on ``teleop_se3_agent.py`` and ``record_demos.py`` se
 ``.env`` profile to use. The default is ``cloudxrjs`` (Quest/Pico). Use the ``avp`` shorthand
 for Apple Vision Pro, or pass a full file path for a custom profile:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Use the AVP profile
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit --xr \
-       --cloudxr_env avp
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         # Use the AVP profile
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr \
+             --cloudxr_env avp
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Use the AVP profile
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr \
+             --cloudxr_env avp
 
 Create a custom profile
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -827,18 +841,38 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
 * **Disable CloudXR entirely**: ``--cloudxr_env none``.
 * **Environment variable**: ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` overrides the CLI flag at runtime.
 
-.. code-block:: bash
+.. tab-set::
 
-   # Disable via CLI flag
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit --xr \
-       --no-auto_launch_cloudxr
+   .. tab-item:: uv (Recommended)
 
-   # Or disable via environment variable
-   ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit --xr
+      .. code-block:: bash
+
+         # Disable via CLI flag
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr \
+             --no-auto_launch_cloudxr
+
+         # Or disable via environment variable
+         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Disable via CLI flag
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr \
+             --no-auto_launch_cloudxr
+
+         # Or disable via environment variable
+         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
 
 
 .. _isaac-teleop-xr-anchor:
@@ -909,23 +943,49 @@ demonstrations.
 When your environment configuration has an ``isaac_teleop`` attribute, the script automatically
 uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit \
-       --xr
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/record_demos.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr
 
 Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
 (e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
 the input device:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-       --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
-       --visualizer kit \
-       --teleop_device keyboard
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/record_demos.py \
+             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
+             --visualizer kit \
+             --teleop_device keyboard
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
+             --visualizer kit \
+             --teleop_device keyboard
 
 The workflow is:
 

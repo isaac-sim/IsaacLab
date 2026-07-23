@@ -1,9 +1,8 @@
 .. _isaaclab-binaries-installation:
 
-Installation using Isaac Sim Pre-built Binaries
-===============================================
+.. rubric:: Detailed downloaded Isaac Sim setup
 
-The following steps first installs Isaac Sim from its pre-built binaries, then Isaac Lab from source code.
+These steps install a downloaded Isaac Sim package, then install an editable Isaac Lab checkout.
 
 .. caution::
 
@@ -12,13 +11,11 @@ The following steps first installs Isaac Sim from its pre-built binaries, then I
    ``isaaclab.bat -p`` on Windows) instead.
 
    If you need a dedicated virtual environment, install Isaac Sim via pip and follow the
-   :doc:`pip_installation` guide.
+   :ref:`installation-method-python-env` guide.
 
-Installing Isaac Sim
---------------------
+.. rubric:: Installing Isaac Sim
 
-Downloading pre-built binaries
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Downloading pre-built binaries
 
 Isaac Sim binaries can be downloaded directly as a zip file from
 `here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html>`__.
@@ -42,8 +39,7 @@ please refer to the `Isaac Sim documentation <https://docs.isaacsim.omniverse.nv
 
       On Windows systems, we assume the Isaac Sim directory is named ``C:\isaacsim``.
 
-Verifying the Isaac Sim installation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Verifying the Isaac Sim installation
 
 To avoid the overhead of finding and locating the Isaac Sim installation
 directory every time, we recommend exporting the following environment
@@ -75,8 +71,7 @@ variables to your terminal for the remaining of the installation instructions:
 
 .. include:: include/bin_verify_isaacsim.rst
 
-Installing Isaac Lab
---------------------
+.. rubric:: Installing Isaac Lab
 
 .. include:: include/src_clone_isaaclab.rst
 

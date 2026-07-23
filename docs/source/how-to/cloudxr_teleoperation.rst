@@ -113,12 +113,25 @@ Run Isaac Lab with CloudXR
 The CloudXR runtime launches automatically when a teleop script is started. No separate
 terminal or ``source`` step is needed. Launch a teleoperation script directly:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit \
-       --xr
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr
 
 To verify that the headset and controller tracking poses are reaching Isaac Lab, add
 ``--enable_debug_visualization`` to the command. The visualization draws red markers at tracked
@@ -153,13 +166,27 @@ hand joints and RGB axes at tracked controller aim poses. See
 To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
 use the ``--cloudxr_env`` flag:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit \
-       --xr \
-       --cloudxr_env avp
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr \
+             --cloudxr_env avp
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr \
+             --cloudxr_env avp
 
 For details on the shipped ``.env`` profiles and how to customise them, see
 :ref:`isaac-teleop-cloudxr-profiles` in the feature guide.
@@ -276,12 +303,25 @@ choose the tab that matches your hardware.
          Apple Vision Pro requires the ``auto-native`` device profile. Pass the ``avp``
          shorthand when launching the teleop script:
 
-         .. code-block:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-                --visualizer kit --xr \
-                --cloudxr_env avp
+            .. tab-item:: uv (Recommended)
+
+               .. code-block:: bash
+
+                  uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                      --visualizer kit --xr \
+                      --cloudxr_env avp
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code-block:: bash
+
+                  ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                      --visualizer kit --xr \
+                      --cloudxr_env avp
 
          See :ref:`isaac-teleop-cloudxr-profiles` for details on the shipped profiles.
 
@@ -405,16 +445,33 @@ hand tracking from the headset is occluded or when higher-precision finger data 
    (optimised for headset optical hand tracking). To use Manus gloves, create a custom
    ``.env`` file with the value set to ``1`` and pass it via ``--cloudxr_env``:
 
-   .. code-block:: bash
+   .. tab-set::
 
-      # Copy a shipped profile and enable push devices
-      cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
-      sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+      .. tab-item:: uv (Recommended)
 
-      ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-          --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-          --visualizer kit --xr \
-          --cloudxr_env ~/manus.env
+         .. code-block:: bash
+
+            # Copy a shipped profile and enable push devices
+            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+
+            uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                --visualizer kit --xr \
+                --cloudxr_env ~/manus.env
+
+      .. tab-item:: isaaclab.sh / isaaclab.bat
+
+         .. code-block:: bash
+
+            # Copy a shipped profile and enable push devices
+            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+
+            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                --visualizer kit --xr \
+                --cloudxr_env ~/manus.env
 
    See :ref:`isaac-teleop-cloudxr-profiles` for full details on customising profiles.
 
@@ -490,13 +547,27 @@ runtime command is needed.
 
 Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-     --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-     --num_demos 5 \
-     --dataset_file ./datasets/dataset.hdf5 \
-     --xr --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/record_demos.py \
+           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+           --num_demos 5 \
+           --dataset_file ./datasets/dataset.hdf5 \
+           --xr --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+           --num_demos 5 \
+           --dataset_file ./datasets/dataset.hdf5 \
+           --xr --visualizer kit
 
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 

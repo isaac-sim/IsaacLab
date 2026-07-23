@@ -16,9 +16,19 @@ running the following command:
       .. note::
          Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/list_envs.py --keyword <search_term>
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -39,9 +49,19 @@ To also see the available presets for each environment, pass ``--show_presets``:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/list_envs.py --show_presets
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -127,8 +147,8 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  |                             |                                                                         | ``newton_kamino``            |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-presets|   | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
-    |                  |                             | and perceptive inputs. Select data type via ``presets=``. Requires      | ``physx``,                   |
-    |                  |                             | running with ``--enable_cameras``.                                      | ``newton_mjwarp``,           |
+    |                  |                             | and perceptive inputs. Select data type via ``presets=``.               | ``physx``,                   |
+    |                  |                             |                                                                         | ``newton_mjwarp``,           |
     |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     |                  |                             |                                                                         | **renderer=**                |
     |                  |                             |                                                                         | ``isaacsim_rtx``,            |
@@ -141,8 +161,8 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-link|      | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             | from raw RGB/depth observations or features extracted by pre-trained    | ``physx``,                   |
-    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``. Requires      | ``newton_mjwarp``            |
-    |                  |                             | running with ``--enable_cameras``.                                      | **presets=** ``rgb``,        |
+    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``.               | ``newton_mjwarp``            |
+    |                  |                             |                                                                         | **presets=** ``rgb``,        |
     |                  |                             |                                                                         | ``depth``, ``resnet18``,     |
     |                  |                             |                                                                         | ``theia_tiny``               |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
@@ -225,7 +245,7 @@ for the lift-cube environment:
     |                         | |cube-shadow-lstm-link|      |                                                                             |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  | **physics=** ``physx``,      |
-    |                         |                              | Requires running with ``--enable_cameras``.                                 | ``newton_mjwarp``            |
+    |                         |                              |                                                                             | ``newton_mjwarp``            |
     |                         |                              |                                                                             | **renderer=**                |
     |                         |                              |                                                                             | ``isaacsim_rtx``,            |
     |                         |                              |                                                                             | ``newton_renderer``,         |

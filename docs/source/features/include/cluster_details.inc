@@ -1,8 +1,7 @@
 .. _deployment-cluster:
 
 
-Cluster Guide
-=============
+.. rubric:: Cluster Guide
 
 Clusters are a great way to speed up training and evaluation of learning algorithms.
 While the Isaac Lab Docker image can be used to run jobs on a cluster, many clusters only
@@ -25,8 +24,7 @@ convert the Isaac Lab Docker image into a singularity image and use it to submit
     documentation.
 
 
-Setup Instructions
-------------------
+.. rubric:: Setup Instructions
 
 In order to export the Docker Image to a singularity image, `apptainer`_ is required.
 A detailed overview of the installation procedure for ``apptainer`` can be found in its
@@ -53,8 +51,7 @@ the user cluster password from being requested multiple times.
   In the case of issues, please try to switch to those versions.
 
 
-Configuring the cluster parameters
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Configuring the cluster parameters
 
 First, you need to configure the cluster-specific parameters in ``docker/cluster/.env.cluster`` file.
 The following describes the parameters that need to be configured:
@@ -96,8 +93,7 @@ The following describes the parameters that need to be configured:
 When a ``job`` is submitted, it will also use variables defined in ``docker/.env.base``, though these
 should be correct by default.
 
-Exporting to singularity image
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Exporting to singularity image
 
 Next, we need to export the Docker image to a singularity image and upload
 it to the cluster. This step is only required once when the first job is submitted
@@ -123,8 +119,7 @@ specified, the default profile ``base`` will be used.
   access by removing the flag in ``docker/cluster/cluster_interface.sh``.
 
 
-Defining the job parameters
----------------------------
+.. rubric:: Defining the job parameters
 
 The job parameters need to be defined based on the job scheduler used by your cluster.
 You only need to update the appropriate script for the scheduler available to you.
@@ -132,8 +127,7 @@ You only need to update the appropriate script for the scheduler available to yo
 - For SLURM, update the parameters in ``docker/cluster/submit_job_slurm.sh``.
 - For PBS, update the parameters in ``docker/cluster/submit_job_pbs.sh``.
 
-For SLURM
-~~~~~~~~~
+.. rubric:: For SLURM
 
 The job parameters are defined inside the ``docker/cluster/submit_job_slurm.sh``.
 A typical SLURM operation requires specifying the number of CPUs and GPUs, the memory, and
@@ -160,8 +154,7 @@ by adding the following line to the ``submit_job_slurm.sh`` script:
   :linenos:
   :lineno-start: 3
 
-For PBS
-~~~~~~~
+.. rubric:: For PBS
 
 The job parameters are defined inside the ``docker/cluster/submit_job_pbs.sh``.
 A typical PBS operation requires specifying the number of CPUs and GPUs, and the time limit. For more
@@ -176,8 +169,7 @@ The default configuration is as follows:
   :lineno-start: 11
 
 
-Submitting a job
-----------------
+.. rubric:: Submitting a job
 
 To submit a job on the cluster, the following command can be used:
 
@@ -199,7 +191,7 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 
 .. code:: bash
 
-    ./docker/cluster/cluster_interface.sh job --rl_library rsl_rl --task IsaacContrib-Velocity-Rough-AnymalC --video --enable_cameras
+    ./docker/cluster/cluster_interface.sh job --rl_library rsl_rl --task IsaacContrib-Velocity-Rough-AnymalC --video
 
 The above will, in addition, also render videos of the training progress and store them under ``isaaclab/logs`` directory.
 

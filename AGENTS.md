@@ -35,31 +35,36 @@
   - Skip non-physical fields (indices, keys, counts, flags).
   - This rule applies to **public API docstrings only**, not test docstrings.
 - **Keep the documentation up-to-date.**
-  - When adding new files or symbols that are part of the public-facing API, make sure to keep the auto-generated documentation updated by running `./isaaclab.sh -d`.
+  - When adding new files or symbols that are part of the public-facing API, make sure to keep the auto-generated documentation updated by running `uv run isaaclab -d`.
 
 ## Dependencies
 
 - **Avoid adding new required dependencies.** IsaacLab's core should remain lightweight and minimize external requirements.
 - **Strongly prefer not adding new optional dependencies.** If additional functionality requires a new package, carefully consider whether the benefit justifies the added complexity and maintenance burden. When possible, implement functionality using existing dependencies, including Warp functions and kernels, NumPy, or the standard library.
 
-## Tooling: prefer `./isaaclab.sh -p` for running, testing, and benchmarking
+## Tooling: use `uv run` by default
 
-We use a wrapped python call within `./isaaclab.sh`.
+Use the uv-managed project environment for routine development commands. This keeps agent and contributor
+workflows aligned with the primary installation method.
 
-- **Use `./isaaclab.sh -p -c` for inline Python**: When running one-off Python commands, use `./isaaclab.sh -p -c "..."` instead of `python3 -c "..."`.
-- **Use `./isaaclab.sh -p`** to run standalone Python scripts without a `pyproject.toml` (e.g., in CI after switching to a branch with no project files).
+- **Use `uv run python -c` for inline Python**: Run one-off Python commands with `uv run python -c "..."`.
+- **Use `uv run python` for scripts and modules**: For example, `uv run python script.py` or `uv run python -m pytest`.
+- **Use `uv run isaaclab` for Isaac Lab CLI workflows**: For example, `uv run isaaclab train`,
+  `uv run isaaclab play`, `uv run isaaclab benchmark`, and repository maintenance commands.
+- **Use `./isaaclab.sh` only for advanced installation workflows** that explicitly require the installer,
+  such as `./isaaclab.sh -i <args>`. Do not use the wrapper for routine Python execution.
 
 ### Run tests
 
 ```bash
 # run all tests (extremely heavy, should be avoided).
-./isaaclab.sh -t
+uv run isaaclab -t
 
 # run a specific test file by name
-./isaaclab.sh -p -m pytest PATH_TO_TEST
+uv run python -m pytest PATH_TO_TEST
 
 # run a specific example test
-./isaaclab.sh -p -m pytest PATH_TO_TEST::METHOD
+uv run python -m pytest PATH_TO_TEST::METHOD
 ```
 
 ### Pre-commit (lint/format hooks)
@@ -68,16 +73,16 @@ We use a wrapped python call within `./isaaclab.sh`.
 
 Proper workflow:
 1. Make your code changes
-2. Run `./isaaclab.sh -f` to check ALL files
+2. Run `uv run isaaclab -f` to check ALL files
 3. If pre-commit modifies any files (e.g., formatting), review the changes
 4. Stage the modified files with `git add`
-5. Run `./isaaclab.sh -f` again to ensure all checks pass
+5. Run `uv run isaaclab -f` again to ensure all checks pass
 6. Only then create your commit with `git commit`
 7. Verify pre-commit still passes before pushing — never push commits that haven't been checked
 
 ```bash
 # Run pre-commit checks on all files
-./isaaclab.sh -f
+uv run isaaclab -f
 ```
 
 **Common mistakes to avoid:**
@@ -85,7 +90,7 @@ Proper workflow:
 - Don't push before running pre-commit (pushes broken code to the remote)
 - Do run pre-commit before committing and before pushing (clean workflow)
 
-**When reviewing code** (e.g. via a code-reviewer agent), always run `./isaaclab.sh -f` as part of the review to catch formatting or lint issues early.
+**When reviewing code** (e.g. via a code-reviewer agent), always run `uv run isaaclab -f` as part of the review to catch formatting or lint issues early.
 
 ## Agent skills
 
@@ -96,7 +101,7 @@ Proper workflow:
 - For PR preparation, follow the `isaaclab-preparing-pr-workflow` skill at `skills/developer/pr-workflow/SKILL.md`.
 - Keep `SKILL.md` files concise and link to one-level reference files for longer details.
 - Keep official docs and maintained source examples as the source of truth; skills should route agents through those references instead of duplicating them.
-- Validate skills with `./isaaclab.sh -p tools/skills/cli.py check` before opening a PR that changes `skills/`.
+- Validate skills with `uv run --no-project python tools/skills/cli.py check` before opening a PR that changes `skills/`.
 - The CI skills gate runs only for PRs that modify `skills/`, `tools/skills/`, or the skills workflow.
 
 ## Changelog
@@ -320,6 +325,6 @@ The command intentionally omits `--visualizer` / `--viz` so it runs headless by 
 
 To debug Warp kernel behavior:
 
-1. **Write a standalone reproduction script** and run it directly with `./isaaclab.sh -p -c "..."` or `./isaaclab.sh -p script.py`. This keeps stdout visible and avoids the test framework entirely.
+1. **Write a standalone reproduction script** and run it directly with `uv run python -c "..."` or `uv run python script.py`. This keeps stdout visible and avoids the test framework entirely.
 2. **Use high-precision format strings** for floating-point debugging (e.g., `wp.printf("val=%.15e\n", x)`) — the default `%f` format hides values smaller than ~1e-6 that can still affect control flow.
 3. **Remove all `wp.printf` calls before committing.**

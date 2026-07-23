@@ -56,8 +56,9 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli, remaining_args = parser.parse_known_args()
 
-# launch the simulator
-app_launcher = AppLauncher(args_cli)
+# Mimic environments may use camera observations or an RTX renderer. Request
+# rendering support here so callers do not need a legacy CLI flag.
+app_launcher = AppLauncher(args_cli, enable_cameras=True)
 simulation_app = app_launcher.app
 
 # Call an external callback if requested.

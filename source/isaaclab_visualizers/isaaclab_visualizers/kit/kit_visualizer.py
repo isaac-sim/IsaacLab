@@ -393,7 +393,7 @@ class KitVisualizer(BaseVisualizer):
         if not get_settings_manager().get("/isaaclab/cameras_enabled", False):
             raise RuntimeError(
                 "[KitVisualizer] tiled_cam_view=True requires camera rendering support. "
-                "Rerun with --enable_cameras, or disable tiled_cam_view for this visualizer config."
+                "Disable tiled_cam_view for this visualizer config."
             )
         logger.debug(
             "[KitVisualizer] Setting up camera image view: tiled=%s source=%s num_envs=%s",

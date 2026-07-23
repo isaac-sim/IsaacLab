@@ -1,16 +1,14 @@
 .. _deployment-docker:
 
 
-Docker Guide
-============
+.. rubric:: Docker Guide
 
 .. caution::
 
     Due to the dependency on Isaac Sim docker image, by running this container you are implicitly
     agreeing to the `NVIDIA Software License Agreement`_. If you do not agree to the EULA, do not run this container.
 
-Setup Instructions
-------------------
+.. rubric:: Setup Instructions
 
 .. note::
 
@@ -18,8 +16,7 @@ Setup Instructions
     They have been added here for the sake of completeness.
 
 
-Docker and Docker Compose
-~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Docker and Docker Compose
 
 We have tested the container using Docker Engine version 26.0.0 and Docker Compose version 2.25.0
 We recommend using these versions or newer.
@@ -37,8 +34,7 @@ We recommend using these versions or newer.
     the Isaac Lab directory is placed under the ``/home`` directory tree when using docker.
 
 
-Directory Organization
-----------------------
+.. rubric:: Directory Organization
 
 The root of the Isaac Lab repository contains the ``docker`` directory that has various files and scripts
 needed to run Isaac Lab inside a Docker container. A subset of these are summarized below:
@@ -56,8 +52,7 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
 * **container.py**: A utility script that interfaces with tools in ``utils`` to configure and build the image,
   and run and interact with the container.
 
-Running the Container
----------------------
+.. rubric:: Running the Container
 
 .. note::
 
@@ -132,8 +127,7 @@ directories to the ``docker/artifacts`` directory. This is useful for copying th
     ./docker/container.py stop
 
 
-CloudXR Runtime Support
-~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: CloudXR Runtime Support
 
 To enable CloudXR Runtime for streaming to compatible XR devices, you need to apply the patch file
 ``docker-compose.cloudxr-runtime.patch.yaml`` to run CloudXR Runtime container. The patch file defines services and
@@ -149,8 +143,7 @@ volumes for CloudXR Runtime and base. The environment variables required for Clo
     ./docker/container.py stop --files docker-compose.cloudxr-runtime.patch.yaml --env-file .env.cloudxr-runtime
 
 
-X11 forwarding
-~~~~~~~~~~~~~~
+.. rubric:: X11 forwarding
 
 The container supports X11 forwarding, which allows the user to run GUI applications from the container
 and display them on the host machine.
@@ -168,8 +161,7 @@ After the container is started, you can enter the container and run GUI applicat
 The display will be forwarded to the host machine.
 
 
-Python Interpreter
-~~~~~~~~~~~~~~~~~~
+.. rubric:: Python Interpreter
 
 The container uses the Python interpreter provided by Isaac Sim. This interpreter is located at
 ``/isaac-sim/python.sh``. We set aliases inside the container to make it easier to run the Python
@@ -181,8 +173,7 @@ interpreter. You can use the following commands to run the Python interpreter:
     python
 
 
-Understanding the mounted volumes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Understanding the mounted volumes
 
 The ``docker-compose.yaml`` file creates several named volumes that are mounted to the container.
 These are summarized below:
@@ -242,8 +233,7 @@ To view the contents of these volumes, you can use the following command:
 
 
 
-Isaac Lab Image Extensions
---------------------------
+.. rubric:: Isaac Lab Image Extensions
 
 The produced image depends on the arguments passed to ``container.py start`` and ``container.py stop``. These
 commands accept an image extension parameter as an additional argument. If no argument is passed, then this
@@ -281,8 +271,7 @@ The passed image extension argument will build the image defined in ``Dockerfile
 with the corresponding `profile`_ in the ``docker-compose.yaml`` and the envars from ``.env.${image_extension}``
 in addition to the ``.env.base``, if any.
 
-ROS2 Image Extension
-~~~~~~~~~~~~~~~~~~~~
+.. rubric:: ROS2 Image Extension
 
 In ``Dockerfile.ros2``, the container installs ROS2 Humble via an `apt package`_, and it is sourced in the ``.bashrc``.
 The exact version is specified by the variable ``ROS_APT_PACKAGE`` in the ``.env.ros2`` file,
@@ -300,8 +289,7 @@ The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Ea
       :language: bash
 
 
-Running Pre-Built Isaac Lab Container
--------------------------------------
+.. rubric:: Running Pre-Built Isaac Lab Container
 
 In Isaac Lab 2.0 release, we introduced a minimal pre-built container that contains a very minimal set
 of Isaac Sim and Omniverse dependencies, along with Isaac Lab 2.0 pre-built into the container.
@@ -376,9 +364,20 @@ To enable rendering through X11 forwarding, run:
 
 To run an example within the container, run:
 
-.. code:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+        uv run python scripts/tutorials/00_sim/log_time.py
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+        ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py
 
 
 .. _`NVIDIA Software License Agreement`: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement

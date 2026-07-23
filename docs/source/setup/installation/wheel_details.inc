@@ -1,5 +1,4 @@
-Installation using Isaac Lab Pip Packages
-=========================================
+.. rubric:: Detailed Isaac Lab Python package setup
 
 From Isaac Lab 2.0, pip packages are provided to install both Isaac Sim and Isaac Lab extensions from pip.
 Note that this installation process is only recommended for advanced users working on additional extension projects
@@ -17,8 +16,7 @@ To learn about how to set up your own project on top of Isaac Lab, please see :r
 
 .. include:: include/pip_python_virtual_env.rst
 
-Installing Isaac Lab
-~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Installing Isaac Lab
 
 The ``isaaclab`` pip wheel bundles all Isaac Lab extensions. Common optional
 pip extras include:
@@ -53,8 +51,7 @@ the conflicting upstream Isaac Sim pins are updated.
 
       pip install "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11" gym standard-distutils
 
-Installing dependencies
-~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Installing dependencies
 
 -  Install a CUDA-enabled PyTorch |torch_version| build that matches your system architecture:
 
@@ -131,8 +128,7 @@ Installing dependencies
 
 .. include:: include/pip_verify_isaacsim.rst
 
-Running Isaac Lab Scripts
-~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Running Isaac Lab Scripts
 
 By following the above scripts, your Python environment should now have access to all of the Isaac Lab extensions.
 To run a user-defined script for Isaac Lab, simply run
@@ -141,8 +137,7 @@ To run a user-defined script for Isaac Lab, simply run
 
     python my_awesome_script.py
 
-Generating VS Code Settings
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Generating VS Code Settings
 
 Due to the structure resulting from the installation, VS Code IntelliSense (code completion, parameter info
 and member lists, etc.) will not work by default. To set it up (define the search paths for import resolution,

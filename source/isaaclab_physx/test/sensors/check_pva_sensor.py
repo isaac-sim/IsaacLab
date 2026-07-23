@@ -17,7 +17,7 @@ from isaacsim import SimulationApp
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pva Test Script")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+parser.add_argument("--visualize", action="store_true", help="Open a window to display sensor output.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
 parser.add_argument(
     "--terrain_type",
@@ -29,7 +29,7 @@ parser.add_argument(
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
+config = {"headless": not args_cli.visualize}
 simulation_app = SimulationApp(config)
 
 
@@ -131,7 +131,7 @@ def main():
     # Create a pva sensor
     pva_cfg = PvaCfg(
         prim_path="/World/envs/env_.*/ball",
-        debug_vis=not args_cli.headless,
+        debug_vis=args_cli.visualize,
     )
     # increase scale of the arrows for better visualization
     pva_cfg.visualizer_cfg.markers["arrow"].scale = (1.0, 0.2, 0.2)
@@ -144,7 +144,7 @@ def main():
     print(pva)
 
     # Get the ball initial positions
-    sim.step(render=not args_cli.headless)
+    sim.step(render=args_cli.visualize)
     balls.update(sim.get_physics_dt())
     ball_initial_positions = balls.data.root_pos_w.torch.clone()
     ball_initial_orientations = balls.data.root_quat_w.torch.clone()
@@ -158,7 +158,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step(render=args_cli.visualize)
             continue
         # Reset the scene
         if step_count % 500 == 0:

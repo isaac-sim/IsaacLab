@@ -9,7 +9,7 @@ Each environment contains one kinematic body carrying a downward-facing grid
 sensor. All sensors cast against one shared ground plane.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
+    uv run python source/isaaclab_physx/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
 """
 
 from __future__ import annotations

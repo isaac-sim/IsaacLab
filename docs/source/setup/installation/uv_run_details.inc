@@ -1,7 +1,6 @@
 .. _uv-run-training:
 
-``uv run`` Training and Play (Experimental)
-============================================
+.. rubric:: Complete ``uv run`` reference
 
 .. warning::
 
@@ -35,8 +34,7 @@ Clone the repo and start training immediately — no virtual environment setup r
 libraries for ``--rl_library`` are: ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``, and ``rlinf``.
 
 
-Play / Evaluation
------------------
+.. rubric:: Play / Evaluation
 
 .. code-block:: bash
 

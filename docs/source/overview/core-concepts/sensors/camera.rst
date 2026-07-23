@@ -165,12 +165,24 @@ Accessing camera data
 The returned data has shape ``(num_cameras, height, width, num_channels)``, ready to use directly
 as an observation in RL training.
 
-When using the RTX renderer, add ``--enable_cameras`` when launching:
+Camera rendering is enabled automatically when launching an RTX camera task:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rl_games \
-        --task=Isaac-Cartpole-Camera-Direct --enable_cameras
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run isaaclab train --rl_library rl_games \
+              --task=Isaac-Cartpole-Camera-Direct
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh train --rl_library rl_games \
+              --task=Isaac-Cartpole-Camera-Direct
 
 
 Annotators
@@ -388,10 +400,21 @@ It loads a PPISP-authored USD or USDZ Gaussian scene, creates baseline and
 PPISP camera sensors for the selected camera, and saves baseline, PPISP, and
 absolute-difference images.
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
-       --renderer newton --max_steps 60
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/sensors/ppisp_camera.py \
+             --renderer newton --max_steps 60
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+             --renderer newton --max_steps 60
 
 Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
 ``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage

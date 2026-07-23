@@ -1,5 +1,4 @@
-Installation
-~~~~~~~~~~~~
+.. rubric:: Installation
 
 -  Install dependencies using ``apt`` (on Linux only):
 
@@ -38,4 +37,4 @@ Installation
    By default this installs core packages plus optional submodules (``mimic``,
    ``teleop``) and the automatic extra features (``newton``, ``rl``,
    ``visualizer``). For the full token reference and examples, see
-   :ref:`installation-selective-install`.
+   :ref:`modularized installation <installation-selective-install>`.

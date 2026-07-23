@@ -1,20 +1,17 @@
 .. _isaaclab-source-installation:
 
-Installation using Isaac Sim Source Code
-========================================
+.. rubric:: Detailed Isaac Sim source-build setup
 
-The following steps first installs Isaac Sim from source, then Isaac Lab from source code.
+These steps build Isaac Sim from source, then install an editable Isaac Lab checkout.
 
 .. note::
 
    This is a more advanced installation method and is not recommended for most users. Only follow this method
    if you wish to modify the source code of Isaac Sim as well.
 
-Installing Isaac Sim
---------------------
+.. rubric:: Installing Isaac Sim
 
-Building from source
-~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Building from source
 
 From Isaac Sim 5.0 release, it is possible to build Isaac Sim from its source code.
 This approach is meant for users who wish to modify the source code of Isaac Sim as well,
@@ -62,8 +59,7 @@ for the convenience of users.
            build.bat
 
 
-Verifying the Isaac Sim installation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Verifying the Isaac Sim installation
 
 To avoid the overhead of finding and locating the Isaac Sim installation
 directory every time, we recommend exporting the following environment
@@ -95,8 +91,7 @@ variables to your terminal for the remaining of the installation instructions:
 .. include:: include/bin_verify_isaacsim.rst
 
 
-Installing Isaac Lab
---------------------
+.. rubric:: Installing Isaac Lab
 
 .. include:: include/src_clone_isaaclab.rst
 

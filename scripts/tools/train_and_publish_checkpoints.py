@@ -99,7 +99,6 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--force_review", action="store_true", help="Forces review when one already exists.")
 parser.add_argument("--force_publish", action="store_true", help="Publish checkpoints without review.")
-parser.add_argument("--headless", action="store_true", help="Run training without the UI.")
 
 args, _ = parser.parse_known_args()
 
@@ -157,7 +156,7 @@ if args.publish_checkpoint and not has_pretrained_checkpoints_asset_root_dir():
     )
 
 
-def train_job(workflow, task_name, headless=False, force=False, num_envs=None):
+def train_job(workflow, task_name, force=False, num_envs=None):
     """
     This trains a task using the workflow's train.py script, overriding the experiment name to ensure unique
     log directories.  By default it will return if an experiment has already been run.
@@ -165,7 +164,6 @@ def train_job(workflow, task_name, headless=False, force=False, num_envs=None):
     Args:
         workflow: The workflow.
         task_name: The task name.
-        headless: Should the training run without the UI.
         force: Run training even if previous experiments have been run.
         num_envs: How many simultaneous environments to simulate, overriding the config.
     """
@@ -187,15 +185,12 @@ def train_job(workflow, task_name, headless=False, force=False, num_envs=None):
         workflow,
         "--task",
         task_name,
-        "--enable_cameras",
     ]
 
     # Changes the directory name for logging
     if WORKFLOW_EXPERIMENT_NAME_VARIABLE[workflow]:
         cmd.append(f"{WORKFLOW_EXPERIMENT_NAME_VARIABLE[workflow]}={task_name}")
 
-    if headless:
-        cmd.append("--headless")
     if num_envs:
         cmd.extend(["--num_envs", str(num_envs)])
 
@@ -244,7 +239,6 @@ def review_pretrained_checkpoint(workflow, task_name, force_review=False, num_en
         task_name,
         "--checkpoint",
         get_pretrained_checkpoint_path(workflow, task_name),
-        "--enable_cameras",
     ]
 
     if num_envs:
@@ -396,7 +390,7 @@ def main():
 
             # Training reviewing and publishing
             if args.train:
-                train_job(workflow, task_spec.id, args.headless, args.force, args.num_envs)
+                train_job(workflow, task_spec.id, args.force, args.num_envs)
 
             if args.review:
                 review_pretrained_checkpoint(workflow, task_spec.id, args.force_review, args.num_envs)

@@ -40,17 +40,38 @@ The Code Execution
 
 First, we need to train the ``Isaac-Velocity-Rough-H1`` task by running the following:
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1
 
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 where you started the simulation.
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
 
 
 After running the play script, the policy will be exported to jit and onnx files under the experiment logs directory.
@@ -61,9 +82,20 @@ to learn about how to initialize the policy.
 We can then load the warehouse asset and run inference on the H1 robot using the exported jit policy
 (``policy.pt`` file in the ``exported/`` directory).
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run python scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt --viz kit
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt --viz kit
 
 
 .. figure:: ../../_static/tutorials/tutorial_policy_inference_in_usd.jpg
