@@ -308,7 +308,10 @@ def test_state_02_initial_and_live_com_velocity(kamino, authoring):
             "runtime",
             marks=pytest.mark.xfail(
                 strict=True,
-                reason="IsaacLab#6518: The articulation / rigid object does not refresh inverse mass after the public runtime mass writer",
+                reason=(
+                    "IsaacLab#6518: The articulation / rigid object does not refresh inverse mass "
+                    "after the public runtime mass writer"
+                ),
             ),
         ),
     ],

@@ -58,6 +58,27 @@ def predict_implicit_joint_step(
     return velocity_next, position + dt * velocity_next
 
 
+def predict_implicitfast_joint_step(
+    *,
+    stiffness: float,
+    drive_damping: float,
+    armature: float,
+    position_target: float,
+    body_inertia: float,
+    effort: float = 0.0,
+    velocity_target: float = 0.0,
+    position: float = 0.0,
+    velocity: float = 0.0,
+    passive_damping: float = 0.0,
+    dt: float = PROFILE_DOF_DT,
+) -> tuple[float, float]:
+    """Predict one MJWarp implicitFast step for a fixed-base single-DOF joint."""
+    effective_inertia = body_inertia + armature + dt * (drive_damping + passive_damping)
+    drive_effort = effort + stiffness * (position_target - position) + drive_damping * velocity_target
+    velocity_next = ((body_inertia + armature) * velocity + dt * drive_effort) / effective_inertia
+    return velocity_next, position + dt * velocity_next
+
+
 def predict_semi_implicit_motion(
     position: torch.Tensor,
     velocity: torch.Tensor,

@@ -41,7 +41,7 @@ _PUBLIC_APIS = {
 }
 
 
-def _case(parameter_id: str, authoring: str) -> PhysicalCase:
+def _case(parameter_adapter, parameter_id: str, authoring: str) -> PhysicalCase:
     api = _PUBLIC_APIS[parameter_id]
     if authoring == "usd":
         api = "UsdPhysics joint or drive schema"
@@ -49,18 +49,19 @@ def _case(parameter_id: str, authoring: str) -> PhysicalCase:
         api = "ImplicitActuatorCfg or ArticulationCfg initialization"
     return PhysicalCase(
         parameter_id=parameter_id,
-        backend="newton-kamino",
+        backend=parameter_adapter.backend,
         authoring_path=authoring,
         profile="PROFILE-DOF",
         dt=PROFILE_DOF_DT,
         substeps=1,
         api=api,
-        rtol=5.0e-3,
-        atol=2.0e-4,
+        rtol=parameter_adapter.rtol,
+        atol=parameter_adapter.atol,
     )
 
 
 def _assert_step(
+    parameter_adapter,
     parameter_id: str,
     authoring: str,
     result: dict[str, float],
@@ -70,7 +71,7 @@ def _assert_step(
     position_initial: float = 0.0,
     velocity_initial: float = 0.0,
 ) -> None:
-    case = _case(parameter_id, authoring)
+    case = _case(parameter_adapter, parameter_id, authoring)
     assert_physical_close(result["position_before"], position_initial, case)
     assert_physical_close(result["velocity_before"], velocity_initial, case)
     assert_physical_close(result["velocity_after"], velocity_expected, case)
@@ -78,9 +79,10 @@ def _assert_step(
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
-def test_build_yields_fixed_base_single_dof(kamino, joint_type):
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_build_yields_fixed_base_single_dof(parameter_adapter, joint_type):
     """The shared procedure imports a fixed-base one-DOF articulation with known inertia."""
-    with build_simulation_context(device="cuda:0", sim_cfg=kamino.profile_dof_cfg()) as sim:
+    with build_simulation_context(device="cuda:0", sim_cfg=parameter_adapter.profile_dof_cfg()) as sim:
         sim._app_control_on_stop_handle = None
         build_single_dof(joint_type, usd_stiffness=100.0)
         articulation = Articulation(make_single_dof_cfg(100.0, 0.0, None))
@@ -97,9 +99,10 @@ def test_build_yields_fixed_base_single_dof(kamino, joint_type):
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("stiffness", [100.0, 300.0])
-def test_drive_01_stiffness_single_step(kamino, joint_type, authoring, stiffness):
-    """DRIVE-01: Authored implicit stiffness reproduces the analytical Kamino step."""
-    result = kamino.run_single_dof_step(
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_drive_01_stiffness_single_step(parameter_adapter, joint_type, authoring, stiffness):
+    """DRIVE-01: Authored implicit stiffness reproduces the backend's analytical step."""
+    result = parameter_adapter.run_single_dof_step(
         joint_type,
         authoring,
         stiffness=stiffness,
@@ -107,22 +110,23 @@ def test_drive_01_stiffness_single_step(kamino, joint_type, authoring, stiffness
         armature=0.0,
         position_target=Q_REF,
     )
-    velocity, position = predict_implicit_joint_step(
+    velocity, position = parameter_adapter.predict_dof_step(
         stiffness=stiffness,
         drive_damping=0.0,
         armature=0.0,
         position_target=Q_REF,
         body_inertia=result["body_inertia"],
     )
-    _assert_step("DRIVE-01", authoring, result, velocity, position)
+    _assert_step(parameter_adapter, "DRIVE-01", authoring, result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("damping", [20.0, 60.0])
-def test_drive_02_damping_single_step(kamino, joint_type, authoring, damping):
-    """DRIVE-02: Authored implicit drive damping reproduces the analytical Kamino step."""
-    result = kamino.run_single_dof_step(
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_drive_02_damping_single_step(parameter_adapter, joint_type, authoring, damping):
+    """DRIVE-02: Authored drive damping reproduces the backend's analytical step."""
+    result = parameter_adapter.run_single_dof_step(
         joint_type,
         authoring,
         stiffness=100.0,
@@ -130,22 +134,23 @@ def test_drive_02_damping_single_step(kamino, joint_type, authoring, damping):
         armature=0.0,
         position_target=Q_REF,
     )
-    velocity, position = predict_implicit_joint_step(
+    velocity, position = parameter_adapter.predict_dof_step(
         stiffness=100.0,
         drive_damping=damping,
         armature=0.0,
         position_target=Q_REF,
         body_inertia=result["body_inertia"],
     )
-    _assert_step("DRIVE-02", authoring, result, velocity, position)
+    _assert_step(parameter_adapter, "DRIVE-02", authoring, result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize("armature", [0.1, 0.5])
-def test_joint_07_armature_single_step(kamino, joint_type, authoring, armature):
-    """JOINT-07: Authored armature reproduces the analytical Kamino step."""
-    result = kamino.run_single_dof_step(
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_joint_07_armature_single_step(parameter_adapter, joint_type, authoring, armature):
+    """JOINT-07: Authored armature reproduces the backend's analytical step."""
+    result = parameter_adapter.run_single_dof_step(
         joint_type,
         authoring,
         stiffness=100.0,
@@ -153,14 +158,14 @@ def test_joint_07_armature_single_step(kamino, joint_type, authoring, armature):
         armature=armature,
         position_target=Q_REF,
     )
-    velocity, position = predict_implicit_joint_step(
+    velocity, position = parameter_adapter.predict_dof_step(
         stiffness=100.0,
         drive_damping=0.0,
         armature=armature,
         position_target=Q_REF,
         body_inertia=result["body_inertia"],
     )
-    _assert_step("JOINT-07", authoring, result, velocity, position)
+    _assert_step(parameter_adapter, "JOINT-07", authoring, result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
@@ -188,6 +193,7 @@ def test_joint_08_passive_damping_usd_single_step(kamino, joint_type, passive_da
         passive_damping=passive_damping,
     )
     _assert_step(
+        kamino,
         "JOINT-08",
         "usd",
         result,
@@ -219,7 +225,7 @@ def test_cmd_01_feedforward_torque_implicit_single_step(kamino, joint_type, driv
         body_inertia=result["body_inertia"],
         effort=effort,
     )
-    _assert_step("CMD-01", "runtime", result, velocity, position)
+    _assert_step(kamino, "CMD-01", "runtime", result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
@@ -256,7 +262,7 @@ def test_cmd_01_feedforward_torque_explicit_single_step(kamino, joint_type, driv
         body_inertia=result["body_inertia"],
         effort=effort,
     )
-    _assert_step("CMD-01", "runtime", result, velocity, position)
+    _assert_step(kamino, "CMD-01", "runtime", result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
@@ -282,7 +288,7 @@ def test_cmd_02_velocity_reference_single_step(kamino, joint_type, velocity_targ
         velocity_target=velocity_target,
     )
     # The cfg drive seed establishes VELOCITY mode; the target itself is a runtime command.
-    _assert_step("CMD-02", "runtime", result, velocity, position)
+    _assert_step(kamino, "CMD-02", "runtime", result, velocity, position)
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
@@ -330,7 +336,7 @@ def test_joint_02_position_state(kamino, joint_type, authoring):
         position=position,
         velocity=0.0,
     )
-    case = _case("JOINT-02", authoring)
+    case = _case(kamino, "JOINT-02", authoring)
     assert_physical_close(result["position_before"], position, case)
     assert_physical_close(result["velocity_before"], 0.0, case)
     assert_physical_close(result["position_after"], position, case)
@@ -348,7 +354,7 @@ def test_joint_03_velocity_state(kamino, joint_type, authoring):
         position=0.0,
         velocity=velocity,
     )
-    case = _case("JOINT-03", authoring)
+    case = _case(kamino, "JOINT-03", authoring)
     assert_physical_close(result["position_before"], 0.0, case)
     assert_physical_close(result["velocity_before"], velocity, case)
     assert_physical_close(result["position_after"], velocity * PROFILE_DOF_DT, case)
@@ -361,7 +367,7 @@ def test_body_03_center_of_mass_gravity_moment(kamino):
     velocity, body_inertia = kamino.run_com_gravity_probe(offset)
     torque_z = offset[0] * JOINT_MASS["revolute"] * -9.81
     expected_velocity = torque_z * PROFILE_DOF_DT / body_inertia
-    case = _case("BODY-03", "usd")
+    case = _case(kamino, "BODY-03", "usd")
     assert_physical_close(velocity, expected_velocity, case)
 
     control_velocity, _ = kamino.run_com_gravity_probe((0.0, 0.0, 0.0))

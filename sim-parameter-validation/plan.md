@@ -198,11 +198,11 @@ storage-only tests remain `T`.
 | JOINT-04 | Lower and upper position limits | T / N / T | T / N / T | I / N / I |
 | JOINT-05 | Velocity limit | T / T / T | X / X / X | X / X / X |
 | JOINT-06 | Effort limit | T / T / T | T / T / T | X / X / X |
-| JOINT-07 | Armature | T / T / T | T / T / T | I / I / I |
+| JOINT-07 | Armature | T / T / T | I / I / I | I / I / I |
 | JOINT-08 | Passive joint damping | T / T / T | T / T / T | I / T / T |
 | JOINT-09 | Joint dry-friction force/torque | T / T / T | T / T / T | X / X / X |
-| DRIVE-01 | Implicit drive stiffness | T / T / T | T / T / T | I / I / I |
-| DRIVE-02 | Implicit drive damping | T / T / T | T / T / T | I / I / I |
+| DRIVE-01 | Implicit drive stiffness | T / T / T | I / I / I | I / I / I |
+| DRIVE-02 | Implicit drive damping | T / T / T | I / I / I | I / I / I |
 | CMD-01 | Feed-forward joint effort | N / N / T | N / N / T | N / N / I |
 | CMD-02 | Joint velocity target | N / N / T | N / N / T | N / N / I |
 | ACT-01 | Explicit actuator stiffness integration | N / T / T | N / T / T | N / T / T |
@@ -632,9 +632,11 @@ implemented; Python override and runtime paths remain `T` until
 [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) exposes passive joint damping separately from
 implicit drive damping.
 
-Phase 1a and the Kamino portion of Phase 1b are implemented under
+Phase 1a, the Kamino portion of Phase 1b, and the first MJWarp Phase 1c batch are implemented under
 `source/isaaclab_newton/test/physics/parameter_validation/`. The shared importable fixture and oracle modules
-live under `source/isaaclab/isaaclab/test/physics/parameter_validation/`. Kamino physical coverage implements
+live under `source/isaaclab/isaaclab/test/physics/parameter_validation/`. The MJWarp batch implements all
+authoring paths for `DRIVE-01`, `DRIVE-02`, and `JOINT-07` against a pinned collision-free implicitFast profile
+and implicitFast one-step oracle. Kamino physical coverage implements
 the `I` cells for `SIM-01`, `STATE-01`, `STATE-02`, `BODY-01`, `BODY-02`, `BODY-03`, `JOINT-02`, and
 `JOINT-03`; `BODY-01` and `BODY-02` runtime `X` cells retain strict expected-failure coverage in the `X`-cell
 register.

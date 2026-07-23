@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kamino adapters for simulation parameter-validation fixtures."""
+"""Newton backend adapters for simulation parameter-validation fixtures."""
 
 from isaaclab.app import AppLauncher
 
@@ -13,7 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 from isaaclab_newton.assets import Articulation
-from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.physics.parameter_validation.fixtures import (
@@ -26,34 +26,32 @@ from isaaclab.test.physics.parameter_validation.fixtures import (
     build_single_dof,
     make_single_dof_cfg,
 )
-from isaaclab.test.physics.parameter_validation.oracles import PROFILE_DOF_DT, PROFILE_FREE_DT
+from isaaclab.test.physics.parameter_validation.oracles import (
+    PROFILE_DOF_DT,
+    PROFILE_FREE_DT,
+    predict_implicit_joint_step,
+    predict_implicitfast_joint_step,
+)
 
 DEVICE = "cuda:0"
 KAMINO_RTOL = 5.0e-3
 KAMINO_ATOL = 2.0e-4
+MJWARP_RTOL = 2.0e-4
+MJWARP_ATOL = 2.0e-5
 BASE_STIFFNESS = 100.0
 BASE_DAMPING = 10.0
 
 
-class KaminoParameterAdapter:
-    """Backend adapter for the pinned Kamino validation profiles."""
+class _SingleDofParameterAdapter:
+    """Common single-DOF execution path for Newton parameter-validation adapters."""
 
-    def profile_dof_cfg(self, *, alpha: float = 0.0, beta: float = 0.0) -> SimulationCfg:
-        """Create the pinned Kamino single-DOF simulation profile."""
-        return self._sim_cfg(
-            dt=PROFILE_DOF_DT,
-            gravity=(0.0, 0.0, 0.0),
-            alpha=alpha,
-            beta=beta,
-        )
+    backend: str
+    rtol: float
+    atol: float
 
-    def profile_free_cfg(
-        self,
-        *,
-        gravity: tuple[float, float, float] = (0.0, 0.0, 0.0),
-    ) -> SimulationCfg:
-        """Create the pinned Kamino collision-free body profile."""
-        return self._sim_cfg(dt=PROFILE_FREE_DT, gravity=gravity, alpha=0.0, beta=0.0)
+    def profile_dof_cfg(self) -> SimulationCfg:
+        """Create the pinned backend single-DOF simulation profile."""
+        return self._sim_cfg(dt=PROFILE_DOF_DT, gravity=(0.0, 0.0, 0.0))
 
     def run_single_dof_step(
         self,
@@ -70,7 +68,7 @@ class KaminoParameterAdapter:
         velocity: float = 0.0,
         passive_damping: float = 0.0,
     ) -> dict[str, float]:
-        """Author a parameter, run one Kamino DOF step, and return observed state."""
+        """Author a parameter, run one backend DOF step, and return observed state."""
         spec = self._dof_authoring_spec(
             authoring,
             stiffness=stiffness,
@@ -119,6 +117,88 @@ class KaminoParameterAdapter:
                 "position_after": float(articulation.data.joint_pos.torch[0, 0]),
                 "velocity_after": float(articulation.data.joint_vel.torch[0, 0]),
             }
+
+    @staticmethod
+    def predict_dof_step(**kwargs: float) -> tuple[float, float]:
+        """Predict the adapter's pinned single-DOF step."""
+        raise NotImplementedError
+
+    @staticmethod
+    def _dof_authoring_spec(
+        authoring: str,
+        *,
+        stiffness: float,
+        damping: float,
+        armature: float,
+    ) -> dict:
+        # Non-zero USD gains establish Newton target mode until IsaacLab#6649 is resolved.
+        usd_stiffness = BASE_STIFFNESS if stiffness > 0.0 else 0.0
+        usd_damping = BASE_DAMPING if damping > 0.0 else 0.0
+        if authoring == "usd":
+            return {
+                "usd": (stiffness, damping, armature),
+                "cfg": (None, None, None),
+                "runtime": None,
+            }
+        if authoring == "cfg":
+            return {
+                "usd": (usd_stiffness, usd_damping, 0.0),
+                "cfg": (stiffness, damping, armature),
+                "runtime": None,
+            }
+        if authoring == "runtime":
+            return {
+                "usd": (usd_stiffness, usd_damping, armature / 10.0),
+                "cfg": (None, None, None),
+                "runtime": (stiffness, damping, armature),
+            }
+        if authoring == "runtime-error":
+            if stiffness == 0.0 and damping == 0.0 and armature == 0.0:
+                return {
+                    "usd": (BASE_STIFFNESS, 0.0, 0.0),
+                    "cfg": (None, None, None),
+                    "runtime": (0.0, 0.0, 0.0),
+                }
+            return {
+                "usd": (0.0, 0.0, 0.0),
+                "cfg": (None, None, None),
+                "runtime": (stiffness, damping, armature),
+            }
+        raise ValueError(f"Unknown authoring path: {authoring}")
+
+    @staticmethod
+    def _sim_cfg(*, dt: float, gravity: tuple[float, float, float]) -> SimulationCfg:
+        raise NotImplementedError
+
+
+class KaminoParameterAdapter(_SingleDofParameterAdapter):
+    """Backend adapter for the pinned Kamino validation profiles."""
+
+    backend = "newton-kamino"
+    rtol = KAMINO_RTOL
+    atol = KAMINO_ATOL
+
+    @staticmethod
+    def predict_dof_step(**kwargs: float) -> tuple[float, float]:
+        """Predict the pinned Kamino implicit single-DOF step."""
+        return predict_implicit_joint_step(**kwargs)
+
+    def profile_dof_cfg(self, *, alpha: float = 0.0, beta: float = 0.0) -> SimulationCfg:
+        """Create the pinned Kamino single-DOF simulation profile."""
+        return self._sim_cfg(
+            dt=PROFILE_DOF_DT,
+            gravity=(0.0, 0.0, 0.0),
+            alpha=alpha,
+            beta=beta,
+        )
+
+    def profile_free_cfg(
+        self,
+        *,
+        gravity: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    ) -> SimulationCfg:
+        """Create the pinned Kamino collision-free body profile."""
+        return self._sim_cfg(dt=PROFILE_FREE_DT, gravity=gravity, alpha=0.0, beta=0.0)
 
     def run_position_limit_probe(
         self, joint_type: str, authoring: str, limit: str, bound: float
@@ -236,8 +316,8 @@ class KaminoParameterAdapter:
         *,
         dt: float,
         gravity: tuple[float, float, float],
-        alpha: float,
-        beta: float,
+        alpha: float = 0.0,
+        beta: float = 0.0,
     ) -> SimulationCfg:
         return SimulationCfg(
             dt=dt,
@@ -253,49 +333,6 @@ class KaminoParameterAdapter:
                 use_cuda_graph=False,
             ),
         )
-
-    @staticmethod
-    def _dof_authoring_spec(
-        authoring: str,
-        *,
-        stiffness: float,
-        damping: float,
-        armature: float,
-    ) -> dict:
-        # Non-zero USD gains establish Kamino target mode until IsaacLab#6649 is resolved.
-        usd_stiffness = BASE_STIFFNESS if stiffness > 0.0 else 0.0
-        usd_damping = BASE_DAMPING if damping > 0.0 else 0.0
-        if authoring == "usd":
-            return {
-                "usd": (stiffness, damping, armature),
-                "cfg": (None, None, None),
-                "runtime": None,
-            }
-        if authoring == "cfg":
-            return {
-                "usd": (usd_stiffness, usd_damping, 0.0),
-                "cfg": (stiffness, damping, armature),
-                "runtime": None,
-            }
-        if authoring == "runtime":
-            return {
-                "usd": (usd_stiffness, usd_damping, armature / 10.0),
-                "cfg": (None, None, None),
-                "runtime": (stiffness, damping, armature),
-            }
-        if authoring == "runtime-error":
-            if stiffness == 0.0 and damping == 0.0 and armature == 0.0:
-                return {
-                    "usd": (BASE_STIFFNESS, 0.0, 0.0),
-                    "cfg": (None, None, None),
-                    "runtime": (0.0, 0.0, 0.0),
-                }
-            return {
-                "usd": (0.0, 0.0, 0.0),
-                "cfg": (None, None, None),
-                "runtime": (stiffness, damping, armature),
-            }
-        raise ValueError(f"Unknown authoring path: {authoring}")
 
     @staticmethod
     def _position_limit_authoring_spec(authoring: str, limit: str, bound: float) -> dict:
@@ -338,9 +375,54 @@ class KaminoParameterAdapter:
         raise ValueError(f"Unknown authoring path: {authoring}")
 
 
+class MJWarpParameterAdapter(_SingleDofParameterAdapter):
+    """Backend adapter for the pinned MJWarp implicitFast single-DOF profile."""
+
+    backend = "newton-mjwarp"
+    rtol = MJWARP_RTOL
+    atol = MJWARP_ATOL
+
+    @staticmethod
+    def predict_dof_step(**kwargs: float) -> tuple[float, float]:
+        """Predict the pinned MJWarp implicitFast single-DOF step."""
+        return predict_implicitfast_joint_step(**kwargs)
+
+    @staticmethod
+    def _sim_cfg(*, dt: float, gravity: tuple[float, float, float]) -> SimulationCfg:
+        return SimulationCfg(
+            dt=dt,
+            gravity=gravity,
+            device=DEVICE,
+            physics=NewtonCfg(
+                solver_cfg=MJWarpSolverCfg(
+                    disable_contacts=True,
+                    integrator="implicitfast",
+                    iterations=1,
+                    ls_iterations=1,
+                ),
+                num_substeps=1,
+                use_cuda_graph=False,
+            ),
+        )
+
+
 @pytest.fixture
 def kamino() -> KaminoParameterAdapter:
     """Provide the pinned Kamino parameter-validation adapter."""
     if not torch.cuda.is_available():
         pytest.skip("Kamino solver tests require a CUDA device")
     return KaminoParameterAdapter()
+
+
+@pytest.fixture
+def mjwarp() -> MJWarpParameterAdapter:
+    """Provide the pinned MJWarp parameter-validation adapter."""
+    if not torch.cuda.is_available():
+        pytest.skip("MJWarp solver tests require a CUDA device")
+    return MJWarpParameterAdapter()
+
+
+@pytest.fixture
+def parameter_adapter(request) -> KaminoParameterAdapter | MJWarpParameterAdapter:
+    """Provide a backend adapter selected by an indirect test parameter."""
+    return request.getfixturevalue(request.param)
