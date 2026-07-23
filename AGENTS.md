@@ -328,3 +328,38 @@ To debug Warp kernel behavior:
 1. **Write a standalone reproduction script** and run it directly with `uv run python -c "..."` or `uv run python script.py`. This keeps stdout visible and avoids the test framework entirely.
 2. **Use high-precision format strings** for floating-point debugging (e.g., `wp.printf("val=%.15e\n", x)`) — the default `%f` format hides values smaller than ~1e-6 that can still affect control flow.
 3. **Remove all `wp.printf` calls before committing.**
+
+### Warp mask-first boundaries
+
+Boolean environment masks are the canonical selection in Warp-first code; host-side
+mask-to-ID compaction (`nonzero()` on device data) is a GPU-to-host synchronization
+with a data-dependent shape, which both stalls the pipeline and permanently
+disqualifies the containing code path from CUDA graph capture.
+
+1. **Syncs only inside named, sanctioned boundary helpers.** Host syncs
+   (`nonzero`, `argwhere`, `item`, `cpu`, `tolist`, `numpy`) on the mask-native
+   path live in small single-purpose functions listed in
+   `SANCTIONED_BOUNDARIES` of
+   `source/isaaclab_experimental/test/utils/test_mask_boundary_gate.py` — no
+   inline marker comments. The gate scans the experimental production tree in
+   full and `*mask*`-named functions in core/Newton; the list is exact, so
+   adding or removing a boundary is a conscious, reviewable test change.
+   Legitimate boundaries are host consumers: recorders, legacy compatibility
+   fallbacks, checkpoint/restore, and empty-reset predicates.
+2. **Runtime backstop: `ISAACLAB_SYNC_DEBUG=1`.** Warp stages then execute under
+   `torch.cuda.set_sync_debug_mode("error")` (see `WarpGraphCache`), so a hidden
+   sync in any term — including future ones — raises at the exact call site.
+   Zero cost when the variable is unset.
+3. **Capturability is annotated with `@WarpCapturable(False, reason=...)`** (the
+   single decorator form; works on term functions and class terms). Every
+   opt-out is pinned by the inventory test next to the gate. Unannotated terms
+   default to capturable and are covered by the runtime backstop.
+4. **Mask-native Torch means elementwise masked ops.** Use `masked_fill_` or
+   `torch.where`; boolean advanced indexing (`buf[:, mask] = 0`) gathers indices
+   with a data-dependent allocation and is not capture-safe.
+5. **Dual reset APIs.** Keep the ID-based `reset(env_ids)` signature untouched and
+   add a sibling `reset_mask(env_mask)`; the base-class fallback compacts (a
+   sanctioned boundary), mask-native implementations override it. Backends whose
+   assets accept but ignore `env_mask` (classic PhysX, a develop-era condition)
+   are a documented hazard on `InteractiveScene.reset`, not guarded machinery —
+   the warp env only drives Newton scenes.

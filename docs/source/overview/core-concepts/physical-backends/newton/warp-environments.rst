@@ -61,11 +61,14 @@ MDP term for its warp twin). Select the Newton solver explicitly with
 - ``Isaac-Humanoid``
 - ``Isaac-Reach-Franka``, ``Isaac-Reach-UR10``
 - ``Isaac-Velocity-Flat-AnymalD``, ``-Cassie``, ``-G1``, ``-H1``, ``-UnitreeGo2``
+- ``Isaac-Velocity-Rough-AnymalD``, ``-Cassie``, ``-G1``, ``-H1``, ``-UnitreeGo2`` —
+  the terrain-levels curriculum runs as a Warp-native update on the
+  :class:`~isaaclab.terrains.TerrainImporter` Warp origin views
 
 A missing twin is a hard error listing the affected terms, so a partially
 covered task fails at build time rather than silently changing behavior.
-Rough-terrain velocity tasks remain unsupported until
-:class:`~isaaclab.terrains.TerrainImporter` gains Warp APIs.
+``Isaac-Velocity-Rough-Digit`` is the one rough task not yet covered: its
+``desired_contacts`` reward term has no Warp twin.
 
 
 Quick Start
