@@ -996,7 +996,25 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
     return launcher
 
 
-def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBasedRLEnvCfg, object | None]:
+def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
+    """Return whether the CLI selects a renderer that actually drives RTX rendering.
+
+    The RTX/DLSS global settings (and the ``omni.replicator`` extension they configure)
+    are only meaningful when something renders through RTX. That happens when the Kit
+    visualizer is enabled (``--viz kit``), when external cameras are rendered
+    (``--enable_cameras``), or in XR mode (``--xr``, which drives the Kit XR pipeline).
+    A pure-headless replay selects none of these and renders nothing.
+
+    This intentionally reads the CLI intent rather than any Kit/carb runtime state so the
+    check keeps working as these scripts grow support for other renderers and kitless runs.
+    """
+    visualizers = getattr(args, "visualizer", None) or []
+    return bool(getattr(args, "enable_cameras", False)) or ("kit" in visualizers) or bool(getattr(args, "xr", False))
+
+
+def _prepare_env_cfg(
+    task: str, num_envs: int, device: str, apply_rtx_settings: bool = False
+) -> tuple[ManagerBasedRLEnvCfg, object | None]:
     """Build and tweak an env config suitable for non-interactive replay.
 
     Mirrors the env-config mutations performed by ``record_demos.py``'s
@@ -1025,6 +1043,16 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBase
       cycle (sim reinit + teleop device reset) so Pink IK starts the next
       attempt with fresh articulation views.
 
+    Args:
+        task: Registered task name to load the env config for.
+        num_envs: Number of parallel environments.
+        device: Simulation device (e.g. ``"cuda:0"``).
+        apply_rtx_settings: Whether an RTX render pipeline will actually run this
+            session (Kit visualizer, external cameras, or XR). Only then are the
+            RTX/DLSS global settings applied; a headless replay that renders
+            nothing neither needs them nor has the extensions loaded to apply
+            them. See :func:`_rtx_rendering_requested`.
+
     Returns:
         Tuple ``(env_cfg, success_term)``. ``success_term`` is ``None`` when
         the env doesn't define a ``success`` termination term.
@@ -1048,9 +1076,15 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBase
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
     env_cfg = remove_camera_configs(env_cfg)
-    apply_isaac_rtx_global_settings(
-        IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
-    )
+    # The RTX/DLSS global settings only matter when an RTX render pipeline actually runs,
+    # and applying them pulls in ``omni.replicator`` (part of the SDG/rendering extensions).
+    # A pure-headless replay renders nothing, so skip them -- this both avoids needless RTX
+    # configuration and prevents a ``ModuleNotFoundError`` when the replicator extension was
+    # never loaded (e.g. headless CI).
+    if apply_rtx_settings:
+        apply_isaac_rtx_global_settings(
+            IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
+        )
     return env_cfg, success_term
 
 
@@ -1555,7 +1589,12 @@ def main() -> int:
             _resolve_cloudxr_env(args_cli.cloudxr_env), args_cli.auto_launch_cloudxr
         )
 
-        env_cfg, success_term = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
+        env_cfg, success_term = _prepare_env_cfg(
+            args_cli.task,
+            args_cli.num_envs,
+            args_cli.device,
+            apply_rtx_settings=_rtx_rendering_requested(args_cli),
+        )
 
         if not hasattr(env_cfg, "isaac_teleop") or env_cfg.isaac_teleop is None:
             raise ValueError(
