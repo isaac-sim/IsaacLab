@@ -295,7 +295,9 @@ chart with one line per component, matching the Kit visualizer's per-term groupi
 
 **Disabling live plots:**
 
-Live plots are on by default.  To disable them (e.g. to reduce overhead in headless runs):
+Live plots are on by default but are automatically skipped when running truly headless (no
+Kit GUI and no standalone visualizer such as Newton, Rerun, or Viser).  To disable them
+explicitly (e.g. to reduce overhead during profiling):
 
 .. code-block:: python
 
@@ -314,8 +316,8 @@ Live plots are on by default.  To disable them (e.g. to reduce overhead in headl
   Individual term groups are shown as collapsing headers inside the window.
 - **Rerun:** One :class:`~rerun.blueprint.TimeSeriesView` per manager/group is added to the
   blueprint, hidden by default.  Toggle panels on via the Rerun blueprint panel on the left.
-  ``keep_scalar_history`` is automatically set to ``True`` when live plots are registered,
-  so scalars accumulate as a time series.
+  Set ``keep_scalar_history=True`` in :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg`
+  so that scalars accumulate as a time series in the Rerun timeline.
 - **Viser:** One collapsible folder per term is added to the Viser sidebar, collapsed by
   default.  Expand individual folders to show their charts.
 

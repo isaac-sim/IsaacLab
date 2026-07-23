@@ -230,7 +230,7 @@ class ManagerBasedEnv:
 
         # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
         # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.
-        # Called unconditionally so standalone visualizers get live plots even headlessly.
+        # Skipped when truly headless (no GUI and no standalone visualizers active).
         self.setup_manager_visualizers()
 
         # extend UI elements
@@ -386,7 +386,12 @@ class ManagerBasedEnv:
         registered with the simulation context.  For the Kit backend this also populates
         :attr:`manager_visualizers` with :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer`
         instances so that :class:`~isaaclab.envs.ui.BaseEnvWindow` can build the omni.ui panels.
+
+        Does nothing when running truly headless (no Kit GUI and no standalone visualizers).
         """
+        if not self.sim.has_gui and not self.sim.has_active_visualizers():
+            self.manager_visualizers = {}
+            return
         managers = {
             "action_manager": self.action_manager,
             "observation_manager": self.observation_manager,

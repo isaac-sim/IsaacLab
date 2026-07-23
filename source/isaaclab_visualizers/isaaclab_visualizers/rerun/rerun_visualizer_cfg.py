@@ -45,8 +45,12 @@ class RerunVisualizerCfg(VisualizerCfg):
     keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
 
-    keep_scalar_history: bool = True
-    """Accumulate scalars as a time-series in the Rerun timeline (True = live plot history, False = constant memory)."""
+    keep_scalar_history: bool = False
+    """Accumulate scalars as a time-series in the Rerun timeline (True = live plot history, False = constant memory).
+
+    Set to ``True`` when using live plots so that scalar values accumulate as a time series in the
+    Rerun viewer rather than only showing the latest value.
+    """
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""

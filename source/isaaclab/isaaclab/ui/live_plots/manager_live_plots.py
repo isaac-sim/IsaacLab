@@ -81,7 +81,7 @@ class ManagerLivePlots:
                 if flat.size > _MAX_SCALAR_COMPONENTS:
                     continue
                 result[term_name] = [float(v) for v in flat]
-        except Exception:
+        except (AttributeError, RuntimeError, ValueError):
             logger.debug("[ManagerLivePlots] Failed to collect terms from %s.", self.manager_name, exc_info=True)
         return result
 
@@ -102,7 +102,7 @@ class ManagerLivePlots:
                 arr = np.asarray(values)
                 if arr.ndim >= 3:
                     result[term_name] = arr
-        except Exception:
+        except (AttributeError, RuntimeError, ValueError):
             logger.debug("[ManagerLivePlots] Failed to collect images from %s.", self.manager_name, exc_info=True)
         return result
 
