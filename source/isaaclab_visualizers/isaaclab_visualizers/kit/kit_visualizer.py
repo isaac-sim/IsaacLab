@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
+_DEFAULT_VIEWPORT_CAMERA_PATH = "/OmniverseKit_Persp"
 
 _BACKEND_DISPLAY_NAMES = {
     "physx": "PhysX",
@@ -414,6 +415,8 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_window is None:
             logger.warning("[KitVisualizer] No active viewport window found.")
             self._viewport_api = None
+            if not self._uses_camera_sensor_view():
+                self._apply_cfg_camera_pose_if_configured()
             self._refresh_controlled_camera_path()
             return
         self._viewport_api = self._viewport_window.viewport_api
@@ -438,7 +441,7 @@ class KitVisualizer(BaseVisualizer):
         if not get_settings_manager().get("/isaaclab/cameras_enabled", False):
             raise RuntimeError(
                 "[KitVisualizer] tiled_cam_view=True requires camera rendering support. "
-                "Rerun with --enable_cameras, or disable tiled_cam_view for this visualizer config."
+                "Disable tiled_cam_view for this visualizer config."
             )
         logger.debug(
             "[KitVisualizer] Setting up camera image view: tiled=%s source=%s num_envs=%s",
@@ -603,9 +606,9 @@ class KitVisualizer(BaseVisualizer):
         """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
         if self._viewport_api is not None:
             path = self._viewport_api.get_active_camera()
-            self._controlled_camera_path = path if path else "/OmniverseKit_Persp"
+            self._controlled_camera_path = path if path else _DEFAULT_VIEWPORT_CAMERA_PATH
         else:
-            self._controlled_camera_path = "/OmniverseKit_Persp"
+            self._controlled_camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
 
     def _apply_viewport_camera_scene_partition(self, usd_stage: Usd.Stage, num_envs: int) -> None:
         """Tag the viewport camera with the first visible env partition.
@@ -680,6 +683,9 @@ class KitVisualizer(BaseVisualizer):
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
         if self._viewport_api is None:
+            # Without a viewport, Kit does not create its default perspective
+            # camera, so author it explicitly before render products use it.
+            self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
             return
 
         try:
@@ -690,7 +696,7 @@ class KitVisualizer(BaseVisualizer):
 
         camera_path = self._viewport_api.get_active_camera()
         if not camera_path:
-            camera_path = "/OmniverseKit_Persp"
+            camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
 
         # ``rotate=False`` for the position set: a freshly-opened stage's default
         # ``/OmniverseKit_Persp`` has no authored ``omni:kit:centerOfInterest``,

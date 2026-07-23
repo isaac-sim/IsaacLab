@@ -157,7 +157,6 @@ def test_training_and_play_write_bundles(
         "--num_envs",
         str(num_envs),
         "presets=newton_mjwarp",
-        "--headless",
         "--benchmark_formatter",
         formatter,
     ]

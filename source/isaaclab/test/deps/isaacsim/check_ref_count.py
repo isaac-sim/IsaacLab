@@ -39,6 +39,11 @@ import logging
 import torch  # noqa: F401
 
 import carb
+
+from isaaclab.sim.utils import enable_extension
+
+enable_extension("isaacsim.core.experimental.prims")
+
 from isaacsim.core.experimental.prims import Articulation
 
 import isaaclab.sim.utils.nucleus as nucleus_utils

@@ -66,6 +66,15 @@ parser.add_argument(
     help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
 )
 parser.add_argument(
+    "--reset_sim_buffer_each_episode",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help=(
+        "Call env.sim.reset() before the initial episode and between recording attempts."
+        " Use --no-reset_sim_buffer_each_episode to preserve simulation buffers."
+    ),
+)
+parser.add_argument(
     "--cloudxr_env",
     type=str,
     default="cloudxrjs",
@@ -156,7 +165,7 @@ import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +304,11 @@ def create_environment_config(
     env_cfg.terminations.time_out = None
     env_cfg.observations.policy.concatenate_terms = False
 
-    env_cfg.recorders: ActionStateRecorderManagerCfg = ActionStateRecorderManagerCfg()
+    demo_recorder_cfg_entry_point = gym.spec(args_cli.task.split(":")[-1]).kwargs.get("demo_recorder_cfg_entry_point")
+    if demo_recorder_cfg_entry_point is None:
+        env_cfg.recorders = ActionStateRecorderManagerCfg()
+    else:
+        env_cfg.recorders = load_cfg_from_registry(args_cli.task, "demo_recorder_cfg_entry_point")
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
     env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
@@ -365,6 +378,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 mcap_record_path=args_cli.mcap_record_path,
                 enable_debug_visualization=args_cli.enable_debug_visualization,
+                haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
             if args_cli.mcap_record_path is not None:
                 logger.info("Recording live IsaacTeleop session to MCAP (debug-only): %s", args_cli.mcap_record_path)
@@ -485,7 +499,8 @@ def handle_reset(
         Reset success step count (0).
     """
     print("Resetting environment...")
-    env.sim.reset()
+    if args_cli.reset_sim_buffer_each_episode:
+        env.sim.reset()
     env.recorder_manager.reset()
     env.reset()
     if teleop_interface is not None and hasattr(teleop_interface, "reset"):
@@ -527,6 +542,12 @@ def run_simulation_loop(
     # Callback closures for the teleop device
     def reset_recording_instance():
         nonlocal should_reset_recording_instance
+        if success_step_count > 0:
+            print(
+                "Manual reset ignored. Success has fired and post-success steps are still recording. Please wait for"
+                " the automatic reset."
+            )
+            return
         should_reset_recording_instance = True
         print("Recording instance reset requested")
 
@@ -552,6 +573,18 @@ def run_simulation_loop(
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
 
+    # Optional controller haptics: no-ops unless the env declares a
+    # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
+    # ``haptic_update`` renders the current contact force; ``haptic_stop`` zeroes
+    # it so a stale pulse does not persist while recording is paused.
+    haptic_update, haptic_stop = (lambda: None), (lambda: None)
+    if use_isaac_teleop:
+        from isaaclab_teleop import create_haptic_feedback_driver
+
+        _haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
+        if _haptic_driver is not None:
+            haptic_update, haptic_stop = _haptic_driver.update, _haptic_driver.stop
+
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
 
@@ -561,7 +594,8 @@ def run_simulation_loop(
         nonlocal running_recording_instance, label_text
 
         # Reset before starting
-        env.sim.reset()
+        if args_cli.reset_sim_buffer_each_episode:
+            env.sim.reset()
         env.reset()
         teleop_interface.reset()
 
@@ -586,6 +620,7 @@ def run_simulation_loop(
 
                 if action is None:
                     env.sim.render()
+                    haptic_stop()
                     continue
                 # Expand to batch dimension
                 actions = action.repeat(env.num_envs, 1)
@@ -594,6 +629,8 @@ def run_simulation_loop(
                 if running_recording_instance:
                     # Compute actions based on environment
                     obv = env.step(actions)
+                    # render controller haptics from post-step contact forces
+                    haptic_update()
                     if subtasks is not None:
                         if subtasks == {}:
                             subtasks = obv[0].get("subtask_terms")
@@ -601,6 +638,8 @@ def run_simulation_loop(
                             show_subtask_instructions(instruction_display, subtasks, obv, env.cfg)
                 else:
                     env.sim.render()
+                    # not stepping: zero haptics so a paused grip stops buzzing
+                    haptic_stop()
 
                 # Check for success condition
                 success_step_count_new, success_reset_needed = process_success_condition(

@@ -25,6 +25,7 @@ from isaaclab.test.benchmark.measurements import (
     TestPhase,
 )
 from isaaclab.test.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from isaaclab.utils import has_kit
 
 if TYPE_CHECKING:
     from isaaclab.test.benchmark.schema import (
@@ -292,10 +293,12 @@ class BaseIsaacLabBenchmark:
             # gracefully skip or fall back while still allowing mixed modes (e.g., kit-full physics
             # with kit-less rendering).
             # If we're using Kit, then we can use IsaacSim's benchmark services to peek into the frametimes.
-            if self._use_frametime_recorders:
+            if self._use_frametime_recorders and not has_kit():
+                logger.warning("Kit is not running. Kit related measurements will not be available.")
+            elif self._use_frametime_recorders:
                 try:
                     # Enable the benchmark services extension first
-                    from isaacsim.core.experimental.utils.app import enable_extension
+                    from isaaclab.sim.utils import enable_extension
 
                     enable_extension("isaacsim.benchmark.services")
 
@@ -349,9 +352,12 @@ class BaseIsaacLabBenchmark:
                                 "Could not import bundled frametime recorder: "
                                 f"{e}. Frametime measurements will not be available."
                             )
-                except ImportError as e:
+                # Kit may stop after the availability check above. Frametime recorders are
+                # optional, so retain the non-Kit recorders if the IApp interface disappears.
+                except (ImportError, RuntimeError) as e:
                     logger.warning(
-                        f"Could not import kit recorders: {e}. Kit related measurements will not be available."
+                        f"Could not initialize Kit frametime recorders: {e}. "
+                        "Kit related measurements will not be available."
                     )
 
                 # Start collecting frametime recorders.

@@ -19,7 +19,7 @@ your workflow:
 
 .. tab-set::
 
-   .. tab-item:: Kit-less (no Isaac Sim)
+   .. tab-item:: Without Isaac Sim
 
       Fastest start — Newton physics only, no Isaac Sim download required.
 
@@ -40,9 +40,9 @@ your workflow:
                :kitless:
                :platform: windows
 
-      See :ref:`installation-selective-install` for install tokens and
-      :doc:`/source/setup/installation/kitless_installation` for feature
-      availability without Isaac Sim.
+      See :ref:`modularized installation <installation-selective-install>` for install tokens and
+      :ref:`legacy installer setup <installation-legacy-installer>` for feature availability
+      without Isaac Sim.
 
    .. tab-item:: With Isaac Sim (full features)
 
@@ -84,24 +84,49 @@ Use the reinforcement learning training command with a **task name** and
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         # Kit-less: Newton MJWarp physics + Newton visualizer
-         ./isaaclab.sh train --rl_library rsl_rl \
-           --task=Isaac-Cartpole-Direct \
-           --num_envs=16 --max_iterations=10 \
-           physics=newton_mjwarp --visualizer newton
+         .. tab-item:: uv (Recommended)
 
-         # With Isaac Sim: PhysX physics (default renderer)
-         ./isaaclab.sh train --rl_library rsl_rl \
-           --task=Isaac-Cartpole-Direct \
-           --num_envs=4096 \
-           physics=physx
+            .. code-block:: bash
 
-         # Camera task: typed physics + renderer + domain preset
-         ./isaaclab.sh train --rl_library rsl_rl \
-           --task=Isaac-Cartpole-Camera-Direct \
-           physics=newton_mjwarp renderer=newton_renderer presets=rgb
+               # Without Isaac Sim: Newton MJWarp physics + Newton visualizer
+               uv run isaaclab train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole-Direct \
+                 --num_envs=16 --max_iterations=10 \
+                 physics=newton_mjwarp --visualizer newton
+
+               # With Isaac Sim: PhysX physics (default renderer)
+               uv run isaaclab train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole-Direct \
+                 --num_envs=4096 \
+                 physics=physx
+
+               # Camera task: typed physics + renderer + domain preset
+               uv run isaaclab train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole-Camera-Direct \
+                 physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               # Without Isaac Sim: Newton MJWarp physics + Newton visualizer
+               ./isaaclab.sh train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole-Direct \
+                 --num_envs=16 --max_iterations=10 \
+                 physics=newton_mjwarp --visualizer newton
+
+               # With Isaac Sim: PhysX physics (default renderer)
+               ./isaaclab.sh train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole-Direct \
+                 --num_envs=4096 \
+                 physics=physx
+
+               # Camera task: typed physics + renderer + domain preset
+               ./isaaclab.sh train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole-Camera-Direct \
+                 physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows

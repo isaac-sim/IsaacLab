@@ -348,8 +348,9 @@ Teleoperation Environment Reference
 -----------------------------------
 
 The tables below list every built-in Isaac Lab environment that supports teleoperation,
-organized by input method. Environments whose Task ID ends in ``-Play`` are designed for
-closed-loop policy evaluation and are not included here.
+organized by input method. For closed-loop policy evaluation, the play script automatically
+applies each environment config's ``play_mode`` overrides; pass ``--train_env_cfg`` to
+play the training configuration as-is.
 
 Isaac Teleop (XR Headset) Environments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -796,13 +797,27 @@ The ``--cloudxr_env`` flag on ``teleop_se3_agent.py`` and ``record_demos.py`` se
 ``.env`` profile to use. The default is ``cloudxrjs`` (Quest/Pico). Use the ``avp`` shorthand
 for Apple Vision Pro, or pass a full file path for a custom profile:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Use the AVP profile
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit --xr \
-       --cloudxr_env avp
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         # Use the AVP profile
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr \
+             --cloudxr_env avp
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Use the AVP profile
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr \
+             --cloudxr_env avp
 
 Create a custom profile
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -827,18 +842,38 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
 * **Disable CloudXR entirely**: ``--cloudxr_env none``.
 * **Environment variable**: ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` overrides the CLI flag at runtime.
 
-.. code-block:: bash
+.. tab-set::
 
-   # Disable via CLI flag
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit --xr \
-       --no-auto_launch_cloudxr
+   .. tab-item:: uv (Recommended)
 
-   # Or disable via environment variable
-   ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit --xr
+      .. code-block:: bash
+
+         # Disable via CLI flag
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr \
+             --no-auto_launch_cloudxr
+
+         # Or disable via environment variable
+         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Disable via CLI flag
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr \
+             --no-auto_launch_cloudxr
+
+         # Or disable via environment variable
+         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
 
 
 .. _isaac-teleop-xr-anchor:
@@ -898,6 +933,121 @@ XR device's view.
    camera sensors. Additional cameras cause GPU contention and degrade XR performance.
 
 
+.. _isaac-teleop-haptics:
+
+Haptic Feedback
+---------------
+
+Isaac Teleop can render **haptic feedback** on the operator's device from a sim-side signal,
+closing the loop on grasp feel during teleoperation and demonstration recording. Two backends
+ship today:
+
+* **Controller vibration** -- a motion controller rumbles in proportion to the total contact
+  force on the corresponding robot hand.
+* **Haptic glove** -- each finger of a haptic glove vibrates in proportion to how tightly that
+  finger grips the manipulated object.
+
+Feedback is an *output* path that mirrors the input retargeting pipeline in reverse. Each step, a
+:class:`~isaaclab_teleop.HapticFeedbackDriver` reads a per-hand signal vector from the scene and
+pushes it to the :class:`~isaaclab_teleop.IsaacTeleopDevice`, which renders it through an Isaac
+Teleop ``HapticSink``. The signal-to-device mapping runs inside the retargeting graph, so no
+device-specific code lives in your environment.
+
+The design keeps three concerns pluggable, so the same seam serves both devices:
+
+* **Signal source** -- how the per-hand vector is read from the environment.
+* **Output port** -- the :class:`~isaaclab_teleop.HapticFeedbackReceiver` protocol, whose payload
+  is a *vector* (one scalar for a rumble motor, one value per finger for a glove).
+* **Device backend** -- selected by the concrete :class:`~isaaclab_teleop.HapticFeedbackCfg`
+  subclass, which wires the retargeter and device behind the ``HapticSink``.
+
+To enable feedback, add per-hand :class:`~isaaclab.sensors.ContactSensor` s to the scene and attach
+a :class:`~isaaclab_teleop.HapticFeedbackCfg` subclass as a sibling of ``isaac_teleop``. The teleop
+scripts (``teleop_se3_agent.py`` and ``record_demos.py``) detect the ``haptic_feedback`` attribute
+automatically -- no extra flags are needed. If the active device cannot render haptics (e.g.
+keyboard) or the env has no ``haptic_feedback``, the feature is silently skipped.
+
+Controller vibration
+~~~~~~~~~~~~~~~~~~~~
+
+Use :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg`. It sums each hand's contact force to a
+single amplitude and maps it via ``amplitude = clamp(gain * (force - deadband), 0, saturation)``
+(fields ``gain`` [1/N], ``deadband`` [N], ``saturation``, plus ``frequency_hz`` / ``duration_s``
+for the pulse).
+
+.. code-block:: python
+
+   from isaaclab.sensors import ContactSensorCfg
+   from isaaclab_teleop import ControllerHapticFeedbackCfg
+
+   @configclass
+   class MySceneCfg(InteractiveSceneCfg):
+       left_hand_contact = ContactSensorCfg(
+           prim_path="{ENV_REGEX_NS}/Robot/left_hand_.*_link", update_period=0.0, history_length=3
+       )
+       right_hand_contact = ContactSensorCfg(
+           prim_path="{ENV_REGEX_NS}/Robot/right_hand_.*_link", update_period=0.0, history_length=3
+       )
+
+   # in the env cfg __post_init__:
+   self.scene.robot.spawn.activate_contact_sensors = True
+   self.haptic_feedback = ControllerHapticFeedbackCfg(
+       left_sensor_name="left_hand_contact",
+       right_sensor_name="right_hand_contact",
+   )
+
+Enabled on the two G1 loco-manipulation teleop environments
+(``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``,
+``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``). Controller vibration is delivered over
+OpenXR (``xrApplyHapticFeedback``), so no CloudXR ``.env`` profile change is required.
+
+Haptic glove (per-finger grip)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :class:`~isaaclab_teleop.GloveHapticFeedbackCfg`. Each hand's contact sensor is **filtered
+against the grasped object** (``filter_prim_paths_expr``), so ``force_matrix_w`` reports each
+finger's force on that object and nothing else. The driver orders the per-finger magnitudes
+Thumb..Pinky (matched from the sensor's body names via ``finger_order``) into a
+``FingerPowerVector`` rendered by a cross-process glove device on ``collection_id``.
+
+.. code-block:: python
+
+   from isaaclab.sensors import ContactSensorCfg
+   from isaaclab_teleop import GloveHapticFeedbackCfg
+
+   @configclass
+   class MySceneCfg(InteractiveSceneCfg):
+       object = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Object", ...)
+       left_hand_contact = ContactSensorCfg(
+           prim_path="{ENV_REGEX_NS}/Robot/.*L_(thumb_distal|index_intermediate|"
+           "middle_intermediate|ring_intermediate|pinky_intermediate)_link",
+           filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+           update_period=0.0, history_length=3,
+       )
+       right_hand_contact = ContactSensorCfg(
+           prim_path="{ENV_REGEX_NS}/Robot/.*R_(...)_link",
+           filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+           update_period=0.0, history_length=3,
+       )
+
+   # in the env cfg __post_init__:
+   self.haptic_feedback = GloveHapticFeedbackCfg(
+       left_sensor_name="left_hand_contact",
+       right_sensor_name="right_hand_contact",
+   )
+
+Enabled on the two GR1T2 pick-place teleop environments
+(``IsaacContrib-PickPlace-GR1T2-Abs``, ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``).
+
+.. note::
+
+   The glove is a *cross-process* device: ``GloveHapticFeedbackCfg`` pushes per-finger powers on
+   ``collection_id`` (default ``"manus_glove_haptic"``) to a vendor plugin. Run that plugin and set
+   ``NV_CXR_ENABLE_PUSH_DEVICES=1`` in a custom CloudXR profile (see
+   :ref:`isaac-teleop-cloudxr-profiles`). Contact-sensor ``prim_path`` regexes must match your
+   robot's finger body names -- verify with ``print(robot.data.body_names)`` if unsure.
+
+
 .. _isaac-teleop-imitation-learning:
 
 Record Demonstrations for Imitation Learning
@@ -909,23 +1059,49 @@ demonstrations.
 When your environment configuration has an ``isaac_teleop`` attribute, the script automatically
 uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit \
-       --xr
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/record_demos.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr
 
 Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
 (e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
 the input device:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-       --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
-       --visualizer kit \
-       --teleop_device keyboard
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/record_demos.py \
+             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
+             --visualizer kit \
+             --teleop_device keyboard
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
+             --visualizer kit \
+             --teleop_device keyboard
 
 The workflow is:
 
@@ -1236,6 +1412,12 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
 * :class:`~isaaclab_teleop.SupportsControlEvents`
 * :func:`~isaaclab_teleop.poll_control_events`
 * :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
+* :class:`~isaaclab_teleop.HapticFeedbackCfg`
+* :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg`
+* :class:`~isaaclab_teleop.GloveHapticFeedbackCfg`
+* :class:`~isaaclab_teleop.HapticFeedbackReceiver`
+* :class:`~isaaclab_teleop.HapticFeedbackDriver`
+* :func:`~isaaclab_teleop.create_haptic_feedback_driver`
 * :class:`~isaaclab_teleop.XrCfg`
 * :class:`~isaaclab_teleop.XrAnchorRotationMode`
 

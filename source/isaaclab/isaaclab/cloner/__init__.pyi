@@ -6,12 +6,15 @@
 __all__ = [
     "CloneCfg",
     "ClonePlan",
+    "InclusionSet",
+    "add",
     "disabled_fabric_change_notifies",
     "filter_collisions",
     "get_suffix",
     "grid_transforms",
     "iter_clone_plan_matches",
     "make_clone_plan",
+    "make_valid_clone_combinations",
     "random",
     "ReplicateSession",
     "REPLICATION_QUEUE",
@@ -25,7 +28,7 @@ __all__ = [
 ]
 
 from .clone_plan import ClonePlan
-from .cloner_cfg import CloneCfg
+from .cloner_cfg import CloneCfg, InclusionSet, add
 from .cloner_strategies import random, sequential
 from ._fabric_notices import disabled_fabric_change_notifies
 from .cloner_utils import (
@@ -34,6 +37,7 @@ from .cloner_utils import (
     grid_transforms,
     iter_clone_plan_matches,
     make_clone_plan,
+    make_valid_clone_combinations,
     resolve_clone_plan_source,
     split_clone_template,
 )

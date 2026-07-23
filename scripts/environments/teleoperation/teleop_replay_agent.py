@@ -226,7 +226,7 @@ XR-active replay:
     headless-CI default; we have not yet promoted them to a single
     ``--xr_active`` knob)::
 
-        ./isaaclab.sh -p teleop_replay_agent.py \\
+        uv run python teleop_replay_agent.py \\
             --task <task> --replay_file <X.mcap> \\
             --xr --device cuda:0 \\
             --cloudxr_env cloudxrjs \\

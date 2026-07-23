@@ -25,18 +25,6 @@ gym.register(
     },
 )
 
-gym.register(
-    id="Isaac-Reorient-Cube-Allegro-Play",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.allegro_hand_manager_env_cfg:AllegroCubeEnvCfg_PLAY",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AllegroCubePPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
-    },
-)
-
 ##
 # Register Gym environments -- direct workflow.
 ##

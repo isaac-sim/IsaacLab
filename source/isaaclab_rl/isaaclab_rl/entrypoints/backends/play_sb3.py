@@ -23,7 +23,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 
-from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector, resolve_play_task_name
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
@@ -64,8 +64,15 @@ parser.add_argument(
     default=False,
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
+parser.add_argument(
+    "--train_env_cfg",
+    action="store_true",
+    default=False,
+    help="Play with the training environment configuration as-is, skipping play-mode overrides.",
+)
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
+args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -75,7 +82,7 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 def main():
     """Play with stable-baselines agent."""
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
     with launch_simulation(env_cfg, args_cli):
         task_name = args_cli.task.split(":")[-1]
         train_task_name = task_name.replace("-Play", "")

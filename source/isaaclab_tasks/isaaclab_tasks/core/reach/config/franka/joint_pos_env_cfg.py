@@ -42,20 +42,3 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         # end-effector is along z-direction
         self.commands.ee_pose.body_name = "panda_hand"
         self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
-
-
-##
-# Play configuration
-##
-
-
-@configclass
-class FrankaReachEnvCfg_PLAY(FrankaReachEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False
