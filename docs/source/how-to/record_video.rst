@@ -37,12 +37,10 @@ The ``source`` string selects what to capture:
      - Kit viewport camera (PhysX only — errors with Newton physics)
    * - ``"visualizer:newton"``
      - Newton GL visualizer framebuffer
-   * - ``"visualizer:newton/tiled"``
+   * - ``"visualizer:newton:tiled"``
      - Newton tiled camera panel
    * - ``"sensor:<name>"``
      - ``env.scene.sensors[name]``, RGB channel
-   * - ``"sensor:<name>/depth"``
-     - ``env.scene.sensors[name]``, depth channel
 
 The camera angle, resolution and other visualizer settings are configured on the
 corresponding :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
@@ -101,7 +99,7 @@ For depth or other AOVs, append the channel name:
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="sensor:wrist_cam/depth", output_dir="videos/depth/")
+    VideoRecorderCfg(source="sensor:wrist_cam", output_dir="videos/wrist/")
 
 **Multiple simultaneous streams**
 

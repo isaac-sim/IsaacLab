@@ -21,12 +21,13 @@ class VideoRecorderCfg:
 
     Source string format
     --------------------
-    * ``"visualizer"``               – first active recording-capable visualizer, interactive camera.
-    * ``"visualizer:kit"``           – Kit visualizer, interactive viewport camera.
-    * ``"visualizer:newton"``        – Newton GL visualizer, interactive camera.
-    * ``"visualizer:newton/tiled"``  – Newton GL visualizer, tiled camera panel.
-    * ``"sensor:<name>"``            – ``env.scene.sensors[<name>]``, rgb channel.
-    * ``"sensor:<name>/depth"``      – same sensor, depth channel.
+    Fields are colon-separated: ``"<kind>:<type>:<sub>"``.
+
+    * ``"visualizer"``              – first active recording-capable visualizer, interactive camera.
+    * ``"visualizer:kit"``          – Kit visualizer, interactive viewport camera.
+    * ``"visualizer:newton"``       – Newton GL visualizer, interactive camera.
+    * ``"visualizer:newton:tiled"`` – Newton GL visualizer, tiled camera panel.
+    * ``"sensor:<name>"``           – ``env.scene.sensors[<name>]``, rgb channel.
 
     The camera position and window resolution are configured on the visualizer cfg
     (e.g. :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`), not here.

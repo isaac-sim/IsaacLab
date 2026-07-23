@@ -32,23 +32,18 @@ logger = logging.getLogger(__name__)
 def _parse_source(source: str) -> tuple[str, str, str]:
     """Parse a source string into (kind, type_or_name, sub).
 
+    Source strings use ``:`` as the sole delimiter: ``"<kind>:<type>:<sub>"``.
+
     Returns:
         ``(kind, type_or_name, sub)`` where ``kind`` is ``"visualizer"`` or
         ``"sensor"``, ``type_or_name`` is the visualizer type or sensor name,
-        and ``sub`` is the sub-channel (``"interactive"``, ``"tiled"``, data type, …).
+        and ``sub`` is the sub-channel (e.g. ``"tiled"``).
     """
-    source = source.strip()
-    if ":" in source:
-        kind, rest = source.split(":", 1)
-    else:
-        kind, rest = source, ""
-
-    if "/" in rest:
-        type_or_name, sub = rest.split("/", 1)
-    else:
-        type_or_name, sub = rest, ""
-
-    return kind.lower(), type_or_name.lower(), sub.lower()
+    parts = source.strip().lower().split(":")
+    kind = parts[0] if len(parts) > 0 else ""
+    type_or_name = parts[1] if len(parts) > 1 else ""
+    sub = parts[2] if len(parts) > 2 else ""
+    return kind, type_or_name, sub
 
 
 class VideoRecorder:
@@ -103,7 +98,7 @@ class VideoRecorder:
             if kind == "visualizer":
                 return self._frame_from_visualizer(type_or_name, sub)
             if kind == "sensor":
-                return self._frame_from_sensor(type_or_name, sub or "rgb")
+                return self._frame_from_sensor(type_or_name)
         except Exception:
             logger.debug("[VideoRecorder] Frame capture failed.", exc_info=True)
         return None
@@ -162,7 +157,7 @@ class VideoRecorder:
             return None
         return viz.render_rgb_array()
 
-    def _frame_from_sensor(self, name: str, data_type: str) -> np.ndarray | None:
+    def _frame_from_sensor(self, name: str) -> np.ndarray | None:
         scene = getattr(self._env, "scene", None)
         if scene is None:
             return None
@@ -187,9 +182,9 @@ class VideoRecorder:
             )
             return None
         output = getattr(getattr(sensor, "data", None), "output", None)
-        if output is None or data_type not in output:
+        if output is None or "rgb" not in output:
             return None
-        data = output[data_type]
+        data = output["rgb"]
         # ProxyArray or torch.Tensor: shape (N, H, W, C)
         if hasattr(data, "torch"):
             tensor = data.torch

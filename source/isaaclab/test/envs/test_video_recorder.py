@@ -68,15 +68,11 @@ def test_parse_source_typed_visualizer():
 
 
 def test_parse_source_visualizer_with_sub():
-    assert _parse_source("visualizer:newton/tiled") == ("visualizer", "newton", "tiled")
+    assert _parse_source("visualizer:newton:tiled") == ("visualizer", "newton", "tiled")
 
 
 def test_parse_source_sensor():
     assert _parse_source("sensor:tiled_camera") == ("sensor", "tiled_camera", "")
-
-
-def test_parse_source_sensor_with_data_type():
-    assert _parse_source("sensor:wrist_cam/depth") == ("sensor", "wrist_cam", "depth")
 
 
 def test_parse_source_strips_whitespace():
@@ -217,22 +213,22 @@ def test_kit_visualizer_newton_physics_logs_error_and_returns_none(caplog):
 
 
 def test_visualizer_tiled_calls_render_tiled_rgb_array():
-    """source='visualizer:newton/tiled' calls render_tiled_rgb_array() if present."""
+    """source='visualizer:newton:tiled' calls render_tiled_rgb_array() if present."""
     viz = _FakeViz("newton")
     tiled_frame = np.ones((16, 24, 3), dtype=np.uint8) * 64
     viz.render_tiled_rgb_array = MagicMock(return_value=tiled_frame)
-    recorder = VideoRecorder(_cfg(source="visualizer:newton/tiled"), _make_env(visualizers=[viz]))
+    recorder = VideoRecorder(_cfg(source="visualizer:newton:tiled"), _make_env(visualizers=[viz]))
     frame = recorder._get_frame()
     viz.render_tiled_rgb_array.assert_called_once()
     assert frame is tiled_frame
 
 
 def test_visualizer_tiled_logs_warning_when_not_supported(caplog):
-    """source='visualizer:kit/tiled' warns when the visualizer has no tiled capture."""
+    """source='visualizer:kit:tiled' warns when the visualizer has no tiled capture."""
     import logging
 
     viz = _FakeViz("kit")  # no render_tiled_rgb_array
-    recorder = VideoRecorder(_cfg(source="visualizer:kit/tiled"), _make_env(visualizers=[viz]))
+    recorder = VideoRecorder(_cfg(source="visualizer:kit:tiled"), _make_env(visualizers=[viz]))
     with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
         frame = recorder._get_frame()
     assert frame is None
@@ -256,17 +252,6 @@ def test_sensor_source_reads_rgb_by_default():
     assert frame is not None
     assert frame.shape == (8, 12, 3)
 
-
-def test_sensor_source_reads_specified_data_type():
-    """source='sensor:wrist_cam/depth' reads the depth channel."""
-    import torch
-
-    depth = torch.ones((1, 4, 6, 1), dtype=torch.float32) * 2.5
-    sensor = MagicMock()
-    sensor.data.output = {"depth": depth}
-    recorder = VideoRecorder(_cfg(source="sensor:wrist_cam/depth"), _make_env(sensors={"wrist_cam": sensor}))
-    frame = recorder._get_frame()
-    assert frame is not None
 
 
 def test_sensor_source_missing_logs_error_with_available_list(caplog):
