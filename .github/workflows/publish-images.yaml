@@ -53,33 +53,9 @@ jobs:
         echo "branches=$arr" >> "$GITHUB_OUTPUT"
         echo "Resolved branches: $arr"
 
-  config:
-    name: Load Config
-    runs-on: ubuntu-latest
-    outputs:
-      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
-      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
-      isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        # Preserve the existing controller configuration while the repository
-        # default branch temporarily points at the stable release branch.
-        ref: main
-        fetch-depth: 1
-        sparse-checkout: .github/workflows/config.yaml
-        sparse-checkout-cone-mode: false
-    - id: load
-      run: |
-        set -euo pipefail
-        f=.github/workflows/config.yaml
-        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
-        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
-        echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
-
   build-and-push-images:
     name: Build and Push (${{ matrix.branch }})
-    needs: [config, resolve-branches]
+    needs: resolve-branches
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     strategy:
@@ -95,6 +71,7 @@ jobs:
     env:
         DOCKER_HOST: unix:///var/run/docker.sock
         DOCKER_TLS_CERTDIR: ""
+        BRANCH_NAME: ${{ matrix.branch }}
 
     steps:
     - name: Checkout Code
@@ -103,6 +80,28 @@ jobs:
         fetch-depth: 1
         lfs: true
         ref: ${{ matrix.branch }}
+
+    - name: Load branch config
+      id: config
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        read_config() {
+          sed -n "s/^$1:[[:space:]]*//p" "$f"
+        }
+
+        isaacsim_image_name="$(read_config isaacsim_image_name)"
+        isaacsim_image_tag="$(read_config isaacsim_image_tag)"
+        isaaclab_image_name="$(read_config isaaclab_image_name)"
+
+        if [ -z "$isaacsim_image_name" ] || [ -z "$isaacsim_image_tag" ] || [ -z "$isaaclab_image_name" ]; then
+          echo "::error::Missing required image configuration in $f on $BRANCH_NAME"
+          exit 1
+        fi
+
+        echo "isaacsim_image_name=$isaacsim_image_name" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$isaacsim_image_tag" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_name=$isaaclab_image_name" >> "$GITHUB_OUTPUT"
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -132,9 +131,8 @@ jobs:
 
     - name: Build and Push Docker Images
       run: |
-        BRANCH_NAME="${{ matrix.branch }}"
-        IMAGE_BASE_VERSION="${{ needs.config.outputs.isaacsim_image_tag }}"
-        IMAGE="${{ needs.config.outputs.isaaclab_image_name }}"
+        IMAGE_BASE_VERSION="${{ steps.config.outputs.isaacsim_image_tag }}"
+        IMAGE="${{ steps.config.outputs.isaaclab_image_name }}"
 
         # Use the SHA actually checked out for this branch (the matrix ref), not
         # github.sha — on a scheduled run github.sha is the default branch HEAD,
@@ -143,7 +141,7 @@ jobs:
 
         echo "Branch: $BRANCH_NAME"
         echo "Commit: $FULL_SHA"
-        echo "IsaacSim base image: ${{ needs.config.outputs.isaacsim_image_name }}:$IMAGE_BASE_VERSION"
+        echo "IsaacSim base image: ${{ steps.config.outputs.isaacsim_image_name }}:$IMAGE_BASE_VERSION"
         echo "Target Isaac Lab image: $IMAGE"
 
         # Build the tag list for the branch (main is published separately via
@@ -195,7 +193,7 @@ jobs:
 
         # Determine if multiarch is supported by inspecting the base image manifest
         echo "🔵 Checking if base image supports multiarch..."
-        BASE_IMAGE_FULL="${{ needs.config.outputs.isaacsim_image_name }}:${IMAGE_BASE_VERSION}"
+        BASE_IMAGE_FULL="${{ steps.config.outputs.isaacsim_image_name }}:${IMAGE_BASE_VERSION}"
         ARCHITECTURES=$(docker manifest inspect "$BASE_IMAGE_FULL" 2>/dev/null | grep -o '"architecture": "[^"]*"' | cut -d'"' -f4 | sort -u)
 
         if [ -z "$ARCHITECTURES" ]; then
@@ -238,7 +236,7 @@ jobs:
           --platform "$BUILD_PLATFORMS" \
           --progress=plain \
           "${TAG_ARGS[@]}" \
-          --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }} \
+          --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ steps.config.outputs.isaacsim_image_name }} \
           --build-arg ISAACSIM_VERSION_ARG="$IMAGE_BASE_VERSION" \
           --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
           --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
