@@ -1,76 +1,79 @@
 # Sim-To-Sim Policy Transfer Evaluations
 
-## Scenario 1: PhysX To MJWarp
+## Scenario 1: Checkpoint Compatibility
 
-Query: "Deploy this PhysX-trained Franka checkpoint in Newton."
-
-Expected behavior:
-
-- Require a Newton-clean task, exact contract match, deterministic parity, PP baseline, and explicit PN checkpoint.
-- Report nominal and randomized metrics separately.
-
-Known failure modes:
-
-- Tune policy or solver settings before establishing the source baseline and contract.
-
-## Scenario 2: MJWarp To PhysX
-
-Query: "Can a policy trained with Newton run under PhysX?"
+Query: "Can I run this PhysX checkpoint in Newton?"
 
 Expected behavior:
 
-- Measure NN and NP with matched seeds, goals, normalizer, timing, and play config.
+- First require successful training of the same task in both engines.
+- Compare the exact action, observation, policy-state, timing, mechanism, and episode contracts.
 
 Known failure modes:
 
-- Assume forward transfer proves reverse transfer.
+- Treat matching tensor shapes alone as compatibility.
 
-## Scenario 3: Mimic-Drive Mismatch
+## Scenario 2: Mimic-Drive Difference
 
-Query: "My checkpoint has one gripper command, but PhysX applies more finger effort."
+Query: "Why does PhysX apply more Franka finger effort than MJWarp?"
 
 Expected behavior:
 
-- Explain that MJWarp drives the constrained leader once while PhysX leaves the follower driveable.
-- Make the follower passive without changing checkpoint width or order silently.
+- Explain the one-drive MJWarp equality and the driveable PhysX follower.
+- Make the second PhysX drive passive with zero stiffness and damping.
 
 Known failure modes:
 
-- Attribute the difference only to action dimensions or drive both fingers.
+- Remove the follower coordinate or describe the issue only as action width.
 
-## Scenario 4: Bang-Bang Control
+## Scenario 3: Bang-Bang Control
 
-Query: "The policy alternates full actions only in MJWarp."
+Query: "The policy alternates saturated actions in MJWarp."
 
 Expected behavior:
 
-- Check timing, action scale, inertia, armature, damping, and hard stops before solver tuning.
+- Match per-joint actuator response, timing, action hold, limits, armature, and damping.
+- Retune damping after armature changes and keep targets away from hard stops.
 
 Known failure modes:
 
-- Hide the problem with an unenforced MJWarp velocity clamp or broad randomization.
+- Tune the policy before matching nominal control behavior.
 
-## Scenario 5: Observation Contract Changed
+## Scenario 4: Domain Randomization
 
-Query: "I removed body velocities; can I deploy the old checkpoint?"
+Query: "What should I randomize for sim-to-sim transfer?"
 
 Expected behavior:
 
-- Require retraining or a validated adapter and preserve the old normalizer/history for the old contract.
+- Use the documented friction, mass/inertia, joint, armature, gravity, actuator, reset, and observation families.
+- Keep ranges plausible and coupled mechanisms coherent.
 
 Known failure modes:
 
-- Pad, truncate, or reorder observations without semantic validation.
+- Use extreme randomization to hide an incorrect nominal model.
 
-## Scenario 6: Transfer Randomization
+## Scenario 5: Curriculum
 
-Query: "What should I randomize for both transfer directions?"
+Query: "The final randomization distribution prevents learning."
 
 Expected behavior:
 
-- Match the nominal model first, then add friction, payload, actuator, gravity, reset, and noise families incrementally.
-- Keep mimic joints coherent and report nominal/randomized PP, PN, NN, and NP separately.
+- Start from easier gravity, noise, reset, or termination settings and promote to final difficulty.
+- Keep a deterministic nominal evaluation.
 
 Known failure modes:
 
-- Widen all distributions at once or randomize around a known model bug.
+- Evaluate only the easier curriculum stage.
+
+## Scenario 6: Full Matrix
+
+Query: "How do I demonstrate transfer in both directions with Franka?"
+
+Expected behavior:
+
+- Run PP, PN, NN, and NP with `Isaac-Lift-Franka` and `Isaac-Lift-Franka-Play`.
+- Reproduce each same-backend baseline and deploy the exact checkpoint cross-backend.
+
+Known failure modes:
+
+- Report only one transfer direction or use different checkpoints.

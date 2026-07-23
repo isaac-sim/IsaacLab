@@ -1,6 +1,6 @@
 ---
 name: isaaclab-preparing-assets-for-newton
-description: Migrates PhysX-compatible robot, object, and scene assets to Isaac Lab's Newton backend with MJWarp. Use when handling multi-physics conversion, mass and inertia warnings, collision or topology differences, mimic joints, actuator and armature calibration, velocity-limit semantics, MJWarp solver presets, reset validity, or task-level PhysX/MJWarp parity.
+description: Migrates PhysX-compatible robot, object, and scene assets to Isaac Lab's Newton backend with MJWarp. Use when handling multi-physics conversion, per-solver asset configuration, mass or inertia warnings, collision and topology differences, velocity-limit behavior, armature and damping, MJWarp solver profiles, or task-level reset and smoke validation.
 audience: user
 status: experimental
 owners:
@@ -11,40 +11,31 @@ owners:
 
 ## When To Use
 
-Read the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst) before editing an asset. Read the [MJWarp solver page](../../../docs/source/overview/core-concepts/physical-backends/newton/mjwarp-solver.rst) before tuning a preset. This skill routes the work; the documentation owns parameter semantics and starting values.
-
-Use `isaaclab-transferring-policies-sim-to-sim` only after the task resets and steps correctly in both backends.
+Read the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst) first. This skill follows that page in the same order and targets Newton with MJWarp, not Newton solvers generally. Use the sim-to-sim skill only after the asset and task run in both backends.
 
 ## Workflow
 
-1. **Freeze the PhysX baseline.** Record the source asset and revision, conversion command, ordered bodies and joints, actions and observations, `dt`, decimation, resets, warnings, and zero-action behavior.
-2. **Check MJWarp support and scope.** Keep shared public configs unchanged when a task-local converted asset avoids breaking other tasks or checkpoints.
-3. **Convert or layer the asset.** Prefer the URDF/MJCF converters with asset transformation and multi-physics conversion enabled. Keep common USD Physics properties in base schema cfgs and route backend-only fields through `Mujoco*`, `Newton*`, or `Physx*PropertiesCfg`.
-4. **Validate the mechanical model.** Fix mass, center of mass, inertia and frames, collision geometry, materials, scale, articulation roots, fixed joints, axes, limits, gravity flags, self-collision, and references. Treat placeholder inertia or fallback collision as model failures.
-5. **Rebuild control deliberately.** Resolve actuator and controller names after conversion. Source effort and rated speed from hardware data, then calibrate stiffness, damping, friction, and armature. Drive a coupled mechanism's leader, keep its follower passive, and reset both from one sample.
-6. **Apply MJWarp-specific rules.** MJWarp enforces neither `velocity_limit` nor `velocity_limit_sim`; check required speed bounds in task or control logic. Use armature only for articulated coordinates, not plain rigid objects. Increase it only from physical data or controlled response tests, then retune damping to avoid bang-bang control.
-7. **Create explicit backend presets.** Preserve `dt * decimation`. Start from the nearest documented MJWarp profile instead of translating PhysX numbers. Size contact and constraint capacity before changing convergence, friction, or collision settings.
-8. **Validate the exact task.** Run zero and random agents under `physics=physx` and `physics=newton_mjwarp` through multiple resets. Reject penetrations and invalid coupled states before stepping. Reproduce the first divergence with fixed state and commands, change one parameter family at a time, and record the result.
+1. **Multi-backend Asset Importing Pipeline.** Convert URDF or MJCF assets with the updated importers. Keep `run_asset_transformer=True` and `run_multi_physics_conversion=True` so the layered asset contains neutral, PhysX, and MuJoCo payloads. Account for the nested rigid-body structure produced by the new converter.
+2. **Use per-solver asset configuration classes.** Put common USD Physics properties in solver-common base cfgs. Put MJWarp-specific fields in `Mujoco*PropertiesCfg`, Newton-native fields in `Newton*PropertiesCfg`, and PhysX-only fields in `Physx*PropertiesCfg`. Confirm support in the generated schema APIs.
+3. **Audit the authored mechanical model.** Check every dynamic link and contact-relevant object for intentional mass, COM, inertia and frames, collision geometry, approximation and scale, materials, articulation root, fixed-base and fixed-joint representation, joint axes and limits, self-collision, and gravity overrides.
+4. **Velocity limits distinction.** `velocity_limit` is a rated speed and `velocity_limit_sim` is a requested solver clamp. MJWarp enforces neither. Add task or control checks for required speed bounds and use per-joint `effort_limit_sim`.
+5. **Why MJWarp often needs more armature.** Use reflected rotor inertia or controlled response tests for articulated coordinates. A plain rigid object has body inertia, not actuator armature. Correct mass, inertia, units, reset penetration, effort, action scale, control period, and contact capacity before changing armature.
+6. **Retune damping with armature.** Increasing armature changes effective inertia and damping ratio. Tune armature, stiffness, and damping together from a step response, use conservative action scales, and keep targets away from hard stops to prevent bang-bang control.
+7. **Choose an MJWarp starting profile.** Do not translate PhysX parameters numerically. Start from the nearest profile on the MJWarp solver page, keep the documented convergence defaults initially, enable `debug_mode`, and use MuJoCo contacts unless the task requires Newton's collision pipeline. Then run zero and random agents in PhysX and MJWarp through multiple resets. Check non-finite state, first-step impulses, saturation, excessive angular velocity, contact loss, and warnings. Reject penetrations, impossible mimic states, and invalid randomized geometry before stepping.
 
 ## Validation
 
-Require:
-
-- intentional finite mass properties and collision geometry;
-- matching topology, resolved names, timing, and policy interface, or an explicit retraining boundary;
-- finite reset, zero-action, small-action, impulse, and contact behavior in both backends;
-- physically plausible actuator response without unexplained velocity spikes or bang-bang control;
-- sufficient MJWarp capacity with no unresolved importer or solver warning; and
-- a migration record containing sources, commands, presets, evidence, and remaining differences.
+Require a multi-physics asset with supported per-solver fields, intentional mass and collision data, physically justified actuator parameters, finite task behavior in both backends, and valid resets. Do not classify an asset as ready while importer or solver warnings remain unexplained.
 
 ## Maintenance
 
-Keep this skill synchronized with the asset migration guide and MJWarp solver page. Update those pages first when guidance changes.
+Keep this skill synchronized section-for-section with the asset migration guide and use the MJWarp solver page for current profile values.
 
 ## References
 
-- Read [reference.md](reference.md) for the compact audit tables, smoke commands, solver profiles, and failure triage.
-- Read [examples.md](examples.md) when the symptom matches a worked migration case.
-- Use [evaluations.md](evaluations.md) when maintaining or testing this skill.
-- Use the [schema cfg guide](../../../docs/source/overview/core-concepts/schema_cfgs.rst) to confirm per-solver property routing.
-- Use Newton's [Simulation Tuning guide](https://newton-physics.github.io/newton/latest/concepts/simulation_tuning.html) for current diagnose-first guidance.
+- [Compact reference](reference.md)
+- [Examples](examples.md)
+- [Evaluations](evaluations.md)
+- [MJWarp solver page](../../../docs/source/overview/core-concepts/physical-backends/newton/mjwarp-solver.rst)
+- [Schema configuration classes](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
+- [Newton Simulation Tuning guide](https://newton-physics.github.io/newton/latest/concepts/simulation_tuning.html)

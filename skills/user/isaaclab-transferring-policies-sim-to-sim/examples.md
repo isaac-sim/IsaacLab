@@ -2,20 +2,16 @@
 
 ## PhysX-Trained Franka To MJWarp
 
-1. Validate the task and asset in both backends.
-2. Match the policy contract and make the second PhysX finger drive passive.
-3. Reproduce deterministic open-loop and PP checkpoint behavior.
-4. Run PN with the same checkpoint and only the physics preset changed.
-5. Report PP and PN over the same seeds before adding randomization.
+Ensure the task can train in both engines, compare the exact environment contract, disable the second PhysX finger drive, match nominal actuator behavior, reproduce PP with the explicit checkpoint, and then run PN with only the physics backend changed.
 
-## MJWarp-Trained Locomotion To PhysX
+## MJWarp-Trained Franka To PhysX
 
-Preserve commands, observation history, joint order, action scale, and policy period. Compare open-loop response, then contact timing. Reproduce NN and run NP with an explicit checkpoint; report saturation, speed violations, terminations, and tracking.
+Use the same contract and control settings, reproduce NN with the explicit checkpoint, and run NP in PhysX. Keep the training and inference task IDs from the how-to.
 
-## Finger Action Contract Differs
+## Duplicate PhysX Finger Drive
 
-The drive graph and checkpoint width are separate. Disable the second PhysX finger drive, but preserve the checkpoint's ordered action tensor and `last_action` semantics. If matching semantics requires dropping or reordering an action, retrain or implement and validate an explicit compatibility adapter.
+If one logical gripper command produces more effort in PhysX, check whether both fingers received nonzero stiffness and damping. Drive `panda_finger_joint1`; make `panda_finger_joint2` passive while retaining it for the mimic constraint.
 
-## Nominal Passes, Randomization Fails
+## Domain Randomization
 
-Re-enable one family at a time, compare effective backend parameters, and check friction mapping, stacked gripper/gain events, coupled-joint coherence, and randomized reset geometry. Fix model or event bugs before widening distributions.
+Randomize the documented friction, payload, joint, armature, gravity, actuator-response, reset, and observation families around a corrected nominal model. Use curriculum only to reach the final deployment distribution and keep deterministic nominal evaluation separate.
