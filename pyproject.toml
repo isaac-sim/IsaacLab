@@ -57,7 +57,7 @@ dependencies = [
     "pytetwild[all]>=0.3.0,<0.4 ; platform_machine == 'aarch64' or platform_machine == 'arm64'",
     "transformers==4.57.6",
     "einops",
-    "warp-lang>=1.15.0",
+    "warp-lang==1.16.0.dev20260723",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
@@ -95,7 +95,7 @@ dependencies = [
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # git ``main`` branch is forced via [tool.uv].override-dependencies (uv sync only).
+    # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
     # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
     # ...) that honoring USD-authored ``physics:approximation`` requires.
     "newton[sim,importers]>=1.2.0",
@@ -180,10 +180,9 @@ torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = ">=0.4.13"
 ovrtx = ">=0.3.0,<0.4.0"
-# Newton tracks the git ``main`` branch; warp-lang resolves to the latest prerelease
-# wheel (>= floor). Upgraded together via ``uv lock --upgrade-package newton warp-lang``.
-newton = "main"
-warp = ">=1.15.0"
+# Newton git commit + matching warp-lang prerelease (upgraded together).
+newton = "ff9b71d54c83f251b996954606dfa3f8bd6c9ce6"
+warp = "1.16.0.dev20260723"
 
 [tool.ruff]
 line-length = 120
@@ -342,13 +341,16 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-
-# Override to stop isaacsim from downgrading Newton, MuJoCo, and torch versions.
+# Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
+# for every requester, unlike constraints, which only intersect. The ``isaacsim`` extra
+# pins older Newton, MuJoCo, and torch versions, so these overrides prevent downgrades.
+# Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",
     "mujoco~=3.10.0",
     "mujoco-warp~=3.10.0,>=3.10.0.2",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@main",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@ff9b71d54c83f251b996954606dfa3f8bd6c9ce6",
+    # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
