@@ -680,6 +680,7 @@ class NewtonManager(PhysicsManager):
                 device="cpu",
             )
             if selection.GetCount() == 0:
+                NewtonManager._cables_dirty = False
                 return
             _, _, body_q, _, _ = cls._cable_sync_cpu_buffers
             wp.copy(body_q, cls._state_0.body_q)
