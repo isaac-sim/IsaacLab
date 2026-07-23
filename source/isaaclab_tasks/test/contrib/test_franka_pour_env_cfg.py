@@ -19,7 +19,7 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg
 
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.managers import CurriculumTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab.managers import CurriculumTermCfg, RewardTermCfg, TerminationTermCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 
