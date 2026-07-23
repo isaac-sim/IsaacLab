@@ -1254,8 +1254,8 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
 
 
 @pytest.mark.isaacsim_ci
-def test_warmup_cpu_attaches_stage_without_force_load():
-    """Regression test: CPU warmup must attach the stage without force-loading it.
+def test_warmup_attach_stage_not_called_for_cpu():
+    """Regression test: CPU warmup must force-load without explicitly attaching the stage.
 
     Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
     ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
@@ -1263,19 +1263,16 @@ def test_warmup_cpu_attaches_stage_without_force_load():
     double-initialization that corrupts the CPU MBP broadphase, producing
     non-deterministic collision failures (objects passing through surfaces).
 
-    The legacy CPU pipeline attached implicitly via ``force_load_physics_from_usd()``.
-    In Isaac Sim 6, the legacy force-load call no longer attaches the stage, so CPU
-    warmup must instead use the explicit attachment pattern without force-loading.
+    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()`` when
+    the ``omni.physics.physx`` bridge registers the backend.
 
-    This test verifies that ``attach_stage`` is called exactly once and
-    ``force_load_physics_from_usd`` is not called during CPU warmup.
-    The simulation test itself (1 cube falling onto a ground plane) is intentionally
-    omitted here because the MBP corruption is non-deterministic and depends on scene
-    complexity (multiple dynamic actors on a mesh collider), making it unreliable as a
-    unit test assertion.
+    This test verifies that the PhysX backend is registered with the unified physics
+    API, ``attach_stage`` is not called, and ``force_load_physics_from_usd`` is called
+    exactly once during CPU warmup.
     """
     from unittest.mock import MagicMock, patch
 
+    import omni.kit.app
     import omni.physx
 
     with build_simulation_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
@@ -1294,11 +1291,12 @@ def test_warmup_cpu_attaches_stage_without_force_load():
         ):
             sim.reset()
 
-        assert physx_sim_spy.attach_stage.call_count == 1, (
-            f"attach_stage() was called {physx_sim_spy.attach_stage.call_count} time(s) during CPU warmup; "
-            "the CPU pipeline requires one explicit stage attachment."
+        extension_manager = omni.kit.app.get_app().get_extension_manager()
+        assert extension_manager.is_extension_enabled("omni.physics.physx"), (
+            "The omni.physics.physx bridge must register PhysX with the unified physics API."
         )
-        assert physx_spy.force_load_physics_from_usd.call_count == 0, (
-            "force_load_physics_from_usd() was called during CPU warmup. Calling it after attach_stage() "
-            "causes CPU MBP broadphase double-initialization."
+        assert physx_sim_spy.attach_stage.call_count == 0, (
+            f"attach_stage() was called {physx_sim_spy.attach_stage.call_count} time(s) during CPU warmup. "
+            "This indicates the CPU MBP broadphase double-initialization regression is present."
         )
+        physx_spy.force_load_physics_from_usd.assert_called_once_with()
