@@ -51,6 +51,11 @@ input modes, which determine which retargeters and control schemes are available
      - Isaac Teleop plugin (bundled)
      - Migrated from the now-deprecated ``isaac-teleop-device-plugins`` repo.
        Combine with an external wrist-tracking source for wrist positioning. See :ref:`manus-vive-handtracking`.
+   * - Haptikos Exoskeletons
+     - Exoskeleton hand tracking with controller wrist poses
+     - Isaac Teleop plugin (separate executable)
+     - Requires the Haptikos App, exoskeletons, and an OpenXR headset with controllers.
+       See :ref:`haptikos-quest-handtracking`.
 
 
 .. _isaac-teleop-control-schemes:
@@ -86,7 +91,7 @@ starting point, then see the detailed pipeline examples below.
      - 28
      - ``fixed_base_upper_body_ik_g1_env_cfg.py``
    * - Complex dex hand (e.g. GR1T2, G1 Inspire)
-     - Hand tracking / Manus gloves
+     - Hand tracking / Manus gloves / Haptikos exoskeletons
      - Bimanual ``Se3AbsRetargeter`` + ``DexBiManualRetargeter``
      - 36+
      - ``pickplace_gr1t2_env_cfg.py``
@@ -1166,9 +1171,9 @@ There are two levels of device integration:
 
 **Isaac Teleop plugin (C++ level)**
    For new hardware that requires a custom driver or SDK. Plugins push data via OpenXR tensor
-   collections. Existing plugins include Manus gloves, OAK-D camera, controller synthetic hands,
-   and foot pedals. After creating the plugin, update the retargeting pipeline config to consume
-   data from the new plugin's source node.
+   collections. Existing plugins include Manus gloves, Haptikos exoskeletons, OAK-D camera,
+   controller synthetic hands, and foot pedals. After creating the plugin, update the retargeting
+   pipeline config to consume data from the new plugin's source node.
 
    See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/>`_ for examples.
 
