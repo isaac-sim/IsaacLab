@@ -99,7 +99,7 @@ better starting point for stiff drives and contact than the Isaac Lab configurat
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
         num_substeps=1,
-        debug_mode=True,
+        debug_mode=False,  # Set True during tuning, False for production.
     )
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=newton_cfg)
 

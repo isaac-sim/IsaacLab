@@ -4,14 +4,17 @@ Migrating Assets from PhysX to Newton with MJWarp
 .. seealso::
 
    This page is the source of truth for the ``isaaclab-preparing-assets-for-newton`` agent skill
-   (`skill source <../../../../../../skills/user/prepare-assets-for-newton/SKILL.md>`__). When you
+   (`skill source
+   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__).
+   When you
    change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 
    After the asset and task run under both backends, follow
    :doc:`/source/how-to/transfer_policies_between_physx_and_newton` and its
    ``isaaclab-transferring-policies-sim-to-sim``
-   `skill <../../../../../../skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__
+   `skill
+   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__
    to transfer a policy checkpoint.
 
    Use Newton's

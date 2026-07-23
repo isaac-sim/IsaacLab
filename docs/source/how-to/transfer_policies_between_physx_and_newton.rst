@@ -5,14 +5,16 @@ Transfer Policies Between PhysX and Newton
 
    This how-to is the source of truth for the
    ``isaaclab-transferring-policies-sim-to-sim`` agent skill
-   (`skill source <../../../skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__).
+   (`skill source
+   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 
    First make every robot and object MJWarp-clean by following
    :doc:`/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton`
    and the ``isaaclab-preparing-assets-for-newton``
-   `skill <../../../skills/user/prepare-assets-for-newton/SKILL.md>`__.
+   `skill
+   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__.
 
 Sim-to-sim transfer evaluates one policy checkpoint in a physics backend different from the one
 used for training. This guide covers both PhysX-trained policies deployed in Newton and
