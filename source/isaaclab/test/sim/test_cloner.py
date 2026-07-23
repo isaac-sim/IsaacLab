@@ -227,7 +227,7 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
     """usd_replicate must not call Sdf.CopySpec when source and destination paths are identical."""
     from unittest.mock import patch
 
-    import isaaclab.cloner.cloner_utils as _cloner_mod
+    import isaaclab.cloner.usd as _cloner_mod
 
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/envs", "Xform")
@@ -807,8 +807,8 @@ def test_resolve_clone_plan_source_merges_same_template_rows(sim):
     assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
 
 
-def test_resolve_clone_plan_source_partial_coverage_raises(sim):
-    """When the matching rows' merged mask misses an env, partial coverage is rejected."""
+def test_resolve_clone_plan_source_partial_coverage_returns(sim):
+    """Partial-env coverage is allowed: env 3 uncovered by either row does not raise."""
     # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither row.
     plan = ClonePlan(
         sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
@@ -816,5 +816,6 @@ def test_resolve_clone_plan_source_partial_coverage_raises(sim):
         clone_mask=torch.tensor([[True, False, True, False], [False, True, False, False]], device=sim.cfg.device),
     )
 
-    with pytest.raises(NotImplementedError, match="partial-env heterogeneous coverage"):
-        resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
+    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
+
+    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")

@@ -105,8 +105,7 @@ The default value is ``cuda:0``.
 Offscreen rendering
 -------------------
 
-The input argument ``--offscreen_render`` given to :class:`isaaclab.app.AppLauncher` and the environment variable
-``OFFSCREEN_RENDER`` have been renamed to ``--enable_cameras`` and ``ENABLE_CAMERAS`` respectively.
+Offscreen rendering is selected automatically when a camera task runs without a visualizer.
 
 
 Event term distribution configuration

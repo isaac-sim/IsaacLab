@@ -39,10 +39,21 @@ depends on the workload: **physics-only** simulation does not require it; **RTX*
 
 Pass ``--deterministic`` to enable reproducible rendering from the app launcher. (Isaac RTX only)
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh train --rl_library rl_games \
-    --task Isaac-Cartpole-Camera --enable_cameras --deterministic
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab train --rl_library rl_games \
+          --task Isaac-Cartpole-Camera --deterministic
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh train --rl_library rl_games \
+          --task Isaac-Cartpole-Camera --deterministic
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 

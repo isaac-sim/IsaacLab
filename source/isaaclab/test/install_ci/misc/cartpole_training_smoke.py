@@ -40,8 +40,6 @@ _CAMERA_TRAIN_CMD = [
     "presets=newton_mjwarp,newton_renderer",
     "--max_iterations",
     "2",
-    "--headless",
-    "--enable_cameras",
 ]
 
 

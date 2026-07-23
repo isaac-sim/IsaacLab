@@ -15,6 +15,6 @@ class MultiMeshRayCaster(FactoryBase, BaseMultiMeshRayCaster):
 
     _backend_class_names = {
         "physx": "MultiMeshRayCaster",
-        "newton": "MultiMeshRayCaster",
+        "newton": "LegacyMultiMeshRayCaster",
         "ovphysx": "MultiMeshRayCaster",
     }

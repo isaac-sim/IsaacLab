@@ -98,6 +98,46 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
     assert close_args == {"exit_code": 1}
 
 
+def test_launch_simulation_auto_enables_kit_camera_without_launcher_args(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("LIVESTREAM", raising=False)
+    received_args = {}
+
+    class _FakeApp:
+        def close(self) -> None:
+            pass
+
+    class _FakeAppLauncher:
+        def __init__(self, launcher_args):
+            received_args.update(launcher_args)
+            self.app = _FakeApp()
+
+    scan = sim_launcher.Scan(
+        resolved_physics_cfg=None,
+        effective_cfg=object(),
+        visualizer_intent={"has_any_visualizers": False, "has_kit_visualizer": False},
+        has_ovrtx=False,
+        has_kit_camera=True,
+        has_kit_physics=False,
+        has_kitless_physics=False,
+        has_ovphysx_physics=False,
+        needs_kit=True,
+    )
+
+    def _scan(_cfg, launcher_args):
+        assert launcher_args == {}
+        return scan
+
+    monkeypatch.setattr(sim_launcher, "scan", _scan)
+    monkeypatch.setattr(sim_launcher, "_ensure_isaac_sim_available", lambda: None)
+    monkeypatch.setattr(app_module, "AppLauncher", _FakeAppLauncher)
+    monkeypatch.setattr(utils_module, "has_kit", lambda: False)
+
+    with sim_launcher.launch_simulation(object()):
+        pass
+
+    assert received_args["enable_cameras"] is True
+
+
 def test_deferred_cuda_device_synchronizes_torch_and_warp(monkeypatch: pytest.MonkeyPatch):
     """The post-Kit device hook must synchronize both CUDA runtimes."""
     devices = []

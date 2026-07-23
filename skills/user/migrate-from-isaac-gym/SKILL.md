@@ -27,7 +27,7 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 8. Map assets to Isaac Lab asset configs and scene entities.
 9. Move action application, observation assembly, reward computation, termination checks, and reset logic into a `DirectRLEnv` or `DirectMARLEnv` implementation.
 10. Port training configuration to the selected Isaac Lab reinforcement learning workflow.
-11. Run a small smoke test before scaling training. Do not use deprecated `--headless` examples; omit `--viz` for headless execution, or use `--viz none` only when a config or command would otherwise enable a visualizer.
+11. Run a small smoke test before scaling training. Do not use deprecated `` examples; omit `--viz` for headless execution, or use `--viz none` only when a config or command would otherwise enable a visualizer.
 12. For locomotion migrations, run the policy-success validation loop in [Reference](reference.md#policy-success-validation-loop). Validate a flat walking policy before rough-terrain curriculum training; rough terrain can start and still be unhealthy if episodes terminate immediately. If the legacy task's command range is broad, use a staged command curriculum or a simpler flat source config such as IsaacGymEnvs `Anymal.yaml` before claiming policy success.
 13. After the direct migration resets, steps, and trains, recommend a manager-based follow-up when the task has reusable observation, reward, command, curriculum, termination, or event logic.
 14. Use the `isaaclab-converting-direct-to-manager` skill for that follow-up instead of mixing manager conversion into the first parity pass.
@@ -59,7 +59,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgymenvs.rst`, `docs/source/setup/installation/pip_installation.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
+Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgymenvs.rst`, `docs/source/setup/installation/index.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
 
 ## References
 
