@@ -47,15 +47,6 @@ import isaaclab.envs.mdp.observations as stable_obs
 # ============================================================================
 
 
-@pytest.fixture(autouse=True)
-def _clear_caches():
-    yield
-    for fn in [warp_obs.generated_commands]:
-        for attr in list(vars(fn)):
-            if attr.startswith("_"):
-                delattr(fn, attr)
-
-
 @pytest.fixture()
 def art_data():
     return MockArticulationData(NUM_ENVS, NUM_JOINTS, DEVICE)

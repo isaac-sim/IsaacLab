@@ -270,9 +270,18 @@ class Articulation(BaseArticulation):
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
-        # reset Lab actuators registered on this articulation
-        for actuator in self.actuators.values():
-            actuator.reset(env_ids)
+        # Reset Lab actuators only outside the Newton-native mode. In native mode
+        # the per-env actuator state (delay queues, network hidden states) lives
+        # in the global adapter, which consumes the mask below, and the Lab
+        # actuator objects only carry configuration; resetting them here would
+        # touch unselected environments.
+        if not getattr(self, "_has_newton_actuators", False):
+            actuator_env_ids = env_ids
+            if self.actuators and env_mask is not None:
+                torch_mask = wp.to_torch(env_mask)
+                actuator_env_ids = torch_mask.nonzero(as_tuple=False).squeeze(-1)
+            for actuator in self.actuators.values():
+                actuator.reset(actuator_env_ids)
         # reset the global Newton actuator adapter (its ``_states_a/_b`` buffers
         # carry per-env state — delay queues, neural hidden states — that must
         # be cleared for the resetting envs). The adapter spans the whole model,
@@ -281,7 +290,7 @@ class Articulation(BaseArticulation):
         # ``getattr`` guards subclasses (e.g. ``Multirotor``) that override
         # ``_process_actuators_cfg`` and never initialize ``_has_newton_actuators``.
         if getattr(self, "_has_newton_actuators", False) and SimulationManager._adapter is not None:
-            SimulationManager._adapter.reset(env_ids)
+            SimulationManager._adapter.reset(env_ids, env_mask=env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)

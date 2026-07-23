@@ -11,10 +11,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import trimesh
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.utils.warp import ProxyArray
 
 from .utils import create_prim_from_mesh
 
@@ -23,6 +25,34 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+@wp.kernel
+def _update_env_origins_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    move_up: wp.array(dtype=wp.bool),
+    move_down: wp.array(dtype=wp.bool),
+    rng_state: wp.array(dtype=wp.uint32),
+    terrain_levels: wp.array(dtype=wp.int64),
+    terrain_types: wp.array(dtype=wp.int64),
+    terrain_origins: wp.array(dtype=wp.vec3f, ndim=2),
+    env_origins: wp.array(dtype=wp.vec3f),
+    max_terrain_level: int,
+):
+    """Update terrain levels and origins selected by an environment mask."""
+    env_id = wp.tid()
+    if env_mask[env_id]:
+        state = rng_state[env_id]
+        random_level = wp.randi(state, 0, max_terrain_level)
+        # Keep shared terrain indices int64 so their zero-copy Torch views support advanced indexing.
+        level = terrain_levels[env_id] + wp.int64(move_up[env_id]) - wp.int64(move_down[env_id])
+        if level >= wp.int64(max_terrain_level):
+            level = wp.int64(random_level)
+        elif level < wp.int64(0):
+            level = wp.int64(0)
+        terrain_levels[env_id] = level
+        env_origins[env_id] = terrain_origins[level, terrain_types[env_id]]
+        rng_state[env_id] = state
 
 
 class TerrainImporter:
@@ -45,16 +75,6 @@ class TerrainImporter:
     terrain_prim_paths: list[str]
     """A list containing the USD prim paths to the imported terrains."""
 
-    terrain_origins: torch.Tensor | None
-    """The origins of the sub-terrains in the added terrain mesh. Shape is (num_rows, num_cols, 3).
-
-    If terrain origins is not None, the environment origins are computed based on the terrain origins.
-    Otherwise, the environment origins are computed based on the grid spacing.
-    """
-
-    env_origins: torch.Tensor
-    """The origins of the environments. Shape is (num_envs, 3)."""
-
     def __init__(self, cfg: TerrainImporterCfg):
         """Initialize the terrain importer.
 
@@ -73,10 +93,14 @@ class TerrainImporter:
         self.cfg = cfg
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
 
-        # create buffers for the terrains
+        # create buffers for the terrains. Each buffer is one ProxyArray owning the
+        # storage that both the public Torch accessors and the Warp views alias, so
+        # consumer-held views stay pointer-stable across reconfiguration.
         self.terrain_prim_paths = list()
-        self.terrain_origins = None
-        self.env_origins = None  # assigned later when `configure_env_origins` is called
+        self._terrain_origins_pa: ProxyArray | None = None
+        self._env_origins_pa: ProxyArray | None = None  # assigned when `configure_env_origins` is called
+        self._terrain_levels_pa: ProxyArray | None = None
+        self._terrain_types_pa: ProxyArray | None = None
         # private variables
         self._terrain_flat_patches = dict()
 
@@ -143,6 +167,38 @@ class TerrainImporter:
     def terrain_names(self) -> list[str]:
         """A list of names of the imported terrains."""
         return [f"'{path.split('/')[-1]}'" for path in self.terrain_prim_paths]
+
+    @property
+    def terrain_origins(self) -> torch.Tensor | None:
+        """Sub-terrain origins [m], shape ``(num_rows, num_cols, 3)``; ``None`` for grid-like origins."""
+        return self._terrain_origins_pa.torch if self._terrain_origins_pa is not None else None
+
+    @property
+    def env_origins(self) -> torch.Tensor | None:
+        """Per-env origins [m], shape ``(num_envs, 3)``; ``None`` until origins are configured."""
+        return self._env_origins_pa.torch if self._env_origins_pa is not None else None
+
+    @property
+    def terrain_levels(self) -> torch.Tensor | None:
+        """Per-env terrain levels, shape ``(num_envs,)``, int64; ``None`` for grid-like origins."""
+        return self._terrain_levels_pa.torch if self._terrain_levels_pa is not None else None
+
+    @property
+    def terrain_types(self) -> torch.Tensor | None:
+        """Per-env terrain types, shape ``(num_envs,)``, int64; ``None`` for grid-like origins."""
+        return self._terrain_types_pa.torch if self._terrain_types_pa is not None else None
+
+    @property
+    def terrain_levels_pa(self) -> ProxyArray:
+        """Terrain levels proxy, shape ``(num_envs,)``, int64; use ``.warp`` / ``.torch`` views."""
+        if self._terrain_levels_pa is None:
+            raise RuntimeError("Terrain levels are unavailable for grid-like environment origins.")
+        return self._terrain_levels_pa
+
+    @property
+    def env_origins_pa(self) -> ProxyArray | None:
+        """Environment origins proxy [m], shape ``(num_envs,)`` vec3; use ``.warp`` / ``.torch`` views."""
+        return self._env_origins_pa
 
     """
     Operations - Visibility.
@@ -288,31 +344,50 @@ class TerrainImporter:
     Operations - Origins.
     """
 
-    def configure_env_origins(self, origins: np.ndarray | torch.Tensor | None = None):
+    def configure_env_origins(self, origins: np.ndarray | torch.Tensor | None = None) -> None:
         """Configure the origins of the environments based on the added terrain.
 
+        Reconfiguration copies into the existing origin buffers when layouts match,
+        so cached Torch tensors and Warp views held by consumers stay valid.
+
         Args:
-            origins: The origins of the sub-terrains. Shape is (num_rows, num_cols, 3).
+            origins: The origins [m] of the sub-terrains. Shape is (num_rows, num_cols, 3).
         """
         # decide whether to compute origins in a grid or based on curriculum
         if origins is not None:
-            # convert to numpy
+            # convert to torch
             if isinstance(origins, np.ndarray):
                 origins = torch.from_numpy(origins)
             # store the origins
-            self.terrain_origins = origins.to(self.device, dtype=torch.float)
+            self._terrain_origins_pa = self._assign_proxy_stable(
+                self._terrain_origins_pa, origins.to(self.device, dtype=torch.float).contiguous(), wp.vec3f
+            )
             # compute environment origins
-            self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
+            self._env_origins_pa = self._assign_proxy_stable(
+                self._env_origins_pa,
+                self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins),
+                wp.vec3f,
+            )
         else:
-            self.terrain_origins = None
+            self._terrain_origins_pa = None
+            self._terrain_levels_pa = None
+            self._terrain_types_pa = None
             # check if env spacing is valid
             if self.cfg.env_spacing is None:
                 raise ValueError("Environment spacing must be specified for configuring grid-like origins.")
             # compute environment origins
-            self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
+            self._env_origins_pa = self._assign_proxy_stable(
+                self._env_origins_pa, self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing), wp.vec3f
+            )
 
-    def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor):
-        """Update the environment origins based on the terrain levels."""
+    def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor) -> None:
+        """Update environment origins through the Torch ID-based interface.
+
+        Args:
+            env_ids: Environment indices to update.
+            move_up: Flags that increment the selected terrain levels.
+            move_down: Flags that decrement the selected terrain levels.
+        """
         # check if grid-like spawning
         if self.terrain_origins is None:
             return
@@ -328,9 +403,87 @@ class TerrainImporter:
         # update the env origins
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
 
+    def update_env_origins_mask(
+        self,
+        env_mask: wp.array(dtype=wp.bool),
+        move_up: wp.array(dtype=wp.bool),
+        move_down: wp.array(dtype=wp.bool),
+        rng_state: wp.array(dtype=wp.uint32),
+    ) -> None:
+        """Update terrain levels and origins through the Warp mask-based interface.
+
+        Moving past the maximum level wraps to a random level, moving below zero clamps to zero, and
+        unselected environments remain unchanged.
+
+        Args:
+            env_mask: Boolean mask selecting environments, shape ``(num_envs,)``.
+            move_up: Flags that increment terrain levels, shape ``(num_envs,)``.
+            move_down: Flags that decrement terrain levels, shape ``(num_envs,)``.
+            rng_state: Per-environment random-number-generator state, shape ``(num_envs,)``.
+
+        Raises:
+            TypeError: If an input is not a Warp array with the required data type.
+            ValueError: If an input has the wrong shape or device.
+        """
+        if self.terrain_origins is None:
+            return
+        num_envs = self.terrain_levels.shape[0]
+        arrays = {
+            "env_mask": (env_mask, wp.bool),
+            "move_up": (move_up, wp.bool),
+            "move_down": (move_down, wp.bool),
+            "rng_state": (rng_state, wp.uint32),
+        }
+        for name, (array, dtype) in arrays.items():
+            if not isinstance(array, wp.array) or array.dtype != dtype:
+                raise TypeError(f"{name} must be a Warp array with dtype {dtype}; received {array}.")
+            if array.ndim != 1 or array.shape[0] != num_envs:
+                raise ValueError(f"{name} must have shape ({num_envs},); received {array.shape}.")
+            if array.device != wp.get_device(self.device):
+                raise ValueError(f"{name} must be on device {self.device}; received {array.device}.")
+
+        wp.launch(
+            kernel=_update_env_origins_mask,
+            dim=num_envs,
+            inputs=[
+                env_mask,
+                move_up,
+                move_down,
+                rng_state,
+                self._terrain_levels_pa.warp,
+                self._terrain_types_pa.warp,
+                self._terrain_origins_pa.warp,
+                self._env_origins_pa.warp,
+                self.max_terrain_level,
+            ],
+            device=self.device,
+        )
+
     """
     Internal helpers.
     """
+
+    @staticmethod
+    def _assign_proxy_stable(current: ProxyArray | None, new: torch.Tensor, dtype) -> ProxyArray:
+        """Copy into the existing proxy storage when layouts match so consumer-held views stay valid.
+
+        Args:
+            current: The proxy currently owning the buffer, or ``None``.
+            new: Freshly computed values to store.
+            dtype: Warp dtype of the proxy's array (e.g. ``wp.vec3f``).
+
+        Returns:
+            The proxy holding the new values; :paramref:`current` when its layout matches.
+        """
+        if (
+            current is not None
+            and current.torch.shape == new.shape
+            and current.torch.dtype == new.dtype
+            and current.torch.device == new.device
+        ):
+            current.torch.copy_(new)
+            return current
+        return ProxyArray(wp.from_torch(new.contiguous(), dtype=dtype))
 
     def _compute_env_origins_curriculum(self, num_envs: int, origins: torch.Tensor) -> torch.Tensor:
         """Compute the origins of the environments defined by the sub-terrains origins."""
@@ -344,10 +497,18 @@ class TerrainImporter:
         # store maximum terrain level possible
         self.max_terrain_level = num_rows
         # define all terrain levels and types available
-        self.terrain_levels = torch.randint(0, max_init_level + 1, (num_envs,), device=self.device)
-        self.terrain_types = torch.div(
-            torch.arange(num_envs, device=self.device), (num_envs / num_cols), rounding_mode="floor"
-        ).to(torch.long)
+        self._terrain_levels_pa = self._assign_proxy_stable(
+            self._terrain_levels_pa,
+            torch.randint(0, max_init_level + 1, (num_envs,), device=self.device),
+            wp.int64,
+        )
+        self._terrain_types_pa = self._assign_proxy_stable(
+            self._terrain_types_pa,
+            torch.div(torch.arange(num_envs, device=self.device), (num_envs / num_cols), rounding_mode="floor").to(
+                torch.long
+            ),
+            wp.int64,
+        )
         # create tensor based on number of environments
         env_origins = torch.zeros(num_envs, 3, device=self.device)
         env_origins[:] = origins[self.terrain_levels, self.terrain_types]

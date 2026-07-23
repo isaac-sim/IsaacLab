@@ -55,6 +55,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import class_to_dict
 
 from isaaclab_experimental.utils import modifiers, noise
@@ -62,7 +63,6 @@ from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -70,6 +70,7 @@ if TYPE_CHECKING:
 
 @wp.kernel
 def _apply_clip(out: wp.array(dtype=wp.float32, ndim=2), clip_lo: wp.float32, clip_hi: wp.float32):
+    """Clamp every column of a term's ``out`` block to [``clip_lo``, ``clip_hi``] in place."""
     env_id = wp.tid()
     for j in range(out.shape[1]):
         out[env_id, j] = wp.clamp(out[env_id, j], clip_lo, clip_hi)
@@ -77,6 +78,7 @@ def _apply_clip(out: wp.array(dtype=wp.float32, ndim=2), clip_lo: wp.float32, cl
 
 @wp.kernel
 def _apply_scale(out: wp.array(dtype=wp.float32, ndim=2), scale: wp.array(dtype=wp.float32)):
+    """Multiply each column of a term's ``out`` block by its per-column ``scale`` in place."""
     env_id = wp.tid()
     for j in range(out.shape[1]):
         out[env_id, j] = out[env_id, j] * scale[j]
@@ -382,15 +384,7 @@ class ObservationManager(ManagerBase):
         *,
         env_mask: wp.array | None = None,
     ) -> dict[str, float]:
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            # Keep all id->mask resolution strictly outside capture.
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "ObservationManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         # call all terms that are classes
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
@@ -679,6 +673,16 @@ class ObservationManager(ManagerBase):
                 # check noise settings
                 if not group_cfg.enable_corruption:
                     term_cfg.noise = None
+                elif term_cfg.noise is not None and not type(term_cfg.noise).__module__.startswith(
+                    "isaaclab_experimental."
+                ):
+                    raise TypeError(
+                        f"Observation term '{term_name}' uses noise cfg"
+                        f" '{type(term_cfg.noise).__module__}.{type(term_cfg.noise).__name__}', which the Warp"
+                        " observation manager would silently ignore. Use the warp-native noise cfgs from"
+                        " isaaclab_experimental.utils.noise (the warp frontend converts stable cfgs"
+                        " automatically)."
+                    )
                 # check group history params and override terms
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
@@ -760,6 +764,10 @@ class ObservationManager(ManagerBase):
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
 
+                # plumb the shared per-env RNG state so Warp noise kernels can consume it
+                # (function-style NoiseCfg kernels read it off the cfg at call time)
+                if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseCfg):
+                    term_cfg.noise.rng_state_wp = self._env.rng_state_wp
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
                     # plumb the shared per-env RNG state so Warp noise kernels can consume it
@@ -905,9 +913,17 @@ class ObservationManager(ManagerBase):
         - ``"body:N"``: ``N`` components per selected body from ``asset_cfg``.
         - ``"command"``: query ``command_manager.get_command(name).shape[-1]``.
         - ``"action"``: query ``action_manager.action.shape[-1]``.
+        - ``"sensor:rays"``: number of rays of the ray-caster sensor from ``sensor_cfg``.
         """
         if isinstance(out_dim, int):
             return out_dim
+
+        if out_dim == "sensor:rays":
+            sensor_cfg = term_cfg.params.get("sensor_cfg")
+            if sensor_cfg is None:
+                raise ValueError("out_dim='sensor:rays' requires a 'sensor_cfg' entry in the term's params.")
+            sensor = self._env.scene.sensors[sensor_cfg.name]
+            return int(sensor.num_rays)
 
         if out_dim == "joint":
             asset_cfg = term_cfg.params.get("asset_cfg")
@@ -922,11 +938,12 @@ class ObservationManager(ManagerBase):
 
         if isinstance(out_dim, str) and out_dim.startswith("body:"):
             per_body = int(out_dim.split(":")[1])
-            asset_cfg = term_cfg.params.get("asset_cfg")
-            body_ids = getattr(asset_cfg, "body_ids", None)
+            # Body selection may live on an asset (articulation) or a sensor entity.
+            entity_cfg = term_cfg.params.get("asset_cfg") or term_cfg.params.get("sensor_cfg")
+            body_ids = getattr(entity_cfg, "body_ids", None)
             if body_ids is None or body_ids == slice(None):
-                asset = self._env.scene[asset_cfg.name]
-                return per_body * len(asset.body_names)
+                entity = self._env.scene[entity_cfg.name]
+                return per_body * len(entity.body_names)
             return per_body * len(body_ids)
 
         if out_dim == "command":

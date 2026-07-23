@@ -42,6 +42,9 @@ class CircularBuffer:
         self._device = device
         self._ALL_INDICES = torch.arange(batch_size, device=device)
 
+        # max length as a host int: the property is read on the per-step append path,
+        # so it must not synchronize with the device tensor below.
+        self._max_len_int = int(max_len)
         # max length tensor for comparisons
         self._max_len = torch.full((batch_size,), max_len, dtype=torch.int, device=device)
         # number of data pushes passed since the last call to :meth:`reset`
@@ -69,7 +72,7 @@ class CircularBuffer:
     @property
     def max_length(self) -> int:
         """The maximum length of the ring buffer."""
-        return int(self._max_len[0].item())
+        return self._max_len_int
 
     @property
     def current_length(self) -> torch.Tensor:

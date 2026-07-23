@@ -27,17 +27,18 @@ import warp as wp
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.direct_rl_env import DirectRLEnv
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
+from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
-
-# from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
+from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
+from isaaclab_experimental.utils.warp import increment_all_int32, zero_masked_int32
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
 # from isaacsim.core.simulation_manager import SimulationManager
@@ -52,25 +53,6 @@ DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
 
 DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
 """Enable all fine-grained inner timers (adds wp.synchronize per sub-phase). Set DEBUG_TIMERS=1 env var to enable."""
-
-
-@wp.kernel
-def zero_mask_int32(
-    mask: wp.array(dtype=wp.bool),
-    data: wp.array(dtype=wp.int32),
-):
-    env_index = wp.tid()
-    if mask[env_index]:
-        data[env_index] = 0
-
-
-@wp.kernel
-def add_to_env(
-    data: wp.array(dtype=wp.int32),
-    value: wp.int32,
-):
-    env_index = wp.tid()
-    data[env_index] += value
 
 
 class DirectRLEnvWarp(DirectRLEnv):
@@ -162,21 +144,16 @@ class DirectRLEnvWarp(DirectRLEnv):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveSceneWarp(self.cfg.scene)
+                self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 self.scene.initialize_renderers()
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-        offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-        if has_gui or offscreen_render:
-            # self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-            self.viewport_camera_controller = None
+        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit
+        # (renderer camera); skip in kitless Newton-only runs where no Kit app is running.
+        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
+            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
 
@@ -243,8 +220,13 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Warp CUDA graph cache for capture-or-replay
-        self._graph_cache = WarpGraphCache()
+        # Pure-kernel task stages capture as on develop. Only the reset stage is
+        # registered eager: it dispatches scene.reset(), whose legacy Torch
+        # actuator boundary materializes compact IDs on the host, and CUDA graph
+        # replay would silently skip that Python-side reset work. The follow-up
+        # launch-replay execution path restores its speed correctly.
+        self._warp_graph_cache = WarpGraphCache(device=self.device)
+        self._warp_graph_cache.register_capturability("DirectReset", False)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -427,10 +409,10 @@ class DirectRLEnvWarp(DirectRLEnv):
                 # set actions into buffers
                 # simulate
                 with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
-                    self._graph_cache.capture_or_replay("action", self.step_warp_action)
+                    self._warp_graph_cache.call("DirectAction_step", self.step_warp_action)
 
-                # write_data_to_sim runs outside the CUDA graph because _apply_actuator_model
-                # uses torch ops (wp.to_torch + torch arithmetic) that cross CUDA streams.
+                # Keep scene writes outside the task graph until scene, sensor, and
+                # actuator capturability have been validated as one backend boundary.
                 with Timer(name="write_data_to_sim_loop", msg="Write data to sim (loop) took:", enable=DEBUG_TIMERS):
                     self.scene.write_data_to_sim()
 
@@ -447,12 +429,16 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
-            self._graph_cache.capture_or_replay("end_pre", self._step_warp_end_pre)
-        # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
+            self._warp_graph_cache.call("DirectEndPre_compute", self._step_warp_end_pre)
+        # Reset stage: registered eager (see __init__) because its scene dispatch
+        # crosses the legacy actuator host boundary.
+        with Timer(name="reset_stage", msg="Reset stage took:", enable=DEBUG_TIMERS):
+            self._warp_graph_cache.call("DirectReset_apply", self._step_warp_reset)
+        # Keep the post-reset scene write at the explicit backend boundary.
         with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
             self.scene.write_data_to_sim()
         with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
-            self._graph_cache.capture_or_replay("end_post", self._step_warp_end_post)
+            self._warp_graph_cache.call("DirectEndPost_step", self._step_warp_end_post)
 
         # Visualization hook — runs after CUDA graph scope. Override in subclass
         # to update markers or other non-graphable visual elements.
@@ -479,15 +465,13 @@ class DirectRLEnvWarp(DirectRLEnv):
 
     def step_warp_action(self) -> None:
         self._apply_action()
-        # Note: scene.write_data_to_sim() is called separately outside the CUDA graph
-        # capture scope because it invokes _apply_actuator_model() which uses torch
-        # arithmetic (wp.to_torch + torch ops). This would cause a CUDA stream crossing
-        # error during graph capture. Moving it outside is safe since it runs every step.
+        # Scene writes remain a separate backend stage. This keeps the Warp-first
+        # task path correct without making capture support a prerequisite.
 
     def _step_warp_end_pre(self) -> None:
-        """Capturable portion before write_data_to_sim (pure warp kernels)."""
+        """Capturable portion before the reset stage (pure warp kernels)."""
         wp.launch(
-            add_to_env,
+            increment_all_int32,
             dim=self.num_envs,
             inputs=[
                 self._episode_length_buf_wp,
@@ -497,7 +481,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         self._get_dones()
         self._get_rewards()
 
-        # -- reset envs that terminated/timed-out and log the episode information
+    def _step_warp_reset(self) -> None:
+        """Reset envs that terminated/timed-out (eager: crosses host boundaries)."""
         self._reset_idx(mask=self.reset_buf)
 
     def _step_warp_end_post(self) -> None:
@@ -570,13 +555,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-            # Rendering is possible if we have GUI or offscreen rendering enabled
-            can_render = has_gui or offscreen_render
-
-            if not can_render:
+            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
+            if not (self.sim.has_gui or self.sim.has_offscreen_render):
                 render_mode_name = "NO_GUI_OR_RENDERING"
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode is"
@@ -740,7 +720,7 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # reset the episode length buffer
         wp.launch(
-            zero_mask_int32,
+            zero_masked_int32,
             dim=self.num_envs,
             inputs=[
                 mask,
