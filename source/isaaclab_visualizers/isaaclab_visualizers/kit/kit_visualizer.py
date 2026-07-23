@@ -354,6 +354,30 @@ class KitVisualizer(BaseVisualizer):
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
 
+    def reapply_origin(self) -> None:
+        """Recompute the camera position from the current :attr:`~KitVisualizerCfg.origin_type` and push it to
+        the viewport.
+
+        Call this after mutating :attr:`cfg.origin_type`, :attr:`cfg.env_index`, or
+        :attr:`cfg.asset_name` so the viewport reflects the new origin immediately rather than
+        waiting for the next :meth:`step` call.
+
+        For ``"asset_root"`` and ``"asset_body"`` origins the camera update is deferred to the
+        next :meth:`step` because asset state is not available until after
+        :meth:`~isaaclab.sim.SimulationContext.reset`.
+        """
+        self._setup_initial_camera_view()
+
+    @property
+    def viewer_origin(self) -> torch.Tensor | None:
+        """Current world-space origin offset applied to :attr:`~KitVisualizerCfg.eye` and
+        :attr:`~KitVisualizerCfg.lookat` when computing the absolute camera position.
+
+        Returns ``None`` before :meth:`initialize` is called or when no valid origin has been
+        established yet (e.g. asset-tracking before the first :meth:`step`).
+        """
+        return self._viewer_origin
+
     # ---- Viewport + camera ----------------------------------------------------------------
 
     def _setup_backend_menubar_label(self) -> None:

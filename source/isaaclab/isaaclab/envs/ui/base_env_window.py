@@ -431,8 +431,13 @@ class BaseEnvWindow:
             viz.cfg.origin_type = "asset_root"
             viz.cfg.asset_name = viewer_asset_name
 
+        # Reposition the viewport camera immediately so the new origin is reflected
+        # without waiting for the next env.step() call.
+        viz.reapply_origin()
+
     def _set_viewer_location_fn(self, model: omni.ui.SimpleFloatModel):
         """Sets the viewport camera location based on the UI."""
+
         viz = self._get_kit_visualizer()
         if viz is None:
             return
@@ -440,12 +445,28 @@ class BaseEnvWindow:
         lookat = [self.ui_window_elements["viewer_lookat"][i].get_value_as_float() for i in range(3)]
         viz.set_camera_view(eye, lookat)
 
+        # Persist the slider values back to cfg so that asset-tracking steps do not
+        # snap the camera back to the previously configured offsets.
+        origin = viz.viewer_origin
+        if origin is not None:
+            origin_np = origin.detach().cpu().numpy()
+            viz.cfg.eye = tuple(float(e - o) for e, o in zip(eye, origin_np))
+            viz.cfg.lookat = tuple(float(lk - o) for lk, o in zip(lookat, origin_np))
+        else:
+            viz.cfg.eye = tuple(float(v) for v in eye)
+            viz.cfg.lookat = tuple(float(v) for v in lookat)
+
     def _set_viewer_env_index_fn(self, model: omni.ui.SimpleIntModel):
         """Sets the environment index and updates the camera if in 'env' origin mode."""
         viz = self._get_kit_visualizer()
         env_index = model.as_int - 1
         if viz is not None:
             viz.cfg.env_index = env_index
+            # For "env" origin the camera must be repositioned immediately; for asset-tracking
+            # origins reapply_origin() defers the update to the next step() call (asset state
+            # is needed to compute the new position).
+            if viz.cfg.origin_type == "env":
+                viz.reapply_origin()
         # notify additional listeners
         for listener in self._ui_listeners:
             listener.set_env_selection(env_index)
