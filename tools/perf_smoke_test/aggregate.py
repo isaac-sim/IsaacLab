@@ -179,9 +179,7 @@ def _row_explanation(result) -> str:
     else:
         explanation = "No meaningful slowdown"
     if result.was_retried:
-        explanation += (
-            "; retry also failed" if result.verdict == OracleVerdict.HARD_FAILURE else "; passed only after retry"
-        )
+        explanation += "; retry also failed" if result.verdict == OracleVerdict.HARD_FAILURE else "; result was retried"
     return explanation
 
 

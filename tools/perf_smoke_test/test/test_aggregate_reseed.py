@@ -174,7 +174,7 @@ def test_sticky_summary_explains_results_in_reviewer_language() -> None:
         threshold_source="rolling_window",
         hard_floor_fps=None,
         failure_phase=None,
-        was_retried=False,
+        was_retried=True,
         note="block_confirmed(n=1)",
         crossed_thresholds=[],
     )
@@ -187,6 +187,8 @@ def test_sticky_summary_explains_results_in_reviewer_language() -> None:
     assert "### How to read this" in summary
     assert "Start with **BLOCK** and **HARD FAILURE**" in summary
     assert "| Isaac-Cartpole-Direct | physx | 🚫 BLOCK | 90.0 | 100.0 | -10.00% | 5 |" in summary
+    assert "Blocking-level slowdown detected; result was retried" in summary
+    assert "passed only after retry" not in summary
     assert "<summary>Technical details</summary>" in summary
     assert "block_confirmed(n=1)" in summary
 
