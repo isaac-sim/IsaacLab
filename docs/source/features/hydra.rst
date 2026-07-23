@@ -426,26 +426,11 @@ preset-to-agent compatibility, the compatible presets appear beneath each agent:
 .. code-block:: bash
 
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Camera-Direct --help
-
-For a compact listing, or machine-readable discovery for automation, use
-``--list_variants`` without launching the simulator:
-
-.. code-block:: bash
-
-    # Human-readable table
-    ./isaaclab.sh train --rl_library rl_games \
-        --task Isaac-Cartpole-Camera --list_variants
-
-    # JSON containing selectors, agents, defaults, and declared compatibility
-    ./isaaclab.sh train --rl_library rl_games \
-        --task Isaac-Cartpole-Camera --list_variants json
+        --task Isaac-Cartpole-Camera --help
 
 Preset and agent selection are otherwise independent. A task may use an alternate
 agent for symmetry, recurrence, or another algorithm without changing its environment
-preset. When a preset changes the observation or action interface, the task registers
-compatibility metadata and an incompatible command fails before simulator launch with
-the matching ``--agent`` arguments.
+preset.
 
 .. note::
 

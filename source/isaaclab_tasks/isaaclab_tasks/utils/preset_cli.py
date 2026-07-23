@@ -12,8 +12,8 @@ Recognizes three ``key=value`` tokens (no leading dashes) on ``sys.argv``:
 * ``presets=NAME[,NAME,...]`` -- broadcast applied to every matching ``PresetCfg``.
 
 :func:`setup_preset_cli` registers preset-selection help and, for RL callers,
-agent discovery plus ``--list_variants``. It then runs ``parse_known_args``,
-returning the verbatim remainder. The preset tokens above are passed through unchanged; hydra's
+agent discovery. It then runs ``parse_known_args``, returning the verbatim
+remainder. The preset tokens above are passed through unchanged; hydra's
 :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly (applying
 the names as presets and enforcing that ``physics=``/``renderer=`` resolve
 against a config of that type). Callers simply assign the remainder to
@@ -23,7 +23,7 @@ No argparse arguments are registered for the typed selectors -- their
 discoverability lives in the ``argument_group`` description, so the parsed
 Namespace gains no preset attributes and cannot shadow
 :class:`~isaaclab.app.AppLauncher` SimulationApp config keys (``renderer``
-notably). RL callers may opt into the independent ``--list_variants`` argument.
+notably).
 
 Typical script setup::
 
@@ -92,7 +92,7 @@ def setup_preset_cli(
             triggers ``--help`` rendering.
         agent_library: Optional RL-library prefix. When provided, task-specific
             help lists registered ``--agent`` values and declared preset
-            compatibility, and ``--list_variants [table|json]`` is available.
+            compatibility.
 
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
@@ -100,25 +100,15 @@ def setup_preset_cli(
         ``sys.argv``.
 
     Raises:
-        SystemExit: If ``argv`` requests help or task variant listing, after
-            printing the requested output.
+        SystemExit: If ``argv`` requests help, after printing it.
     """
     # --help short-circuits parsing, so help text that depends on --task has to
     # find it before argparse runs. Gate the env_cfg load on --help to keep
     # normal training runs cheap.
     argv_helper = _ArgvHelper(sys.argv)
     actual_variants = None
-    task_variants = None
     if argv_helper.task_name and argv_helper.help_requested:
-        if agent_library:
-            from isaaclab_tasks.utils.task_variant import enumerate_task_variants
-
-            task_variants = enumerate_task_variants(argv_helper.task_name, agent_library)
-            actual_variants = {
-                PresetTarget(selector): set(names) for selector, names in task_variants["selectors"].items()
-            }
-        else:
-            actual_variants = _enumerate_variants(argv_helper.task_name)
+        actual_variants = _enumerate_variants(argv_helper.task_name)
 
     # Argparse's default HelpFormatter reflows description text into one wrapped
     # paragraph, which would collapse the per-variant bullets we emit. Use a
@@ -133,16 +123,9 @@ def setup_preset_cli(
     parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
     if agent_library:
-        agent_group = parser.add_argument_group(
-            "agent selection", description=_AgentDescriptionBuilder.build(agent_library, task_variants)
-        )
-        agent_group.add_argument(
-            "--list_variants",
-            nargs="?",
-            choices=("table", "json"),
-            const="table",
-            default=None,
-            help="List task selectors and compatible agent configurations, then exit.",
+        parser.add_argument_group(
+            "agent selection",
+            description=_AgentDescriptionBuilder.build(agent_library, argv_helper.task_name),
         )
 
     args_to_parse = sys.argv[1:] if argv is None else argv
@@ -150,15 +133,7 @@ def setup_preset_cli(
         parser.print_help()
         raise SystemExit(0)
 
-    args, remaining = parser.parse_known_args(args_to_parse)
-    if agent_library and args.list_variants:
-        if not getattr(args, "task", None):
-            parser.error("--list_variants requires --task.")
-        from isaaclab_tasks.utils.task_variant import format_task_variants
-
-        print(format_task_variants(args.task, agent_library, args.list_variants))
-        raise SystemExit(0)
-    return args, remaining
+    return parser.parse_known_args(args_to_parse)
 
 
 # ============================================================================
@@ -294,39 +269,36 @@ class _AgentDescriptionBuilder:
     """Render registered agent configs and declared preset compatibility."""
 
     @staticmethod
-    def build(agent_library: str, task_variants: dict | None) -> str:
+    def build(agent_library: str, task_name: str | None) -> str:
         """Build help text for one RL library.
 
         Args:
             agent_library: RL-library prefix used to filter agent configs.
-            task_variants: Result from
-                :func:`~isaaclab_tasks.utils.task_variant.enumerate_task_variants`,
-                or ``None`` when task-specific help was not requested.
+            task_name: Gymnasium task ID, or ``None`` when task-specific help
+                was not requested.
 
         Returns:
             Multi-line argparse group description.
         """
-        if task_variants is None:
+        if task_name is None:
             return (
                 f"Registered --agent values for {agent_library}. Pass `--task=X --help` "
                 "to see the available configs and declared preset compatibility."
             )
 
-        agents = task_variants["agents"]
+        agents, compatibility = _enumerate_agents(task_name, agent_library)
         if not agents:
             return f"Registered --agent values for {agent_library}: (none)"
 
         lines = [f"Registered --agent values for {agent_library}:"]
         for agent in agents:
-            suffix = " (default)" if agent["default"] else ""
-            lines.append(f"    {agent['name']}{suffix}")
-            compatible = agent["compatible_presets"]
+            suffix = " (default)" if agent == f"{agent_library}_cfg_entry_point" else ""
+            lines.append(f"    {agent}{suffix}")
+            compatible = compatibility.get(agent)
             if compatible is not None:
                 lines.append(f"      compatible presets: {', '.join(compatible)}")
-            if agent["description"]:
-                lines.append(f"      {agent['description']}")
-        if all(agent["compatible_presets"] is None for agent in agents):
-            lines.extend(["", "Preset compatibility is not declared for this task."])
+        if not compatibility:
+            lines.extend(["", "Preset selection does not constrain --agent for this task."])
         return "\n".join(lines)
 
 
@@ -379,6 +351,17 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
 
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     return _bucket_variants_by_target(collect_presets(env_cfg))
+
+
+def _enumerate_agents(task_name: str, agent_library: str) -> tuple[list[str], dict[str, tuple[str, ...]]]:
+    """Return registered agents and task-declared preset compatibility."""
+    import gymnasium as gym
+
+    spec = gym.spec(task_name.split(":")[-1])
+    prefix = f"{agent_library}_"
+    agents = sorted(key for key in spec.kwargs if key.startswith(prefix) and key.endswith("_cfg_entry_point"))
+    compatibility = spec.kwargs.get("agent_preset_compatibility", {})
+    return agents, {agent: tuple(presets) for agent, presets in compatibility.items() if agent in agents}
 
 
 def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:

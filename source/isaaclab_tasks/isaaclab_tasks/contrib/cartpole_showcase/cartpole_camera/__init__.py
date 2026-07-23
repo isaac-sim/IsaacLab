@@ -9,8 +9,6 @@ Cartpole balancing environment with camera.
 
 import gymnasium as gym
 
-from isaaclab_tasks.utils import TaskVariantCfg
-
 from . import agents
 
 _SPACE_PRESETS = (
@@ -51,21 +49,9 @@ gym.register(
         "skrl_tuple_box_cfg_entry_point": f"{agents.__name__}:skrl_tuple_box_ppo_cfg.yaml",
         "skrl_tuple_discrete_cfg_entry_point": f"{agents.__name__}:skrl_tuple_discrete_ppo_cfg.yaml",
         "skrl_tuple_multidiscrete_cfg_entry_point": f"{agents.__name__}:skrl_tuple_multidiscrete_ppo_cfg.yaml",
-        "task_variant_cfg": TaskVariantCfg(
-            default_preset="box_box",
-            agents={
-                "skrl_cfg_entry_point": TaskVariantCfg.AgentCfg(
-                    preset_names=("box_box",),
-                    description="Default skrl policy for Box observations and actions.",
-                ),
-                **{
-                    f"skrl_{preset_name}_cfg_entry_point": TaskVariantCfg.AgentCfg(
-                        preset_names=(preset_name,),
-                        description=f"skrl policy matching the {preset_name} observation/action spaces.",
-                    )
-                    for preset_name in _SPACE_PRESETS
-                },
-            },
-        ),
+        "agent_preset_compatibility": {
+            "skrl_cfg_entry_point": ("box_box",),
+            **{f"skrl_{preset_name}_cfg_entry_point": (preset_name,) for preset_name in _SPACE_PRESETS},
+        },
     },
 )
