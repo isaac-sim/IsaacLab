@@ -367,3 +367,47 @@ def generated_commands(env: ManagerBasedEnv, out, command_name: str) -> None:
         fn._cmd_name = command_name
         fn._is_warmed_up = True
     wp.copy(out, fn._cmd_wp)
+
+
+"""
+Sensors.
+"""
+
+
+@wp.kernel
+def _body_incoming_wrench_kernel(
+    force: wp.array(dtype=wp.vec3f, ndim=2),
+    torque: wp.array(dtype=wp.vec3f, ndim=2),
+    body_ids: wp.array(dtype=wp.int32),
+    out: wp.array(dtype=wp.float32, ndim=2),
+):
+    env_id = wp.tid()
+    for k in range(body_ids.shape[0]):
+        b = body_ids[k]
+        f = force[env_id, b]
+        t = torque[env_id, b]
+        out[env_id, k * 6 + 0] = f[0]
+        out[env_id, k * 6 + 1] = f[1]
+        out[env_id, k * 6 + 2] = f[2]
+        out[env_id, k * 6 + 3] = t[0]
+        out[env_id, k * 6 + 4] = t[1]
+        out[env_id, k * 6 + 5] = t[2]
+
+
+@generic_io_descriptor_warp(out_dim="body:6", observation_type="BodyState", on_inspect=[record_shape, record_dtype])
+def body_incoming_wrench(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg) -> None:
+    """Incoming spatial wrench [N, N·m] on selected bodies, laid out per body as ``[fx, fy, fz, tx, ty, tz]``.
+
+    Warp-first override of :func:`isaaclab.envs.mdp.observations.body_incoming_wrench`. Reads the
+    Newton joint-wrench sensor and gathers the force/torque of the bodies selected by ``sensor_cfg``
+    into ``out`` (shape ``(num_envs, 6 * num_selected_bodies)``).
+    """
+    sensor = env.scene.sensors[sensor_cfg.name]
+    if sensor.data.force is None or sensor.data.torque is None:
+        raise RuntimeError("Joint wrench sensor data is not initialized. Call sim.reset() before reading observations.")
+    wp.launch(
+        kernel=_body_incoming_wrench_kernel,
+        dim=env.num_envs,
+        inputs=[sensor.data.force.warp, sensor.data.torque.warp, sensor_cfg.body_ids_wp, out],
+        device=env.device,
+    )
