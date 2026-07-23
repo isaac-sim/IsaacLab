@@ -178,12 +178,12 @@ storage-only tests remain `T`.
 
 | ID | Parameter | PhysX | Newton-MJWarp | Newton-Kamino |
 |---|---|---|---|---|
-| SIM-01 | Gravity vector | T / T / T | N / T / T | N / I / I |
-| STATE-01 | Initial/reset link pose | T / T / T | T / T / T | I / I / I |
-| STATE-02 | Initial/reset COM spatial velocity | T / T / T | T / T / T | I / I / I |
-| BODY-01 | Mass | T / T / T | T / T / T | I / I / X |
-| BODY-02 | Inertia tensor and inertial-frame orientation | T / N / T | T / N / T | I / N / X |
-| BODY-03 | Center-of-mass position | T / N / T | T / N / T | I / N / I |
+| SIM-01 | Gravity vector | T / T / T | N / I / I | N / I / I |
+| STATE-01 | Initial/reset link pose | T / T / T | I / I / I | I / I / I |
+| STATE-02 | Initial/reset COM spatial velocity | T / T / T | I / I / I | I / I / I |
+| BODY-01 | Mass | T / T / T | I / I / I | I / I / X |
+| BODY-02 | Inertia tensor and inertial-frame orientation | T / N / T | I / N / I | I / N / X |
+| BODY-03 | Center-of-mass position | T / N / T | I / N / I | I / N / I |
 | SHAPE-01 | Shape transform relative to body | T / T / N | T / T / N | T / T / N |
 | SHAPE-02 | Shape scale or dimensions | T / T / E | T / T / E | T / T / E |
 | SHAPE-03 | Collision radius | T / T / N | T / T / N | T / T / N |
@@ -193,13 +193,13 @@ storage-only tests remain `T`.
 | MAT-04 | Restitution | T / T / T | T / T / T | T / T / T |
 | CONTACT-01 | Rest/contact offset mapped to margin/gap | T / T / T | T / T / T | T / T / T |
 | JOINT-01 | Parent and child joint frames | T / T / N | T / T / N | T / T / N |
-| JOINT-02 | Reset/live joint position | N / T / T | N / T / T | N / I / I |
-| JOINT-03 | Reset/live joint velocity | N / T / T | N / T / T | N / I / I |
-| JOINT-04 | Lower and upper position limits | T / N / T | T / N / T | I / N / I |
+| JOINT-02 | Reset/live joint position | N / T / T | N / I / I | N / I / I |
+| JOINT-03 | Reset/live joint velocity | N / T / T | N / I / I | N / I / I |
+| JOINT-04 | Lower and upper position limits | T / N / T | I / N / I | I / N / I |
 | JOINT-05 | Velocity limit | T / T / T | X / X / X | X / X / X |
 | JOINT-06 | Effort limit | T / T / T | T / T / T | X / X / X |
 | JOINT-07 | Armature | T / T / T | I / I / I | I / I / I |
-| JOINT-08 | Passive joint damping | T / T / T | T / T / T | I / T / T |
+| JOINT-08 | Passive joint damping | T / T / T | I / T / T | I / T / T |
 | JOINT-09 | Joint dry-friction force/torque | T / T / T | T / T / T | X / X / X |
 | DRIVE-01 | Implicit drive stiffness | T / T / T | I / I / I | I / I / I |
 | DRIVE-02 | Implicit drive damping | T / T / T | I / I / I | I / I / I |
@@ -526,7 +526,16 @@ API tests unless a mask-only graphed pipeline has distinct physical behavior.
   enforcement (`JOINT-05`) is an accepted out-of-scope gap; Isaac Lab does not intend to fix MJWarp solver
   behavior here. `SIM-01` USD is `N`: every simulation carries a `SimulationCfg`, and
   :class:`~isaaclab_newton.physics.NewtonManager` initializes ``model.gravity`` from
-  :attr:`~isaaclab.sim.SimulationCfg.gravity` after finalize, overwriting USD-imported scene gravity.
+  :attr:`~isaaclab.sim.SimulationCfg.gravity` after finalize, overwriting USD-imported scene gravity; MJWarp cfg
+  and runtime gravity cells are implemented in `test_sim_01_gravity_vector`. MJWarp position-limit runtime
+  writes (`JOINT-04`) are implemented only for in-place edits to existing finite limits, mirroring the Kamino
+  `FIX-LIMIT-POS` coverage; the topology-change (unlimited-to-limited) error path remains Kamino-only, matching
+  the existing `CMD-01` precedent of not applying Kamino's reconstruction-error behavior to MJWarp. MJWarp
+  `JOINT-08` USD-authored passive damping is implemented; its Python override and runtime paths are blocked by
+  the same [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) gap as Kamino, because
+  `write_joint_damping_to_sim_index` and `ImplicitActuatorCfg` write Newton's `joint_target_kd` (drive damping)
+  on both Newton backends and no public API currently exposes `Model.joint_damping` (passive damping)
+  separately.
 - **Newton-Kamino:** blocked joint-friction cells (`JOINT-09`) remain `X`; tests must not encode silent or
   ineffective writes as expected behavior. Explicit actuator rows (`ACT-01`, `ACT-02`) remain `T` until
   end-to-end physical coverage exists. Contact combined `mu` (`MAT-03`) is in scope and requires the same
@@ -557,9 +566,10 @@ source/isaaclab_newton/test/physics/parameter_validation/
   test_contact_parameters.py
 ```
 
-The Kamino implementation already uses the shared portion of this layout. PhysX, MJWarp, and contact modules are
-future targets. A small case descriptor should carry `parameter_id`, `backend`, `authoring_path`, `profile`,
-`act`, `observe`, `predict`, and `tolerance`; it is test infrastructure, not a public Isaac Lab API.
+The Kamino implementation already uses the shared portion of this layout. MJWarp and contact modules are
+near-term targets; the PhysX package is a future target deferred to Phase 5 (see "Implementation phases"). A
+small case descriptor should carry `parameter_id`, `backend`, `authoring_path`, `profile`, `act`, `observe`,
+`predict`, and `tolerance`; it is test infrastructure, not a public Isaac Lab API.
 
 Tests are parameterized over authoring path only when the path invokes a genuinely different Isaac Lab
 integration route. Index and mask writers require focused selection/coherence tests, but one physical test per
@@ -593,11 +603,18 @@ defects to [isaac-sim/IsaacLab](https://github.com/isaac-sim/IsaacLab/issues).
 
 ### Implementation phases
 
-1. **Phase 0 — establish the baseline:** classify the existing Kamino single-DOF test under the IDs in this
-   document and add issue references for its `X` cells.
-2. **Phase 1 — non-contact analytical core:** implement free-body, wrench, COM, state, and single-DOF cases
-   across the scoped backends. Phase 1 is intentionally split into three sub-steps so the shared fixture
-   architecture is validated on Kamino before it is replicated on MJWarp and PhysX:
+Phases are sequenced by backend as well as by parameter family: Phases 0-4 complete every in-scope matrix cell
+for the two Newton backends, Newton-MJWarp and Newton-Kamino, before PhysX is touched at all. PhysX porting is
+its own final phase (Phase 5). This validates the shared fixture/oracle architecture and the backend-adapter
+pattern against two independent Newton solver integrations first, and it prevents PhysX-specific issues,
+scheduling, or review latency from blocking Newton coverage. No PhysX matrix cell should move from its current
+disposition before Phase 5 begins.
+
+1. **Phase 0 — establish the baseline (Newton only):** classify the existing Kamino single-DOF test under the
+   IDs in this document and add issue references for its `X` cells.
+2. **Phase 1 — non-contact analytical core (Newton only):** implement free-body, wrench, COM, state, and
+   single-DOF cases across Newton-MJWarp and Newton-Kamino. Phase 1 is intentionally split into three sub-steps
+   so the shared fixture architecture is validated on Kamino before it is replicated on MJWarp:
 
    - **Phase 1a — extract shared fixtures (complete):** the Kamino single-DOF test was refactored into the
      proposed layout without changing coverage. Procedural scene construction and pure oracle logic live in
@@ -609,40 +626,59 @@ defects to [isaac-sim/IsaacLab](https://github.com/isaac-sim/IsaacLab/issues).
      pinned `PROFILE-DOF` and `PROFILE-FREE` oracles. Kamino `JOINT-08` Python override and runtime paths remain
      pending [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517), which must expose passive joint
      damping separately from implicit drive damping.
-   - **Phase 1c — port in batches:** replicate validated fixture contracts horizontally. Port `FIX-DOF-STEP` and
-     the existing Phase 0 Kamino cases to MJWarp and PhysX first because they are the highest matrix ROI and
-     upstream Newton evidence already exists. Then port `FIX-FREE-FALL`, `FIX-JOINT-STATE`, `FIX-WRENCH-LIN`,
-     `FIX-WRENCH-ANG`, and `FIX-COM` one fixture at a time, selecting backend-specific oracles and tolerances
-     in each backend package rather than forcing one cross-backend reference.
+   - **Phase 1c — port to MJWarp in batches (complete except `JOINT-08`):** replicate validated fixture
+     contracts horizontally onto Newton-MJWarp only. `FIX-DOF-STEP` and the existing Phase 0 Kamino cases were
+     ported first because they are the highest matrix ROI and upstream Newton evidence already exists.
+     `FIX-FREE-FALL`, `FIX-JOINT-STATE`, `FIX-WRENCH-LIN`, `FIX-WRENCH-ANG`, and `FIX-COM` were then ported one
+     fixture at a time, reusing the shared free-body and single-DOF checkpoint tolerances rather than the
+     tighter per-backend implicitFast joint-step tolerance, since the tolerance policy treats free-body
+     checkpoints as backend-agnostic. MJWarp `JOINT-08` Python override and runtime paths remain pending
+     [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517), the same blocker as Kamino.
 
-   Do not copy the monolithic Kamino test file into other backend packages. Each backend adapter should invoke
-   the same fixture contract and assert against its own documented oracle.
-3. **Phase 2 — limits, frames, and passive effects:** add position/velocity/effort limits, joint frames,
-   passive damping, and backend-specific joint friction.
-4. **Phase 3 — contact parameters:** add friction, restitution, geometry, and offset fixtures after their
-   backend-specific contact semantics are resolved.
-5. **Phase 4 — blocked runtime contracts:** convert `X` cells to `E` or `T` as backend defects are resolved.
-   Deferred constraints, tendons, and OVPhysX require a separate design revision.
+   Do not copy the monolithic Kamino test file into the MJWarp package. The MJWarp adapter should invoke the
+   same fixture contract and assert against its own documented oracle.
+3. **Phase 2 — limits, frames, and passive effects (Newton only):** add position/velocity/effort limits, joint
+   frames, passive damping, and backend-specific joint friction for Newton-MJWarp and Newton-Kamino.
+4. **Phase 3 — contact parameters (Newton only):** add friction, restitution, geometry, and offset fixtures for
+   Newton-MJWarp and Newton-Kamino after their backend-specific contact semantics are resolved.
+5. **Phase 4 — blocked Newton runtime contracts:** convert Newton-MJWarp and Newton-Kamino `X` cells to `E` or
+   `T` as backend defects are resolved. Deferred constraints, tendons, and OVPhysX require a separate design
+   revision.
+6. **Phase 5 — PhysX extension:** once Phases 0-4 are complete for both Newton backends, port the same fixture
+   contracts to `isaaclab_physx`, following the same fixture-contract-first, one-authoring-path-at-a-time
+   approach used for MJWarp in Phase 1c. Resolve any PhysX `X` cells as part of this phase rather than deferring
+   them further. Do not start Phase 5 work concurrently with Phases 0-4; PhysX cells keep their current matrix
+   disposition until this phase begins.
 
 Phase 0 test classification is implemented for `DRIVE-01`, `DRIVE-02`, `JOINT-04`, `JOINT-07`, `JOINT-08`,
 `CMD-01`, and `CMD-02`. The `X`-cell register is complete. Newton-Kamino `JOINT-05` is covered by
 [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397); Newton-MJWarp `JOINT-05` is an accepted
-out-of-scope gap with no Isaac Lab issue. Kamino `JOINT-04` runtime in-place limit edits are implemented; the
-topology-change error path is covered by the existing `runtime-error` case. Kamino `JOINT-08` USD authoring is
-implemented; Python override and runtime paths remain `T` until
-[IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) exposes passive joint damping separately from
-implicit drive damping.
+out-of-scope gap with no Isaac Lab issue. Kamino and MJWarp `JOINT-04` runtime in-place limit edits are
+implemented; the topology-change error path is covered by the existing `runtime-error` case on Kamino only,
+mirroring the `CMD-01` precedent of not applying Kamino's reconstruction-error behavior to MJWarp. Kamino and
+MJWarp `JOINT-08` USD authoring is implemented; Python override and runtime paths remain `T` on both backends
+until [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) exposes passive joint damping
+(`Model.joint_damping`) separately from implicit drive damping (`Model.joint_target_kd`), since both
+`write_joint_damping_to_sim_index` and `ImplicitActuatorCfg` write only the drive-damping array today,
+independent of the selected Newton solver.
 
-Phase 1a, the Kamino portion of Phase 1b, and two MJWarp Phase 1c batches are implemented under
+Phase 1a, all of Phase 1b, and Phase 1c are implemented under
 `source/isaaclab_newton/test/physics/parameter_validation/`. The shared importable fixture and oracle modules
-live under `source/isaaclab/isaaclab/test/physics/parameter_validation/`. The first MJWarp batch implements all
-authoring paths for `DRIVE-01`, `DRIVE-02`, and `JOINT-07`; the second implements the `CMD-01` feed-forward
-effort and `CMD-02` velocity-target runtime command paths. All use a pinned collision-free implicitFast profile
-and implicitFast one-step oracle. The command batch retains Kamino's topology-change error case separately
-rather than applying its reconstruction behavior to MJWarp. Kamino physical coverage implements
-the `I` cells for `SIM-01`, `STATE-01`, `STATE-02`, `BODY-01`, `BODY-02`, `BODY-03`, `JOINT-02`, and
-`JOINT-03`; `BODY-01` and `BODY-02` runtime `X` cells retain strict expected-failure coverage in the `X`-cell
-register.
+live under `source/isaaclab/isaaclab/test/physics/parameter_validation/`. The MJWarp Phase 1c batches implement,
+in order: all authoring paths for `DRIVE-01`, `DRIVE-02`, and `JOINT-07`; the `CMD-01` feed-forward effort and
+`CMD-02` velocity-target runtime command paths; the `usd`/`runtime` in-place authoring paths for `JOINT-04` and
+the `usd` authoring path for `JOINT-08`; the `FIX-FREE-FALL` fixture (`SIM-01` cfg/runtime, `STATE-01`,
+`STATE-02`); the `FIX-WRENCH-LIN`/`FIX-WRENCH-ANG` fixtures (`BODY-01`, `BODY-02`); the `FIX-COM` fixture's
+force-response and fixed-pivot gravity-moment variants (`BODY-03`); and the `FIX-JOINT-STATE` fixture
+(`JOINT-02`, `JOINT-03`). All single-DOF batches use the pinned collision-free implicitFast profile and
+implicitFast one-step oracle; the free-body batches reuse the shared free-body checkpoint tolerance
+(`rtol=5.0e-3`) rather than the tighter per-backend joint-step tolerance, matching the tolerance policy's
+backend-agnostic treatment of free-body checkpoints. The command and position-limit batches retain Kamino's
+topology-change error cases separately rather than applying Kamino's reconstruction-error behavior to MJWarp.
+Kamino and MJWarp physical coverage implement the `I` cells for `SIM-01`, `STATE-01`, `STATE-02`, `BODY-01`,
+`BODY-02`, `BODY-03`, `JOINT-02`, and `JOINT-03` on both backends; `BODY-01` and `BODY-02` runtime `X` cells
+remain Kamino-only and retain strict expected-failure coverage in the `X`-cell register, since MJWarp's
+`set_masses_index`/`set_inertias_index` runtime writers do not share Kamino's stale-inverse-mass defect.
 `STATE-01` USD authoring passes after the fixture supplies `translation` and `orientation` to
 `sim_utils.create_prim` directly, rather than calling :class:`pxr.UsdGeom.XformCommonAPI` after
 `create_prim` has standardized the transform stack. `STATE-02` USD authoring passes after the fixture converts

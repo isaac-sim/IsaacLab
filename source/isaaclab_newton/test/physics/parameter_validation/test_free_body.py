@@ -56,7 +56,7 @@ _PUBLIC_APIS = {
 }
 
 
-def _case(parameter_id: str, authoring: str, *, atol: float = 2.0e-4) -> PhysicalCase:
+def _case(parameter_adapter, parameter_id: str, authoring: str, *, atol: float = 2.0e-4) -> PhysicalCase:
     api = _PUBLIC_APIS[parameter_id]
     if authoring == "usd":
         api = "UsdPhysics RigidBodyAPI or MassAPI"
@@ -64,7 +64,7 @@ def _case(parameter_id: str, authoring: str, *, atol: float = 2.0e-4) -> Physica
         api = "RigidObjectCfg initialization"
     return PhysicalCase(
         parameter_id=parameter_id,
-        backend="newton-kamino",
+        backend=parameter_adapter.backend,
         authoring_path=authoring,
         profile="PROFILE-FREE",
         dt=PROFILE_FREE_DT,
@@ -89,7 +89,7 @@ def _spawn_cfg(mass: float = FREE_BODY_MASS) -> sim_utils.CuboidCfg:
 
 @contextmanager
 def _free_body_scene(
-    kamino,
+    parameter_adapter,
     authoring: str,
     *,
     gravity: tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -109,7 +109,7 @@ def _free_body_scene(
     sim_gravity = gravity if authoring == "cfg" else (0.0, 0.0, 0.0)
     with build_simulation_context(
         device="cuda:0",
-        sim_cfg=kamino.profile_free_cfg(gravity=sim_gravity),
+        sim_cfg=parameter_adapter.profile_free_cfg(gravity=sim_gravity),
     ) as sim:
         sim._app_control_on_stop_handle = None
         sim_utils.create_prim("/World/Env_0", "Xform")
@@ -171,12 +171,13 @@ def _set_runtime_gravity(sim, gravity: tuple[float, float, float]) -> None:
 
 
 @pytest.mark.parametrize("authoring", ["cfg", "runtime"])
-def test_sim_01_gravity_vector(kamino, authoring):
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_sim_01_gravity_vector(parameter_adapter, authoring):
     """SIM-01: Authored gravity produces the pinned discrete free-fall trajectory."""
     scene_authoring = authoring if authoring != "runtime" else "cfg"
     scene_gravity = _GRAVITY if authoring != "runtime" else (0.0, 0.0, 0.0)
     with _free_body_scene(
-        kamino,
+        parameter_adapter,
         scene_authoring,
         gravity=scene_gravity,
         position=_INITIAL_POSITION,
@@ -195,7 +196,7 @@ def test_sim_01_gravity_vector(kamino, authoring):
         position_initial = torch.tensor(_INITIAL_POSITION, device="cuda:0")
         velocity_initial = torch.zeros(3, device="cuda:0")
         acceleration = torch.tensor(_GRAVITY, device="cuda:0")
-        case = _case("SIM-01", authoring)
+        case = _case(parameter_adapter, "SIM-01", authoring)
         for step in range(1, 4):
             sim.step()
             body.update(PROFILE_FREE_DT)
@@ -211,7 +212,8 @@ def test_sim_01_gravity_vector(kamino, authoring):
 
 
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
-def test_state_01_initial_and_live_link_pose(kamino, authoring):
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_state_01_initial_and_live_link_pose(parameter_adapter, authoring):
     """STATE-01: Reset-default and live writes establish the requested link pose."""
     target_position = torch.tensor(_INITIAL_POSITION, device="cuda:0")
     target_orientation = torch.tensor(_INITIAL_ORIENTATION, device="cuda:0")
@@ -219,7 +221,7 @@ def test_state_01_initial_and_live_link_pose(kamino, authoring):
     position = _INITIAL_POSITION if authoring != "runtime" else (0.0, 0.0, 0.0)
     orientation = _INITIAL_ORIENTATION if authoring != "runtime" else (0.0, 0.0, 0.0, 1.0)
     with _free_body_scene(
-        kamino,
+        parameter_adapter,
         scene_authoring,
         position=position,
         orientation=orientation,
@@ -231,7 +233,7 @@ def test_state_01_initial_and_live_link_pose(kamino, authoring):
             assert_physical_close(
                 body.data.default_root_pose.torch[0, :3],
                 torch.tensor(_CFG_SENTINEL_POSITION, device="cuda:0"),
-                _case("STATE-01", authoring),
+                _case(parameter_adapter, "STATE-01", authoring),
             )
             sim.reset()
         elif authoring == "cfg":
@@ -243,7 +245,7 @@ def test_state_01_initial_and_live_link_pose(kamino, authoring):
             )
             body.write_root_link_pose_to_sim_index(root_pose=target_pose)
         body.update(0.0)
-        case = _case("STATE-01", authoring)
+        case = _case(parameter_adapter, "STATE-01", authoring)
         assert_physical_close(body.data.root_link_pos_w.torch[0], target_position, case)
         assert_physical_close(body.data.root_link_quat_w.torch[0], target_orientation, case)
         sim.step()
@@ -253,7 +255,8 @@ def test_state_01_initial_and_live_link_pose(kamino, authoring):
 
 
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
-def test_state_02_initial_and_live_com_velocity(kamino, authoring):
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_state_02_initial_and_live_com_velocity(parameter_adapter, authoring):
     """STATE-02: Reset-default and live writes establish COM spatial velocity."""
     target_velocity = torch.tensor(
         [*_INITIAL_LINEAR_VELOCITY, *_INITIAL_ANGULAR_VELOCITY],
@@ -263,7 +266,7 @@ def test_state_02_initial_and_live_com_velocity(kamino, authoring):
     linear_velocity = _INITIAL_LINEAR_VELOCITY if authoring != "runtime" else (0.0, 0.0, 0.0)
     angular_velocity = _INITIAL_ANGULAR_VELOCITY if authoring != "runtime" else (0.0, 0.0, 0.0)
     with _free_body_scene(
-        kamino,
+        parameter_adapter,
         scene_authoring,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
@@ -278,7 +281,7 @@ def test_state_02_initial_and_live_com_velocity(kamino, authoring):
                     [*_CFG_SENTINEL_LINEAR_VELOCITY, *_CFG_SENTINEL_ANGULAR_VELOCITY],
                     device="cuda:0",
                 ),
-                _case("STATE-02", authoring),
+                _case(parameter_adapter, "STATE-02", authoring),
             )
             sim.reset()
         elif authoring == "cfg":
@@ -286,7 +289,7 @@ def test_state_02_initial_and_live_com_velocity(kamino, authoring):
         else:
             body.write_root_com_velocity_to_sim_index(root_velocity=target_velocity.unsqueeze(0))
         body.update(0.0)
-        case = _case("STATE-02", authoring)
+        case = _case(parameter_adapter, "STATE-02", authoring)
         assert_physical_close(body.data.root_com_vel_w.torch[0], target_velocity, case)
         position_initial = body.data.root_com_pos_w.torch[0].clone()
         sim.step()
@@ -299,29 +302,32 @@ def test_state_02_initial_and_live_com_velocity(kamino, authoring):
         )
 
 
-@pytest.mark.parametrize(
-    "authoring",
-    [
-        "usd",
-        "cfg",
-        pytest.param(
-            "runtime",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "IsaacLab#6518: The articulation / rigid object does not refresh inverse mass "
-                    "after the public runtime mass writer"
-                ),
-            ),
-        ),
-    ],
+_BODY_01_MASS_XFAIL_REASON = (
+    "IsaacLab#6518: The articulation / rigid object does not refresh inverse mass after the public runtime mass writer"
 )
-def test_body_01_mass_wrench_response(kamino, authoring):
+
+_BODY_01_CASES = [
+    pytest.param("kamino", "usd", id="kamino-usd"),
+    pytest.param("kamino", "cfg", id="kamino-cfg"),
+    pytest.param(
+        "kamino",
+        "runtime",
+        id="kamino-runtime",
+        marks=pytest.mark.xfail(strict=True, reason=_BODY_01_MASS_XFAIL_REASON),
+    ),
+    pytest.param("mjwarp", "usd", id="mjwarp-usd"),
+    pytest.param("mjwarp", "cfg", id="mjwarp-cfg"),
+    pytest.param("mjwarp", "runtime", id="mjwarp-runtime"),
+]
+
+
+@pytest.mark.parametrize(("parameter_adapter", "authoring"), _BODY_01_CASES, indirect=["parameter_adapter"])
+def test_body_01_mass_wrench_response(parameter_adapter, authoring):
     """BODY-01: Authored mass controls COM acceleration under a known force."""
     target_mass = 2.5
     scene_authoring = authoring if authoring != "runtime" else "cfg"
     mass = target_mass if authoring != "runtime" else 1.0
-    with _free_body_scene(kamino, scene_authoring, mass=mass) as (sim, body):
+    with _free_body_scene(parameter_adapter, scene_authoring, mass=mass) as (sim, body):
         if authoring == "runtime":
             body.set_masses_index(masses=torch.tensor([[target_mass]], device="cuda:0"))
         force = torch.tensor([[[4.0, -2.0, 1.0]]], device="cuda:0")
@@ -338,27 +344,27 @@ def test_body_01_mass_wrench_response(kamino, authoring):
             force[0, 0],
             target_mass,
         )
-        assert_physical_close(body.data.root_com_lin_vel_w.torch[0], expected, _case("BODY-01", authoring))
+        assert_physical_close(
+            body.data.root_com_lin_vel_w.torch[0], expected, _case(parameter_adapter, "BODY-01", authoring)
+        )
 
 
-@pytest.mark.parametrize(
-    "authoring",
-    [
-        "usd",
-        pytest.param(
-            "runtime",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "IsaacLab#6518: The articulation / rigid object does not refresh inverse mass "
-                    "after the public runtime mass writer"
-                ),
-            ),
-        ),
-    ],
-)
+_BODY_02_CASES = [
+    pytest.param("kamino", "usd", id="kamino-usd"),
+    pytest.param(
+        "kamino",
+        "runtime",
+        id="kamino-runtime",
+        marks=pytest.mark.xfail(strict=True, reason=_BODY_01_MASS_XFAIL_REASON),
+    ),
+    pytest.param("mjwarp", "usd", id="mjwarp-usd"),
+    pytest.param("mjwarp", "runtime", id="mjwarp-runtime"),
+]
+
+
+@pytest.mark.parametrize(("parameter_adapter", "authoring"), _BODY_02_CASES, indirect=["parameter_adapter"])
 @pytest.mark.parametrize("torque_axis", [0, 1])
-def test_body_02_inertia_wrench_response(kamino, authoring, torque_axis):
+def test_body_02_inertia_wrench_response(parameter_adapter, authoring, torque_axis):
     """BODY-02: Authored inertia controls angular acceleration under a known torque."""
     angle = torch.tensor(torch.pi / 4.0)
     principal_axes = (float(torch.cos(angle / 2.0)), 0.0, 0.0, float(torch.sin(angle / 2.0)))
@@ -374,7 +380,7 @@ def test_body_02_inertia_wrench_response(kamino, authoring, torque_axis):
     inertia = rotation @ diagonal @ rotation.T
     scene_authoring = authoring if authoring != "runtime" else "cfg"
     with _free_body_scene(
-        kamino,
+        parameter_adapter,
         scene_authoring,
         inertia=FREE_BODY_INERTIA,
         principal_axes=principal_axes,
@@ -399,24 +405,24 @@ def test_body_02_inertia_wrench_response(kamino, authoring, torque_axis):
         assert_physical_close(
             body.data.root_com_ang_vel_w.torch[0],
             expected,
-            _case("BODY-02", authoring, atol=5.0e-4),
+            _case(parameter_adapter, "BODY-02", authoring, atol=5.0e-4),
         )
 
 
 def _run_com_force_response(
-    kamino,
+    parameter_adapter,
     authoring: str,
     center_of_mass: tuple[float, float, float],
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Apply a point force and return the resulting COM linear and angular velocities."""
     scene_authoring = authoring if authoring != "runtime" else "cfg"
     com = center_of_mass if authoring == "usd" else FREE_BODY_COM
-    with _free_body_scene(kamino, scene_authoring, center_of_mass=com) as (sim, body):
+    with _free_body_scene(parameter_adapter, scene_authoring, center_of_mass=com) as (sim, body):
         if authoring == "runtime":
             assert_physical_close(
                 body.data.body_com_pos_w.torch[0, 0],
                 torch.zeros(3, device="cuda:0"),
-                _case("BODY-03", authoring),
+                _case(parameter_adapter, "BODY-03", authoring),
             )
             body.set_coms_index(
                 coms=wp.from_torch(
@@ -442,23 +448,24 @@ def _run_com_force_response(
 
 
 @pytest.mark.parametrize("authoring", ["usd", "runtime"])
-def test_body_03_center_of_mass_force_response(kamino, authoring):
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_body_03_center_of_mass_force_response(parameter_adapter, authoring):
     """BODY-03: A force at the authored COM translates without rotation."""
-    linear_velocity, angular_velocity = _run_com_force_response(kamino, authoring, _COM_OFFSET)
+    linear_velocity, angular_velocity = _run_com_force_response(parameter_adapter, authoring, _COM_OFFSET)
     expected_velocity = predict_linear_wrench_step(
         torch.zeros(3, device="cuda:0"),
         torch.tensor([0.0, 3.0, 0.0], device="cuda:0"),
         FREE_BODY_MASS,
     )
-    case = _case("BODY-03", authoring, atol=2.5e-3)
+    case = _case(parameter_adapter, "BODY-03", authoring, atol=2.5e-3)
     assert_physical_close(linear_velocity, expected_velocity, case)
     assert_physical_close(
         angular_velocity,
         torch.zeros(3, device="cuda:0"),
-        _case("BODY-03", authoring, atol=5.0e-4),
+        _case(parameter_adapter, "BODY-03", authoring, atol=5.0e-4),
     )
 
-    _, control_angular_velocity = _run_com_force_response(kamino, authoring, FREE_BODY_COM)
+    _, control_angular_velocity = _run_com_force_response(parameter_adapter, authoring, FREE_BODY_COM)
     assert torch.linalg.vector_norm(control_angular_velocity) > 10.0 * 5.0e-4, (
         "BODY-03: zero-COM control did not rotate under the same off-center force"
     )
