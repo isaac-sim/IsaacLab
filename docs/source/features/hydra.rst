@@ -551,7 +551,7 @@ working together:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py
     :language: python
-    :lines: 21-42
+    :lines: 20-25
 
 A single ``presets=newton_mjwarp`` on the command line resolves every ``PresetCfg``
 and ``preset()`` that defines a ``newton_mjwarp`` field: the physics engine is swapped

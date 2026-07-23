@@ -1247,11 +1247,11 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-DrLegs-HoldPose
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_kamino``
+      - **physics=** ``newton_kamino``, ``physx``
     * - IsaacContrib-DrLegs-Walk
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_kamino``
+      - **physics=** ``newton_kamino``, ``physx``
     * - IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs
       - Manager Based
       -
@@ -1488,7 +1488,6 @@ including disabling runtime perturbations used for training.
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - IsaacContrib-Velocity-Flat-Digit
-      - IsaacContrib-Velocity-Flat-Digit-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``physx``
@@ -1513,7 +1512,6 @@ including disabling runtime perturbations used for training.
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - IsaacContrib-Velocity-Rough-Digit
-      - IsaacContrib-Velocity-Rough-Digit-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``physx``
