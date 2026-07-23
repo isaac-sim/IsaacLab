@@ -98,7 +98,7 @@ prerelease-mode = "allow"
 overrides = [
     { name = "mujoco", specifier = ">=3.10.0,<3.11.0" },
     { name = "mujoco-warp", specifier = ">=3.10.0.2,<3.11.0" },
-    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/rubengrandia/newton.git?rev=105f89514fd9662e0ba341b0a364f35131c02606" },
+    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/rubengrandia/newton.git?rev=f690bf31d8c3a8994ea2d05066faed757efce39f" },
     { name = "newton-usd-schemas", specifier = ">=0.3.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "torch", marker = "(platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')", specifier = "==2.11.0" },
@@ -4528,7 +4528,7 @@ wheels = [
 [[package]]
 name = "newton"
 version = "1.5.0.dev0"
-source = { git = "https://github.com/rubengrandia/newton.git?rev=105f89514fd9662e0ba341b0a364f35131c02606#105f89514fd9662e0ba341b0a364f35131c02606" }
+source = { git = "https://github.com/rubengrandia/newton.git?rev=f690bf31d8c3a8994ea2d05066faed757efce39f#f690bf31d8c3a8994ea2d05066faed757efce39f" }
 dependencies = [
     { name = "warp-lang" },
 ]
