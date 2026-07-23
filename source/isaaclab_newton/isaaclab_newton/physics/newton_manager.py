@@ -407,6 +407,7 @@ class NewtonManager(PhysicsManager):
     _newton_cable_offset_attr = "newton:cableOffset"
     _newton_cable_count_attr = "newton:cableSegmentCount"
     _cable_shape_ids: wp.array | None = None
+    _cable_sync_cpu_buffers: tuple[wp.array, ...] | None = None
     _newton_particle_offset_attr = "newton:particleOffset"
     _newton_particle_count_attr = "newton:particleCount"
     _particle_visual_prims: dict[str, _ParticleVisualPrim] = {}
@@ -676,10 +677,12 @@ class NewtonManager(PhysicsManager):
                     (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_cable_count_attr, usdrt.Usd.Access.Read),
                     (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read),
                 ],
-                device=str(PhysicsManager._device),
+                device="cpu",
             )
             if selection.GetCount() == 0:
                 return
+            _, _, body_q, _, _ = cls._cable_sync_cpu_buffers
+            wp.copy(body_q, cls._state_0.body_q)
             wp.launch(
                 _sync_cable_points,
                 dim=selection.GetCount(),
@@ -688,13 +691,9 @@ class NewtonManager(PhysicsManager):
                     wp.fabricarray(data=selection, attrib="omni:fabric:worldMatrix"),
                     wp.fabricarray(data=selection, attrib=cls._newton_cable_offset_attr),
                     wp.fabricarray(data=selection, attrib=cls._newton_cable_count_attr),
-                    cls._cable_shape_ids,
-                    cls._model.shape_body,
-                    cls._state_0.body_q,
-                    cls._model.shape_transform,
-                    cls._model.shape_scale,
+                    *cls._cable_sync_cpu_buffers,
                 ],
-                device=PhysicsManager._device,
+                device="cpu",
             )
             NewtonManager._cables_dirty = False
         except Exception:
@@ -1020,6 +1019,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._particles_dirty = False
         NewtonManager._cables_dirty = False
         NewtonManager._cable_shape_ids = None
+        NewtonManager._cable_sync_cpu_buffers = None
         NewtonManager._particle_visual_prims = {}
         NewtonManager._mpm_object_registry = []
         NewtonManager._deformable_registry = []
@@ -1568,9 +1568,8 @@ class NewtonManager(PhysicsManager):
             if set(segments) != set(range(segment_count)):
                 raise RuntimeError(f"Cable visualization requires {segment_count} ordered segment shapes.")
             segment_shape_ids = [segments[segment] for segment in range(segment_count)]
-            prim = stage.DefinePrim(prim_path, "BasisCurves")
-            prim.RemoveProperty("points")
-            usdrt.UsdGeom.BasisCurves(prim).CreatePointsAttr().Set(usdrt.Vt.Vec3fArray(segment_count + 1))
+            prim = stage.GetPrimAtPath(prim_path)
+            prim.GetAttribute("points").Set(usdrt.Vt.Vec3fArray(segment_count + 1))
             usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
             offset = len(shape_ids)
             prim.CreateAttribute(cls._newton_cable_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(offset)
@@ -1581,8 +1580,16 @@ class NewtonManager(PhysicsManager):
 
         if not shape_ids:
             NewtonManager._cable_shape_ids = None
+            NewtonManager._cable_sync_cpu_buffers = None
             return
         NewtonManager._cable_shape_ids = wp.array(shape_ids, dtype=wp.int32, device=PhysicsManager._device)
+        NewtonManager._cable_sync_cpu_buffers = (
+            NewtonManager._cable_shape_ids.to("cpu"),
+            cls._model.shape_body.to("cpu"),
+            wp.empty_like(cls._state_0.body_q, device="cpu"),
+            cls._model.shape_transform.to("cpu"),
+            cls._model.shape_scale.to("cpu"),
+        )
         fabric_hierarchy.update_world_xforms()
 
     @staticmethod
