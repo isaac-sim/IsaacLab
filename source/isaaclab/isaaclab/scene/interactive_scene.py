@@ -893,7 +893,7 @@ class InteractiveScene:
                     )
                     # static assets have no asset class to queue their own replication:
                     # queue the USD spread here so clones exist in every planned env
-                    cloner.queue_usd_replication(asset_cfg)
+                    cloner.queue_replication(asset_cfg)
                 # static assets create no view: the prims are kept exactly as cloned
                 self._extras[asset_name] = asset_cfg
             else:
