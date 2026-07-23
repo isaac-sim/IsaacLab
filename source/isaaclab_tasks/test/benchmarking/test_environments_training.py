@@ -46,8 +46,6 @@ def train_job(workflow, task, env_config, num_gpus):
         workflow,
         "--task",
         task,
-        "--enable_cameras",
-        "--headless",
     ]
 
     # Add max iterations if specified

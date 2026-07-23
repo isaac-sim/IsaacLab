@@ -6,7 +6,6 @@
 import contextlib
 import logging
 import os
-import re
 import select
 import signal
 import subprocess
@@ -605,6 +604,7 @@ def _run_one_pass(
         sys.executable,
         "-m",
         "pytest",
+        # Keep pytest capture enabled so Kit startup logs are only shown for failed tests.
         "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
         "--no-header",
         "--show-capture=all",
@@ -1298,15 +1298,16 @@ def pytest_sessionstart(session):
     # device mask is unset.
     run_device = resolve_test_sim_device()
 
-    summary_str += "\n\n=======================\n"
-    summary_str += "Per File Result Summary\n"
-    summary_str += "=======================\n"
+    summary_str += "\n\n=====================\n"
+    summary_str += "Slowest 30 Test Files\n"
+    summary_str += "=====================\n"
 
     per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
     per_file_result_table.align["Test Path"] = "l"
     per_file_result_table.align["Test (s)"] = "r"
     per_file_result_table.align["Wall (s)"] = "r"
-    for test_path in test_files:
+    slowest_test_files = sorted(test_files, key=lambda path: test_status[path]["wall_time"], reverse=True)[:30]
+    for test_path in slowest_test_files:
         num_tests_passed = (
             test_status[test_path]["tests"]
             - test_status[test_path]["failures"]
@@ -1325,33 +1326,6 @@ def pytest_sessionstart(session):
         )
 
     summary_str += per_file_result_table.get_string()
-
-    # Per-test run times, slowest first, from the merged JUnit report. The
-    # device is read from the test id params (e.g. ``...[size0-cuda:1]``),
-    # falling back to the run's boot device.
-    summary_str += "\n\n=================\n"
-    summary_str += "Per Test Run Time\n"
-    summary_str += "=================\n"
-
-    per_test_time_table = PrettyTable(field_names=["Test", "Device", "Time (s)"])
-    per_test_time_table.align["Test"] = "l"
-    per_test_time_table.align["Time (s)"] = "r"
-    test_times = []
-    for suite in full_report:
-        for case in suite:
-            full_name = f"{case.classname}::{case.name}" if case.classname else case.name
-            device = run_device
-            bracket = re.search(r"\[(.*)\]", full_name)
-            if bracket:
-                dev_match = re.search(r"cuda:\d+|\bcpu\b", bracket.group(1))
-                if dev_match:
-                    device = dev_match.group(0)
-            elapsed = float(case.time) if case.time is not None else 0.0
-            test_times.append((full_name, device, elapsed))
-    for full_name, device, elapsed in sorted(test_times, key=lambda row: row[2], reverse=True):
-        per_test_time_table.add_row([full_name, device, f"{elapsed:0.3f}"])
-
-    summary_str += per_test_time_table.get_string()
 
     # Print summary to console and log file
     logger.info(summary_str)

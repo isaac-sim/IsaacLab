@@ -8,10 +8,10 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/deformables.py
+    uv run python scripts/demos/deformables.py
 
     # Usage with Newton VBD backend and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/deformables.py --physics newton_vbd
+    uv run python scripts/demos/deformables.py --physics newton_vbd
 
 """
 

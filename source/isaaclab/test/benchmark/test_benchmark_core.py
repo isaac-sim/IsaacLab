@@ -11,6 +11,8 @@ from dataclasses import replace
 
 import pytest
 
+from isaaclab.sim import utils as sim_utils
+from isaaclab.test.benchmark import benchmark_core as benchmark_core_module
 from isaaclab.test.benchmark import formatters
 from isaaclab.test.benchmark.benchmark_core import BaseIsaacLabBenchmark, _runtime_measurements
 from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata
@@ -212,6 +214,50 @@ def test_benchmark_updates_recorders_and_cleans_up(tmp_path):
     assert os.path.exists(benchmark.output_file_path)
     assert benchmark._manual_recorders is None
     assert benchmark._frametime_recorders is None
+
+
+def test_benchmark_skips_frametime_recorders_without_kit(monkeypatch, tmp_path, caplog):
+    """Frametime recorders are optional when the simulation runs without Kit."""
+
+    def fail_if_called(_extension_name: str) -> None:
+        raise AssertionError("enable_extension should not be called without Kit")
+
+    monkeypatch.setattr(benchmark_core_module, "has_kit", lambda: False)
+    monkeypatch.setattr(sim_utils, "enable_extension", fail_if_called)
+
+    with caplog.at_level("WARNING"):
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="kitless",
+            formatter_type="omniperf",
+            output_path=str(tmp_path),
+            use_recorders=True,
+            frametime_recorders=True,
+        )
+
+    assert benchmark._frametime_recorders == {}
+    assert "Kit is not running" in caplog.text
+
+
+def test_benchmark_skips_frametime_recorders_if_kit_app_stops(monkeypatch, tmp_path, caplog):
+    """A disappearing Kit app does not fail optional frametime recorder setup."""
+
+    def raise_missing_kit_app(_extension_name: str) -> None:
+        raise RuntimeError("Failed to acquire interface: omni::kit::IApp")
+
+    monkeypatch.setattr(benchmark_core_module, "has_kit", lambda: True)
+    monkeypatch.setattr(sim_utils, "enable_extension", raise_missing_kit_app)
+
+    with caplog.at_level("WARNING"):
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="kitless",
+            formatter_type="omniperf",
+            output_path=str(tmp_path),
+            use_recorders=True,
+            frametime_recorders=True,
+        )
+
+    assert benchmark._frametime_recorders == {}
+    assert "Could not initialize Kit frametime recorders" in caplog.text
 
 
 def test_formatter_selection_and_output_filenames(tmp_path):

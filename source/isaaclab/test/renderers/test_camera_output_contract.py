@@ -136,9 +136,33 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.DISTANCE_TO_CAMERA,
         RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.NORMALS,
+        RenderBufferKind.SEMANTIC_SEGMENTATION,
         RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
     }
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+
+
+@pytest.mark.parametrize("colorize", [True, False])
+def test_newton_warp_segmentation_spec_follows_colorize_flags(colorize):
+    """Segmentation specs are RGBA uint8 when colorized, else single-channel int32 (matching RTX)."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    renderer = NewtonWarpRenderer.__new__(NewtonWarpRenderer)
+    renderer.cfg = NewtonWarpRendererCfg(
+        colorize_semantic_segmentation=colorize,
+        colorize_instance_segmentation=colorize,
+    )
+    specs = renderer.supported_output_types()
+
+    expected = RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+    for kind in (
+        RenderBufferKind.SEMANTIC_SEGMENTATION,
+        RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
+    ):
+        assert specs[kind] == expected
 
 
 def test_newton_warp_wraps_requested_rgb_hdr_output():

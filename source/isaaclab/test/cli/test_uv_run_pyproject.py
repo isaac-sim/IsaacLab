@@ -33,7 +33,7 @@ def _root_pyproject() -> dict:
 def test_uv_run_extra_names_match_documented_workflow():
     """Docs must only reference ``uv run --extra`` names that pyproject defines."""
     repo_root = _repo_root()
-    docs = (repo_root / "docs/source/setup/installation/uv_run.rst").read_text(encoding="utf-8")
+    docs = (repo_root / "docs/source/setup/installation/index.rst").read_text(encoding="utf-8")
     documented_extras = set(re.findall(r"--extra\s+([A-Za-z0-9_-]+)", docs))
     optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
 

@@ -13,8 +13,8 @@ Use these checks to route investigation, not as standalone migration docs:
 | Symptom or old pattern | Current source of truth |
 | --- | --- |
 | Task names include the old Gym version suffix, such as `-v0` | Current task docs and the environment catalog; use suffixless task names in examples |
-| `--headless` launch behavior changed | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `source/isaaclab/isaaclab/app/app_launcher.py` |
-| Camera examples require `--enable_cameras` by default | Current sensor, renderer, and visualization docs; do not add the flag unless the task or docs explicitly require it |
+| Visualizer launch behavior changed | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `source/isaaclab/isaaclab/app/app_launcher.py` |
+| Camera examples include obsolete launch options | Current sensor, renderer, and visualization docs; camera support is automatic |
 | Backend-specific physics or schema cfgs | `docs/source/overview/core-concepts/multi_backend_architecture.rst` and `docs/source/overview/core-concepts/schema_cfgs.rst` |
 | Imports of PhysX/Newton schema cfgs from `isaaclab.sim.schemas` | Move backend-specific imports to `isaaclab_physx.sim.schemas` or `isaaclab_newton.sim.schemas`; core forwarding shims are deprecated |
 | Spawner schema overrides that need multiple namespaces in one slot | Prefer schema fragments such as `UsdPhysicsDriveCfg`, `PhysxJointCfg`, `NewtonCollisionCfg`, or `MujocoJointCfg` instead of forcing one legacy property cfg to carry every backend attribute |
@@ -42,7 +42,7 @@ The external prototype migration skill called out useful search terms. Before us
 - `get_published_pretrained_checkpoint`
 - `noise_std_type`
 - `--viz`
-- `--enable_cameras`
+- ``
 - `-v0`
 
 ## Documentation Gaps
