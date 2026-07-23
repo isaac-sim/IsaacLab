@@ -84,7 +84,7 @@ def test_create_prim():
     assert prim.GetAttribute("size").Get() == 100
 
     # check adding USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     prim = sim_utils.create_prim("/World/Test/USDReference", usd_path=franka_usd, stage=stage)
     # check USD reference set
     assert prim.IsValid()
@@ -328,7 +328,7 @@ def test_delete_prim():
     # check for usd reference
     prim = sim_utils.create_prim(
         "/World/Test/USDReference",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
         stage=stage,
     )
     # delete prim
@@ -362,7 +362,7 @@ def test_get_usd_references():
     assert len(refs) == 0
 
     # Create a prim with a USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     sim_utils.create_prim("/World/WithReference", usd_path=franka_usd, stage=stage)
     # Check that it has the expected reference (remote URLs are resolved to local paths)
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
