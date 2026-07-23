@@ -991,20 +991,23 @@ class TestRigidObjectComSetterCacheInvalidation:
         root_com_velocity[:, 5] = 1.0
         obj.write_root_com_velocity_to_sim_index(root_velocity=root_com_velocity)
 
+        data = obj.data
+        before = {
+            "body_com_pose_b": data.body_com_pose_b.torch.clone(),
+            "root_com_pose_w": data.root_com_pose_w.torch.clone(),
+            "root_link_vel_w": data.root_link_vel_w.torch.clone(),
+            "root_link_lin_vel_b": data.root_link_lin_vel_b.torch.clone(),
+            "root_link_state_w": data.root_link_state_w.torch.clone(),
+            "root_com_state_w": data.root_com_state_w.torch.clone(),
+        }
+        com_pose_b = before["body_com_pose_b"].clone()
+        com_pose_b[0, 0, 0] += 0.2
         if backend == "newton":
-            coms = torch.zeros((num_instances, 1, 3), device=device)
+            coms = com_pose_b[..., :3]
             dtype = wp.vec3f
         else:
-            coms = _make_data_torch((num_instances, 1), device, wp.transformf)
+            coms = com_pose_b
             dtype = wp.transformf
-        coms[0, 0, 0] = 0.2
-
-        data = obj.data
-        _ = data.root_com_pose_w
-        _ = data.root_link_vel_w
-        _ = data.root_link_lin_vel_b
-        _ = data.root_link_state_w
-        _ = data.root_com_state_w
 
         if setter == "index":
             obj.set_coms_index(coms=wp.from_torch(coms[:1].contiguous(), dtype=dtype), env_ids=[0])
@@ -1013,21 +1016,24 @@ class TestRigidObjectComSetterCacheInvalidation:
                 coms=wp.from_torch(coms.contiguous(), dtype=dtype), env_mask=_make_env_mask(2, device, True)
             )
 
-        dependents = (
-            data._root_com_pose_w,
-            data._root_link_vel_w,
-            data._root_link_lin_vel_b,
-            data._root_link_state_w,
-            data._root_com_state_w,
-        )
-        assert all(buffer.timestamp == -1.0 for buffer in dependents), [buffer.timestamp for buffer in dependents]
-
-        _ = data.root_com_pose_w
-        _ = data.root_link_vel_w
-        _ = data.root_link_lin_vel_b
-        _ = data.root_link_state_w
-        _ = data.root_com_state_w
-        assert all(buffer.timestamp == data._sim_timestamp for buffer in dependents)
+        after = {
+            "body_com_pose_b": data.body_com_pose_b.torch,
+            "root_com_pose_w": data.root_com_pose_w.torch,
+            "root_link_vel_w": data.root_link_vel_w.torch,
+            "root_link_lin_vel_b": data.root_link_lin_vel_b.torch,
+            "root_link_state_w": data.root_link_state_w.torch,
+            "root_com_state_w": data.root_com_state_w.torch,
+        }
+        torch.testing.assert_close(after["body_com_pose_b"][0], com_pose_b[0])
+        for name in (
+            "root_com_pose_w",
+            "root_link_vel_w",
+            "root_link_lin_vel_b",
+            "root_link_state_w",
+            "root_com_state_w",
+        ):
+            assert not torch.allclose(after[name][0], before[name][0]), name
+            torch.testing.assert_close(after[name][1], before[name][1])
 
 
 # ---------------------------------------------------------------------------
