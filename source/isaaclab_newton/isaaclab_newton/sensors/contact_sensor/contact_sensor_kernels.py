@@ -51,7 +51,7 @@ def copy_from_newton_kernel(
 
     # Copy per-filter-object contact positions. Newton reports zero for pairs without
     # contacts; report NaN instead to match the PhysX backend's no-contact convention.
-    if contact_pos_w:
+    if contact_pos_w and newton_force_matrix:
         if wp.length_sq(newton_force_matrix[src_idx, f_idx]) > 0.0:
             contact_pos_w[env, sensor, f_idx] = newton_position_matrix[src_idx, f_idx]
         else:

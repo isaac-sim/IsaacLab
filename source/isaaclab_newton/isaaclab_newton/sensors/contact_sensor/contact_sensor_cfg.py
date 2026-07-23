@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import logging
 import warnings
 from typing import TYPE_CHECKING
 
@@ -12,8 +11,6 @@ from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
-
-logger = logging.getLogger(__name__)
 
 
 @configclass
@@ -36,10 +33,10 @@ class ContactSensorCfg(BaseContactSensorCfg):
 
     def __post_init__(self):
         if self.track_contact_points and not (self.filter_prim_paths_expr or self.filter_shape_prim_expr):
-            logger.warning(
-                f"'track_contact_points' was requested for contact sensor '{self.prim_path}' but no filter"
-                " expressions are configured. Set 'filter_prim_paths_expr' or 'filter_shape_prim_expr' to track"
-                " contact positions. Contact positions will not be tracked and 'contact_pos_w' will be None."
+            warnings.warn(
+                "ContactSensorCfg: 'track_contact_points' requires filter objects on the Newton backend. Please set"
+                " 'filter_prim_paths_expr' or 'filter_shape_prim_expr'. Ignoring.",
+                stacklevel=2,
             )
             self.track_contact_points = False
 
