@@ -323,6 +323,8 @@ interchangeable, and :func:`~isaaclab_teleop.poll_control_events` stays authorit
    to :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` when ``--xr`` is omitted (and to ``cloudxrjs``
    when it is passed); see :ref:`isaac-teleop-cloudxr-profiles`.
 
+.. _isaac-teleop-so101-leader-example:
+
 Example: SO-101 leader-arm joint teleoperation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -448,6 +450,12 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
+   * - ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``
+     - Controllers
+     - Right
+     - **Arm:** right controller grip pose drives the end-effector via absolute IK
+       (clutch-rebased; IK tracks position, orientation soft-weighted).
+       **Gripper:** right trigger (analog).
    * - ``IsaacContrib-PickPlace-GR1T2-Abs``
      - Hand tracking
      - Both
@@ -632,6 +640,27 @@ follows.
    them as it enforces joint limits while solving IK. Consequently, the arm may occasionally stop
    responding when the commanded target pose is unreachable within those limits -- this is expected,
    not a bug.
+
+Leader-Arm Environments
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+These environments are driven by a physical *leader* arm that streams joint angles over the Isaac
+Teleop tensor transport; the angles are mirrored directly onto the simulated follower with no XR
+headset or inverse kinematics. See
+:ref:`Example: SO-101 leader-arm joint teleoperation <isaac-teleop-so101-leader-example>` above
+for the run command and pipeline.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 18 48
+
+   * - Task ID
+     - Device
+     - Operator Interaction
+   * - ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0``
+     - SO-101 leader arm
+     - **Arm + gripper:** the leader arm's six joint angles (five arm DOF + gripper) are mirrored
+       onto the follower via ``JointStateRetargeter`` (``mode="joint"``).
 
 .. _isaac-teleop-switching-input-mode:
 
