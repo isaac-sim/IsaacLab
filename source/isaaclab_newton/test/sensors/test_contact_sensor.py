@@ -606,6 +606,147 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
         assert not errs, "\n".join(errs)
 
 
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    "use_mujoco_contacts",
+    [
+        pytest.param(
+            False,
+            id="newton_contacts",
+            marks=pytest.mark.xfail(
+                reason="Newton force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)",
+                strict=False,
+            ),
+        ),
+        pytest.param(True, id="mujoco_contacts"),
+    ],
+)
+def test_track_contact_points_reports_average_position(device: str, use_mujoco_contacts: bool):
+    """Test that track_contact_points reports the average contact position per filter object.
+
+    Object A rests on ground, Object B stacked on A, Object C off to the side (never touching A).
+    Sensor on A is filtered for B and C with contact point tracking enabled.
+
+    Verifies:
+    - contact_pos_w is available and has shape (num_envs, num_sensors, num_filter_objects, 3)
+    - The B column reports a position at the A-B interface (top face of A, centered under B)
+    - The C column is NaN (no contact)
+    - The B column returns to NaN once B is separated from A
+    """
+    settle_steps = 240
+    num_envs = 4
+    gravity = 9.81
+    size_a = (0.5, 0.5, 0.3)
+    pos_a = (0.0, 0.0, 0.2)
+
+    sim_cfg = make_sim_cfg(use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity))
+
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+
+        rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)
+        scene_cfg.object_a = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectA",
+            spawn=sim_utils.CuboidCfg(
+                size=size_a,
+                rigid_props=rigid_props,
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=pos_a),
+        )
+        scene_cfg.object_b = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectB",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.3, 0.3, 0.3),
+                rigid_props=rigid_props,
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=2.0),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.55)),
+        )
+        scene_cfg.object_c = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectC",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.3, 0.3, 0.3),
+                rigid_props=rigid_props,
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=2.0),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 0.15)),
+        )
+
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/ObjectA",
+            update_period=0.0,
+            history_length=1,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/ObjectB", "{ENV_REGEX_NS}/ObjectC"],
+            track_contact_points=True,
+        )
+
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        contact_sensor: ContactSensor = scene["contact_sensor_a"]
+        object_a: RigidObject = scene["object_a"]
+        object_b: RigidObject = scene["object_b"]
+
+        assert contact_sensor.filter_object_names == ["ObjectB", "ObjectC"], (
+            f"unexpected filter_object_names: {contact_sensor.filter_object_names}"
+        )
+        col_b = contact_sensor.filter_object_names.index("ObjectB")
+        col_c = contact_sensor.filter_object_names.index("ObjectC")
+
+        # Average over the last `avg_window` ticks to reject per-step solver oscillation.
+        avg_window = 20
+        pos_samples: list[torch.Tensor] = []
+        for step in range(settle_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+            if step >= settle_steps - avg_window:
+                pos_raw = contact_sensor.data.contact_pos_w
+                if not pos_samples:
+                    assert pos_raw is not None, "contact_pos_w should not be None when tracking is enabled"
+                    assert pos_raw.torch.shape == (num_envs, 1, 2, 3), f"unexpected shape: {pos_raw.torch.shape}"
+                pos_samples.append(pos_raw.torch.clone())
+
+        stacked = torch.stack(pos_samples)
+        assert torch.isnan(stacked[:, :, :, col_c]).all(), "C column should be NaN (no contact with ObjectC)"
+        assert torch.isfinite(stacked[:, :, :, col_b]).all(), "B column should be finite (in contact with ObjectB)"
+
+        contact_pos = stacked[:, :, :, col_b].mean(dim=0)
+        # Expected contact position: centered under B, at the top face of A.
+        expected_xy = object_b.data.root_link_pose_w.torch[:, :2]
+        expected_z = object_a.data.root_link_pose_w.torch[:, 2] + size_a[2] / 2
+        errs: list[str] = []
+        for env_idx in range(num_envs):
+            pos = contact_pos[env_idx, 0]
+            xy_err = torch.norm(pos[:2] - expected_xy[env_idx]).item()
+            z_err = abs(pos[2].item() - expected_z[env_idx].item())
+            if xy_err >= 0.02:
+                errs.append(f"Env {env_idx}: contact xy should be under B center. Error: {xy_err:.4f} m")
+            if z_err >= 0.02:
+                errs.append(
+                    f"Env {env_idx}: contact z should be at A top face (~{expected_z[env_idx].item():.3f} m)."
+                    f" Got {pos[2].item():.3f} m"
+                )
+        assert not errs, "\n".join(errs)
+
+        # Separate B from A and verify the B column returns to NaN (not the last contact position).
+        lifted_pose = object_b.data.root_link_pose_w.torch.clone()
+        lifted_pose[:, 2] += 2.0
+        object_b.write_root_pose_to_sim_index(root_pose=lifted_pose)
+        for _ in range(10):
+            perform_sim_step(sim, scene, SIM_DT)
+        pos_after = contact_sensor.data.contact_pos_w.torch
+        assert torch.isnan(pos_after[:, :, col_b]).all(), "B column should be NaN after ObjectB separates from A"
+
+
 # ===================================================================
 # Priority 4: Articulated System
 # ===================================================================
@@ -952,10 +1093,20 @@ def test_no_stale_data_after_scene_reset(device: str):
             disable_gravity=False,
             activate_contact_sensors=True,
         )
+        # Object falls onto ObjectB so that contact_pos_w has real data to clear on reset.
+        scene_cfg.object_b = create_shape_cfg(
+            ShapeType.BOX,
+            "{ENV_REGEX_NS}/ObjectB",
+            pos=(0.0, 0.0, 0.25),
+            disable_gravity=False,
+            activate_contact_sensors=True,
+        )
         scene_cfg.contact_sensor_a = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             update_period=0.0,
             history_length=1,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/ObjectB"],
+            track_contact_points=True,
         )
 
         scene = InteractiveScene(scene_cfg)
@@ -983,4 +1134,8 @@ def test_no_stale_data_after_scene_reset(device: str):
         assert post_reset_force_mag == 0.0, (
             "Contact sensor returned stale pre-reset data after scene.reset(): "
             f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
+        )
+        post_reset_contact_pos = sensor.data.contact_pos_w.torch
+        assert torch.isnan(post_reset_contact_pos).all(), (
+            f"contact_pos_w should reset to NaN after scene.reset(); got {post_reset_contact_pos.tolist()}"
         )

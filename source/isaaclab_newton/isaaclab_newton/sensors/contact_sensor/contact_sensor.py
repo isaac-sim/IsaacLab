@@ -48,6 +48,10 @@ class ContactSensor(BaseContactSensor):
     useful when you want to report the contact forces between the sensors and a specific set of objects
     in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
 
+    When filter objects are configured, the sensor can additionally report the average contact position
+    per filter object by enabling :attr:`ContactSensorCfg.track_contact_points`. The data can be accessed
+    using the :attr:`ContactSensorData.contact_pos_w`.
+
     .. _Newton SensorContact: https://newton-physics.github.io/newton/api/_generated/newton.sensors.SensorContact.html
     """
 
@@ -155,6 +159,7 @@ class ContactSensor(BaseContactSensor):
                 self._data._net_forces_w,
                 self._data._net_forces_w_history,
                 self._data._force_matrix_w,
+                self._data._contact_pos_w,
             ],
             outputs=[
                 self._data._current_air_time,
@@ -365,12 +370,32 @@ class ContactSensor(BaseContactSensor):
         self._newton_total_force_view = self.contact_view.total_force
         self._newton_force_matrix_view = force_matrix if self._num_filter_objects > 0 else None
 
+        # Contact positions are only reported per counterpart, so they require filter objects.
+        self._track_contact_points = self.cfg.track_contact_points and self._num_filter_objects > 0
+        if self.cfg.track_contact_points and not self._track_contact_points:
+            logger.warning(
+                f"'track_contact_points' was requested for contact sensor '{self.cfg.prim_path}' but the filter"
+                " expressions resolved to zero counterpart objects. Contact positions will not be tracked and"
+                " 'contact_pos_w' will be None."
+            )
+        if self._track_contact_points:
+            position_matrix = getattr(self.contact_view, "position_matrix", None)
+            if position_matrix is None:
+                raise RuntimeError(
+                    "Contact point tracking was requested but the installed Newton version does not report"
+                    " 'position_matrix' on its contact sensor."
+                )
+            self._newton_position_matrix_view = position_matrix
+        else:
+            self._newton_position_matrix_view = None
+
         # prepare data buffers
         logger.info(
             f"Creating buffers for contact sensor data with num_envs: {self._num_envs}, num_sensors:"
             f" {self._num_sensors}, num_filter_objects: {self._num_filter_objects}, history_length:"
-            f" {self.cfg.history_length}, generate_force_matrix: {self._generate_force_matrix}, track_air_time:"
-            f" {self.cfg.track_air_time}, track_pose: {self.cfg.track_pose}, device: {self._device}"
+            f" {self.cfg.history_length}, generate_force_matrix: {self._generate_force_matrix},"
+            f" track_contact_points: {self._track_contact_points}, track_air_time: {self.cfg.track_air_time},"
+            f" track_pose: {self.cfg.track_pose}, device: {self._device}"
         )
         self._data.create_buffers(
             self._num_envs,
@@ -381,6 +406,7 @@ class ContactSensor(BaseContactSensor):
             self.cfg.track_air_time,
             self.cfg.track_pose,
             self._device,
+            track_contact_points=self._track_contact_points,
         )
 
     def _get_model_labels(self, kind: str) -> list[str]:
@@ -411,11 +437,13 @@ class ContactSensor(BaseContactSensor):
                 self._num_sensors,
                 self._newton_total_force_view,
                 self._newton_force_matrix_view,
+                self._newton_position_matrix_view,
                 self._timestamp,
             ],
             outputs=[
                 self._data._net_forces_w,
                 self._data._force_matrix_w,
+                self._data._contact_pos_w,
             ],
             device=self._device,
         )
