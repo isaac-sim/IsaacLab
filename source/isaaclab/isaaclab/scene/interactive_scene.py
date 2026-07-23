@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -31,11 +32,11 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
+from isaaclab.cloner.cloner_utils import num_spawn_variants
 from isaaclab.physics.scene_data_requirements import aggregate_requirements, resolve_scene_data_requirements
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
-from isaaclab.sim.views import FrameView
 
 # Note: This is a temporary import for the VisuoTactileSensorCfg class.
 # It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
@@ -156,9 +157,14 @@ class InteractiveScene:
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner_cfg = cloner.CloneCfg(device=self.device)
-        env_root = self.cloner_cfg.clone_regex.rsplit("/", 1)[0]
-        self.env_prim_paths = [f"{env_root}/env_{i}" for i in range(self.cfg.num_envs)]
+        self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
+        self.cloner_cfg.device = self.device
+        self._env_regex_ns = self.cloner_cfg.clone_regex
+        self._env_fmt = self._env_regex_ns.replace(".*", "{}")
+        self._env_ns = self._env_regex_ns.rsplit("/", 1)[0]
+        self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
+        self._scene_asset_names: list[str] = []
+        self._clone_valid_set: torch.Tensor | None = None
 
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
@@ -169,21 +175,23 @@ class InteractiveScene:
         with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
             cloner.usd_replicate(
                 self.stage,
-                ["/World/envs/env_0"],
-                ["/World/envs/env_{}"],
+                [self.env_prim_paths[0]],
+                [self._env_fmt],
                 self._ALL_INDICES,
                 positions=env_origins,
             )
 
         # Always enter so a ClonePlan is published even when the scene cfg has no entities.
         self._global_prim_paths = list()
+        asset_cfgs = self._collect_asset_cfgs()
         with cloner.ReplicateSession(
-            self._collect_asset_cfgs(),
+            asset_cfgs,
             num_clones=self.num_envs,
             env_spacing=self.cfg.env_spacing,
             device=self.device,
             stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
+            valid_set=self._clone_valid_set,
         ):
             if self._is_scene_setup_from_cfg():
                 self._add_entities_from_cfg()
@@ -200,20 +208,38 @@ class InteractiveScene:
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
         resolves ``{ENV_REGEX_NS}`` macros, and orders sensors after non-sensors.
         """
+
         cfg_fields = InteractiveSceneCfg.__dataclass_fields__
-        items = [(k, v) for k, v in self.cfg.__dict__.items() if k not in cfg_fields and v is not None]
-        ordered_items = [v for _, v in items if not isinstance(v, SensorBaseCfg)]
-        ordered_items += [v for _, v in items if isinstance(v, SensorBaseCfg)]
+        items = [(name, cfg) for name, cfg in self.cfg.__dict__.items() if name not in cfg_fields and cfg is not None]
+        self._scene_asset_names = [name for name, _ in items]
+        ordered_items = [item for item in items if not isinstance(item[1], SensorBaseCfg)]
+        ordered_items += [item for item in items if isinstance(item[1], SensorBaseCfg)]
 
         cfgs: list[Any] = []
-        for asset_cfg in ordered_items:
+        clone_asset_names: list[str] = []
+        variant_counts: list[int] = []
+        for asset_name, asset_cfg in ordered_items:
             children = (
                 asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
             )
             for child in children:
                 if hasattr(child, "prim_path"):
                     child.prim_path = child.prim_path.format(ENV_REGEX_NS=self.cloner_cfg.clone_regex)
+                    if hasattr(child, "spawn") and child.spawn is not None and self.env_ns in child.prim_path:
+                        clone_asset_names.append(asset_name)
+                        variant_counts.append(num_spawn_variants(child.spawn))
                 cfgs.append(child)
+
+        if self.cloner_cfg.clone_combinations and clone_asset_names:
+            self._clone_valid_set = cloner.make_valid_clone_combinations(
+                clone_asset_names,
+                variant_counts,
+                self.cloner_cfg.clone_combinations,
+                self.device,
+                all_asset_names=self._scene_asset_names,
+            )
+        else:
+            self._clone_valid_set = None
         return cfgs
 
     def _aggregate_scene_data_requirements(self, visualizer_types=()) -> None:
@@ -358,6 +384,16 @@ class InteractiveScene:
         return sim_utils.SimulationContext.instance().device  # pyright: ignore [reportOptionalMemberAccess]
 
     @property
+    def env_ns(self) -> str:
+        """The namespace ``/World/envs`` in which all environments are created."""
+        return self._env_ns
+
+    @property
+    def env_regex_ns(self) -> str:
+        """The namespace ``/World/envs/env_.*`` in which all environments are created."""
+        return self._env_regex_ns
+
+    @property
     def num_envs(self) -> int:
         """The number of environments handled by the scene."""
         return self.cfg.num_envs
@@ -422,11 +458,12 @@ class InteractiveScene:
         return self.sim.get_clone_plan()
 
     @property
-    def extras(self) -> dict[str, FrameView]:
+    def extras(self) -> dict[str, AssetBaseCfg]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
-        The keys are the names of the miscellaneous objects, and the values are the
-        :class:`~isaaclab.sim.views.FrameView` instances of the corresponding prims.
+        The keys are the names of the miscellaneous objects, and the values are their
+        spawned configurations. Static assets create no runtime view: their prims are
+        kept exactly as cloned.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -745,9 +782,6 @@ class InteractiveScene:
 
         # store paths that are in global collision filter
         self._global_prim_paths = list()
-        # Resolve the env-namespace convention from the cloner cfg once for this pass.
-        env_regex_ns = self.cloner_cfg.clone_regex
-        env_root = env_regex_ns.rsplit("/", 1)[0]
         # Process non-sensor entities before sensors so that asset prims exist in the template
         # when sensors (e.g. cameras attached to robot links) need to spawn under them.
         all_items = [
@@ -762,13 +796,13 @@ class InteractiveScene:
         for asset_name, asset_cfg in ordered_items:
             # resolve prim_path with env regex
             if hasattr(asset_cfg, "prim_path"):
-                asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=env_regex_ns)
+                asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
             # set spawn_path on spawner if cloning is needed
             if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
                 is_multi_spawner = isinstance(
                     asset_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
                 )
-                if env_root not in asset_cfg.prim_path:
+                if self.env_ns not in asset_cfg.prim_path:
                     asset_cfg.spawn.spawn_path = asset_cfg.prim_path
                 elif is_multi_spawner and not asset_cfg.spawn.spawn_paths:
                     raise RuntimeError(f"Clone planning did not assign spawn_paths for '{asset_cfg.prim_path}'.")
@@ -788,13 +822,13 @@ class InteractiveScene:
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=env_regex_ns)
+                    rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
                     # set spawn_path on spawner if cloning is needed
                     if hasattr(rigid_object_cfg, "spawn") and rigid_object_cfg.spawn is not None:
                         is_multi_spawner = isinstance(
                             rigid_object_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
                         )
-                        if env_root not in rigid_object_cfg.prim_path:
+                        if self.env_ns not in rigid_object_cfg.prim_path:
                             rigid_object_cfg.spawn.spawn_path = rigid_object_cfg.prim_path
                         elif is_multi_spawner and not rigid_object_cfg.spawn.spawn_paths:
                             raise RuntimeError(
@@ -817,37 +851,37 @@ class InteractiveScene:
                 if isinstance(asset_cfg, FrameTransformerCfg):
                     updated_target_frames = []
                     for target_frame in asset_cfg.target_frames:
-                        target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=env_regex_ns)
+                        target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):
                     asset_cfg.filter_prim_paths_expr = [
-                        p.format(ENV_REGEX_NS=env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
+                        p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
                     ]
                     if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr:
                         asset_cfg.sensor_shape_prim_expr = [
-                            p.format(ENV_REGEX_NS=env_regex_ns) for p in asset_cfg.sensor_shape_prim_expr
+                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.sensor_shape_prim_expr
                         ]
                     if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr:
                         asset_cfg.filter_shape_prim_expr = [
-                            p.format(ENV_REGEX_NS=env_regex_ns) for p in asset_cfg.filter_shape_prim_expr
+                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_shape_prim_expr
                         ]
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(
-                            ENV_REGEX_NS=env_regex_ns
+                            ENV_REGEX_NS=self.env_regex_ns
                         )
                     if (
                         hasattr(asset_cfg, "contact_object_prim_path_expr")
                         and asset_cfg.contact_object_prim_path_expr is not None
                     ):
                         asset_cfg.contact_object_prim_path_expr = asset_cfg.contact_object_prim_path_expr.format(
-                            ENV_REGEX_NS=env_regex_ns
+                            ENV_REGEX_NS=self.env_regex_ns
                         )
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
-                # manually spawn asset
+                # manually spawn asset (into its clone-plan source env only)
                 if asset_cfg.spawn is not None:
                     asset_cfg.spawn.func(
                         asset_cfg.spawn.spawn_path,
@@ -855,9 +889,11 @@ class InteractiveScene:
                         translation=asset_cfg.init_state.pos,
                         orientation=asset_cfg.init_state.rot,
                     )
-                # store xform prim view corresponding to this asset
-                # all prims in the scene are Xform prims (i.e. have a transform component)
-                self._extras[asset_name] = FrameView(asset_cfg.prim_path, device=self.device, stage=self.stage)
+                    # static assets have no asset class to queue their own replication:
+                    # queue the USD spread here so clones exist in every planned env
+                    cloner.queue_usd_replication(asset_cfg)
+                # static assets create no view: the prims are kept exactly as cloned
+                self._extras[asset_name] = asset_cfg
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
 

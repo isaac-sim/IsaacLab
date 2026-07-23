@@ -1,5 +1,4 @@
-Modularized Installation
-~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Modularized Installation
 
 ``./isaaclab.sh -i`` (or ``isaaclab.bat -i``) **always** installs all core
 source packages. Additional arguments can control which **optional** submodules and
@@ -81,7 +80,7 @@ Examples:
          # Default: core + optional submodules + newton/rl/visualizer extras
          ./isaaclab.sh -i
 
-         # Newton physics + RSL-RL (common kit-less setup)
+         # Newton physics + RSL-RL without Isaac Sim
          ./isaaclab.sh -i 'newton,rl[rsl-rl]'
 
          # Automatic tetrahedralization of volume deformables

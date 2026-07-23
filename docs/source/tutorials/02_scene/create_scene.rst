@@ -147,9 +147,19 @@ The Code Execution
 Let's run the script to simulate 32 cartpoles in the scene. We can do this by passing
 the ``--num_envs`` argument to the script.
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tutorials/02_scene/create_scene.py --num_envs 32
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/02_scene/create_scene.py --num_envs 32
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tutorials/02_scene/create_scene.py --num_envs 32
 
 This should open a stage with 32 cartpoles swinging around randomly. You can use the
 mouse to rotate the camera and the arrow keys to move around the scene.

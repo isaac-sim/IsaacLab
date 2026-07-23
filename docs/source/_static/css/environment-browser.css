@@ -1,0 +1,481 @@
+/*
+ * Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+.environment-browser {
+    --environment-border: color-mix(in srgb, var(--pst-color-border) 78%, transparent);
+    --environment-muted: var(--pst-color-text-muted);
+    --environment-panel: color-mix(in srgb, var(--pst-color-surface) 42%, var(--pst-color-background));
+    --environment-physics: var(--pst-color-primary);
+    --environment-renderer: #6954c5;
+    --environment-preset: #a25609;
+    margin: 0.75rem 0 2rem;
+}
+
+html[data-theme="dark"] .environment-browser {
+    --environment-renderer: #a99cff;
+    --environment-preset: #f0aa5a;
+}
+
+.environment-command-panel,
+.environment-preview-panel,
+.environment-benchmark-stub {
+    border: 1px solid var(--environment-border);
+    border-radius: 8px;
+    background: var(--environment-panel);
+}
+
+.environment-command-panel {
+    container-type: inline-size;
+    padding: 1.15rem;
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--pst-color-shadow) 20%, transparent);
+}
+
+.environment-command-row {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-width: 0;
+}
+
+.environment-command-row-primary {
+    flex-wrap: wrap;
+}
+
+.environment-command-prefix {
+    color: var(--pst-color-text-base);
+    font-family: var(--pst-font-family-monospace);
+    font-size: 1.05rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.environment-mode-switch {
+    display: inline-flex;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border: 1px solid var(--environment-border);
+    border-radius: 6px;
+}
+
+.environment-mode-switch button {
+    min-height: 2.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 0;
+    border-right: 1px solid var(--environment-border);
+    border-radius: 0;
+    color: var(--environment-muted);
+    background: var(--pst-color-background);
+    font-weight: 600;
+}
+
+.environment-mode-switch button:last-child {
+    border-right: 0;
+}
+
+.environment-mode-switch button.is-active {
+    color: #1f3300;
+    background: #76b900;
+}
+
+.environment-inline-field,
+.environment-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    margin: 0;
+    font-family: var(--pst-font-family-monospace);
+}
+
+.environment-inline-field > span,
+.environment-selector > span {
+    flex: 0 0 auto;
+    color: var(--environment-muted);
+}
+
+.environment-task-field {
+    flex: 1 1 20rem;
+}
+
+.environment-inline-field select,
+.environment-selector select,
+.environment-task-filter select,
+.environment-task-search input {
+    min-height: 2.4rem;
+    border: 1px solid var(--environment-border);
+    border-radius: 6px;
+    color: var(--pst-color-text-base);
+    background: var(--pst-color-background);
+}
+
+.environment-inline-field select,
+.environment-selector select,
+.environment-task-filter select {
+    padding: 0.35rem 2rem 0.35rem 0.6rem;
+}
+
+.environment-task-field select {
+    width: 100%;
+    min-width: 14rem;
+}
+
+.environment-copy-button {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 2.4rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    padding: 0;
+    border: 1px solid var(--environment-border);
+    border-radius: 6px;
+    color: var(--pst-color-text-base);
+    background: var(--pst-color-background);
+}
+
+.environment-copy-button:hover,
+.environment-copy-button:focus-visible {
+    color: var(--pst-color-primary);
+    border-color: var(--pst-color-primary);
+}
+
+.environment-command-row-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 1rem;
+}
+
+.environment-selector select {
+    width: 100%;
+}
+
+.environment-selector-physics > span {
+    color: var(--environment-physics);
+}
+
+.environment-selector-renderer > span {
+    color: var(--environment-renderer);
+}
+
+.environment-selector-preset > span {
+    color: var(--environment-preset);
+}
+
+.environment-command-output {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 2.6rem;
+    margin-top: 1rem;
+    padding: 0.65rem 0.8rem;
+    border-left: 3px solid var(--pst-color-primary);
+    color: var(--pst-color-text-base);
+    background: color-mix(in srgb, var(--pst-color-surface) 70%, transparent);
+}
+
+.environment-command-output code {
+    min-width: 0;
+    color: inherit;
+    background: transparent;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.environment-command-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.environment-copy-status {
+    flex: 0 0 auto;
+    color: var(--pst-color-primary);
+    font-size: 0.85rem;
+}
+
+.environment-preview-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.9fr);
+    min-height: 16rem;
+    overflow: hidden;
+}
+
+.environment-preview-stage {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-width: 0;
+    border-right: 1px solid var(--environment-border);
+    background: #111;
+}
+
+.environment-preview-stage img {
+    width: 100%;
+    height: 100%;
+    min-height: 12rem;
+    object-fit: contain;
+}
+
+.environment-preview-caption {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--environment-border);
+    background: var(--pst-color-background);
+}
+
+.environment-preview-label {
+    color: var(--environment-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.environment-preview-stage strong {
+    max-width: 100%;
+    color: var(--pst-color-text-base);
+    font-family: var(--pst-font-family-monospace);
+    font-size: 0.95rem;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.environment-preview-details {
+    display: grid;
+    align-content: center;
+    gap: 0.7rem;
+    margin: 0;
+    padding: 1.4rem;
+}
+
+.environment-preview-details div {
+    display: grid;
+    grid-template-columns: 4.6rem minmax(0, 1fr);
+    gap: 0.5rem;
+}
+
+.environment-preview-details dt {
+    color: var(--environment-muted);
+    font-weight: 400;
+}
+
+.environment-preview-details dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-family: var(--pst-font-family-monospace);
+}
+
+.environment-task-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.environment-task-search {
+    position: relative;
+    flex: 1 1 22rem;
+    margin: 0;
+}
+
+.environment-task-search i {
+    position: absolute;
+    top: 50%;
+    left: 0.75rem;
+    color: var(--environment-muted);
+    transform: translateY(-50%);
+}
+
+.environment-task-search input {
+    width: 100%;
+    padding: 0.4rem 0.75rem 0.4rem 2.2rem;
+}
+
+.environment-task-filter {
+    flex: 0 1 12rem;
+    margin: 0;
+}
+
+.environment-task-filter select {
+    width: 100%;
+}
+
+.environment-task-count {
+    flex: 0 0 auto;
+    color: var(--environment-muted);
+    font-size: 0.85rem;
+}
+
+.environment-task-list {
+    display: grid;
+    max-height: 31rem;
+    overflow-y: auto;
+    border: 1px solid var(--environment-border);
+    border-radius: 8px;
+}
+
+.environment-task-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    min-height: 3.4rem;
+    padding: 0.65rem 0.85rem;
+    border: 0;
+    border-bottom: 1px solid var(--environment-border);
+    border-radius: 0;
+    color: var(--pst-color-text-base);
+    background: var(--pst-color-background);
+    text-align: left;
+}
+
+.environment-task-row:last-child {
+    border-bottom: 0;
+}
+
+.environment-task-row:hover,
+.environment-task-row:focus-visible,
+.environment-task-row.is-selected {
+    background: color-mix(in srgb, var(--pst-color-primary) 9%, var(--pst-color-background));
+}
+
+.environment-task-row.is-selected {
+    box-shadow: inset 3px 0 var(--pst-color-primary);
+}
+
+.environment-task-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-family: var(--pst-font-family-monospace);
+    font-weight: 650;
+}
+
+.environment-task-meta {
+    display: inline-flex;
+    gap: 0.45rem;
+    color: var(--environment-muted);
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.environment-task-meta span {
+    padding: 0.15rem 0.4rem;
+    border: 1px solid var(--environment-border);
+    border-radius: 4px;
+}
+
+.environment-empty-state {
+    padding: 1.5rem;
+    color: var(--environment-muted);
+    text-align: center;
+}
+
+.environment-benchmark-stub {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-height: 9rem;
+    padding: 1.5rem;
+    border-style: dashed;
+}
+
+.environment-benchmark-stub > i {
+    color: var(--pst-color-primary);
+    font-size: 1.6rem;
+}
+
+.environment-benchmark-stub strong {
+    display: block;
+    color: var(--pst-color-text-base);
+}
+
+.environment-benchmark-stub p {
+    margin: 0.25rem 0 0;
+    color: var(--environment-muted);
+}
+
+.visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+@container (max-width: 850px) {
+    .environment-command-row-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@container (max-width: 560px) {
+    .environment-command-row-options {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1100px) {
+    .environment-preview-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .environment-preview-stage {
+        min-height: 12rem;
+        border-right: 0;
+        border-bottom: 1px solid var(--environment-border);
+    }
+}
+
+@media (max-width: 640px) {
+    .environment-command-panel {
+        padding: 0.85rem;
+    }
+
+    .environment-inline-field,
+    .environment-task-field {
+        flex: 1 1 100%;
+    }
+
+    .environment-inline-field select,
+    .environment-task-field select {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .environment-copy-button {
+        margin-left: auto;
+    }
+
+    .environment-task-toolbar {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    .environment-task-search,
+    .environment-task-filter {
+        flex: 1 1 100%;
+    }
+
+    .environment-task-count {
+        width: 100%;
+    }
+
+    .environment-task-row {
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+    }
+
+    .environment-task-meta {
+        white-space: normal;
+    }
+}

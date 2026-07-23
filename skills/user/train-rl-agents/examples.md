@@ -4,7 +4,7 @@
 
 Use these as starting points, then confirm the task's registered agent config exists.
 
-Training runs headless by default; omit any visualizer flag for fastest training. The legacy `--headless` flag is deprecated. To watch a run, pass `--viz kit` (or `--viz rerun,newton,viser`); use `--viz none` to force-disable configured visualizers. Use suffixless task names, for example `Isaac-Cartpole` instead of `Isaac-Cartpole-v0`.
+Training runs headless by default; omit any visualizer option for fastest training. To watch a run, pass `--viz kit` (or `--viz rerun,newton,viser`); use `--viz none` to force-disable configured visualizers. Use suffixless task names, for example `Isaac-Cartpole` instead of `Isaac-Cartpole-v0`.
 
 RSL-RL:
 
@@ -38,7 +38,7 @@ Always run a small random-action check first:
 uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
 ```
 
-For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling. Do not add `--enable_cameras` unless the current task or docs explicitly require it.
+For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling. Do not add `` unless the current task or docs explicitly require it.
 
 ## After Training
 

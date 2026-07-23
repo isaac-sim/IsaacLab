@@ -721,6 +721,8 @@ class DirectRLEnv(gym.Env):
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
 
+        self.sim.render_context.reset_scene_state_cadence()
+
     """
     Implementation-specific functions.
     """

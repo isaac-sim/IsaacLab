@@ -10,10 +10,10 @@ Usage with different inputs (replace `<Asset-Path>` and `<Asset-Path-Instanced>`
 original asset and the instanced asset respectively):
 
 ```bash
-./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path> -n 4096 --headless --physics
-./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --headless --physics
-./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path> -n 4096 --headless
-./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --headless
+uv run python source/tools/check_instanceable.py <Asset-Path> -n 4096 --physics
+uv run python source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --physics
+uv run python source/tools/check_instanceable.py <Asset-Path> -n 4096
+uv run python source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096
 ```
 
 Output from the above commands:
@@ -63,6 +63,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+
+from isaaclab.sim.utils import enable_extension
+
+enable_extension("isaacsim.core.cloner")
 
 from isaacsim.core.cloner import GridCloner
 

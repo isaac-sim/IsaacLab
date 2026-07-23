@@ -178,6 +178,8 @@ def test_collect_asset_cfgs_resolves_env_regex_macros():
         objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
     )
     scene.cloner_cfg = CloneCfg()
+    scene._env_regex_ns = scene.cloner_cfg.clone_regex
+    scene._env_ns = scene._env_regex_ns.rsplit("/", 1)[0]
 
     cfgs = scene._collect_asset_cfgs()
 

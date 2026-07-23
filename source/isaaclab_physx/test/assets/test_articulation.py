@@ -2816,12 +2816,8 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     surface as joint drift, while a controller-level test would have those
     bugs averaged out by PD damping.
 
-    Newton-side equivalent is deliberately omitted in this PR (see the
-    ``xfail`` test pinning the upstream gap). Newton's inverse-dynamics
-    primitive is in flight at upstream issues #2497 / #2529 and has a known
-    floating-base bug (#2625) that we'd have to test around. Ship a Newton
-    accuracy variant of this test alongside the Newton implementation when
-    upstream lands.
+    Newton-side variant of the same name lives in
+    ``isaaclab_newton/test/assets/test_articulation.py`` (backend parity).
     """
     base_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     # Replace default Franka actuators with a passthrough implicit actuator

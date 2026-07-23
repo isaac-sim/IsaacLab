@@ -15,10 +15,10 @@ does not require a GPU.
 
 Usage::
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --suite broad
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py \
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py --suite broad
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py \
         --case cartpole:Isaac-Cartpole:: \
         --case anymal:IsaacContrib-Velocity-Rough-AnymalC::env.scene.num_envs=256
 

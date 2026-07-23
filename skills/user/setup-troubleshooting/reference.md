@@ -13,13 +13,13 @@ Ask which install path the user is following before prescribing commands. For a 
 
 | User context | First reference |
 | --- | --- |
-| Source checkout | `docs/source/setup/installation/source_installation.rst` |
-| uv-managed environment | `docs/source/setup/quickstart.rst` and `docs/source/setup/installation/uv_run.rst` |
-| Pip package | `docs/source/setup/installation/pip_installation.rst` |
-| Isaac Lab pip package | `docs/source/setup/installation/isaaclab_pip_installation.rst` |
-| Binary package | `docs/source/setup/installation/binaries_installation.rst` |
-| Cloud setup | `docs/source/setup/installation/cloud_installation.rst` |
-| Kit-less setup | `docs/source/setup/installation/kitless_installation.rst` |
+| Source checkout | `docs/source/setup/installation/index.rst` |
+| uv-managed environment | `docs/source/setup/quickstart.rst` and `docs/source/setup/installation/index.rst` |
+| Pip package | `docs/source/setup/installation/index.rst` |
+| Isaac Lab pip package | `docs/source/setup/installation/index.rst` |
+| Binary package | `docs/source/setup/installation/index.rst` |
+| Cloud setup | `docs/source/features/docker_cloud.rst` |
+| Legacy installer or setup without Isaac Sim | `docs/source/setup/installation/index.rst` |
 | Newton setup | `docs/source/overview/core-concepts/physical-backends/newton/installation.rst` |
 | PhysX setup | `docs/source/overview/core-concepts/physical-backends/physx/installation.rst` |
 

@@ -448,9 +448,7 @@ class Camera(SensorBase):
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
-            raise RuntimeError(
-                "Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
-            )
+            raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
         # reset the timestamps
         super().reset(env_ids, env_mask)
         # reset the data
@@ -477,9 +475,8 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
-            RuntimeError: Propagated from the renderer constructor when the active backend's
-                runtime requirements are not satisfied (e.g. the RTX backend requires the
-                simulation app to be launched with ``--enable_cameras``).
+            RuntimeError: Propagated from the renderer constructor when the active backend's runtime requirements
+                are not satisfied.
         """
         # Initialize parent class
         super()._initialize_impl()

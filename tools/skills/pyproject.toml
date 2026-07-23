@@ -5,7 +5,7 @@
 #      making ``import cli`` work from the test files without any shim.
 #   2. ``tools/conftest.py`` sits above rootdir and is therefore not loaded.
 #
-# Run with: ``./isaaclab.sh -p -m pytest tools/skills/``
+# Run with: ``uv run python -m pytest tools/skills/``
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["test"]

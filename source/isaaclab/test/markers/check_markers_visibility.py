@@ -13,7 +13,7 @@ please check: https://www.youtube.com/watch?v=vLk-f9LWj48&ab_channel=NVIDIAOmniv
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/markers/check_markers_visibility.py
+    uv run python source/isaaclab/test/markers/check_markers_visibility.py
 
 """
 
