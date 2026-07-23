@@ -520,7 +520,7 @@ def handle_reset(
     return success_step_count
 
 
-def run_simulation_loop(
+def run_simulation_loop(  # noqa: C901
     env: gym.Env,
     teleop_interface: object | None,
     success_term: object | None,
