@@ -25,7 +25,13 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
-from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector, resolve_play_task_name
+from isaaclab_rl.entrypoints.common import (
+    CHECKPOINT_SELECTORS,
+    add_frontend_args,
+    create_isaaclab_env,
+    resolve_checkpoint_selector,
+    resolve_play_task_name,
+)
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
     RslRlVecEnvWrapper,
@@ -55,6 +61,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+add_frontend_args(parser)
 parser.add_argument(
     "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
@@ -137,12 +144,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
         env_cfg.log_dir = log_dir
 
-        env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+        )
 
         if args_cli.video:
             video_kwargs = {
