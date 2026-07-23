@@ -298,7 +298,8 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
     )
-    default = physx
+    ovphysx = physx  # OvPhysX is PhysX-based; reuse the PhysX-tuned rigid sphere
+    default = newton_mjwarp
 
 
 @configclass
@@ -334,7 +335,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     ovphysx = OvPhysxCfg()
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass
