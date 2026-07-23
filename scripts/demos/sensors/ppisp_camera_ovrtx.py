@@ -14,7 +14,7 @@ This script demonstrates USD-authored PPISP on a Gaussian scene through the kit-
         --max_steps 60 \
         --num_envs 8
 
-OVRTX must run kit-less: do not launch this script through ``isaaclab.sh -p``.
+OVRTX must run kit-less: launch this script with ``uv run python``.
 """
 
 import argparse

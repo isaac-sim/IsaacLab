@@ -10,18 +10,17 @@ import itertools
 import logging
 import math
 import re
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
 
-from pxr import Sdf, Usd, UsdGeom
+if TYPE_CHECKING:
+    from pxr import Usd
 
 from .clone_plan import ClonePlan
+from .cloner_cfg import InclusionSet
 from .cloner_strategies import sequential
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -106,17 +105,20 @@ def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str
         Three-tuple of ``(source_asset_path, dest_glob_prefix, asset_suffix)``. The
         ``asset_suffix`` is the part of ``path_expr`` beyond the matching row's
         destination template (empty when ``path_expr`` equals the row's template).
-        Returns ``None`` when ``path_expr`` matches no row in the plan, letting
-        callers fall back to direct stage resolution (e.g. for sensor frames
-        mounted at the env root rather than under a planned asset).
+        Returns ``None`` when ``path_expr`` matches no row in the plan, or when the
+        matching rows have no active env, letting callers fall back to direct stage
+        resolution (e.g. for sensor frames mounted at the env root rather than under
+        a planned asset).
+
+        Partial-env coverage is supported: when the matching rows cover only a subset
+        of envs (an asset present in some envs but not others, as in heterogeneous
+        scenes), the returned destination glob resolves to just those envs.
 
     Raises:
         ValueError: When ``path_expr`` is owned by multiple distinct, equally
             specific destination templates (a genuine ambiguity). Nested
             templates do not conflict: the most specific (longest-matching) one
             wins, mirroring :func:`iter_clone_plan_matches`.
-        NotImplementedError: When the union of matching rows' clone masks does not
-            cover every env (partial-env heterogeneous coverage is unsupported).
     """
     # Collect every template that owns ``path_expr`` together with the suffix below it.
     # A shorter suffix means a longer matched prefix, i.e. a more specific (nearer) owner.
@@ -140,12 +142,16 @@ def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str
     matching_template = next(iter(owning_templates))
     matching_rows = [index for template, _, index in candidates if template == matching_template]
     matching_suffix = next(suffix for template, suffix, _ in candidates if template == matching_template)
-    if not plan.clone_mask[matching_rows].any(dim=0).all():
-        raise NotImplementedError(
-            f"path_expr {path_expr!r}: partial-env heterogeneous coverage is unsupported;"
-            " matching rows must collectively cover all envs."
-        )
-    return plan.sources[matching_rows[0]], matching_template.replace("{}", "*"), matching_suffix or ""
+    # Partial-env coverage (the union of matching rows misses some envs) is expected for
+    # heterogeneous scenes: an asset present in only a subset of envs (e.g. one robot type
+    # per task group). The destination glob below resolves only to the envs that actually
+    # received the asset, and callers (via the scene Selector) map those to global env ids.
+    # Resolution must still walk a source that exists on stage, so prefer the first matching
+    # row with at least one active env over an inactive fallback source.
+    active_rows = [index for index in matching_rows if plan.clone_mask[index].any()]
+    if not active_rows:
+        return None
+    return plan.sources[active_rows[0]], matching_template.replace("{}", "*"), matching_suffix or ""
 
 
 def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, str, tuple[int, ...]]]:
@@ -194,6 +200,111 @@ def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[s
         yield from (match for match in matches if len(match[1].format(match[3][0])) == owner_length)
 
 
+def num_spawn_variants(spawn_cfg: Any) -> int:
+    """Return the number of spawn variants declared by one spawner configuration.
+
+    :class:`~isaaclab.sim.MultiAssetSpawnerCfg` declares one variant per asset
+    configuration and :class:`~isaaclab.sim.MultiUsdFileCfg` one per USD path;
+    every other spawner declares a single variant.
+
+    Args:
+        spawn_cfg: Spawner configuration to inspect.
+
+    Returns:
+        The number of spawn variants the configuration expands into.
+    """
+    import isaaclab.sim as sim_utils  # noqa: PLC0415
+
+    if isinstance(spawn_cfg, sim_utils.MultiAssetSpawnerCfg):
+        return len(spawn_cfg.assets_cfg)
+    if isinstance(spawn_cfg, sim_utils.MultiUsdFileCfg):
+        return 1 if isinstance(spawn_cfg.usd_path, str) else len(spawn_cfg.usd_path)
+    return 1
+
+
+def make_valid_clone_combinations(
+    asset_names: Sequence[str],
+    variant_counts: Sequence[int],
+    clone_combinations: Sequence[InclusionSet] | None = None,
+    device: str = "cpu",
+    *,
+    all_asset_names: Sequence[str] | None = None,
+) -> torch.Tensor:
+    """Build the valid clone-combination variant tensor.
+
+    Each combination contributes rows in proportion to its weight, split evenly
+    across its spawn variants and interleaved round-robin, so any prefix of the
+    tensor samples every combination.
+
+    Args:
+        asset_names: Clone-planned scene asset names, one per tensor column.
+        variant_counts: Number of spawn variants per clone-planned asset.
+        clone_combinations: Legal clone combinations; assets not mentioned by
+            any combination are active in every row. ``None`` uses the full
+            cartesian product of variants.
+        device: Torch device for the output tensor. Defaults to ``"cpu"``.
+        all_asset_names: Optional full scene asset-name list; combination
+            entries may reference assets that are not clone-planned.
+
+    Returns:
+        A ``[num_valid_combinations, num_assets]`` tensor of source variant
+        indices, ``-1`` where an asset is absent.
+
+    Raises:
+        ValueError: If the inputs are inconsistent or no valid rows result.
+    """
+    if len(asset_names) != len(variant_counts):
+        raise ValueError(f"Expected one variant count per asset, got {len(variant_counts)} and {len(asset_names)}.")
+    if not asset_names:
+        raise ValueError("Expected at least one asset name.")
+    if any(count <= 0 for count in variant_counts):
+        raise ValueError("Variant counts must be positive.")
+
+    if not clone_combinations:
+        rows = itertools.product(*[range(count) for count in variant_counts])
+        return torch.tensor(list(rows), dtype=torch.long, device=device)
+
+    clone_asset_names = set(asset_names)
+    known_assets = set(all_asset_names) if all_asset_names is not None else clone_asset_names
+    combination_assets: list[set[str]] = []
+    for combination in clone_combinations:
+        if combination.weight < 0:
+            raise ValueError("Clone combination weights must be non-negative.")
+        unknown_assets = sorted(set(combination.assets) - known_assets)
+        if unknown_assets:
+            raise ValueError(f"Unknown assets in clone combination: {unknown_assets}.")
+        combination_assets.append(set(combination.assets) & clone_asset_names)
+
+    claimed_assets = set().union(*combination_assets) if combination_assets else set()
+
+    expanded: list[tuple[int, list[tuple[int, ...]]]] = []
+    for combination, active_assets in zip(clone_combinations, combination_assets):
+        if combination.weight == 0:
+            continue
+        variant_ranges = []
+        for asset_name, count in zip(asset_names, variant_counts):
+            is_active = asset_name not in claimed_assets or asset_name in active_assets
+            variant_ranges.append(range(count) if is_active else (-1,))
+        expanded.append((combination.weight, list(itertools.product(*variant_ranges))))
+
+    if not expanded:
+        raise ValueError("Clone combinations produced no valid clone rows.")
+
+    # A combination's share is its weight, split evenly across its spawn variants.
+    # Integer multiplicities require a common denominator across variant counts.
+    # Rows are emitted round-robin across combinations so a truncated prefix
+    # (fewer environments than rows) still samples every combination.
+    common_multiple = math.lcm(*[len(variants) for _, variants in expanded])
+    rows = []
+    cursors = [0] * len(expanded)
+    for _ in range(common_multiple):
+        for index, (weight, variants) in enumerate(expanded):
+            for _ in range(weight):
+                rows.append(variants[cursors[index] % len(variants)])
+                cursors[index] += 1
+    return torch.tensor(rows, dtype=torch.long, device=device)
+
+
 def make_clone_plan(
     cfgs: Iterable[Any],
     num_clones: int,
@@ -233,18 +344,14 @@ def make_clone_plan(
     """
     import isaaclab.sim as sim_utils  # noqa: PLC0415
 
-    def num_variants(spawn_cfg: Any) -> int:
-        if isinstance(spawn_cfg, sim_utils.MultiAssetSpawnerCfg):
-            return len(spawn_cfg.assets_cfg)
-        if isinstance(spawn_cfg, sim_utils.MultiUsdFileCfg):
-            return 1 if isinstance(spawn_cfg.usd_path, str) else len(spawn_cfg.usd_path)
-        return 1
-
     def set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
         if isinstance(spawn_cfg, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
             spawn_cfg.spawn_paths = paths
         else:
             active = [p for p in paths if p is not None]
+            if len(active) == 0:
+                spawn_cfg.spawn_path = None
+                return
             if len(active) != 1:
                 raise ValueError("Single spawner expects exactly one planned source path.")
             spawn_cfg.spawn_path = active[0]
@@ -260,7 +367,7 @@ def make_clone_plan(
         prim_path = cfg.prim_path
         if env_root_marker not in prim_path:
             continue
-        count = num_variants(cfg.spawn)
+        count = num_spawn_variants(cfg.spawn)
         if count <= 0:
             raise ValueError(f"Spawner at '{prim_path}' must have at least one variant.")
         destination = prim_path.replace(".*", "{}")
@@ -282,7 +389,7 @@ def make_clone_plan(
         )
 
     # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
-    if all(count == 1 for _, _, _, count in groups):
+    if valid_set is None and all(count == 1 for _, _, _, count in groups):
         for cfg, spawn_cfg, destination, _ in groups:
             set_spawn_paths(spawn_cfg, [destination.format(0)])
         cfg_rows = {id(cfg): (0,) for cfg, _, _, _ in groups}
@@ -297,20 +404,42 @@ def make_clone_plan(
 
     # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
     group_sizes = [count for _, _, _, count in groups]
+
+    def validate_combo_tensor(combos: torch.Tensor, name: str, expected_rows: int | None = None) -> torch.Tensor:
+        if combos.dtype == torch.bool or torch.is_floating_point(combos):
+            raise ValueError(f"{name} must contain integer prototype indices.")
+        combos = combos.to(device=device, dtype=torch.long)
+        if combos.ndim != 2:
+            raise ValueError(f"{name} must be a 2-D tensor, got shape {tuple(combos.shape)}.")
+        if combos.shape[0] == 0:
+            raise ValueError(f"{name} must contain at least one row.")
+        if expected_rows is not None and combos.shape[0] != expected_rows:
+            raise ValueError(f"{name} must contain {expected_rows} rows, got {combos.shape[0]}.")
+        if combos.shape[1] != len(group_sizes):
+            raise ValueError(f"{name} must contain {len(group_sizes)} columns, got {combos.shape[1]}.")
+        group_sizes_tensor = torch.tensor(group_sizes, dtype=torch.long, device=device).view(1, -1)
+        invalid = (combos < -1) | ((combos >= group_sizes_tensor) & (combos != -1))
+        if invalid.any():
+            raise ValueError(f"{name} contains prototype indices outside [-1, group_size).")
+        return combos
+
     if valid_set is None:
         all_combos = list(itertools.product(*[range(s) for s in group_sizes]))
         combos = torch.tensor(all_combos, dtype=torch.long, device=device)
     else:
-        combos = valid_set.to(device=device, dtype=torch.long)
-    chosen = clone_strategy(combos, num_clones, device)
+        combos = validate_combo_tensor(valid_set, "valid_set")
+    chosen = validate_combo_tensor(clone_strategy(combos, num_clones, device), "clone_strategy result", num_clones)
 
     group_offsets = torch.tensor([0] + list(itertools.accumulate(group_sizes[:-1])), dtype=torch.long, device=device)
+    active = chosen >= 0
     rows = (chosen + group_offsets).view(-1)
     cols = torch.arange(num_clones, device=device).view(-1, 1).expand(-1, len(group_sizes)).reshape(-1)
+    active_flat = active.view(-1)
 
     num_rows = sum(group_sizes)
     clone_mask = torch.zeros((num_rows, num_clones), dtype=torch.bool, device=device)
-    clone_mask[rows, cols] = True
+    if active_flat.any():
+        clone_mask[rows[active_flat], cols[active_flat]] = True
 
     sources_list: list[str] = []
     destinations_list: list[str] = []
@@ -367,6 +496,9 @@ def filter_collisions(
         global_paths: Optional global-collider paths.
 
     """
+    # Lazy: importing pxr from the kit-less usd-core wheel before Kit boots corrupts
+    # Kit's own USD runtime; only this function needs pxr at runtime.
+    from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
 
     scene_prim = stage.GetPrimAtPath(physicsscene_path)
     # We invert the collision group filters for more efficient collision filtering across environments

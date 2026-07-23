@@ -104,9 +104,21 @@ for 65.5M steps (4096 environments x 32 rollout steps x 500 iterations).
 
 Training commands (check for the *'Training time: XXX seconds'* line in the terminal output):
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rl_games --task Isaac-Humanoid --max_iterations 500
-    ./isaaclab.sh train --rl_library skrl --task Isaac-Humanoid --max_iterations 500
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Humanoid --max_iterations 500
-    ./isaaclab.sh train --rl_library sb3 --task Isaac-Humanoid --max_iterations 500
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run isaaclab train --rl_library rl_games --task Isaac-Humanoid --max_iterations 500
+          uv run isaaclab train --rl_library skrl --task Isaac-Humanoid --max_iterations 500
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Humanoid --max_iterations 500
+          uv run isaaclab train --rl_library sb3 --task Isaac-Humanoid --max_iterations 500
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh train --rl_library rl_games --task Isaac-Humanoid --max_iterations 500
+          ./isaaclab.sh train --rl_library skrl --task Isaac-Humanoid --max_iterations 500
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Humanoid --max_iterations 500
+          ./isaaclab.sh train --rl_library sb3 --task Isaac-Humanoid --max_iterations 500

@@ -35,7 +35,9 @@ class PhysxReplicateContext:
             stage: USD stage to register with the PhysX replicator.
         """
         self.stage = stage
-        self._stage_id = UsdUtils.StageCache.Get().Insert(stage).ToLongInt()
+        cache = UsdUtils.StageCache.Get()
+        cached_id = cache.GetId(stage)
+        self._stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
         physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
         if physics_scene_prim.IsValid():
             physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)

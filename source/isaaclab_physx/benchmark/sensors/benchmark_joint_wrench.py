@@ -10,7 +10,7 @@ incoming wrench for all three links and transforms it into each child-side
 joint frame.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_joint_wrench.py --num_envs 4096
+    uv run python source/isaaclab_physx/benchmark/sensors/benchmark_joint_wrench.py --num_envs 4096
 """
 
 from __future__ import annotations

@@ -1,0 +1,3 @@
+Refactor-only: the OVRTX renderer's segmentation colorization Warp functions
+(random_color_from_id / color_hash) now import from the shared
+isaaclab.renderers.segmentation_colors module instead of duplicating them. No behavior change.

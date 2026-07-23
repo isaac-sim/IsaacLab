@@ -8,16 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/multi_asset.py --num_envs 1024
+    uv run python scripts/demos/multi_asset.py --num_envs 1024
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/multi_asset.py --visualizer newton --num_envs 1024
+    uv run python scripts/demos/multi_asset.py --visualizer newton --num_envs 1024
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/multi_asset.py --physics newton_mjwarp --num_envs 1024
+    uv run python scripts/demos/multi_asset.py --physics newton_mjwarp --num_envs 1024
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/multi_asset.py --visualizer newton --physics newton_mjwarp --num_envs 1024
+    uv run python scripts/demos/multi_asset.py --visualizer newton --physics newton_mjwarp --num_envs 1024
 
 """
 

@@ -582,8 +582,7 @@ class DirectRLEnvWarp(DirectRLEnv):
                     f"Cannot render '{self.render_mode}' when the simulation render mode is"
                     f" '{render_mode_name}'. Please set the simulation render mode"
                     " to:'PARTIAL_RENDERING' or"
-                    " 'FULL_RENDERING'. If running headless, make"
-                    " sure --enable_cameras is set."
+                    " 'FULL_RENDERING'."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):

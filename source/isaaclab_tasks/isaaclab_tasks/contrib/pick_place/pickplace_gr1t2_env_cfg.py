@@ -18,6 +18,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
@@ -25,6 +26,7 @@ from isaaclab.utils.configclass import configclass
 from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
+from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg  # isort: skip
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
 
@@ -263,6 +265,13 @@ def _build_gr1t2_pickplace_pipeline():
 ##
 # Scene definition
 ##
+
+# The steering wheel USD authors its rigid body on a nested prim rather than at the
+# spawned ``Object`` root, so contact filtering must target that actor: filtering
+# against ``Object`` matches an empty Xform and force_matrix_w always reads zero.
+_STEERING_WHEEL_BODY = "{ENV_REGEX_NS}/Object/Geometry/sm_steeringwheel_a01_01"
+
+
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the GR1T2 Pick Place Base Scene."""
@@ -321,6 +330,24 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             },
             joint_vel={".*": 0.0},
         ),
+    )
+
+    # Per-finger contact sensors on all finger links of each hand, filtered against
+    # the wheel body so force_matrix_w reports each finger's grip force. This drives
+    # the per-finger haptic glove feedback (see GloveHapticFeedbackCfg below).
+    # Contact reporting is already enabled on the robot by GR1T2_HIGH_PD_CFG
+    # (``spawn.activate_contact_sensors=True``), so it is not set again here.
+    left_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*L_(index|middle|ring|pinky|thumb).*_link",
+        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
+        update_period=0.0,
+        history_length=3,
+    )
+    right_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*R_(index|middle|ring|pinky|thumb).*_link",
+        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
+        update_period=0.0,
+        history_length=3,
     )
 
     # Ground plane
@@ -606,4 +633,13 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+        )
+
+        # Per-finger haptic glove feedback: vibrate each finger of the operator's
+        # glove in proportion to how tightly it grips the object. The session
+        # always requests the push-tensor extension the glove device needs, so
+        # this stays inert (no glove connected) rather than failing.
+        self.haptic_feedback = GloveHapticFeedbackCfg(
+            left_sensor_name="left_hand_contact",
+            right_sensor_name="right_hand_contact",
         )

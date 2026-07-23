@@ -1532,3 +1532,36 @@ def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
     # physics=newton_mjwarp (typed selector) must error.
     with pytest.raises(ValueError, match="physics=newton_mjwarp"):
         hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
+
+
+# =============================================================================
+# Tests: play-mode overrides
+# =============================================================================
+
+
+def test_register_task_play_mode_applies_play_mode(monkeypatch):
+    """``register_task(play_mode=True)`` applies the env cfg's play-mode overrides after loading."""
+    import sys
+
+    import gymnasium as gym
+
+    @configclass
+    class PlayModeEnvCfg:
+        played: bool = False
+
+        def play_mode(self):
+            self.played = True
+
+    gym.register(
+        id="Isaac-Hydra-PlayMode-Test",
+        entry_point="dummy:Env",
+        kwargs={"env_cfg_entry_point": PlayModeEnvCfg},
+    )
+    monkeypatch.setattr(sys, "argv", ["test"])
+    try:
+        env_cfg, _, _ = hydra_mod.register_task("Isaac-Hydra-PlayMode-Test", None, play_mode=True)
+        assert env_cfg.played
+        env_cfg, _, _ = hydra_mod.register_task("Isaac-Hydra-PlayMode-Test", None)
+        assert not env_cfg.played
+    finally:
+        del gym.registry["Isaac-Hydra-PlayMode-Test"]

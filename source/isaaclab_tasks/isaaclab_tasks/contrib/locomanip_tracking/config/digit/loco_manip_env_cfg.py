@@ -14,7 +14,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.config.digit.rough_env_cfg import DigitRewards, DigitRoughEnvCfg
+from isaaclab_tasks.contrib.velocity.config.digit.rough_env_cfg import DigitRewards, DigitRoughEnvCfg
 from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, LEG_JOINT_NAMES
@@ -234,16 +234,10 @@ class DigitLocoManipEnvCfg(DigitRoughEnvCfg):
         # Remove terrain curriculum.
         self.curriculum.terrain_levels = None
 
+    def play_mode(self) -> None:
+        # play-mode overrides of parent
+        super().play_mode()
 
-class DigitLocoManipEnvCfg_PLAY(DigitLocoManipEnvCfg):
-    def __post_init__(self) -> None:
-        super().__post_init__()
-
-        # Make a smaller scene for play.
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # Disable randomization for play.
-        self.observations.policy.enable_corruption = False
         # Remove random pushing.
         self.events.base_external_force_torque = None
         self.events.push_robot = None

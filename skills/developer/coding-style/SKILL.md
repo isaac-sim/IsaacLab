@@ -31,19 +31,19 @@ Do not use this skill as a replacement for the contribution guide. Read the auth
 Run formatting and lint checks:
 
 ```bash
-./isaaclab.sh -f
+uv run isaaclab -f
 ```
 
 For focused tests, use:
 
 ```bash
-./isaaclab.sh -p -m pytest PATH_TO_TEST
+uv run python -m pytest PATH_TO_TEST
 ```
 
 For skill changes, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run --no-project python tools/skills/cli.py check
 ```
 
 ## Maintenance

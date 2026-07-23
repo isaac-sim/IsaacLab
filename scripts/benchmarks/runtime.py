@@ -16,7 +16,7 @@ Usage example::
     uv run isaaclab benchmark runtime \\
         --task Isaac-Cartpole-Direct \\
         --num_envs 16 --num_frames 1000 --warmup_frames 50 \\
-        presets=newton_mjwarp --headless
+        presets=newton_mjwarp
 """
 
 from __future__ import annotations

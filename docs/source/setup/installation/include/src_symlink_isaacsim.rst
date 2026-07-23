@@ -1,5 +1,4 @@
-Creating the Isaac Sim Symbolic Link
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Creating the Isaac Sim Symbolic Link
 
 Set up a symbolic link between the installed Isaac Sim root folder
 and ``_isaac_sim`` in the Isaac Lab directory. This makes it convenient

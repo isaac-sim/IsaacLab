@@ -75,7 +75,7 @@ Local runs
 ----------
 Set the runtime from the shell to opt a run into non-default GPUs::
 
-    ISAACLAB_TEST_DEVICES=0001 ./isaaclab.sh -p -m pytest path/to/test.py
+    ISAACLAB_TEST_DEVICES=0001 uv run python -m pytest path/to/test.py
 """
 
 from __future__ import annotations
