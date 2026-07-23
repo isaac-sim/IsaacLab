@@ -21,12 +21,7 @@ from isaaclab.test.physics.parameter_validation.fixtures import (
     build_single_dof,
     make_single_dof_cfg,
 )
-from isaaclab.test.physics.parameter_validation.oracles import (
-    PROFILE_DOF_DT,
-    PhysicalCase,
-    assert_physical_close,
-    predict_implicit_joint_step,
-)
+from isaaclab.test.physics.parameter_validation.oracles import PROFILE_DOF_DT, PhysicalCase, assert_physical_close
 
 _PUBLIC_APIS = {
     "BODY-03": "USD MassAPI center-of-mass authoring",
@@ -170,10 +165,11 @@ def test_joint_07_armature_single_step(parameter_adapter, joint_type, authoring,
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("passive_damping", [0.0, 3.0, 6.0])
-def test_joint_08_passive_damping_usd_single_step(kamino, joint_type, passive_damping):
-    """JOINT-08: USD-authored passive damping reproduces the analytical Kamino step."""
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_joint_08_passive_damping_usd_single_step(parameter_adapter, joint_type, passive_damping):
+    """JOINT-08: USD-authored passive damping reproduces the backend's analytical step."""
     velocity_initial = 1.0
-    result = kamino.run_single_dof_step(
+    result = parameter_adapter.run_single_dof_step(
         joint_type,
         "usd",
         stiffness=0.0,
@@ -183,7 +179,7 @@ def test_joint_08_passive_damping_usd_single_step(kamino, joint_type, passive_da
         velocity=velocity_initial,
         passive_damping=passive_damping,
     )
-    velocity, position = predict_implicit_joint_step(
+    velocity, position = parameter_adapter.predict_dof_step(
         stiffness=0.0,
         drive_damping=0.0,
         armature=0.0,
@@ -193,7 +189,7 @@ def test_joint_08_passive_damping_usd_single_step(kamino, joint_type, passive_da
         passive_damping=passive_damping,
     )
     _assert_step(
-        kamino,
+        parameter_adapter,
         "JOINT-08",
         "usd",
         result,
@@ -299,7 +295,6 @@ def test_cmd_02_velocity_reference_single_step(parameter_adapter, joint_type, ve
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
-@pytest.mark.parametrize("authoring", ["usd", "runtime", "runtime-error"])
 @pytest.mark.parametrize(
     ("limit", "active_bound", "inactive_bound"),
     [
@@ -308,14 +303,32 @@ def test_cmd_02_velocity_reference_single_step(parameter_adapter, joint_type, ve
     ],
 )
 @pytest.mark.parametrize("bound_kind", ["active", "inactive"])
-def test_joint_04_position_limit(kamino, joint_type, authoring, limit, active_bound, inactive_bound, bound_kind):
-    """JOINT-04: Authored lower and upper position limits are enforced by Kamino."""
+def test_joint_04_position_limit_runtime_topology_error(
+    kamino, joint_type, limit, active_bound, inactive_bound, bound_kind
+):
+    """JOINT-04: Kamino rejects changing the existence of a joint limit at runtime."""
     bound = active_bound if bound_kind == "active" else inactive_bound
-    if authoring == "runtime-error":
-        with pytest.raises(RuntimeError, match="Changing the existence of a joint limit"):
-            kamino.run_position_limit_probe(joint_type, authoring, limit, bound)
-        return
-    position_extreme, position_final = kamino.run_position_limit_probe(joint_type, authoring, limit, bound)
+    with pytest.raises(RuntimeError, match="Changing the existence of a joint limit"):
+        kamino.run_position_limit_probe(joint_type, "runtime-error", limit, bound)
+
+
+@pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
+@pytest.mark.parametrize("authoring", ["usd", "runtime"])
+@pytest.mark.parametrize(
+    ("limit", "active_bound", "inactive_bound"),
+    [
+        ("lower", ACTIVE_LOWER, INACTIVE_LOWER),
+        ("upper", ACTIVE_UPPER, INACTIVE_UPPER),
+    ],
+)
+@pytest.mark.parametrize("bound_kind", ["active", "inactive"])
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_joint_04_position_limit(
+    parameter_adapter, joint_type, authoring, limit, active_bound, inactive_bound, bound_kind
+):
+    """JOINT-04: Authored lower and upper position limits are enforced by the backend."""
+    bound = active_bound if bound_kind == "active" else inactive_bound
+    position_extreme, position_final = parameter_adapter.run_position_limit_probe(joint_type, authoring, limit, bound)
     is_active = abs(bound) < PROBE_TARGET
     if is_active:
         if limit == "upper":
@@ -334,16 +347,17 @@ def test_joint_04_position_limit(kamino, joint_type, authoring, limit, active_bo
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["cfg", "runtime"])
-def test_joint_02_position_state(kamino, joint_type, authoring):
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_joint_02_position_state(parameter_adapter, joint_type, authoring):
     """JOINT-02: Reset-default and live joint position survive one unforced step."""
     position = 0.15
-    result = kamino.run_joint_state(
+    result = parameter_adapter.run_joint_state(
         joint_type,
         authoring,
         position=position,
         velocity=0.0,
     )
-    case = _case(kamino, "JOINT-02", authoring)
+    case = _case(parameter_adapter, "JOINT-02", authoring)
     assert_physical_close(result["position_before"], position, case)
     assert_physical_close(result["velocity_before"], 0.0, case)
     assert_physical_close(result["position_after"], position, case)
@@ -352,30 +366,32 @@ def test_joint_02_position_state(kamino, joint_type, authoring):
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])
 @pytest.mark.parametrize("authoring", ["cfg", "runtime"])
-def test_joint_03_velocity_state(kamino, joint_type, authoring):
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_joint_03_velocity_state(parameter_adapter, joint_type, authoring):
     """JOINT-03: Reset-default and live joint velocity produce unforced coast motion."""
     velocity = 0.4
-    result = kamino.run_joint_state(
+    result = parameter_adapter.run_joint_state(
         joint_type,
         authoring,
         position=0.0,
         velocity=velocity,
     )
-    case = _case(kamino, "JOINT-03", authoring)
+    case = _case(parameter_adapter, "JOINT-03", authoring)
     assert_physical_close(result["position_before"], 0.0, case)
     assert_physical_close(result["velocity_before"], velocity, case)
     assert_physical_close(result["position_after"], velocity * PROFILE_DOF_DT, case)
     assert_physical_close(result["velocity_after"], velocity, case)
 
 
-def test_body_03_center_of_mass_gravity_moment(kamino):
+@pytest.mark.parametrize("parameter_adapter", ["kamino", "mjwarp"], indirect=True)
+def test_body_03_center_of_mass_gravity_moment(parameter_adapter):
     """BODY-03: An authored COM offset produces the expected fixed-pivot gravity moment."""
     offset = (0.1, 0.0, 0.0)
-    velocity, body_inertia = kamino.run_com_gravity_probe(offset)
+    velocity, body_inertia = parameter_adapter.run_com_gravity_probe(offset)
     torque_z = offset[0] * JOINT_MASS["revolute"] * -9.81
     expected_velocity = torque_z * PROFILE_DOF_DT / body_inertia
-    case = _case(kamino, "BODY-03", "usd")
+    case = _case(parameter_adapter, "BODY-03", "usd")
     assert_physical_close(velocity, expected_velocity, case)
 
-    control_velocity, _ = kamino.run_com_gravity_probe((0.0, 0.0, 0.0))
+    control_velocity, _ = parameter_adapter.run_com_gravity_probe((0.0, 0.0, 0.0))
     assert_physical_close(control_velocity, 0.0, case)

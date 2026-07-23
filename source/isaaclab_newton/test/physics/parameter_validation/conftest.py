@@ -123,6 +123,163 @@ class _SingleDofParameterAdapter:
         """Predict the adapter's pinned single-DOF step."""
         raise NotImplementedError
 
+    def gravity_dof_cfg(self, gravity: tuple[float, float, float]) -> SimulationCfg:
+        """Create the pinned single-DOF simulation profile with a custom gravity vector."""
+        return self._sim_cfg(dt=PROFILE_DOF_DT, gravity=gravity)
+
+    def position_limit_profile_cfg(self) -> SimulationCfg:
+        """Create the simulation profile used by the position-limit probe."""
+        return self.profile_dof_cfg()
+
+    def run_position_limit_probe(
+        self, joint_type: str, authoring: str, limit: str, bound: float
+    ) -> tuple[float, float]:
+        """Drive toward one limit and return the extreme and final position."""
+        spec = self._position_limit_authoring_spec(authoring, limit, bound)
+        target = PROBE_TARGET if limit == "upper" else -PROBE_TARGET
+        with build_simulation_context(
+            device=DEVICE,
+            sim_cfg=self.position_limit_profile_cfg(),
+        ) as sim:
+            sim._app_control_on_stop_handle = None
+            build_single_dof(
+                joint_type,
+                usd_stiffness=30.0,
+                usd_lower=spec["usd_lower"],
+                usd_upper=spec["usd_upper"],
+            )
+            articulation = Articulation(make_single_dof_cfg(30.0, 60.0, None))
+            sim.reset()
+            if spec["runtime_limit"] is not None:
+                lower, runtime_upper = spec["runtime_limit"]
+                articulation.write_joint_position_limit_to_sim_index(
+                    limits=torch.tensor([[[lower, runtime_upper]]], device=DEVICE)
+                )
+            articulation.set_joint_position_target_index(target=torch.full((1, 1), target, device=DEVICE))
+            position_extreme = torch.tensor(
+                -float("inf") if limit == "upper" else float("inf"),
+                device=DEVICE,
+            )
+            for _ in range(250):
+                articulation.write_data_to_sim()
+                sim.step()
+                articulation.update(PROFILE_DOF_DT)
+                position = articulation.data.joint_pos.torch[0, 0]
+                if limit == "upper":
+                    position_extreme = torch.maximum(position_extreme, position)
+                else:
+                    position_extreme = torch.minimum(position_extreme, position)
+            return float(position_extreme), float(articulation.data.joint_pos.torch[0, 0])
+
+    @staticmethod
+    def _position_limit_authoring_spec(authoring: str, limit: str, bound: float) -> dict:
+        if limit not in {"lower", "upper"}:
+            raise ValueError(f"Unsupported position-limit direction: {limit}")
+        inactive_bound = INACTIVE_UPPER if limit == "upper" else INACTIVE_LOWER
+        opposite_bound = INACTIVE_LOWER if limit == "upper" else INACTIVE_UPPER
+        usd_lower = opposite_bound if limit == "upper" else bound
+        usd_upper = bound if limit == "upper" else opposite_bound
+        if authoring == "usd":
+            return {
+                "usd_lower": usd_lower,
+                "usd_upper": usd_upper,
+                "runtime_limit": None,
+            }
+        if authoring == "runtime":
+            initial_bound = (
+                inactive_bound
+                if abs(bound) < abs(PROBE_TARGET)
+                else (ACTIVE_UPPER if limit == "upper" else ACTIVE_LOWER)
+            )
+            initial_lower = opposite_bound if limit == "upper" else initial_bound
+            initial_upper = initial_bound if limit == "upper" else opposite_bound
+            runtime_lower = opposite_bound if limit == "upper" else bound
+            runtime_upper = bound if limit == "upper" else opposite_bound
+            return {
+                "usd_lower": initial_lower,
+                "usd_upper": initial_upper,
+                "runtime_limit": (runtime_lower, runtime_upper),
+            }
+        if authoring == "runtime-error":
+            return {
+                "usd_lower": None,
+                "usd_upper": None,
+                "runtime_limit": (
+                    bound if limit == "lower" else LIMIT_LOWER,
+                    bound if limit == "upper" else INACTIVE_UPPER,
+                ),
+            }
+        raise ValueError(f"Unknown authoring path: {authoring}")
+
+    def run_joint_state(
+        self,
+        joint_type: str,
+        authoring: str,
+        *,
+        position: float,
+        velocity: float,
+    ) -> dict[str, float]:
+        """Restore or write joint state, then observe one unforced step."""
+        cfg_position = position if authoring == "cfg" else 0.0
+        cfg_velocity = velocity if authoring == "cfg" else 0.0
+        with build_simulation_context(device=DEVICE, sim_cfg=self.profile_dof_cfg()) as sim:
+            sim._app_control_on_stop_handle = None
+            build_single_dof(joint_type, usd_stiffness=0.0)
+            articulation = Articulation(
+                make_single_dof_cfg(
+                    0.0,
+                    0.0,
+                    0.0,
+                    joint_position=cfg_position,
+                    joint_velocity=cfg_velocity,
+                )
+            )
+            sim.reset()
+            articulation.update(0.0)
+
+            disturbance = torch.full((1, 1), -0.1, device=DEVICE)
+            articulation.write_joint_position_to_sim_index(position=disturbance)
+            articulation.write_joint_velocity_to_sim_index(velocity=disturbance)
+            if authoring == "cfg":
+                articulation.write_joint_position_to_sim_index(position=articulation.data.default_joint_pos.torch)
+                articulation.write_joint_velocity_to_sim_index(velocity=articulation.data.default_joint_vel.torch)
+            elif authoring == "runtime":
+                articulation.write_joint_position_to_sim_index(position=torch.full((1, 1), position, device=DEVICE))
+                articulation.write_joint_velocity_to_sim_index(velocity=torch.full((1, 1), velocity, device=DEVICE))
+            else:
+                raise ValueError(f"Unknown joint-state authoring path: {authoring}")
+
+            articulation.update(0.0)
+            result = {
+                "position_before": float(articulation.data.joint_pos.torch[0, 0]),
+                "velocity_before": float(articulation.data.joint_vel.torch[0, 0]),
+            }
+            sim.step()
+            articulation.update(PROFILE_DOF_DT)
+            result["position_after"] = float(articulation.data.joint_pos.torch[0, 0])
+            result["velocity_after"] = float(articulation.data.joint_vel.torch[0, 0])
+            return result
+
+    def run_com_gravity_probe(self, center_of_mass: tuple[float, float, float]) -> tuple[float, float]:
+        """Step a fixed-pivot body under gravity and return velocity and effective inertia."""
+        with build_simulation_context(
+            device=DEVICE,
+            sim_cfg=self.gravity_dof_cfg((0.0, -9.81, 0.0)),
+        ) as sim:
+            sim._app_control_on_stop_handle = None
+            build_single_dof(
+                "revolute",
+                usd_stiffness=0.0,
+                center_of_mass=center_of_mass,
+            )
+            articulation = Articulation(make_single_dof_cfg(0.0, 0.0, 0.0))
+            sim.reset()
+            articulation.update(0.0)
+            body_inertia = float(articulation.data.mass_matrix.torch[0, 0, 0])
+            sim.step()
+            articulation.update(PROFILE_DOF_DT)
+            return float(articulation.data.joint_vel.torch[0, 0]), body_inertia
+
     @staticmethod
     def _dof_authoring_spec(
         authoring: str,
@@ -200,119 +357,9 @@ class KaminoParameterAdapter(_SingleDofParameterAdapter):
         """Create the pinned Kamino collision-free body profile."""
         return self._sim_cfg(dt=PROFILE_FREE_DT, gravity=gravity, alpha=0.0, beta=0.0)
 
-    def run_position_limit_probe(
-        self, joint_type: str, authoring: str, limit: str, bound: float
-    ) -> tuple[float, float]:
-        """Drive toward one limit and return the extreme and final position."""
-        spec = self._position_limit_authoring_spec(authoring, limit, bound)
-        target = PROBE_TARGET if limit == "upper" else -PROBE_TARGET
-        with build_simulation_context(
-            device=DEVICE,
-            sim_cfg=self.profile_dof_cfg(alpha=0.01, beta=0.01),
-        ) as sim:
-            sim._app_control_on_stop_handle = None
-            build_single_dof(
-                joint_type,
-                usd_stiffness=30.0,
-                usd_lower=spec["usd_lower"],
-                usd_upper=spec["usd_upper"],
-            )
-            articulation = Articulation(make_single_dof_cfg(30.0, 60.0, None))
-            sim.reset()
-            if spec["runtime_limit"] is not None:
-                lower, runtime_upper = spec["runtime_limit"]
-                articulation.write_joint_position_limit_to_sim_index(
-                    limits=torch.tensor([[[lower, runtime_upper]]], device=DEVICE)
-                )
-            articulation.set_joint_position_target_index(target=torch.full((1, 1), target, device=DEVICE))
-            position_extreme = torch.tensor(
-                -float("inf") if limit == "upper" else float("inf"),
-                device=DEVICE,
-            )
-            for _ in range(250):
-                articulation.write_data_to_sim()
-                sim.step()
-                articulation.update(PROFILE_DOF_DT)
-                position = articulation.data.joint_pos.torch[0, 0]
-                if limit == "upper":
-                    position_extreme = torch.maximum(position_extreme, position)
-                else:
-                    position_extreme = torch.minimum(position_extreme, position)
-            return float(position_extreme), float(articulation.data.joint_pos.torch[0, 0])
-
-    def run_joint_state(
-        self,
-        joint_type: str,
-        authoring: str,
-        *,
-        position: float,
-        velocity: float,
-    ) -> dict[str, float]:
-        """Restore or write joint state, then observe one unforced Kamino step."""
-        cfg_position = position if authoring == "cfg" else 0.0
-        cfg_velocity = velocity if authoring == "cfg" else 0.0
-        with build_simulation_context(device=DEVICE, sim_cfg=self.profile_dof_cfg()) as sim:
-            sim._app_control_on_stop_handle = None
-            build_single_dof(joint_type, usd_stiffness=0.0)
-            articulation = Articulation(
-                make_single_dof_cfg(
-                    0.0,
-                    0.0,
-                    0.0,
-                    joint_position=cfg_position,
-                    joint_velocity=cfg_velocity,
-                )
-            )
-            sim.reset()
-            articulation.update(0.0)
-
-            disturbance = torch.full((1, 1), -0.1, device=DEVICE)
-            articulation.write_joint_position_to_sim_index(position=disturbance)
-            articulation.write_joint_velocity_to_sim_index(velocity=disturbance)
-            if authoring == "cfg":
-                articulation.write_joint_position_to_sim_index(position=articulation.data.default_joint_pos.torch)
-                articulation.write_joint_velocity_to_sim_index(velocity=articulation.data.default_joint_vel.torch)
-            elif authoring == "runtime":
-                articulation.write_joint_position_to_sim_index(position=torch.full((1, 1), position, device=DEVICE))
-                articulation.write_joint_velocity_to_sim_index(velocity=torch.full((1, 1), velocity, device=DEVICE))
-            else:
-                raise ValueError(f"Unknown joint-state authoring path: {authoring}")
-
-            articulation.update(0.0)
-            result = {
-                "position_before": float(articulation.data.joint_pos.torch[0, 0]),
-                "velocity_before": float(articulation.data.joint_vel.torch[0, 0]),
-            }
-            sim.step()
-            articulation.update(PROFILE_DOF_DT)
-            result["position_after"] = float(articulation.data.joint_pos.torch[0, 0])
-            result["velocity_after"] = float(articulation.data.joint_vel.torch[0, 0])
-            return result
-
-    def run_com_gravity_probe(self, center_of_mass: tuple[float, float, float]) -> tuple[float, float]:
-        """Step a fixed-pivot body under gravity and return velocity and effective inertia."""
-        with build_simulation_context(
-            device=DEVICE,
-            sim_cfg=self._sim_cfg(
-                dt=PROFILE_DOF_DT,
-                gravity=(0.0, -9.81, 0.0),
-                alpha=0.0,
-                beta=0.0,
-            ),
-        ) as sim:
-            sim._app_control_on_stop_handle = None
-            build_single_dof(
-                "revolute",
-                usd_stiffness=0.0,
-                center_of_mass=center_of_mass,
-            )
-            articulation = Articulation(make_single_dof_cfg(0.0, 0.0, 0.0))
-            sim.reset()
-            articulation.update(0.0)
-            body_inertia = float(articulation.data.mass_matrix.torch[0, 0, 0])
-            sim.step()
-            articulation.update(PROFILE_DOF_DT)
-            return float(articulation.data.joint_vel.torch[0, 0]), body_inertia
+    def position_limit_profile_cfg(self) -> SimulationCfg:
+        """Create the pinned Kamino position-limit probe profile with softened constraints."""
+        return self.profile_dof_cfg(alpha=0.01, beta=0.01)
 
     @staticmethod
     def _sim_cfg(
@@ -337,46 +384,6 @@ class KaminoParameterAdapter(_SingleDofParameterAdapter):
             ),
         )
 
-    @staticmethod
-    def _position_limit_authoring_spec(authoring: str, limit: str, bound: float) -> dict:
-        if limit not in {"lower", "upper"}:
-            raise ValueError(f"Unsupported position-limit direction: {limit}")
-        inactive_bound = INACTIVE_UPPER if limit == "upper" else INACTIVE_LOWER
-        opposite_bound = INACTIVE_LOWER if limit == "upper" else INACTIVE_UPPER
-        usd_lower = opposite_bound if limit == "upper" else bound
-        usd_upper = bound if limit == "upper" else opposite_bound
-        if authoring == "usd":
-            return {
-                "usd_lower": usd_lower,
-                "usd_upper": usd_upper,
-                "runtime_limit": None,
-            }
-        if authoring == "runtime":
-            initial_bound = (
-                inactive_bound
-                if abs(bound) < abs(PROBE_TARGET)
-                else (ACTIVE_UPPER if limit == "upper" else ACTIVE_LOWER)
-            )
-            initial_lower = opposite_bound if limit == "upper" else initial_bound
-            initial_upper = initial_bound if limit == "upper" else opposite_bound
-            runtime_lower = opposite_bound if limit == "upper" else bound
-            runtime_upper = bound if limit == "upper" else opposite_bound
-            return {
-                "usd_lower": initial_lower,
-                "usd_upper": initial_upper,
-                "runtime_limit": (runtime_lower, runtime_upper),
-            }
-        if authoring == "runtime-error":
-            return {
-                "usd_lower": None,
-                "usd_upper": None,
-                "runtime_limit": (
-                    bound if limit == "lower" else LIMIT_LOWER,
-                    bound if limit == "upper" else INACTIVE_UPPER,
-                ),
-            }
-        raise ValueError(f"Unknown authoring path: {authoring}")
-
 
 class MJWarpParameterAdapter(_SingleDofParameterAdapter):
     """Backend adapter for the pinned MJWarp implicitFast single-DOF profile."""
@@ -389,6 +396,14 @@ class MJWarpParameterAdapter(_SingleDofParameterAdapter):
     def predict_dof_step(**kwargs: float) -> tuple[float, float]:
         """Predict the pinned MJWarp implicitFast single-DOF step."""
         return predict_implicitfast_joint_step(**kwargs)
+
+    def profile_free_cfg(
+        self,
+        *,
+        gravity: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    ) -> SimulationCfg:
+        """Create the pinned MJWarp collision-free body profile."""
+        return self._sim_cfg(dt=PROFILE_FREE_DT, gravity=gravity)
 
     @staticmethod
     def _sim_cfg(*, dt: float, gravity: tuple[float, float, float]) -> SimulationCfg:
