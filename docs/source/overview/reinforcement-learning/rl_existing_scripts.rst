@@ -102,11 +102,11 @@ images and an MLP agent for frozen vision features:
 
    # Raw RGB images: the default agent is compatible
    ./isaaclab.sh train --rl_library rl_games \
-       --task Isaac-Cartpole-Camera --enable_cameras presets=rgb
+       --task Isaac-Cartpole-Camera presets=rgb
 
    # ResNet18 features: select the feature agent explicitly
    ./isaaclab.sh train --rl_library rl_games \
-       --task Isaac-Cartpole-Camera --enable_cameras \
+       --task Isaac-Cartpole-Camera \
        --agent rl_games_feature_cfg_entry_point presets=resnet18
 
 The contributed Cartpole showcase tasks likewise pair each non-default
