@@ -48,7 +48,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Each (action, library) pair runs through the unified dispatcher at
 # ``scripts/reinforcement_learning/{action}.py``. Dispatching matches how
-# ``./isaaclab.sh train`` / ``./isaaclab.sh play`` invoke these in practice.
+# ``uv run isaaclab train`` / ``uv run isaaclab play`` invoke these in practice.
 _ENTRYPOINT_CASES = [
     (action, library) for action in ("train", "play") for library in ("rl_games", "rsl_rl", "sb3", "skrl")
 ]
@@ -73,7 +73,6 @@ def test_typed_preset_reaches_resolver(action: str, library: str) -> None:
         library,
         "--task=Isaac-Ant",
         "physics=does_not_exist",
-        "--headless",
     ]
     result = subprocess.run(
         cmd,

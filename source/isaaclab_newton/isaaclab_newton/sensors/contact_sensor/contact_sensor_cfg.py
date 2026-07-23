@@ -15,24 +15,12 @@ if TYPE_CHECKING:
 
 @configclass
 class ContactSensorCfg(BaseContactSensorCfg):
-    """Configuration for the Newton contact sensor with shape-level support.
+    """Configuration that pins the contact sensor to the Newton backend.
 
-    Extends :class:`ContactSensorCfg` with shape-level fields for finer-grained
-    contact reporting. A body is a rigid body; a shape is an individual collision geometry
-    attached to a body. A single body can have multiple shapes.
-
-    Sensing objects (what to measure forces on):
-
-    - :attr:`sensor_body_prim_expr` — read-only alias for :attr:`prim_path` (body-level sensing).
-    - :attr:`sensor_shape_prim_expr` — optional shape-level sensing. If set, takes
-      precedence over :attr:`prim_path`.
-
-    Filter partners (what to measure forces against):
-
-    - :attr:`filter_prim_paths_expr` — body-level filter (inherited from :class:`ContactSensorCfg`).
-    - :attr:`filter_shape_prim_expr` — shape-level filter.
-
-    An instance can be created from an existing :class:`ContactSensorCfg` via
+    :class:`~isaaclab.sensors.ContactSensorCfg` already resolves to this backend automatically under
+    Newton physics (including its ``*_shape_prim_expr`` shape-level fields). Use this class directly
+    only to force the Newton implementation regardless of the active backend. It warns about and
+    disables base fields the Newton backend does not support, and can be built from a base config via
     :meth:`from_base_cfg`.
     """
 
@@ -42,38 +30,6 @@ class ContactSensorCfg(BaseContactSensorCfg):
     def sensor_body_prim_expr(self) -> str:
         """Read-only alias for :attr:`prim_path`."""
         return self.prim_path
-
-    sensor_shape_prim_expr: list[str] = []
-    """List of shape prim path expressions for shape-level contact sensing.
-    Defaults to empty, meaning sensing is at the body level (via :attr:`prim_path`).
-
-    Mutually exclusive with body-level sensing: if non-empty, :attr:`prim_path` is ignored
-    for the sensing objects and these shape expressions are used instead.
-
-    .. note::
-        Expressions can contain the environment namespace regex ``{ENV_REGEX_NS}``, which
-        is replaced with the environment namespace.
-
-        Example: ``{ENV_REGEX_NS}/Robot/fingertip_.*`` becomes ``/World/envs/env_.*/Robot/fingertip_.*``.
-    """
-
-    filter_shape_prim_expr: list[str] = []
-    """List of shape prim path expressions to filter contacts against at the shape level.
-    Defaults to empty, meaning filter partners are resolved at the body level only
-    (via :attr:`ContactSensorCfg.filter_prim_paths_expr`).
-
-    If provided, the force matrix reports per-shape contact forces between the sensing
-    primitives and the filter shapes.
-
-    Mutually exclusive with :attr:`ContactSensorCfg.filter_prim_paths_expr`; only one
-    must be set.
-
-    .. note::
-        Expressions can contain the environment namespace regex ``{ENV_REGEX_NS}``, which
-        is replaced with the environment namespace.
-
-        Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_.*/Object``.
-    """
 
     def __post_init__(self):
         if self.track_contact_points:
@@ -116,4 +72,6 @@ class ContactSensorCfg(BaseContactSensorCfg):
         base_fields = {
             field: getattr(base_cfg, field) for field in base_cfg.__dataclass_fields__ if field != "class_type"
         }
-        return cls(**base_fields, **kwargs)
+        # ``kwargs`` override copied base fields (the shape-level fields now live on the base config).
+        base_fields.update(kwargs)
+        return cls(**base_fields)

@@ -67,29 +67,51 @@ Quick Start
 
 Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` alias):
 
-.. code-block:: bash
+.. tab-set::
 
-    # Launch all visualizers (comma-delimited list, no spaces)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+   .. tab-item:: uv (Recommended)
 
-    # Launch only the Newton visualizer
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+      .. code-block:: bash
 
-    # Launch the Viser web-based visualizer
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
+          # Launch all visualizers (comma-delimited list, no spaces)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+
+          # Launch only the Newton visualizer
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+
+          # Launch the Viser web-based visualizer
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Launch all visualizers (comma-delimited list, no spaces)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+
+          # Launch only the Newton visualizer
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+
+          # Launch the Viser web-based visualizer
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
 
 
 To run in headless mode, omit the ``--viz`` argument:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
+   .. tab-item:: uv (Recommended)
 
-.. note::
+      .. code-block:: bash
 
-    The ``--headless`` argument is deprecated.
-    For compatibility, ``--headless`` still takes precedence and disables all visualizers.
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole
 
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
 
 .. _visualization-configuration:
 
@@ -143,7 +165,6 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 - ``--viz`` (alias: ``--visualizer``) uses comma-separated values (for example ``--viz kit,newton``).
 - If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
 - ``--viz none`` explicitly disables all visualizers.
-- If ``--headless`` is passed, it overrides ``--viz`` and disables visualizers.
 
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
@@ -203,12 +224,6 @@ selection and visual offsets. This includes point-cloud and task-geometry marker
    * - ``--viz none``
      - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Run headless with all visualizers disabled.
-   * - ``--headless``
-     - any
-     - Run headless with deprecation warning.
-   * - ``--headless --viz <names>``
-     - any
-     - Run headless; ``--headless`` takes precedence.
 
 Camera Modes
 ~~~~~~~~~~~~
@@ -225,7 +240,7 @@ Kit and Newton visualizers can also run additional tiled camera image panels.
 If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
 a non-interactive tiled camera image view. Number of tiles is capped at 100.
 
-Note, Kit tiled camera views require launching with ``--enable_cameras``.
+Kit tiled camera views work without an additional camera option.
 
 .. list-table:: Camera Modes
    :header-rows: 1
@@ -306,7 +321,6 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
    uv run isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --enable_cameras \
      --visualizer newton \
      --video \
      --video_length=300 \
@@ -323,7 +337,6 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
    uv run isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --enable_cameras \
      --visualizer newton \
      --video \
      --video_length=300 \
@@ -340,7 +353,6 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
    uv run isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --enable_cameras \
      --visualizer kit \
      --video \
      --video_length=300 \
@@ -620,9 +632,20 @@ The Rerun web-based visualizer may experience performance issues or crashes when
 environments. For large-scale simulations, the Newton visualizer is recommended. Alternatively, to reduce load,
 the num of environments can be overwritten and decreased using ``--num_envs``:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
 
 
 **Rerun Visualizer FPS Control**
@@ -700,4 +723,4 @@ See Also
 - :doc:`/source/overview/core-concepts/renderers` — renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/overview/core-concepts/scene_data_providers` — how scene data flows from physics to visualizers
 - :doc:`/source/overview/core-concepts/physical-backends/newton/index` — Newton backend guide
-- :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide with ``--headless`` deprecation details
+- :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide for visualizer behavior

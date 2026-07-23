@@ -15,15 +15,15 @@ Example usage:
 
     # generate terrain
     # -- use physics sphere mesh
-    ./isaaclab.sh -p source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type generator
+    uv run python source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type generator
     # -- usd usd sphere geom
-    ./isaaclab.sh -p source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type generator --geom_sphere
+    uv run python source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type generator --geom_sphere
 
     # usd terrain
-    ./isaaclab.sh -p source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type usd
+    uv run python source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type usd
 
     # plane terrain
-    ./isaaclab.sh -p source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type plane
+    uv run python source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type plane
 """
 
 """Launch Isaac Sim Simulator first."""

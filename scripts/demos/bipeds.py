@@ -8,16 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/bipeds.py
+    uv run python scripts/demos/bipeds.py
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/bipeds.py --visualizer newton
+    uv run python scripts/demos/bipeds.py --visualizer newton
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/bipeds.py --physics newton_mjwarp
+    uv run python scripts/demos/bipeds.py --physics newton_mjwarp
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/bipeds.py --visualizer newton --physics newton_mjwarp
+    uv run python scripts/demos/bipeds.py --visualizer newton --physics newton_mjwarp
 
 """
 

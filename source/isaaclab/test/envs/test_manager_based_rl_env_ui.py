@@ -17,7 +17,7 @@ from typing import ClassVar
 
 import pytest
 
-from isaacsim.core.experimental.utils.app import enable_extension
+import omni.kit.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
@@ -27,7 +27,11 @@ from isaaclab.test.env_cfgs import make_empty_manager_based_rl_env_cfg
 
 pytestmark = pytest.mark.integration
 
-enable_extension("isaacsim.gui.components")
+# The minimal app does not include ``isaacsim.core.experimental``, so enable the
+# GUI dependency directly through Kit after AppLauncher has started.
+extension_manager = omni.kit.app.get_app().get_extension_manager()
+if not extension_manager.is_extension_enabled("isaacsim.gui.components"):
+    extension_manager.set_extension_enabled_immediate("isaacsim.gui.components", True)
 
 _HAS_GUI_SETTING = "/isaaclab/has_gui"
 

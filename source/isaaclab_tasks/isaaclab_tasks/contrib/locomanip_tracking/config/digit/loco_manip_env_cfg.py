@@ -14,7 +14,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.config.digit.rough_env_cfg import DigitRewards, DigitRoughEnvCfg
+from isaaclab_tasks.contrib.velocity.config.digit.rough_env_cfg import DigitRewards, DigitRoughEnvCfg
 from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, LEG_JOINT_NAMES

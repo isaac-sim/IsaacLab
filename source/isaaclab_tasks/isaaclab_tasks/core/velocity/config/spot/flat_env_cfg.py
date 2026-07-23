@@ -11,6 +11,7 @@ from isaaclab_newton.physics import (
     NewtonShapeCfg,
 )
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -372,10 +373,12 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         # simulation settings
         self.sim.dt = 0.002  # 500 Hz
         self.sim.render_interval = self.decimation
-        self.sim.physics_material.static_friction = 1.0
-        self.sim.physics_material.dynamic_friction = 1.0
-        self.sim.physics_material.friction_combine_mode = "multiply"
-        self.sim.physics_material.restitution_combine_mode = "multiply"
+        self.sim.physics_material = PhysxRigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=1.0,
+            dynamic_friction=1.0,
+        )
         self.sim.physics = PhysicsCfg()
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
@@ -391,7 +394,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
             terrain_generator=COBBLESTONE_ROAD_CFG,
             max_init_terrain_level=COBBLESTONE_ROAD_CFG.num_rows - 1,
             collision_group=-1,
-            physics_material=sim_utils.RigidBodyMaterialCfg(
+            physics_material=PhysxRigidBodyMaterialCfg(
                 friction_combine_mode="multiply",
                 restitution_combine_mode="multiply",
                 static_friction=1.0,

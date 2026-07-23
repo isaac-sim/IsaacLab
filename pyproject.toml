@@ -104,7 +104,7 @@ dependencies = [
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
-    "typing-extensions>=4.12.2",
+    "typing-extensions>=4.15.0",
 ]
 
 [project.optional-dependencies]
@@ -341,10 +341,12 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-# Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
-# for every requester, unlike constraints, which only intersect. The ``isaacsim`` extra
-# pins older Newton, MuJoCo, and torch versions, so these overrides prevent downgrades.
-# Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
+# Isaac Lab owns the Newton, torch, and typing-extensions versions. Overrides replace
+# these requirements for EVERY requester (unlike constraints, which only intersect), so
+# ``--extra isaacsim`` — which pins ``newton[sim]==1.2.0``, its own torch stack, and
+# typing-extensions — can neither block resolution nor downgrade Isaac Lab's versions.
+# The torch stack routes to the CUDA indexes via [tool.uv.sources]. Values mirror
+# [tool.isaaclab.versions] above.
 override-dependencies = [
     "numpy>=2",
     "mujoco~=3.10.0",
@@ -355,6 +357,8 @@ override-dependencies = [
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
+    # Isaac Sim 6.0 pins 4.12.2, which lacks Sentinel required by the Newton viewer stack.
+    "typing-extensions>=4.15.0",
 ]
 # teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
 # declaring the conflict lets uv fork the resolution instead of failing.

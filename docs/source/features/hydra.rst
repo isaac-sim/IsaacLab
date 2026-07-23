@@ -23,30 +23,70 @@ As a result, training with hydra arguments can be run with the following syntax:
     .. tab-item:: rsl_rl
         :sync: rsl_rl
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
 The above command will run training with the task ``Isaac-Cartpole`` without selecting a visualizer,
 and set the ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
@@ -421,10 +461,21 @@ Domain presets (observation modes, camera configurations, etc.) are task-specifi
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
 for that task, grouped by selector type:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Camera-Direct --help
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl \
+              --task Isaac-Cartpole-Camera-Direct --help
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl \
+              --task Isaac-Cartpole-Camera-Direct --help
 
 .. note::
 

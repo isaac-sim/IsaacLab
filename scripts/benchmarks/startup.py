@@ -23,7 +23,7 @@ Usage example::
     uv run isaaclab benchmark startup \\
         --task Isaac-Cartpole-Direct \\
         --num_envs 16 \\
-        presets=newton_mjwarp --headless
+        presets=newton_mjwarp
 """
 
 from __future__ import annotations
