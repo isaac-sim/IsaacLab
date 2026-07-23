@@ -1,0 +1,9 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+interface:
+  display_name: "Transfer Policies Sim-to-Sim"
+  short_description: "Transfer policies between PhysX and Newton"
+  default_prompt: "Use $isaaclab-transferring-policies-sim-to-sim to validate a policy across PhysX and Newton."
