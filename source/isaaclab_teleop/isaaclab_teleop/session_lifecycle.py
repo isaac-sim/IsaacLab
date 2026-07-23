@@ -178,9 +178,9 @@ class TeleopSessionLifecycle:
                 outputs when enabled at :meth:`start` time.  When ``False``
                 (the default), the pipeline carries no visualization overhead.
             haptic_cfg: Optional haptic-feedback configuration.  When provided,
-                per-hand contact forces pushed via :meth:`push_haptic` are
-                rendered as controller vibration.  ``None`` disables haptics
-                entirely.
+                per-hand output vectors pushed via :meth:`push_haptic` are
+                rendered on the configured device (controller, glove, ...).
+                ``None`` disables haptics entirely.
 
         Raises:
             ValueError: If both *mcap_record_path* and *mcap_replay_path*
@@ -202,11 +202,16 @@ class TeleopSessionLifecycle:
         self._enable_debug_visualization = enable_debug_visualization
 
         # Haptic feedback (optional): when configured, start() builds a
-        # HapticSink subgraph and step() feeds the latest per-hand contact
-        # force into it via the external-input mechanism.
+        # HapticSink subgraph and step() feeds the latest per-hand output
+        # vector into it via the external-input mechanism.
         self._haptic_cfg = haptic_cfg
         self._haptic_sink = None
-        self._haptic_forces: dict[str, float] = {"left": 0.0, "right": 0.0}
+        self._haptic_tracker = None
+        self._haptic_num_taxels = haptic_cfg.num_taxels if haptic_cfg is not None else 0
+        self._haptic_forces: dict[str, np.ndarray] = {
+            "left": np.zeros(self._haptic_num_taxels, dtype=np.float32),
+            "right": np.zeros(self._haptic_num_taxels, dtype=np.float32),
+        }
 
         # Session state (populated during start)
         self._session: TeleopSession | None = None
@@ -471,6 +476,7 @@ class TeleopSessionLifecycle:
         self._last_step_result = None
         self._last_left_controller = None
         self._haptic_sink = None
+        self._haptic_tracker = None
 
         if self._cloudxr_launcher is not None:
             try:
@@ -590,66 +596,72 @@ class TeleopSessionLifecycle:
     # ------------------------------------------------------------------
 
     def _build_haptic_sink(self, controllers_source):
-        """Build the haptic sink subgraph that turns contact force into rumble.
+        """Build the haptic sink subgraph that renders the per-hand signal.
 
-        Wires, per hand, ``ValueInput`` (a 1-taxel ``TactileVector`` fed each
-        step from :attr:`_haptic_forces`) -> ``TactileVectorToControllerPulse``
-        (the force -> amplitude curve, parameterized by the
-        :class:`~isaaclab_teleop.HapticFeedbackCfg`) -> a shared ``HapticSink``
-        backed by a ``ControllerHapticDevice``.
+        The lifecycle owns the generic part: per hand, a ``ValueInput`` carrying a
+        ``TactileVector(num_taxels)`` fed each step from :attr:`_haptic_forces`.
+        The device-specific part -- the retargeter (signal -> device format) and
+        the ``IHapticDevice`` behind the ``HapticSink`` -- is delegated to the
+        concrete :meth:`~isaaclab_teleop.HapticFeedbackCfg.build_sink`, so the
+        lifecycle stays backend-agnostic (controller, glove, ...).
 
-        The device reuses *controllers_source*'s tracker so the haptic write
-        targets the same OpenXR controllers already tracked for input, without
-        attaching a second action set.
+        The *controllers_source* tracker is offered to backends that need one
+        (e.g. a controller reuses it, avoiding a second OpenXR action set);
+        cross-process backends (e.g. a glove) ignore it.
 
         Args:
-            controllers_source: The ``ControllersSource`` whose tracker the
-                haptic device should drive.
+            controllers_source: The ``ControllersSource`` whose tracker a
+                tracker-backed device may reuse.
 
         Returns:
             The connected ``HapticSink`` node, ready to pass to
             ``TeleopSessionConfig(sinks=[...])``.
         """
-        from isaacteleop.haptic_devices.controller import ControllerHapticDevice
-        from isaacteleop.retargeters.tactile_retargeters import TactileVectorToControllerPulse
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import HapticSink
         from isaacteleop.retargeting_engine.interface import ValueInput
         from isaacteleop.retargeting_engine.tensor_types import TactileVector
 
-        cfg = self._haptic_cfg
-        sink_inputs = {}
+        num_taxels = self._haptic_num_taxels
+        force_inputs = {}
         for endpoint, leaf_name in (
             ("left", self.HAPTIC_FORCE_LEFT_INPUT_NAME),
             ("right", self.HAPTIC_FORCE_RIGHT_INPUT_NAME),
         ):
-            force_input = ValueInput(leaf_name, TactileVector(1))
-            pulse = TactileVectorToControllerPulse(
-                f"_haptic_pulse_{endpoint}",
-                num_taxels=1,
-                gain=cfg.gain,
-                deadband=cfg.deadband,
-                saturation=cfg.saturation,
-                frequency_hz=cfg.frequency_hz,
-                duration_s=cfg.duration_s,
-            ).connect({TactileVectorToControllerPulse.INPUT_TACTILE: force_input.output(ValueInput.VALUE)})
-            sink_inputs[endpoint] = pulse.output(TactileVectorToControllerPulse.OUTPUT_PULSE)
+            force_inputs[endpoint] = ValueInput(leaf_name, TactileVector(num_taxels)).output(ValueInput.VALUE)
 
-        haptic_device = ControllerHapticDevice(controllers_source.get_tracker())
-        return HapticSink("_haptic_sink", haptic_device).connect(sink_inputs)
+        # build_sink returns (connected_sink, device_tracker). The tracker is kept
+        # so _on_request_required_extensions can request the device's OpenXR
+        # extensions (e.g. a glove's push-tensor extensions); the connected sink
+        # (a subgraph) does not expose the device.
+        sink, self._haptic_tracker = self._haptic_cfg.build_sink(force_inputs, controllers_source.get_tracker)
+        return sink
 
-    def push_haptic(self, endpoint: str, force: float) -> None:
-        """Set the latest contact force [N] for one controller endpoint.
+    def push_haptic(self, endpoint: str, values) -> None:
+        """Set the latest per-hand output vector for one endpoint.
 
-        The value is cached and injected into the haptic sink on the next
-        :meth:`step` (see :meth:`_build_external_inputs`).  A no-op when the
-        endpoint is unknown or haptics were not configured.
+        The vector is cached and injected into the haptic sink on the next
+        :meth:`step` (see :meth:`_build_external_inputs`). The value is coerced to
+        length ``num_taxels`` (zero-padded or truncated). A no-op when the endpoint
+        is unknown or haptics were not configured.
 
         Args:
             endpoint: ``"left"`` or ``"right"``.
-            force: Contact-force magnitude [N]; ``0`` stops any active pulse.
+            values: The per-hand output vector; an all-zero vector stops feedback.
         """
-        if endpoint in self._haptic_forces:
-            self._haptic_forces[endpoint] = float(force)
+        if endpoint not in self._haptic_forces:
+            return
+        vec = np.asarray(values, dtype=np.float32).reshape(-1)
+        num_taxels = self._haptic_num_taxels
+        if vec.shape[0] != num_taxels:
+            fixed = np.zeros(num_taxels, dtype=np.float32)
+            keep = min(num_taxels, vec.shape[0])
+            fixed[:keep] = vec[:keep]
+            vec = fixed
+        self._haptic_forces[endpoint] = vec
+
+    def reset_haptics(self) -> None:
+        """Zero all cached haptic output so feedback stops (e.g. on episode reset)."""
+        for endpoint in self._haptic_forces:
+            self._haptic_forces[endpoint] = np.zeros(self._haptic_num_taxels, dtype=np.float32)
 
     # ------------------------------------------------------------------
     # Extension / XR lifecycle callbacks
@@ -658,9 +670,11 @@ class TeleopSessionLifecycle:
     def _on_request_required_extensions(self) -> list[str]:
         """Callback for required extensions subscription.
 
-        Inspects both the main pipeline and the ``teleop_control_pipeline``
-        (if configured) so that extensions required by the control channel
-        (e.g. ``XR_NV_opaque_data_channel``) are included.
+        Inspects the main pipeline, the ``teleop_control_pipeline`` (if
+        configured), and the haptic sink (if configured) so that extensions
+        required by the control channel (e.g. ``XR_NV_opaque_data_channel``) and
+        by an output device (e.g. ``XR_NVX1_push_tensor`` for a haptic glove) are
+        all requested.
 
         Returns:
             A list of required extensions.
@@ -672,6 +686,22 @@ class TeleopSessionLifecycle:
             required_extensions.extend(get_required_oxr_extensions_from_pipeline(self._pipeline))
         if self._teleop_control_pipeline is not None:
             required_extensions.extend(get_required_oxr_extensions_from_pipeline(self._teleop_control_pipeline))
+
+        # The haptic sink is an output (IDeviceIOSink), not a pipeline source, so
+        # the pipeline scan above misses it. Add its device's tracker extensions
+        # directly (e.g. a glove's TensorPushTracker requires XR_NVX1_push_tensor);
+        # without this the push-tensor function pointer is never available.
+        #
+        # Guard this: the XR bridge silently drops ALL of a callback's extensions
+        # if the callback raises, so a failure here must not take down the
+        # pipeline's own required extensions (hand tracking, action context, ...).
+        if self._haptic_tracker is not None:
+            try:
+                import isaacteleop.deviceio as deviceio
+
+                required_extensions.extend(deviceio.DeviceIOSession.get_required_extensions([self._haptic_tracker]))
+            except Exception:
+                logger.exception("Failed to add haptic sink required extensions; continuing without them")
 
         required_extensions = sorted(set(required_extensions))
         logger.info(f"Required extensions: {required_extensions}")
@@ -1036,10 +1066,10 @@ class TeleopSessionLifecycle:
                 xform_tg[0] = anchor_matrix
                 external_inputs[leaf_name] = {ValueInput.VALUE: xform_tg}
             elif leaf_name in haptic_leaf_to_endpoint:
-                # Feed the latest cached contact force for this hand as a
-                # 1-taxel TactileVector; the sink's retargeter maps it to a pulse.
-                force_tg = TensorGroup(TactileVector(1))
-                force_tg[0] = np.array([self._haptic_forces[haptic_leaf_to_endpoint[leaf_name]]], dtype=np.float32)
+                # Feed the latest cached per-hand vector as a TactileVector;
+                # the sink's retargeter maps it to the device output format.
+                force_tg = TensorGroup(TactileVector(self._haptic_num_taxels))
+                force_tg[0] = self._haptic_forces[haptic_leaf_to_endpoint[leaf_name]]
                 external_inputs[leaf_name] = {ValueInput.VALUE: force_tg}
             else:
                 logger.warning(

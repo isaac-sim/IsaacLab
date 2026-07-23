@@ -7,6 +7,8 @@ __all__ = [
     "CLOUDXR_AVP_ENV",
     "CLOUDXR_JS_ENV",
     "ControlEvents",
+    "ControllerHapticFeedbackCfg",
+    "GloveHapticFeedbackCfg",
     "HapticFeedbackCfg",
     "HapticFeedbackDriver",
     "HapticFeedbackReceiver",
@@ -25,6 +27,8 @@ __all__ = [
 
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID, ControlEvents, SupportsControlEvents, poll_control_events
 from .haptic_feedback import (
+    ControllerHapticFeedbackCfg,
+    GloveHapticFeedbackCfg,
     HapticFeedbackCfg,
     HapticFeedbackDriver,
     HapticFeedbackReceiver,
