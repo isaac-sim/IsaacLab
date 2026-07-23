@@ -37,31 +37,24 @@ def terrain_out_of_bounds(
     env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), distance_buffer: float = 3.0
 ) -> None:
     """Terminate when the actor moves too close to the edge of the terrain."""
-    fn = terrain_out_of_bounds
-    if not getattr(fn, "_is_warmed_up", False):
-        terrain_type = env.scene.cfg.terrain.terrain_type
-        if terrain_type == "plane":
-            fn._is_plane = True
-        elif terrain_type == "generator":
-            fn._is_plane = False
-            terrain_gen_cfg = env.scene.terrain.cfg.terrain_generator
-            grid_width, grid_length = terrain_gen_cfg.size
-            n_rows, n_cols = terrain_gen_cfg.num_rows, terrain_gen_cfg.num_cols
-            border_width = terrain_gen_cfg.border_width
-            fn._half_width = 0.5 * (n_rows * grid_width + 2 * border_width)
-            fn._half_height = 0.5 * (n_cols * grid_length + 2 * border_width)
-        else:
-            raise ValueError("Received unsupported terrain type, must be either 'plane' or 'generator'.")
-        fn._is_warmed_up = True
-
-    if fn._is_plane:
+    terrain_type = env.scene.cfg.terrain.terrain_type
+    if terrain_type == "plane":
         out.zero_()
         return
+    if terrain_type != "generator":
+        raise ValueError("Received unsupported terrain type, must be either 'plane' or 'generator'.")
+
+    terrain_gen_cfg = env.scene.terrain.cfg.terrain_generator
+    grid_width, grid_length = terrain_gen_cfg.size
+    n_rows, n_cols = terrain_gen_cfg.num_rows, terrain_gen_cfg.num_cols
+    border_width = terrain_gen_cfg.border_width
+    half_width = 0.5 * (n_rows * grid_width + 2 * border_width)
+    half_height = 0.5 * (n_cols * grid_length + 2 * border_width)
 
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
         kernel=_terrain_out_of_bounds_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_pos_w.warp, fn._half_width, fn._half_height, distance_buffer, out],
+        inputs=[asset.data.root_pos_w.warp, half_width, half_height, distance_buffer, out],
         device=env.device,
     )

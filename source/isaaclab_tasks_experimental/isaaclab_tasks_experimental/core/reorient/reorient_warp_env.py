@@ -594,8 +594,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.y_unit_vec = wp.vec3f(0.0, 1.0, 0.0)
         self.z_unit_vec = wp.vec3f(0.0, 0.0, 1.0)
 
-        # Per-env origins (Warp view for kernels; Torch env uses `self.scene.env_origins` directly).
-        self.env_origins = wp.from_torch(self.scene.env_origins, dtype=wp.vec3f)
+        self.env_origins = self.scene.env_origins_pa.warp
 
         # ---------------------------------------------------------------------
         # Warp buffers
@@ -679,6 +678,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.torch_reset_terminated = wp.to_torch(self.reset_terminated)
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
+        self.torch_consecutive_successes = wp.to_torch(self.consecutive_successes)
 
     def _setup_scene(self):
         # add hand, in-hand object, and goal object
@@ -783,7 +783,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         if "log" not in self.extras:
             self.extras["log"] = dict()
         # .mean() cannot be called here as it causes problems on stream
-        self.extras["log"]["consecutive_successes"] = wp.to_torch(self.consecutive_successes)
+        self.extras["log"]["consecutive_successes"] = self.torch_consecutive_successes
 
         # Reset goals for envs that reached the target (mask is `reset_goal_buf`).
         # This avoids Torch-side index extraction and keeps the step graphable.

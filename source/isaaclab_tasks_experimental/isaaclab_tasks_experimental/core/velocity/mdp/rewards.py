@@ -6,8 +6,6 @@
 """Warp-first reward functions for the velocity locomotion environment.
 
 All functions follow the ``func(env, out, **params) -> None`` signature.
-Cross-manager torch tensors (contact sensor, commands) are cached as zero-copy
-warp views on first call via ``wp.from_torch``.
 """
 
 from __future__ import annotations
@@ -51,14 +49,7 @@ def _feet_air_time_kernel(
 
 def feet_air_time(env: ManagerBasedRLEnv, out, command_name: str, sensor_cfg: SceneEntityCfg, threshold: float) -> None:
     """Reward long steps taken by the feet using L2-kernel."""
-    fn = feet_air_time
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    # Cache command bridge (persistent pointer)
-    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
-        fn._is_warmed_up = True
     # Newton contact sensor returns persistent wp.arrays — use directly, no wp.from_torch needed
     first_contact = contact_sensor.compute_first_contact(env.step_dt)
     wp.launch(
@@ -68,7 +59,7 @@ def feet_air_time(env: ManagerBasedRLEnv, out, command_name: str, sensor_cfg: Sc
             contact_sensor.data.last_air_time.warp,
             first_contact,
             sensor_cfg.body_ids_wp,
-            fn._cmd_wp,
+            env.command_manager.get_command_wp(command_name),
             threshold,
             out,
         ],
@@ -116,13 +107,7 @@ def _feet_air_time_positive_biped_kernel(
 
 def feet_air_time_positive_biped(env, out, command_name: str, threshold: float, sensor_cfg: SceneEntityCfg) -> None:
     """Reward long steps taken by the feet for bipeds."""
-    fn = feet_air_time_positive_biped
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
-        fn._is_warmed_up = True
     wp.launch(
         kernel=_feet_air_time_positive_biped_kernel,
         dim=env.num_envs,
@@ -130,7 +115,7 @@ def feet_air_time_positive_biped(env, out, command_name: str, threshold: float, 
             contact_sensor.data.current_air_time.warp,
             contact_sensor.data.current_contact_time.warp,
             sensor_cfg.body_ids_wp,
-            fn._cmd_wp,
+            env.command_manager.get_command_wp(command_name),
             threshold,
             out,
         ],
@@ -228,17 +213,17 @@ def track_lin_vel_xy_yaw_frame_exp(
     env, out, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> None:
     """Reward tracking of linear velocity commands (xy axes) in the gravity aligned robot frame."""
-    fn = track_lin_vel_xy_yaw_frame_exp
     asset = env.scene[asset_cfg.name]
-    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
-        fn._is_warmed_up = True
     wp.launch(
         kernel=_track_lin_vel_xy_yaw_frame_exp_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_quat_w.warp, asset.data.root_lin_vel_w.warp, fn._cmd_wp, 1.0 / (std * std), out],
+        inputs=[
+            asset.data.root_quat_w.warp,
+            asset.data.root_lin_vel_w.warp,
+            env.command_manager.get_command_wp(command_name),
+            1.0 / (std * std),
+            out,
+        ],
         device=env.device,
     )
 
@@ -265,17 +250,16 @@ def track_ang_vel_z_world_exp(
     env, out, command_name: str, std: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> None:
     """Reward tracking of angular velocity commands (yaw) in world frame."""
-    fn = track_ang_vel_z_world_exp
     asset = env.scene[asset_cfg.name]
-    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
-        fn._is_warmed_up = True
     wp.launch(
         kernel=_track_ang_vel_z_world_exp_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_ang_vel_w.warp, fn._cmd_wp, 1.0 / (std * std), out],
+        inputs=[
+            asset.data.root_ang_vel_w.warp,
+            env.command_manager.get_command_wp(command_name),
+            1.0 / (std * std),
+            out,
+        ],
         device=env.device,
     )
 
@@ -310,16 +294,16 @@ def stand_still_joint_deviation_l1(
     env, out, command_name: str, command_threshold: float = 0.06, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> None:
     """Penalize offsets from the default joint positions when the command is very small."""
-    fn = stand_still_joint_deviation_l1
     asset = env.scene[asset_cfg.name]
-    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
-        fn._is_warmed_up = True
     wp.launch(
         kernel=_stand_still_joint_deviation_l1_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, fn._cmd_wp, command_threshold, out],
+        inputs=[
+            asset.data.joint_pos.warp,
+            asset.data.default_joint_pos.warp,
+            env.command_manager.get_command_wp(command_name),
+            command_threshold,
+            out,
+        ],
         device=env.device,
     )

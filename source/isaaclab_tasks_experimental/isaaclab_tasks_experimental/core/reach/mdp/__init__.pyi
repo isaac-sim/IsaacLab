@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "modify_reward_weight",
     "position_command_error",
     "position_command_error_tanh",
     "orientation_command_error",
@@ -13,4 +14,5 @@ __all__ = [
 # override with reach-specific terms below.
 from isaaclab_experimental.envs.mdp import *  # noqa: F401, F403
 
+from .curriculums import modify_reward_weight
 from .rewards import orientation_command_error, position_command_error, position_command_error_tanh
