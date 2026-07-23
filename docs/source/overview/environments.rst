@@ -219,8 +219,8 @@ for the lift-cube environment:
     |                         | |allegro-direct-link|        |                                                                             | ``ovphysx`` (direct only)    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           | **physics=** ``physx``,      |
-    |                         |                              |                                                                             | ``newton_mjwarp``            |
-    |                         | |cube-shadow-ff-link|        |                                                                             |                              |
+    |                         |                              |                                                                             | ``newton_mjwarp``,           |
+    |                         | |cube-shadow-ff-link|        |                                                                             | ``ovphysx``                  |
     |                         |                              |                                                                             |                              |
     |                         | |cube-shadow-lstm-link|      |                                                                             |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
@@ -355,10 +355,10 @@ for the lift-cube environment:
 .. |kuka-allegro-reorient-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`
 .. |ka-lift-cam-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`
 .. |ka-reorient-cam-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`
-.. |cube-shadow-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
-.. |cube-shadow-ff-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
-.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
-.. |cube-shadow-vis-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_camera_env.py>`
+.. |cube-shadow-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-ff-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-vis-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_camera_env.py>`
 .. |agibot_place_mug-link| replace:: :isaaclab-source:`IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`
 .. |agibot_place_toy-link| replace:: :isaaclab-source:`IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`
 .. |reach_openarm_bi-link| replace:: :isaaclab-source:`IsaacContrib-Reach-OpenArmBi <source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`
