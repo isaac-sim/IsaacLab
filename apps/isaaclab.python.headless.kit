@@ -23,6 +23,8 @@ log.outputStreamLevel = "Warn"
 # Omniverse related dependencies #
 ##################################
 [dependencies]
+"omni.physics" = {}
+"omni.physics.stageupdate" = {}
 "omni.physx" = {}
 "omni.physx.tensors" = {}
 "omni.physx.fabric" = {}
@@ -189,9 +191,9 @@ enabled=true # Enable this for DLSS
 # Isaac Sim Extensions #
 ########################
 [dependencies]
-"isaacsim.simulation_app" = {}
-"isaacsim.core.simulation_manager" = {}
 "isaacsim.core.version" = {}
+# USD schema plugins must load before the schema registry is first accessed.
+"omni.usd.schema.mujoco" = {}
 
 # Asset path
 # set the S3 directory manually to the latest published S3

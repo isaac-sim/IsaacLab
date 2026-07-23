@@ -129,6 +129,41 @@ and Isaac Lab. It composes three collaborators:
    the session is not yet ready or has been torn down.
 
 
+.. _isaac-teleop-tracking-debug-visualization:
+
+Visualize XR Tracking
+---------------------
+
+Isaac Teleop can draw the raw XR tracking poses in the Isaac Lab world frame. Use this
+visualization to confirm that tracking data is available and aligned with the simulated robot:
+
+* red spheres show the 26 joints of each tracked hand when the retargeting pipeline contains a
+  ``HandsSource``;
+* RGB coordinate axes show the OpenXR aim pose of each tracked controller. The X, Y, and Z axes
+  are red, green, and blue, respectively, and the controller's ``-Z`` axis points forward in its
+  natural pointing direction.
+
+Enable the visualization when launching a teleoperation session:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+       --visualizer kit \
+       --xr \
+       --enable_debug_visualization
+
+The ``--enable_debug_visualization`` flag is also available in ``scripts/tools/record_demos.py``
+and ``scripts/environments/teleoperation/teleop_replay_agent.py``. The option is applied when the
+Isaac Teleop device is created and cannot be toggled during a running device session. The markers
+are diagnostic only and do not change the actions produced by the retargeting pipeline.
+
+.. note::
+
+   Tracking markers are only visible when the Kit visualizer is active. A marker is created after
+   the corresponding hand or controller first produces valid tracking data.
+
+
 .. _isaac-teleop-control-states:
 
 Teleop Control States (Start / Stop / Reset)

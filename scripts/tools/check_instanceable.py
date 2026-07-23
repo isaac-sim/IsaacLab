@@ -64,6 +64,10 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+from isaaclab.sim.utils import enable_extension
+
+enable_extension("isaacsim.core.cloner")
+
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
