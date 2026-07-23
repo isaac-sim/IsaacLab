@@ -327,6 +327,8 @@ def maybe_save_stage(
         if opened_stage is None:
             pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
         flat_layer = opened_stage.Flatten()
+        if flat_layer is None:
+            pytest.fail(f"Could not flatten the saved stage at {stage_path}.")
 
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
