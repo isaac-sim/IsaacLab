@@ -2,6 +2,19 @@
 
 This reference follows the sections in the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst).
 
+## Contents
+
+- Multi-Backend Asset Importing Pipeline
+- Use Per-Solver Asset Configuration Classes
+- Audit The Authored Mechanical Model
+- Match Contact And Friction Behavior
+- Velocity Limits Distinction
+- Why MJWarp Often Needs More Armature
+- Retune Damping With Armature
+- Choose An MJWarp Starting Profile
+- Diagnose MJWarp-Only Failures
+- Cable Assets
+
 ## Multi-Backend Asset Importing Pipeline
 
 - Use provided Isaac Lab assets directly in PhysX and MJWarp. Newton parses their supported authored USD Physics and PhysX properties; verify support rather than assuming every authored field is used.
@@ -98,3 +111,12 @@ actions. Classify it before tuning:
 
 Use `debug_mode` for iteration-cap evidence. Raise overflowing capacity first and change
 convergence work only after the model, reset, controller, contact path, and capacities are valid.
+
+## Cable Assets
+
+Cables are authored fresh as Newton deformables, not converted from a PhysX rigid asset. They are Newton + VBD only.
+
+- Author with `CableCfg` + `CableMaterialCfg` (`spawn_cable`), or load an external USD via `UsdFileCfg`.
+- For Newton to import a curve as a cable, its `UsdGeom.BasisCurves` prim must be open, linear, nonperiodic, carry the `PhysicsCurvesDeformableSimAPI` applied schema, and bind a deformable-curve material (`PhysicsCurvesDeformableMaterialAPI`) with `thickness`, `density`, `stretchStiffness`, and `bendStiffness` in the `physics:` namespace. A bare exported curve without these imports as static geometry.
+- `thickness` is the full diameter; `stretch_stiffness` / `bend_stiffness` are elastic moduli in Pa. Shear and twist stiffness are not expressed by the rod. Collision is opt-in via `collision_props`, with adjacent-segment-only filtering.
+- See the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).

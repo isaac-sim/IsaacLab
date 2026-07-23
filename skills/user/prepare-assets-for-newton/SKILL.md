@@ -13,6 +13,8 @@ owners:
 
 Read the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst) first. This skill follows that page in the same order and targets Newton with MJWarp, not Newton solvers generally. Use the sim-to-sim skill only after the asset and task run in both backends.
 
+For authoring or importing 1D cable / rod assets (Newton + VBD only), see the cable-assets section in [Reference](reference.md); cables are authored as deformable `UsdGeom.BasisCurves`, not converted from a PhysX rigid asset.
+
 ## Workflow
 
 1. **Multi-backend Asset Importing Pipeline.** Use provided Isaac Lab assets directly in PhysX and MJWarp; Newton parses their supported authored USD Physics and PhysX properties. For a new URDF or MJCF, keep `run_asset_transformer=True` and `run_multi_physics_conversion=True` so the importer creates neutral, PhysX, and MuJoCo payloads. Account for its nested rigid-body structure.
