@@ -74,7 +74,7 @@ parser.add_argument(
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
-args_cli, remaining_args = setup_preset_cli(parser)
+args_cli, remaining_args = setup_preset_cli(parser, agent_library="rsl_rl")
 args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:

@@ -459,7 +459,9 @@ to make intent explicit on the command line.
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
-for that task, grouped by selector type:
+for that task, grouped by selector type. Reinforcement-learning commands also list
+the registered ``--agent`` values for the selected library. When a task declares
+preset-to-agent compatibility, the compatible presets appear beneath each agent:
 
 .. tab-set::
 
@@ -468,14 +470,18 @@ for that task, grouped by selector type:
       .. code-block:: bash
 
           uv run isaaclab train --rl_library rsl_rl \
-              --task Isaac-Cartpole-Camera-Direct --help
+               --task Isaac-Cartpole-Camera --help
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
           ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Cartpole-Camera-Direct --help
+               --task Isaac-Cartpole-Camera --help
+
+Preset and agent selection are otherwise independent. A task may use an alternate
+agent for symmetry, recurrence, or another algorithm without changing its environment
+preset.
 
 .. note::
 

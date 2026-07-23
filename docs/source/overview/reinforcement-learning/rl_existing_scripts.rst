@@ -127,6 +127,34 @@ During training, image-like scene sensor outputs from camera tasks can be saved 
 ``--capture_env_sensors``. See :doc:`/source/how-to/capture_sensor_frames` for the full capture
 schedule and output format details.
 
+Agent compatibility
+~~~~~~~~~~~~~~~~~~~
+
+An observation or action preset can require a different policy network. Task-specific
+``--help`` lists all registered ``--agent`` values for the selected RL library. Tasks
+that require a particular pairing additionally show ``compatible presets`` beneath
+each agent.
+
+For example, the manager-based Cartpole camera task uses a CNN agent for rendered
+images and an MLP agent for frozen vision features:
+
+.. code-block:: bash
+
+   # Raw RGB images: the default agent is compatible
+   ./isaaclab.sh train --rl_library rl_games \
+       --task Isaac-Cartpole-Camera presets=rgb
+
+   # ResNet18 features: select the feature agent explicitly
+   ./isaaclab.sh train --rl_library rl_games \
+       --task Isaac-Cartpole-Camera \
+       --agent rl_games_feature_cfg_entry_point presets=resnet18
+
+The contributed Cartpole showcase tasks likewise pair each non-default
+``presets=<observation>_<action>`` selection with
+``--agent skrl_<observation>_<action>_cfg_entry_point``. Other alternate agent
+configs, such as RSL-RL symmetry or recurrent policies and skrl's AMP/IPPO/MAPPO
+algorithms, are algorithm choices rather than preset requirements.
+
 
 RL-Games
 --------

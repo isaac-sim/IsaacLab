@@ -68,7 +68,7 @@ parser.add_argument(
     help="Play with the training environment configuration as-is, skipping play-mode overrides.",
 )
 add_launcher_args(parser)
-args_cli, hydra_args = setup_preset_cli(parser)
+args_cli, hydra_args = setup_preset_cli(parser, agent_library="rl_games")
 args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:
