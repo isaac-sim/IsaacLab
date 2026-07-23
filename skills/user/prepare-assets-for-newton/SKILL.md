@@ -18,7 +18,7 @@ Read the [official migration guide](../../../docs/source/overview/core-concepts/
 ## Workflow
 
 1. Read the official migration guide and check Newton/MJWarp's supported features for the required joints, constraints, sensors, and deformables.
-2. Freeze a seeded PhysX baseline. Run `scripts/tools/inspect_task_asset.py` for the robot and each contact-relevant object with `physics=physx`; save the JSON and simulator warnings. Record the source revision, conversion command, reset distribution, and zero-action behavior.
+2. Freeze a seeded PhysX baseline. Run the exact task with `scripts/environments/zero_agent.py` and `physics=physx`; save the observation and action spaces, simulator warnings, resolved asset names, source revision, conversion command, reset distribution, and zero-action behavior.
 3. Protect compatibility. If the original config is public or shared, copy it into a task-local migration config instead of replacing the asset globally.
 4. Prefer reconversion from URDF or MJCF with `scripts/tools/convert_urdf.py` or `scripts/tools/convert_mjcf.py`, the asset transformer, and multi-physics conversion enabled. Save the exact command. For hand-authored USD, preserve neutral physics in the common layer and backend-specific attributes in the appropriate payloads. Use solver-common schema cfg classes for portable properties, `Mujoco*PropertiesCfg` for MJWarp-supported properties, `Newton*PropertiesCfg` for supported Newton-native properties, and `Physx*PropertiesCfg` only for PhysX properties.
 5. Audit every dynamic body for intentional mass, center of mass, positive-definite inertia, explicit collision geometry, material bindings, articulation roots, joint axes, fixed-joint structure, and resolvable references. Fix authored data rather than suppressing Newton/MJWarp warnings.
@@ -29,7 +29,7 @@ Read the [official migration guide](../../../docs/source/overview/core-concepts/
 10. Keep `velocity_limit` (rated joint speed used by actuator/task logic) separate from `velocity_limit_sim` (requested solver clamp). MJWarp does not parse `velocity_limit` into its solver model, and its MuJoCo solver drops the imported `joint_velocity_limit` behind `velocity_limit_sim`; neither value is enforced during MJWarp stepping. Check rated-speed boundaries explicitly. PhysX can enforce its supported clamp, so do not let a tight PhysX clamp hide a termination or create a transfer difference.
 11. Add explicit `physx` and `newton_mjwarp` physics presets and preserve `dt * decimation` across backends. Read the official MJWarp solver page and select the nearest checked-in task profile instead of translating PhysX values numerically. Start with `integrator="implicitfast"`; size per-environment `njmax`/`nconmax` before tuning convergence; and use Newton `collision_cfg` only with `use_mujoco_contacts=False`.
 12. Make reset states valid before the first step. Reject robot/object and support-surface penetrations, shared-coupling violations, and invalid geometry variants rather than relying on solver depenetration.
-13. Run `inspect_task_asset.py` again with `physics=newton_mjwarp` and diff the two JSON reports. Classify every difference. Then run PhysX and MJWarp zero-action, small-step, impulse, reset, and contact rollouts.
+13. Repeat the same recorded task checks with `physics=newton_mjwarp`, compare the two contract records, and classify every difference. Then run PhysX and MJWarp zero-action, small-step, impulse, reset, and contact rollouts.
 14. Diagnose before tuning. Reproduce the first divergence with fixed state and commands; classify it as initialization/geometry, control, model, capacity, or contact/solver behavior. Validate the model first. For contact-dominated failures, set contact representation, `dt`, substeps, and capacity before bounded convergence sweeps and contact tuning. Enable `debug_mode` to inspect iteration usage; do not reduce the default line-search budget or raise convergence work without a measured reason. For drive symptoms, tune the actuator and controller path first. Change one parameter family at a time and require improved target metrics without regressions in non-finite states, penetration/residuals, or runtime. Confirm supported knobs and defaults in the installed Newton version and the Newton Simulation Tuning guide.
 15. Record the converted path, source revision, conversion options, physical-data sources, contract diffs, solver preset, commands, residual warnings, and final classification. Hand off checkpoint evaluation to the sim-to-sim skill.
 
@@ -47,7 +47,7 @@ An asset is MJWarp-clean only when:
 8. Actuator, controller, sensor, reward, and reset names resolve after conversion.
 9. Armature, stiffness, and damping produce finite, plausible step and impulse responses without unexplained MJWarp angular-velocity spikes or bang-bang control.
 10. Control period, rated limits, nominal step response, and reset validity are comparable across backends.
-11. The PhysX and MJWarp runtime JSON reports have no unexplained contract differences.
+11. The PhysX and MJWarp runtime contract records have no unexplained differences.
 12. Remaining differences and warnings are documented before policy transfer.
 
 For skill changes, run:
@@ -58,7 +58,7 @@ For skill changes, run:
 
 ## Maintenance
 
-Keep this skill synchronized with the official PhysX-to-Newton/MJWarp migration guide, the MJWarp solver page, `source/isaaclab_newton/isaaclab_newton/physics/mjwarp_manager_cfg.py`, `scripts/tools/inspect_task_asset.py`, `docs/source/how-to/import_new_asset.rst`, converter configs under `source/isaaclab/isaaclab/sim/converters/`, actuator semantics under `source/isaaclab/isaaclab/actuators/`, and the Franka/Kuka Dexsuite example under `source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/`. Update the official docs first when guidance changes. Avoid storing converted USD packages, generated audit logs, or private asset paths in this skill.
+Keep this skill synchronized with the official PhysX-to-Newton/MJWarp migration guide, the MJWarp solver page, `source/isaaclab_newton/isaaclab_newton/physics/mjwarp_manager_cfg.py`, `docs/source/how-to/import_new_asset.rst`, converter configs under `source/isaaclab/isaaclab/sim/converters/`, actuator semantics under `source/isaaclab/isaaclab/actuators/`, and the Franka/Kuka Dexsuite example under `source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/`. Update the official docs first when guidance changes. Avoid storing converted USD packages, generated audit logs, or private asset paths in this skill.
 
 ## References
 

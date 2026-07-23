@@ -110,10 +110,11 @@ Query: "Give me exact tooling to prove this task's Franka asset matches between 
 
 Expected behavior:
 
-- Runs `inspect_task_asset.py` under both physics presets for the robot and contact-relevant objects.
-- Disables startup randomization for the nominal snapshot and keeps importer logs.
-- Diffs JSON reports and classifies names, mass/inertia, actuator, limit, timing, and policy-interface changes.
-- Runs zero-action and random-action task smokes after the static audit.
+- Runs `zero_agent.py` and `random_agent.py` under both physics presets.
+- Disables startup randomization for the nominal comparison and keeps importer and solver logs.
+- Records and compares ordered body, joint, actuator, action, and observation names, plus mass/inertia,
+  limits, timing, and policy-interface behavior.
+- Classifies every difference instead of treating successful task construction as proof of parity.
 
 Known failure modes:
 

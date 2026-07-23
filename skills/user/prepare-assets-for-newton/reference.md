@@ -47,19 +47,25 @@ Capture a row for the baseline and each candidate asset:
 
 ## Concrete Tooling
 
-Run the runtime inspector against the exact task, not an isolated asset stage:
+Run the checked-in task agents against the exact task, not an isolated asset stage:
 
 ```bash
-./isaaclab.sh -p scripts/tools/inspect_task_asset.py \
-  --task TASK --asset_name robot --headless \
-  --output /tmp/TASK-physx-robot.json physics=physx
-./isaaclab.sh -p scripts/tools/inspect_task_asset.py \
-  --task TASK --asset_name robot --headless \
-  --output /tmp/TASK-newton-robot.json physics=newton_mjwarp
-git diff --no-index /tmp/TASK-physx-robot.json /tmp/TASK-newton-robot.json
+./isaaclab.sh -p scripts/environments/zero_agent.py \
+  --task TASK --num_envs 4 --headless physics=physx
+./isaaclab.sh -p scripts/environments/zero_agent.py \
+  --task TASK --num_envs 4 --headless physics=newton_mjwarp
+./isaaclab.sh -p scripts/environments/random_agent.py \
+  --task TASK --num_envs 4 --headless physics=physx
+./isaaclab.sh -p scripts/environments/random_agent.py \
+  --task TASK --num_envs 4 --headless physics=newton_mjwarp
 ```
 
-Repeat for every contact-relevant object using a nominal task/play config that disables randomization before construction. There is no universal CLI flag for arbitrary task events. Map heterogeneous clone groups to `--env_index` and inspect one instance of every group. The report contains resolved body/joint order, runtime mass, center-of-mass pose, inertia, actuator properties and limits, manager I/O descriptors, timing, and numerical mass-property checks. Keep the simulator logs; JSON cannot capture importer warnings or prove that a valid inertia is expressed in the correct frame.
+Use a nominal task/play config that disables randomization before construction. Save stdout and
+stderr from each run, including the printed observation and action spaces, importer diagnostics,
+solver warnings, reset behavior, and the first divergent step. Separately record the ordered body,
+joint, actuator, action, and observation names from the resolved task configuration and verify every
+contact-relevant object and heterogeneous clone group. Compare the PhysX and MJWarp records field by
+field; do not infer contract parity from a successful spawn.
 
 Use `scripts/tools/convert_urdf.py` or `scripts/tools/convert_mjcf.py` for reproducible conversion. Save the exact command, source revision, and generated interface/payload paths. Run `scripts/environments/zero_agent.py` and `random_agent.py` under both physics presets for continuous reset/step smokes.
 
@@ -193,5 +199,4 @@ Use these files to verify current behavior:
 - `source/isaaclab/isaaclab/actuators/actuator_base_cfg.py`: rated versus solver velocity-limit semantics.
 - [Schema configuration classes](../../../docs/source/overview/core-concepts/schema_cfgs.rst): solver-common and per-backend property classes and routing.
 - `source/isaaclab/isaaclab/sim/converters/urdf_converter_cfg.py`: layered, multi-physics URDF conversion.
-- `scripts/tools/inspect_task_asset.py`: task-level runtime contract and physical-property snapshot.
 - [Newton Simulation Tuning guide](https://newton-physics.github.io/newton/latest/concepts/simulation_tuning.html): diagnose-first workflow and current solver-specific tuning references.
