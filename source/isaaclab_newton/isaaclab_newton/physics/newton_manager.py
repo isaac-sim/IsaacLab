@@ -1583,6 +1583,8 @@ class NewtonManager(PhysicsManager):
             NewtonManager._cable_sync_cpu_buffers = None
             return
         NewtonManager._cable_shape_ids = wp.array(shape_ids, dtype=wp.int32, device=PhysicsManager._device)
+        # TODO: CPU mirror only needed because RTX Hydra ignores GPU Fabric BasisCurves points.
+        # Drop these buffers and sync on device once NVBug 6502662 is fixed.
         NewtonManager._cable_sync_cpu_buffers = (
             NewtonManager._cable_shape_ids.to("cpu"),
             cls._model.shape_body.to("cpu"),
