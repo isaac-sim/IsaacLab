@@ -38,6 +38,13 @@ def _sum_and_zero_masked(
     # output
     out_avg: wp.array(dtype=wp.float32),
 ):
+    """Fold selected envs' per-term episode reward sums into per-term means and zero
+
+    them for the next episode.
+    Launch with dim=(num_terms, num_envs); ``scale[0]`` carries the 1/count
+    normalization and the atomic add reduces across selected envs into
+    ``out_avg[term]``.
+    """
     term_idx, env_id = wp.tid()
     if mask[env_id]:
         wp.atomic_add(out_avg, term_idx, episode_sums[term_idx, env_id] * scale[0])
@@ -55,6 +62,13 @@ def _reward_finalize(
     episode_sums: wp.array(dtype=wp.float32, ndim=2),
     step_reward: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Combine per-term outputs into the env step reward and episode bookkeeping.
+
+    Per env: ``step_reward`` records each term's weighted reward rate,
+    ``reward_buf`` accumulates ``weight * out * dt`` across terms, and
+    ``episode_sums`` grows by the same amount for episode metrics. Zero-weight
+    terms are skipped so disabled terms cost nothing.
+    """
     env_id = wp.tid()
 
     total = wp.float32(0.0)
@@ -128,6 +142,7 @@ class RewardManager(ManagerBase):
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
         self._term_name_to_term_idx = {name: i for i, name in enumerate(self._term_names)}
+        self._device_weight_terms: set[str] = set()
 
         num_terms = len(self._term_names)
         self._num_terms = num_terms
@@ -177,6 +192,17 @@ class RewardManager(ManagerBase):
         self._term_weights_wp = wp.array(
             [float(term_cfg.weight) for term_cfg in self._term_cfgs], dtype=wp.float32, device=self.device
         )
+        self._term_weight_views_wp: dict[str, wp.array] = {}
+        if num_terms > 0:
+            stride = self._term_weights_wp.strides[0]
+            for term_idx, term_name in enumerate(self._term_names):
+                self._term_weight_views_wp[term_name] = wp.array(
+                    ptr=self._term_weights_wp.ptr + term_idx * stride,
+                    dtype=wp.float32,
+                    shape=(1,),
+                    strides=(stride,),
+                    device=self.device,
+                )
 
         # persistent reset-time logging buffers (warp buffers)
         self._episode_sum_avg_wp = wp.zeros((num_terms,), dtype=wp.float32, device=self.device)
@@ -243,14 +269,7 @@ class RewardManager(ManagerBase):
         Returns:
             A dictionary containing the information to log under the "Reward/{term_name}" key.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "RewardManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_mask = self._resolve_reset_mask(env_ids, env_mask)
 
         self._episode_sum_avg_wp.zero_()
         self._reset_count_wp.zero_()
@@ -304,9 +323,10 @@ class RewardManager(ManagerBase):
             device=self.device,
         )
         # iterate over all the reward terms (Python loop; per-term math is warp)
-        for term_cfg in self._term_cfgs:
-            # skip if weight is zero (kind of a micro-optimization)
-            if term_cfg.weight == 0.0:
+        for term_name, term_cfg in zip(self._term_names, self._term_cfgs):
+            # Static zero-weight terms remain free. Terms whose weight is owned
+            # on-device must still run so a curriculum can enable them later.
+            if term_cfg.weight == 0.0 and term_name not in self._device_weight_terms:
                 continue
             # compute term into the persistent warp buffer (raw, unweighted)
             # NOTE: `out` is pre-zeroed every step by `_reward_pre_compute_reset`.
@@ -368,8 +388,30 @@ class RewardManager(ManagerBase):
         """
         if term_name not in self._term_names:
             raise ValueError(f"Reward term '{term_name}' not found.")
-        # return the configuration
-        return self._term_cfgs[self._term_names.index(term_name)]
+        term_idx = self._term_names.index(term_name)
+        term_cfg = self._term_cfgs[term_idx]
+        if term_name in self._device_weight_terms:
+            # Explicit config inspection is a control-plane operation, so it is
+            # the appropriate place to synchronize a device-owned scalar.
+            term_cfg.weight = float(self._term_weights_tensor_view[term_idx].item())
+        return term_cfg
+
+    def get_term_weight_wp(self, term_name: str) -> wp.array(dtype=wp.float32):
+        """Return the pointer-stable Warp view of a reward term's scalar weight.
+
+        Args:
+            term_name: Name of the reward term.
+
+        Returns:
+            One-element Warp array containing the reward weight.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_weight_views_wp:
+            raise ValueError(f"Reward term '{term_name}' not found.")
+        self._device_weight_terms.add(term_name)
+        return self._term_weight_views_wp[term_name]
 
     def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.

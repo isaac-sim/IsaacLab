@@ -8,6 +8,7 @@ __all__ = [
     "ActionTerm",
     "CommandManager",
     "CommandTerm",
+    "CurriculumManager",
     "EventManager",
     "ManagerBase",
     "ManagerTermBase",
@@ -31,6 +32,7 @@ from isaaclab.managers import *  # noqa: F401, F403
 
 from .action_manager import ActionManager, ActionTerm
 from .command_manager import CommandManager, CommandTerm
+from .curriculum_manager import CurriculumManager
 from .event_manager import EventManager
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import (

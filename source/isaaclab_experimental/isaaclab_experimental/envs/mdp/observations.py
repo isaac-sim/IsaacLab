@@ -36,10 +36,12 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_shape,
 )
 from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.sensors import RayCaster
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +54,7 @@ def _vec3_to_out3_kernel(
     src: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Scatter a vec3 array into three float32 columns of a term's ``out`` block."""
     env_id = wp.tid()
     v = src[env_id]
     out[env_id, 0] = v[0]
@@ -65,6 +68,10 @@ def _joint_gather_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Gather selected joints' values into contiguous term columns.
+
+    Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     out[env_id, k] = src[env_id, j]
@@ -80,6 +87,7 @@ def _base_pos_z_kernel(
     root_pos_w: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Write the root height above the world origin [m] into the term's single column."""
     env_id = wp.tid()
     out[env_id, 0] = root_pos_w[env_id][2]
 
@@ -112,6 +120,10 @@ def _base_lin_vel_kernel(
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Root linear velocity [m/s] in the body frame, derived inline from the root
+
+    pose and CoM velocity (Tier-1 access; avoids non-capturable lazy buffers).
+    """
     i = wp.tid()
     v = body_lin_vel_from_root(root_pose_w[i], root_vel_w[i])
     out[i, 0] = v[0]
@@ -139,6 +151,10 @@ def _base_ang_vel_kernel(
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Root angular velocity [rad/s] in the body frame, derived inline from the root
+
+    pose and CoM velocity (Tier-1 access; avoids non-capturable lazy buffers).
+    """
     i = wp.tid()
     v = body_ang_vel_from_root(root_pose_w[i], root_vel_w[i])
     out[i, 0] = v[0]
@@ -166,6 +182,7 @@ def _projected_gravity_kernel(
     gravity_w: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Unit gravity direction rotated into the body frame (flat pose -> (0, 0, -1))."""
     i = wp.tid()
     g = rotate_vec_to_body_frame(wp.normalize(gravity_w[i]), root_pose_w[i])
     out[i, 0] = g[0]
@@ -219,6 +236,10 @@ def _joint_rel_gather_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Gather selected joints' values relative to their per-env defaults into
+
+    contiguous term columns. Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     out[env_id, k] = values[env_id, j] - defaults[env_id, j]
@@ -255,6 +276,10 @@ def _joint_pos_limit_normalized_kernel(
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Selected joints' positions normalized to [-1, 1] within their soft limits.
+
+    Launch with dim=(num_envs, num_selected_joints).
+    """
     env_id, k = wp.tid()
     j = joint_ids[k]
     pos = joint_pos[env_id, j]
@@ -353,20 +378,9 @@ def generated_commands(env: ManagerBasedEnv, out, command_name: str) -> None:
     """The generated command from the command manager. Writes into ``out``.
 
     Warp-first override of :func:`isaaclab.envs.mdp.observations.generated_commands`.
-    Uses ``wp.from_torch`` to create a zero-copy warp view of the command tensor on first call.
+    Reads the command manager's pointer-stable Warp storage directly.
     """
-    # TODO(warp-migration): Cross-manager access (observation → command). Replace with direct
-    #  warp getter once all managers are guaranteed to be warp-native.
-    fn = generated_commands
-    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        if isinstance(cmd, wp.array):
-            fn._cmd_wp = cmd
-        else:
-            fn._cmd_wp = wp.from_torch(cmd)
-        fn._cmd_name = command_name
-        fn._is_warmed_up = True
-    wp.copy(out, fn._cmd_wp)
+    wp.copy(out, env.command_manager.get_command_wp(command_name))
 
 
 """
@@ -381,6 +395,10 @@ def _body_incoming_wrench_kernel(
     body_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
+    """Gather selected bodies' incoming force [N] and torque [N·m] into per-body
+
+    ``[fx, fy, fz, tx, ty, tz]`` column blocks.
+    """
     env_id = wp.tid()
     for k in range(body_ids.shape[0]):
         b = body_ids[k]
@@ -409,5 +427,42 @@ def body_incoming_wrench(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg) 
         kernel=_body_incoming_wrench_kernel,
         dim=env.num_envs,
         inputs=[sensor.data.force.warp, sensor.data.torque.warp, sensor_cfg.body_ids_wp, out],
+        device=env.device,
+    )
+
+
+@wp.kernel
+def _height_scan_kernel(
+    pos_w: wp.array(dtype=wp.vec3f),
+    ray_hits_w: wp.array2d(dtype=wp.vec3f),
+    offset: wp.float32,
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Height of the scan frame above each ray hit [m]: sensor_z - hit_z - offset.
+
+    Launch with dim=(num_envs, num_rays). Missed hits carry ``inf`` and produce
+    ``-inf`` heights, matching the stable term (handled by the term's clip).
+    """
+    env_id, ray_id = wp.tid()
+    out[env_id, ray_id] = pos_w[env_id][2] - ray_hits_w[env_id, ray_id][2] - offset
+
+
+# Sensor reads go through the lazy-update path, whose host-side timestamp bookkeeping
+# decides when rays are re-cast and has not been audited for graph capture.
+@WarpCapturable(False, reason="sensor lazy-update host bookkeeping is not capture-audited (Part 3 scope)")
+@generic_io_descriptor_warp(units="m", out_dim="sensor:rays", observation_type="SensorState", on_inspect=[record_shape])
+def height_scan(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> None:
+    """Height scan from the given sensor w.r.t. the sensor's frame [m]. Writes into ``out``.
+
+    Warp-first override of :func:`isaaclab.envs.mdp.observations.height_scan`.
+    The provided offset (Defaults to 0.5) is subtracted from the returned values.
+    Missed rays carry ``inf`` hit positions, matching the stable term's semantics
+    (the resulting ``-inf`` heights are handled by the term's ``clip`` setting).
+    """
+    sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
+    wp.launch(
+        kernel=_height_scan_kernel,
+        dim=(env.num_envs, sensor.num_rays),
+        inputs=[sensor.data.pos_w.warp, sensor.data.ray_hits_w.warp, float(offset), out],
         device=env.device,
     )

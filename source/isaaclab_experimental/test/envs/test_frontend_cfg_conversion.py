@@ -48,6 +48,11 @@ _STABLE_TASKS_WITH_WARP_COVERAGE = [
     "Isaac-Velocity-Flat-G1",
     "Isaac-Velocity-Flat-H1",
     "Isaac-Velocity-Flat-UnitreeGo2",
+    "Isaac-Velocity-Rough-AnymalD",
+    "Isaac-Velocity-Rough-Cassie",
+    "Isaac-Velocity-Rough-G1",
+    "Isaac-Velocity-Rough-H1",
+    "Isaac-Velocity-Rough-UnitreeGo2",
 ]
 
 # Manager-based warp tasks are exactly those whose entry point is the shared warp
@@ -198,3 +203,36 @@ def test_noise_cfg_without_warp_twin_is_a_hard_error():
     term.noise = NoiseModelCfg(noise_cfg=UniformNoiseCfg())
     with pytest.raises(FrontendIncompatibleError, match="noise"):
         WarpFrontend.adapt_cfg(cfg)
+
+
+@pytest.mark.parametrize(
+    "task_id",
+    ["Isaac-Velocity-Rough-AnymalD", "Isaac-Reach-Franka"],
+    ids=["rough-terrain-levels", "reach-weight-modifiers"],
+)
+def test_curriculum_terms_swap_to_mask_native_twins(task_id: str):
+    """Curriculum terms resolve to the mask-native warp classes, not legacy ID paths."""
+    cfg = _load_adapted_cfg(_cfg_entry_point(task_id))
+    terms = {n: t for n, t in vars(cfg.curriculum).items() if t is not None and hasattr(t, "func")}
+    assert terms, f"expected curriculum terms on {task_id}"
+    for name, term in terms.items():
+        assert not isinstance(term.func, str) and term.func.__module__.startswith(_WARP_ROOTS), (
+            f"curriculum term '{name}' was not swapped to a warp twin (got {term.func!r})"
+        )
+        assert isinstance(term.func, type), (
+            f"curriculum term '{name}' resolved to a legacy function instead of a mask-native class"
+        )
+
+
+def test_curriculum_term_without_twin_stays_stable():
+    """Optional group: a curriculum term lacking a twin stays on the legacy fallback, no error."""
+    import isaaclab.utils.math as math_utils
+
+    entry = _cfg_entry_point("Isaac-Velocity-Rough-AnymalD")
+    module_path, class_name = entry.split(":")
+    cfg = getattr(importlib.import_module(module_path), class_name)()
+    cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+    term = next(t for t in vars(cfg.curriculum).values() if t is not None and hasattr(t, "func"))
+    term.func = math_utils.quat_mul  # stable-rooted symbol with no warp mirror
+    WarpFrontend.adapt_cfg(cfg)
+    assert term.func is math_utils.quat_mul

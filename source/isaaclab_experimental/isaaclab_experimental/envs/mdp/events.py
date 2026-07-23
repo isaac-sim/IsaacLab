@@ -5,7 +5,7 @@
 
 """Warp-first overrides for common event terms.
 
-These functions are intended to be used with the experimental Warp-first
+These terms are intended to be used with the experimental Warp-first
 :class:`isaaclab_experimental.managers.EventManager` (mask-based interval/reset).
 
 Why this exists:
@@ -16,6 +16,9 @@ Why this exists:
 
 These Warp-first implementations avoid that by writing directly into the sim-bound Warp state buffers
 (`asset.data.joint_pos` / `asset.data.joint_vel`) for the selected envs/joints.
+
+Stateful terms use :class:`~isaaclab_experimental.managers.ManagerTermBase` so
+persistent buffers and parsed constants are created once during manager setup.
 
 Notes:
 - These terms assume the Newton/Warp backend (Warp arrays are available for joint state and defaults).
@@ -32,13 +35,34 @@ import warp as wp
 from isaaclab.envs.mdp.events import randomize_rigid_body_mass as _StableRandomizeRigidBodyMass
 from isaaclab.envs.mdp.events import randomize_rigid_body_material as _StableRandomizeRigidBodyMaterial
 
+from isaaclab_experimental.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab_experimental.managers import ManagerTermBase as _WarpManagerTermBase
-from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.utils.warp import WarpCapturable
 
+__all__ = [
+    "apply_external_force_torque",
+    "push_by_setting_velocity",
+    "randomize_rigid_body_com",
+    "randomize_rigid_body_mass",
+    "randomize_rigid_body_material",
+    "reset_joints_by_offset",
+    "reset_joints_by_scale",
+    "reset_root_state_uniform",
+]
+
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv
+
+
+def _resolve_body_ids(asset_cfg: SceneEntityCfg, num_bodies: int) -> list[int]:
+    """Resolve a configured body selection without allocating device storage."""
+    if asset_cfg.body_ids is None or asset_cfg.body_ids == slice(None):
+        return list(range(num_bodies))
+    if isinstance(asset_cfg.body_ids, int):
+        return [asset_cfg.body_ids]
+    return list(asset_cfg.body_ids)
+
 
 # ---------------------------------------------------------------------------
 # Randomize rigid body center of mass
@@ -49,66 +73,86 @@ if TYPE_CHECKING:
 def _randomize_com_kernel(
     env_mask: wp.array(dtype=wp.bool),
     rng_state: wp.array(dtype=wp.uint32),
+    default_body_com_pos_b: wp.array(dtype=wp.vec3f, ndim=2),
     body_com_pos_b: wp.array(dtype=wp.vec3f, ndim=2),
     body_ids: wp.array(dtype=wp.int32),
     com_lo: wp.vec3f,
     com_hi: wp.vec3f,
 ):
-    """Add random offset to center of mass positions for selected bodies."""
+    """Add random offsets to the default center-of-mass positions for selected bodies."""
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
 
     state = rng_state[env_id]
+    dx = wp.randf(state, com_lo[0], com_hi[0])
+    dy = wp.randf(state, com_lo[1], com_hi[1])
+    dz = wp.randf(state, com_lo[2], com_hi[2])
     for k in range(body_ids.shape[0]):
         b = body_ids[k]
-        v = body_com_pos_b[env_id, b]
-        dx = wp.randf(state, com_lo[0], com_hi[0])
-        dy = wp.randf(state, com_lo[1], com_hi[1])
-        dz = wp.randf(state, com_lo[2], com_hi[2])
+        v = default_body_com_pos_b[env_id, b]
         body_com_pos_b[env_id, b] = wp.vec3f(v[0] + dx, v[1] + dy, v[2] + dz)
     rng_state[env_id] = state
 
 
 @WarpCapturable(False, reason="set_coms_mask calls SimulationManager.add_model_change")
-def randomize_rigid_body_com(
-    env,
-    env_mask: wp.array,
-    com_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
-    """Randomize the center of mass (CoM) of rigid bodies by adding random offsets.
+class randomize_rigid_body_com(ManagerTermBase):
+    """Randomize rigid-body centers of mass from a persistent default baseline.
 
-    Warp-first override of :func:`isaaclab.envs.mdp.events.randomize_rigid_body_com`.
-    Writes directly into the sim-bound ``body_com_pos_b`` buffer, then notifies the solver
-    via :meth:`set_coms_mask` so it recomputes inertial properties.
+    This term is not CUDA-graph capturable because notifying the solver of changed
+    inertial properties calls :meth:`SimulationManager.add_model_change`.
     """
-    asset: Articulation = env.scene[asset_cfg.name]
 
-    fn = randomize_rigid_body_com
-    if not getattr(fn, "_is_warmed_up", False) or fn._asset_name != asset_cfg.name:
-        fn._asset_name = asset_cfg.name
-        r = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        fn._com_lo = wp.vec3f(r[0][0], r[1][0], r[2][0])
-        fn._com_hi = wp.vec3f(r[0][1], r[1][1], r[2][1])
-        fn._is_warmed_up = True
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Initialize persistent center-of-mass randomization state.
 
-    wp.launch(
-        kernel=_randomize_com_kernel,
-        dim=env.num_envs,
-        inputs=[
-            env_mask,
-            env.rng_state_wp,
-            asset.data.body_com_pos_b.warp,
-            asset_cfg.body_ids_wp,
-            fn._com_lo,
-            fn._com_hi,
-        ],
-        device=env.device,
-    )
+        Args:
+            cfg: Event term configuration.
+            env: Environment containing the randomized asset.
+        """
+        super().__init__(cfg, env)
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self._asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+        self._default_com = wp.clone(self._asset.data.body_com_pos_b.warp)
+        body_ids = _resolve_body_ids(asset_cfg, self._asset.num_bodies)
+        self._body_ids = wp.array(body_ids, dtype=wp.int32, device=env.device)
 
-    # Notify the solver that inertial properties changed (COM position affects inertia).
-    asset.set_coms_mask(coms=asset.data.body_com_pos_b.warp, env_mask=env_mask)
+        com_range = cfg.params["com_range"]
+        ranges = [com_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")]
+        self._com_lo = wp.vec3f(ranges[0][0], ranges[1][0], ranges[2][0])
+        self._com_hi = wp.vec3f(ranges[0][1], ranges[1][1], ranges[2][1])
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_mask: wp.array(dtype=wp.bool),
+        com_range: dict[str, tuple[float, float]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ) -> None:
+        """Randomize selected center-of-mass offsets [m].
+
+        Args:
+            env: Environment containing the randomized asset.
+            env_mask: Boolean Warp mask selecting environments.
+            com_range: Per-axis offset ranges [m]. Parsed during initialization.
+            asset_cfg: Scene entity selection. Resolved during initialization.
+        """
+        wp.launch(
+            kernel=_randomize_com_kernel,
+            dim=env.num_envs,
+            inputs=[
+                env_mask,
+                env.rng_state_wp,
+                self._default_com,
+                self._asset.data.body_com_pos_b.warp,
+                self._body_ids,
+                self._com_lo,
+                self._com_hi,
+            ],
+            device=env.device,
+        )
+
+        self._asset.set_coms_mask(coms=self._asset.data.body_com_pos_b.warp, env_mask=env_mask)
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +164,7 @@ def randomize_rigid_body_com(
 def _apply_external_force_torque_kernel(
     env_mask: wp.array(dtype=wp.bool),
     rng_state: wp.array(dtype=wp.uint32),
+    body_ids: wp.array(dtype=wp.int32),
     force_out: wp.array(dtype=wp.vec3f, ndim=2),
     torque_out: wp.array(dtype=wp.vec3f, ndim=2),
     force_lo: float,
@@ -127,16 +172,17 @@ def _apply_external_force_torque_kernel(
     torque_lo: float,
     torque_hi: float,
 ):
+    """Sample uniform random external force [N] and torque [N·m] vectors for
+
+    selected envs' target bodies into the asset's wrench composer buffers.
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
-        # zero out unmasked envs so they don't accumulate stale forces
-        for b in range(force_out.shape[1]):
-            force_out[env_id, b] = wp.vec3f(0.0, 0.0, 0.0)
-            torque_out[env_id, b] = wp.vec3f(0.0, 0.0, 0.0)
         return
 
     state = rng_state[env_id]
-    for b in range(force_out.shape[1]):
+    for body_index in range(body_ids.shape[0]):
+        b = body_ids[body_index]
         force_out[env_id, b] = wp.vec3f(
             wp.randf(state, force_lo, force_hi),
             wp.randf(state, force_lo, force_hi),
@@ -150,50 +196,76 @@ def _apply_external_force_torque_kernel(
     rng_state[env_id] = state
 
 
-def apply_external_force_torque(
-    env,
-    env_mask: wp.array,
-    force_range: tuple[float, float],
-    torque_range: tuple[float, float],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
-    """Randomize external forces and torques applied to the asset's bodies.
+class apply_external_force_torque(ManagerTermBase):
+    """Apply random external forces and torques using persistent wrench buffers."""
 
-    Warp-first override of :func:`isaaclab.envs.mdp.events.apply_external_force_torque`.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Initialize persistent external-wrench state.
 
-    # First-call: allocate scratch and pre-convert constant arguments.
-    if not getattr(apply_external_force_torque, "_is_warmed_up", False):
-        apply_external_force_torque._scratch_forces = wp.zeros(
-            (env.num_envs, asset.num_bodies), dtype=wp.vec3f, device=env.device
+        Args:
+            cfg: Event term configuration.
+            env: Environment containing the randomized asset.
+        """
+        super().__init__(cfg, env)
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self._asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+        self._forces = wp.zeros((env.num_envs, self._asset.num_bodies), dtype=wp.vec3f, device=env.device)
+        self._torques = wp.zeros((env.num_envs, self._asset.num_bodies), dtype=wp.vec3f, device=env.device)
+
+        body_ids = _resolve_body_ids(asset_cfg, self._asset.num_bodies)
+        body_mask = [False] * self._asset.num_bodies
+        for body_id in body_ids:
+            body_mask[body_id] = True
+        self._body_ids = wp.array(body_ids, dtype=wp.int32, device=env.device)
+        self._body_mask = wp.array(body_mask, dtype=wp.bool, device=env.device)
+
+        force_range = cfg.params["force_range"]
+        torque_range = cfg.params["torque_range"]
+        self._force_lo = float(force_range[0])
+        self._force_hi = float(force_range[1])
+        self._torque_lo = float(torque_range[0])
+        self._torque_hi = float(torque_range[1])
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_mask: wp.array(dtype=wp.bool),
+        force_range: tuple[float, float],
+        torque_range: tuple[float, float],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ) -> None:
+        """Apply sampled forces [N] and torques [N·m] to selected bodies.
+
+        Args:
+            env: Environment containing the randomized asset.
+            env_mask: Boolean Warp mask selecting environments.
+            force_range: Component-wise force range [N]. Parsed during initialization.
+            torque_range: Component-wise torque range [N·m]. Parsed during initialization.
+            asset_cfg: Scene entity selection. Resolved during initialization.
+        """
+        wp.launch(
+            kernel=_apply_external_force_torque_kernel,
+            dim=env.num_envs,
+            inputs=[
+                env_mask,
+                env.rng_state_wp,
+                self._body_ids,
+                self._forces,
+                self._torques,
+                self._force_lo,
+                self._force_hi,
+                self._torque_lo,
+                self._torque_hi,
+            ],
+            device=env.device,
         )
-        apply_external_force_torque._scratch_torques = wp.zeros(
-            (env.num_envs, asset.num_bodies), dtype=wp.vec3f, device=env.device
+
+        self._asset.permanent_wrench_composer.set_forces_and_torques_mask(
+            forces=self._forces,
+            torques=self._torques,
+            body_mask=self._body_mask,
+            env_mask=env_mask,
         )
-        apply_external_force_torque._is_warmed_up = True
-
-    wp.launch(
-        kernel=_apply_external_force_torque_kernel,
-        dim=env.num_envs,
-        inputs=[
-            env_mask,
-            env.rng_state_wp,
-            apply_external_force_torque._scratch_forces,
-            apply_external_force_torque._scratch_torques,
-            force_range[0],
-            force_range[1],
-            torque_range[0],
-            torque_range[1],
-        ],
-        device=env.device,
-    )
-
-    asset.permanent_wrench_composer.set_forces_and_torques_mask(
-        forces=apply_external_force_torque._scratch_forces,
-        torques=apply_external_force_torque._scratch_torques,
-        env_mask=env_mask,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +284,10 @@ def _push_by_setting_velocity_kernel(
     ang_lo: wp.vec3f,
     ang_hi: wp.vec3f,
 ):
+    """Add a uniform random velocity kick [m/s, rad/s] to selected envs' current
+
+    root velocity, writing the result for the masked sim write.
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
@@ -231,45 +307,60 @@ def _push_by_setting_velocity_kernel(
     rng_state[env_id] = state
 
 
-def push_by_setting_velocity(
-    env,
-    env_mask: wp.array,
-    velocity_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
-    """Push the asset by setting the root velocity to a random value within the given ranges.
+class push_by_setting_velocity(ManagerTermBase):
+    """Push an asset by sampling into a persistent root-velocity buffer."""
 
-    Warp-first override of :func:`isaaclab.envs.mdp.events.push_by_setting_velocity`.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Initialize persistent root-velocity push state.
 
-    # First-call: allocate scratch and pre-parse constant range arguments.
-    if not getattr(push_by_setting_velocity, "_is_warmed_up", False):
-        push_by_setting_velocity._scratch_vel = wp.zeros((env.num_envs,), dtype=wp.spatial_vectorf, device=env.device)
-        r = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-        push_by_setting_velocity._lin_lo = wp.vec3f(r[0][0], r[1][0], r[2][0])
-        push_by_setting_velocity._lin_hi = wp.vec3f(r[0][1], r[1][1], r[2][1])
-        push_by_setting_velocity._ang_lo = wp.vec3f(r[3][0], r[4][0], r[5][0])
-        push_by_setting_velocity._ang_hi = wp.vec3f(r[3][1], r[4][1], r[5][1])
-        push_by_setting_velocity._is_warmed_up = True
+        Args:
+            cfg: Event term configuration.
+            env: Environment containing the pushed asset.
+        """
+        super().__init__(cfg, env)
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self._asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+        self._velocity = wp.zeros(env.num_envs, dtype=wp.spatial_vectorf, device=env.device)
 
-    wp.launch(
-        kernel=_push_by_setting_velocity_kernel,
-        dim=env.num_envs,
-        inputs=[
-            env_mask,
-            env.rng_state_wp,
-            asset.data.root_vel_w.warp,
-            push_by_setting_velocity._scratch_vel,
-            push_by_setting_velocity._lin_lo,
-            push_by_setting_velocity._lin_hi,
-            push_by_setting_velocity._ang_lo,
-            push_by_setting_velocity._ang_hi,
-        ],
-        device=env.device,
-    )
+        velocity_range = cfg.params["velocity_range"]
+        ranges = [velocity_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z", "roll", "pitch", "yaw")]
+        self._lin_lo = wp.vec3f(ranges[0][0], ranges[1][0], ranges[2][0])
+        self._lin_hi = wp.vec3f(ranges[0][1], ranges[1][1], ranges[2][1])
+        self._ang_lo = wp.vec3f(ranges[3][0], ranges[4][0], ranges[5][0])
+        self._ang_hi = wp.vec3f(ranges[3][1], ranges[4][1], ranges[5][1])
 
-    asset.write_root_velocity_to_sim_mask(root_velocity=push_by_setting_velocity._scratch_vel, env_mask=env_mask)
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_mask: wp.array(dtype=wp.bool),
+        velocity_range: dict[str, tuple[float, float]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ) -> None:
+        """Add sampled linear [m/s] and angular [rad/s] root velocities.
+
+        Args:
+            env: Environment containing the pushed asset.
+            env_mask: Boolean Warp mask selecting environments.
+            velocity_range: Per-axis velocity ranges [m/s or rad/s]. Parsed during initialization.
+            asset_cfg: Scene entity selection. Resolved during initialization.
+        """
+        wp.launch(
+            kernel=_push_by_setting_velocity_kernel,
+            dim=env.num_envs,
+            inputs=[
+                env_mask,
+                env.rng_state_wp,
+                self._asset.data.root_vel_w.warp,
+                self._velocity,
+                self._lin_lo,
+                self._lin_hi,
+                self._ang_lo,
+                self._ang_hi,
+            ],
+            device=env.device,
+        )
+
+        self._asset.write_root_velocity_to_sim_mask(root_velocity=self._velocity, env_mask=env_mask)
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +386,11 @@ def _reset_root_state_uniform_kernel(
     vel_ang_lo: wp.vec3f,
     vel_ang_hi: wp.vec3f,
 ):
+    """Compose selected envs' reset root state: default pose offset by the env
+
+    origin plus uniform position [m] / roll-pitch-yaw [rad] noise, and default
+    velocity plus uniform noise [m/s, rad/s].
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
@@ -341,62 +437,81 @@ def _reset_root_state_uniform_kernel(
     rng_state[env_id] = state
 
 
-def reset_root_state_uniform(
-    env,
-    env_mask: wp.array,
-    pose_range: dict[str, tuple[float, float]],
-    velocity_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
-    """Reset the asset root state to a random position and velocity uniformly within the given ranges.
+class reset_root_state_uniform(ManagerTermBase):
+    """Reset root pose and velocity using persistent Warp output buffers."""
 
-    Warp-first override of :func:`isaaclab.envs.mdp.events.reset_root_state_uniform`.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Initialize persistent root-state reset state.
 
-    # First-call: allocate scratch and pre-parse range dicts.
-    if not getattr(reset_root_state_uniform, "_is_warmed_up", False):
-        reset_root_state_uniform._scratch_pose = wp.zeros((env.num_envs,), dtype=wp.transformf, device=env.device)
-        reset_root_state_uniform._scratch_vel = wp.zeros((env.num_envs,), dtype=wp.spatial_vectorf, device=env.device)
-        # Pre-parse pose_range dict
-        p = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-        reset_root_state_uniform._pos_lo = wp.vec3f(p[0][0], p[1][0], p[2][0])
-        reset_root_state_uniform._pos_hi = wp.vec3f(p[0][1], p[1][1], p[2][1])
-        reset_root_state_uniform._rot_lo = wp.vec3f(p[3][0], p[4][0], p[5][0])
-        reset_root_state_uniform._rot_hi = wp.vec3f(p[3][1], p[4][1], p[5][1])
-        # Pre-parse velocity_range dict
-        v = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-        reset_root_state_uniform._vel_lin_lo = wp.vec3f(v[0][0], v[1][0], v[2][0])
-        reset_root_state_uniform._vel_lin_hi = wp.vec3f(v[0][1], v[1][1], v[2][1])
-        reset_root_state_uniform._vel_ang_lo = wp.vec3f(v[3][0], v[4][0], v[5][0])
-        reset_root_state_uniform._vel_ang_hi = wp.vec3f(v[3][1], v[4][1], v[5][1])
-        reset_root_state_uniform._is_warmed_up = True
+        Args:
+            cfg: Event term configuration.
+            env: Environment containing the reset asset.
+        """
+        super().__init__(cfg, env)
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self._asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+        self._default_root_pose = self._asset.data.default_root_pose.warp
+        self._default_root_velocity = self._asset.data.default_root_vel.warp
+        self._env_origins = env.env_origins_wp
+        self._pose = wp.zeros(env.num_envs, dtype=wp.transformf, device=env.device)
+        self._velocity = wp.zeros(env.num_envs, dtype=wp.spatial_vectorf, device=env.device)
 
-    wp.launch(
-        kernel=_reset_root_state_uniform_kernel,
-        dim=env.num_envs,
-        inputs=[
-            env_mask,
-            env.rng_state_wp,
-            asset.data.default_root_pose.warp,
-            asset.data.default_root_vel.warp,
-            env.env_origins_wp,
-            reset_root_state_uniform._scratch_pose,
-            reset_root_state_uniform._scratch_vel,
-            reset_root_state_uniform._pos_lo,
-            reset_root_state_uniform._pos_hi,
-            reset_root_state_uniform._rot_lo,
-            reset_root_state_uniform._rot_hi,
-            reset_root_state_uniform._vel_lin_lo,
-            reset_root_state_uniform._vel_lin_hi,
-            reset_root_state_uniform._vel_ang_lo,
-            reset_root_state_uniform._vel_ang_hi,
-        ],
-        device=env.device,
-    )
+        pose_range = cfg.params["pose_range"]
+        pose_ranges = [pose_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z", "roll", "pitch", "yaw")]
+        self._pos_lo = wp.vec3f(pose_ranges[0][0], pose_ranges[1][0], pose_ranges[2][0])
+        self._pos_hi = wp.vec3f(pose_ranges[0][1], pose_ranges[1][1], pose_ranges[2][1])
+        self._rot_lo = wp.vec3f(pose_ranges[3][0], pose_ranges[4][0], pose_ranges[5][0])
+        self._rot_hi = wp.vec3f(pose_ranges[3][1], pose_ranges[4][1], pose_ranges[5][1])
 
-    asset.write_root_pose_to_sim_mask(root_pose=reset_root_state_uniform._scratch_pose, env_mask=env_mask)
-    asset.write_root_velocity_to_sim_mask(root_velocity=reset_root_state_uniform._scratch_vel, env_mask=env_mask)
+        velocity_range = cfg.params["velocity_range"]
+        velocity_ranges = [velocity_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z", "roll", "pitch", "yaw")]
+        self._vel_lin_lo = wp.vec3f(velocity_ranges[0][0], velocity_ranges[1][0], velocity_ranges[2][0])
+        self._vel_lin_hi = wp.vec3f(velocity_ranges[0][1], velocity_ranges[1][1], velocity_ranges[2][1])
+        self._vel_ang_lo = wp.vec3f(velocity_ranges[3][0], velocity_ranges[4][0], velocity_ranges[5][0])
+        self._vel_ang_hi = wp.vec3f(velocity_ranges[3][1], velocity_ranges[4][1], velocity_ranges[5][1])
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_mask: wp.array(dtype=wp.bool),
+        pose_range: dict[str, tuple[float, float]],
+        velocity_range: dict[str, tuple[float, float]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ) -> None:
+        """Reset root pose [m, rad] and velocity [m/s, rad/s].
+
+        Args:
+            env: Environment containing the reset asset.
+            env_mask: Boolean Warp mask selecting environments.
+            pose_range: Position and Euler-angle ranges [m or rad]. Parsed during initialization.
+            velocity_range: Linear and angular velocity ranges [m/s or rad/s]. Parsed during initialization.
+            asset_cfg: Scene entity selection. Resolved during initialization.
+        """
+        wp.launch(
+            kernel=_reset_root_state_uniform_kernel,
+            dim=env.num_envs,
+            inputs=[
+                env_mask,
+                env.rng_state_wp,
+                self._default_root_pose,
+                self._default_root_velocity,
+                self._env_origins,
+                self._pose,
+                self._velocity,
+                self._pos_lo,
+                self._pos_hi,
+                self._rot_lo,
+                self._rot_hi,
+                self._vel_lin_lo,
+                self._vel_lin_hi,
+                self._vel_ang_lo,
+                self._vel_ang_hi,
+            ],
+            device=env.device,
+        )
+
+        self._asset.write_root_pose_to_sim_mask(root_pose=self._pose, env_mask=env_mask)
+        self._asset.write_root_velocity_to_sim_mask(root_velocity=self._velocity, env_mask=env_mask)
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +535,11 @@ def _reset_joints_by_offset_kernel(
     vel_lo: float,
     vel_hi: float,
 ):
+    """Reset selected envs' selected joints to defaults plus uniform offsets
+
+    [rad or m, depending on joint type], clamped to the soft position and
+    velocity limits.
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
@@ -450,12 +570,12 @@ def _reset_joints_by_offset_kernel(
 
 
 def reset_joints_by_offset(
-    env,
-    env_mask: wp.array,
+    env: ManagerBasedEnv,
+    env_mask: wp.array(dtype=wp.bool),
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
+) -> None:
     """Warp-first reset of joint state by random offsets around defaults.
 
     This overrides the stable `isaaclab.envs.mdp.events.reset_joints_by_offset` when importing
@@ -518,6 +638,10 @@ def _reset_joints_by_scale_kernel(
     vel_lo: float,
     vel_hi: float,
 ):
+    """Reset selected envs' selected joints to defaults scaled by uniform random
+
+    factors, clamped to the soft position and velocity limits.
+    """
     env_id = wp.tid()
     if not env_mask[env_id]:
         return
@@ -546,12 +670,12 @@ def _reset_joints_by_scale_kernel(
 
 
 def reset_joints_by_scale(
-    env,
-    env_mask: wp.array,
+    env: ManagerBasedEnv,
+    env_mask: wp.array(dtype=wp.bool),
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
+) -> None:
     """Warp-first reset of joint state by scaling defaults with random factors."""
     asset: Articulation = env.scene[asset_cfg.name]
 

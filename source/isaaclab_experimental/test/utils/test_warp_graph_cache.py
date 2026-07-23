@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
+import os
 import unittest
+import unittest.mock
 
 import warp as wp
-from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+from isaaclab_experimental.utils.warp_graph_cache import CAPTURE_ENV_VAR, WarpGraphCache
 
 
 @wp.kernel
@@ -20,12 +22,149 @@ def _add_one(a: wp.array(dtype=wp.float32), b: wp.array(dtype=wp.float32)):
     b[i] = a[i] + 1.0
 
 
+@wp.kernel
+def _increment(value: wp.array(dtype=wp.int32)):
+    """Increment a scalar state buffer once."""
+    value[0] += 1
+
+
 class TestWarpGraphCache(unittest.TestCase):
     """Tests for :class:`WarpGraphCache`."""
 
     def setUp(self):
         self.device = "cuda:0"
-        self.cache = WarpGraphCache()
+        self.cache = WarpGraphCache(device=self.device)
+
+    # ------------------------------------------------------------------
+    # Capture policy
+    # ------------------------------------------------------------------
+
+    def test_env_var_forces_eager(self):
+        """Setting the capture environment variable to 0 should force every stage eager."""
+        with unittest.mock.patch.dict(os.environ, {CAPTURE_ENV_VAR: "0"}):
+            cache = WarpGraphCache(device=self.device)
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        for _ in range(3):
+            cache.call("RewardManager_compute", counted_call)
+
+        self.assertEqual(call_count, 3)
+        self.assertEqual(cache.captured_stages, ())
+
+    def test_captured_stages_and_eager_groups_reflect_state(self):
+        """Introspection should report captured stages and non-capturable groups."""
+        self.cache.register_capturability("Scene", False)
+        src = wp.full(4, value=1.0, dtype=wp.float32, device=self.device)
+        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
+
+        def launch():
+            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
+
+        self.cache.call("RewardManager_compute", launch)
+        self.cache.call("RewardManager_compute", launch)
+
+        self.assertEqual(self.cache.captured_stages, ("RewardManager_compute",))
+        self.assertEqual(self.cache.eager_groups, ("Scene",))
+
+    def test_non_capturable_group_stays_eager(self):
+        """Every stage in a non-capturable group should execute eagerly."""
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        self.cache.register_capturability("RewardManager", False)
+        self.cache.call("RewardManager_compute", counted_call)
+        self.cache.call("RewardManager_reset", counted_call)
+
+        self.assertEqual(call_count, 2)
+
+    def test_cpu_device_stays_eager(self):
+        """CPU stages should never attempt CUDA graph capture."""
+        cache = WarpGraphCache(device="cpu")
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        for _ in range(3):
+            cache.call("RewardManager_compute", counted_call)
+
+        self.assertEqual(call_count, 3)
+
+    def test_disabled_cache_stays_eager(self):
+        """An owner should be able to keep an unvalidated stage boundary eager."""
+        cache = WarpGraphCache(enabled=False, device=self.device)
+        call_count = 0
+
+        def counted_call():
+            nonlocal call_count
+            call_count += 1
+
+        for _ in range(3):
+            cache.call("direct_stage", counted_call)
+
+        self.assertEqual(call_count, 3)
+
+    def test_capturability_registration_is_conservative(self):
+        """A positive registration must not override a known unsafe operation."""
+        self.cache.register_capturability("EventManager", False)
+        self.cache.register_capturability("EventManager", True)
+
+        self.assertFalse(self.cache.is_capturable("EventManager"))
+
+    def test_call_forwards_arguments_and_applies_output(self):
+        """The frontend call should forward normal arguments and transform output."""
+        self.cache.register_capturability("RewardManager", False)
+
+        result = self.cache.call(
+            "RewardManager_compute",
+            lambda value, *, scale: value * scale,
+            3,
+            scale=4,
+            output=lambda value: value + 1,
+        )
+
+        self.assertEqual(result, 13)
+
+    def test_call_captures_by_default(self):
+        """A capturable stage should warm up, capture, and then replay across calls."""
+        call_count = 0
+        src = wp.full(4, value=2.0, dtype=wp.float32, device=self.device)
+        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
+
+        def counted_launch():
+            nonlocal call_count
+            call_count += 1
+            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
+            return dst
+
+        result = self.cache.call("RewardManager_compute", counted_launch)
+        captured = self.cache.call("RewardManager_compute", counted_launch)
+        replay = self.cache.call("RewardManager_compute", counted_launch)
+
+        self.assertEqual(call_count, 2)
+        self.assertIs(result, captured)
+        self.assertIs(result, replay)
+        self.assertAlmostEqual(replay.numpy()[0], 3.0, places=5)
+
+    def test_call_executes_stateful_stage_once_per_logical_call(self):
+        """Warm-up and capture should not advance manager state twice in one call."""
+        state = wp.zeros(1, dtype=wp.int32, device=self.device)
+
+        def increment_state():
+            wp.launch(_increment, dim=1, inputs=[state], device=self.device)
+            return state
+
+        for expected in (1, 2, 3):
+            result = self.cache.call("RewardManager_stateful", increment_state)
+            self.assertEqual(result.numpy()[0], expected)
 
     # ------------------------------------------------------------------
     # Warm-up

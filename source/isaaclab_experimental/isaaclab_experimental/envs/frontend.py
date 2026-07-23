@@ -86,14 +86,21 @@ class WarpFrontend:
     # are adapted (SceneEntityCfg promotion + MDP twin swap). The event manager
     # is warp-first too — it invokes term funcs with a Warp env-mask, so a stable
     # event func (which expects torch ``env_ids``) breaks at runtime; its funcs
-    # must be swapped to warp twins. The curriculum, recorder and command
-    # managers run on the stable (torch) implementation, so their terms are left
-    # untouched. A stable term left on a warp manager would break, so a missing
-    # twin in these groups is a hard error; a stable term on a stable manager is
-    # correct, so those groups are skipped.
+    # must be swapped to warp twins. The command manager is the warp-native
+    # ``CommandManager`` (captured), so command term ``class_type``s must swap
+    # to their warp twins as well. A stable term left on a warp manager would
+    # break, so a missing twin in these groups is a hard error. The recorder
+    # manager runs on the stable implementation and is skipped entirely;
+    # curriculum is adapted opportunistically (see ``OPTIONAL_WARP_GROUPS``).
     WARP_MANAGED_GROUPS: ClassVar[frozenset[str]] = frozenset(
-        {"observations", "rewards", "terminations", "actions", "events"}
+        {"observations", "rewards", "terminations", "actions", "events", "commands"}
     )
+
+    # Groups adapted opportunistically: a warp twin is swapped in when one exists,
+    # otherwise the stable term stays on the manager's legacy (host-ID) fallback.
+    # Curriculum is the only such group: its manager supports stable terms by
+    # design, at the cost of eager execution and one ID materialization per reset.
+    OPTIONAL_WARP_GROUPS: ClassVar[frozenset[str]] = frozenset({"curriculum"})
 
     # ------------------------------------------------------------------
     # Env construction
@@ -218,7 +225,7 @@ class WarpFrontend:
 
         promoted: list[str] = []
         for path, term in cls._walk_terms(cfg):
-            if not path or path[0] not in cls.WARP_MANAGED_GROUPS:
+            if not path or path[0] not in (cls.WARP_MANAGED_GROUPS | cls.OPTIONAL_WARP_GROUPS):
                 continue  # term runs on a stable manager; keep the stable entity
             params = getattr(term, "params", None)
             if not isinstance(params, dict):
@@ -267,8 +274,9 @@ class WarpFrontend:
         swapped = 0
         missing: list[tuple[str, str, str]] = []  # (location, attr, symbol)
         for path, term in cls._walk_terms(cfg):
-            if not path or path[0] not in cls.WARP_MANAGED_GROUPS:
+            if not path or path[0] not in (cls.WARP_MANAGED_GROUPS | cls.OPTIONAL_WARP_GROUPS):
                 continue  # term runs on a stable manager; leave it stable
+            optional = path[0] in cls.OPTIONAL_WARP_GROUPS
             location = ".".join(path)
             for attr in ("func", "class_type"):  # a term implements via either attr
                 stable = getattr(term, attr, None)
@@ -280,8 +288,9 @@ class WarpFrontend:
                     searched.update(m.__name__ for m in module_cache[origin])
                 twin = cls._resolve_warp_twin(stable.__name__, module_cache[origin])
                 if twin is None:
-                    missing.append((location, attr, stable.__name__))  # collect every miss; report once below
-                    continue
+                    if not optional:
+                        missing.append((location, attr, stable.__name__))  # collect every miss; report once below
+                    continue  # optional group: the stable term stays on the legacy fallback
                 setattr(term, attr, twin)
                 swapped += 1
 
@@ -575,10 +584,10 @@ class WarpFrontend:
         """Yield ``(path, term)`` for every MDP term cfg in the cfg tree.
 
         A "term" is a :class:`ManagerTermBaseCfg` (observation/reward/
-        termination/event/curriculum) *or* an :class:`ActionTermCfg` — the
-        latter is a separate base that is **not** a ``ManagerTermBaseCfg``
-        subclass, yet carries a swappable ``class_type``, so it must be matched
-        explicitly.
+        termination/event/curriculum) *or* an :class:`ActionTermCfg` /
+        :class:`CommandTermCfg` — the latter two are separate bases that are
+        **not** ``ManagerTermBaseCfg`` subclasses, yet carry a swappable
+        ``class_type``, so they must be matched explicitly.
 
         Behavior at each node:
 
@@ -602,9 +611,9 @@ class WarpFrontend:
         cfg layouts (extra observation groups, new nesting, etc.) are picked up
         automatically as long as their terms subclass one of the term base cfgs.
         """
-        from isaaclab.managers.manager_term_cfg import ActionTermCfg, ManagerTermBaseCfg
+        from isaaclab.managers.manager_term_cfg import ActionTermCfg, CommandTermCfg, ManagerTermBaseCfg
 
-        if isinstance(node, (ManagerTermBaseCfg, ActionTermCfg)):
+        if isinstance(node, (ManagerTermBaseCfg, ActionTermCfg, CommandTermCfg)):
             yield path, node  # a term: yield and stop; never descend into params/func
             return
         if not hasattr(node, "__dataclass_fields__"):
