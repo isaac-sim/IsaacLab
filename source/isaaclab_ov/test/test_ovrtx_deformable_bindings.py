@@ -89,9 +89,6 @@ class _FakeOVRTXBackend:
     def write_attribute(self, **kwargs):
         self.writes.append(kwargs)
 
-    def write_array_attribute(self, **kwargs):
-        self.writes.append(kwargs)
-
 
 def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, _FakeOVRTXBackend]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
@@ -337,7 +334,7 @@ def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pyte
 
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", particle_visual_prims)
 
-    renderer._setup_particle_bindings(num_envs=2)
+    renderer._setup_particle_bindings()
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == [
@@ -367,7 +364,7 @@ def test_setup_particle_points_bindings_binds_multiple_mpm_assets(monkeypatch: p
 
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", particle_visual_prims)
 
-    renderer._setup_particle_bindings(num_envs=2)
+    renderer._setup_particle_bindings()
 
     # Binding order follows dict insertion order (no path sort).
     assert backend.calls[0]["prim_paths"] == [

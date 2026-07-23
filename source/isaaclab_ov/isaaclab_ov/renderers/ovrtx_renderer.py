@@ -451,7 +451,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._setup_xform_bindings()
         self._setup_deformable_bindings(num_envs)
-        self._setup_particle_bindings(num_envs)
+        self._setup_particle_bindings()
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -682,21 +682,17 @@ class OVRTXRenderer(BaseRenderer):
         if self._deformable_points_binding is None:
             raise RuntimeError("Failed to create OVRTX deformable body bindings")
 
-    def _setup_particle_bindings(self, num_envs: int) -> None:
-        """Setup OVRTX bindings for Newton MPM ``UsdGeom.Points`` particle clouds.
-
-        Args:
-            num_envs: Number of environments.
-        """
+    def _setup_particle_bindings(self) -> None:
+        """Setup OVRTX bindings for Newton particle clouds."""
         try:
             from isaaclab_newton.physics import NewtonManager
         except ImportError:
-            logger.debug("NewtonManager not available, skipping MPM particle point bindings")
+            logger.debug("NewtonManager not available, skipping particle point bindings")
             return
 
         particle_visual_prims = NewtonManager._particle_visual_prims
         if not particle_visual_prims:
-            logger.debug("No MPM particle visual prims registered, skipping particle point bindings")
+            logger.debug("No particle visual prims registered, skipping particle point bindings")
             return
 
         self._particle_visual_offsets = []
@@ -817,7 +813,7 @@ class OVRTXRenderer(BaseRenderer):
         if newton_state is None:
             raise RuntimeError("Newton state should not be None")
 
-        # particle_q is the world-space particle positions for all deformable bodies and MPM
+        # particle_q is the world-space particle positions for all deformable bodies and
         # particle clouds. A non-None geometry binding means entries were registered, so Newton
         # must expose particle state; a missing particle_q here is an inconsistent state.
         particle_q = getattr(newton_state, "particle_q", None)
