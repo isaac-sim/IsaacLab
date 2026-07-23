@@ -14,8 +14,6 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaacsim.core.experimental.utils.app import enable_extension
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 from isaaclab.cloner import queue_usd_replication
@@ -457,7 +455,7 @@ class SurfaceGripper(AssetBase):
                 " `--device cpu` to run the simulation on CPU."
             )
 
-        enable_extension("isaacsim.robot.surface_gripper")
+        sim_utils.enable_extension("isaacsim.robot.surface_gripper")
         from isaacsim.robot.surface_gripper import GripperView
 
         def is_surface_gripper(prim) -> bool:

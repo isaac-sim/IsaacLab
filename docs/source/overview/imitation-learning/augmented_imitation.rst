@@ -22,12 +22,25 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
 .. note::
     The ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0`` environment is similar to the standard visuomotor environment (``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0``), but with the addition of segmentation masks, depth maps, and normal maps in the generated dataset. These additional modalities are required to get the best results from the visual augmentation done using Cosmos.
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-    --device cpu --enable_cameras --num_envs 10 --generation_num_trials 1000 \
-    --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
-    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+          --device cpu --num_envs 10 --generation_num_trials 1000 \
+          --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
+          --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+          --device cpu --num_envs 10 --generation_num_trials 1000 \
+          --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
+          --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
 
 The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
 
@@ -306,12 +319,25 @@ Training an agent
 
 Using the generated data, we can now train a visuomotor BC agent for ``IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos``:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-    --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
-    --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
-    --name bc_rnn_image_franka_stack_mimic_cosmos
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python scripts/imitation_learning/robomimic/train.py \
+          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
+          --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
+          --name bc_rnn_image_franka_stack_mimic_cosmos
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
+          --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
+          --name bc_rnn_image_franka_stack_mimic_cosmos
 
 .. note::
    By default the trained models and logs will be saved to ``IsaacLab/logs/robomimic``.
@@ -385,16 +411,31 @@ Below is an explanation of the different settings used for evaluation:
 
 Example usage for the cube stacking task:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
-    --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
-    --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
-    --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
-    --log_file result \
-    --enable_cameras \
-    --seeds 0 \
-    --num_rollouts 15
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python scripts/imitation_learning/robomimic/robust_eval.py \
+          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
+          --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
+          --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
+          --log_file result \
+          --seeds 0 \
+          --num_rollouts 15
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
+          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
+          --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
+          --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
+          --log_file result \
+          --seeds 0 \
+          --num_rollouts 15
 
 .. tip::
    Verify that the models directory is not empty. By default, the training script saves models every 20 epochs starting from epoch 100.

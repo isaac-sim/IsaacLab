@@ -16,9 +16,19 @@ running the following command:
       .. note::
          Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/list_envs.py --keyword <search_term>
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -39,9 +49,19 @@ To also see the available presets for each environment, pass ``--show_presets``:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/list_envs.py --show_presets
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -127,8 +147,8 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  |                             |                                                                         | ``newton_kamino``            |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-presets|   | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
-    |                  |                             | and perceptive inputs. Select data type via ``presets=``. Requires      | ``physx``,                   |
-    |                  |                             | running with ``--enable_cameras``.                                      | ``newton_mjwarp``,           |
+    |                  |                             | and perceptive inputs. Select data type via ``presets=``.               | ``physx``,                   |
+    |                  |                             |                                                                         | ``newton_mjwarp``,           |
     |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     |                  |                             |                                                                         | **renderer=**                |
     |                  |                             |                                                                         | ``isaacsim_rtx``,            |
@@ -141,8 +161,8 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-link|      | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             | from raw RGB/depth observations or features extracted by pre-trained    | ``physx``,                   |
-    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``. Requires      | ``newton_mjwarp``            |
-    |                  |                             | running with ``--enable_cameras``.                                      | **presets=** ``rgb``,        |
+    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``.               | ``newton_mjwarp``            |
+    |                  |                             |                                                                         | **presets=** ``rgb``,        |
     |                  |                             |                                                                         | ``depth``, ``resnet18``,     |
     |                  |                             |                                                                         | ``theia_tiny``               |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
@@ -225,7 +245,7 @@ for the lift-cube environment:
     |                         | |cube-shadow-lstm-link|      |                                                                             |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  | **physics=** ``physx``,      |
-    |                         |                              | Requires running with ``--enable_cameras``.                                 | ``newton_mjwarp``            |
+    |                         |                              |                                                                             | ``newton_mjwarp``            |
     |                         |                              |                                                                             | **renderer=**                |
     |                         |                              |                                                                             | ``isaacsim_rtx``,            |
     |                         |                              |                                                                             | ``newton_renderer``,         |
@@ -512,7 +532,8 @@ Environments based on legged locomotion tasks.
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot            | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
@@ -520,7 +541,8 @@ Environments based on legged locomotion tasks.
     |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     |                              |                                              |                                                                              | (Manager-based only)         |
     |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
@@ -529,25 +551,33 @@ Environments based on legged locomotion tasks.
     |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-d|    | |velocity-rough-anymal-d-link|               | Track a velocity command on rough terrain with the Anymal D robot            | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
+    |                              | |velocity-rough-cassie-link|                 | Track a velocity command on rough terrain with the Cassie robot              | **physics=** ``physx``,      |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-a1|   | |velocity-flat-unitree-a1-link|              | Track a velocity command on flat terrain with the Unitree A1 robot           | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-a1|  | |velocity-rough-unitree-a1-link|             | Track a velocity command on rough terrain with the Unitree A1 robot          | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-go1|  | |velocity-flat-unitree-go1-link|             | Track a velocity command on flat terrain with the Unitree Go1 robot          | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-go1| | |velocity-rough-unitree-go1-link|            | Track a velocity command on rough terrain with the Unitree Go1 robot         | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-go2|  | |velocity-flat-unitree-go2-link|             | Track a velocity command on flat terrain with the Unitree Go2 robot          | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-go2| | |velocity-rough-unitree-go2-link|            | Track a velocity command on rough terrain with the Unitree Go2 robot         | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-spot|         | |velocity-flat-spot-link|                    | Track a velocity command on flat terrain with the Boston Dynamics Spot robot | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
@@ -556,13 +586,15 @@ Environments based on legged locomotion tasks.
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-h1|          | |velocity-rough-h1-link|                     | Track a velocity command on rough terrain with the Unitree H1 robot          | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-g1|           | |velocity-flat-g1-link|                      | Track a velocity command on flat terrain with the Unitree G1 robot           | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-g1|          | |velocity-rough-g1-link|                     | Track a velocity command on rough terrain with the Unitree G1 robot          | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |dr-legs|                    | |dr-legs-hold-pose-link|                     | Hold a target pose or walk with the Disney Research Legs robot               | **physics=**                 |
     |                              |                                              |                                                                              | ``newton_kamino``            |
@@ -586,6 +618,7 @@ Environments based on legged locomotion tasks.
 
 .. |velocity-flat-anymal-d-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-AnymalD <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/flat_env_cfg.py>`
 .. |velocity-rough-anymal-d-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-AnymalD <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/rough_env_cfg.py>`
+.. |velocity-rough-cassie-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-Cassie <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/cassie/rough_env_cfg.py>`
 
 .. |velocity-flat-unitree-a1-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-UnitreeA1 <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/flat_env_cfg.py>`
 .. |velocity-rough-unitree-a1-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Rough-UnitreeA1 <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/rough_env_cfg.py>`
@@ -607,8 +640,8 @@ Environments based on legged locomotion tasks.
 .. |dr-legs-hold-pose-link| replace:: :isaaclab-source:`IsaacContrib-DrLegs-HoldPose <source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/hold_pose_env_cfg.py>`
 .. |dr-legs-walk-link| replace:: :isaaclab-source:`IsaacContrib-DrLegs-Walk <source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/walk_env_cfg.py>`
 
-.. |velocity-flat-digit-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-Digit <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/flat_env_cfg.py>`
-.. |velocity-rough-digit-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-Digit <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/rough_env_cfg.py>`
+.. |velocity-flat-digit-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-Digit <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/digit/flat_env_cfg.py>`
+.. |velocity-rough-digit-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Rough-Digit <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/digit/rough_env_cfg.py>`
 .. |tracking-loco-manip-digit-link| replace:: :isaaclab-source:`IsaacContrib-Tracking-LocoManip-Digit <source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_tracking/config/digit/loco_manip_env_cfg.py>`
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
@@ -1141,11 +1174,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Flat-Digit
-      - Isaac-Velocity-Flat-Digit-Play
-      - Manager Based
-      - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Flat-G1
       - Isaac-Velocity-Flat-G1-Play
       - Manager Based
@@ -1200,11 +1228,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-Cassie-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Velocity-Rough-Digit
-      - Isaac-Velocity-Rough-Digit-Play
-      - Manager Based
-      - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Rough-G1
       - Isaac-Velocity-Rough-G1-Play
@@ -1572,7 +1595,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - IsaacContrib-Tracking-LocoManip-Digit-Play
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``physx``
     * - IsaacContrib-Velocity-Flat-AnymalB
       - IsaacContrib-Velocity-Flat-AnymalB-Play
       - Manager Based
@@ -1588,6 +1611,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-Velocity-Flat-Digit
+      - IsaacContrib-Velocity-Flat-Digit-Play
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``physx``
     * - IsaacContrib-Velocity-Flat-UnitreeA1
       - IsaacContrib-Velocity-Flat-UnitreeA1-Play
       - Manager Based
@@ -1613,6 +1641,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-Velocity-Rough-Digit
+      - IsaacContrib-Velocity-Rough-Digit-Play
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``physx``
     * - IsaacContrib-Velocity-Rough-UnitreeA1
       - IsaacContrib-Velocity-Rough-UnitreeA1-Play
       - Manager Based

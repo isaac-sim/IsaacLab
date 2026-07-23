@@ -14,7 +14,7 @@ This demo shows the Isaac Lab MPM scene path:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/demos/mpm/particle_pour.py --device cuda:0 --visualizer newton
+    uv run python scripts/demos/mpm/particle_pour.py --device cuda:0 --visualizer newton
 """
 
 from __future__ import annotations

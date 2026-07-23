@@ -12,42 +12,11 @@ keywords = ["experience", "app", "usd"]
 
 [dependencies]
 # Isaac Sim extensions
-"isaacsim.app.about" = {}
-"isaacsim.examples.browser" = {}
-"isaacsim.core.cloner" = {}
-"isaacsim.core.deprecation_manager" = { order = -100 }
-"isaacsim.core.experimental.materials" = {}
-"isaacsim.core.experimental.objects" = {}
-"isaacsim.core.experimental.primdata" = {}
-"isaacsim.core.experimental.prims" = {}
-"isaacsim.core.experimental.utils" = {}
-"isaacsim.core.nodes" = {}
-"isaacsim.core.rendering_manager" = {}
-"isaacsim.core.simulation_manager" = {}
-"isaacsim.core.throttling" = {}
 "isaacsim.core.version" = {}
-"isaacsim.gui.property" = {}
-"isaacsim.replicator.behavior" = {}
-"isaacsim.robot.policy.examples" = {}
-"isaacsim.robot.schema" = {}
-"isaacsim.robot.experimental.wheeled_robots" = { optional = true }
-"isaacsim.robot.wheeled_robots.nodes" = { optional = true }
-"isaacsim.sensors.experimental.physics" = {}
-"isaacsim.sensors.experimental.rtx" = {}
+"isaacsim.gui.components" = {}
 "isaacsim.simulation_app" = {}
-"isaacsim.storage.native" = {}
-"isaacsim.util.debug_draw" = {}
-
-# Isaac Sim Extra
-"isaacsim.asset.importer.mjcf" = {}
-"isaacsim.asset.importer.urdf" = {}
-"omni.physx.bundle" = {}
-"omni.physx.tensors" = {}
-"omni.replicator.core" = {}
-"omni.replicator.replicator_yaml" = {}
-"omni.syntheticdata" = {}
-"semantics.schema.editor" = {}
-"semantics.schema.property" = {}
+# USD schema plugins must load before the schema registry is first accessed.
+"omni.usd.schema.mujoco" = {}
 
 # Kit based editor extensions
 "omni.anim.curve.core" = {}
@@ -82,6 +51,7 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.viewport.menubar.render" = {}
 "omni.kit.viewport.menubar.settings" = {}
 "omni.kit.viewport.scene_camera_model" = {}
+"omni.kit.viewport.utility" = {}
 "omni.kit.viewport.window" = {}
 "omni.kit.window.console" = {}
 "omni.kit.window.content_browser" = {}
@@ -90,7 +60,11 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.window.stage" = {}
 "omni.kit.window.status_bar" = {}
 "omni.kit.window.toolbar" = {}
+"omni.physics" = {}
 "omni.physics.stageupdate" = {}
+"omni.physx" = {}
+"omni.physx.tensors" = {}
+"omni.physx.fabric" = {}
 "omni.rtx.settings.core" = {}
 "omni.uiaudio" = {}
 "omni.usd.metrics.assembler.ui" = {}
@@ -252,15 +226,14 @@ exts."omni.replicator.core".Orchestrator.enabled = false
 # NuRec
 omni.rtx.nre.compositing.rendererHints = 3
 
-# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
-app.extensions.excluded = ["omni.kit.pip_archive", "omni.isaac.ml_archive", "isaacsim.pip.newton", "omni.warp.core"]
-
 [settings.app.livestream]
 outDirectory = "${data}"
 
 # Extensions
 ###############################
 [settings.app.extensions]
+# explicitly disable bundled dependency extensions to prevent conflicting dependencies
+excluded = ["omni.kit.pip_archive", "omni.isaac.ml_archive", "isaacsim.pip.newton", "omni.warp.core"]
 skipPublishVerification = false
 registryEnabled = true
 

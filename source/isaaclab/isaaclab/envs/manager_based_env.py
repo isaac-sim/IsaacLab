@@ -658,3 +658,5 @@ class ManagerBasedEnv:
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
+
+        self.sim.render_context.reset_scene_state_cadence()

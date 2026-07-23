@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
+from isaaclab_teleop import HapticFeedbackCfg, IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -14,6 +14,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -289,6 +290,20 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # Humanoid robot w/ arms higher
     robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
+    # Per-hand contact sensors over all finger links, used to drive controller
+    # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
+    # on the robot spawn, enabled in the env __post_init__.
+    left_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/left_hand_.*_link",
+        update_period=0.0,
+        history_length=3,
+    )
+    right_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/right_hand_.*_link",
+        update_period=0.0,
+        history_length=3,
+    )
+
     # Ground plane
     ground = AssetBaseCfg(
         prim_path="/World/GroundPlane",
@@ -441,4 +456,12 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=_build_g1_locomanipulation_pipeline,
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+        )
+
+        # Enable contact reporting on the robot so the per-hand ContactSensors
+        # report finger forces, and drive controller haptics from them.
+        self.scene.robot.spawn.activate_contact_sensors = True
+        self.haptic_feedback = HapticFeedbackCfg(
+            left_sensor_name="left_hand_contact",
+            right_sensor_name="right_hand_contact",
         )

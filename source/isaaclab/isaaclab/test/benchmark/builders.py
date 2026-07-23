@@ -12,11 +12,13 @@ serialised by :func:`~isaaclab.test.benchmark.serialize.write_bundle_file`.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from datetime import datetime
 
 from isaaclab.test.benchmark.metrics import ema, mean_std_peak
 from isaaclab.test.benchmark.schema import (
+    EnvironmentStepTiming,
     Hardware,
     Learning,
     LearningCurve,
@@ -116,6 +118,11 @@ def build_run_identity(
     )
 
 
+def _with_effective_mean(stats: MeanStd, effective_mean: float) -> MeanStd:
+    """Return statistics with an effective aggregate mean."""
+    return MeanStd(mean=effective_mean, std=stats.std, peak=stats.peak)
+
+
 def build_runtime(
     *,
     startup_time_s: StartupTime,
@@ -123,6 +130,11 @@ def build_runtime(
     collection_fps: Sequence[float],
     total_fps: Sequence[float],
     steps_per_iteration: int,
+    aggregate_throughput: bool = False,
+    frames_per_environment_step: int | None = None,
+    environment_step_times_s: Sequence[float] | None = None,
+    simulation_step_times_s: Sequence[float] | None = None,
+    simulation_step_calls: int | None = None,
 ) -> Runtime:
     """Assemble a :class:`~isaaclab.test.benchmark.schema.Runtime` from raw series.
 
@@ -133,6 +145,14 @@ def build_runtime(
             [frames/s].
         total_fps: Per-iteration end-to-end throughput [frames/s].
         steps_per_iteration: Environment steps collected per iteration.
+        aggregate_throughput: When ``True``, report throughput means as total
+            completed steps divided by total wall time. Standard deviation remains
+            the ordinary sample deviation of the per-iteration rates, and peak remains the maximum per-iteration
+            throughput.
+        frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
+        environment_step_times_s: Positive per-environment-step wall times [s].
+        simulation_step_times_s: Synchronized simulation wall times per environment step [s].
+        simulation_step_calls: Number of measured simulation-step calls.
 
     Returns:
         Populated :class:`~isaaclab.test.benchmark.schema.Runtime` with
@@ -140,15 +160,88 @@ def build_runtime(
     """
     iter_times = list(iteration_times_s)
     iter_per_s = [1.0 / t for t in iter_times if t > 0]
+    collection_fps_agg = mean_std_peak(collection_fps)
+    total_fps_agg = mean_std_peak(total_fps)
+    iterations_per_s_agg = mean_std_peak(iter_per_s)
+    if aggregate_throughput and iter_times:
+        total_wall_time_s = float(sum(iter_times))
+        effective_iterations_per_s = len(iter_times) / total_wall_time_s
+        effective_fps = steps_per_iteration * effective_iterations_per_s
+        collection_fps_agg = _with_effective_mean(collection_fps_agg, effective_fps)
+        total_fps_agg = _with_effective_mean(total_fps_agg, effective_fps)
+        iterations_per_s_agg = _with_effective_mean(iterations_per_s_agg, effective_iterations_per_s)
+    if environment_step_times_s is not None and len(environment_step_times_s) == 0:
+        raise ValueError(
+            "No environment-step timing samples remained after warm-up. The workload may have stopped before "
+            "warm-up completed; reduce the warm-up count or ensure more environment steps execute."
+        )
+    if environment_step_times_s is None and (simulation_step_times_s is not None or simulation_step_calls is not None):
+        raise ValueError("environment_step_times_s is required with simulation timing")
+    environment_step_timing = None
+    if environment_step_times_s is not None:
+        if frames_per_environment_step is None or frames_per_environment_step <= 0:
+            raise ValueError("frames_per_environment_step must be greater than zero")
+        environment_samples = list(environment_step_times_s)
+        if any(value <= 0 for value in environment_samples):
+            raise ValueError("environment_step_times_s must contain only positive samples")
+        total_environment_time_s = sum(environment_samples)
+        environment_fps_samples = [frames_per_environment_step / value for value in environment_samples]
+        environment_step_fps = mean_std_peak(environment_fps_samples)
+        if total_environment_time_s > 0:
+            environment_step_fps = _with_effective_mean(
+                environment_step_fps,
+                frames_per_environment_step * len(environment_samples) / total_environment_time_s,
+            )
+
+        simulation_step_time_s = None
+        outside_simulation_step_time_s = None
+        outside_simulation_step_fraction = None
+        if simulation_step_times_s is not None:
+            if simulation_step_calls is None:
+                raise ValueError("simulation_step_calls is required with simulation_step_times_s")
+            if simulation_step_calls <= 0:
+                raise ValueError("simulation_step_calls must be greater than zero")
+            simulation_samples = list(simulation_step_times_s)
+            if not simulation_samples or any(value <= 0 for value in simulation_samples):
+                raise ValueError("simulation_step_times_s must contain only positive samples")
+            if len(environment_samples) != len(simulation_samples):
+                raise ValueError("Environment and simulation timing samples must have the same length")
+            outside_simulation_samples = []
+            for total, simulation in zip(environment_samples, simulation_samples):
+                outside = total - simulation
+                if outside < 0.0:
+                    if not math.isclose(total, simulation, rel_tol=1e-9, abs_tol=1e-12):
+                        raise ValueError("simulation time cannot exceed environment-step time")
+                    # Preserve a non-negative partition for clock-resolution noise only.
+                    outside = 0.0
+                outside_simulation_samples.append(outside)
+            simulation_step_time_s = mean_std_peak(simulation_samples)
+            outside_simulation_step_time_s = mean_std_peak(outside_simulation_samples)
+            outside_simulation_step_fraction = sum(outside_simulation_samples) / total_environment_time_s
+        elif simulation_step_calls is not None:
+            raise ValueError("simulation_step_times_s is required with simulation_step_calls")
+
+        environment_step_timing = EnvironmentStepTiming(
+            environment_step_time_s=mean_std_peak(environment_samples),
+            environment_step_fps=environment_step_fps,
+            simulation_step_time_s=simulation_step_time_s,
+            outside_simulation_step_time_s=outside_simulation_step_time_s,
+            outside_simulation_step_fraction=outside_simulation_step_fraction,
+            environment_step_calls=len(environment_samples),
+            simulation_step_calls=simulation_step_calls,
+            measurement_mode=("serialized_synchronized" if simulation_step_times_s is not None else "host_return"),
+        )
+
     return Runtime(
         startup_time_s=startup_time_s,
         iterations_completed=len(iter_times),
         total_wall_time_s=float(sum(iter_times)),
         steps_per_iteration=steps_per_iteration,
         iteration_time_s=mean_std_peak(iter_times),
-        collection_fps=mean_std_peak(collection_fps),
-        total_fps=mean_std_peak(total_fps),
-        iterations_per_s=mean_std_peak(iter_per_s),
+        collection_fps=collection_fps_agg,
+        total_fps=total_fps_agg,
+        iterations_per_s=iterations_per_s_agg,
+        environment_step_timing=environment_step_timing,
     )
 
 
