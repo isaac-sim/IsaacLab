@@ -12,14 +12,14 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
-    ALLEGRO_ACTUATED_JOINT_NAMES,
-    ALLEGRO_FINGERTIP_BODY_NAMES,
     GOAL_OBJECT_CFG,
     OBJECT_CFG,
     ROBOT_CFG,
     ObjectCfg,
     PhysicsCfg,
 )
+
+from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass

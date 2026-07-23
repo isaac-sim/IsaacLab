@@ -29,39 +29,6 @@ from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
-SHADOW_FINGERTIP_BODY_NAMES: list[str] = [
-    "robot0_ffdistal",
-    "robot0_mfdistal",
-    "robot0_rfdistal",
-    "robot0_lfdistal",
-    "robot0_thdistal",
-]
-"""Shadow Hand fingertip body names (identical on every backend asset)."""
-
-SHADOW_ACTUATED_JOINT_NAMES: list[str] = [
-    "robot0_WRJ1",
-    "robot0_WRJ0",
-    "robot0_FFJ3",
-    "robot0_FFJ2",
-    "robot0_FFJ1",
-    "robot0_MFJ3",
-    "robot0_MFJ2",
-    "robot0_MFJ1",
-    "robot0_RFJ3",
-    "robot0_RFJ2",
-    "robot0_RFJ1",
-    "robot0_LFJ4",
-    "robot0_LFJ3",
-    "robot0_LFJ2",
-    "robot0_LFJ1",
-    "robot0_THJ4",
-    "robot0_THJ3",
-    "robot0_THJ2",
-    "robot0_THJ1",
-    "robot0_THJ0",
-]
-"""Shadow Hand actuated joint names, in the Direct task's actuation order."""
-
 
 @configclass
 class NewtonEventCfg:
@@ -171,7 +138,8 @@ class PhysxEventCfg:
 class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
     newton_mjwarp = NewtonEventCfg()
-    default = physx
+    ovphysx = physx  # OvPhysX is PhysX-based; reuse the PhysX randomization terms
+    default = newton_mjwarp
     newton_kamino = newton_mjwarp
 
 
@@ -254,7 +222,7 @@ class ShadowHandRobotCfg(PresetCfg):
             joint_pos={".*": 0.0},
         ),
     )
-    default = physx
+    default = newton_mjwarp
     newton_kamino = newton_mjwarp
 
 
@@ -294,7 +262,8 @@ class ObjectCfg(PresetCfg):
         actuators={},
         articulation_root_prim_path="",
     )
-    default = physx
+    ovphysx = physx  # OvPhysX is PhysX-based; use the rigid-body cube, not Newton's articulation
+    default = newton_mjwarp
     newton_kamino = newton_mjwarp
 
 
@@ -307,20 +276,17 @@ class PhysicsCfg(PresetCfg):
     )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            solver="newton",
             integrator="implicitfast",
             njmax=200,
             nconmax=70,
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
-            iterations=100,
         ),
         num_substeps=2,
-        debug_mode=False,
     )
     ovphysx = OvPhysxCfg()
-    default = physx
+    default = newton_mjwarp
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128))
 
 

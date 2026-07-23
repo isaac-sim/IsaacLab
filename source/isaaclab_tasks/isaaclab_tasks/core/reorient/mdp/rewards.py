@@ -172,25 +172,23 @@ def reorient_reward(
         consecutive successes.
     """
     goal_distance = torch.linalg.norm(object_pos - target_pos, ord=2, dim=-1)
-    goal_resets = torch.where(
-        goal_reached,
-        torch.ones_like(reset_goal_buf),
-        reset_goal_buf,
-    )
+    goal_resets = reset_goal_buf | goal_reached
     successes = successes + goal_resets
+    fell = goal_distance >= fall_distance
     reward = (
         goal_distance * distance_scale
         + rotation_scale / (rotation_distance + rotation_epsilon)
-        + torch.sum(actions**2, dim=-1) * action_penalty_scale
+        + actions.square().sum(dim=-1) * action_penalty_scale
+        + goal_resets.to(goal_distance.dtype) * success_bonus
+        + fell.to(goal_distance.dtype) * fall_penalty
     )
-    reward = torch.where(goal_resets == 1, reward + success_bonus, reward)
-    reward = torch.where(goal_distance >= fall_distance, reward + fall_penalty, reward)
-    resets = torch.where(goal_distance >= fall_distance, torch.ones_like(reset_buf), reset_buf)
-    num_resets = torch.sum(resets)
-    finished_successes = torch.sum(successes * resets.float())
+    resets = reset_buf | fell
+    num_resets = resets.sum()
+    finished_successes = (successes * resets).sum()
+    mean_successes = finished_successes / num_resets.clamp_min(1)
     consecutive_successes = torch.where(
         num_resets > 0,
-        averaging_factor * finished_successes / num_resets + (1.0 - averaging_factor) * consecutive_successes,
+        averaging_factor * mean_successes + (1.0 - averaging_factor) * consecutive_successes,
         consecutive_successes,
     )
     return reward, goal_resets, successes, consecutive_successes
