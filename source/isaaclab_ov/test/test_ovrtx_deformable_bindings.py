@@ -89,9 +89,6 @@ class _FakeOVRTXBackend:
     def write_attribute(self, **kwargs):
         self.writes.append(kwargs)
 
-    def write_array_attribute(self, **kwargs):
-        self.writes.append(kwargs)
-
 
 def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, _FakeOVRTXBackend]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
