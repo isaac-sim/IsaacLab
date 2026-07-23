@@ -20,7 +20,7 @@ black-box test.
 
 ## Existing Isaac Lab implementation status
 
-`source/isaaclab_newton/test/assets/test_articulation_kamino_joint_dynamics.py` is the reference partial
+`source/isaaclab_newton/test/physics/parameter_validation/test_joint_dynamics.py` is the reference
 implementation of `PROFILE-DOF`, `FIX-DOF-STEP`, `FIX-LIMIT-POS`, and partial `FIX-PASSIVE`. Its Phase 0
 classification is:
 
@@ -33,6 +33,20 @@ classification is:
 | `CMD-02` | `N / N / I` | `test_cmd_02_velocity_reference_single_step` | Analytical pure-velocity-target response after one step |
 | `JOINT-04` | `I / N / I` | `test_joint_04_position_limit` | USD and in-place runtime upper-limit trajectories; `runtime-error` asserts topology-change rejection |
 | `JOINT-08` | `I / T / T` | `test_joint_08_passive_damping_usd_single_step` | Analytical single-step velocity decay from USD-authored passive damping; cfg/runtime blocked on [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517) |
+
+Phase 1b adds the following Kamino evidence in
+`source/isaaclab_newton/test/physics/parameter_validation/test_free_body.py` and `test_joint_dynamics.py`:
+
+| Parameter ID | Kamino disposition (USD / Python / runtime) | Physical evidence |
+|---|---|---|
+| `SIM-01` | `N / I / I` | Discrete free-fall position and COM velocity; USD is not an independent authoring path because `SimulationCfg.gravity` is always present and `NewtonManager` overwrites imported scene gravity at finalize |
+| `STATE-01` | `X / I / I` | Link pose immediately after reset/live write and after an unforced step |
+| `STATE-02` | `X / I / I` | COM spatial velocity immediately after reset/live write and after an unforced step |
+| `BODY-01` | `I / I / X` | COM velocity under a known force; runtime inverse-mass refresh strict-xfails |
+| `BODY-02` | `I / T / X` | Angular velocity under two torque axes with rotated non-spherical inertia; no Python schema exists and runtime inverse-inertia refresh strict-xfails |
+| `BODY-03` | `I / T / X` | Force at the expected COM translates without rotation; no Python schema exists and the cache-primed runtime writer strict-xfails |
+| `JOINT-02` | `N / I / I` | Reset-default/live position immediately and after one unforced step |
+| `JOINT-03` | `N / I / I` | Reset-default/live velocity and the resulting one-step coast |
 
 The stiffness, damping, and armature cases cover revolute and prismatic joints through USD,
 `ImplicitActuatorCfg`, and runtime writers. The command rows have only a runtime authoring path; the `authoring`
@@ -89,7 +103,7 @@ exercise additional Isaac Lab parameters in the current scope, so they are not p
 
 | Parameter | Closest Newton evidence | Evidence strength | Remaining Isaac Lab or backend gap |
 |---|---|---|---|
-| Gravity vector | Free fall; projectile; runtime gravity | Analytical at build time; behavioral at runtime | Exercise USD, Python override, and runtime write for each backend |
+| Gravity vector | Free fall; projectile; runtime gravity | Analytical at build time; behavioral at runtime | Newton backends: exercise `SimulationCfg.gravity` and runtime write only; USD scene gravity is `N` because cfg always owns model gravity |
 | Initial body pose | Projectile initial position | Analytical at construction | Distinguish reset default from live-state write |
 | Initial body spatial velocity | Projectile and center-of-mass motion | Analytical | Distinguish authored reset velocity from current-state velocity |
 | Mass | Force-driven free/prismatic body | Analytical | Repeat through all supported authoring paths |
@@ -248,6 +262,30 @@ This evidence covers `isaaclab_physx`, not `isaaclab_ovphysx`.
 
 ## Collected implementation gaps and observations
 
+- **Newton gravity has no independent USD authoring path.** Every Isaac Lab simulation carries a
+  `SimulationCfg`, and :class:`~isaaclab_newton.physics.NewtonManager` sets ``model.gravity`` from
+  :attr:`~isaaclab.sim.SimulationCfg.gravity` after finalize, overwriting USD-imported scene gravity. `SIM-01`
+  USD is therefore `N`, not a defect cell.
+- **Kamino USD scene state is not authoritative for free-body reset defaults.** The Phase 1b strict expected
+  failures show that hard reset restores floating-base joint state rather than the authored USD link pose and
+  velocity.
+- **Kamino inertial runtime notifications do not refresh every derived quantity.** `set_masses_index` and
+  `set_inertias_index` update public storage and emit `BODY_INERTIAL_PROPERTIES`, but the measured acceleration
+  still uses stale inverse mass/inertia. The corresponding physical tests strict-xfail. Runtime
+  `set_coms_index` does update Kamino's COM-dependent model data, but Isaac Lab's stale world COM cache can
+  corrupt a force-at-COM response before the solver step.
+- **Kamino USD COM import preserves the authored offset with the pinned Newton revision.**
+  [newton-physics/newton#3605](https://github.com/newton-physics/newton/pull/3605) fixed preserve-reset conversion
+  between Newton body-origin poses and Kamino center-of-mass poses, so the USD physical test now passes.
+- **The Newton rigid-object runtime COM writer leaves derived world COM data stale.** If
+  `body_com_pos_w` is populated before `set_coms_index`, the writer changes Newton's `body_com` model array and
+  emits `BODY_INERTIAL_PROPERTIES` but does not invalidate the `root_com_pose_w` timestamp. `WrenchComposer`
+  then reads the stale world COM position and converts a force applied at the new COM into a spurious torque.
+  The cache-primed physical test strict-xfails; this is an Isaac Lab cache-invalidation defect rather than a
+  Kamino notification defect.
+- **Common Python mass schemas remain incomplete for Phase 1.** `MassCfg` and `MassPropertiesCfg` expose mass
+  and density but not inertia, inertial-frame orientation, or center-of-mass position. `BODY-02` and `BODY-03`
+  Python override cells therefore remain `T`.
 - **Explicit actuator gains bypass model notification by design.** `write_actuator_stiffness_to_sim` and
   `write_actuator_damping_to_sim` patch active-controller `kp`/`kd` through
   `ArticulationView.set_actuator_parameter`. They do not call `add_model_change` because these controller-owned
