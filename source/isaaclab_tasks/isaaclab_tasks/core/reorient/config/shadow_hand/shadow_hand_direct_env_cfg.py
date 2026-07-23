@@ -17,36 +17,28 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     OPENAI_ACTION_NOISE_CFG,
     OPENAI_OBSERVATION_NOISE_CFG,
     ROBOT_CFG,
-    SHADOW_ACTUATED_JOINT_NAMES,
-    SHADOW_FINGERTIP_BODY_NAMES,
     ObjectCfg,
     PhysicsCfg,
     ShadowHandEventCfg,
     ShadowHandRobotCfg,
 )
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import preset
+
+from isaaclab_assets.robots.shadow_hand import SHADOW_ACTUATED_JOINT_NAMES, SHADOW_FINGERTIP_BODY_NAMES
 
 
 @configclass
-class ShadowHandSceneCfg(PresetCfg):
-    """Scene configuration presets for the shadow hand environment.
+class ShadowHandSceneCfg(InteractiveSceneCfg):
+    """Shadow Direct scene defaults.
 
-    PhysX supports ``clone_in_fabric=True`` for faster scene cloning via the Fabric layer.
-    Newton does not support Fabric cloning, so ``clone_in_fabric`` must be ``False``.
+    ``clone_in_fabric`` is the only backend-varying field: PhysX/OvPhysX use Fabric
+    cloning for speed; Newton does not support it. The per-backend value is selected
+    inline at the scene field via :func:`~isaaclab_tasks.utils.preset`.
     """
 
-    @configclass
-    class SceneCfg(InteractiveSceneCfg):
-        """Shadow Direct scene defaults; backend presets only set ``clone_in_fabric``."""
-
-        num_envs = 8192
-        env_spacing = 0.75
-        replicate_physics = True
-
-    physx: InteractiveSceneCfg = SceneCfg(clone_in_fabric=True)
-    newton_mjwarp: InteractiveSceneCfg = SceneCfg(clone_in_fabric=False)
-    default: InteractiveSceneCfg = physx
-    newton_kamino = newton_mjwarp
+    num_envs = 8192
+    env_spacing = 0.75
+    replicate_physics = True
 
 
 @configclass
@@ -77,8 +69,14 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     object_cfg: ObjectCfg = OBJECT_CFG
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
-    # scene — use ShadowHandSceneCfg so that presets=newton_mjwarp disables clone_in_fabric automatically
-    scene: ShadowHandSceneCfg = ShadowHandSceneCfg()
+    # scene — clone_in_fabric is the only backend-varying field (Newton cannot use Fabric cloning)
+    scene: InteractiveSceneCfg = preset(
+        default=ShadowHandSceneCfg(clone_in_fabric=False),
+        physx=ShadowHandSceneCfg(clone_in_fabric=True),
+        ovphysx=ShadowHandSceneCfg(clone_in_fabric=True),
+        newton_mjwarp=ShadowHandSceneCfg(clone_in_fabric=False),
+        newton_kamino=ShadowHandSceneCfg(clone_in_fabric=False),
+    )
 
     # reset
     reset_position_noise = 0.01  # range of position at reset
