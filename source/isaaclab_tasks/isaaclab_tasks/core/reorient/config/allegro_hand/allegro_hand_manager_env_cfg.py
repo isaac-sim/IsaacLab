@@ -20,8 +20,6 @@ from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
-    ALLEGRO_ACTUATED_JOINT_NAMES,
-    ALLEGRO_FINGERTIP_BODY_NAMES,
     GOAL_OBJECT_CFG,
     OBJECT_CFG,
     ROBOT_CFG,
@@ -30,6 +28,8 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import
 )
 from isaaclab_tasks.core.reorient.reorient_common import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
 from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass
@@ -55,7 +55,7 @@ class AllegroCubeSceneCfg(PresetCfg):
     physx = SceneCfg(clone_in_fabric=True)
     newton_mjwarp = SceneCfg(clone_in_fabric=False)
     ovphysx = physx
-    default = physx
+    default = newton_mjwarp
 
     def set_num_envs(self, num_envs: int) -> None:
         """Set the environment count on every backend alternative."""

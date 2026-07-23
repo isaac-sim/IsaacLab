@@ -21,8 +21,6 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     GOAL_OBJECT_CFG,
     OPENAI_ACTION_NOISE_CFG,
     OPENAI_OBSERVATION_NOISE_CFG,
-    SHADOW_ACTUATED_JOINT_NAMES,
-    SHADOW_FINGERTIP_BODY_NAMES,
     NewtonEventCfg,
     PhysicsCfg,
     PhysxEventCfg,
@@ -33,6 +31,8 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
 )
 from isaaclab_tasks.core.reorient.reorient_common import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
 from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.shadow_hand import SHADOW_ACTUATED_JOINT_NAMES, SHADOW_FINGERTIP_BODY_NAMES
 
 
 @configclass
@@ -116,7 +116,7 @@ class ShadowHandOpenAIManagerSceneCfg(PresetCfg):
     newton_mjwarp = SceneCfg(clone_in_fabric=False)
     ovphysx = physx
     newton_kamino = newton_mjwarp
-    default = physx
+    default = newton_mjwarp
 
 
 _OPENAI_RESET_PARAMS = {
@@ -149,7 +149,7 @@ class OpenAIEventCfg(PresetCfg):
     newton_mjwarp = OpenAINewtonEventCfg()
     ovphysx = physx
     newton_kamino = newton_mjwarp
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass

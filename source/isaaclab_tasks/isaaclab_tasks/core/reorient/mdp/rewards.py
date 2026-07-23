@@ -15,11 +15,72 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 
-from isaaclab_tasks.core.utils import EpisodeErrorRecorder
-
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+class EpisodeErrorRecorder:
+    """Record the minimum physical error reached in each episode.
+
+    The recorder deliberately contains no success threshold. This keeps the
+    measured task error separate from the policy that converts it to a success
+    result.
+    """
+
+    def __init__(self, num_envs: int, device: str | torch.device):
+        """Initialize per-environment error buffers.
+
+        Args:
+            num_envs: Number of parallel environments.
+            device: Device on which to store the buffers.
+        """
+        self.minimum_error = torch.full((num_envs,), torch.inf, device=device)
+        self._has_sample = torch.zeros(num_envs, dtype=torch.bool, device=device)
+
+    def update(self, error: torch.Tensor) -> None:
+        """Record one error sample for every environment.
+
+        Args:
+            error: Per-environment physical errors, in task-defined units.
+
+        Raises:
+            ValueError: If :paramref:`error` does not match the recorder shape.
+        """
+        if error.shape != self.minimum_error.shape:
+            raise ValueError(f"Expected error shape {self.minimum_error.shape}, got {error.shape}.")
+        finite = torch.isfinite(error)
+        # non-finite samples keep the running minimum; boolean advanced indexing would
+        # force a host synchronization every step, so substitute-and-minimum instead
+        torch.minimum(self.minimum_error, torch.where(finite, error, self.minimum_error), out=self.minimum_error)
+        self._has_sample |= finite
+
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> dict[str, torch.Tensor]:
+        """Summarize and clear completed episodes.
+
+        Args:
+            env_ids: Environments whose episodes completed, or ``None`` for all.
+
+        Returns:
+            Mean, median, and 90th-percentile episode-minimum errors as 0-dim
+            device tensors, so logging them does not force a host
+            synchronization in the reset path. The result is empty when none of
+            the selected environments has a sample.
+        """
+        if env_ids is None:
+            env_ids = slice(None)
+        valid = self._has_sample[env_ids]
+        values = self.minimum_error[env_ids][valid]
+        statistics = {}
+        if values.numel() > 0:
+            statistics = {
+                "mean": values.mean(),
+                "median": values.median(),
+                "p90": torch.quantile(values, 0.9),
+            }
+        self.minimum_error[env_ids] = torch.inf
+        self._has_sample[env_ids] = False
+        return statistics
 
 
 @torch.jit.script
