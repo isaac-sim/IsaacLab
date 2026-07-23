@@ -778,8 +778,7 @@ class RigidObject(BaseRigidObject):
             outputs=[self.data._body_com_pose_b.data],
             device=self._device,
         )
-        # Invalidate dependent root_com_pose timestamp -- it's derived from body_com_pose_b.
-        self.data._root_com_pose_w.timestamp = -1.0
+        self.data._reset_body_com_pose_b_dependents()
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_COM_POSE is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
@@ -819,7 +818,7 @@ class RigidObject(BaseRigidObject):
             outputs=[self.data._body_com_pose_b.data],
             device=self._device,
         )
-        self.data._root_com_pose_w.timestamp = -1.0
+        self.data._reset_body_com_pose_b_dependents()
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE,

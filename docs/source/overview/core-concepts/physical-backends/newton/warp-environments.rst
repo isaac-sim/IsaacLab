@@ -68,15 +68,31 @@ Manager-Based Warp Environments
 Quick Start
 ~~~~~~~~~~~
 
-.. code-block:: bash
+.. tab-set::
 
-    # Direct workflow
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
+   .. tab-item:: uv (Recommended)
 
-    # Manager-based workflow
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
+      .. code-block:: bash
+
+          # Direct workflow
+          uv run isaaclab train --rl_library rsl_rl \
+              --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
+
+          # Manager-based workflow
+          uv run isaaclab train --rl_library rsl_rl \
+              --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Direct workflow
+          ./isaaclab.sh train --rl_library rsl_rl \
+              --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
+
+          # Manager-based workflow
+          ./isaaclab.sh train --rl_library rsl_rl \
+              --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.

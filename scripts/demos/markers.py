@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/markers.py
+    uv run python scripts/demos/markers.py
 
 """
 

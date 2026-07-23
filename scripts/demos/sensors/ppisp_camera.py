@@ -10,11 +10,11 @@ the Newton Warp or Isaac RTX renderer.
 .. code-block:: bash
 
     # Run a finite smoke with the default Newton Warp renderer and save comparison images.
-    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+    uv run python scripts/demos/sensors/ppisp_camera.py \
         --input_scene /path/to/scene.usd --renderer newton --visualizer none --max_steps 60
 
     # Run the same saved-image workflow with Isaac RTX.
-    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+    uv run python scripts/demos/sensors/ppisp_camera.py \
         --input_scene /path/to/scene.usd --renderer isaac_rtx --visualizer none --max_steps 60
 
 """

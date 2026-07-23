@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py
+    uv run python scripts/tutorials/01_assets/run_articulation.py
 
 """
 

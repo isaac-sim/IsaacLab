@@ -967,6 +967,76 @@ class TestRigidObjectWritersBody:
 
 
 # ---------------------------------------------------------------------------
+# Tests: COM setter cache invalidation
+# ---------------------------------------------------------------------------
+
+
+_physics_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+)
+
+
+class TestRigidObjectComSetterCacheInvalidation:
+    """Test immediate cache refresh after center-of-mass writes."""
+
+    @_physics_backends
+    @pytest.mark.parametrize("num_instances", [2])
+    @_default_devices
+    @pytest.mark.parametrize("setter", ["index", "mask"])
+    def test_set_coms_refreshes_derived_caches(self, backend, num_instances, device, rigid_object_iface, setter):
+        obj, _ = rigid_object_iface
+        obj.data.update(dt=0.01)
+
+        root_com_velocity = torch.zeros((2, 6), device=device)
+        root_com_velocity[:, 5] = 1.0
+        obj.write_root_com_velocity_to_sim_index(root_velocity=root_com_velocity)
+
+        data = obj.data
+        before = {
+            "body_com_pose_b": data.body_com_pose_b.torch.clone(),
+            "root_com_pose_w": data.root_com_pose_w.torch.clone(),
+            "root_link_vel_w": data.root_link_vel_w.torch.clone(),
+            "root_link_lin_vel_b": data.root_link_lin_vel_b.torch.clone(),
+            "root_link_state_w": data.root_link_state_w.torch.clone(),
+            "root_com_state_w": data.root_com_state_w.torch.clone(),
+        }
+        com_pose_b = before["body_com_pose_b"].clone()
+        com_pose_b[0, 0, 0] += 0.2
+        if backend == "newton":
+            coms = com_pose_b[..., :3]
+            dtype = wp.vec3f
+        else:
+            coms = com_pose_b
+            dtype = wp.transformf
+
+        if setter == "index":
+            obj.set_coms_index(coms=wp.from_torch(coms[:1].contiguous(), dtype=dtype), env_ids=[0])
+        else:
+            obj.set_coms_mask(
+                coms=wp.from_torch(coms.contiguous(), dtype=dtype), env_mask=_make_env_mask(2, device, True)
+            )
+
+        after = {
+            "body_com_pose_b": data.body_com_pose_b.torch,
+            "root_com_pose_w": data.root_com_pose_w.torch,
+            "root_link_vel_w": data.root_link_vel_w.torch,
+            "root_link_lin_vel_b": data.root_link_lin_vel_b.torch,
+            "root_link_state_w": data.root_link_state_w.torch,
+            "root_com_state_w": data.root_com_state_w.torch,
+        }
+        torch.testing.assert_close(after["body_com_pose_b"][0], com_pose_b[0])
+        for name in (
+            "root_com_pose_w",
+            "root_link_vel_w",
+            "root_link_lin_vel_b",
+            "root_link_state_w",
+            "root_com_state_w",
+        ):
+            assert not torch.allclose(after[name][0], before[name][0]), name
+            torch.testing.assert_close(after[name][1], before[name][1])
+
+
+# ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
 

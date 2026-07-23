@@ -986,6 +986,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate the cached buffer
         self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
+        self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from instance order (num_instances, num_bodies, 7) to view order (num_bodies*num_instances, 7) for
         # PhysX.

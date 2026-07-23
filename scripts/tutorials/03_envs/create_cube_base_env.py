@@ -22,7 +22,7 @@ The rest of the environment is similar to the previous tutorials.
 .. code-block:: bash
 
     # Run the script
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 
 """
 

@@ -9,9 +9,9 @@ This script checks if the external force is applied correctly on the robot.
 .. code-block:: bash
 
     # Usage to apply force on base
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_external_force.py --body base --force 1000
+    uv run python source/isaaclab/test/assets/check_external_force.py --body base --force 1000
     # Usage to apply force on legs
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_external_force.py --body .*_SHANK --force 100
+    uv run python source/isaaclab/test/assets/check_external_force.py --body .*_SHANK --force 100
 """
 
 """Launch Isaac Sim Simulator first."""

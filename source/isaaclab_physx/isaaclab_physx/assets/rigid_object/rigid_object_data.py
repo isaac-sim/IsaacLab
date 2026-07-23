@@ -162,6 +162,21 @@ class RigidObjectData(BaseRigidObjectData):
             ]
         )
 
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from the body-frame center-of-mass pose.
+
+        Changing the local center-of-mass pose leaves the link pose and center-of-mass velocity unchanged.
+        """
+        reset_timestamps(
+            [
+                self._root_com_pose_w,
+                self._root_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
+
     """
     Names.
     """

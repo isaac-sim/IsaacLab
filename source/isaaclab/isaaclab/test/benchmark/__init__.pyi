@@ -24,6 +24,7 @@ __all__ = [
     "TestPhase",
     "SCHEMA_VERSION",
     "CProfileFunction",
+    "EnvironmentStepTiming",
     "Framework",
     "GpuDeviceInfo",
     "Hardware",
@@ -72,6 +73,7 @@ from .measurements import (
 from .schema import (
     SCHEMA_VERSION,
     CProfileFunction,
+    EnvironmentStepTiming,
     Framework,
     GpuDeviceInfo,
     Hardware,

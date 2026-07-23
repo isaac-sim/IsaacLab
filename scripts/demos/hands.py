@@ -8,16 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/hands.py
+    uv run python scripts/demos/hands.py
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/hands.py --visualizer newton
+    uv run python scripts/demos/hands.py --visualizer newton
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/hands.py --physics newton_mjwarp
+    uv run python scripts/demos/hands.py --physics newton_mjwarp
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/hands.py --visualizer newton --physics newton_mjwarp
+    uv run python scripts/demos/hands.py --visualizer newton --physics newton_mjwarp
 
 """
 

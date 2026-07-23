@@ -92,7 +92,7 @@ class TerrainImporterCfg:
         materials.RigidBodyMaterialBaseCfg
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
-    ) = materials.RigidBodyMaterialCfg()
+    ) = materials.RigidBodyMaterialBaseCfg()
     """The physics material of the terrain. Defaults to a default physics material.
 
     The material is created at the path: ``{prim_path}/physicsMaterial``.

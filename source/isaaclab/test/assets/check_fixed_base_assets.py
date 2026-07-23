@@ -9,7 +9,7 @@ This script demonstrates fixed-base API for different robots.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_fixed_base_assets.py
+    uv run python source/isaaclab/test/assets/check_fixed_base_assets.py
 
 """
 

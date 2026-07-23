@@ -198,6 +198,24 @@ class RigidObjectData(BaseRigidObjectData):
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
 
+    def _reset_body_com_pos_b_dependents(self) -> None:
+        """Reset cached properties derived from body-frame center-of-mass offsets.
+
+        Changing the local center-of-mass position leaves the link pose unchanged, so this method
+        intentionally does not invalidate forward kinematics.
+        """
+        reset_timestamps(
+            [
+                self._body_com_pose_b,
+                self._root_com_pose_w,
+                self._root_link_vel_w,
+                self._root_link_vel_b,
+                self._root_link_lin_vel_b,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
+
     """
     Names.
     """
