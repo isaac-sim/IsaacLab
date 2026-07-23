@@ -10,7 +10,7 @@
 # branch's changelog current without requiring a maintainer to run
 # ``compile`` by hand.
 #
-# Scheduled workflow — must live on the default branch (``main``) for the
+# Scheduled workflow — must live on the repository's default branch for the
 # cron to register. See ``.github/workflows/README.md``.
 #
 # Adding a branch to the nightly set is a one-line edit to ``env.CRON_BRANCHES``
@@ -30,13 +30,13 @@
 
 name: Nightly Changelog Compilation
 
-# Branches the nightly cron compiles. Single source of truth — append a
-# ref here to extend the nightly set (the active release branch belongs
-# here). Each branch must carry ``tools/changelog/cli.py`` and the
+# Branches the nightly cron compiles. Single source of truth — include only
+# active branches that receive changelog fragments. Each branch must carry
+# ``tools/changelog/cli.py`` and the
 # isaaclab-bot App must be in its branch-ruleset bypass list.
 # Surrounding whitespace per entry is stripped by the resolver below.
 env:
-  CRON_BRANCHES: develop,release/3.0.0-beta2
+  CRON_BRANCHES: develop
 
 on:
   schedule:
@@ -109,15 +109,15 @@ jobs:
     strategy:
       # Independent branches: one failing shouldn't cancel the others.
       # Each matrix entry shows up as a separate job tile in the Actions
-      # UI, so ``release/3.0.0-beta2`` failing doesn't hide ``develop``'s
-      # success (and ``gh run rerun --failed`` re-runs only the failed
-      # entry). Mirrors ``daily-compatibility.yml``'s matrix style.
+      # UI, so one requested ref failing doesn't hide another's success
+      # (and ``gh run rerun --failed`` re-runs only the failed entry).
+      # Mirrors ``daily-compatibility.yml``'s matrix style.
       fail-fast: false
       matrix:
         branch: ${{ fromJson(needs.resolve-branches.outputs.branches) }}
     concurrency:
-      # Per-branch group: two runs against the same ref queue, but
-      # different refs (develop and a release branch) compile in parallel.
+      # Per-branch group: two runs against the same ref queue, while
+      # manually requested refs can compile independently.
       group: nightly-changelog-${{ matrix.branch }}
       cancel-in-progress: false
 

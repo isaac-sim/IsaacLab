@@ -38,8 +38,8 @@ jobs:
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
-      # The default branch owns scheduled and manual multi-version deployments.
-      # Branch pushes and pull requests only build their current docs for validation.
+      # Nightly schedule and workflow_dispatch trigger multi-version deploy.
+      # All branch pushes (including main) build current-docs only; deploy waits for the cron above.
       if: "${{ github.repository == env.REPO_NAME && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
@@ -85,8 +85,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
       with:
-        # A schedule starts on the repository default branch, but published docs
-        # are assembled using the latest multi-version tooling from develop.
+        # On schedule, always rebuild from the develop tip regardless of
+        # which ref the cron run defaults to. Other events use github.ref.
         ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
 
     - name: Setup python
@@ -103,12 +103,11 @@ jobs:
       working-directory: ./docs
       env:
         # "deploy" branches build the full set of versions so every page
-        # has a complete version dropdown: main, develop, tags >= v2.0.0
-        # (including pre-release suffixes like -beta or -rc1). v1.x tags and
-        # most release/ branches are excluded; release/3.0.0-beta2 is included
-        # explicitly to surface it in the version switcher.
+        # has a complete version dropdown: main, develop, release/3.0.0-beta2,
+        # and stable tags >= v2.0.0. Other release branches and prerelease tags
+        # are excluded.
         SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0-beta2)$'
-        SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
+        SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+$'
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD

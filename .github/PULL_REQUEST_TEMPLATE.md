@@ -1,9 +1,9 @@
 # Description
 
 > [!IMPORTANT]
-> Confirm the pull request base before submitting. Target `develop` for new
-> development; target `release/3.0.0-beta2` only for fixes intended for the
-> current stable release.
+> Confirm the pull request base before submitting. Target `develop` for all
+> contributions. The `release/3.0.0-beta2` branch is a frozen stable landing
+> snapshot and is not used for ongoing maintenance.
 
 <!--
 Thank you for your interest in sending a pull request. Please make sure to check the contribution guidelines.

@@ -34,6 +34,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
       with:
+        # Scheduled runs continue checking the active main branch even while
+        # the repository landing/default branch points to the frozen release.
+        ref: ${{ github.event_name == 'schedule' && 'main' || '' }}
         fetch-depth: 2
         filter: tree:0
 

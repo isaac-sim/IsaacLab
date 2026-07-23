@@ -6,9 +6,8 @@
 name: Publish Docker Images
 
 on:
-  # Nightly build + publish from develop and the active release branches listed
-  # in CRON_BRANCHES below. No push triggers — workflow_dispatch also accepts any
-  # publishable branch. main is intentionally excluded: main images are built
+  # Nightly build + publish from develop. No push triggers — workflow_dispatch
+  # also accepts any publishable branch. main is intentionally excluded: main images are built
   # by postmerge-ci.yml on push instead.
   schedule:
     - cron: '0 2 * * *'  # 6pm PST / 7pm PDT
@@ -22,14 +21,13 @@ on:
 permissions:
   contents: read
 
-# Branches the nightly cron publishes. Single source of truth — append a ref
-# here when a new release/* is cut and drop it once that release is retired, so
-# stale branches aren't rebuilt nightly. Mirrors CRON_BRANCHES in
+# Branches the nightly cron publishes. Single source of truth — include only
+# active branches that receive new commits. Mirrors CRON_BRANCHES in
 # nightly-changelog.yml. Whitespace per entry is stripped. main is excluded on
 # purpose (it builds on the public isaac-sim base via postmerge-ci.yml).
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  CRON_BRANCHES: develop,release/3.0.0-beta2
+  CRON_BRANCHES: develop
 
 jobs:
   resolve-branches:

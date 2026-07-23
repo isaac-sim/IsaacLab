@@ -38,19 +38,28 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+      source_ref: ${{ steps.load.outputs.source_ref }}
+      source_sha: ${{ steps.load.outputs.source_sha }}
     steps:
     - uses: actions/checkout@v6
       with:
+        # Scheduled runs retain main's configuration while the repository
+        # landing/default branch points to the frozen release.
+        ref: ${{ github.event_name == 'schedule' && 'main' || '' }}
         fetch-depth: 1
         sparse-checkout: .github/workflows/config.yaml
         sparse-checkout-cone-mode: false
     - id: load
+      env:
+        SOURCE_REF: ${{ github.event_name == 'schedule' && 'main' || github.ref_name }}
       run: |
         set -euo pipefail
         f=.github/workflows/config.yaml
         echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "source_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
+        echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   setup-versions:
     runs-on: ubuntu-latest
@@ -86,12 +95,13 @@ jobs:
         NVIDIA_DRIVER_CAPABILITIES: all
         CUDA_HOME: /usr/local/cuda
         LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-        DOCKER_IMAGE_TAG: isaac-lab-compat:${{ github.ref_name }}-${{ github.sha }}-${{ matrix.isaacsim_version }}
+        DOCKER_IMAGE_TAG: isaac-lab-compat:${{ needs.config.outputs.source_ref }}-${{ needs.config.outputs.source_sha }}-${{ matrix.isaacsim_version }}
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
+        ref: ${{ github.event_name == 'schedule' && 'main' || '' }}
         fetch-depth: 1
         lfs: true
 
@@ -144,12 +154,13 @@ jobs:
         NVIDIA_DRIVER_CAPABILITIES: all
         CUDA_HOME: /usr/local/cuda
         LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-        DOCKER_IMAGE_TAG: isaac-lab-compat:${{ github.ref_name }}-${{ github.sha }}-${{ matrix.isaacsim_version }}
+        DOCKER_IMAGE_TAG: isaac-lab-compat:${{ needs.config.outputs.source_ref }}-${{ needs.config.outputs.source_sha }}-${{ matrix.isaacsim_version }}
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
+        ref: ${{ github.event_name == 'schedule' && 'main' || '' }}
         fetch-depth: 1
         lfs: true
 
@@ -188,7 +199,7 @@ jobs:
         compression-level: 9
 
   combine-compat-results:
-    needs: [test-isaaclab-tasks-compat, test-general-compat]
+    needs: [config, test-isaaclab-tasks-compat, test-general-compat]
     runs-on: ubuntu-latest
     if: always()
 
@@ -196,6 +207,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
+        ref: ${{ github.event_name == 'schedule' && 'main' || '' }}
         fetch-depth: 1
         lfs: false
         sparse-checkout: .github/actions
@@ -236,10 +248,10 @@ jobs:
         path: reports/combined-compat-results.xml
         reporter: java-junit
         max-annotations: '50'
-        report-title: "IsaacLab Compatibility Test Results - ${{ github.event_name }} - ${{ github.ref_name }}"
+        report-title: "IsaacLab Compatibility Test Results - ${{ github.event_name }} - ${{ needs.config.outputs.source_ref }}"
 
   notify-compatibility-status:
-    needs: [setup-versions, combine-compat-results]
+    needs: [config, setup-versions, combine-compat-results]
     runs-on: ubuntu-latest
     if: always()
 
@@ -247,6 +259,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
+        ref: ${{ github.event_name == 'schedule' && 'main' || '' }}
         fetch-depth: 1
         lfs: false
         sparse-checkout: .github/actions
@@ -260,8 +273,8 @@ jobs:
         echo "" >> compatibility-report.md
         echo "$TRIGGER_INFO" >> compatibility-report.md
         echo "**IsaacSim Versions Tested:** $ISAACSIM_VERSIONS" >> compatibility-report.md
-        echo "**Branch:** ${{ github.ref_name }}" >> compatibility-report.md
-        echo "**Commit:** ${{ github.sha }}" >> compatibility-report.md
+        echo "**Branch:** ${{ needs.config.outputs.source_ref }}" >> compatibility-report.md
+        echo "**Commit:** ${{ needs.config.outputs.source_sha }}" >> compatibility-report.md
         echo "**Run ID:** ${{ github.run_id }}" >> compatibility-report.md
         echo "" >> compatibility-report.md
         echo "### Test Status:" >> compatibility-report.md
