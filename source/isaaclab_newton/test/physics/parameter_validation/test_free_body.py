@@ -212,20 +212,7 @@ def test_state_01_initial_and_live_link_pose(kamino, authoring):
         assert_physical_close(body.data.root_link_pos_w.torch[0], target_position, case)
 
 
-@pytest.mark.parametrize(
-    "authoring",
-    [
-        pytest.param(
-            "usd",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="Kamino hard reset currently restores the floating-base joint state instead of USD velocity",
-            ),
-        ),
-        "cfg",
-        "runtime",
-    ],
-)
+@pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 def test_state_02_initial_and_live_com_velocity(kamino, authoring):
     """STATE-02: Reset-default and live writes establish COM spatial velocity."""
     target_velocity = torch.tensor(

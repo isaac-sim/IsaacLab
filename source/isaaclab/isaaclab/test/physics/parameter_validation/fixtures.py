@@ -14,7 +14,6 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_drive
 
-
 FREE_BODY_PRIM_PATH = "/World/Env_0/Object"
 SINGLE_DOF_PRIM_PATH = "/World/Env_0/Robot"
 
@@ -144,7 +143,11 @@ def build_free_body_usd(
     principal_axes: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
     center_of_mass: tuple[float, float, float] = FREE_BODY_COM,
 ) -> None:
-    """Author one collision-free rigid body with explicit state and inertial properties."""
+    """Author one collision-free rigid body with explicit state and inertial properties.
+
+    ``angular_velocity`` is specified in [rad/s] and converted to the [deg/s]
+    convention of :class:`pxr.UsdPhysics.RigidBodyAPI`.
+    """
     stage = sim_utils.get_current_stage()
     if not stage.GetPrimAtPath("/World/Env_0").IsValid():
         sim_utils.create_prim("/World/Env_0", "Xform")
@@ -159,7 +162,7 @@ def build_free_body_usd(
 
     rigid_api = UsdPhysics.RigidBodyAPI.Apply(prim)
     rigid_api.CreateVelocityAttr().Set(Gf.Vec3f(*linear_velocity))
-    rigid_api.CreateAngularVelocityAttr().Set(Gf.Vec3f(*angular_velocity))
+    rigid_api.CreateAngularVelocityAttr().Set(Gf.Vec3f(*(value * _RAD2DEG for value in angular_velocity)))
 
     mass_api = UsdPhysics.MassAPI.Apply(prim)
     mass_api.CreateMassAttr().Set(float(mass))

@@ -180,7 +180,7 @@ storage-only tests remain `T`.
 |---|---|---|---|---|
 | SIM-01 | Gravity vector | T / T / T | N / T / T | N / I / I |
 | STATE-01 | Initial/reset link pose | T / T / T | T / T / T | I / I / I |
-| STATE-02 | Initial/reset COM spatial velocity | T / T / T | T / T / T | X / I / I |
+| STATE-02 | Initial/reset COM spatial velocity | T / T / T | T / T / T | I / I / I |
 | BODY-01 | Mass | T / T / T | T / T / T | I / I / X |
 | BODY-02 | Inertia tensor and inertial-frame orientation | T / T / T | T / T / T | I / T / X |
 | BODY-03 | Center-of-mass position | T / T / T | T / T / T | I / T / I |
@@ -255,7 +255,6 @@ backend, parameter, and authoring path. Related issues provide implementation co
 | `JOINT-05` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397) | [newton-physics/newton#161](https://github.com/newton-physics/newton/issues/161) added model storage; does not establish Kamino enforcement |
 | `JOINT-06` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#398](https://github.com/vastsoun/newton/issues/398) | [newton-physics/newton#161](https://github.com/newton-physics/newton/issues/161) added model storage; does not establish Kamino enforcement |
 | `JOINT-09` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#383](https://github.com/vastsoun/newton/issues/383) | None |
-| `STATE-02` | Newton-Kamino: USD | No issue yet | Strict xfail in `test_state_02_initial_and_live_com_velocity`; USD angular velocity is authored as `0.4` but is imported as approximately `0.007 rad/s`, while the linear velocity restores correctly |
 | `BODY-01`, `BODY-02` | Newton-Kamino: runtime | [IsaacLab#6518](https://github.com/isaac-sim/IsaacLab/issues/6518) | Strict xfails in the wrench-response tests; `set_masses_index` / `set_inertias_index` update public storage and notify `BODY_INERTIAL_PROPERTIES` but leave `body_inv_mass` / `body_inv_inertia` stale |
 
 Newton-Kamino `JOINT-05` is tracked by [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397).
@@ -636,8 +635,8 @@ the successful matrix cells for `SIM-01`, `STATE-01`, `STATE-02`, `BODY-01`, `BO
 and `JOINT-03`; strict expected failures retain the integration gaps recorded in the `X`-cell register.
 `STATE-01` USD authoring passes after the fixture supplies `translation` and `orientation` to
 `sim_utils.create_prim` directly, rather than calling :class:`pxr.UsdGeom.XformCommonAPI` after
-`create_prim` has standardized the transform stack. `STATE-02` USD remains an expected failure only for
-angular velocity; its linear component restores correctly.
+`create_prim` has standardized the transform stack. `STATE-02` USD authoring passes after the fixture converts
+the requested angular velocity from [rad/s] to the [deg/s] convention of ``UsdPhysics.RigidBodyAPI``.
 `BODY-03` USD authoring passes with the pinned Newton fix, and its cache-primed runtime path passes after
 [IsaacLab#6689](https://github.com/isaac-sim/IsaacLab/pull/6689) invalidated the derived world COM data.
 `BODY-02` and `BODY-03` Python overrides remain `T` because the common mass schema does not expose inertia,
