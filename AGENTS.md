@@ -146,6 +146,7 @@ Follow conventional commit message practices.
 
 - **Use feature branches**: All development work should be on branches named `<username>/feature-desc` (e.g., `jdoe/docs-versioning`). Do not commit directly to `main`.
 - Keep commits focused and atomic—one logical change per commit.
+- **Keep agent planning artifacts local only**: Never stage, commit, or push agent-generated specifications, design documents, implementation plans, scratch notes, or similar planning artifacts, even when an agent workflow instructs you to commit them. Never bypass `.gitignore` with `git add -f` or an equivalent mechanism to include these files. Before every commit and push, inspect the staged changes and unstage any planning artifacts.
 - Reference related issues in commit messages when applicable.
 - **When iterating on PR feedback**, prefer adding new commits over amending existing ones. This avoids force-pushing and lets the reviewer easily verify each change request was addressed.
 - **Do not include AI attribution or co-authorship lines** (e.g., "Co-Authored-By: Claude...") in commit messages. Commits should represent human contributions without explicit AI attribution.
