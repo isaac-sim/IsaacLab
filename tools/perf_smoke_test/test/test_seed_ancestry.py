@@ -146,6 +146,20 @@ def test_prepare_jit_cache_opens_task_cache(tmp_path: Path) -> None:
     assert cache_dir.stat().st_mode & 0o777 == 0o777
 
 
+def test_only_failing_camera_backends_use_container_local_jit_cache() -> None:
+    """Only camera backends that failed on the host mount bypass cache reuse."""
+    camera_task = "Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct"
+
+    assert seed_baselines._uses_container_local_jit_cache(SimpleNamespace(task_id=camera_task, backend_key="physx"))
+    assert seed_baselines._uses_container_local_jit_cache(SimpleNamespace(task_id=camera_task, backend_key="newton"))
+    assert not seed_baselines._uses_container_local_jit_cache(
+        SimpleNamespace(task_id=camera_task, backend_key="physx_newton_renderer")
+    )
+    assert not seed_baselines._uses_container_local_jit_cache(
+        SimpleNamespace(task_id="Isaac-Cartpole-Direct", backend_key="newton")
+    )
+
+
 def test_seed_source_directories_are_unique_and_disposable() -> None:
     """Independent seeder invocations do not reuse source-clone residue."""
     first = seed_baselines._create_seed_source_dir()
@@ -261,3 +275,37 @@ def test_docker_benchmark_copies_internal_output_after_exit(tmp_path: Path, monk
     assert calls[1] == ["docker", "cp", "perf-seed-test:/tmp/bench_out/.", str(artifact_dir)]
     assert calls[2] == ["chmod", "-R", "a+rwX", str(artifact_dir)]
     assert calls[3] == ["docker", "rm", "-f", "perf-seed-test"]
+
+
+def test_docker_benchmark_can_use_container_local_jit_cache(tmp_path: Path, monkeypatch) -> None:
+    """A container-local cache creates JIT roots without a host bind mount."""
+    calls: list[list[str]] = []
+
+    def _run(cmd: list[str], **_kwargs) -> SimpleNamespace:
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0)
+
+    task = SimpleNamespace(
+        task_id="Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct",
+        num_envs=16,
+        num_frames=10,
+        warmup_frames=2,
+        seed=42,
+    )
+    monkeypatch.setattr(seed_baselines, "hydra_args_for_task", lambda _task: [])
+    monkeypatch.setattr(seed_baselines.subprocess, "run", _run)
+
+    exit_code = seed_baselines._docker_run_benchmark(
+        image="isaac-lab:test",
+        task=task,
+        artifact_dir=tmp_path / "artifacts",
+        jit_cache=None,
+        kit_cache=tmp_path / "kit-cache",
+        seed_src_dir=tmp_path / "source",
+        container_name="perf-seed-test",
+    )
+
+    docker_run = calls[0]
+    assert exit_code == 0
+    assert not any(arg.endswith(":/tmp/jit-cache") for arg in docker_run)
+    assert "mkdir -p /tmp/bench_out /tmp/jit-cache/warp /tmp/jit-cache/nv" in docker_run[-1]

@@ -132,33 +132,87 @@ def _render_crossed(crossed: list[dict]) -> list[str]:
     return parts
 
 
-def _build_summary_table(rows: list[tuple]) -> str:
+def _fmt_change(value: float | None) -> str:
+    """Format a signed percent change where positive means faster."""
+    return f"{value:+.2f}%" if value is not None else "N/A"
+
+
+def _runtime_context(bench_result: BenchResult) -> tuple[str, str]:
+    """Return concise GPU and runtime labels for one benchmark result."""
+    runtime_resources = bench_result.runtime_resources or {}
+    launch_config = bench_result.launch_config or {}
+    gpu_name = (
+        runtime_resources.get("gpu_name") or launch_config.get("gpu_model_raw") or launch_config.get("gpu_model", "")
+    )
+    provenance = bench_result.provenance or {}
+    software = provenance.get("software") or {}
+    runtime = ", ".join(
+        part
+        for part in (
+            f"cuda={runtime_resources.get('cuda_version')}" if runtime_resources.get("cuda_version") else "",
+            f"driver={runtime_resources.get('nvidia_driver_version')}"
+            if runtime_resources.get("nvidia_driver_version")
+            else "",
+            f"warp={software.get('warp')}" if software.get("warp") else "",
+        )
+        if part
+    )
+    return str(gpu_name or "N/A"), runtime or "N/A"
+
+
+def _row_explanation(result) -> str:
+    """Explain one verdict in reviewer-facing language."""
+    if result.verdict == OracleVerdict.HARD_FAILURE:
+        explanation = (
+            f"Benchmark failed during {result.failure_phase}"
+            if result.failure_phase
+            else "Benchmark produced no usable FPS"
+        )
+    elif result.threshold_source == "no_baseline":
+        explanation = "No compatible baseline yet"
+    elif result.threshold_source == "insufficient_window":
+        explanation = f"Baseline warming up ({result.baseline_sample_count}/{MIN_BASELINE_SAMPLES} samples)"
+    elif result.verdict == OracleVerdict.BLOCK:
+        explanation = "Blocking-level slowdown detected"
+    elif result.verdict == OracleVerdict.WARN:
+        explanation = "Possible slowdown; review recommended"
+    else:
+        explanation = "No meaningful slowdown"
+    if result.was_retried:
+        explanation += "; retry also failed" if result.verdict == OracleVerdict.HARD_FAILURE else "; result was retried"
+    return explanation
+
+
+def _build_reviewer_table(rows: list[tuple]) -> str:
+    """Build the compact table reviewers see first."""
+    verdict_labels = {
+        OracleVerdict.PASS: "✅ PASS",
+        OracleVerdict.WARN: "⚠️ WARN",
+        OracleVerdict.BLOCK: "🚫 BLOCK",
+        OracleVerdict.HARD_FAILURE: "❌ HARD FAILURE",
+    }
+    lines = [
+        "| Task | Backend | Result | FPS | Baseline | Change | Samples | What it means |",
+        "|---|---|---|---:|---:|---:|---:|---|",
+    ]
+    for result, _ in rows:
+        lines.append(
+            f"| {result.task_id} | {result.backend} | {verdict_labels[result.verdict]}"
+            f" | {_fmt(result.measured_fps)} | {_fmt(result.baseline_fps)} | {_fmt_change(result.regression_pct)}"
+            f" | {result.baseline_sample_count} | {_row_explanation(result)} |"
+        )
+    return "\n".join(lines)
+
+
+def _build_technical_table(rows: list[tuple]) -> str:
+    """Build the complete diagnostic table shown on demand."""
     lines = [
         "| Task | Backend | Verdict | FPS | Baseline | Samples | Regression% | Floor | Threshold | Phase | "
         "Retry | GPU | Runtime | Note |",
         "|---|---|---|---:|---:|---:|---:|---:|---|---|---|---|---|---|",
     ]
     for result, bench_result in rows:
-        runtime_resources = bench_result.runtime_resources or {}
-        launch_config = bench_result.launch_config or {}
-        gpu_name = (
-            runtime_resources.get("gpu_name")
-            or launch_config.get("gpu_model_raw")
-            or launch_config.get("gpu_model", "")
-        )
-        provenance = bench_result.provenance or {}
-        software = provenance.get("software") or {}
-        runtime = ", ".join(
-            part
-            for part in (
-                f"cuda={runtime_resources.get('cuda_version')}" if runtime_resources.get("cuda_version") else "",
-                f"driver={runtime_resources.get('nvidia_driver_version')}"
-                if runtime_resources.get("nvidia_driver_version")
-                else "",
-                f"warp={software.get('warp')}" if software.get("warp") else "",
-            )
-            if part
-        )
+        gpu_name, runtime = _runtime_context(bench_result)
         # result.note already carries the config_mismatch string on the
         # config-mismatch HARD_FAILURE path; dedupe so it is not shown twice.
         note_parts = list(dict.fromkeys(part for part in (result.note, bench_result.config_mismatch) if part))
@@ -167,10 +221,77 @@ def _build_summary_table(rows: list[tuple]) -> str:
             f"| {result.task_id} | {result.backend} | {result.verdict.value}"
             f" | {_fmt(result.measured_fps)} | {_fmt(result.baseline_fps)} | {result.baseline_sample_count}"
             f" | {_fmt(result.regression_pct, 2)} | {_fmt(result.hard_floor_fps)} | {result.threshold_source}"
-            f" | {result.failure_phase or ''} | {result.was_retried} | {gpu_name}"
+            f" | {result.failure_phase or ''} | {'yes' if result.was_retried else 'no'} | {gpu_name}"
             f" | {runtime} | {'; '.join(note_parts)} |"
         )
     return "\n".join(lines)
+
+
+def _build_summary_markdown(rows: list[tuple], *, blocking: bool) -> str:
+    """Build reviewer-first Markdown for the sticky PR comment."""
+    counts = {verdict: 0 for verdict in OracleVerdict}
+    for result, _ in rows:
+        counts[result.verdict] += 1
+
+    if not rows:
+        overall = "❌ No benchmark results were produced"
+    elif counts[OracleVerdict.HARD_FAILURE]:
+        overall = "❌ One or more benchmarks failed before producing usable performance data"
+    elif counts[OracleVerdict.BLOCK]:
+        overall = "🚫 One or more blocking-level performance regressions were detected"
+    elif counts[OracleVerdict.WARN]:
+        overall = "⚠️ No confirmed regression, but one or more results need attention"
+    else:
+        overall = "✅ No meaningful performance regressions detected"
+
+    warnings_label = "warning" if counts[OracleVerdict.WARN] == 1 else "warnings"
+    blocks_label = "blocking signal" if counts[OracleVerdict.BLOCK] == 1 else "blocking signals"
+    failures_label = "benchmark failure" if counts[OracleVerdict.HARD_FAILURE] == 1 else "benchmark failures"
+    count_summary = " · ".join(
+        (
+            f"✅ {counts[OracleVerdict.PASS]} passed",
+            f"⚠️ {counts[OracleVerdict.WARN]} {warnings_label}",
+            f"🚫 {counts[OracleVerdict.BLOCK]} {blocks_label}",
+            f"❌ {counts[OracleVerdict.HARD_FAILURE]} {failures_label}",
+        )
+    )
+    mode = (
+        "**Blocking:** BLOCK and HARD FAILURE results fail the check."
+        if blocking
+        else "**Advisory:** results are reported for review but do not fail the PR."
+    )
+
+    contexts = {_runtime_context(bench_result) for _, bench_result in rows}
+    if len(contexts) == 1:
+        gpu_name, runtime = next(iter(contexts))
+    elif contexts:
+        gpu_name, runtime = "Multiple; see technical details", "Multiple; see technical details"
+    else:
+        gpu_name, runtime = "N/A", "N/A"
+
+    return "\n\n".join(
+        (
+            f"### Overall result\n\n**{overall}**\n\n{count_summary}\n\n{mode}",
+            f"### Run context\n\n- **GPU:** {gpu_name}\n- **Runtime:** {runtime}",
+            "### How to read this\n\n"
+            "Start with **BLOCK** and **HARD FAILURE**, then review any **WARN** rows.\n\n"
+            "- **✅ PASS:** no meaningful slowdown was detected.\n"
+            "- **⚠️ WARN:** the result is uncertain—for example, the baseline is still warming up, the run "
+            "needed a retry, or performance is in the warning band.\n"
+            "- **🚫 BLOCK:** performance crossed a blocking threshold. This fails the check only when the gate "
+            "is in blocking mode.\n"
+            "- **❌ HARD FAILURE:** the benchmark did not produce usable FPS, usually because it failed during "
+            "import, initialization, or runtime.\n"
+            "- **FPS:** current throughput; higher is better. **Baseline:** the median of compatible historical "
+            "runs. **Change:** `+` is faster and `-` is slower.\n"
+            f"- **Samples:** compatible historical runs. At least {MIN_BASELINE_SAMPLES} are required before "
+            "the rolling baseline can make a confident decision.",
+            _build_reviewer_table(rows),
+            "<details>\n<summary>Technical details</summary>\n\n"
+            "Threshold values, failure phases, retries, hardware, runtime versions, and diagnostic notes:\n\n"
+            f"{_build_technical_table(rows)}\n\n</details>",
+        )
+    )
 
 
 def _write_github_output(**values) -> None:
@@ -355,9 +476,9 @@ def main() -> int:
             baseline_update_failed = True
             print(f"::error::Baseline push failed: {exc}")
 
-    table = _build_summary_table(rows)
+    summary = _build_summary_markdown(rows, blocking=blocking)
     print("\n## Performance Smoke Results\n")
-    print(table)
+    print(summary)
     print()
 
     if args.summary_file:
@@ -370,7 +491,7 @@ def main() -> int:
                         f"Baseline pushed SHA: `{_short_sha(baseline_push_result.pushed_sha)}` "
                         f"after {baseline_push_result.attempts} attempt(s)\n\n"
                     )
-            fh.write(table)
+            fh.write(summary)
             fh.write("\n")
 
     if args.omni_github_dir:

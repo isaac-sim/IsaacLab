@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 _GATE_DIR = Path(__file__).resolve().parents[1]
 if str(_GATE_DIR) not in sys.path:
@@ -26,6 +27,7 @@ import aggregate  # noqa: E402
 from baseline_manager import update_baseline  # noqa: E402
 from contracts import BenchResult  # noqa: E402
 from gate_config import MIN_BASELINE_SAMPLES  # noqa: E402
+from gate_types import OracleVerdict  # noqa: E402
 
 _RUNTIME_HASH = "runtime-a"
 
@@ -157,3 +159,60 @@ def test_reseed_not_flagged_without_valid_measurement(tmp_path, monkeypatch) -> 
     outputs = _run_aggregate(tmp_path, monkeypatch, _bench_result(fps=None, info_present=False), baseline_count=0)
 
     assert "reseed_tasks" not in outputs
+
+
+def test_sticky_summary_explains_results_in_reviewer_language() -> None:
+    """The sticky comment leads with actionable guidance and keeps diagnostics available."""
+    result = SimpleNamespace(
+        task_id="Isaac-Cartpole-Direct",
+        backend="physx",
+        verdict=OracleVerdict.BLOCK,
+        measured_fps=90.0,
+        baseline_fps=100.0,
+        regression_pct=-10.0,
+        baseline_sample_count=5,
+        threshold_source="rolling_window",
+        hard_floor_fps=None,
+        failure_phase=None,
+        was_retried=True,
+        note="block_confirmed(n=1)",
+        crossed_thresholds=[],
+    )
+
+    summary = aggregate._build_summary_markdown([(result, _bench_result(fps=90.0))], blocking=False)
+
+    assert "### Overall result" in summary
+    assert "blocking-level performance regressions were detected" in summary
+    assert "Advisory" in summary
+    assert "### How to read this" in summary
+    assert "Start with **BLOCK** and **HARD FAILURE**" in summary
+    assert "| Isaac-Cartpole-Direct | physx | 🚫 BLOCK | 90.0 | 100.0 | -10.00% | 5 |" in summary
+    assert "Blocking-level slowdown detected; result was retried" in summary
+    assert "passed only after retry" not in summary
+    assert "<summary>Technical details</summary>" in summary
+    assert "block_confirmed(n=1)" in summary
+
+
+def test_sticky_summary_identifies_baseline_warmup() -> None:
+    """WARN rows clearly distinguish baseline collection from a regression."""
+    result = SimpleNamespace(
+        task_id="Isaac-Cartpole-Direct",
+        backend="newton",
+        verdict=OracleVerdict.WARN,
+        measured_fps=100.0,
+        baseline_fps=None,
+        regression_pct=None,
+        baseline_sample_count=2,
+        threshold_source="insufficient_window",
+        hard_floor_fps=None,
+        failure_phase=None,
+        was_retried=False,
+        note="insufficient baseline samples",
+        crossed_thresholds=[],
+    )
+
+    summary = aggregate._build_summary_markdown([(result, _bench_result())], blocking=True)
+
+    assert "No confirmed regression" in summary
+    assert "Baseline warming up (2/5 samples)" in summary
+    assert "**Blocking:** BLOCK and HARD FAILURE results fail the check." in summary

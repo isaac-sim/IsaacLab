@@ -10,7 +10,8 @@ The gate keeps a baseline sample only when both hold:
 1. Its fingerprint -- ``launch_config_hash``, ``benchmark_contract_hash``,
    ``runtime_contract_hash``, ``baseline_epoch`` (within a
    ``gpu_model``/``task_id``/``backend_key`` bucket) -- matches the run.
-2. Its ``commit_sha`` is an ancestor of the run's ``base_sha`` (the target
+2. Its ``target_branch`` matches the branch the gate will evaluate.
+3. Its ``commit_sha`` is an ancestor of the run's ``base_sha`` (the target
    branch HEAD). See :func:`baseline_manager._sample_matches`.
 
 This tool replays that selection against the ``perf-baselines`` branch for a
@@ -58,6 +59,9 @@ def _fingerprint(record: dict[str, Any]) -> tuple:
 def usable_sample_count(
     records: Iterable[dict[str, Any]],
     is_ancestor: Callable[[str], bool] | None = None,
+    *,
+    target_branch: str | None = None,
+    expected_sample_ids: set[str] | None = None,
 ) -> tuple[int, int, int]:
     """Return ``(usable, total, num_fingerprints)`` for a bucket's samples.
 
@@ -72,12 +76,18 @@ def usable_sample_count(
         is_ancestor: Predicate ``commit_sha -> bool``; when provided, only samples
             with a ``commit_sha`` that satisfies it are eligible (mirrors the
             gate's ancestry filter). ``None`` disables the ancestry filter.
+        target_branch: Exact target branch required by the gate.
+        expected_sample_ids: When provided, only samples produced by the current
+            seeder invocation are eligible.
     """
     records = list(records)
-    if is_ancestor is None:
-        eligible = records
-    else:
-        eligible = [r for r in records if r.get("commit_sha") and is_ancestor(str(r["commit_sha"]))]
+    eligible = records
+    if target_branch is not None:
+        eligible = [r for r in eligible if r.get("target_branch") == target_branch]
+    if expected_sample_ids is not None:
+        eligible = [r for r in eligible if r.get("sample_id") in expected_sample_ids]
+    if is_ancestor is not None:
+        eligible = [r for r in eligible if r.get("commit_sha") and is_ancestor(str(r["commit_sha"]))]
     by_fingerprint: dict[tuple, int] = defaultdict(int)
     for record in eligible:
         by_fingerprint[_fingerprint(record)] += 1
@@ -103,6 +113,31 @@ def _load_samples(ref: str, gpu_model: str, task_id: str, backend: str, *, repo_
     return records
 
 
+def _load_expected_sample_ids(
+    path: Path,
+    gpu_model: str,
+    target_branch: str,
+) -> dict[tuple[str, str], set[str]]:
+    """Load current-run sample IDs grouped by task/backend bucket."""
+    payload = json.loads(path.read_text())
+    if not isinstance(payload, list):
+        raise ValueError("expected records must be a JSON list")
+    by_bucket: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for record in payload:
+        if not isinstance(record, dict):
+            continue
+        if canonical_gpu_model(str(record.get("gpu_model", ""))) != gpu_model:
+            continue
+        if record.get("target_branch") != target_branch:
+            continue
+        task_id = record.get("task_id")
+        backend = record.get("backend")
+        sample_id = record.get("sample_id")
+        if task_id and backend and sample_id:
+            by_bucket[(str(task_id), str(backend))].add(str(sample_id))
+    return dict(by_bucket)
+
+
 def verify_bucket(
     ref: str,
     gpu_model: str,
@@ -110,6 +145,8 @@ def verify_bucket(
     backend: str,
     base_sha: str | None,
     *,
+    target_branch: str | None = None,
+    expected_sample_ids: set[str] | None = None,
     repo_dir: Path | None = None,
 ) -> tuple[int, int, int]:
     """Load a bucket from git and report ``(usable, total, num_fingerprints)``."""
@@ -120,7 +157,12 @@ def verify_bucket(
         def predicate(commit_sha: str) -> bool:
             return _git_is_ancestor(commit_sha, str(base_sha), repo_dir=repo_dir)
 
-    return usable_sample_count(records, predicate)
+    return usable_sample_count(
+        records,
+        predicate,
+        target_branch=target_branch,
+        expected_sample_ids=expected_sample_ids,
+    )
 
 
 def _resolve_tip(ref: str, repo_dir: Path | None = None) -> str | None:
@@ -149,6 +191,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--target_branch", default="develop", help="Branch whose tip is used when --base_sha is empty.")
     parser.add_argument("--tasks", default="", help="Comma-separated task_id allowlist (empty = all tasks.json tasks).")
     parser.add_argument("--backends", default="", help="Comma-separated backend_key allowlist (empty = all backends).")
+    parser.add_argument(
+        "--expected_records",
+        default=None,
+        type=Path,
+        help="Seeder summary whose sample IDs must exist on the baseline branch.",
+    )
     parser.add_argument("--repo_dir", default=None, help="Repo root for git lookups (default: cwd).")
     parser.add_argument(
         "--require",
@@ -173,6 +221,18 @@ def main() -> int:
     if not base_sha:
         print(f"::warning::[verify] could not resolve target tip for {args.target_branch!r}; ancestry not checked")
 
+    expected_ids_by_bucket: dict[tuple[str, str], set[str]] | None = None
+    if args.expected_records:
+        try:
+            expected_ids_by_bucket = _load_expected_sample_ids(
+                args.expected_records,
+                gpu_model,
+                args.target_branch,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"::error::[verify] could not load expected records {args.expected_records}: {exc}")
+            return 1
+
     task_filter = {t.strip() for t in args.tasks.split(",") if t.strip()}
     backend_filter = {b.strip() for b in args.backends.split(",") if b.strip()}
     tasks = [
@@ -188,8 +248,20 @@ def main() -> int:
     results: list[dict[str, Any]] = []
     all_ok = True
     for task in tasks:
+        expected_sample_ids = (
+            expected_ids_by_bucket.get((task.task_id, task.backend_key), set())
+            if expected_ids_by_bucket is not None
+            else None
+        )
         usable, total, fingerprints = verify_bucket(
-            ref, gpu_model, task.task_id, task.backend_key, base_sha, repo_dir=repo_dir
+            ref,
+            gpu_model,
+            task.task_id,
+            task.backend_key,
+            base_sha,
+            target_branch=args.target_branch,
+            expected_sample_ids=expected_sample_ids,
+            repo_dir=repo_dir,
         )
         ok = usable >= MIN_BASELINE_SAMPLES
         all_ok = all_ok and ok

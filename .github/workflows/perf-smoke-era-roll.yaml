@@ -121,6 +121,7 @@ jobs:
       branches: "${{ needs.detect.outputs.commit }}:develop"
       commit_count: "1"
       samples_per_commit: ${{ needs.detect.outputs.min_samples }}
+      tasks: "__ALL_TASKS__"
       target_branch: develop
       strict_ancestry: true
       dry_run: false

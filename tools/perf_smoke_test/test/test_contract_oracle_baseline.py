@@ -16,7 +16,12 @@ _GATE_DIR = Path(__file__).resolve().parents[1]
 if str(_GATE_DIR) not in sys.path:
     sys.path.insert(0, str(_GATE_DIR))
 
-from baseline_manager import load_baseline, match_context_from_bench_result, update_baseline  # noqa: E402
+from baseline_manager import (  # noqa: E402
+    load_baseline,
+    make_sample_metadata,
+    match_context_from_bench_result,
+    update_baseline,
+)
 from contracts import CONTRACT_SCHEMA_VERSION, BenchResult  # noqa: E402
 from gate_types import FpsMeanThreshold, OracleVerdict, ThresholdSource  # noqa: E402
 from hashing import stable_hash  # noqa: E402
@@ -87,6 +92,36 @@ def test_stable_hash_is_key_order_independent() -> None:
     right = {"backend": "physx", "runtime": {"torch": "2.9.0", "warp": "1.13.0"}}
 
     assert stable_hash(left) == stable_hash(right)
+
+
+def test_seed_sample_index_prevents_identical_fps_deduplication(monkeypatch) -> None:
+    """Repeated samples remain unique even when they report identical FPS."""
+    monkeypatch.setenv("GITHUB_RUN_ID", "123")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    bench_result = _bench_result(fps=100.0).to_dict()
+
+    first = make_sample_metadata(
+        gpu_model="l40s",
+        task_id="Isaac-Cartpole-Direct",
+        backend="physx",
+        fps=100.0,
+        bench_result=bench_result,
+        target_branch="develop",
+        commit_sha="abc123",
+        sample_index=0,
+    )
+    second = make_sample_metadata(
+        gpu_model="l40s",
+        task_id="Isaac-Cartpole-Direct",
+        backend="physx",
+        fps=100.0,
+        bench_result=bench_result,
+        target_branch="develop",
+        commit_sha="abc123",
+        sample_index=1,
+    )
+
+    assert first["sample_id"] != second["sample_id"]
 
 
 def test_oracle_pass_warn_and_block_from_typed_result() -> None:
