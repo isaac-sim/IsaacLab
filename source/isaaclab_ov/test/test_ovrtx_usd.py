@@ -106,7 +106,7 @@ def test_build_render_scope_usd_solid_background_color():
         background_color=(1.0, 0.0, 0.5),
     )
     assert 'token omni:rtx:background:source:type = "color"' in render_scope
-    assert "float3 omni:rtx:background:source:color = (1.0, 0.0, 0.5)" in render_scope
+    assert "color3f omni:rtx:background:source:color = (1.0, 0.0, 0.5)" in render_scope
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
