@@ -1,6 +1,52 @@
 Changelog
 ---------
 
+0.8.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added reusable unified training and playback entrypoints under :mod:`isaaclab_rl`, including the
+  :class:`~isaaclab_rl.TrainingRequest` and :class:`~isaaclab_rl.PlaybackRequest` programmatic APIs
+  and the :func:`~isaaclab_rl.train`, :func:`~isaaclab_rl.play`, :func:`~isaaclab_rl.run_train_cli`,
+  and :func:`~isaaclab_rl.run_play_cli` functions.
+* Added a ``--train_env_cfg`` flag to the play entrypoints that plays the training environment
+  configuration as-is, skipping the play-mode overrides defined by the environment configuration's
+  ``play_mode`` method.
+* Added :func:`~isaaclab_rl.entrypoints.common.resolve_play_task_name` that redirects a retired
+  ``-Play`` task id to its training task id with a deprecation warning.
+* Added agent-aware task help to the unified RL-Games, RSL-RL, skrl, and
+  Stable-Baselines3 training and playback commands.
+
+Changed
+^^^^^^^
+
+* Changed RL Games population-based training launches to stop forwarding the deprecated
+  ``--headless`` and ``--enable_cameras`` arguments. Configure visualization through the
+  selected visualizer instead.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+* Removed the deprecated per-library scripts under ``scripts/reinforcement_learning/<library>/``
+  (``train.py``, ``play.py``, and ``cli_args.py``). Use the unified
+  ``scripts/reinforcement_learning/train.py`` and ``play.py`` executables with
+  ``--rl_library <library>``, or the programmatic :func:`~isaaclab_rl.train` and
+  :func:`~isaaclab_rl.play` APIs instead.
+* Removed the ``--use_last_checkpoint`` flag from the RL-Games ``play`` entrypoint.
+  Use ``--checkpoint latest`` to select the newest checkpoint instead.
+
+Fixed
+^^^^^
+
+* Fixed the ``--deterministic`` flag not configuring PyTorch deterministic operations in the RL-Games,
+  RSL-RL, Stable-Baselines3, and skrl backends of the unified ``train`` and ``play`` entrypoints.
+
+
 0.7.0 (2026-07-03)
 ~~~~~~~~~~~~~~~~~~
 
