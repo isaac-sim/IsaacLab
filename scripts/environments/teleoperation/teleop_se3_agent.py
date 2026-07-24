@@ -218,12 +218,12 @@ def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, headless: b
     Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
     the teleop state machine without an XR headset. Keys are captured through the Kit
     app window, so this returns ``None`` when running headless or when IsaacTeleop is
-    not the active stack (a headless run still auto-starts teleop). ``R`` calls
-    :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset`, which injects a single RESET
-    pulse that the loop's control-event handler turns into one environment reset
-    (binding it straight to the reset callback would reset the env twice). The
-    returned device must be kept referenced by the caller so its carb input
-    subscription survives.
+    not the active stack (a headless run still auto-starts teleop). ``R`` is an operator
+    reset: :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` with ``pause=True`` injects a
+    single RESET pulse (the loop's control-event handler turns it into one environment
+    reset) and pauses the session (binding it straight to the reset callback would reset
+    the env twice). The returned device must be kept referenced by the caller so its carb
+    input subscription survives.
     """
     if not use_isaac_teleop or headless:
         return None
@@ -231,24 +231,12 @@ def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, headless: b
         keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
         keyboard.add_callback("B", teleop_interface.request_start)
         keyboard.add_callback("P", teleop_interface.request_stop)
-        keyboard.add_callback("R", teleop_interface.reset)
+        keyboard.add_callback("R", lambda: teleop_interface.reset(pause=True))
         print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
         return keyboard
     except Exception as e:
         logger.warning(f"Control keyboard unavailable ({e}); teleop still auto-starts without --xr")
         return None
-
-
-def _auto_start_teleop(teleop_interface, use_isaac_teleop: bool, xr: bool) -> None:
-    """Start IsaacTeleop locally when no XR headset will send START.
-
-    Without ``--xr`` there is no client to START the session, so drive its state
-    machine to RUNNING via :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start`.
-    The command flows through the normal state machine, so keyboard pause/resume
-    still works afterwards. No-op with ``--xr`` or for non-IsaacTeleop devices.
-    """
-    if use_isaac_teleop and not xr:
-        teleop_interface.request_start()
 
 
 def main() -> None:  # noqa: C901
@@ -461,9 +449,11 @@ def main() -> None:  # noqa: C901
         env.reset()
         teleop_interface.reset()
 
-        # Without --xr there is no headset to send START, so start locally; the
-        # [B]/[P] keys can still pause/resume afterwards.
-        _auto_start_teleop(teleop_interface, use_isaac_teleop, args_cli.xr)
+        # Without --xr there is no headset to send START, so start locally ([B]/[P] can
+        # still pause/resume). The reset() above is a host reset (a pure pulse), so it does
+        # not cancel this start.
+        if use_isaac_teleop and not args_cli.xr:
+            teleop_interface.request_start()
 
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
         print(f"{stack_name} teleoperation started. Press 'R' to reset the environment.")

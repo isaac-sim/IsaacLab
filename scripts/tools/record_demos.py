@@ -651,16 +651,17 @@ def run_simulation_loop(  # noqa: C901
     # Optional keyboard for headset-free IsaacTeleop control (start / pause / reset).
     # Captured through the Kit app window, so only wired when a UI is present; a
     # headless run still auto-starts in ``inner_loop``. Kept in a local so its carb
-    # input subscription is not garbage-collected. ``R`` calls ``teleop_interface.reset``
-    # (a single RESET pulse the control-event handler turns into one env reset); binding
-    # it straight to ``reset_recording_instance`` would reset the env twice.
+    # input subscription is not garbage-collected. ``R`` is an operator reset:
+    # ``reset(pause=True)`` injects a single RESET pulse (the control-event handler
+    # turns it into one env reset) and pauses the session -- binding it straight to
+    # ``reset_recording_instance`` would reset the env twice.
     control_keyboard = None
     if use_isaac_teleop and not args_cli.headless:
         try:
             control_keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
             control_keyboard.add_callback("B", teleop_interface.request_start)
             control_keyboard.add_callback("P", teleop_interface.request_stop)
-            control_keyboard.add_callback("R", teleop_interface.reset)
+            control_keyboard.add_callback("R", lambda: teleop_interface.reset(pause=True))
             print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
         except Exception as e:
             logger.warning(f"Control keyboard unavailable ({e}); recording still auto-starts without --xr")
@@ -681,7 +682,8 @@ def run_simulation_loop(  # noqa: C901
         teleop_interface.reset()
 
         # Without --xr there is no headset to send START, so drive the IsaacTeleop
-        # state machine to RUNNING locally ([B]/[P] can still pause/resume).
+        # state machine to RUNNING locally ([B]/[P] can still pause/resume). The reset()
+        # above is a host reset (a pure pulse), so it does not cancel this start.
         if use_isaac_teleop and not args_cli.xr:
             teleop_interface.request_start()
 
