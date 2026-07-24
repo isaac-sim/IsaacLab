@@ -1,6 +1,126 @@
 Changelog
 ---------
 
+9.0.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Franka Panda configuration for the Dexsuite lift task, including a
+  reset-validity stack that resamples initial states from a prefilled bank of
+  collision-free poses and gripper closing-speed randomization for sim-to-sim transfer.
+* Added PhysX support to the DR Legs hold-pose and walking environments.
+* Added controller haptic feedback to the two G1 locomanipulation teleop example
+  environments (``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` and
+  ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``). Each env now has per-hand
+  finger ``ContactSensor`` s and a ``haptic_feedback`` config so the XR controller
+  vibrates when the corresponding G1 hand applies force to an object.
+* Added per-finger haptic glove feedback to the two GR1T2 pick-place teleop environments
+  (``IsaacContrib-PickPlace-GR1T2-Abs`` and ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``).
+  Each hand has fingertip ``ContactSensor`` s filtered against the grasped object, so each glove
+  finger vibrates in proportion to how tightly it grips the object.
+* Added a ``play_mode`` argument to :func:`~isaaclab_tasks.utils.hydra.hydra_task_config`,
+  :func:`~isaaclab_tasks.utils.hydra.resolve_task_config` and
+  :func:`~isaaclab_tasks.utils.hydra.register_task` that applies the environment configuration's
+  ``play_mode`` overrides after preset resolution.
+* Added preset-to-agent compatibility to task-specific command help for
+  :obj:`Isaac-Cartpole-Camera`,
+  :obj:`IsaacContrib-Cartpole-Showcase-Direct`, and
+  :obj:`IsaacContrib-Cartpole-Camera-Showcase-Direct`.
+* Added behavioral-success metrics and threshold-independent episode-error
+  diagnostics to the dexterous reorientation environments.
+* Added the ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` environment, an
+  SO-101 cube-stack task teleoperated by joint angles streamed from a physical
+  SO-101 leader arm (through the IsaacTeleop ``so101_leader`` device) instead of
+  an XR controller. It mirrors the leader's five arm joints and gripper directly
+  onto the follower via an absolute joint-position action.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``ISAACLAB_TASKS_METADATA`` from :mod:`isaaclab_tasks`.
+  This constant was populated from the now-deleted ``config/extension.toml`` Kit extension manifest.
+* Updated ``panda_instanceable.usd`` Nucleus path to
+  ``Robots/FrankaEmika/Legacy/panda_instanceable.usd`` in Franka cabinet task config.
+* Moved the rigid-shape contact defaults in the ``lift_franka_soft`` presets
+  from ``NewtonModelCfg.shape_material_ke/kd/mu`` to
+  :class:`~isaaclab_newton.physics.NewtonShapeCfg` on
+  ``NewtonCfg.default_shape_cfg``.
+
+* Made the proxy-coupled MJWarp + VBD solver the default for the
+  ``Isaac-Lift-Soft-Franka`` volume task, configured through named solver
+  entries and an explicit rigid-to-soft proxy mapping.
+* Changed the ``Isaac-Lift-Soft-Franka`` proxy-coupled preset to use full
+  Newton body-label regexes, removing the need to wire the environment scene
+  config into each physics preset alias.
+* Changed the AutoMate contrib launchers (``run_w_id.py``, ``run_disassembly_w_id.py``) to invoke the
+  unified ``scripts/reinforcement_learning/train.py`` and ``play.py`` entrypoints with
+  ``--rl_library rl_games`` instead of the removed per-library scripts.
+* Changed the Franka cabinet task configuration to the relocated
+  ``Robots/FrankaEmika/Legacy/panda_instanceable.usd`` asset, following the asset
+  reorganization on the Nucleus server.
+* Changed the canonical DR Legs task IDs to ``IsaacContrib-DrLegs-HoldPose`` and
+  ``IsaacContrib-DrLegs-Walk``, and removed the ``-v0`` suffix from the canonical Newton IK task IDs.
+  Use the new task IDs in scripts and training commands; the old IDs remain available
+  as deprecated aliases.
+* Changed the default Cartpole camera resolution to 96 by 96 pixels and used the Newton renderer's default
+  8 by 8 tile size. Set the camera resolution and Newton tile size explicitly to retain the previous values.
+* Changed the rough-terrain velocity tasks to declare their height scanner and contact sensor with
+  the backend-dispatching :class:`~isaaclab.sensors.RayCasterCfg` and
+  :class:`~isaaclab.sensors.ContactSensorCfg`, which select the matching backend implementation
+  automatically. This removes the per-task backend sensor presets.
+* Changed rough-terrain velocity tasks to use
+  :class:`~isaaclab_newton.sensors.NewtonRaycastSensor` for height scans with
+  Newton physics. PhysX and OvPhysX presets continue to use
+  :class:`~isaaclab.sensors.RayCaster`. No task configuration changes are required.
+* **Breaking:** Moved the Digit velocity environments from ``isaaclab_tasks.core``
+  to ``isaaclab_tasks.contrib`` and renamed their task IDs from
+  ``Isaac-Velocity-{Flat,Rough}-Digit`` to
+  ``IsaacContrib-Velocity-{Flat,Rough}-Digit``. Update Python imports and
+  ``gym.make`` / ``--task`` arguments to use the contributed paths and IDs.
+  Digit velocity and loco-manip environments now support only the ``physx``
+  physics preset.
+* Migrated the G1 loco-manipulation teleop environments to
+  :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg` (was ``HapticFeedbackCfg``) following the
+  haptic-feedback config split. Behavior is unchanged.
+* **Breaking:** Removed the ``*_PLAY`` environment configuration classes and the ``-Play`` gym task
+  registrations. Play-mode overrides are now defined by overriding ``play_mode`` on the training
+  environment configuration and are applied automatically by the play scripts. Use the training task
+  id with ``play.py`` (a ``-Play`` id is redirected with a deprecation warning), and pass
+  ``--train_env_cfg`` to play the training configuration as-is.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Isaac-DrLegs-HoldPose-v0``, ``Isaac-DrLegs-Walk-v0``, and the
+  ``-v0`` Newton IK task IDs in favor of their canonical replacements.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``.
+
+Fixed
+^^^^^
+
+* Fixed task scene assets using expanded environment regular expressions
+  instead of the canonical ``{ENV_REGEX_NS}/Leaf`` bindings.
+* Fixed Reach and OpenArm Lift table configurations to share a literal
+  environment-root binding and native-equal initial state.
+* Fixed Franka Cabinet variants to declare their robot and end-effector frame
+  in the scene configuration instead of mutating them after construction.
+* Fixed the locomanipulation pick-place success termination and the stack
+  lighting and texture randomization events to read static-asset poses and
+  prims from their spawned configurations, since static scene assets no
+  longer carry a runtime view in :class:`~isaaclab.scene.InteractiveScene`.
+* Fixed dexterous hand resets that could initialize joints below their lower
+  position limits. Reset joint positions now sample uniformly across the full
+  joint range; previously the distribution was biased toward the lower half of
+  the range.
+
+
 8.1.9 (2026-07-14)
 ~~~~~~~~~~~~~~~~~~
 
