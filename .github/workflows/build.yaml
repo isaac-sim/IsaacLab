@@ -617,82 +617,50 @@ jobs:
     name: isaaclab_newton kitless
     runs-on: [self-hosted, gpu]
     timeout-minutes: 30
+    needs: [build, config]
     if: >-
-      github.event_name != 'push'
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
-    - uses: astral-sh/setup-uv@v6
-      with:
-        enable-cache: true
-    - name: Restore Kit-less Warp kernel cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ runner.temp }}/warp-cache
-        key: warp-newton-kitless-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock') }}
-        restore-keys: |
-          warp-newton-kitless-${{ runner.os }}-${{ runner.arch }}-
-    - name: Run Kit-less Newton tests
+    - uses: ./.github/actions/run-package-tests
       env:
         ISAACLAB_RUN_CI_TESTS: "1"
         PYTEST_ADDOPTS: "--without-kit"
-        WARP_CACHE_PATH: ${{ runner.temp }}/warp-cache
-      run: >-
-        uv run --extra test --locked python -m pytest
-        source/isaaclab_newton/test
-        --junitxml=isaaclab-newton-kitless.xml
-    - uses: actions/upload-artifact@v6
-      if: always()
       with:
-        name: isaaclab-newton-kitless-report
-        path: isaaclab-newton-kitless.xml
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_newton"
+        container-name: isaac-lab-newton-kitless-test
 
   test-isaaclab-newton-kit:
     name: isaaclab_newton requires Kit
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
+    needs: [build, config]
     if: >-
-      github.event_name != 'push'
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
-    - uses: astral-sh/setup-uv@v6
-      with:
-        enable-cache: true
-    - name: Restore Kit Warp kernel cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ runner.temp }}/warp-cache
-        key: warp-newton-kit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock') }}
-        restore-keys: |
-          warp-newton-kit-${{ runner.os }}-${{ runner.arch }}-
-    - name: Run Newton tests that require Kit
+    - uses: ./.github/actions/run-package-tests
       env:
-        ACCEPT_EULA: "Y"
-        OMNI_KIT_ACCEPT_EULA: "YES"
-        OMNI_KIT_DISABLE_CUP: "1"
-        ISAAC_SIM_HEADLESS: "1"
-        ISAAC_SIM_LOW_MEMORY: "1"
         ISAACLAB_RUN_CI_TESTS: "1"
-        PYTHONUNBUFFERED: "1"
-        TEST_FILTER_PATTERN: "isaaclab_newton"
-        CI_MARKER: "requires_kit"
-        TEST_RESULT_FILE: "isaaclab-newton-kit.xml"
-        WARP_CACHE_PATH: ${{ runner.temp }}/warp-cache
-      run: >-
-        uv run --extra isaacsim --locked
-        --with pytest --with pytest-mock --with junitparser
-        --with prettytable --with flaky --with 'coverage>=7.6.1'
-        python -m pytest tools -v
-    - uses: actions/upload-artifact@v6
-      if: always()
+        TEST_PYTEST_QUIET: "1"
       with:
-        name: isaaclab-newton-kit-report
-        path: tests/isaaclab-newton-kit.xml
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_newton"
+        ci-marker: "requires_kit"
+        container-name: isaac-lab-newton-kit-test
 
   test-isaaclab-physx:
     name: isaaclab_physx

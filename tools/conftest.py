@@ -600,12 +600,13 @@ def _run_one_pass(
     report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
 
+    verbosity = "-q" if os.environ.get("TEST_PYTEST_QUIET") == "1" else "-v"
     cmd = [
         sys.executable,
         "-m",
         "pytest",
+        verbosity,
         # Keep pytest capture enabled so Kit startup logs are only shown for failed tests.
-        "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
         "--no-header",
         "--show-capture=all",
         f"--config-file={ctx.workspace_root}/pyproject.toml",

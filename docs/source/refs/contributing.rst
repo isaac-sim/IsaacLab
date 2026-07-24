@@ -700,7 +700,7 @@ They should be able to catch regressions and ensure that the code is working as 
 Please make sure that you add tests for your changes.
 
 Test runtime boundaries
-~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 
 An unqualified pytest run is the fast local profile. It excludes Kit and tests
 marked ``ci_only`` while retaining direct Python, Torch, Warp, Newton, and

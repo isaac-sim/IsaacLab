@@ -218,6 +218,16 @@ runs:
             -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
             -e TEST_RESULT_FILE=$result_file"
 
+          if [ -n "${ISAACLAB_RUN_CI_TESTS:-}" ]; then
+            docker_env_vars="$docker_env_vars -e ISAACLAB_RUN_CI_TESTS"
+          fi
+          if [ -n "${PYTEST_ADDOPTS:-}" ]; then
+            docker_env_vars="$docker_env_vars -e PYTEST_ADDOPTS"
+          fi
+          if [ -n "${TEST_PYTEST_QUIET:-}" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_PYTEST_QUIET"
+          fi
+
           if [ "$curobo_only" = "true" ]; then
             docker_env_vars="$docker_env_vars -e TEST_CUROBO_ONLY=true"
             echo "Setting TEST_CUROBO_ONLY=true"
