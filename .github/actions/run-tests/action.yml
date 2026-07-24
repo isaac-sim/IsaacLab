@@ -81,6 +81,10 @@ inputs:
     description: 'Host path to bind-mount at /workspace/isaaclab (for deps-cache-hit mode)'
     default: ''
     required: false
+  warp-cache-host-dir:
+    description: 'Host Warp cache directory mounted into the test container'
+    default: ''
+    required: false
   extra-pip-packages:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
@@ -137,6 +141,7 @@ runs:
           local wheelhouse_packages="${19}"
           local test_k_expr="${20}"
           local ci_marker="${21}"
+          local warp_cache_host_dir="${22}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -295,6 +300,18 @@ runs:
           # source code over /workspace/isaaclab instead of baking it into the image.
           docker_volume_args=""
           docker_user_args=""
+          if [ -n "$warp_cache_host_dir" ]; then
+            mkdir -p "$warp_cache_host_dir"
+            if [ ! -w "$warp_cache_host_dir" ]; then
+              echo "::error::Warp cache is not writable: $warp_cache_host_dir"
+              return 1
+            fi
+            docker_volume_args="$docker_volume_args \
+              -v ${warp_cache_host_dir}:/tmp/isaaclab-warp-cache:rw"
+            docker_env_vars="$docker_env_vars \
+              -e WARP_CACHE_PATH=/tmp/isaaclab-warp-cache"
+            echo "🔵 Mounting Warp cache from ${warp_cache_host_dir}"
+          fi
           if [ -n "$volume_mount_source" ]; then
             host_uid="$(id -u)"
             host_gid="$(id -g)"
@@ -529,7 +546,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.warp-cache-host-dir }}"
 
     - name: Kill container on cancellation
       if: cancelled()

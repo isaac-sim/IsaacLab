@@ -94,6 +94,14 @@ inputs:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
     required: false
+  warp-cache-family:
+    description: 'Stable Warp cache family; empty disables Warp cache restoration'
+    default: ''
+    required: false
+  warp-cache-write:
+    description: 'Whether a successful trusted run may publish the restored Warp cache'
+    default: 'false'
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
@@ -157,6 +165,40 @@ runs:
         elapsed=$(( $(date +%s) - start_time ))
         printf "🔵 Image pull took %dm %ds\n" $((elapsed/60)) $((elapsed%60))
         echo "🔵 Docker Image Pulled in ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Resolve Warp cache identity
+      if: inputs.warp-cache-family != ''
+      id: warp-cache-identity
+      shell: bash
+      run: |
+        set -euo pipefail
+        compute_cap="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d ' .')"
+        if [ -z "$compute_cap" ]; then
+          echo "::error::Could not determine GPU compute capability"
+          exit 1
+        fi
+        echo "gpu-target=sm_${compute_cap}" >> "$GITHUB_OUTPUT"
+        echo "epoch=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+        echo "Warp cache target: sm_${compute_cap}"
+
+    - name: Restore Warp kernel cache
+      if: inputs.warp-cache-family != ''
+      id: warp-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ runner.temp }}/isaaclab-warp-cache/${{ inputs.warp-cache-family }}
+        key: warp-v1-${{ inputs.warp-cache-family }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.warp-cache-identity.outputs.gpu-target }}-${{ inputs.isaacsim-version }}-${{ hashFiles('uv.lock', 'pyproject.toml', 'docker/Dockerfile.base') }}-${{ steps.warp-cache-identity.outputs.epoch }}
+        restore-keys: |
+          warp-v1-${{ inputs.warp-cache-family }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.warp-cache-identity.outputs.gpu-target }}-${{ inputs.isaacsim-version }}-${{ hashFiles('uv.lock', 'pyproject.toml', 'docker/Dockerfile.base') }}-
+          warp-v1-${{ inputs.warp-cache-family }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.warp-cache-identity.outputs.gpu-target }}-
+
+    - name: Prepare Warp kernel cache
+      if: inputs.warp-cache-family != ''
+      shell: bash
+      run: |
+        cache_dir="${{ runner.temp }}/isaaclab-warp-cache/${{ inputs.warp-cache-family }}"
+        mkdir -p "$cache_dir"
+        test -w "$cache_dir"
 
     - name: Restore NGC CLI cache
       if: inputs.wheelhouse-resource != '' && env.NGC_API_KEY != ''
@@ -305,6 +347,7 @@ runs:
         wheelhouse-host-dir: ${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
+        warp-cache-host-dir: ${{ inputs.warp-cache-family != '' && format('{0}/isaaclab-warp-cache/{1}', runner.temp, inputs.warp-cache-family) || '' }}
 
     - name: Check Test Results
       if: always()
@@ -319,6 +362,13 @@ runs:
           echo "No test results file found. This might indicate test execution failed."
           exit 1
         fi
+
+    - name: Save Warp kernel cache
+      if: success() && inputs.warp-cache-write == 'true' && steps.warp-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ runner.temp }}/isaaclab-warp-cache/${{ inputs.warp-cache-family }}
+        key: ${{ steps.warp-cache.outputs.cache-primary-key }}
 
     - name: Cleanup wheelhouse artifacts
       if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''

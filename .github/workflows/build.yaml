@@ -348,9 +348,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -365,6 +363,8 @@ jobs:
         exclude-pattern: "test_rendering_"
         shard-index: "0"
         shard-count: "3"
+        warp-cache-family: isaaclab-tasks-0
+        warp-cache-write: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
@@ -373,9 +373,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -390,6 +388,8 @@ jobs:
         exclude-pattern: "test_rendering_"
         shard-index: "1"
         shard-count: "3"
+        warp-cache-family: isaaclab-tasks-1
+        warp-cache-write: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
@@ -398,9 +398,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -415,6 +413,8 @@ jobs:
         exclude-pattern: "test_rendering_"
         shard-index: "2"
         shard-count: "3"
+        warp-cache-family: isaaclab-tasks-2
+        warp-cache-write: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
@@ -422,9 +422,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -438,6 +436,8 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "0"
         shard-count: "3"
+        warp-cache-family: isaaclab-core-0
+        warp-cache-write: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         container-name: isaac-lab-core-1-test
 
   test-isaaclab-core-2:
@@ -445,9 +445,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -461,6 +459,8 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "1"
         shard-count: "3"
+        warp-cache-family: isaaclab-core-1
+        warp-cache-write: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
@@ -468,9 +468,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -484,6 +482,8 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "2"
         shard-count: "3"
+        warp-cache-family: isaaclab-core-2
+        warp-cache-write: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         container-name: isaac-lab-core-3-test
 
   test-isaaclab-rl:
@@ -618,9 +618,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -632,6 +630,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
+        warp-cache-family: isaaclab-newton
+        warp-cache-write: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
