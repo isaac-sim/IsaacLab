@@ -147,7 +147,7 @@ If the issue persists, additional NCCL fallbacks that may help are:
     export NCCL_ALGO=Ring
 
 On some multi-GPU systems, distributed training with RTX rendering enabled (for example,
-camera-based tasks launched with ``--enable_cameras``) fails when the participating GPUs span
+camera-based tasks) fails when the participating GPUs span
 multiple NUMA nodes, while the same training runs fine on GPUs attached to a single PCIe
 switch. The failure typically surfaces as a hang or abort on one of the first collectives,
 with ``Watchdog caught collective operation timeout: WorkNCCL(..., OpType=BROADCAST, ...)``
