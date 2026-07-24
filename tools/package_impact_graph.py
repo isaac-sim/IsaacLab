@@ -59,26 +59,88 @@ from pathlib import Path
 
 _PREFIX = "isaaclab"
 _DEP_NAME_RE = re.compile(r"^([A-Za-z0-9_-]+)")
+_BUILD_YAML = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "build.yaml"
 
-# Maps each source package name to its CI job label in build.yaml.
-# Packages not listed here have no dedicated CI job.
-_PACKAGE_TO_CI_JOB: dict[str, str] = {
-    "isaaclab": "test-isaaclab-core",
-    "isaaclab_assets": "test-isaaclab-assets",
-    "isaaclab_contrib": "test-isaaclab-contrib",
-    "isaaclab_experimental": "test-isaaclab-core",  # no dedicated job; covered by core
-    "isaaclab_mimic": "test-isaaclab-mimic",
-    "isaaclab_newton": "test-isaaclab-newton",
-    "isaaclab_ov": "test-isaaclab-ov",
-    "isaaclab_ovphysx": "test-isaaclab-core",  # no dedicated job
-    "isaaclab_physx": "test-isaaclab-physx",
-    "isaaclab_ppisp": "test-isaaclab-core",  # no dedicated job
-    "isaaclab_rl": "test-isaaclab-rl",
-    "isaaclab_tasks": "test-isaaclab-tasks",
-    "isaaclab_tasks_experimental": "test-isaaclab-tasks",  # bundled with tasks
-    "isaaclab_teleop": "test-isaaclab-teleop",
-    "isaaclab_visualizers": "test-isaaclab-visualizers",
-}
+
+def _derive_pkg_to_job_map(packages: list[str]) -> dict[str, list[str]]:
+    """Derive the package→CI-jobs mapping by parsing .github/workflows/build.yaml.
+
+    For each job that uses ``.github/actions/run-package-tests``, extracts the
+    ``filter-pattern`` value.  ``TEST_FILTER_PATTERN`` is applied as a path
+    substring filter by ``tools/conftest.py``, so a package is covered by a job
+    when the pattern is a substring of the package name.
+
+    A package can match multiple patterns — for example ``isaaclab_tasks_experimental``
+    matches both ``"isaaclab_tasks"`` and any other overlapping pattern.  All
+    matching canonical labels are returned so every affected job runs.
+
+    Sharded jobs (e.g. ``test-isaaclab-tasks``, ``test-isaaclab-tasks-2``) share
+    the same filter-pattern; the shortest job ID becomes the canonical label so
+    all shards check against the same string in ``contains(fromJSON(...))``.
+
+    Returns an empty map if ``build.yaml`` is missing or ``pyyaml`` is unavailable.
+    """
+    if not _BUILD_YAML.is_file():
+        return {}
+    try:
+        import yaml  # pyyaml
+    except ImportError:
+        print(
+            "Warning: pyyaml not installed; run `pip install pyyaml` for dynamic job mapping.",
+            file=sys.stderr,
+        )
+        return {}
+
+    try:
+        with _BUILD_YAML.open() as f:
+            workflow = yaml.safe_load(f)
+    except Exception as exc:
+        print(f"Warning: could not parse build.yaml: {exc}", file=sys.stderr)
+        return {}
+
+    # Collect (job_id, filter_pattern) for every test job that uses run-package-tests.
+    pattern_to_job_ids: dict[str, list[str]] = defaultdict(list)
+    for job_id, job_def in workflow.get("jobs", {}).items():
+        if not isinstance(job_def, dict):
+            continue
+        for step in job_def.get("steps", []):
+            if not isinstance(step, dict):
+                continue
+            uses = str(step.get("uses", ""))
+            if ".github/actions/run-package-tests" not in uses:
+                continue
+            with_block = step.get("with") or {}
+            pattern = str(with_block.get("filter-pattern", "")).strip()
+            # Skip missing patterns and GitHub Actions expressions
+            if pattern and not pattern.startswith("${{"):
+                pattern_to_job_ids[pattern].append(job_id)
+            break  # only one run-package-tests step per job
+
+    # For sharded jobs with identical patterns, use the shortest ID as the
+    # canonical label (e.g. "test-isaaclab-tasks" for all three shards).
+    pattern_to_canonical: dict[str, str] = {
+        pattern: sorted(ids, key=len)[0]
+        for pattern, ids in pattern_to_job_ids.items()
+    }
+
+    # Map each source package to ALL canonical labels whose filter-pattern matches.
+    # A positive pattern matches when it is a substring of the package name.
+    # A "not X" pattern matches when X is NOT a substring of the package name.
+    pkg_to_jobs: dict[str, list[str]] = {}
+    for pkg in packages:
+        labels: set[str] = set()
+        for pattern, label in pattern_to_canonical.items():
+            if pattern.startswith("not "):
+                excluded = pattern[4:].strip()
+                matched = excluded not in pkg
+            else:
+                matched = pattern in pkg
+            if matched:
+                labels.add(label)
+        if labels:
+            pkg_to_jobs[pkg] = sorted(labels)
+
+    return pkg_to_jobs
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +222,7 @@ def build_graph(source: Path) -> dict:
       - ``package_to_ci_jobs``: {pkg: [job, ...]}
     """
     packages = set(_all_packages(source))
+    pkg_to_job = _derive_pkg_to_job_map(sorted(packages))
 
     # file_imports[rel_path] = sorted list of isaaclab* packages imported
     file_imports: dict[str, list[str]] = {}
@@ -198,19 +261,21 @@ def build_graph(source: Path) -> dict:
 
     for pkg in packages:
         affected_paths = _transitive_affected_with_paths(pkg)
-        jobs: dict[str, list[str]] = {}  # job -> shortest chain
+        jobs: dict[str, list[str]] = {}  # job -> shortest chain that explains it
         for affected_pkg, chain in affected_paths.items():
-            job = _PACKAGE_TO_CI_JOB.get(affected_pkg)
-            if job and (job not in jobs or len(chain) < len(jobs[job])):
-                jobs[job] = chain
+            for job in pkg_to_job.get(affected_pkg, []):
+                if job not in jobs or len(chain) < len(jobs[job]):
+                    jobs[job] = chain
         package_to_ci_jobs[pkg] = sorted(jobs)
         package_job_chains[pkg] = {j: c for j, c in jobs.items()}
 
+    all_ci_jobs = sorted({j for labels in pkg_to_job.values() for j in labels})
     return {
         "file_imports": dict(sorted(file_imports.items())),
         "reverse_deps": {k: sorted(v) for k, v in sorted(reverse_deps.items())},
         "package_to_ci_jobs": dict(sorted(package_to_ci_jobs.items())),
         "package_job_chains": package_job_chains,
+        "all_ci_jobs": all_ci_jobs,
     }
 
 
@@ -262,13 +327,13 @@ def build_manifest(changed: list[str], source: Path, graph: dict) -> dict:
 
         if py_file.suffix != ".py":
             non_python.append(path_str)
-            for job in sorted(set(_PACKAGE_TO_CI_JOB.values())):
+            for job in graph.get("all_ci_jobs", []):
                 job_reasons[job].append({"file": path_str, "owner": None, "chain": ["(non-python)"]})
             continue
 
         owner = _owner_package(resolved, source)
         if owner is None:
-            for job in sorted(set(_PACKAGE_TO_CI_JOB.values())):
+            for job in graph.get("all_ci_jobs", []):
                 job_reasons[job].append({"file": path_str, "owner": None, "chain": ["(unknown)"]})
             continue
 
