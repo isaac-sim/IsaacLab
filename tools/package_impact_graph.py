@@ -119,8 +119,7 @@ def _derive_pkg_to_job_map(packages: list[str]) -> dict[str, list[str]]:
     # For sharded jobs with identical patterns, use the shortest ID as the
     # canonical label (e.g. "test-isaaclab-tasks" for all three shards).
     pattern_to_canonical: dict[str, str] = {
-        pattern: sorted(ids, key=len)[0]
-        for pattern, ids in pattern_to_job_ids.items()
+        pattern: sorted(ids, key=len)[0] for pattern, ids in pattern_to_job_ids.items()
     }
 
     # Map each source package to ALL canonical labels whose filter-pattern matches.
@@ -157,9 +156,7 @@ def _repo_root() -> Path:
 
 def _all_packages(source: Path) -> list[str]:
     """Return the name of every subpackage directory that has a pyproject.toml."""
-    return sorted(
-        p.name for p in source.iterdir() if p.is_dir() and (p / "pyproject.toml").is_file()
-    )
+    return sorted(p.name for p in source.iterdir() if p.is_dir() and (p / "pyproject.toml").is_file())
 
 
 def _owner_package(py_file: Path, source: Path) -> str | None:
@@ -290,24 +287,24 @@ def build_manifest(changed: list[str], source: Path, graph: dict) -> dict:
     The manifest has shape::
 
         {
-          "jobs": {
-            "test-isaaclab-newton": [
-              {
-                "file": "source/isaaclab_newton/isaaclab_newton/foo.py",
-                "owner": "isaaclab_newton",
-                "chain": ["isaaclab_newton"]
-              }
-            ],
-            "test-isaaclab-tasks": [
-              {
-                "file": "source/isaaclab_newton/isaaclab_newton/foo.py",
-                "owner": "isaaclab_newton",
-                "chain": ["isaaclab_newton", "isaaclab_tasks"]
-              }
-            ]
-          },
-          "changed_files": [...],
-          "non_python_files": [...]
+            "jobs": {
+                "test-isaaclab-newton": [
+                    {
+                        "file": "source/isaaclab_newton/isaaclab_newton/foo.py",
+                        "owner": "isaaclab_newton",
+                        "chain": ["isaaclab_newton"],
+                    }
+                ],
+                "test-isaaclab-tasks": [
+                    {
+                        "file": "source/isaaclab_newton/isaaclab_newton/foo.py",
+                        "owner": "isaaclab_newton",
+                        "chain": ["isaaclab_newton", "isaaclab_tasks"],
+                    }
+                ],
+            },
+            "changed_files": [...],
+            "non_python_files": [...],
         }
 
     Each entry under a job shows the shortest reverse-import chain from the
