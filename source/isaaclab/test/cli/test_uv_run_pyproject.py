@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -25,6 +26,24 @@ def _root_pyproject() -> dict:
     """Load the root development ``pyproject.toml``."""
     with (_repo_root() / "pyproject.toml").open("rb") as f:
         return tomllib.load(f)
+
+
+def _ovrtx_requirement_from_setup() -> str:
+    """Return the OVRTX requirement declared by ``source/isaaclab_ov/setup.py``."""
+    setup_path = _repo_root() / "source/isaaclab_ov/setup.py"
+    module = ast.parse(setup_path.read_text(encoding="utf-8"))
+
+    for node in module.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == "EXTRAS_REQUIRE" for target in node.targets):
+            continue
+        extras_require = ast.literal_eval(node.value)
+        for dependency in extras_require["ovrtx"]:
+            if dependency.startswith("ovrtx"):
+                return dependency
+
+    raise AssertionError("Could not find the OVRTX requirement in source/isaaclab_ov/setup.py")
 
 
 def test_uv_run_extra_names_match_documented_workflow():
@@ -86,3 +105,19 @@ def test_uv_run_uses_managed_python():
     tool_uv = _root_pyproject()["tool"]["uv"]
 
     assert tool_uv["python-preference"] == "only-managed"
+
+
+def test_ci_ovrtx_installs_match_source_package_requirement():
+    """CI must not bypass the OVRTX version range declared by the source package."""
+    expected_requirement = _ovrtx_requirement_from_setup()
+
+    for workflow_path in (
+        ".github/workflows/build.yaml",
+        ".github/workflows/daily-compatibility.yml",
+    ):
+        workflow = (_repo_root() / workflow_path).read_text(encoding="utf-8")
+        ovrtx_install_lines = [
+            line.strip() for line in workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
+        ]
+        assert ovrtx_install_lines
+        assert all(expected_requirement in line for line in ovrtx_install_lines)
