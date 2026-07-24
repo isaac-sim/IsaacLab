@@ -13,7 +13,6 @@ started exactly once regardless of how many launcher objects are constructed.
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers — mock base and factory
 # ---------------------------------------------------------------------------
