@@ -77,10 +77,11 @@ parser.add_argument(
 parser.add_argument(
     "--cloudxr_env",
     type=str,
-    default="cloudxrjs",
+    default=None,
     help=(
-        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico, default) or 'avp' (Apple Vision Pro)."
-        " Set to 'none' to disable CloudXR auto-launch entirely."
+        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico), 'avp' (Apple Vision Pro),"
+        " or 'standalone' (headless, no XR client). Set to 'none' to disable CloudXR auto-launch entirely."
+        " When unset, defaults to 'cloudxrjs' with --xr and 'standalone' without --xr."
     ),
 )
 parser.add_argument(
@@ -172,19 +173,25 @@ logger = logging.getLogger(__name__)
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
 
 
-def _resolve_cloudxr_env(value: str | None) -> str | None:
+def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
     """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
 
     Accepts ``"cloudxrjs"`` (Quest/Pico), ``"avp"`` (Apple Vision Pro),
-    ``"none"`` / ``None`` (disable), or an arbitrary file path.
+    ``"standalone"`` (headless, no XR client), ``"none"`` (disable), or an
+    arbitrary file path. When *value* is ``None`` (flag unset), defaults to
+    ``"cloudxrjs"`` when *xr_enabled* else ``"standalone"`` -- so a run without
+    ``--xr`` uses the clientless headless profile.
     """
-    if value is None or value.strip() == "" or value.lower() == "none":
+    if value is None:
+        value = "cloudxrjs" if xr_enabled else "standalone"
+    if value.strip() == "" or value.lower() == "none":
         return None
     if not _CLOUDXR_ENV_SHORTHANDS:
-        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV
+        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
 
         _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
         _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
+        _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
@@ -307,7 +314,9 @@ def create_environment_config(
             " Will not be able to mark recorded demos as successful."
         )
 
-    if use_isaac_teleop or args_cli.xr:
+    # XR-rendering setup is only needed for the Kit XR path. Without --xr,
+    # IsaacTeleop runs standalone (I/O only) and renders normally.
+    if args_cli.xr:
         # If cameras are not enabled and XR is enabled, remove camera configs
         if not args_cli.enable_cameras:
             env_cfg = remove_camera_configs(env_cfg)
@@ -395,8 +404,9 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 env_cfg.isaac_teleop,
                 sim_device=args_cli.device,
                 callbacks=callbacks,
-                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
+                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env, args_cli.xr),
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+                use_kit_xr_bridge=args_cli.xr,
                 mcap_record_path=args_cli.mcap_record_path,
                 enable_debug_visualization=args_cli.enable_debug_visualization,
                 haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
@@ -531,7 +541,7 @@ def handle_reset(
     return success_step_count
 
 
-def run_simulation_loop(
+def run_simulation_loop(  # noqa: C901
     env: gym.Env,
     teleop_interface: object | None,
     success_term: object | None,
@@ -557,7 +567,10 @@ def run_simulation_loop(
     current_recorded_demo_count = 0
     success_step_count = 0
     should_reset_recording_instance = False
-    # For IsaacTeleop or XR, default to inactive until START is triggered
+    # For IsaacTeleop or XR, default to inactive until START is triggered. Without
+    # --xr, recording is started locally (see ``request_start`` below) instead of by
+    # a headset; it flows through the same state machine so keyboard/host pause/resume
+    # keeps working.
     running_recording_instance = not (args_cli.xr or use_isaac_teleop)
 
     # Callback closures for the teleop device
@@ -606,6 +619,24 @@ def run_simulation_loop(
         if _haptic_driver is not None:
             haptic_update, haptic_stop = _haptic_driver.update, _haptic_driver.stop
 
+    # Optional keyboard for headset-free IsaacTeleop control (start / pause / reset).
+    # Captured through the Kit app window, so only wired when a UI is present; a
+    # headless run still auto-starts in ``inner_loop``. Kept in a local so its carb
+    # input subscription is not garbage-collected. ``R`` calls ``teleop_interface.reset``
+    # (a single RESET pulse the control-event handler turns into one env reset); binding
+    # it straight to ``reset_recording_instance`` would reset the env twice.
+    control_keyboard = None
+    if use_isaac_teleop and not args_cli.headless:
+        try:
+            control_keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
+            control_keyboard.add_callback("B", teleop_interface.request_start)
+            control_keyboard.add_callback("P", teleop_interface.request_stop)
+            control_keyboard.add_callback("R", teleop_interface.reset)
+            print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
+        except Exception as e:
+            logger.warning(f"Control keyboard unavailable ({e}); recording still auto-starts without --xr")
+            control_keyboard = None
+
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
 
@@ -619,6 +650,11 @@ def run_simulation_loop(
             env.sim.reset()
         env.reset()
         teleop_interface.reset()
+
+        # Without --xr there is no headset to send START, so drive the IsaacTeleop
+        # state machine to RUNNING locally ([B]/[P] can still pause/resume).
+        if use_isaac_teleop and not args_cli.xr:
+            teleop_interface.request_start()
 
         subtasks = {}
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
@@ -737,8 +773,10 @@ def main() -> None:
     global env_cfg  # Make env_cfg available to setup_teleop_device
     env_cfg, success_term, use_isaac_teleop = create_environment_config(output_dir, output_file_name)
 
-    # if handtracking or IsaacTeleop is selected, rate limiting is achieved via OpenXR
-    if args_cli.xr or use_isaac_teleop:
+    # With --xr, rate limiting is achieved via OpenXR and the XR visualization
+    # manager is installed. Without --xr (including standalone IsaacTeleop I/O),
+    # fall back to the software rate limiter and skip the XR viz stack.
+    if args_cli.xr:
         rate_limiter = None
         from isaaclab.ui.xr_widgets import TeleopVisualizationManager, XRVisualization
 

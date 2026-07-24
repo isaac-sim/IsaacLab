@@ -42,10 +42,11 @@ parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity 
 parser.add_argument(
     "--cloudxr_env",
     type=str,
-    default="cloudxrjs",
+    default=None,
     help=(
-        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico, default) or 'avp' (Apple Vision Pro)."
-        " Set to 'none' to disable CloudXR auto-launch entirely."
+        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico), 'avp' (Apple Vision Pro),"
+        " or 'standalone' (headless, no XR client). Set to 'none' to disable CloudXR auto-launch entirely."
+        " When unset, defaults to 'cloudxrjs' with --xr and 'standalone' without --xr."
     ),
 )
 parser.add_argument(
@@ -115,19 +116,25 @@ logger = logging.getLogger(__name__)
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
 
 
-def _resolve_cloudxr_env(value: str | None) -> str | None:
+def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
     """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
 
     Accepts ``"cloudxrjs"`` (Quest/Pico), ``"avp"`` (Apple Vision Pro),
-    ``"none"`` / ``None`` (disable), or an arbitrary file path.
+    ``"standalone"`` (headless, no XR client), ``"none"`` (disable), or an
+    arbitrary file path. When *value* is ``None`` (flag unset), defaults to
+    ``"cloudxrjs"`` when *xr_enabled* else ``"standalone"`` -- so a run without
+    ``--xr`` uses the clientless headless profile.
     """
-    if value is None or value.strip() == "" or value.lower() == "none":
+    if value is None:
+        value = "cloudxrjs" if xr_enabled else "standalone"
+    if value.strip() == "" or value.lower() == "none":
         return None
     if not _CLOUDXR_ENV_SHORTHANDS:
-        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV
+        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
 
         _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
         _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
+        _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
@@ -178,6 +185,45 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     return driver.update, driver.stop
 
 
+def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, headless: bool):
+    """Create an optional keyboard for headset-free IsaacTeleop control.
+
+    Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
+    the teleop state machine without an XR headset. Keys are captured through the Kit
+    app window, so this returns ``None`` when running headless or when IsaacTeleop is
+    not the active stack (a headless run still auto-starts teleop). ``R`` calls
+    :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset`, which injects a single RESET
+    pulse that the loop's control-event handler turns into one environment reset
+    (binding it straight to the reset callback would reset the env twice). The
+    returned device must be kept referenced by the caller so its carb input
+    subscription survives.
+    """
+    if not use_isaac_teleop or headless:
+        return None
+    try:
+        keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
+        keyboard.add_callback("B", teleop_interface.request_start)
+        keyboard.add_callback("P", teleop_interface.request_stop)
+        keyboard.add_callback("R", teleop_interface.reset)
+        print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
+        return keyboard
+    except Exception as e:
+        logger.warning(f"Control keyboard unavailable ({e}); teleop still auto-starts without --xr")
+        return None
+
+
+def _auto_start_teleop(teleop_interface, use_isaac_teleop: bool, xr: bool) -> None:
+    """Start IsaacTeleop locally when no XR headset will send START.
+
+    Without ``--xr`` there is no client to START the session, so drive its state
+    machine to RUNNING via :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start`.
+    The command flows through the normal state machine, so keyboard pause/resume
+    still works afterwards. No-op with ``--xr`` or for non-IsaacTeleop devices.
+    """
+    if use_isaac_teleop and not xr:
+        teleop_interface.request_start()
+
+
 def main() -> None:  # noqa: C901
     """
     Run teleoperation with an Isaac Lab manipulation environment.
@@ -211,7 +257,10 @@ def main() -> None:  # noqa: C901
         not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
     )
 
-    if use_isaac_teleop or args_cli.xr:
+    # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
+    # path. Without --xr, IsaacTeleop runs standalone (I/O only) and renders
+    # normally, so gate on --xr alone.
+    if args_cli.xr:
         env_cfg = remove_camera_configs(env_cfg)
     # Apply the RTX/DLSS global settings only when an RTX render pipeline will actually run
     # (Kit visualizer, external cameras, or XR). Applying them pulls in ``omni.replicator``,
@@ -288,7 +337,10 @@ def main() -> None:  # noqa: C901
         "RESET": reset_recording_instance,
     }
 
-    # For XR devices (hand tracking or IsaacTeleop), default to inactive
+    # For XR devices (hand tracking or IsaacTeleop), default to inactive. Without
+    # --xr, teleop is started locally (see ``request_start`` below) rather than by
+    # a headset, so it still begins running -- but it flows through the same state
+    # machine, so keyboard/host pause/resume keeps working.
     if use_isaac_teleop or args_cli.xr:
         teleoperation_active = env_cfg.isaac_teleop.teleoperation_active_default if use_isaac_teleop else False
     else:
@@ -306,9 +358,10 @@ def main() -> None:  # noqa: C901
                 env_cfg.isaac_teleop,
                 sim_device=args_cli.device,
                 callbacks=teleoperation_callbacks,
-                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
+                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env, args_cli.xr),
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 enable_debug_visualization=args_cli.enable_debug_visualization,
+                use_kit_xr_bridge=args_cli.xr,
                 haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
 
@@ -365,6 +418,11 @@ def main() -> None:  # noqa: C901
     # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
     haptic_update, haptic_stop = _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop)
 
+    # Optional keyboard for headset-free IsaacTeleop control. Kept in a local so its
+    # carb input subscription is not garbage-collected; a headless run auto-starts
+    # (in ``run_loop``) without it.
+    control_keyboard = _make_control_keyboard(teleop_interface, use_isaac_teleop, args_cli.headless)  # noqa: F841
+
     def run_loop():
         """Inner function to run the teleop loop with access to nonlocal variables."""
         nonlocal should_reset_recording_instance, teleoperation_active
@@ -372,6 +430,10 @@ def main() -> None:  # noqa: C901
         # reset environment
         env.reset()
         teleop_interface.reset()
+
+        # Without --xr there is no headset to send START, so start locally; the
+        # [B]/[P] keys can still pause/resume afterwards.
+        _auto_start_teleop(teleop_interface, use_isaac_teleop, args_cli.xr)
 
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
         print(f"{stack_name} teleoperation started. Press 'R' to reset the environment.")
