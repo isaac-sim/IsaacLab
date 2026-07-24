@@ -923,8 +923,8 @@ including disabling runtime perturbations used for training.
 .. note::
 
    Warp-native environment implementations no longer register separate ``-Warp`` task ids.
-   The same stable tasks run on the Warp runtime by passing ``--frontend warp`` (together
-   with ``presets=newton_mjwarp``) to the training and play entrypoints. See
+   Run the same stable tasks on the Warp runtime by passing ``--frontend warp`` together with
+   ``presets=newton_mjwarp`` to the training and play entry points. See
    :doc:`core-concepts/physical-backends/newton/warp-environments` for details.
 
 .. START-AUTO-GENERATED: comprehensive-environment-list

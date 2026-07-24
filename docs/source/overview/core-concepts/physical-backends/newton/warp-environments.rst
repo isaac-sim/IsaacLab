@@ -36,10 +36,12 @@ Available Environments
 Direct Warp Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Direct tasks share the stable task configuration: ``--frontend warp`` resolves
-the warp env class by name from the mirrored experimental package
-(``<task>_direct_env:<Name>Env`` → ``<task>_warp_env:<Name>WarpEnv``) and swaps
-only the environment class. Stable tasks with a warp implementation:
+Direct tasks share the stable task configuration. ``--frontend warp`` resolves
+the stable ``<task>_direct_env:<Name>Env`` entry point to the mirrored
+``<task>_warp_env:<Name>WarpEnv`` implementation and swaps only the environment
+class. Registrations can use ``warp_entry_point`` as an optional override when
+the implementation cannot follow this convention. Stable tasks with a Warp
+implementation:
 
 - ``Isaac-Cartpole-Direct`` — Cartpole balance
 - ``Isaac-Ant-Direct`` — Ant locomotion
