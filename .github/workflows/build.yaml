@@ -357,6 +357,8 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
+    - name: Install pyyaml
+      run: pip install pyyaml --quiet
     - name: Compute affected jobs from file-level import graph
       id: compute
       env:
@@ -374,8 +376,10 @@ jobs:
           AFFECTED=$(python3 tools/package_impact_graph.py --since "$REF" --json 2>/dev/null \
             | python3 -c "import json,sys; m=json.load(sys.stdin); print(json.dumps(sorted(m['jobs'].keys())))")
         else
-          # Non-PR push: run all jobs (fail-open)
-          AFFECTED='["test-isaaclab-assets","test-isaaclab-contrib","test-isaaclab-core","test-isaaclab-mimic","test-isaaclab-newton","test-isaaclab-ov","test-isaaclab-physx","test-isaaclab-rl","test-isaaclab-tasks","test-isaaclab-teleop","test-isaaclab-visualizers"]'
+          # Non-PR push: run all jobs (fail-open). Derive the full list from
+          # the graph so it stays in sync when new jobs are added to build.yaml.
+          AFFECTED=$(python3 tools/package_impact_graph.py 2>/dev/null \
+            | python3 -c "import json,sys; g=json.load(sys.stdin); print(json.dumps(g['all_ci_jobs']))")
         fi
 
         echo "affected_jobs=${AFFECTED}" >> "$GITHUB_OUTPUT"
