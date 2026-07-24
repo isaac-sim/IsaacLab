@@ -137,7 +137,7 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.NORMALS,
         RenderBufferKind.SEMANTIC_SEGMENTATION,
-        RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
+        RenderBufferKind.INSTANCE_SEGMENTATION,
     }
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
 
@@ -160,7 +160,7 @@ def test_newton_warp_segmentation_spec_follows_colorize_flags(colorize):
     expected = RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
     for kind in (
         RenderBufferKind.SEMANTIC_SEGMENTATION,
-        RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
+        RenderBufferKind.INSTANCE_SEGMENTATION,
     ):
         assert specs[kind] == expected
 
@@ -245,9 +245,9 @@ def test_camera_data_no_arg_construction_yields_empty_container():
 
 def test_camera_data_segmentation_dtype_follows_supported_spec():
     """CameraData consumes the layout dtype declared by the renderer spec."""
-    cfg = _make_camera_cfg(["instance_segmentation_fast"])
-    raw_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(1, wp.int32)}
-    colorized_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(4, wp.uint8)}
+    cfg = _make_camera_cfg(["instance_segmentation"])
+    raw_specs = {RenderBufferKind.INSTANCE_SEGMENTATION: RenderBufferSpec(1, wp.int32)}
+    colorized_specs = {RenderBufferKind.INSTANCE_SEGMENTATION: RenderBufferSpec(4, wp.uint8)}
 
     raw = CameraData.allocate(
         data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=raw_specs
@@ -256,10 +256,10 @@ def test_camera_data_segmentation_dtype_follows_supported_spec():
         data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=colorized_specs
     )
 
-    assert raw.output["instance_segmentation_fast"].dtype == wp.int32
-    assert raw.output["instance_segmentation_fast"].shape == (1, 4, 4, 1)
-    assert colorized.output["instance_segmentation_fast"].dtype == wp.uint8
-    assert colorized.output["instance_segmentation_fast"].shape == (1, 4, 4, 4)
+    assert raw.output["instance_segmentation"].dtype == wp.int32
+    assert raw.output["instance_segmentation"].shape == (1, 4, 4, 1)
+    assert colorized.output["instance_segmentation"].dtype == wp.uint8
+    assert colorized.output["instance_segmentation"].shape == (1, 4, 4, 4)
 
 
 def test_camera_data_allocate_raises_on_unknown_name():
