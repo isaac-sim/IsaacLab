@@ -148,7 +148,7 @@ jobs:
   # Build and test must share one runner because ECR is not wired for arm64 —
   # the locally-built image cannot be handed off across machines.
   arm-ci:
-    name: arm-ci
+    name: Build & Test
     runs-on: [self-hosted, arm64]
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
