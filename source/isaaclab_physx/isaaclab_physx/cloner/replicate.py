@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 import torch
 
@@ -14,7 +13,6 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab.cloner.cloner_utils import split_clone_template
-from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 
 
 def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
@@ -97,6 +95,24 @@ class PhysxReplicateContext:
             return
 
         physx_queue = tuple(self._queue)
+        self._queue.clear()
+
+        # Fully-heterogeneous 1:1 layouts have every source mapped only to its own
+        # environment (no cross-env replication needed). Calling rep.replicate() once
+        # per source with a single self-target is known to trigger intermittent native
+        # heap corruption (double-free / SIGABRT) under mGPU, likely due to per-call
+        # PhysX-internal allocations summing to a problematic total across processes.
+        # For these layouts the source prims are already in their correct env positions
+        # and PhysX can parse them from the stage without any replicator registration.
+        def _is_self_only(src: str, destination: str, target_envs: tuple[int, ...]) -> bool:
+            if len(target_envs) != 1:
+                return False
+            pre, suf = split_clone_template(destination)
+            return src == f"{pre}{target_envs[0]}{suf}"
+
+        if all(_is_self_only(src, dst, envs) for src, dst, envs in physx_queue):
+            return
+
         current_worlds: list[int] = []
         current_template: str = ""
 
@@ -125,18 +141,11 @@ class PhysxReplicateContext:
             rep.unregister_replicator(_stage_id)
 
         get_physx_replicator_interface().register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
-        self._queue.clear()
 
 
-def queue_physx_replication(cfg: Any) -> None:
-    """Register ``cfg`` for PhysX replication when :func:`~isaaclab.cloner.replicate` next runs.
-
-    Appends ``(cfg, PhysxReplicateContext)`` to
-    :data:`~isaaclab.cloner.REPLICATION_QUEUE`. The actual row resolution and dispatch
-    happen inside :func:`~isaaclab.cloner.replicate`, so this helper is safe to call from
-    any asset constructor — no active session is required.
-    """
-    REPLICATION_QUEUE.append((cfg, PhysxReplicateContext))
+PHYSICS_CONTEXT = PhysxReplicateContext
+"""Physics-only replication context for PhysX assets.  USD replication is added automatically
+by :func:`~isaaclab.cloner.replicate` when the asset has a spawner and Kit is available."""
 
 
 def physx_replicate(

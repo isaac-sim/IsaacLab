@@ -5,8 +5,8 @@
 
 """Update the comprehensive environment list in ``environments.rst``.
 
-Maintainer tooling: reads the Gym registry (RL libraries, presets, workflows,
-and inference task names) and rewrites the auto-generated section in
+Maintainer tooling: reads the Gym registry (RL libraries, presets, and
+workflows) and rewrites the auto-generated section in
 ``docs/source/overview/environments.rst``.
 
 Example usage::

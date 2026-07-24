@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import torch
 from newton import ModelBuilder
@@ -15,7 +15,6 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
-from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
@@ -238,15 +237,9 @@ class NewtonReplicateContext:
         return builder, stage_info, site_index_map
 
 
-def queue_newton_physics_replication(cfg: Any) -> None:
-    """Register ``cfg`` for Newton replication when :func:`~isaaclab.cloner.replicate` next runs.
-
-    Appends ``(cfg, NewtonReplicateContext)`` to
-    :data:`~isaaclab.cloner.REPLICATION_QUEUE`. The actual row resolution and dispatch
-    happen inside :func:`~isaaclab.cloner.replicate`, so this helper is safe to call from
-    any asset constructor — no active session is required.
-    """
-    REPLICATION_QUEUE.append((cfg, NewtonReplicateContext))
+PHYSICS_CONTEXT = NewtonReplicateContext
+"""Physics-only replication context for Newton assets.  USD replication is added automatically
+by :func:`~isaaclab.cloner.replicate` when the asset has a spawner and Kit is available."""
 
 
 def newton_physics_replicate(
