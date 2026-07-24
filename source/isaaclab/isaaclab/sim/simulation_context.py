@@ -212,6 +212,7 @@ class SimulationContext:
 
         # Shared renderers for all Camera sensors (compatible renderer_cfg only).
         self._render_context = RenderContext()
+        self._pre_capture_visualizers: set[BaseVisualizer] = set()
 
         # Run renderer post-physics setup.
         self.physics_manager.register_callback(
@@ -219,6 +220,13 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
+        if "mjwarp" in self.physics_manager.__name__.lower() and "newton" in self.resolve_visualizer_types():
+            self.physics_manager.register_callback(
+                self._prepare_newton_mjwarp_visualizer_for_capture,
+                PhysicsEvent.PHYSICS_READY,
+                order=30,
+                name="newton_mjwarp_visualizer_pre_capture",
+            )
 
         self._services = ServiceLocator()
 
@@ -515,11 +523,13 @@ class SimulationContext:
 
         return resolved
 
-    def initialize_visualizers(self) -> None:
-        """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
-        if self._visualizers:
-            return
+    def initialize_visualizers(self, only_types: set[str] | None = None) -> None:
+        """Initialize missing visualizers from ``SimulationCfg.visualizer_cfgs``.
 
+        Args:
+            only_types: Optional visualizer types to initialize. Other configured
+                visualizers remain pending until a later unfiltered call.
+        """
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
@@ -535,7 +545,13 @@ class SimulationContext:
         ]
         requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
         self._scene_data_requirements = requirements
-        self._visualizers = []
+        initialized_types = {getattr(viz.cfg, "visualizer_type", None) for viz in self._visualizers}
+        visualizer_cfgs = [
+            cfg
+            for cfg in visualizer_cfgs
+            if getattr(cfg, "visualizer_type", None) not in initialized_types
+            and (only_types is None or getattr(cfg, "visualizer_type", None) in only_types)
+        ]
 
         for cfg in visualizer_cfgs:
             try:
@@ -561,9 +577,10 @@ class SimulationContext:
             eye, target = pending
             for viz in self._visualizers:
                 viz.set_camera_view(eye, target)
-            self._pending_camera_view = None
+            if only_types is None:
+                self._pending_camera_view = None
 
-        if not self._visualizers and self._scene_data_provider is not None:
+        if only_types is None and not self._visualizers and self._scene_data_provider is not None:
             close_provider = getattr(self._scene_data_provider, "close", None)
             if callable(close_provider):
                 close_provider()
@@ -622,18 +639,31 @@ class SimulationContext:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
 
+    def _prepare_newton_mjwarp_visualizer_for_capture(self, _payload=None) -> None:
+        """Initialize or rebind the Newton viewer before MJWarp graph capture."""
+        existing = {viz for viz in self._visualizers if getattr(viz.cfg, "visualizer_type", None) == "newton"}
+        if not existing:
+            self.initialize_visualizers(only_types={"newton"})
+
+        for viz in (viz for viz in self._visualizers if getattr(viz.cfg, "visualizer_type", None) == "newton"):
+            if viz in existing:
+                viz.reset(soft=False)
+            self._pre_capture_visualizers.add(viz)
+
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.
 
         Args:
             soft: If True, skip full reinitialization.
         """
+        self._pre_capture_visualizers.clear()
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
-            viz.reset(soft)
-        if not self._visualizers:
-            # Initialize visualizers after PhysX sim views are ready, but before play() pumps timeline events.
-            self.initialize_visualizers()
+            if viz not in self._pre_capture_visualizers:
+                viz.reset(soft)
+        # Initialize any visualizers not prepared by a backend-specific pre-capture hook.
+        self.initialize_visualizers()
+        self._pre_capture_visualizers.clear()
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
         self._is_playing = True
@@ -642,8 +672,9 @@ class SimulationContext:
     def step(self, render: bool = True) -> None:
         """Step physics and optionally render.
 
-        If the timeline is paused (e.g. via the GUI), this method blocks and keeps
-        the visualizer responsive until the timeline is resumed or stopped.
+        If the timeline or a visualizer is paused, this method blocks and keeps
+        its event loop responsive until simulation is resumed, single-stepped,
+        or stopped.
 
         Args:
             render: Whether to render the scene after stepping. Defaults to True.
@@ -651,10 +682,28 @@ class SimulationContext:
         # Block while the GUI timeline is paused so the entire training loop freezes.
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
         self.physics_manager.wait_for_playing()
+        self._wait_for_visualizer_step()
         self._physics_step_count += 1
         self.physics_manager.step()
         if render and self.is_rendering:
             self.render()
+
+    def _wait_for_visualizer_step(self) -> None:
+        """Pump standalone visualizers until each permits one physics step."""
+        for viz in tuple(self._visualizers):
+            if viz.pumps_app_update():
+                continue
+            try:
+                while viz.is_running() and not viz.is_closed and not viz.should_step():
+                    viz.step(0.0)
+            except Exception as exc:
+                logger.error("Error polling paused visualizer '%s': %s", type(viz).__name__, exc)
+                try:
+                    viz.close()
+                except Exception as close_exc:
+                    logger.error("Error closing visualizer: %s", close_exc)
+                if viz in self._visualizers:
+                    self._visualizers.remove(viz)
 
     def render(self, mode: int | None = None, skip_app_pumping: bool = False) -> None:
         """Update visualizers and render the scene.
@@ -735,8 +784,6 @@ class SimulationContext:
                     if not viz.pumps_app_update():
                         viz.step(0.0)
                     continue
-                while viz.is_training_paused() and viz.is_running():
-                    viz.step(0.0)
                 viz.step(dt)
             except Exception as exc:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)

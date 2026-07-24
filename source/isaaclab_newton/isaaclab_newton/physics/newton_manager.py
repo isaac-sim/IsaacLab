@@ -311,6 +311,8 @@ class NewtonManager(PhysicsManager):
     # substeps, in registration order. Multiple articulations register their
     # implicit-DOF telemetry / FF-routing kernels here.
     _post_actuator_callbacks: list[Callable[[], None]] = []
+    # In-graph hooks invoked immediately before every solver substep.
+    _state_force_callbacks: list[Callable[[State], None]] = []
     # In-graph hooks invoked after the last solver substep and before sensors,
     # in registration order. Articulations with non-identity ordering register
     # their backend-to-user state republish kernels here so the reorders are
@@ -883,6 +885,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._supports_contact_sensors = True
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
+        NewtonManager._state_force_callbacks = []
         NewtonManager._post_step_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
@@ -1891,6 +1894,8 @@ class NewtonManager(PhysicsManager):
 
         if cls._use_single_state:
             for i in range(cls._num_substeps):
+                for callback in cls._state_force_callbacks:
+                    callback(cls._state_0)
                 cls._step_solver(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
                 cls._state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
@@ -1899,6 +1904,8 @@ class NewtonManager(PhysicsManager):
             cfg = PhysicsManager._cfg
             need_copy_on_last = cfg is not None and cls._num_substeps % 2 == 1
             for i in range(cls._num_substeps):
+                for callback in cls._state_force_callbacks:
+                    callback(cls._state_0)
                 cls._step_solver(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
                 if need_copy_on_last and i == cls._num_substeps - 1:
                     cls._state_0.assign(cls._state_1)
@@ -2376,6 +2383,26 @@ class NewtonManager(PhysicsManager):
         registered callbacks fire in registration order each step.
         """
         cls._post_actuator_callbacks.append(callback)
+
+    @classmethod
+    def register_state_force_callback(cls, callback: Callable[[State], None]) -> None:
+        """Register a graph-safe callback that applies forces before every solver substep.
+
+        Callbacks registered before solver initialization are included in the
+        existing CUDA graph capture. Late registration falls back to eager
+        execution for safety.
+
+        Args:
+            callback: Function that adds forces [N, N·m] to the provided state.
+        """
+        if callback in NewtonManager._state_force_callbacks:
+            return
+        NewtonManager._state_force_callbacks.append(callback)
+        if NewtonManager._graph is None:
+            return
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = False
+        logger.info("%s switched to eager execution after a late state-force callback", cls.__name__)
 
     @classmethod
     def register_post_step_callback(cls, callback: Callable[[], None]) -> None:

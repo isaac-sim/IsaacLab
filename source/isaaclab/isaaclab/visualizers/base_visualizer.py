@@ -83,6 +83,17 @@ class BaseVisualizer(ABC):
         """
         raise NotImplementedError
 
+    def should_step(self) -> bool:
+        """Return whether the simulation may advance one step.
+
+        Stateful visualizers may consume a pending single-step request here.
+        The default behavior supports pause-only visualizers.
+
+        Returns:
+            ``True`` when physics should advance, otherwise ``False``.
+        """
+        return not self.is_training_paused()
+
     def is_training_paused(self) -> bool:
         """Check if training is paused by visualizer controls.
 

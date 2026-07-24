@@ -652,16 +652,11 @@ def _select_newton_training_control_button(viewer, target_label: str) -> None:
     viewer._render_training_controls(_FakeImgui())
 
 
-def _select_newton_pause_simulation_button(viewer) -> None:
-    """Trigger the Newton visualizer's Pause/Resume Simulation UI button."""
-    label = "Resume Simulation" if viewer.is_training_paused() else "Pause Simulation"
-    _select_newton_training_control_button(viewer, label)
-
-
 def _set_newton_simulation_paused(viewer, paused: bool) -> None:
-    """Put Newton visualizer simulation pause control into a desired state."""
-    if viewer.is_training_paused() != paused:
-        _select_newton_pause_simulation_button(viewer)
+    """Put Newton's native simulation pause control into a desired state."""
+    viewer._paused = paused
+    if not paused:
+        viewer._step_requested = False
 
 
 def _select_newton_pause_rendering_button(viewer) -> None:
@@ -834,6 +829,15 @@ def _run_newton_viewer_frame_motion_test(
         case_label=case_label,
         phase="pausing_simulation",
     )
+
+    # Newton's native Step request authorizes exactly one SimulationContext
+    # physics tick while leaving the persistent pause state enabled.
+    physics_step_before_single_step = get_physics_step_count()
+    viewer._step_requested = True
+    env.sim.step()
+    assert get_physics_step_count() == physics_step_before_single_step + 1
+    assert viewer.is_training_paused()
+    assert not viewer.should_step(), "Newton single-step request was not consumed exactly once."
 
     simulation_play_start_idx = simulation_pause_end_idx
     simulation_play_end_idx = simulation_play_start_idx + PLAY_VIZ_N_STEP

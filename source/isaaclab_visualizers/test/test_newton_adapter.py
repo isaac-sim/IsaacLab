@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -362,6 +363,12 @@ class _Viewer:
     def is_paused(self):
         return False
 
+    def is_rendering_paused(self):
+        return False
+
+    def is_running(self):
+        return True
+
     def begin_frame(self, _time):
         pass
 
@@ -375,6 +382,9 @@ class _Viewer:
         self.logged_arrows = (name, starts, ends, colors)
 
     def end_frame(self):
+        pass
+
+    def close(self):
         pass
 
 
@@ -416,8 +426,100 @@ def _make_newton_visualizer(viewer, scene_data_provider=None):
     visualizer._state = None
     visualizer._scene_data_provider = scene_data_provider
     visualizer._resolved_visible_env_ids = None
+    visualizer._picking_enabled = False
+    visualizer._viewer_force_binding = NewtonVisualizer._ViewerForceBinding()
+    if viewer is not None:
+        visualizer._viewer_force_binding.bind(viewer)
+    visualizer._state_force_callback_registered = False
+    visualizer._camera_sensor = None
+    visualizer._camera_is_owned = False
+    visualizer._generated_camera_prim_paths = []
     visualizer._log_camera_sensor_image = lambda: None
     return visualizer
+
+
+def test_newton_viewer_model_swap_restores_only_cleared_ui_callbacks(monkeypatch):
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.model = object()
+    registered_positions = []
+    monkeypatch.setattr(ViewerGL, "set_model", lambda self, model: setattr(self, "model", model))
+    monkeypatch.setattr(
+        viewer,
+        "register_ui_callback",
+        lambda _callback, *, position: registered_positions.append(position),
+    )
+
+    viewer.set_model(object())
+
+    assert registered_positions == ["side"]
+
+
+def test_newton_visualizer_close_neutralizes_forces_without_invalidating_graph(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    viewer = _Viewer()
+    viewer.picking_enabled = True
+    viewer.picking = SimpleNamespace(release=Mock())
+    viewer.wind = SimpleNamespace(amplitude=3.0, update=Mock())
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer._state_force_callback_registered = True
+    graph = object()
+    callback = visualizer._viewer_force_binding.apply
+    monkeypatch.setattr(NewtonManager, "_graph", graph)
+    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [callback])
+
+    visualizer.close()
+
+    assert NewtonManager._graph is graph
+    assert NewtonManager._state_force_callbacks == [callback]
+    assert viewer.picking_enabled is False
+    viewer.picking.release.assert_called_once_with()
+    assert viewer.wind.amplitude == 0.0
+    viewer.wind.update.assert_called_once_with(0.0)
+    assert visualizer._viewer is None
+    assert visualizer._viewer_force_binding._viewer is None
+    assert visualizer._viewer_force_binding._retained_force_helpers == (viewer.picking, viewer.wind)
+
+    # Once the graph is gone, the next eager callback releases its retained helpers.
+    NewtonManager._graph = None
+    callback(object())
+    assert visualizer._viewer_force_binding._retained_force_helpers == ()
+
+
+def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    monkeypatch.setattr(NewtonVisualizer, "physics_backend", property(lambda _self: "newton"))
+
+    new_model = object()
+    new_state = object()
+    monkeypatch.setattr(NewtonManager, "get_model", lambda: new_model)
+    monkeypatch.setattr(NewtonManager, "get_state_0", lambda: new_state)
+
+    viewer = _Viewer()
+    viewer.picking_enabled = False
+    viewer.set_model = Mock()
+    viewer.set_visible_worlds = Mock()
+    viewer.set_world_offsets = Mock()
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer._resolved_visible_env_ids = [1, 3]
+    visualizer._picking_enabled = True
+    visualizer._state_force_callback_registered = True
+    visualizer._viewer_force_binding._retained_force_helpers = (object(),)
+    visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)
+
+    visualizer.reset(soft=False)
+
+    assert visualizer._model is new_model
+    assert visualizer._state is new_state
+    viewer.set_model.assert_called_once_with(new_model)
+    viewer.set_visible_worlds.assert_called_once_with([1, 3])
+    viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
+    assert viewer.picking_enabled is True
+    assert visualizer._viewer_force_binding._viewer is viewer
+    assert visualizer._viewer_force_binding._retained_force_helpers == ()
 
 
 def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):

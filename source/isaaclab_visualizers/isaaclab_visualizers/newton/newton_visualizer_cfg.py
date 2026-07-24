@@ -61,6 +61,12 @@ class NewtonVisualizerCfg(VisualizerCfg):
     Values are passed through to the Newton viewer unchanged.
     """
 
+    enable_picking: bool = True
+    """Enable right-click dragging with the Newton MJWarp solver.
+
+    Disabled automatically for headless viewers and other physics solvers.
+    """
+
     enable_shadows: bool = True
     """Enable shadow rendering."""
 

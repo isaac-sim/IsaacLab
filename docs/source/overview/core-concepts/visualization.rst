@@ -113,6 +113,21 @@ To run in headless mode, omit the ``--viz`` argument:
 
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
 
+Newton MJWarp Object Interaction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With the Newton MJWarp solver, right-click and drag a dynamic rigid body in the
+Newton visualizer to apply an interactive force. Static and kinematic bodies
+are not moved. Set
+:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.enable_picking` to
+``False`` to disable this interaction. Picking is also disabled in headless
+viewers and with other physics solvers.
+
+Newton's native ``Pause`` and ``Step`` controls pause physics and advance it by
+one step, respectively. The equivalent keyboard shortcuts are ``Space`` and
+``.``. ``Pause Rendering`` only freezes viewer rendering.
+
+
 .. _visualization-configuration:
 
 Configuration

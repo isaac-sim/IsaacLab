@@ -55,11 +55,13 @@ CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
 if TYPE_CHECKING:
+    from newton import State
+
     from isaaclab.scene_data import SceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
-    """Wrapper around Newton's ViewerGL with training/rendering pause controls."""
+    """Wrapper around Newton's ViewerGL with Isaac Lab rendering controls."""
 
     def __init__(
         self,
@@ -77,7 +79,6 @@ class NewtonViewerGL(ViewerGL):
             **kwargs: Keyword arguments forwarded to ``ViewerGL``.
         """
         super().__init__(*args, **kwargs)
-        self._paused_training = False
         self._paused_rendering = False
         self._metadata = metadata or {}
         self._fallback_draw_controls = False
@@ -95,15 +96,28 @@ class NewtonViewerGL(ViewerGL):
         backend = FactoryBase._get_backend()
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
 
+        self._register_isaaclab_ui_callbacks()
+
+    def set_model(self, model) -> None:
+        """Set a model and restore UI callbacks cleared by Newton on model swaps."""
+        replaces_model = self.model is not None
+        super().set_model(model)
+        if replaces_model:
+            self._register_isaaclab_ui_callbacks(include_persistent=False)
+
+    def _register_isaaclab_ui_callbacks(self, *, include_persistent: bool = True) -> None:
+        """Register Isaac Lab's small additions to Newton's native UI."""
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
-            self.register_ui_callback(self._render_physics_panel, position="panel")
+            if include_persistent:
+                self.register_ui_callback(self._render_physics_panel, position="panel")
+            self._fallback_draw_controls = False
         except AttributeError:
             self._fallback_draw_controls = True
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
-        return self._paused_training
+        return self.is_paused()
 
     def is_rendering_paused(self) -> bool:
         """Return whether rendering is paused by viewer controls."""
@@ -114,14 +128,9 @@ class NewtonViewerGL(ViewerGL):
         imgui.separator()
         imgui.text("IsaacLab Controls")
 
-        pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
-        if imgui.button(pause_label):
-            self._paused_training = not self._paused_training
-
         rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused_rendering = not self._paused_rendering
-            self._paused = self._paused_rendering
 
         imgui.text("Visualizer Update Frequency")
         current_frequency = self._update_frequency
@@ -143,12 +152,6 @@ class NewtonViewerGL(ViewerGL):
         if imgui.collapsing_header("Simulation"):
             imgui.separator()
             imgui.text(f"Physics: {self._backend_display}")
-
-    def on_key_press(self, symbol, modifiers):
-        """Forward key presses unless UI is currently capturing input."""
-        if self.ui.is_capturing():
-            return
-        super().on_key_press(symbol, modifiers)
 
     def _render_ui(self):
         """Render default UI and fallback control window when callback hooks are unavailable."""
@@ -348,6 +351,52 @@ class NewtonViewerGL(ViewerGL):
 class NewtonVisualizer(BaseVisualizer):
     """Newton OpenGL visualizer for Isaac Lab."""
 
+    class _ViewerForceBinding:
+        """Stable Newton-manager callback for viewer-owned force inputs.
+
+        CUDA graphs record the viewer's picking and wind arrays by address.
+        Closing the window therefore neutralizes and retains those small inputs
+        instead of removing the callback and invalidating the physics graph.
+        """
+
+        def __init__(self) -> None:
+            self._viewer: NewtonViewerGL | None = None
+            self._retained_force_helpers: tuple[object, ...] = ()
+
+        def bind(self, viewer: NewtonViewerGL) -> None:
+            """Bind force application to the current viewer model."""
+            self._viewer = viewer
+            self._retained_force_helpers = ()
+
+        def apply(self, state: State) -> None:
+            """Apply viewer forces while the viewer is active."""
+            if self._viewer is None:
+                # Host callbacks do not run while the captured graph replays.
+                # Reaching this branch means that graph is gone, so its force
+                # helpers can be released.
+                self._retained_force_helpers = ()
+                return
+            self._viewer.apply_forces(state)
+
+        def deactivate(self) -> None:
+            """Make captured force launches inert while preserving their inputs."""
+            viewer = self._viewer
+            if viewer is None:
+                return
+
+            picking = getattr(viewer, "picking", None)
+            wind = getattr(viewer, "wind", None)
+            if picking is not None:
+                viewer.picking_enabled = False
+                picking.release()
+            if wind is not None:
+                wind.amplitude = 0.0
+                wind.update(0.0)
+
+            # The captured graph retains addresses owned by these helpers.
+            self._retained_force_helpers = tuple(helper for helper in (picking, wind) if helper is not None)
+            self._viewer = None
+
     def __init__(self, cfg: NewtonVisualizerCfg):
         """Initialize Newton visualizer state.
 
@@ -370,6 +419,9 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
+        self._viewer_force_binding = self._ViewerForceBinding()
+        self._state_force_callback_registered = False
+        self._picking_enabled = False
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -379,17 +431,24 @@ class NewtonVisualizer(BaseVisualizer):
         """
         from isaaclab_newton.physics import NewtonManager
 
+        from isaaclab.sim import SimulationContext
+
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        newton_backend_active = self.physics_backend == "newton"
+        physics_manager = SimulationContext.instance().physics_manager
+        mjwarp_backend_active = newton_backend_active and "mjwarp" in physics_manager.__name__.lower()
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state(self._scene_data_provider)
+        self._state = (
+            NewtonManager.get_state_0() if newton_backend_active else NewtonManager.get_state(self._scene_data_provider)
+        )
 
         runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
@@ -439,6 +498,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.show_com = self.cfg.show_com
             self._viewer.show_particles = self.cfg.show_particles
             self._viewer.particle_color = self.cfg.particle_color
+            self._picking_enabled = self.cfg.enable_picking and mjwarp_backend_active and not runtime_headless
+            self._viewer.picking_enabled = self._picking_enabled
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
             self._viewer.renderer.draw_sky = self.cfg.enable_sky
@@ -469,8 +530,17 @@ class NewtonVisualizer(BaseVisualizer):
                 ("headless", self.cfg.headless),
                 ("show_particles", self.cfg.show_particles),
                 ("particle_color", self.cfg.particle_color),
+                ("enable_picking", self._viewer.picking_enabled if self._viewer is not None else False),
             ],
         )
+        if self._viewer is not None and self._picking_enabled:
+            self._viewer_force_binding.bind(self._viewer)
+            NewtonManager.register_state_force_callback(self._viewer_force_binding.apply)
+            self._state_force_callback_registered = True
+        if self._viewer is not None and self.cfg.enable_picking and not mjwarp_backend_active:
+            logger.info(
+                "[NewtonVisualizer] Object dragging is disabled because the active physics solver is not Newton MJWarp."
+            )
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
@@ -482,26 +552,28 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._is_closed:
             return
 
-        self._sim_time += dt
-        self._step_counter += 1
+        if dt > 0.0:
+            self._sim_time += dt
+            self._step_counter += 1
 
         from isaaclab_newton.physics import NewtonManager
 
         if self._viewer is None:
-            self._state = NewtonManager.get_state(self._scene_data_provider)
+            if dt > 0.0:
+                self._state = NewtonManager.get_state(self._scene_data_provider)
             return
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
-        if self._step_counter % update_frequency != 0:
+        if dt > 0.0 and self._step_counter % update_frequency != 0 and not self._viewer.is_paused():
             return
 
         num_envs = NewtonManager.get_num_envs()
 
         try:
-            if not self._viewer.is_paused():
-                self._state = NewtonManager.get_state(self._scene_data_provider)
-                self._viewer.begin_frame(self._sim_time)
-                try:
+            self._viewer.begin_frame(self._sim_time)
+            try:
+                if not self._viewer.is_rendering_paused():
+                    self._state = NewtonManager.get_state(self._scene_data_provider)
                     if self._state is not None:
                         body_q = getattr(self._state, "body_q", None)
                         if hasattr(body_q, "shape") and body_q.shape[0] == 0:
@@ -517,18 +589,40 @@ class NewtonVisualizer(BaseVisualizer):
                                 self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
                             )
                         self._log_camera_sensor_image()
-                finally:
-                    self._viewer.end_frame()
-            else:
-                self._viewer._update()
+            finally:
+                self._viewer.end_frame()
+                if not self._viewer.is_running():
+                    self._viewer_force_binding.deactivate()
         except Exception:
             logger.exception("[NewtonVisualizer] Viewer update failed.")
+
+    def reset(self, soft: bool = False) -> None:
+        """Rebind viewer resources after a hard Newton model reset."""
+        if soft or not self._is_initialized or self._is_closed or self.physics_backend != "newton":
+            return
+
+        from isaaclab_newton.physics import NewtonManager
+
+        self._model = NewtonManager.get_model()
+        self._state = NewtonManager.get_state_0()
+        if self._viewer is not None:
+            self._viewer.set_model(self._model)
+            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+            self._viewer.set_world_offsets(self.cfg.world_spacing)
+            self._viewer.picking_enabled = self._picking_enabled
+            if self._state_force_callback_registered:
+                self._viewer_force_binding.bind(self._viewer)
 
     def close(self) -> None:
         """Release viewer resources."""
         if self._is_closed:
             return
+        if self._state_force_callback_registered:
+            # Keep the stable callback registered: captured graphs replay its
+            # now-neutral device inputs without retaining the GL viewer.
+            self._viewer_force_binding.deactivate()
         if self._viewer is not None:
+            self._viewer.close()
             self._viewer = None
         if self._camera_sensor is not None and self._camera_is_owned:
             remove_generated_prims(self._generated_camera_prim_paths)
@@ -794,6 +888,12 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_training_paused()
+
+    def should_step(self) -> bool:
+        """Return whether Newton's native pause/step controls permit one physics step."""
+        if not self._is_initialized or self._viewer is None:
+            return True
+        return self._viewer.should_step()
 
     def is_rendering_paused(self) -> bool:
         """Return whether rendering is paused from viewer controls."""
