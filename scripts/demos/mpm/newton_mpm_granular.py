@@ -66,7 +66,7 @@ Y_ROT_NEG_45_DEG = (0.0, -math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
 
 def create_visualizer_cfgs():
     """Create demo-specific visualizer configs for the requested backends."""
-    if "newton" not in args_cli.visualizer:
+    if "newton" not in (args_cli.visualizer or []):
         return []
 
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
@@ -106,7 +106,7 @@ def create_sim_cfg():
 
 def preview_material(color):
     """Return a preview-surface material for Kit runs; Kit-less runs spawn no USD materials."""
-    if "kit" not in args_cli.visualizer:
+    if "kit" not in (args_cli.visualizer or []):
         return None
 
     import isaaclab.sim as sim_utils
