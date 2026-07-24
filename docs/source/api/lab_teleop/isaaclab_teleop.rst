@@ -12,6 +12,8 @@ isaaclab_teleop
     IsaacTeleopCfg
     IsaacTeleopDevice
     HapticFeedbackCfg
+    ControllerHapticFeedbackCfg
+    GloveHapticFeedbackCfg
     HapticFeedbackReceiver
     HapticFeedbackDriver
     XrCfg
@@ -52,6 +54,14 @@ Haptic Feedback
 
 .. autoclass:: HapticFeedbackCfg
     :members:
+
+.. autoclass:: ControllerHapticFeedbackCfg
+    :members:
+    :show-inheritance:
+
+.. autoclass:: GloveHapticFeedbackCfg
+    :members:
+    :show-inheritance:
 
 .. autoclass:: HapticFeedbackReceiver
     :members:

@@ -245,12 +245,12 @@ choose the tab that matches your hardware.
          start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`_.
+         `<https://nvidia.github.io/IsaacTeleop/client/release-1.4.x>`_.
 
          .. note::
 
-            The web client URL is versioned. The ``release-1.3.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in the
+            The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
+            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.4.0`` in the
             ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
             Teleop pin, update this link to the matching client release.
 

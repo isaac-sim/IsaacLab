@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import HapticFeedbackCfg, IsaacTeleopCfg, XrCfg
+from isaaclab_teleop import ControllerHapticFeedbackCfg, IsaacTeleopCfg, XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -417,7 +417,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # Enable contact reporting on the robot so the per-hand ContactSensors
         # report finger forces, and drive controller haptics from them.
         self.scene.robot.spawn.activate_contact_sensors = True
-        self.haptic_feedback = HapticFeedbackCfg(
+        self.haptic_feedback = ControllerHapticFeedbackCfg(
             left_sensor_name="left_hand_contact",
             right_sensor_name="right_hand_contact",
         )
