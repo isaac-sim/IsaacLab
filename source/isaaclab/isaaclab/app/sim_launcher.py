@@ -400,7 +400,7 @@ def _has_kit_runtime_intent(config_scan: Scan, launcher_args: argparse.Namespace
 
 def _uses_isaac_sim_runtime(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
     """Return whether the scanned config or launcher arguments require Isaac Sim / Kit."""
-    return _has_kit_runtime_intent(config_scan, launcher_args)
+    return config_scan.needs_kit or _has_kit_runtime_intent(config_scan, launcher_args)
 
 
 def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | None) -> None:
