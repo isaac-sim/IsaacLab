@@ -16,9 +16,11 @@ asserts it starts up past the regression introduced by the render-flag cleanup i
 
 These follow the Isaac Lab subprocess-integration test convention (see
 ``scripts/benchmarks/test``) rather than the isaacsim-CI methodology, so they run in the Isaac
-Lab CI ``integration`` lane. The teleop scripts run an unbounded interaction loop, so each is
-launched under ``PYTHONUNBUFFERED=1`` (the startup prints are otherwise buffered), watched until
-a known startup marker appears, then terminated via its process group.
+Lab CI ``integration`` lane. They live under the ``isaaclab_teleop`` package tests so the CI
+teleop filter picks them up, but exercise the entry-point scripts under ``scripts/``. The teleop
+scripts run an unbounded interaction loop, so each is launched under ``PYTHONUNBUFFERED=1`` (the
+startup prints are otherwise buffered), watched until a known startup marker appears, then
+terminated via its process group.
 """
 
 import os
@@ -32,8 +34,8 @@ import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
-# Repository root: this file lives at scripts/environments/teleoperation/test/<file>.py
-ROOT = Path(__file__).resolve().parents[4]
+# Repository root: this file lives at source/isaaclab_teleop/test/<file>.py
+ROOT = Path(__file__).resolve().parents[3]
 
 # Lightweight Franka tasks: keyboard-driven for the interactive scripts, IsaacTeleop for replay.
 _KEYBOARD_TASK = "IsaacContrib-Reach-Franka-IK-Rel"
