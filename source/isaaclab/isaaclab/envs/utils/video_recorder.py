@@ -158,6 +158,18 @@ class VideoRecorder:
                     "Pass --viz kit or --viz newton, or use source='sensor:<name>' to record from a scene sensor."
                 )
 
+        # Kit Replicator produces black frames with Newton physics because Newton Fabric writes
+        # do not notify RTX's scene delegate. Fail fast with a clear message.
+        if viz_type == "kit":
+            physics_backend = getattr(getattr(sim, "physics_manager", None), "video_capture_backend", lambda: None)()
+            if physics_backend == "newton_gl":
+                logger.error(
+                    "[VideoRecorder] source='visualizer:kit' is not supported with Newton physics — "
+                    "Kit Replicator cannot read Newton Fabric transforms. "
+                    "Use source='visualizer:newton' and add NewtonVisualizerCfg to sim.visualizer_cfgs."
+                )
+                return None
+
         viz = candidates[0]
         if sub == "tiled":
             if not hasattr(viz, "render_tiled_rgb_array"):

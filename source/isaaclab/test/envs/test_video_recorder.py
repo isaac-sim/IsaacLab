@@ -311,18 +311,21 @@ def test_visualizer_source_typed_missing_raises():
         recorder._get_frame()
 
 
-def test_kit_visualizer_with_newton_physics_captures_frame():
-    """source='visualizer:kit' with Newton physics still captures via KitVisualizer.render_rgb_array().
+def test_kit_visualizer_newton_physics_logs_error_and_returns_none(caplog):
+    """source='visualizer:kit' with Newton physics logs an error and returns None — no fallback."""
+    import logging
 
-    The Kit visualizer syncs Newton transforms via the app update pump in render_rgb_array(),
-    so blocking at config time is wrong — let the capture proceed.
-    """
     kit_viz = _FakeViz("kit")
     env = _make_env(visualizers=[kit_viz])
+    env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
+
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-    frame = recorder._get_frame()
-    assert frame is not None
-    assert kit_viz.render_calls == 1
+    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
+        frame = recorder._get_frame()
+
+    assert frame is None
+    assert kit_viz.render_calls == 0
+    assert any("source='visualizer:newton'" in r.message for r in caplog.records)
 
 
 def test_visualizer_tiled_calls_render_tiled_rgb_array():
