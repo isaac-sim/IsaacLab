@@ -64,27 +64,36 @@ jobs:
   # path filter would otherwise miss.
   changes:
     name: Detect Changes
-    uses: ./.github/workflows/detect-changes.yml
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
-    with:
-      triggered-jobs-push: arm-ci
-      triggered-jobs-pr: arm-ci
-      patterns: |
-        ^source/ :: Library source code
-        ^docker/ :: Container build inputs
-        ^tools/ :: Build tooling
-        ^apps/ :: Standalone apps
-        ^scripts/ :: Standalone scripts
-        ^\.dockerignore$ :: Docker build context filter
-        ^pyproject\.toml$ :: Root Python project (OV pins + Docker copy)
-        ^environment\.yml$ :: Conda env (Docker copy)
-        ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
-        ^\.github/workflows/arm-ci\.yml$ :: This workflow file
-        ^\.github/workflows/detect-changes\.yml$ :: Shared change-detection gate
-        ^\.github/workflows/config\.yaml$ :: Base image config
-        ^\.github/actions/ :: CI actions
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/actions/detect-changes
+        sparse-checkout-cone-mode: false
+    - id: detect
+      uses: ./.github/actions/detect-changes
+      with:
+        triggered-jobs-push: arm-ci
+        triggered-jobs-pr: arm-ci
+        patterns: |
+          ^source/ :: Library source code
+          ^docker/ :: Container build inputs
+          ^tools/ :: Build tooling
+          ^apps/ :: Standalone apps
+          ^scripts/ :: Standalone scripts
+          ^\.dockerignore$ :: Docker build context filter
+          ^pyproject\.toml$ :: Root Python project (OV pins + Docker copy)
+          ^environment\.yml$ :: Conda env (Docker copy)
+          ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
+          ^\.github/workflows/arm-ci\.yml$ :: This workflow file
+          ^\.github/workflows/config\.yaml$ :: Base image config
+          ^\.github/actions/ :: CI actions
 
   # Loads the Isaac Sim base image name/tag from config.yaml and computes the
   # per-run CI image tag. Inlined here (rather than shared with build.yaml)

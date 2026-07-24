@@ -77,30 +77,38 @@ env:
 jobs:
   changes:
     name: Detect Changes
-    uses: ./.github/workflows/detect-changes.yml
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
-    with:
-      triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless"
-      triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
-      # config.yaml is included because it controls the base image names and tags
-      # consumed by the Docker build jobs.
-      patterns: |
-        ^source/ :: Library source code
-        ^docker/ :: Container build inputs
-        ^tools/ :: Build tooling
-        ^apps/ :: Standalone apps
-        ^scripts/ :: Standalone scripts
-        ^\.dockerignore$ :: Docker build context filter
-        ^pyproject\.toml$ :: Root Python project (Docker copy)
-        ^environment\.yml$ :: Conda env (Docker copy)
-        ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
-        ^\.github/workflows/build\.yaml$ :: This workflow file
-        ^\.github/workflows/detect-changes\.yml$ :: Shared change-detection gate
-        ^\.github/workflows/config\.yaml$ :: Base image config
-        ^\.github/actions/ :: CI actions
-        ^\.github/test-subsets/ :: CI test subset config
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/actions/detect-changes
+        sparse-checkout-cone-mode: false
+    - id: detect
+      uses: ./.github/actions/detect-changes
+      with:
+        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless"
+        triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
+        # config.yaml is included because it controls the base image names and tags
+        # consumed by the Docker build jobs.
+        patterns: |
+          ^source/ :: Library source code
+          ^docker/ :: Container build inputs
+          ^tools/ :: Build tooling
+          ^apps/ :: Standalone apps
+          ^scripts/ :: Standalone scripts
+          ^\.dockerignore$ :: Docker build context filter
+          ^pyproject\.toml$ :: Root Python project (Docker copy)
+          ^environment\.yml$ :: Conda env (Docker copy)
+          ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
+          ^\.github/workflows/build\.yaml$ :: This workflow file
+          ^\.github/actions/ :: CI actions
+          ^\.github/test-subsets/ :: CI test subset config
 
   config:
     name: Load Config
