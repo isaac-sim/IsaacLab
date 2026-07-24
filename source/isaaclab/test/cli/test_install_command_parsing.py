@@ -165,7 +165,6 @@ _PATCHES = [
     f"{_INSTALL_MODULE}._install_root_extra",
     f"{_INSTALL_MODULE}._install_isaacsim",
     f"{_INSTALL_MODULE}._ensure_cuda_torch",
-    f"{_INSTALL_MODULE}._maybe_preinstall_arm_nlopt",
     f"{_INSTALL_MODULE}._maybe_uninstall_prebundled_torch",
     f"{_INSTALL_MODULE}._ensure_pink_ik_dependencies_installed",
     f"{_INSTALL_MODULE}._repoint_prebundle_packages",
