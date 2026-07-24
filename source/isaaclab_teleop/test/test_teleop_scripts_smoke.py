@@ -37,8 +37,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 # Repository root: this file lives at source/isaaclab_teleop/test/<file>.py
 ROOT = Path(__file__).resolve().parents[3]
 
-# Lightweight Franka tasks: keyboard-driven for the interactive scripts, IsaacTeleop for replay.
-_KEYBOARD_TASK = "IsaacContrib-Reach-Franka-IK-Rel"
+# Lightweight Franka task that configures an IsaacTeleop pipeline (controllers), so omitting
+# ``--teleop_device`` drives the scripts through the Isaac Teleop stack rather than the legacy
+# native devices.
 _ISAAC_TELEOP_TASK = "IsaacContrib-Stack-Cube-Franka-IK-Abs"
 
 # Exact #6656 regression signatures that must never appear in a script's output.
@@ -47,8 +48,18 @@ _REGRESSION_SIGNATURES = (
     "has no attribute 'enable_cameras'",
 )
 
+# Logged by ``isaaclab_teleop`` when it builds the Isaac Teleop device + retargeting pipeline.
+# This runs *after* the RTX-apply site that regressed, and before the OpenXR/CloudXR session is
+# entered -- which needs a headset/CloudXR runtime (``NV_CXR_RUNTIME_DIR``) not present in headless
+# CI. Reaching it proves the RTX/camera startup and the Isaac Teleop factory both succeed.
+_ISAAC_TELEOP_MARKER = "Using IsaacTeleop stack for teleoperation"
+
 # Marker logged by ManagerBasedEnv creation, which runs *after* the RTX-apply site that regressed.
 _ENV_CREATED_MARKER = "Base environment:"
+
+# Disable CloudXR: no headset connects in CI, and auto-launching the runtime is unnecessary to
+# exercise the Isaac Teleop device factory (the live session is out of scope for a headless smoke).
+_NO_CLOUDXR = ["--cloudxr_env", "none", "--no-auto_launch_cloudxr"]
 
 # Generous ceiling for a cold Isaac Sim launch + Franka env creation on CI hardware. The watcher
 # returns as soon as the marker is seen, so the typical wall time is well under this.
@@ -112,31 +123,38 @@ def _assert_started_cleanly(output: str, markers: list[str], script: str) -> Non
 
 
 def test_teleop_se3_agent_starts(tmp_path):
-    """teleop_se3_agent.py reaches the teleoperation loop without the #6656 regression."""
+    """teleop_se3_agent.py builds the Isaac Teleop device (past the #6656 RTX/camera regression).
+
+    Omitting ``--teleop_device`` selects the Isaac Teleop stack for the IsaacTeleop-configured task.
+    The run reaches the Isaac Teleop device factory (``_ISAAC_TELEOP_MARKER``) and then stops when it
+    tries to enter the OpenXR/CloudXR session (no headset in CI); reaching the marker is success.
+    """
     argv = [
         "scripts/environments/teleoperation/teleop_se3_agent.py",
         "--task",
-        _KEYBOARD_TASK,
-        "--teleop_device",
-        "keyboard",
+        _ISAAC_TELEOP_TASK,
+        *_NO_CLOUDXR,
     ]
-    output = _launch_until_marker(argv, ["teleoperation started"], tmp_path / "se3_agent.log")
-    _assert_started_cleanly(output, ["teleoperation started"], "teleop_se3_agent.py")
+    output = _launch_until_marker(argv, [_ISAAC_TELEOP_MARKER], tmp_path / "se3_agent.log")
+    _assert_started_cleanly(output, [_ISAAC_TELEOP_MARKER], "teleop_se3_agent.py")
 
 
 def test_record_demos_starts(tmp_path):
-    """record_demos.py reaches the recording loop (and no longer AttributeErrors on enable_cameras)."""
+    """record_demos.py builds the Isaac Teleop device without AttributeError-ing on enable_cameras.
+
+    Same Isaac Teleop path as ``teleop_se3_agent``: reaching ``_ISAAC_TELEOP_MARKER`` proves the RTX
+    apply and the ``args_cli.enable_cameras`` read both succeed before the CloudXR session boundary.
+    """
     argv = [
         "scripts/tools/record_demos.py",
         "--task",
-        _KEYBOARD_TASK,
-        "--teleop_device",
-        "keyboard",
+        _ISAAC_TELEOP_TASK,
         "--dataset_file",
         str(tmp_path / "dataset.hdf5"),
+        *_NO_CLOUDXR,
     ]
-    output = _launch_until_marker(argv, ["recording started"], tmp_path / "record_demos.log")
-    _assert_started_cleanly(output, ["recording started"], "record_demos.py")
+    output = _launch_until_marker(argv, [_ISAAC_TELEOP_MARKER], tmp_path / "record_demos.log")
+    _assert_started_cleanly(output, [_ISAAC_TELEOP_MARKER], "record_demos.py")
 
 
 def test_teleop_replay_agent_applies_rtx_without_replicator_crash(tmp_path):
