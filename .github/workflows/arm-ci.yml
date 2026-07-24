@@ -93,7 +93,7 @@ jobs:
   config:
     name: Load Config
     needs: [changes]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: needs.changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     outputs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
@@ -111,6 +111,9 @@ jobs:
         f=.github/workflows/config.yaml
         echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+    # NOTE: this ci_image_tag formula is intentionally duplicated in build.yaml's
+    # config job — the two images are independent (-arm64 here vs x86 there), so
+    # they are not shared. Keep the two formulas in sync if either changes.
     - id: image_tag
       shell: bash
       env:
@@ -139,7 +142,7 @@ jobs:
     name: arm-ci
     runs-on: [self-hosted, arm64]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: needs.changes.outputs.should_run == 'true'
     timeout-minutes: 60
     continue-on-error: true
     steps:

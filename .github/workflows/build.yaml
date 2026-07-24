@@ -125,6 +125,9 @@ jobs:
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$f")" >> "$GITHUB_OUTPUT"
+    # NOTE: this ci_image_tag formula is intentionally duplicated in arm-ci.yml's
+    # config job — the two images are independent (x86 here vs -arm64 there), so
+    # they are not shared. Keep the two formulas in sync if either changes.
     - id: image_tag
       shell: bash
       env:
@@ -151,7 +154,7 @@ jobs:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -174,7 +177,7 @@ jobs:
     needs: [changes, config]
     if: >-
       github.event_name != 'push' &&
-      needs.changes.outputs.run_docker_tests == 'true'
+      needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6

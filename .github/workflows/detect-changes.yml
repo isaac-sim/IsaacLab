@@ -8,7 +8,7 @@
 # Each caller passes its own `patterns` (one `<ERE regex> :: <description>` per
 # line, matched against the pull request's changed files) so every workflow
 # declares exactly which paths should trigger it. Kept as a `workflow_call` so
-# callers reference `needs.<job>.outputs.run_docker_tests` exactly as they did
+# callers reference `needs.<job>.outputs.should_run` exactly as they did
 # when this logic was inlined.
 #
 # Why the callers gate with this job + `if:` instead of a workflow-level
@@ -26,7 +26,7 @@ on:
         description: >-
           Newline-delimited entries of the form `<ERE regex> :: <description>`
           (description optional). If any regex matches a changed file path,
-          run_docker_tests is true.
+          should_run is true.
         required: true
         type: string
       triggered-jobs-push:
@@ -40,16 +40,16 @@ on:
         type: string
         default: "(gated jobs)"
     outputs:
-      run_docker_tests:
+      should_run:
         description: "Whether the caller's gated jobs should run for this event."
-        value: ${{ jobs.detect.outputs.run_docker_tests }}
+        value: ${{ jobs.detect.outputs.should_run }}
 
 jobs:
   detect:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
+      should_run: ${{ steps.detect.outputs.should_run }}
     steps:
     - id: detect
       env:
@@ -110,8 +110,8 @@ jobs:
 
         decide() {
           local decision="$1" reason="$2" files="${3:-}"
-          echo "Decision: run_docker_tests=$decision ($reason)"
-          echo "run_docker_tests=$decision" >> "$GITHUB_OUTPUT"
+          echo "Decision: should_run=$decision ($reason)"
+          echo "should_run=$decision" >> "$GITHUB_OUTPUT"
           {
             echo "## Change detection"
             echo ""
