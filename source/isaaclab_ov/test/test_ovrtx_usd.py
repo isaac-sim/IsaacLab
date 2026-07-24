@@ -24,6 +24,7 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
+        build_render_product_as_string,
         build_render_scope_usd,
         create_scene_partition_attributes,
         export_stage_to_string,
@@ -36,6 +37,7 @@ else:
     Sdf = None
     Usd = None
     UsdGeom = None
+    build_render_product_as_string = None
     build_render_scope_usd = None
     create_scene_partition_attributes = None
     export_stage_to_string = None
@@ -102,6 +104,22 @@ def test_ovrtx_motion_vectors_uses_target_motion_render_var():
 def test_ovrtx_motion_vectors_with_rgb_falls_back_to_rgb():
     """OVRTX only supports one main AOV at a time; combining motion vectors with RGB keeps RGB."""
     assert get_render_var_config(["rgb", "motion_vectors"]) == ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
+
+
+def test_render_product_initially_targets_only_the_resolvable_source_camera():
+    """Multi-environment RenderProducts initially target env zero while retaining tiled resolution."""
+    render_product, render_product_path = build_render_product_as_string(
+        width=16,
+        height=8,
+        num_envs=4,
+        data_types=["rgb"],
+        camera_rel_path="Robot/head_cam",
+    )
+
+    assert render_product_path == "/Render/RenderProduct"
+    assert "rel camera = [</World/envs/env_0/Robot/head_cam>]" in render_product
+    assert "/World/envs/env_1/Robot/head_cam" not in render_product
+    assert "uniform int2 resolution = (32, 16)" in render_product
 
 
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():

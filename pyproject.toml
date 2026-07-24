@@ -138,7 +138,7 @@ rerun = [
 isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 # Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
 ov = ["ovphysx>=0.4.13"]
-rtx = ["ovrtx>=0.3.0,<0.4.0"]
+rtx = ["ovrtx>=0.4.0,<0.5.0"]
 mimic = [
     "isaaclab-mimic",
     "ipywidgets>=8.1.5",
@@ -179,7 +179,7 @@ torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = ">=0.4.13"
-ovrtx = ">=0.3.0,<0.4.0"
+ovrtx = ">=0.4.0,<0.5.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
 newton = "81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9"
 warp = "1.15.0.dev20260626"

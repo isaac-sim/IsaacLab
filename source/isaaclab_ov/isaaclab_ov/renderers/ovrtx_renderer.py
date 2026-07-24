@@ -423,13 +423,20 @@ class OVRTXRenderer(BaseRenderer):
         self._renderer.open_usd_from_string(combined_usd_string)
         logger.info("OVRTX loaded USD from string successfully")
 
+        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
         if num_envs > 1:
             self._clone_sources_in_ovrtx()
             self._update_scene_partitions_after_clone(num_envs)
+            # OVRTX 0.4 keeps the initial Fabric camera relationship after clone_usd creates the remaining
+            # cameras. Rewrite it so the RenderProduct includes every camera in its tiled output.
+            self._renderer.write_array_attribute(
+                prim_paths=[render_product_path],
+                attribute_name="camera",
+                tensors=[camera_paths],
+            )
 
         self._initialized_scene = True
 
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
         self._camera_xform_binding = self._renderer.bind_attribute(
             prim_paths=camera_paths,
             attribute_name="omni:xform",
