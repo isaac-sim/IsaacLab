@@ -228,6 +228,8 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags_host", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=False), raising=False)
 

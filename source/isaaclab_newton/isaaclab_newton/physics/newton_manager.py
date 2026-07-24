@@ -2037,7 +2037,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensor_tasks(cls, *names: str) -> None:
-        """Refit the shape BVH and run the requested scene-query tasks."""
+        """Refit the shape and particle BVHs and run the requested scene-query tasks."""
         for name in names:
             if name not in cls._sensor_tasks:
                 raise KeyError(f"Newton sensor task '{name}' is not registered.")
@@ -2072,7 +2072,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _mark_sensor_state_dirty(cls) -> None:
-        """Bind the current state and mark the shape BVH stale.
+        """Bind the current state and mark the shape and particle BVHs stale.
 
         Writes through :class:`NewtonManager` rather than ``cls`` because the
         sensor-task registry and its dirty flag are singleton state owned by the
