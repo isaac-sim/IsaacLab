@@ -78,25 +78,35 @@ class VideoRecorder:
         self._env = env
         self._frames: list[np.ndarray] = []
         self._step_count = 0
+        self._frames_step_count = 0
         self._clip_index = 0
         self._recording = False
 
     def step(self) -> None:
         """Advance the recorder by one env step."""
         self._step_count += 1
-        should_trigger = self._check_trigger()
+
+        # Skip steps before the configured offset.
+        if self._step_count <= self.cfg.step_offset:
+            return
+
+        effective_step = self._step_count - self.cfg.step_offset
+        should_trigger = self._check_trigger(effective_step)
 
         if should_trigger:
             if self._recording:
                 self._close_clip()
             self._recording = True
+            self._frames_step_count = 0
 
         if self._recording:
-            frame = self._get_frame()
-            if frame is not None:
-                self._frames.append(frame)
-                if len(self._frames) >= self.cfg.video_length:
-                    self._close_clip()
+            self._frames_step_count += 1
+            if self._frames_step_count % self.cfg.frame_stride == 0:
+                frame = self._get_frame()
+                if frame is not None:
+                    self._frames.append(frame)
+            if self._frames_step_count >= self.cfg.video_length:
+                self._close_clip()
 
     def close(self) -> None:
         """Flush any buffered frames and close the current clip."""
@@ -107,10 +117,10 @@ class VideoRecorder:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _check_trigger(self) -> bool:
+    def _check_trigger(self, effective_step: int) -> bool:
         if self.cfg.video_interval <= 0:
-            return self._step_count == 1
-        return self._step_count % self.cfg.video_interval == 0
+            return effective_step == 1
+        return effective_step % self.cfg.video_interval == 0
 
     def _get_frame(self) -> np.ndarray | None:
         kind, type_or_name, sub = _parse_source(self.cfg.source)
@@ -139,19 +149,6 @@ class VideoRecorder:
                     f"visualizer is active (active: {active or ['none']}). "
                     f"Pass --viz {viz_type} or add the corresponding VisualizerCfg to sim.visualizer_cfgs."
                 )
-
-            # Kit Replicator produces black frames with Newton physics because Newton Fabric writes
-            # do not notify RTX's scene delegate.
-            if viz_type == "kit":
-                physics_backend = getattr(
-                    getattr(sim, "physics_manager", None), "video_capture_backend", lambda: None
-                )()
-                if physics_backend == "newton_gl":
-                    raise RuntimeError(
-                        "[VideoRecorder] source='visualizer:kit' is not supported with Newton physics — "
-                        "Kit Replicator cannot read Newton Fabric transforms. "
-                        "Use source='visualizer:newton' and pass --viz newton instead."
-                    )
         else:
             # Auto: pick the first active visualizer that supports frame capture.
             candidates = [v for v in visualizers if hasattr(v, "render_rgb_array")]

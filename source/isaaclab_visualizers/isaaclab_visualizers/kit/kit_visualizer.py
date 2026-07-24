@@ -354,6 +354,28 @@ class KitVisualizer(BaseVisualizer):
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
 
+    def render_tiled_rgb_array(self) -> np.ndarray:
+        """Return an RGB grid of all tiled camera tiles.
+
+        Requires :attr:`~KitVisualizerCfg.tiled_cam_view` to be ``True`` and the visualizer
+        to be initialized. Returns the composed tile grid as a ``uint8`` numpy array of shape
+        ``(H, W, 3)``.
+
+        Raises:
+            RuntimeError: If the tiled camera view is not configured on this visualizer.
+        """
+        if self._camera_sensor is None:
+            raise RuntimeError(
+                "[KitVisualizer] render_tiled_rgb_array() requires tiled_cam_view=True on "
+                "KitVisualizerCfg. Set tiled_cam_view=True and configure tiled_cam_prim_path "
+                "or tiled_cam_target_prim_path."
+            )
+        rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices)
+        image = compose_rgb_grid_tensor(rgb)
+        if isinstance(image, torch.Tensor):
+            return image.cpu().numpy().astype(np.uint8)
+        return np.asarray(image, dtype=np.uint8)
+
     def reapply_origin(self) -> None:
         """Recompute the camera position from the current :attr:`~KitVisualizerCfg.origin_type` and push it to
         the viewport.

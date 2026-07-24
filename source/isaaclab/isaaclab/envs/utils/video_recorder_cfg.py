@@ -46,9 +46,21 @@ class VideoRecorderCfg:
     """Number of env steps captured per clip."""
 
     video_interval: int = 0
-    """Start a new clip every ``video_interval`` env steps.
+    """Start a new clip every ``video_interval`` env steps after :attr:`step_offset`.
 
-    ``0`` means a single clip is started at the first step and the recorder is inactive
-    afterwards (useful for fixed-length episode captures).  Set to a positive integer to
-    record recurring clips spaced by that many env steps.
+    ``0`` means a single clip starts at :attr:`step_offset` and the recorder is inactive
+    afterwards.  Set to a positive integer to record recurring clips at that cadence.
+    """
+
+    step_offset: int = 0
+    """Number of env steps to skip before the first clip starts.  Defaults to 0 (record
+    from the very first step).  Applies to both one-shot and recurring recordings.
+    """
+
+    frame_stride: int = 1
+    """Capture one frame every ``frame_stride`` env steps within a clip.  Defaults to 1
+    (capture every step).  Increase to sub-sample the recording — e.g. ``frame_stride=2``
+    records half as many frames, halving file size at the cost of temporal resolution.
+    A clip that captures ``video_length // frame_stride`` unique frames is still triggered
+    and closed after ``video_length`` env steps.
     """

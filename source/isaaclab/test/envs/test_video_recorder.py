@@ -179,6 +179,99 @@ def test_step_does_not_collect_when_no_trigger():
 
 
 # ---------------------------------------------------------------------------
+# step_offset
+# ---------------------------------------------------------------------------
+
+
+def test_step_offset_delays_first_trigger():
+    """step_offset=5 means the first clip starts at step 6, not step 1."""
+    viz = _FakeViz("kit")
+    recorder = VideoRecorder(
+        _cfg(source="visualizer:kit", step_offset=5, video_length=100, video_interval=0),
+        _make_env(visualizers=[viz]),
+    )
+    for _ in range(5):
+        recorder.step()
+    assert not recorder._recording
+    recorder.step()  # step 6 — offset cleared, effective step 1 → triggers
+    assert recorder._recording
+
+
+def test_step_offset_applied_to_recurring_clips():
+    """step_offset shifts the whole cadence — first trigger at offset+interval."""
+    viz = _FakeViz("kit")
+    recorder = VideoRecorder(
+        _cfg(source="visualizer:kit", step_offset=10, video_length=1, video_interval=5),
+        _make_env(visualizers=[viz]),
+    )
+    close_count = [0]
+
+    def counting_close():
+        close_count[0] += 1
+        recorder._frames = []
+        recorder._recording = False
+
+    with patch.object(recorder, "_close_clip", side_effect=counting_close):
+        for _ in range(25):  # steps 1-25; effective steps 1-15 after offset 10
+            recorder.step()
+
+    # effective steps 5, 10, 15 → 3 triggers
+    assert close_count[0] == 3
+
+
+# ---------------------------------------------------------------------------
+# frame_stride
+# ---------------------------------------------------------------------------
+
+
+def test_frame_stride_subsamples_frames():
+    """frame_stride=2 captures one frame every 2 steps — half the frames for the same clip duration."""
+    viz = _FakeViz("kit")
+    recorder = VideoRecorder(
+        _cfg(source="visualizer:kit", video_length=4, frame_stride=2),
+        _make_env(visualizers=[viz]),
+    )
+    with patch.object(recorder, "_close_clip"):
+        for _ in range(4):
+            recorder.step()
+    assert viz.render_calls == 2  # 4 steps / stride 2
+
+
+def test_frame_stride_one_is_default_behaviour():
+    """frame_stride=1 captures every step (default)."""
+    viz = _FakeViz("kit")
+    recorder = VideoRecorder(
+        _cfg(source="visualizer:kit", video_length=4, frame_stride=1),
+        _make_env(visualizers=[viz]),
+    )
+    with patch.object(recorder, "_close_clip"):
+        for _ in range(4):
+            recorder.step()
+    assert viz.render_calls == 4
+
+
+# ---------------------------------------------------------------------------
+# Multiple simultaneous recorders
+# ---------------------------------------------------------------------------
+
+
+def test_multiple_recorders_independent_sources():
+    """Two recorders with different sources each call their own visualizer."""
+    kit_viz = _FakeViz("kit")
+    newton_viz = _FakeViz("newton")
+    rec_kit = VideoRecorder(_cfg(source="visualizer:kit", video_length=3), _make_env(visualizers=[kit_viz, newton_viz]))
+    rec_newton = VideoRecorder(
+        _cfg(source="visualizer:newton", video_length=3), _make_env(visualizers=[kit_viz, newton_viz])
+    )
+    with patch.object(rec_kit, "_close_clip"), patch.object(rec_newton, "_close_clip"):
+        for _ in range(3):
+            rec_kit.step()
+            rec_newton.step()
+    assert kit_viz.render_calls == 3
+    assert newton_viz.render_calls == 3
+
+
+# ---------------------------------------------------------------------------
 # Visualizer frame routing
 # ---------------------------------------------------------------------------
 
@@ -215,32 +308,36 @@ def test_visualizer_source_typed_missing_raises():
         recorder._get_frame()
 
 
-def test_kit_visualizer_newton_physics_raises():
-    """source='visualizer:kit' with Newton physics raises RuntimeError immediately."""
+def test_kit_visualizer_with_newton_physics_captures_frame():
+    """source='visualizer:kit' with Newton physics still captures via KitVisualizer.render_rgb_array().
+
+    The Kit visualizer syncs Newton transforms via the app update pump in render_rgb_array(),
+    so blocking at config time is wrong — let the capture proceed.
+    """
     kit_viz = _FakeViz("kit")
     env = _make_env(visualizers=[kit_viz])
-    env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
-
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-    with pytest.raises(RuntimeError, match="Newton physics"):
-        recorder._get_frame()
-
-    assert kit_viz.render_calls == 0  # Kit was never called
+    frame = recorder._get_frame()
+    assert frame is not None
+    assert kit_viz.render_calls == 1
 
 
 def test_visualizer_tiled_calls_render_tiled_rgb_array():
-    """source='visualizer:newton:tiled' calls render_tiled_rgb_array() if present."""
-    viz = _FakeViz("newton")
-    tiled_frame = np.ones((16, 24, 3), dtype=np.uint8) * 64
-    viz.render_tiled_rgb_array = MagicMock(return_value=tiled_frame)
-    recorder = VideoRecorder(_cfg(source="visualizer:newton:tiled"), _make_env(visualizers=[viz]))
-    frame = recorder._get_frame()
-    viz.render_tiled_rgb_array.assert_called_once()
-    assert frame is tiled_frame
+    """source='visualizer:newton:tiled' (or kit:tiled) calls render_tiled_rgb_array() if present."""
+    for viz_type in ("newton", "kit"):
+        viz = _FakeViz(viz_type)
+        tiled_frame = np.ones((16, 24, 3), dtype=np.uint8) * 64
+        viz.render_tiled_rgb_array = MagicMock(return_value=tiled_frame)
+        recorder = VideoRecorder(
+            _cfg(source=f"visualizer:{viz_type}:tiled"), _make_env(visualizers=[viz])
+        )
+        frame = recorder._get_frame()
+        viz.render_tiled_rgb_array.assert_called_once()
+        assert frame is tiled_frame
 
 
 def test_visualizer_tiled_raises_when_not_supported():
-    """source='visualizer:kit:tiled' raises RuntimeError when the visualizer has no tiled capture."""
+    """source='visualizer:kit:tiled' raises RuntimeError when visualizer has no tiled capture."""
     viz = _FakeViz("kit")  # no render_tiled_rgb_array
     recorder = VideoRecorder(_cfg(source="visualizer:kit:tiled"), _make_env(visualizers=[viz]))
     with pytest.raises(RuntimeError, match="tiled"):
