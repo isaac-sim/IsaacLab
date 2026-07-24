@@ -392,6 +392,36 @@ def test_sensor_source_no_rgb_output_raises():
 # ---------------------------------------------------------------------------
 
 
+def test_output_filename_prefix_used_in_clip_name():
+    """Clip filenames use output_filename_prefix instead of the hardcoded 'clip' default."""
+    recorder = VideoRecorder(_cfg(output_dir="/tmp/vids", output_filename_prefix="viewport"), _make_env())
+    assert recorder._clip_path(0) == "/tmp/vids/viewport_0000.mp4"
+    assert recorder._clip_path(3) == "/tmp/vids/viewport_0003.mp4"
+
+
+def test_keep_last_n_clips_deletes_old_clips():
+    """keep_last_n_clips=2 removes clips older than the last 2 after each write."""
+    recorder = VideoRecorder(_cfg(output_dir="/tmp/vids", keep_last_n_clips=2), _make_env())
+    recorder._clip_index = 3  # simulate having written 3 clips already
+
+    removed = []
+    with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=lambda p: removed.append(p)):
+        recorder._maybe_delete_old_clips()
+
+    # clip_index=3, keep_last=2 → cutoff=1 → delete index 0 only
+    assert len(removed) == 1
+    assert removed[0].endswith("clip_0000.mp4")
+
+
+def test_keep_last_n_clips_none_deletes_nothing():
+    """keep_last_n_clips=None (default) never deletes any clips."""
+    recorder = VideoRecorder(_cfg(keep_last_n_clips=None), _make_env())
+    recorder._clip_index = 10
+    with patch("isaaclab.envs.utils.video_recorder.os.remove") as mock_rm:
+        recorder._maybe_delete_old_clips()
+    mock_rm.assert_not_called()
+
+
 def test_close_clip_writes_mp4_via_moviepy():
     """_close_clip() passes collected frames to moviepy and writes a file."""
     frames = [_FRAME.copy(), _FRAME.copy()]

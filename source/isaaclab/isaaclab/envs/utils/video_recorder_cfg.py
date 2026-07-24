@@ -64,3 +64,36 @@ class VideoRecorderCfg:
     A clip that captures ``video_length // frame_stride`` unique frames is still triggered
     and closed after ``video_length`` env steps.
     """
+
+    output_filename_prefix: str = "clip"
+    """Prefix for output clip filenames.  Each clip is written as
+    ``<output_dir>/<output_filename_prefix>_<index>.mp4``.
+
+    Defaults to ``"clip"`` → ``clip_0000.mp4``, ``clip_0001.mp4``, …
+
+    Set a descriptive prefix when multiple recorders share the same ``output_dir`` so their
+    clips do not overwrite each other.  For example, with two recorders::
+
+        VideoRecorderCfg(source="visualizer:kit",    output_dir="videos", output_filename_prefix="viewport"),
+        VideoRecorderCfg(source="sensor:wrist_cam",  output_dir="videos", output_filename_prefix="wrist"),
+
+    produces ``videos/viewport_0000.mp4`` and ``videos/wrist_0000.mp4`` side-by-side.
+    """
+
+    keep_last_n_clips: int | None = None
+    """If set, delete older clips so that at most this many clips are kept on disk at any
+    time.  Older clips (by index) are removed immediately after a new one is written.
+
+    Defaults to ``None`` (keep all clips).
+
+    Useful during long training runs with a recurring ``video_interval`` where retaining
+    every clip would fill the disk.  For example, ``keep_last_n_clips=3`` with
+    ``video_interval=1000`` keeps only the three most recently recorded clips::
+
+        VideoRecorderCfg(
+            source="visualizer:newton",
+            video_interval=1000,
+            video_length=200,
+            keep_last_n_clips=3,
+        )
+    """

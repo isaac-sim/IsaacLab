@@ -209,19 +209,35 @@ class VideoRecorder:
         frame = tensor[0].cpu().numpy().astype(np.uint8)
         return frame[:, :, :3] if frame.ndim == 3 and frame.shape[2] >= 3 else frame
 
+    def _clip_path(self, index: int) -> str:
+        return os.path.join(self.cfg.output_dir, f"{self.cfg.output_filename_prefix}_{index:04d}.mp4")
+
     def _close_clip(self) -> None:
         if not self._frames:
             self._recording = False
             return
         try:
             os.makedirs(self.cfg.output_dir, exist_ok=True)
-            path = os.path.join(self.cfg.output_dir, f"clip_{self._clip_index:04d}.mp4")
+            path = self._clip_path(self._clip_index)
             clip = ImageSequenceClip(self._frames, fps=self.cfg.fps)
             clip.write_videofile(path, codec="libx264", audio=False, logger=None)
             logger.info("[VideoRecorder] Wrote %d frames to %s", len(self._frames), path)
             self._clip_index += 1
+            self._maybe_delete_old_clips()
         except Exception:
             logger.exception("[VideoRecorder] Failed to write clip.")
         finally:
             self._frames = []
             self._recording = False
+
+    def _maybe_delete_old_clips(self) -> None:
+        if self.cfg.keep_last_n_clips is None:
+            return
+        cutoff = self._clip_index - self.cfg.keep_last_n_clips
+        for index in range(max(0, cutoff)):
+            path = self._clip_path(index)
+            try:
+                os.remove(path)
+                logger.debug("[VideoRecorder] Deleted old clip %s", path)
+            except FileNotFoundError:
+                pass
