@@ -61,23 +61,25 @@ def _launch_until_marker(argv: list[str], markers: list[str], log_path: Path) ->
     """
     env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     cmd = [sys.executable, str(ROOT / argv[0]), *argv[1:]]
+    # Keep the write handle open for the child's whole lifetime (the poll loop reads progress back
+    # through a separate read handle); it is closed only when this ``with`` block exits after teardown.
     with open(log_path, "w") as log:
         proc = subprocess.Popen(
             cmd, cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT, env=env, start_new_session=True
         )
-    try:
-        deadline = time.time() + _STARTUP_TIMEOUT_S
-        while time.time() < deadline:
-            output = log_path.read_text(errors="replace")
-            if any(marker in output for marker in markers):
-                break
-            if any(sig in output for sig in _REGRESSION_SIGNATURES):
-                break
-            if proc.poll() is not None:
-                break
-            time.sleep(2.0)
-    finally:
-        _terminate_group(proc)
+        try:
+            deadline = time.time() + _STARTUP_TIMEOUT_S
+            while time.time() < deadline:
+                output = log_path.read_text(errors="replace")
+                if any(marker in output for marker in markers):
+                    break
+                if any(sig in output for sig in _REGRESSION_SIGNATURES):
+                    break
+                if proc.poll() is not None:
+                    break
+                time.sleep(2.0)
+        finally:
+            _terminate_group(proc)
     return log_path.read_text(errors="replace")
 
 
