@@ -1,47 +1,95 @@
-# Newton Asset Preparation Evaluations
+# Newton/MJWarp Asset Migration Evaluations
 
-## Scenario 1: Placeholder Inertia
+## Scenario 1: Existing And Newly Converted Assets
 
-Query: "My PhysX robot runs, but Newton reports placeholder inertia."
-
-Expected behavior:
-
-- Establishes a PhysX baseline.
-- Audits authored mass, inertia, and center of mass.
-- Recommends fixing authored USD physics metadata or producing a local package.
-- Requires task-level Newton validation after the asset audit.
-
-Known failure modes:
-
-- Treats PhysX runtime success as proof of Newton readiness.
-- Suppresses warnings without fixing asset metadata.
-
-## Scenario 2: Asset Imports But Control Fails
-
-Query: "The converted robot spawns under Newton, but the policy actions do nothing."
+Query: "Will Isaac Lab's existing asset work in MJWarp, and how should I convert a new URDF?"
 
 Expected behavior:
 
-- Checks actuator joint patterns, controller body names, and action dimensions.
-- Runs zero-action and small nonzero-action rollouts.
-- Separates asset import success from control readiness.
+- Explain that provided assets run in both backends because Newton parses supported authored USD Physics and PhysX properties.
+- For a new URDF, use asset transformation and multi-physics conversion.
+- Account for the layered payloads and nested rigid bodies produced by the new converter.
 
-Known failure modes:
+Known failure modes: claiming every existing PhysX field is consumed by MJWarp or requiring a
+Newton-only copy of a provided asset.
 
-- Keeps changing USD mass properties when the task action config is stale.
-- Declares the asset ready after standalone import only.
+## Scenario 2: Solver-Specific Properties
 
-## Scenario 3: Task-Level Failure
-
-Query: "The object passes a standalone Newton check but fails inside my environment."
+Query: "Can I reuse all PhysX rigid-body fields in MJWarp?"
 
 Expected behavior:
 
-- Validates the exact task spawn path and overrides.
-- Audits support collision, contact materials, and nested references.
-- Checks reset and first-step finite state in the target task.
+- Route common, MuJoCo/MJWarp, Newton-native, and PhysX-only fields through their matching cfg classes.
+- Verify support in the generated schema APIs.
 
-Known failure modes:
+Known failure modes: assuming an authored or imported value is consumed by every solver.
 
-- Assumes standalone USD parsing covers task-level material and collision overrides.
-- Ignores support geometry and contact-relevant scene assets.
+## Scenario 3: Contact Slip
+
+Query: "Why does the object slip from my gripper in MJWarp but not PhysX?"
+
+Expected behavior:
+
+- Validate collision shapes, contacts, material bindings, and gripper force first.
+- Set per-shape `mjc:condim` through `spawn.collision_props`, tune material friction, then set global
+  `MJWarpSolverCfg(cone=..., impratio=...)` and compare fixed-grasp metrics.
+
+Known failure modes: treating `condim` as a global solver field, treating `impratio` as an asset
+field, recursively changing unintended colliders, or hiding missing contacts or insufficient effort.
+
+## Scenario 4: Velocity Limits
+
+Query: "Why does MJWarp exceed my joint velocity limit?"
+
+Expected behavior:
+
+- Explain that MJWarp enforces neither `velocity_limit` nor `velocity_limit_sim`.
+- Recommend explicit task checks and physically justified control limits.
+
+Known failure modes: treating either field as an MJWarp safety clamp.
+
+## Scenario 5: Zero-Gravity Angular Velocity
+
+Query: "Should I add armature to a spinning object?"
+
+Expected behavior:
+
+- Distinguish articulated-coordinate armature from plain rigid-body inertia.
+- Correct the model first, use the smallest justified armature, and retune damping.
+
+Known failure modes: adding arbitrary armature to a plain rigid object or claiming gravity damps rotation.
+
+## Scenario 6: MJWarp Starting Profile
+
+Query: "What solver values should I start with for dexterous manipulation?"
+
+Expected behavior:
+
+- Use the documented `200`/`70`, elliptic cone, `impratio=10`, two-substep profile.
+- Keep initial convergence defaults and enable `debug_mode`.
+
+Known failure modes: translating PhysX numbers directly or treating the profile as a guarantee.
+
+## Scenario 7: Task Validation
+
+Query: "How do I validate the migrated asset?"
+
+Expected behavior:
+
+- Run zero and random agents with both physics presets through multiple resets.
+- Reject invalid reset geometry and check state, impulses, saturation, angular velocity, contacts, and warnings.
+
+Known failure modes: stopping after successful parsing or relying on depenetration.
+
+## Scenario 8: MJWarp-Only Failure
+
+Query: "MJWarp produces NaNs, but the same scene runs in PhysX. Which solver value should I change?"
+
+Expected behavior:
+
+- Reproduce the first failure with one environment, a fixed state, no randomization, and identical actions.
+- Classify initialization/model, contact/capacity, control, or dense-scene causes.
+- Raise overflowing capacity before changing convergence settings.
+
+Known failure modes: assuming PhysX success proves the asset and reset are valid for MJWarp or
+increasing iterations before locating the first non-finite quantity.
