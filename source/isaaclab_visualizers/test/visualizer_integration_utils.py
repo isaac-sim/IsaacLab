@@ -695,11 +695,22 @@ def _set_newton_rendering_paused(viewer, paused: bool) -> None:
 
 
 def _warm_newton_viewer(visualizer: NewtonVisualizer, viewer) -> None:
-    """Pump Newton viewer frames before sampling ``get_frame()`` after cold starts."""
-    for _ in range(_NEWTON_VIEWER_WARMUP_FRAMES):
+    """Pump Newton viewer frames before sampling ``get_frame()`` after cold starts.
+
+    Exits early once two consecutive frames converge; always stops after
+    ``_NEWTON_VIEWER_WARMUP_FRAMES`` steps regardless of convergence so the
+    warmup cannot block indefinitely in CI environments.
+    """
+    prev: np.ndarray | None = None
+    for i in range(_NEWTON_VIEWER_WARMUP_FRAMES):
         visualizer.step(0.0)
         with contextlib.suppress(Exception):
-            viewer.get_frame()
+            curr_raw = viewer.get_frame()
+            if curr_raw is not None:
+                curr = _frame_to_numpy(curr_raw)
+                if prev is not None and i >= 2 and _frames_converged(prev, curr):
+                    return
+                prev = curr
 
 
 def _run_newton_viewer_frame_motion_test(
