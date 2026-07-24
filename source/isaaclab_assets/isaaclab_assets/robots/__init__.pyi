@@ -34,6 +34,8 @@ __all__ = [
     "KUKA_ALLEGRO_CFG",
     "PICK_AND_PLACE_CFG",
     "CRAZYFLIE_CFG",
+    "REACHY2_CFG",
+    "REACHY2_HIGH_PD_CFG",
     "RIDGEBACK_FRANKA_PANDA_CFG",
     "SAWYER_CFG",
     "SHADOW_HAND_CFG",
@@ -86,6 +88,7 @@ from .kinova import KINOVA_JACO2_N7S300_CFG, KINOVA_JACO2_N6S300_CFG, KINOVA_GEN
 from .kuka_allegro import KUKA_ALLEGRO_CFG
 from .pick_and_place import PICK_AND_PLACE_CFG
 from .quadcopter import CRAZYFLIE_CFG
+from .reachy2 import REACHY2_CFG, REACHY2_HIGH_PD_CFG
 from .ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG
 from .sawyer import SAWYER_CFG
 from .shadow_hand import SHADOW_HAND_CFG
