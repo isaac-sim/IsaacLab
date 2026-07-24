@@ -92,6 +92,7 @@ def test_mpm_points_emission_records_constant_offsets_per_env():
     assert builder.particle_count == 6
 
 
+@pytest.mark.ci_only
 def test_mpm_object_initializes_from_interactive_scene():
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
@@ -130,6 +131,7 @@ def test_mpm_object_initializes_from_interactive_scene():
         torch.testing.assert_close(media.data.particle_state_w.torch[0], default_state[0])
 
 
+@pytest.mark.ci_only
 def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
     import isaaclab.sim as sim_utils  # noqa: PLC0415
 
@@ -181,6 +183,7 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
         np.testing.assert_allclose(body_q, root_pose.detach().cpu().numpy()[0], rtol=1.0e-5, atol=1.0e-6)
 
 
+@pytest.mark.ci_only
 def test_mpm_object_creates_kit_points_when_kit_visualizer_requested(monkeypatch):
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
@@ -225,6 +228,7 @@ def test_mpm_object_creates_kit_points_when_kit_visualizer_requested(monkeypatch
             assert tuple(points.GetDisplayColorAttr().Get()[0]) == pytest.approx((0.1, 0.2, 0.3))
 
 
+@pytest.mark.ci_only
 def test_mpm_kit_points_follow_particle_state(monkeypatch):
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):

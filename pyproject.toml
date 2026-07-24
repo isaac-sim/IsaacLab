@@ -135,7 +135,7 @@ rerun = [
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
 # Isaac Sim (PhysX backend); co-resolves with the base install via the [tool.uv] conflicts table.
-isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
+isaacsim = ["isaacsim[all,extscache]==6.0.1"]
 # Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
 ov = ["ovphysx>=0.4.13"]
 rtx = ["ovrtx>=0.3.0,<0.4.0"]
@@ -174,7 +174,7 @@ all = [
 # the extras above, and [tool.uv].override-dependencies mirror these values;
 # ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
-isaacsim = "6.0.0.1"
+isaacsim = "6.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
@@ -310,6 +310,8 @@ ignore-words-list = "aheared,collet,followng,haa,publically,rouines,slq,collapsa
 
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
+    "ci_only: expensive test omitted from the fast local profile and run in complete CI suites",
+    "requires_kit: test fundamentally requires the Isaac Sim Kit runtime and is excluded from Kit-less collection",
     "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
     "windows_ci: mark test to run on Windows platforms in CI",
     "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",

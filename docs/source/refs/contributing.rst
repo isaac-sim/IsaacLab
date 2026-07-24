@@ -699,6 +699,45 @@ Good tests not only cover the basic functionality of the code but also the edge 
 They should be able to catch regressions and ensure that the code is working as expected.
 Please make sure that you add tests for your changes.
 
+Test runtime boundaries
+~~~~~~~~~~~~~~~~~~~~~~~
+
+An unqualified pytest run is the fast local profile. It excludes Kit and tests
+marked ``ci_only`` while retaining direct Python, Torch, Warp, Newton, and
+configuration coverage. Mark a single expensive simulator-backed test with
+``@pytest.mark.ci_only``. Use ``pytestmark = pytest.mark.ci_only`` when an
+entire module is expensive, allowing pytest to reject it before import. Do not
+mark tests that can stay fast through narrower seams, protocol fakes, or shared
+fixtures.
+
+Tests are also Kit-less by default. They must collect and run with the ``test``
+uv extra without importing Isaac Sim, Omniverse, Carb, or USDRT modules or
+launching :class:`~isaaclab.app.AppLauncher`. Prefer small protocol fakes at USD
+or Fabric boundaries when the assertion does not need a live application.
+
+Use ``pytestmark = pytest.mark.requires_kit`` at module scope only when a test
+fundamentally observes a Kit-owned contract, such as application lifecycle,
+extension loading, live stage mutation, Fabric synchronization, or RTX
+rendering. A Kit-marked module must contain only Kit-dependent tests; move any
+direct-logic coverage to a separate Kit-less module. The module-level mark lets
+``--without-kit`` exclude the file before Python imports it.
+
+Run the local and complete boundaries independently:
+
+.. code-block:: bash
+
+   uv run --extra test --locked python -m pytest <test-path>
+   uv run --extra test --locked python -m pytest --run-ci-tests --without-kit <test-path>
+   uv run --extra isaacsim --locked --with pytest python -m pytest --run-ci-tests -m requires_kit <test-path>
+
+CI and fresh-process test orchestrators may set ``ISAACLAB_RUN_CI_TESTS=1``
+instead of passing ``--run-ci-tests`` to every child process.
+
+Do not use ``isaacsim_ci`` as a replacement for ``requires_kit``; it selects a
+separate external short suite. Preserve behavioral coverage when replacing Kit
+with fakes, and amortize unavoidable Kit startup with the broadest safe fixture
+scope without introducing order-dependent state leakage.
+
 .. tab-set::
    :sync-group: os
 

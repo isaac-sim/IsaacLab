@@ -79,6 +79,10 @@ inputs:
     description: 'Additional pytest options'
     default: ''
     required: false
+  ci-marker:
+    description: 'Run only files and tests carrying this pytest marker'
+    default: ''
+    required: false
   extra-pip-packages:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
@@ -290,6 +294,7 @@ runs:
         container-name: "${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ inputs.image-tag }}
         pytest-options: ${{ inputs.pytest-options }}
+        ci-marker: ${{ inputs.ci-marker }}
         filter-pattern: ${{ inputs.filter-pattern }}
         exclude-pattern: ${{ inputs.exclude-pattern }}
         test-k-expr: ${{ inputs.test-k-expr }}

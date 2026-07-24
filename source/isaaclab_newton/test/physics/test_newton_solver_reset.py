@@ -5,14 +5,17 @@
 
 """Tests for the solver-internal reset performed when env-reset masks are consumed."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 from unittest.mock import patch
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation

@@ -32,6 +32,9 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
 
+pytestmark = pytest.mark.ci_only
+
+
 def quat_from_euler_rpy(roll, pitch, yaw, degrees=False):
     """Converts Euler XYZ to Quaternion (x, y, z, w)."""
     quat = tf.Rotation.from_euler("xyz", (roll, pitch, yaw), degrees=degrees).as_quat()

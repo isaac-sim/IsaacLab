@@ -294,6 +294,7 @@ def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
     assert np.allclose(np.array(builder.body_inertia[dynamic_body]), 2.0)
 
 
+@pytest.mark.ci_only
 def test_active_manager_create_builder_registers_mpm_attributes():
     """The active MPM manager registers solver-specific builder attributes."""
     sim_cfg = SimulationCfg(
@@ -309,6 +310,7 @@ def test_active_manager_create_builder_registers_mpm_attributes():
     assert builder.has_custom_attribute("mpm:young_modulus")
 
 
+@pytest.mark.ci_only
 def test_mpm_end_to_end_with_particle_custom_attributes():
     """End-to-end MPM step using ``add_particles(custom_attributes=...)`` — the production path."""
     sim_cfg = SimulationCfg(
@@ -350,6 +352,7 @@ def test_mpm_end_to_end_with_particle_custom_attributes():
 
 
 @pytest.mark.parametrize("project_outside", [True, False])
+@pytest.mark.ci_only
 def test_mpm_project_outside_colliders_gates_projection(project_outside):
     """``project_outside_colliders`` controls whether ``project_outside`` runs per substep.
 
@@ -557,6 +560,7 @@ def test_manager_name_starts_with_newton(manager):
     " expected_use_single_state, expected_needs_collision_pipeline",
     SOLVER_MATRIX,
 )
+@pytest.mark.ci_only
 def test_initialize_solver_populates_canonical_state(
     solver_cfg_factory,
     expected_manager,
@@ -647,6 +651,7 @@ def test_initialize_solver_populates_canonical_state(
         sim.step(render=False)
 
 
+@pytest.mark.ci_only
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():
     """Combining ``use_mujoco_contacts=True`` with a ``collision_cfg`` is rejected.
 
@@ -676,27 +681,17 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
             sim.reset()
 
 
-@pytest.mark.parametrize(
-    "num_substeps, collision_decimation, expected_mid_loop_collides",
-    [
-        (8, 0, 0),  # Feature disabled.
-        (8, 2, 3),  # Re-collide after substeps 2, 4, 6 (skip last).
-        (8, 4, 1),  # Re-collide after substep 4 only.
-        (8, 7, 1),  # Re-collide after substep 7 only.
-        (8, 8, 0),  # Gated off (>= num_substeps).
-    ],
-)
-def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_decimation, expected_mid_loop_collides):
-    """``_run_solver_substeps`` re-invokes ``collide`` at the expected substeps.
-
-    Wraps :attr:`NewtonManager._collision_pipeline.collide` with a counter and
-    runs one physics tick. The collide-call count is ``1`` (top-of-tick) plus
-    one per matching mid-loop substep, excluding the last substep.
-
-    The scene has a free-joint sphere falling onto a ground plane so the
-    broadphase actually generates pairs — guards against a future change
-    that skips ``collide()`` when there are no collidable shapes.
-    """
+@pytest.mark.ci_only
+def test_collision_decimation_invokes_mid_loop_collide():
+    """Exercise every collision-decimation boundary with one initialized collision scene."""
+    num_substeps = 8
+    cases = [
+        (0, 0),  # Feature disabled.
+        (2, 3),  # Re-collide after substeps 2, 4, 6 (skip last).
+        (4, 1),  # Re-collide after substep 4 only.
+        (7, 1),  # Re-collide after substep 7 only.
+        (8, 0),  # Gated off (>= num_substeps).
+    ]
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
         device="cuda:0",
@@ -704,7 +699,7 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
             num_substeps=num_substeps,
-            collision_decimation=collision_decimation,
+            collision_decimation=0,
             use_cuda_graph=False,
         ),
     )
@@ -715,17 +710,13 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         builder.add_joint_free(child=body)
         builder.add_shape_sphere(body=body, radius=0.05)
         builder.add_ground_plane()
-        # Lift the sphere to 0.5 m above the plane so the scene is non-degenerate.
-        # joint_q for a free joint is [tx, ty, tz, qx, qy, qz, qw].
         builder.joint_q[-7:] = [0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0]
         NewtonManager.set_builder(builder)
         sim.reset()
 
-        # Wrap collide() with a counter — must run after sim.reset() so the
-        # pipeline is allocated, and use_cuda_graph=False so the wrapped
-        # Python callable isn't bypassed by a captured graph.
         calls = {"n": 0}
         original_collide = NewtonManager._collision_pipeline.collide
+        original_decimation = NewtonManager._collision_decimation
 
         def counting_collide(state, contacts):
             calls["n"] += 1
@@ -733,12 +724,16 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
 
         NewtonManager._collision_pipeline.collide = counting_collide
         try:
-            sim.step(render=False)
+            for collision_decimation, expected_mid_loop_collides in cases:
+                calls["n"] = 0
+                NewtonManager._collision_decimation = collision_decimation
+                sim.step(render=False)
+                assert calls["n"] == 1 + expected_mid_loop_collides, (
+                    f"collision_decimation={collision_decimation} produced {calls['n']} collide calls"
+                )
         finally:
+            NewtonManager._collision_decimation = original_decimation
             NewtonManager._collision_pipeline.collide = original_collide
-
-        # Expect: 1 (top-of-tick) + expected_mid_loop_collides.
-        assert calls["n"] == 1 + expected_mid_loop_collides
 
 
 # ---------------------------------------------------------------------------
@@ -748,8 +743,8 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("num_steps", [1, 3])
-def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_steps):
+@pytest.mark.ci_only
+def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
     """An env reset written through the data-layer binding lands in ``_state_0``.
 
     Kamino is double-buffered (``_use_single_state=False``), so each substep
@@ -768,8 +763,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
     odd number of times, writes a sentinel through the cached binding (mimicking
     the reset write), and asserts the manager's ``_state_0`` observes it.
 
-    Without the fix the swap-on-last flips ``_state_0`` for odd ``num_steps`` and
-    the sentinel lands in ``_state_1`` instead, so the final assertion fails.
+    Without the fix, swap-on-last would flip the canonical state after these odd step counts, so either assertion fails.
     """
     sentinel = 1.2345
     sim_cfg = SimulationCfg(
@@ -796,18 +790,21 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         reset_target = NewtonManager._state_0.joint_q
         assert reset_target.shape[0] > 0  # guard against a vacuous assertion
 
-        for _ in range(num_steps):
-            sim.step(render=False)
+        total_steps = 0
+        for additional_steps in (1, 2):
+            for _ in range(additional_steps):
+                sim.step(render=False)
+            total_steps += additional_steps
 
-        # An env reset writes joint state through the (still bound) target.
-        reset_target.fill_(sentinel)
+            # An env reset writes joint state through the (still bound) target.
+            reset_target.fill_(sentinel)
 
-        # The reset must be visible in the manager's canonical _state_0; if the
-        # buffer flipped it landed in _state_1 instead.
-        canonical_joint_q = NewtonManager._state_0.joint_q.numpy()
-        assert np.allclose(canonical_joint_q, sentinel), (
-            f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
-        )
+            # The reset must be visible in the manager's canonical _state_0; if the
+            # buffer flipped it landed in _state_1 instead.
+            canonical_joint_q = NewtonManager._state_0.joint_q.numpy()
+            assert np.allclose(canonical_joint_q, sentinel), (
+                f"reset write did not land in _state_0 after {total_steps} steps: {canonical_joint_q}"
+            )
 
 
 def _build_collision_scene(sim, num_boxes=8):
@@ -860,6 +857,7 @@ def _free_model_collide_arrays_and_churn(model, device):
 
 
 @pytest.mark.parametrize("use_cuda_graph", [False, True])
+@pytest.mark.ci_only
 def test_hard_reset_then_step_runs(use_cuda_graph):
     """A step after a second (hard) ``sim.reset()`` runs without a CUDA error.
 

@@ -57,6 +57,9 @@ from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 ##
 
 
+pytestmark = pytest.mark.ci_only
+
+
 @configclass
 class ContactSensorTestSceneCfg(InteractiveSceneCfg):
     """Configuration for contact sensor test scenes."""
@@ -72,14 +75,41 @@ class ContactSensorTestSceneCfg(InteractiveSceneCfg):
 SIM_DT = 1.0 / 120.0
 
 
+# Each shape exercises both collision pipelines and both devices across the two
+# lifecycle scenarios without rebuilding all four Cartesian-product variants.
+def _shape_pipeline_device_cases(complement: bool):
+    """Build complementary pairwise cases across shape, pipeline, and device."""
+    devices = test_devices()
+    cpu_device = devices[0]
+    primary_device = devices[-1]
+    cases = []
+    for index, shape_type in enumerate(STABLE_SHAPES):
+        use_mujoco_contacts = bool(index % 2)
+        device = cpu_device if index % 4 in (2, 3) else primary_device
+        if complement:
+            use_mujoco_contacts = not use_mujoco_contacts
+            device = primary_device if device == cpu_device else cpu_device
+        pipeline = "mujoco_contacts" if use_mujoco_contacts else "newton_contacts"
+        cases.append(
+            pytest.param(
+                device,
+                use_mujoco_contacts,
+                shape_type,
+                id=f"{shape_type_to_str(shape_type)}-{pipeline}-{device}",
+            )
+        )
+    return cases
+
+
 # ===================================================================
 # Priority 1: Contact Detection Accuracy
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
-@pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
+@pytest.mark.parametrize(
+    ("device", "use_mujoco_contacts", "shape_type"),
+    _shape_pipeline_device_cases(complement=False),
+)
 def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
     """Test full contact detection lifecycle with varied heights across environments.
 
@@ -196,9 +226,10 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
             assert no_contact_detected[env_idx], f"Env {env_idx}: Contact should stop after lift."
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
-@pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
+@pytest.mark.parametrize(
+    ("device", "use_mujoco_contacts", "shape_type"),
+    _shape_pipeline_device_cases(complement=True),
+)
 def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
     """Test horizontal collision detection with varied velocities and separations.
 

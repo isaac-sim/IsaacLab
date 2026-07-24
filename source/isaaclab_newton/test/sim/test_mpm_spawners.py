@@ -43,19 +43,33 @@ def test_granular_demo_does_not_load_pxr_before_app_launcher():
     code = textwrap.dedent(
         """
         import sys
+        import types
+        import importlib.machinery
+        import importlib.util
 
         sys.argv = ["newton_mpm_granular.py", "--max-steps", "1", "--visualizer", "kit"]
+
+        isaacsim = types.ModuleType("isaacsim")
+        isaacsim.SimulationApp = type("SimulationApp", (), {})
+        sys.modules["isaacsim"] = isaacsim
+
+        original_find_spec = importlib.util.find_spec
+        importlib.util.find_spec = lambda name, *args: (
+            importlib.machinery.ModuleSpec(name, loader=None)
+            if name == "omni.kit"
+            else original_find_spec(name, *args)
+        )
 
         import scripts.demos.mpm.newton_mpm_granular as demo
         from isaaclab.app.app_launcher import AppLauncher
 
-        def stop_before_simulation_app(self):
+        def stop_before_simulation_app(self, *args, **kwargs):
             loaded_pxr_modules = [module for module in sys.modules if module == "pxr" or module.startswith("pxr.")]
             if loaded_pxr_modules:
                 raise SystemExit("pxr loaded before SimulationApp: " + ", ".join(loaded_pxr_modules[:20]))
             raise RuntimeError("stop before SimulationApp")
 
-        AppLauncher._create_app = stop_before_simulation_app
+        AppLauncher.__init__ = stop_before_simulation_app
 
         try:
             demo.main()
@@ -74,19 +88,33 @@ def test_particle_pour_demo_does_not_load_pxr_before_app_launcher():
     code = textwrap.dedent(
         """
         import sys
+        import types
+        import importlib.machinery
+        import importlib.util
 
         sys.argv = ["particle_pour.py", "--max-steps", "1", "--visualizer", "kit"]
+
+        isaacsim = types.ModuleType("isaacsim")
+        isaacsim.SimulationApp = type("SimulationApp", (), {})
+        sys.modules["isaacsim"] = isaacsim
+
+        original_find_spec = importlib.util.find_spec
+        importlib.util.find_spec = lambda name, *args: (
+            importlib.machinery.ModuleSpec(name, loader=None)
+            if name == "omni.kit"
+            else original_find_spec(name, *args)
+        )
 
         import scripts.demos.mpm.particle_pour as demo
         from isaaclab.app.app_launcher import AppLauncher
 
-        def stop_before_simulation_app(self):
+        def stop_before_simulation_app(self, *args, **kwargs):
             loaded_pxr_modules = [module for module in sys.modules if module == "pxr" or module.startswith("pxr.")]
             if loaded_pxr_modules:
                 raise SystemExit("pxr loaded before SimulationApp: " + ", ".join(loaded_pxr_modules[:20]))
             raise RuntimeError("stop before SimulationApp")
 
-        AppLauncher._create_app = stop_before_simulation_app
+        AppLauncher.__init__ = stop_before_simulation_app
 
         try:
             demo.main()

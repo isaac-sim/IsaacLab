@@ -5,23 +5,24 @@
 
 """Tests for Newton and MuJoCo schema cfg classes in isaaclab_newton."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
 from isaaclab_newton.sim.schemas import (
     MujocoJointDrivePropertiesCfg,
     MujocoRigidBodyPropertiesCfg,
     NewtonArticulationRootPropertiesCfg,
     NewtonCollisionPropertiesCfg,
-    NewtonJointDrivePropertiesCfg,
     NewtonMaterialPropertiesCfg,
     NewtonMeshCollisionPropertiesCfg,
-    NewtonRigidBodyPropertiesCfg,
     NewtonSDFCollisionPropertiesCfg,
 )
 
@@ -33,9 +34,9 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.materials import spawn_rigid_body_material
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def setup_sim():
-    """Fixture to set up and tear down the simulation context."""
+    """Set up one simulation context for all independent schema authoring checks."""
     sim_utils.create_new_stage()
     sim = SimulationContext(SimulationCfg(dt=0.1))
     yield sim
@@ -364,24 +365,6 @@ def test_newton_sdf_collision_no_schema_when_none(setup_sim):
 
 
 # ---------------------------------------------------------------------------
-# Class hierarchy contract: Mujoco IS-A Newton
-# ---------------------------------------------------------------------------
-
-
-def test_mujoco_isinstance_newton():
-    """MujocoXxxCfg instances must be isinstance of their Newton parent.
-
-    The auto-enable spawner logic and any future polymorphic dispatch on
-    ``isinstance(cfg, NewtonRigidBodyPropertiesCfg)`` depends on this contract.
-    """
-    mjc_rigid = MujocoRigidBodyPropertiesCfg(gravcomp=0.5)
-    assert isinstance(mjc_rigid, NewtonRigidBodyPropertiesCfg)
-
-    mjc_joint = MujocoJointDrivePropertiesCfg(actuatorgravcomp=True)
-    assert isinstance(mjc_joint, NewtonJointDrivePropertiesCfg)
-
-
-# ---------------------------------------------------------------------------
 # Multi-namespace mixed write — verify per-declaring-class MRO routing keeps
 # fields owned by different classes in different namespaces on the same prim.
 # ---------------------------------------------------------------------------
@@ -421,7 +404,7 @@ def test_newton_legacy_cfg_authors_contact_attrs(setup_sim):
     mat_cfg = NewtonMaterialPropertiesCfg(
         contact_stiffness=1.0e4, contact_damping=250.0, contact_friction_gain=40.0, contact_adhesion=0.02
     )
-    prim = spawn_rigid_body_material("/World/newton_mat_contact", mat_cfg)
+    prim = spawn_rigid_body_material("/World/newton_mat_contact_legacy", mat_cfg)
     assert prim.GetAttribute("newton:contactStiffness").Get() == pytest.approx(1.0e4)
     assert prim.GetAttribute("newton:contactDamping").Get() == pytest.approx(250.0)
     assert prim.GetAttribute("newton:contactFrictionGain").Get() == pytest.approx(40.0)

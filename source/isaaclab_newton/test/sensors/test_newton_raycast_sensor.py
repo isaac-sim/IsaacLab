@@ -37,6 +37,9 @@ RAY_OFFSET = 0.2
 RAY_START_HEIGHT = SENSOR_HEIGHT - RAY_OFFSET
 
 
+pytestmark = pytest.mark.ci_only
+
+
 @configclass
 class RaycastTestSceneCfg(InteractiveSceneCfg):
     """Scene with a ground plane, a floating sensor body, and a dynamic box."""

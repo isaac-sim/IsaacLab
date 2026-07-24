@@ -186,6 +186,28 @@ Follow conventional commit message practices.
 
 - **Always verify regression tests fail without the fix.** When writing a regression test for a bug fix, temporarily revert the fix and run the test to confirm it fails. Then reapply the fix and verify the test passes. This ensures the test actually covers the bug.
 
+### Fast local test profile
+
+- **The unqualified pytest command is the fast local profile.** `uv run --extra test --locked python -m pytest <path>` must avoid Kit startup and omit expensive simulator integration tests while retaining direct unit, configuration, Torch, Warp, and Newton coverage.
+- **Mark genuinely expensive coverage with `ci_only`.** Use `@pytest.mark.ci_only` on an individual simulator-backed test in an otherwise fast module. Use `pytestmark = pytest.mark.ci_only` at module scope when every test in the file is expensive; this lets pytest reject the file before import.
+- **Do not use `ci_only` as a dumping ground.** Startup cost, large environment matrices, long training, rendering, and expensive GPU integration are valid reasons. Ordinary tests, tests that can use a narrow fake, and tests that only need a shared fixture are not.
+- **Keep the local profile representative.** Split mixed modules or mark individual tests so config validation, error paths, state transforms, and standalone backend logic continue to run locally.
+- **CI must explicitly select the complete profile.** Use `--run-ci-tests` or set `ISAACLAB_RUN_CI_TESTS=1`. The environment form is intended for orchestrators that start fresh pytest subprocesses.
+- **Validate both profiles after changing markers.** Run the local profile first, then run `uv run --extra test --locked python -m pytest --run-ci-tests --without-kit <path>` to prove the complete Kit-less coverage is still collected.
+
+### Kit-less test boundary
+
+- **Tests are Kit-less by default.** A normal package test must collect and run with `uv run --extra test --locked python -m pytest <path>`. It must not launch `AppLauncher`, import `isaacsim`, `omni.*`, `carb`, or `usdrt`, or depend on a running USD/Fabric/RTX application.
+- **Prefer the narrowest test seam.** Exercise Python, Torch, Warp, Newton, or configuration logic directly. Use small protocol fakes at the USD/Fabric boundary when the assertion does not need the real application. Do not initialize a simulator merely to obtain an object whose logic can be tested directly.
+- **Use `requires_kit` only for an observable Kit contract.** Valid examples include application lifecycle, extension loading, live USD-stage mutation through Kit, Fabric synchronization, RTX rendering, or a Kit-owned API with no standalone substitute. Needing a convenient fixture is not sufficient.
+- **Kit-only files must declare `pytestmark = pytest.mark.requires_kit`.** The declaration must be at module scope so `--without-kit` can reject the file before import. Do not use a function-level `requires_kit` mark in a mixed module.
+- **Split mixed files.** Move direct logic and fake-based coverage to a Kit-less test module. A module that launches Kit must contain only tests that fundamentally require Kit.
+- **Never launch Kit during collection for the default lane.** `AppLauncher(...)` may appear at module scope only in a module carrying the module-level `requires_kit` mark.
+- **Do not use `isaacsim_ci` as a Kit dependency marker.** It selects an external short suite and has different semantics.
+- **Amortize unavoidable startup.** Within a Kit-only module, use the broadest safe fixture scope and cover all related behavior from one application/stage initialization. Do not combine tests when state leakage would make assertions order-dependent.
+- **Validate both lanes after changing a boundary.** Run complete Kit-less tests with `uv run --extra test --locked python -m pytest --run-ci-tests --without-kit <path>`. Run Kit tests with `uv run --extra isaacsim --locked --with pytest python -m pytest --run-ci-tests -m requires_kit <path>` (or the repository's fresh-process Kit orchestrator for modules that own application startup).
+- **Do not weaken coverage to remove Kit.** Preserve the behavior and failure mode being asserted; change only the test seam. If a fake cannot represent the contract faithfully, keep the test in the Kit lane.
+
 ### Install CI tests (`source/isaaclab/test/install_ci/`)
 
 These tests exist to validate documented installation paths end-to-end. Follow the rules below exactly. If a rule conflicts with what you want to do, push back to the maintainer rather than deviating.

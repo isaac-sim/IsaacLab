@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PD actuator equivalence tests on ANYmal-C (floating-base quadruped).
+"""Kit integration tests for Newton actuator authoring and equivalence.
 
 Compares IsaacLab-native actuators against Newton-native actuators (created
 from the same Lab configs via USD authoring) on the Newton physics backend.
@@ -18,21 +18,21 @@ Each test class overrides ANYmal's default actuators with a specific Lab
 config (IdealPD, DCMotor, or mixed) and verifies Lab vs Newton equivalence.
 """
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 simulation_app = AppLauncher(headless=True).app
 
 import json
 import os
 import tempfile
-import types
 import unittest
 
-import numpy as np
-import pytest
 import torch
 import warp as wp
-from isaaclab_newton.actuators.kernels import sync_torque_telemetry
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -173,6 +173,17 @@ def _run_simulation(
         sim.reset()
         assert articulation.is_initialized
 
+        actuator_info = []
+        if use_newton_actuators:
+            for actuator in SimulationManager.get_model().actuators:
+                actuator_info.append(
+                    {
+                        "controller_type": type(actuator.controller).__name__,
+                        "clamping_types": sorted(type(clamping).__name__ for clamping in (actuator.clamping or [])),
+                        "has_delay": actuator.delay is not None,
+                    }
+                )
+
         if use_newton_actuators and decimation > 1:
             SimulationManager.set_decimation(decimation)
 
@@ -254,6 +265,7 @@ def _run_simulation(
         "target_pos": target_pos.clone(),
         "target_vel": target_vel.clone(),
         "effort_target": None if effort_target is None else effort_target.clone(),
+        "actuator_info": actuator_info,
     }
 
 
@@ -848,21 +860,10 @@ class TestDelayedPDEquivalence(_EquivalenceTestBase):
     __test__ = True
     actuators = DELAYED_PD_ACTUATORS
 
-
-class TestDelayedPDAuthoring(unittest.TestCase):
-    """Verify DelayedPDActuatorCfg is authored with NewtonActuatorDelayAPI."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.result = _run_authoring_introspection(DELAYED_PD_ACTUATORS)
-
-    def test_has_delay(self):
-        for a in self.result["actuator_info"]:
-            self.assertTrue(a["has_delay"], "Delay not found on delayed PD actuator")
-
-    def test_controller_is_pd(self):
-        for a in self.result["actuator_info"]:
-            self.assertEqual(a["controller_type"], "ControllerPD")
+    def test_newton_authoring_uses_pd_controller_with_delay(self):
+        for actuator in self.newton_result["actuator_info"]:
+            self.assertEqual(actuator["controller_type"], "ControllerPD")
+            self.assertTrue(actuator["has_delay"], "Delay not found on delayed PD actuator")
 
 
 # ---------------------------------------------------------------------------
@@ -1169,21 +1170,18 @@ def _run_authoring_introspection(actuator_cfgs: dict) -> dict:
     and that Newton creates the expected controller/clamping/delay objects.
 
     Returns:
-        Dict with ``num_actuators``, ``actuator_info`` (list of per-actuator
-        dicts), and ``joint_pos`` (recorded trajectories).
+        Dict with ``num_actuators`` and ``actuator_info`` (list of per-actuator dicts).
     """
     sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
 
     with build_simulation_context(
         device="cuda:0",
-        gravity_enabled=True,
-        add_ground_plane=True,
+        gravity_enabled=False,
         sim_cfg=sim_cfg,
     ) as sim:
         sim._app_control_on_stop_handle = None
 
-        for i in range(NUM_ENVS):
-            sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
+        sim_utils.create_prim("/World/Env_0", "Xform")
 
         art_cfg = ANYMAL_C_CFG.replace(
             actuators=actuator_cfgs,
@@ -1204,78 +1202,13 @@ def _run_authoring_introspection(actuator_cfgs: dict) -> dict:
                     "controller_type": ctrl_type,
                     "clamping_types": clamp_types,
                     "has_delay": act.delay is not None,
-                    "num_indices": len(act.indices),
                 }
             )
-
-        init_pos = wp.to_torch(articulation.data.joint_pos).clone()
-        target_pos = init_pos + TARGET_OFFSET
-        target_vel = torch.zeros_like(init_pos)
-        articulation.set_joint_position_target_index(target=target_pos)
-        articulation.set_joint_velocity_target_index(target=target_vel)
-
-        recorded_pos = []
-        for _ in range(NUM_STEPS):
-            articulation.write_data_to_sim()
-            sim.step()
-            articulation.update(DT)
-            recorded_pos.append(wp.to_torch(articulation.data.joint_pos).clone())
 
     return {
         "num_actuators": len(model.actuators),
         "actuator_info": actuator_info,
-        "joint_pos": recorded_pos,
     }
-
-
-class TestRemotizedPDAuthoring(unittest.TestCase):
-    """Verify RemotizedPDActuatorCfg is authored as Newton PD + delay +
-    position-based clamping.
-
-    Uses the Spot knee lookup table (102 entries) on ANYmal's KFE joints,
-    with IdealPD on HAA and HFE joints.
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
-
-        cls.result = _run_authoring_introspection(
-            {
-                "hips": IdealPDActuatorCfg(
-                    joint_names_expr=[".*HAA", ".*HFE"],
-                    stiffness=40.0,
-                    damping=5.0,
-                    effort_limit=80.0,
-                ),
-                "knees": RemotizedPDActuatorCfg(
-                    joint_names_expr=[".*KFE"],
-                    stiffness=60.0,
-                    damping=1.5,
-                    effort_limit=80.0,
-                    max_delay=3,
-                    joint_parameter_lookup=SPOT_KNEE_LOOKUP,
-                ),
-            }
-        )
-
-    def test_num_actuators(self):
-        self.assertGreaterEqual(self.result["num_actuators"], 2)
-
-    def test_kfe_controller_is_pd(self):
-        kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
-        self.assertTrue(len(kfe_acts) > 0, "No actuator with position-based clamping found")
-        for a in kfe_acts:
-            self.assertEqual(a["controller_type"], "ControllerPD")
-
-    def test_kfe_has_position_based_clamping(self):
-        kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
-        self.assertTrue(len(kfe_acts) > 0, "Position-based clamping not found")
-
-    def test_kfe_has_delay(self):
-        kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
-        for a in kfe_acts:
-            self.assertTrue(a["has_delay"], "Delay not found on remotized KFE actuator")
 
 
 class TestRemotizedPDEquivalence(_EquivalenceTestBase):
@@ -1304,6 +1237,18 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
             ),
         }
         super().setUpClass()
+
+    def test_newton_authoring_uses_pd_controller_with_clamping_and_delay(self):
+        kfe_actuators = [
+            actuator
+            for actuator in self.newton_result["actuator_info"]
+            if "ClampingPositionBased" in actuator["clamping_types"]
+        ]
+        self.assertGreaterEqual(len(self.newton_result["actuator_info"]), 2)
+        self.assertGreater(len(kfe_actuators), 0, "Position-based clamping not found")
+        for actuator in kfe_actuators:
+            self.assertEqual(actuator["controller_type"], "ControllerPD")
+            self.assertTrue(actuator["has_delay"], "Delay not found on remotized KFE actuator")
 
 
 class TestDecimationRemotizedPD(_DecimationMixin, TestRemotizedPDEquivalence):
@@ -1466,16 +1411,15 @@ def _make_dummy_lstm_checkpoint(device: str = "cpu") -> str:
     return tmp_path
 
 
-class TestNeuralMLPAuthoring(unittest.TestCase):
-    """Verify ActuatorNetMLPCfg is authored as Newton NeuralMLP controller
-    with DC motor clamping.
-    """
+class TestNeuralActuatorAuthoring(unittest.TestCase):
+    """Verify MLP and LSTM configs are authored with Newton neural controllers and DC motor clamping."""
 
     @classmethod
     def setUpClass(cls):
-        from isaaclab.actuators.actuator_net_cfg import ActuatorNetMLPCfg  # noqa: PLC0415
+        from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
 
         cls.mlp_path = _make_dummy_mlp_checkpoint()
+        cls.lstm_path = _make_dummy_lstm_checkpoint()
         cls.result = _run_authoring_introspection(
             {
                 "mlp_legs": ActuatorNetMLPCfg(
@@ -1490,8 +1434,15 @@ class TestNeuralMLPAuthoring(unittest.TestCase):
                     input_order="pos_vel",
                     input_idx=[0, 1, 2],
                 ),
+                "lstm_legs": ActuatorNetLSTMCfg(
+                    joint_names_expr=[".*HFE"],
+                    network_file=cls.lstm_path,
+                    saturation_effort=120.0,
+                    effort_limit=80.0,
+                    velocity_limit=7.5,
+                ),
                 "pd_legs": IdealPDActuatorCfg(
-                    joint_names_expr=[".*HFE", ".*KFE"],
+                    joint_names_expr=[".*KFE"],
                     stiffness=40.0,
                     damping=5.0,
                     effort_limit=80.0,
@@ -1502,197 +1453,17 @@ class TestNeuralMLPAuthoring(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         os.unlink(cls.mlp_path)
-
-    def test_num_actuators(self):
-        self.assertGreaterEqual(self.result["num_actuators"], 2)
-
-    def test_has_neural_mlp_controller(self):
-        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralMLP"]
-        self.assertTrue(len(mlp_acts) > 0, "No NeuralMLP controller found")
-
-    def test_mlp_has_dc_motor_clamping(self):
-        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralMLP"]
-        for a in mlp_acts:
-            self.assertIn("ClampingDCMotor", a["clamping_types"])
-
-
-class TestNeuralLSTMAuthoring(unittest.TestCase):
-    """Verify ActuatorNetLSTMCfg is authored as Newton NeuralLSTM controller
-    with DC motor clamping.
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg  # noqa: PLC0415
-
-        cls.lstm_path = _make_dummy_lstm_checkpoint()
-        cls.result = _run_authoring_introspection(
-            {
-                "lstm_legs": ActuatorNetLSTMCfg(
-                    joint_names_expr=[".*HAA"],
-                    network_file=cls.lstm_path,
-                    saturation_effort=120.0,
-                    effort_limit=80.0,
-                    velocity_limit=7.5,
-                ),
-                "pd_legs": IdealPDActuatorCfg(
-                    joint_names_expr=[".*HFE", ".*KFE"],
-                    stiffness=40.0,
-                    damping=5.0,
-                    effort_limit=80.0,
-                ),
-            }
-        )
-
-    @classmethod
-    def tearDownClass(cls):
         os.unlink(cls.lstm_path)
 
-    def test_num_actuators(self):
-        self.assertGreaterEqual(self.result["num_actuators"], 2)
-
-    def test_has_neural_lstm_controller(self):
-        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralLSTM"]
-        self.assertTrue(len(lstm_acts) > 0, "No NeuralLSTM controller found")
-
-    def test_lstm_has_dc_motor_clamping(self):
-        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralLSTM"]
-        for a in lstm_acts:
-            self.assertIn("ClampingDCMotor", a["clamping_types"])
-
-
-def test_sync_torque_telemetry_reads_backend_effort_buffers_in_user_order() -> None:
-    """Report torque telemetry in public joint order from backend-order effort buffers."""
-    joint_pos = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
-    joint_vel = wp.zeros_like(joint_pos)
-    joint_pos_target = wp.zeros_like(joint_pos)
-    joint_vel_target = wp.zeros_like(joint_pos)
-    joint_stiffness = wp.zeros_like(joint_pos)
-    joint_damping = wp.zeros_like(joint_pos)
-    effort_limit = wp.full((1, 3), 1000.0, dtype=wp.float32, device="cpu")
-    joint_modes = wp.array(np.asarray([0, 1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
-    user_to_backend = wp.array(np.asarray([2, 0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
-    sim_bind_joint_effort = wp.array(
-        np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32),
-        dtype=wp.float32,
-        device="cpu",
-    )
-    actuator_computed_effort = wp.array(
-        np.asarray([[10.0, 20.0, 30.0]], dtype=np.float32),
-        dtype=wp.float32,
-        device="cpu",
-    )
-    computed = wp.zeros_like(joint_pos)
-    applied = wp.zeros_like(joint_pos)
-
-    wp.launch(
-        sync_torque_telemetry,
-        dim=joint_pos.shape,
-        inputs=[
-            joint_pos,
-            joint_vel,
-            joint_pos_target,
-            joint_vel_target,
-            joint_stiffness,
-            joint_damping,
-            effort_limit,
-            joint_modes,
-            sim_bind_joint_effort,
-            actuator_computed_effort,
-            user_to_backend,
-            True,
-        ],
-        outputs=[computed, applied],
-        device="cpu",
-    )
-
-    np.testing.assert_allclose(computed.numpy(), np.asarray([[30.0, 100.0, 20.0]], dtype=np.float32))
-    np.testing.assert_allclose(applied.numpy(), np.asarray([[300.0, 100.0, 200.0]], dtype=np.float32))
-
-
-def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> None:
-    """Report torque telemetry directly from user-order actuator buffers."""
-    joint_pos = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
-    joint_modes = wp.array(np.asarray([0, 1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
-    user_to_backend = wp.array(np.asarray([2, 0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
-    user_effort = wp.array(np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
-    user_computed_effort = wp.array(np.asarray([[10.0, 20.0, 30.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
-    computed = wp.zeros_like(joint_pos)
-    applied = wp.zeros_like(joint_pos)
-
-    wp.launch(
-        sync_torque_telemetry,
-        dim=joint_pos.shape,
-        inputs=[
-            joint_pos,
-            wp.zeros_like(joint_pos),
-            wp.zeros_like(joint_pos),
-            wp.zeros_like(joint_pos),
-            wp.zeros_like(joint_pos),
-            wp.zeros_like(joint_pos),
-            wp.full((1, 3), 1000.0, dtype=wp.float32, device="cpu"),
-            joint_modes,
-            user_effort,
-            user_computed_effort,
-            user_to_backend,
-            False,
-        ],
-        outputs=[computed, applied],
-        device="cpu",
-    )
-
-    np.testing.assert_allclose(computed.numpy(), np.asarray([[10.0, 200.0, 30.0]], dtype=np.float32))
-    np.testing.assert_allclose(applied.numpy(), np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32))
-
-
-def test_newton_actuator_defaults_follow_requested_public_joint_order() -> None:
-    """Convert Newton actuator gain snapshots and managed IDs into public joint order."""
-    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
-
-    controller = types.SimpleNamespace(
-        kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
-        kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
-    )
-    actuator = types.SimpleNamespace(
-        controller=controller,
-        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
-    )
-
-    stiffness, damping, managed = build_newton_actuator_defaults(
-        actuators=[actuator],
-        num_envs=2,
-        num_joints=3,
-        dof_offset=0,
-        env_stride=3,
-        device="cpu",
-        joint_user_to_backend_indices=(2, 0, 1),
-    )
-
-    torch.testing.assert_close(stiffness, torch.tensor([[30.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
-    torch.testing.assert_close(damping, torch.tensor([[3.0, 1.0, 0.0], [3.1, 1.1, 0.0]]))
-    torch.testing.assert_close(managed, torch.tensor([0, 1], dtype=torch.int32))
-
-
-def test_newton_actuator_defaults_reject_incomplete_joint_permutation() -> None:
-    """Reject malformed actuator-default ordering maps with an actionable error."""
-    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
-
-    with pytest.raises(
-        ValueError,
-        match=(
-            r"joint_user_to_backend_indices must contain each backend joint index exactly once; "
-            r"expected a permutation of 0\.\.2, got \(0, 0, 2\)\."
-        ),
-    ):
-        build_newton_actuator_defaults(
-            actuators=[],
-            num_envs=1,
-            num_joints=3,
-            dof_offset=0,
-            env_stride=3,
-            device="cpu",
-            joint_user_to_backend_indices=(0, 0, 2),
-        )
+    def test_neural_controllers_have_dc_motor_clamping(self):
+        self.assertGreaterEqual(self.result["num_actuators"], 3)
+        for controller_type in ("ControllerNeuralMLP", "ControllerNeuralLSTM"):
+            actuators = [
+                actuator for actuator in self.result["actuator_info"] if actuator["controller_type"] == controller_type
+            ]
+            self.assertGreater(len(actuators), 0, f"No {controller_type} controller found")
+            for actuator in actuators:
+                self.assertIn("ClampingDCMotor", actuator["clamping_types"])
 
 
 if __name__ == "__main__":

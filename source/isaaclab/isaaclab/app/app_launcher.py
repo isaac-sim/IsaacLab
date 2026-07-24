@@ -52,11 +52,15 @@ def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
     for index, argument in enumerate(argv):
         if argument == "-m" and index + 1 < len(argv):
             marker_expression = argv[index + 1]
-            if any(marker in marker_expression for marker in ("pytest", "isaacsim_ci", "windows_ci", "arm_ci")):
+            if any(
+                marker in marker_expression
+                for marker in ("pytest", "isaacsim_ci", "requires_kit", "windows_ci", "arm_ci")
+            ):
                 indexes_to_remove.update((index, index + 1))
         elif (
             (argument.startswith("--config-file=") and "pyproject.toml" in argument)
             or argument == "--capture=no"
+            or argument == "--run-ci-tests"
             or re.fullmatch(r"-v+", argument)
         ):
             indexes_to_remove.add(index)

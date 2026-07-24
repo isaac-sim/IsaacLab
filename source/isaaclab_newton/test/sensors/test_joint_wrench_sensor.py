@@ -28,6 +28,8 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.ant import ANT_CFG
 
+pytestmark = pytest.mark.ci_only
+
 
 def _make_single_joint_articulation_cfg() -> ArticulationCfg:
     """Single-joint revolute test articulation (root ``CenterPivot`` + arm ``Arm``)."""
