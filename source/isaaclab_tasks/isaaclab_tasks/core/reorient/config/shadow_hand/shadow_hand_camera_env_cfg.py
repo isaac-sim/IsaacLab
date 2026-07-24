@@ -121,6 +121,18 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     observation_space = 164 + 27  # state observation + vision CNN embedding
     state_space = 187 + 27  # asymmetric states + vision CNN embedding
 
+    def __post_init__(self):
+        # The vision env renders through the Isaac RTX tiled camera, whose render
+        # products require the Fabric cloning path. The Newton backend disables Fabric
+        # cloning (see the base env's ``clone_in_fabric`` scene preset), so under Newton
+        # the ``rgb`` annotator has no render products for ``num_envs > 1`` and the
+        # default RGB/depth/semantic render fails. Default the vision env to PhysX so it
+        # renders out of the box; Newton stays selectable via ``physics=newton_mjwarp``
+        # for the depth-only Newton-warp-renderer benchmark path (``presets=newton_renderer``).
+        super().__post_init__()
+        for backend_cfg in (self.sim.physics, self.robot_cfg, self.object_cfg):
+            backend_cfg.default = backend_cfg.physx
+
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
         renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
