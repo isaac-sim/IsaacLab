@@ -13,8 +13,12 @@ stable task definition:
   :class:`ManagerBasedRLEnvWarp`. All warp MDP twins (functions *and* classes)
   must exist for the chosen task — a missing twin is a hard failure, not a
   silent drop.
-* Direct tasks: construct the warp env class the stable registration declares
-  via its ``warp_entry_point`` kwarg, sharing the stable cfg.
+* Direct tasks: resolve the warp env class by name from the mirrored
+  experimental package (or an explicit ``warp_entry_point`` override) and
+  construct it with the stable cfg. The resolved twin is verified against the
+  task's cfg, so a stable env class shared by several tasks (e.g. the Allegro
+  and Shadow reorient hands) never silently runs one variant's warp env for
+  another.
 
 Twin resolution is purely mechanical: the experimental packages mirror the
 stable tree (``isaaclab.* ↔ isaaclab_experimental.*``,
@@ -135,16 +139,24 @@ class WarpFrontend:
         """Construct a direct warp env.
 
         Direct workflows aren't cfg-adapted: a hand-written warp env class
-        implements the task. Preferred path: the stable registration declares
-        it via ``warp_entry_point`` and shares the stable cfg. Fallback: the
-        task itself is registered under the warp packages (warp-native cfg).
+        implements the task, constructed with the *stable* cfg. The class is
+        resolved by name from the mirrored experimental package (or an explicit
+        ``warp_entry_point`` override); see :meth:`_resolve_direct_warp_class`.
+        If name resolution finds nothing, the task itself must be a warp-native
+        registration.
+
+        Several stable tasks can share one direct env class (e.g.
+        ``ReorientDirectEnv`` serves both the Allegro and Shadow hands via
+        different cfgs), so :meth:`_resolve_direct_warp_class` returns a
+        name-mirrored twin only when it implements ``env_cfg`` — otherwise it
+        raises rather than let the wrong env run silently.
         """
-        env_class = cls._resolve_direct_warp_class(task_id)
+        env_class = cls._resolve_direct_warp_class(task_id, env_cfg)
         if env_class is None:
-            # No warp_entry_point: the task itself must be a warp-native registration.
+            # No warp twin by name: the task itself must be a warp-native registration.
             cls._assert_direct_warp_registration(task_id)
             return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
-        # Declared warp class + stable cfg: swap only the env class.
+        # Name-resolved warp class that implements this cfg: swap only the env class.
         cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
         return env_class(cfg=env_cfg, **construct_kwargs)
 
@@ -316,14 +328,15 @@ class WarpFrontend:
         )
 
     @classmethod
-    def _resolve_direct_warp_class(cls, task_id: str) -> type | None:
-        """Return the warp env class for a stable direct task, or ``None``.
+    def _resolve_direct_warp_class(cls, task_id: str, env_cfg: Any = None) -> type | None:
+        """Return the warp env class that implements a stable direct task, or ``None``.
 
         Resolution order:
 
         1. An explicit ``warp_entry_point`` kwarg on the stable registration
-           (``"module.path:ClassName"``), if present. This is an override for
-           env classes that cannot follow the naming convention below.
+           (``"module.path:ClassName"``), if present. This is a deliberate
+           per-registration override for env classes that cannot follow the
+           naming convention below, and is trusted as declared.
         2. Name-based mirror: the stable env entry point
            ``isaaclab_tasks.<...>.<task>_direct_env:<Name>Env`` resolves to
            ``isaaclab_tasks_experimental.<...>.<task>_warp_env:<Name>WarpEnv``
@@ -331,7 +344,13 @@ class WarpFrontend:
            by following the convention — no per-task registration needed.
 
         The class is constructed with the *stable* cfg, so the task needs no
-        parallel warp registration or duplicated configuration.
+        parallel warp registration or duplicated configuration. Because one
+        stable env class can be shared by several tasks (e.g. ``ReorientDirectEnv``
+        serves the Allegro and Shadow hands via different cfgs), a name-mirrored
+        twin is returned only when it implements ``env_cfg``, verified via
+        :meth:`_assert_cfg_supported`; a mismatch is a hard error. Pass
+        ``env_cfg=None`` to perform the name mapping alone (used by callers that
+        only probe the convention, not applicability).
         """
         try:
             spec = gym.spec(task_id)
@@ -356,7 +375,13 @@ class WarpFrontend:
                     f" but {class_name!r} is not defined in {module_name!r}."
                 )
             return env_class
-        return cls._mirror_direct_warp_class(spec.entry_point)
+        env_class = cls._mirror_direct_warp_class(spec.entry_point)
+        if env_class is not None and env_cfg is not None:
+            # Name resolution keys on the (possibly shared) stable env class, so
+            # confirm the mirrored twin actually implements this task's cfg
+            # before offering it as the resolution.
+            cls._assert_cfg_supported(env_class, env_cfg, task_id)
+        return env_class
 
     @classmethod
     def _mirror_direct_warp_class(cls, entry_point: Any) -> type | None:
@@ -397,6 +422,51 @@ class WarpFrontend:
                 f" is not under {list(cls.WARP_ROOT_PREFIXES)}. Direct tasks must either"
                 f" declare a `warp_entry_point` in their stable registration or be"
                 f" registered as a warp env class."
+            )
+
+    @staticmethod
+    def _declared_stable_cfg_name(env_class: type) -> str | None:
+        """Return the stable cfg class name a direct warp env declares it implements.
+
+        The contract is the env's own ``cfg`` class annotation (e.g.
+        ``cfg: AllegroHandEnvCfg``). It is read straight from ``__annotations__``
+        rather than via :func:`typing.get_type_hints`, which eagerly resolves
+        *every* annotation on the class — including unrelated ``TYPE_CHECKING``
+        forward references the runtime cannot import — and would raise. Returns
+        ``None`` when the annotation is absent or is not a bare class name, in
+        which case no compatibility check is enforced.
+        """
+        annotation = getattr(env_class, "__annotations__", {}).get("cfg")
+        if isinstance(annotation, str) and annotation.isidentifier():
+            return annotation
+        return None
+
+    @classmethod
+    def _assert_cfg_supported(cls, env_class: type, env_cfg: Any, task_id: str) -> None:
+        """Guard that a name-resolved direct warp env implements the task's cfg.
+
+        A direct warp env is constructed with the *stable* cfg, so it must
+        actually implement that cfg. When one stable env class is shared by
+        several tasks (e.g. ``ReorientDirectEnv`` serves the Allegro and Shadow
+        hands via different cfgs), name resolution yields a single warp twin
+        that may implement only one of them. The twin advertises the cfg it
+        supports via its ``cfg`` annotation; this passes when the task's cfg is
+        that class or a subclass of it, and raises otherwise so the caller never
+        trains a different MDP under a mismatched env.
+        """
+        declared = cls._declared_stable_cfg_name(env_class)
+        if declared is None:
+            return  # env declares no cfg contract — keep prior behavior
+        cfg_type_names = {base.__name__ for base in type(env_cfg).__mro__}
+        if declared not in cfg_type_names:
+            raise FrontendIncompatibleError(
+                f"--frontend=warp: task {task_id!r} resolves by name to warp env "
+                f"{env_class.__module__}.{env_class.__qualname__}, which implements config "
+                f"{declared!r}, but the task's config is {type(env_cfg).__name__!r}. This warp "
+                f"env does not implement that config, so the task has no warp implementation. "
+                f"(This happens when several stable tasks share one direct env class but only "
+                f"one has a warp twin; declare a `warp_entry_point` on the stable registration "
+                f"if a dedicated twin exists.)"
             )
 
     # ------------------------------------------------------------------

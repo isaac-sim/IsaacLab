@@ -525,6 +525,10 @@ _DIRECT_TEST_TASKS = {
     # Follows the <task>_direct_env:<Name>Env convention, so it resolves to the
     # mirrored <task>_warp_env:<Name>WarpEnv with no warp_entry_point.
     "_Frontend-Test-NameMirror-Direct-v0": ("isaaclab_tasks.core.cartpole.cartpole_direct_env:CartpoleEnv", None),
+    # Real shared reorient env class: both Allegro and Shadow register it, and it
+    # mirrors to the real ReorientDirectWarpEnv (which declares cfg AllegroHandEnvCfg).
+    # Used to exercise the cfg-compatibility gate on a genuinely shared base env.
+    "_Frontend-Test-Reorient-Direct-v0": ("isaaclab_tasks.core.reorient.reorient_direct_env:ReorientDirectEnv", None),
 }
 
 
@@ -589,3 +593,103 @@ def test_resolve_direct_warp_class_rejects_missing_class():
 def test_resolve_direct_warp_class_rejects_unknown_task():
     with pytest.raises(FrontendIncompatibleError):
         fe.WarpFrontend._resolve_direct_warp_class("Frontend-Test-NotRegistered-v0")
+
+
+# ======================================================================
+# Direct cfg-compatibility guard
+# ======================================================================
+#
+# A stable direct env class can be shared by several tasks (e.g. ReorientDirectEnv
+# serves the Allegro and Shadow hands via different cfgs). Name resolution yields a
+# single warp twin that may implement only one variant, so the twin declares the cfg
+# it supports via its ``cfg`` annotation and the frontend refuses a mismatched cfg
+# rather than silently running the wrong MDP.
+
+
+class _GuardDeclaredCfg:
+    pass
+
+
+class _GuardSubclassCfg(_GuardDeclaredCfg):
+    pass
+
+
+class _GuardUnrelatedCfg:
+    pass
+
+
+class _GuardWarpEnv:
+    cfg: _GuardDeclaredCfg  # under `from __future__ import annotations` this stores the
+    # identifier string "_GuardDeclaredCfg", exactly as a real warp env's `cfg: <StableCfg>`.
+
+
+class _GuardWarpEnvNoAnnotation:
+    pass
+
+
+def test_declared_stable_cfg_name_reads_annotation():
+    assert fe.WarpFrontend._declared_stable_cfg_name(_GuardWarpEnv) == "_GuardDeclaredCfg"
+    assert fe.WarpFrontend._declared_stable_cfg_name(_GuardWarpEnvNoAnnotation) is None
+
+
+def test_assert_cfg_supported_accepts_exact_cfg():
+    fe.WarpFrontend._assert_cfg_supported(_GuardWarpEnv, _GuardDeclaredCfg(), "_task")  # no raise
+
+
+def test_assert_cfg_supported_accepts_subclass_cfg():
+    # A task cfg that IS-A the declared cfg is accepted (covers camera/variant subclasses).
+    fe.WarpFrontend._assert_cfg_supported(_GuardWarpEnv, _GuardSubclassCfg(), "_task")  # no raise
+
+
+def test_assert_cfg_supported_rejects_unrelated_cfg():
+    # This is the Shadow-reorient-into-Allegro-twin regression: a cfg the twin does
+    # not implement must be a hard error, not a silent wrong-MDP run.
+    with pytest.raises(FrontendIncompatibleError) as exc:
+        fe.WarpFrontend._assert_cfg_supported(_GuardWarpEnv, _GuardUnrelatedCfg(), "_task")
+    msg = str(exc.value)
+    assert "_GuardDeclaredCfg" in msg and "_GuardUnrelatedCfg" in msg
+
+
+def test_assert_cfg_supported_skips_when_no_annotation():
+    # No cfg contract declared → nothing to enforce → never raises.
+    fe.WarpFrontend._assert_cfg_supported(_GuardWarpEnvNoAnnotation, _GuardUnrelatedCfg(), "_task")
+
+
+# --- resolve correctness on the REAL shared reorient env class ---------
+#
+# `_Frontend-Test-Reorient-Direct-v0` uses the real ReorientDirectEnv entry point,
+# so resolution mirrors to the real ReorientDirectWarpEnv (declared cfg
+# AllegroHandEnvCfg). The gate keys on the cfg *class name*, so lightweight stub
+# cfgs named exactly as the real ones exercise the accept/reject paths without
+# constructing the heavy real configs.
+
+
+class AllegroHandEnvCfg:  # noqa: N801 - name mirrors the real cfg the twin implements
+    pass
+
+
+class ShadowHandEnvCfg:  # noqa: N801 - name mirrors the real Shadow cfg the twin does NOT implement
+    pass
+
+
+def test_resolve_returns_twin_when_cfg_matches():
+    env_class = fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Reorient-Direct-v0", AllegroHandEnvCfg())
+    assert env_class is not None
+    assert env_class.__name__ == "ReorientDirectWarpEnv"
+
+
+def test_resolve_rejects_twin_when_cfg_mismatches():
+    # The Shadow-reorient regression: the shared env name-mirrors to the Allegro
+    # twin, but the twin does not implement the Shadow cfg → hard error, not a
+    # silent wrong-MDP run.
+    with pytest.raises(FrontendIncompatibleError) as exc:
+        fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Reorient-Direct-v0", ShadowHandEnvCfg())
+    msg = str(exc.value)
+    assert "AllegroHandEnvCfg" in msg and "ShadowHandEnvCfg" in msg
+
+
+def test_resolve_name_only_skips_cfg_check():
+    # Without a cfg, resolution reports the name mapping alone (no applicability gate).
+    env_class = fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Reorient-Direct-v0")
+    assert env_class is not None
+    assert env_class.__name__ == "ReorientDirectWarpEnv"

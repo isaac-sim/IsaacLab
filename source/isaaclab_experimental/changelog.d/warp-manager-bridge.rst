@@ -8,7 +8,11 @@ Added
   resolves a stable direct task's ``<task>_direct_env:<Name>Env`` to the mirrored
   ``<task>_warp_env:<Name>WarpEnv`` and constructs it with the stable cfg. No
   parallel registration is needed; a ``warp_entry_point`` kwarg is honored as an
-  optional override for classes that cannot follow the convention.
+  optional override for classes that cannot follow the convention. The resolved
+  twin is verified against the task's cfg (via the warp env's ``cfg`` annotation),
+  so a stable env class shared by several tasks — e.g. ``ReorientDirectEnv``,
+  which serves both the Allegro and Shadow hands — never silently runs one
+  variant's warp env for another; a mismatch is a hard error.
 * Added observation-noise conversion to the warp frontend: stable noise cfgs
   (constant/uniform/gaussian) swap to their warp-native twins during cfg
   adaptation; cfgs without a twin (class-based noise models, customized or
