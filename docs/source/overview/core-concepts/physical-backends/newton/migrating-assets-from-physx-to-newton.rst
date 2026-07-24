@@ -14,7 +14,7 @@ Migrating Assets from PhysX to Newton with MJWarp
    :doc:`/source/how-to/transfer_policies_between_physx_and_newton` and its
    ``isaaclab-transferring-policies-sim-to-sim``
    `skill
-   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__
+   <../../../../../../skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__
    to transfer a policy checkpoint.
 
    Use Newton's

@@ -6,7 +6,7 @@ Transfer Policies Between PhysX and Newton
    This how-to is the source of truth for the
    ``isaaclab-transferring-policies-sim-to-sim`` agent skill
    (`skill source
-   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__).
+   <../../../skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 
