@@ -668,6 +668,37 @@ def test_modifier_compute(setup_env):
     assert torch.max(obs_critic["term_4"]) <= 0.5
 
 
+def test_modifier_class_from_dict(setup_env):
+    """Test class-based modifiers restored from a dictionary."""
+    env = setup_env
+    modifier = modifiers.IntegratorCfg(dt=env.dt)
+
+    @configclass
+    class MyObservationManagerCfg:
+        """Test config class for observation manager."""
+
+        @configclass
+        class PolicyCfg(ObservationGroupCfg):
+            """Test config class for policy observation group."""
+
+            concatenate_terms = False
+            term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier])
+
+        policy: ObservationGroupCfg = PolicyCfg()
+
+    cfg = MyObservationManagerCfg()
+    cfg.from_dict(cfg.to_dict())
+    modifier_cfg = cfg.policy.term_1.modifiers[0]
+    assert isinstance(modifier_cfg.func, str)
+
+    obs_manager = ObservationManager(cfg, env)
+    modifier_cfg = obs_manager.cfg.policy.term_1.modifiers[0]
+    assert isinstance(modifier_cfg.func, modifiers.ModifierBase)
+
+    observations = obs_manager.compute()
+    torch.testing.assert_close(observations["policy"]["term_1"], env.data.pos_w * env.dt / 2)
+
+
 def test_serialize(setup_env):
     """Test serialize call for ManagerTermBase terms."""
     env = setup_env
