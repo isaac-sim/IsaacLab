@@ -774,7 +774,7 @@ def _install_ov_extra_dependencies(selector: str) -> None:
         return
 
     selectors = {item.strip().lower() for item in selector.split(",") if item.strip()}
-    valid_selectors = {"all", "ovrtx", "ovphysx"}
+    valid_selectors = {"all", "ovrtx", "ovphysx", "ovstage"}
     unknown_selectors = selectors - valid_selectors
     if unknown_selectors:
         print_warning(
@@ -782,14 +782,17 @@ def _install_ov_extra_dependencies(selector: str) -> None:
             f"Valid selectors: {', '.join(sorted(valid_selectors))}."
         )
     if "all" in selectors:
-        selectors.update({"ovrtx", "ovphysx"})
-    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'.
+        selectors.update({"ovrtx", "ovphysx", "ovstage"})
+    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'; ov[ovstage] to 'ovstage'.
     if "ovrtx" in selectors:
         print_info("Installing OVRTX optional dependency...")
         _install_root_extra("rtx")
     if "ovphysx" in selectors:
         print_info("Installing OVPhysX optional dependency...")
         _install_root_extra("ov")
+    if "ovstage" in selectors:
+        print_info("Installing OVStage optional dependency...")
+        _install_root_extra("ovstage")
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:

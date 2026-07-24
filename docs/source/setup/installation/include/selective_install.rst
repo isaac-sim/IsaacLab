@@ -51,7 +51,7 @@ package—request those explicitly when needed.
      - Contrib runtime extras. Selector: ``rlinf``. Bare ``contrib`` installs
        no additional dependencies (the source package is already in core).
    * - ``ov[<runtime>]``
-     - OV runtime wheels. Selectors: ``ovrtx``, ``ovphysx``, ``all``. Bare
+     - OV runtime wheels. Selectors: ``ovrtx``, ``ovphysx``, ``ovstage``, ``all``. Bare
        ``ov`` installs no additional dependencies (the source packages are
        already in core).
    * - ``isaacsim``
