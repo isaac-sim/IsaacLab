@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import contextlib
+import inspect
 import logging
 import os
 import re
@@ -1479,9 +1480,19 @@ class AppLauncher:
 
         def _close_app(self, exit_code):
             """Close the app with ``exit_code``, warning loudly if the parameter is unsupported."""
+            # Probe the signature instead of catching ``TypeError`` from the call: a
+            # ``TypeError`` raised *inside* ``close()``'s own teardown would otherwise be
+            # misread as an unsupported ``exit_code`` and trigger a second ``close()`` on a
+            # half-torn-down app — the exact re-entrancy this class exists to prevent.
             try:
+                accepts_exit_code = "exit_code" in inspect.signature(self._app.close).parameters
+            except (TypeError, ValueError):
+                # Signature could not be introspected (e.g. a C-bound close); fall back to
+                # the no-argument close so the app still shuts down cleanly.
+                accepts_exit_code = False
+            if accepts_exit_code:
                 self._app.close(exit_code=exit_code)
-            except TypeError:
+            else:
                 print(
                     "[ISAACLAB] WARNING: SimulationApp.close() does not accept exit_code;"
                     " this process may report exit code 0 instead of its failure status.",
