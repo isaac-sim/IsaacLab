@@ -131,6 +131,22 @@ def _resolve_cloudxr_env(value: str | None) -> str | None:
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
+def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
+    """Return whether the CLI selects a renderer that actually drives RTX rendering.
+
+    The RTX/DLSS global settings (and the ``omni.replicator`` extension they configure)
+    are only meaningful when something renders through RTX. That happens when the Kit
+    visualizer is enabled (``--viz kit``), when external cameras are rendered
+    (``--enable_cameras``), or in XR mode (``--xr``, which drives the Kit XR pipeline).
+    A pure-headless session selects none of these and renders nothing.
+
+    This intentionally reads the CLI intent rather than any Kit/carb runtime state so the
+    check keeps working as these scripts grow support for other renderers and kitless runs.
+    """
+    visualizers = getattr(args, "visualizer", None) or []
+    return bool(getattr(args, "enable_cameras", False)) or ("kit" in visualizers) or bool(getattr(args, "xr", False))
+
+
 def _create_builtin_device(device_name: str, sensitivity: float) -> object | None:
     """Create a built-in teleop device by name, or return None if unrecognized."""
     name = device_name.lower()
@@ -162,7 +178,7 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     return driver.update, driver.stop
 
 
-def main() -> None:
+def main() -> None:  # noqa: C901
     """
     Run teleoperation with an Isaac Lab manipulation environment.
 
@@ -197,6 +213,11 @@ def main() -> None:
 
     if use_isaac_teleop or args_cli.xr:
         env_cfg = remove_camera_configs(env_cfg)
+    # Apply the RTX/DLSS global settings only when an RTX render pipeline will actually run
+    # (Kit visualizer, external cameras, or XR). Applying them pulls in ``omni.replicator``,
+    # which is not loaded in a pure-headless run (e.g. headless IsaacTeleop I/O), where a
+    # ``ModuleNotFoundError`` would otherwise abort startup.
+    if _rtx_rendering_requested(args_cli):
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
         )
