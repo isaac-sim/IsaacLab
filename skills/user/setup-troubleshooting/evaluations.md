@@ -7,7 +7,7 @@ Query: "Help me install Isaac Lab from source on my machine."
 Expected behavior:
 
 - Asks for OS, Python environment, Isaac Sim source, GPU/driver context, and desired backend.
-- Points to the official pip/uv Isaac Sim installation guide unless the user has a reason to use another supported path.
+- Points to the official automatic uv installation guide unless the user has a reason to use another supported path.
 - Uses documented uv commands for verification.
 
 Known failure modes:

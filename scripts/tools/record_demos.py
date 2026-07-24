@@ -378,6 +378,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 mcap_record_path=args_cli.mcap_record_path,
                 enable_debug_visualization=args_cli.enable_debug_visualization,
+                haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
             if args_cli.mcap_record_path is not None:
                 logger.info("Recording live IsaacTeleop session to MCAP (debug-only): %s", args_cli.mcap_record_path)
@@ -572,6 +573,18 @@ def run_simulation_loop(
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
 
+    # Optional controller haptics: no-ops unless the env declares a
+    # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
+    # ``haptic_update`` renders the current contact force; ``haptic_stop`` zeroes
+    # it so a stale pulse does not persist while recording is paused.
+    haptic_update, haptic_stop = (lambda: None), (lambda: None)
+    if use_isaac_teleop:
+        from isaaclab_teleop import create_haptic_feedback_driver
+
+        _haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
+        if _haptic_driver is not None:
+            haptic_update, haptic_stop = _haptic_driver.update, _haptic_driver.stop
+
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
 
@@ -607,6 +620,7 @@ def run_simulation_loop(
 
                 if action is None:
                     env.sim.render()
+                    haptic_stop()
                     continue
                 # Expand to batch dimension
                 actions = action.repeat(env.num_envs, 1)
@@ -615,6 +629,8 @@ def run_simulation_loop(
                 if running_recording_instance:
                     # Compute actions based on environment
                     obv = env.step(actions)
+                    # render controller haptics from post-step contact forces
+                    haptic_update()
                     if subtasks is not None:
                         if subtasks == {}:
                             subtasks = obv[0].get("subtask_terms")
@@ -622,6 +638,8 @@ def run_simulation_loop(
                             show_subtask_instructions(instruction_display, subtasks, obv, env.cfg)
                 else:
                     env.sim.render()
+                    # not stepping: zero haptics so a paused grip stops buzzing
+                    haptic_stop()
 
                 # Check for success condition
                 success_step_count_new, success_reset_needed = process_success_condition(

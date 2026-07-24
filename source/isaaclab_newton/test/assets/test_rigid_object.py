@@ -1336,7 +1336,7 @@ def test_warmup_attach_stage_not_called_for_cpu():
         )
 
 
-@pytest.mark.parametrize("device", PRIMARY_DEVICE)
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("writer", ["link_index", "link_mask", "com_index", "com_mask"])
 @pytest.mark.isaacsim_ci
 def test_body_link_pose_w_fresh_after_root_pose_write(device, writer):

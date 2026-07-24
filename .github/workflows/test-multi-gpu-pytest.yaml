@@ -17,16 +17,8 @@
 
 name: Multi-GPU pytest
 
+# TEMPORARY: Run manually only while the isaaclab_newton CI profiles are isolated.
 on:
-  pull_request:
-    paths:
-      - "source/isaaclab/isaaclab/test/utils/**"
-      - "source/isaaclab/isaaclab/app/app_launcher.py"
-      - "source/**/test/**/test_*.py"
-      - ".github/workflows/test-multi-gpu-pytest.yaml"
-      - ".github/actions/run-package-tests/**"
-      - ".github/actions/run-tests/**"
-      - ".github/actions/ecr-build-push-pull/**"
   workflow_dispatch:
 
 concurrency:

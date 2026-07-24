@@ -154,13 +154,15 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
                 "or choose a data type that includes colour, e.g. presets=rgb."
             )
 
+    def play_mode(self):
+        # play-mode overrides of parent
+        super().play_mode()
 
-@configclass
-class ShadowHandCameraEnvPlayCfg(ShadowHandCameraEnvCfg):
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=64, env_spacing=2.0, replicate_physics=True)
-    # inference for CNN
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(train=False, load_checkpoint=True)
+        # scene
+        self.scene.num_envs = 64
+        # inference for CNN
+        self.feature_extractor.train = False
+        self.feature_extractor.load_checkpoint = True
 
 
 @configclass

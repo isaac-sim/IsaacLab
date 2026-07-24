@@ -7,6 +7,11 @@ __all__ = [
     "CLOUDXR_AVP_ENV",
     "CLOUDXR_JS_ENV",
     "ControlEvents",
+    "ControllerHapticFeedbackCfg",
+    "GloveHapticFeedbackCfg",
+    "HapticFeedbackCfg",
+    "HapticFeedbackDriver",
+    "HapticFeedbackReceiver",
     "IsaacTeleopCfg",
     "IsaacTeleopDevice",
     "SupportsControlEvents",
@@ -14,12 +19,21 @@ __all__ = [
     "XrAnchorRotationMode",
     "XrAnchorSynchronizer",
     "XrCfg",
+    "create_haptic_feedback_driver",
     "create_isaac_teleop_device",
     "poll_control_events",
     "remove_camera_configs",
 ]
 
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID, ControlEvents, SupportsControlEvents, poll_control_events
+from .haptic_feedback import (
+    ControllerHapticFeedbackCfg,
+    GloveHapticFeedbackCfg,
+    HapticFeedbackCfg,
+    HapticFeedbackDriver,
+    HapticFeedbackReceiver,
+    create_haptic_feedback_driver,
+)
 from .isaac_teleop_cfg import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, IsaacTeleopCfg
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
 from .xr_anchor_utils import XrAnchorSynchronizer

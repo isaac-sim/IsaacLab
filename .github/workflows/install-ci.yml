@@ -4,14 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 name: Installation Tests
+
+# TEMPORARY: Run manually only while the isaaclab_newton CI profiles are isolated.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-  push:
-    branches:
-      - main
-      - develop
-      - release/**
   workflow_dispatch:
     inputs:
       base_image:
