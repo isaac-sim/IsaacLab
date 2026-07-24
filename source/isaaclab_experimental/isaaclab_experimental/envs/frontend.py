@@ -35,7 +35,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import logging
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from enum import StrEnum
 from types import ModuleType
 from typing import Any, ClassVar
@@ -659,6 +659,10 @@ class WarpFrontend:
           ``rewards``, ``events``, ``actions``, sub-groups like
           ``observations.policy``, and anything nested deeper are reached
           transparently.
+        * Mapping (a group expressed as a ``{name: term}`` dict rather than a
+          configclass): don't yield; recurse into each value. The warp managers
+          accept both dict and configclass groups, so the walker must reach the
+          terms either way or they would never be swapped.
         * Anything else (plain Python data, callables, non-configclass objects):
           stop. No yield, no recursion.
 
@@ -676,6 +680,14 @@ class WarpFrontend:
 
         if isinstance(node, (ManagerTermBaseCfg, ActionTermCfg)):
             yield path, node  # a term: yield and stop; never descend into params/func
+            return
+        if isinstance(node, Mapping):
+            # A manager group can be a dict of {name: term} instead of a
+            # configclass; the warp managers accept both, so descend into dict
+            # values too or those terms would never be promoted/swapped.
+            for key, value in node.items():
+                if value is not None:
+                    yield from WarpFrontend._walk_terms(value, path + (str(key),))
             return
         if not hasattr(node, "__dataclass_fields__"):
             return  # plain data / callables: not a cfg subtree

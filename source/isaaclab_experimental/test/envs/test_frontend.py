@@ -285,6 +285,15 @@ def test_walk_terms_skips_none_subtrees():
     assert list(fe.WarpFrontend._walk_terms(cfg)) == []
 
 
+def test_walk_terms_descends_into_dict_groups():
+    # A manager group expressed as a dict of {name: term} (rather than a configclass)
+    # must still have its terms discovered — the warp managers accept both forms.
+    cfg = _CfgFixture()
+    cfg.rewards = {"r1": _term(), "r2": _term()}
+    paths = {".".join(p) for p, _ in fe.WarpFrontend._walk_terms(cfg)}
+    assert paths == {"rewards.r1", "rewards.r2"}
+
+
 @configclass
 class _GroupWithNestedClass:
     """Mirrors the real ``ObservationsCfg.PolicyCfg`` nested-class pattern."""
