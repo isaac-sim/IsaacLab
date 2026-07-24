@@ -27,9 +27,107 @@ from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: sk
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "").lower() in ("1", "true")
+"""When ``True``, a single Kit/SimulationApp instance is started once for the entire pytest session.
+
+Set ``ISAACLAB_SESSION_KIT=1`` to enable.  Pytest handles collection and execution normally; each
+test file's module-level ``AppLauncher()`` call returns an alias of the already-running instance
+instead of launching a new Kit process.
+
+In this mode the subprocess-per-file orchestration in :func:`pytest_sessionstart` is skipped.
+Use standard pytest flags (``--junitxml``, ``-k``, ``-m``) for filtering and reporting.
+
+.. warning::
+    ``device_split`` test files (those that mix CPU and GPU parametrizations) must be run in
+    separate processes when using this mode — pass ``-k "cpu or not cuda"`` or ``-k cuda``
+    explicitly.  The automatic two-pass split in :func:`run_individual_tests` is only available
+    in the default subprocess-per-file mode.
+"""
+
+_session_kit_launcher = None
+"""The :class:`~isaaclab.app.AppLauncher` instance started by :func:`pytest_configure` in
+session-kit mode.  ``None`` in the default subprocess-per-file mode."""
+
+
+def pytest_configure(config):
+    """Start a shared Kit instance early when ``ISAACLAB_SESSION_KIT=1`` is set.
+
+    This hook runs before pytest collects any test modules.  We subclass
+    :class:`~isaaclab.app.AppLauncher` here and monkey-patch it into
+    ``isaaclab.app`` so that subsequent ``from isaaclab.app import AppLauncher``
+    statements (executed at test-file import time during collection) receive
+    the session-aware subclass.  The subclass short-circuits ``__init__`` when
+    a Kit instance is already running, making every subsequent construction an
+    inexpensive alias of the first.
+    """
+    global _session_kit_launcher
+    if not _SESSION_KIT:
+        return
+
+    import isaaclab.app
+    import isaaclab.app.app_launcher
+    from isaaclab.app import AppLauncher as _Base
+
+    class _SessionKitLauncher(_Base):
+        """AppLauncher subclass that reuses a single Kit instance for the whole pytest session.
+
+        The first construction behaves identically to :class:`~isaaclab.app.AppLauncher`.
+        Every subsequent construction in the same process copies the running instance's
+        attributes and returns immediately without launching a new SimulationApp.
+        """
+
+        # Class-level slot; holds the launcher that owns the running Kit process.
+        _session_instance = None
+
+        def __init__(self, launcher_args=None, **kwargs):
+            if _SessionKitLauncher._session_instance is not None:
+                # Alias the already-running instance — do not start a second Kit.
+                _e = _SessionKitLauncher._session_instance
+                self._python_logging_level = _e._python_logging_level
+                self._headless = _e._headless
+                self._livestream = _e._livestream
+                self._offscreen_render = _e._offscreen_render
+                self._sim_experience_file = _e._sim_experience_file
+                self._video_enabled = _e._video_enabled
+                self.device_id = _e.device_id
+                self.device = _e.device
+                self._deferred_cuda_device_id = _e._deferred_cuda_device_id
+                self.local_rank = _e.local_rank
+                self.global_rank = _e.global_rank
+                self._app = _e._app
+                return
+            super().__init__(launcher_args, **kwargs)
+            _SessionKitLauncher._session_instance = self
+
+    # Replace AppLauncher in both the package namespace and the module so that
+    # `from isaaclab.app import AppLauncher` and
+    # `from isaaclab.app.app_launcher import AppLauncher` both resolve to our subclass.
+    isaaclab.app.AppLauncher = _SessionKitLauncher
+    isaaclab.app.app_launcher.AppLauncher = _SessionKitLauncher
+
+    headless = os.environ.get("ISAACLAB_SESSION_KIT_HEADLESS", "1") != "0"
+    enable_cameras = os.environ.get("ISAACLAB_SESSION_KIT_CAMERAS", "0").lower() in ("1", "true")
+    logger.info("[session-kit] Starting shared Kit instance (headless=%s, cameras=%s)", headless, enable_cameras)
+    _session_kit_launcher = _SessionKitLauncher(headless=headless, enable_cameras=enable_cameras)
+    logger.info("[session-kit] Kit ready — all test files in this session will share this instance")
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Shut down the shared Kit instance at the end of a session-kit run."""
+    global _session_kit_launcher
+    if not _SESSION_KIT or _session_kit_launcher is None:
+        return
+    logger.info("[session-kit] Closing shared Kit instance")
+    with contextlib.suppress(Exception):
+        _session_kit_launcher._app.close()
+    _session_kit_launcher = None
+
 
 def pytest_ignore_collect(collection_path, config):
-    # Skip collection and run each test script individually
+    if _SESSION_KIT:
+        # Let pytest collect test files normally; _SessionKitLauncher handles the shared Kit instance.
+        return None
+    # Default: skip collection and run each test script individually as a subprocess.
     return True
 
 
@@ -1104,7 +1202,15 @@ def _write_empty_report():
 
 
 def pytest_sessionstart(session):
-    """Intercept pytest startup to execute tests in the correct order."""
+    """Intercept pytest startup to execute tests in the correct order.
+
+    In session-kit mode (``ISAACLAB_SESSION_KIT=1``) this hook is a no-op: pytest handles
+    collection and execution normally with the shared Kit instance started in
+    :func:`pytest_configure`.
+    """
+    if _SESSION_KIT:
+        return
+
     # Get the workspace root directory (one level up from tools)
     workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     source_dirs = [
