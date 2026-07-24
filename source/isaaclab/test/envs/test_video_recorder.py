@@ -105,7 +105,8 @@ def test_init_raises_import_error_when_moviepy_missing():
 
 def test_trigger_step_zero_fires_at_first_step():
     """video_interval=0 → single clip starts at step 1."""
-    recorder = VideoRecorder(_cfg(video_length=100, video_interval=0), _make_env())
+    viz = _FakeViz("kit")
+    recorder = VideoRecorder(_cfg(source="visualizer:kit", video_length=100, video_interval=0), _make_env(visualizers=[viz]))
     assert not recorder._recording
     recorder.step()
     assert recorder._recording

@@ -150,6 +150,33 @@ Clip control
     VideoRecorderCfg(source="visualizer:kit", video_length=200, video_interval=1000)
 
 
+**Record from a camera angle independent of the interactive viewer**
+
+In previous releases, ``VideoRecorderCfg`` had ``eye`` and ``lookat`` fields to position
+the recording camera independently of the interactive viewer.  These have been removed.
+
+Configure the recording angle directly on the visualizer instead.  For a recording-only
+Newton visualizer that runs headlessly alongside an interactive Kit viewer:
+
+.. code-block:: python
+
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    env_cfg.sim.visualizer_cfgs = [
+        KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),           # interactive viewer
+        NewtonVisualizerCfg(eye=(12.0, 0.0, 6.0),         # recording angle
+                            headless=True),
+    ]
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="visualizer:newton", output_dir="videos/"),
+    ]
+
+Alternatively, use a :class:`~isaaclab.sensors.CameraCfg` sensor in the scene and record
+with ``source="sensor:<name>"``, which gives full control over the recording viewpoint
+without requiring a second interactive visualizer.
+
+
 Requirements
 ------------
 
