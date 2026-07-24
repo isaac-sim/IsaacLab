@@ -567,12 +567,16 @@ def run_visualizer_golden_franka_cloth(
         if capture_mode == "tiled":
             return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
+            # Do not pass physics_backend="newton" here: the VBD cloth solver never
+            # sets NewtonManager._newton_fabric_ready (cloth particles bypass the
+            # rigid-body Fabric sync path), so _drain_until_newton_fabric_ready
+            # would run its full 200-iteration loop (~1.5 h on CI). Cloth geometry
+            # is already in the USD stage from env.step(), so the standard RTX
+            # convergence warmup is sufficient.
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
                 env,
                 _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION,
-                physics_backend="newton",
-                prior_physics_steps=_viz_utils._FRANKA_CLOTH_WARMUP_STEPS,
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
