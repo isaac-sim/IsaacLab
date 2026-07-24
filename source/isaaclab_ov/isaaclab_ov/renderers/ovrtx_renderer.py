@@ -263,9 +263,7 @@ class OVRTXRenderer(BaseRenderer):
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         instance_seg_spec = (
-            RenderBufferSpec(4, wp.uint8)
-            if self.cfg.colorize_instance_segmentation
-            else RenderBufferSpec(1, wp.int32)
+            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.int32)
         )
         # Semantic segmentation: colorized RGBA (uint8), else raw int32 IDs (matches Isaac RTX, whose
         # non-colorized per-pixel value is the semantic ID).

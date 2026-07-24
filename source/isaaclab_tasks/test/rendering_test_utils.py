@@ -1222,9 +1222,7 @@ def rendering_test_cartpole(
             data_types=["distance_to_image_plane"]
         )
         normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
-        instance_segmentation = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
-            data_types=["instance_segmentation"]
-        )
+        instance_segmentation = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["instance_segmentation"])
         instance_id_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
             data_types=["instance_id_segmentation_fast"]
         )
@@ -1390,15 +1388,9 @@ def rendering_test_dexsuite_kuka(
         normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
         normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
         normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
-        instance_segmentation64 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation"], width=64, height=64
-        )
-        instance_segmentation128 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation"], width=128, height=128
-        )
-        instance_segmentation256 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation"], width=256, height=256
-        )
+        instance_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=64, height=64)
+        instance_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=128, height=128)
+        instance_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=256, height=256)
         instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
             data_types=["instance_id_segmentation_fast"], width=64, height=64
         )
