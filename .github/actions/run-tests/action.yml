@@ -414,6 +414,9 @@ runs:
               # fall back to slow repeated retries.
               unset HUB__ARGS__DETECT_ONLY
               ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky \"coverage>=7.6.1\"
+              if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
+                ./isaaclab.sh -p -c \"import os; import warp as wp; wp.init(); expected = os.path.realpath(os.environ['WARP_CACHE_PATH']); actual = os.path.realpath(wp.config.kernel_cache_dir); print(f'Warp kernel cache directory: {actual}'); raise SystemExit(0 if os.path.commonpath([actual, expected]) == expected else f'Warp cache path mismatch: expected {expected}, got {actual}')\"
+              fi
               if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
                 if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
                   echo \"Wheelhouse path is missing: \${TEST_WHEELHOUSE_PATH:-}\"

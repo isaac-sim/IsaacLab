@@ -172,14 +172,19 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        compute_cap="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d ' .')"
-        if [ -z "$compute_cap" ]; then
+        gpu_targets="$(
+          nvidia-smi --query-gpu=compute_cap --format=csv,noheader \
+            | sed 's/[ .]//g; s/^/sm_/' \
+            | sort -u \
+            | paste -sd-
+        )"
+        if [ -z "$gpu_targets" ]; then
           echo "::error::Could not determine GPU compute capability"
           exit 1
         fi
-        echo "gpu-target=sm_${compute_cap}" >> "$GITHUB_OUTPUT"
+        echo "gpu-target=${gpu_targets}" >> "$GITHUB_OUTPUT"
         echo "epoch=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
-        echo "Warp cache target: sm_${compute_cap}"
+        echo "Warp cache targets: ${gpu_targets}"
 
     - name: Restore Warp kernel cache
       if: inputs.warp-cache-family != ''
@@ -364,7 +369,7 @@ runs:
         fi
 
     - name: Save Warp kernel cache
-      if: success() && inputs.warp-cache-write == 'true' && steps.warp-cache.outputs.cache-hit != 'true'
+      if: success() && inputs.warp-cache-family != '' && inputs.warp-cache-write == 'true' && steps.warp-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: ${{ runner.temp }}/isaaclab-warp-cache/${{ inputs.warp-cache-family }}
