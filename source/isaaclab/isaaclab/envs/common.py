@@ -5,10 +5,86 @@
 
 from __future__ import annotations
 
-from typing import Dict, TypeVar  # noqa: UP035
+import warnings
+from dataclasses import MISSING, fields
+from typing import Dict, Literal, TypeVar  # noqa: UP035
 
 import gymnasium as gym
 import torch
+
+from isaaclab.utils.configclass import configclass
+
+##
+# Deprecated: ViewerCfg
+##
+
+
+def _viewer_cfg_field_matches_default(value, default) -> bool:
+    """Return True when *value* equals *default* (element-wise for tuples/lists)."""
+    if isinstance(value, (tuple, list)):
+        return type(value) is type(default) and all(a == b for a, b in zip(value, default))
+    return value == default
+
+
+@configclass
+class ViewerCfg:
+    """Configuration of the scene viewport camera.
+
+    .. deprecated::
+        :class:`ViewerCfg` is deprecated and will be removed in a future release.
+        Configure the viewport camera via :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`
+        and add it to :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead::
+
+            from isaaclab.sim import SimulationCfg
+            from isaaclab_visualizers.kit import KitVisualizerCfg
+
+            sim_cfg = SimulationCfg(
+                visualizer_cfgs=[KitVisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))]
+            )
+    """
+
+    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    """Initial camera position (in m). Default is (7.5, 7.5, 7.5)."""
+
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Initial camera target position (in m). Default is (0.0, 0.0, 0.0)."""
+
+    cam_prim_path: str = "/OmniverseKit_Persp"
+    """The camera prim path to record images from. Default is "/OmniverseKit_Persp"."""
+
+    resolution: tuple[int, int] = (1280, 720)
+    """The resolution (width, height) of the camera. Default is (1280, 720)."""
+
+    origin_type: Literal["world", "env", "asset_root", "asset_body"] = "world"
+    """The frame in which the camera position (eye) and target (lookat) are defined. Default is "world"."""
+
+    env_index: int = 0
+    """The environment index for frame origin. Default is 0."""
+
+    asset_name: str | None = None
+    """The asset name in the interactive scene for the frame origin. Default is None."""
+
+    body_name: str | None = None
+    """The name of the body in :attr:`asset_name` for the frame origin. Default is None."""
+
+    def __post_init__(self) -> None:
+        # Warn only when the user configured a non-default field so that bare ``ViewerCfg()``
+        # usage (e.g. in task configs that haven't been migrated yet) stays silent.
+        differing = [
+            f.name
+            for f in fields(self)
+            if f.init
+            and f.default is not MISSING
+            and not _viewer_cfg_field_matches_default(getattr(self, f.name), f.default)
+        ]
+        if differing:
+            warnings.warn(
+                "ViewerCfg is deprecated and will be removed in a future release. "
+                "Use KitVisualizerCfg added to SimulationCfg.visualizer_cfgs instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
 
 ##
 # Types.
