@@ -1,35 +1,40 @@
-# Newton Asset Preparation Examples
+# Newton/MJWarp Asset Migration Examples
 
-## Missing Mass Properties
+## Existing Isaac Lab Asset
 
-Input: Newton reports placeholder inertia for a robot that works in PhysX.
+Use the asset in both backends without creating a Newton-only copy. Newton parses supported
+authored USD Physics and PhysX properties; audit unsupported or ignored fields before relying on
+them. Use the multi-physics importers when converting a new URDF or MJCF asset.
 
-Expected workflow:
+## Placeholder Inertia
 
-1. Confirm the same asset path works in a PhysX baseline.
-2. Inspect whether rigid bodies have authored mass, inertia, and center of mass.
-3. Author or bake explicit physical metadata in a reusable USD layer or package.
-4. Re-run a Newton smoke in the target task.
-5. Record residual warnings and modeling choices.
+Audit and correct authored mass, COM, inertia, units, and frames. Reconvert when needed, then rerun the exact task. Do not compensate with solver iterations.
 
-## Converted Robot Does Not Move
+## Excessive Grasp Slip
 
-Input: the converted asset spawns under Newton, but actions do not move the robot.
+Verify collision geometry, contacts, material bindings, and gripper force. Author per-shape
+`mjc:condim` with the guide's task-local `MujocoCondimCfg` in `spawn.collision_props`, tune material
+friction, then set global `MJWarpSolverCfg(cone="elliptic", impratio=10.0)` and compare fixed-grasp
+metrics. Limit recursive spawner overrides to assets whose colliders should all use that `condim`.
 
-Expected workflow:
+## Velocity Limit Is Exceeded
 
-1. Check action dimensions and actuator joint name patterns.
-2. Check controller body or frame names after conversion.
-3. Run zero-action and small nonzero-action rollouts.
-4. Fix task config names or actuator gains rather than assuming asset import is enough.
+Treat `velocity_limit` as rated speed and `velocity_limit_sim` as a solver request. Because MJWarp enforces neither, add the required observation or termination check and tune effort, damping, armature, action scaling, rate limits, or controller clipping.
 
-## Object Works Alone But Fails In Task
+## Zero-Gravity Spin-Up
 
-Input: a standalone object audit passes, but the task fails under Newton.
+Correct mass, inertia, units, and reset penetration first. Add the smallest justified armature only when the unstable coordinate is articulated. A plain rigid object needs correct body inertia and a physical loss model or explicit speed bound, not actuator armature.
 
-Expected workflow:
+## Bang-Bang Control
 
-1. Validate the exact task spawn path.
-2. Check task-level material or collision overrides.
-3. Inspect support surfaces and contact-relevant rigid objects separately.
-4. Confirm observations and rewards remain finite during reset and first steps.
+Tune armature, stiffness, and damping together from an open-loop step response. Use enough damping for a plausible non-oscillatory response, conservative action scales, and targets away from hard stops.
+
+## Selecting A Solver Profile
+
+Choose the nearest documented profile, keep the initial convergence defaults, enable `debug_mode`, and size `njmax` and `nconmax` for the task. Use Newton contacts only when the task needs that collision pipeline.
+
+## MJWarp-Only NaN
+
+Reproduce the first failing step with one environment, fixed state and actions, and no
+randomization. Classify model/reset, contact/capacity, control, or dense-scene causes before
+changing convergence settings.

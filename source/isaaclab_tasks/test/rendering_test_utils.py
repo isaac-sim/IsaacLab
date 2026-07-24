@@ -43,7 +43,8 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
-    "cartpole": 1.0,
+    # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
+    "cartpole": 1.5,
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
@@ -138,12 +139,52 @@ _NEWTON_WARP_DATA_TYPES = (
     "distance_to_camera",
     "distance_to_image_plane",
     "normals",
+    "semantic_segmentation",
+    "instance_segmentation_fast",
 )
 
 # Data types the OVRTX renderer supports. ``instance_id_segmentation_fast`` is intentionally
 # excluded: it has no real-world sensor equivalent, so the OVRTX integration does not support it.
 # Users should use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
+
+_OVRTX_TEXTURE_READINESS_DATA_TYPES = (
+    "albedo",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+)
+_OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+
+
+def make_xfail_rendering_params(
+    params: list[pytest.param],
+    expected_failures: dict[tuple[str, str, str], str],
+) -> list[pytest.param]:
+    """Mark selected rendering parameter combinations as expected failures.
+
+    Args:
+        params: Rendering parameters containing physics backend, renderer, and data type values.
+        expected_failures: Mapping from parameter value tuples to expected-failure reasons.
+
+    Returns:
+        Rendering parameters with non-strict ``xfail`` marks applied to matching combinations.
+    """
+    marked_params = []
+    for param in params:
+        reason = expected_failures.get(tuple(param.values))
+        if reason is None:
+            marked_params.append(param)
+            continue
+        # Expected failures should run once instead of consuming the RTX flaky-retry budget.
+        marks = [mark for mark in param.marks if mark.name != "flaky"]
+        marked_params.append(
+            pytest.param(
+                *param.values,
+                id=param.id,
+                marks=[*marks, pytest.mark.xfail(reason=reason, strict=False)],
+            )
+        )
+    return marked_params
 
 
 def _make_sensor_data_type_params(
@@ -188,16 +229,22 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
     ),
 ]
 
-KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params(
-        "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
-    ),
-    *_make_sensor_data_type_params(
-        "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
-    ),
-]
+KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
+    [
+        *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
+        *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
+        *_make_sensor_data_type_params(
+            "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+        ),
+        *_make_sensor_data_type_params(
+            "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+        ),
+    ],
+    {
+        ("newton", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+        for data_type in _OVRTX_TEXTURE_READINESS_DATA_TYPES
+    },
+)
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
@@ -732,6 +779,10 @@ def make_require_ovlibs_install_fixture():
 
     @pytest.fixture(autouse=True)
     def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
+        # TODO: Remove once usd-core>=26.5 is the minimum - that release fixes the race condition.
+        # Limit OpenUSD's work-thread pool to one thread to avoid race condition in usd-core<26.5
+        monkeypatch.setenv("PXR_WORK_THREAD_LIMIT", "1")
+
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
@@ -1235,25 +1286,25 @@ def rendering_test_cartpole(
         # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
         # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
         semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         normals = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         motion_vectors = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[2, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[2, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
     env_cfg = _CartpoleCameraTestEnvCfg()

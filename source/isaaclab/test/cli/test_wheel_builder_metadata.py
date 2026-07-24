@@ -53,6 +53,22 @@ def _generate_wheel_pyproject(tmp_path: Path) -> dict:
         return tomllib.load(f)
 
 
+def _generate_uv_overrides(tmp_path: Path) -> list[str]:
+    """Run ``gen_uv_overrides.py`` against the root pyproject and return its requirements."""
+    repo_root = _repo_root()
+    output = tmp_path / "uv-overrides.txt"
+    subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "tools/wheel_builder/gen_uv_overrides.py"),
+            str(repo_root / "pyproject.toml"),
+            str(output),
+        ],
+        check=True,
+    )
+    return output.read_text(encoding="utf-8").splitlines()
+
+
 def test_wheel_builder_drops_workspace_members(tmp_path):
     """The generated wheel metadata must not depend on the bundled ``isaaclab*`` packages."""
     generated = _generate_wheel_pyproject(tmp_path)
@@ -84,3 +100,30 @@ def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(tmp_path):
     for extra_name in ("rsl-rl", "all"):
         rsl_rl_pins = [dep for dep in optional_dependencies[extra_name] if dep.startswith("rsl-rl-lib==")]
         assert rsl_rl_pins == [expected_pin]
+
+
+def test_wheel_builder_uv_overrides_match_root_pyproject(tmp_path):
+    """The wheel resolver override file must mirror the root uv overrides exactly."""
+    with (_repo_root() / "pyproject.toml").open("rb") as f:
+        root = tomllib.load(f)
+
+    generated_overrides = _generate_uv_overrides(tmp_path)
+    published_overrides = (
+        (_repo_root() / "tools" / "wheel_builder" / "uv-overrides.txt").read_text(encoding="utf-8").splitlines()
+    )
+    install_ci_overrides = (
+        (_repo_root() / "source" / "isaaclab" / "test" / "install_ci" / "uv_pip" / "uv-overrides.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+
+    assert generated_overrides == root["tool"]["uv"]["override-dependencies"]
+    assert published_overrides == generated_overrides
+    assert install_ci_overrides == generated_overrides
+
+
+def test_wheel_builder_uv_overrides_force_typing_extensions(tmp_path):
+    """The wheel resolver must override Isaac Sim's stale exact typing-extensions pin."""
+    overrides = _generate_uv_overrides(tmp_path)
+
+    assert "typing-extensions>=4.15.0" in overrides

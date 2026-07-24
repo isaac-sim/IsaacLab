@@ -250,10 +250,9 @@ class CubricBindings:
     def _verify_iadapter_version(fw_ptr: int, ia_ptr: int) -> bool:
         """Verify the acquired IAdapter is compatible with this shim's vtable offsets.
 
-        Major mismatches and older minors return False (CPU fallback). Higher
-        minors are accepted under the semver compatibility contract but emit a
-        loud warning, so any silent ABI break — the failure mode that motivated
-        this verification — gets flagged early rather than miscalled.
+        Only the exact version whose vtable and transform behavior have been
+        validated is accepted. Any mismatch returns False so the caller uses
+        the safe CPU hierarchy fallback.
         """
         get_desc_addr = _read_u64(fw_ptr + _FW_OFF_GET_INTERFACE_PLUGIN_DESC)
         if get_desc_addr == 0:
@@ -288,7 +287,7 @@ class CubricBindings:
                 continue
             major = ctypes.c_uint32.from_address(entry_addr + 8).value
             minor = ctypes.c_uint32.from_address(entry_addr + 12).value
-            if major != _IA_EXPECTED_MAJOR or minor < _IA_EXPECTED_MINOR:
+            if not (major == _IA_EXPECTED_MAJOR and minor == _IA_EXPECTED_MINOR):
                 logger.warning(
                     "cubric IAdapter version incompatible with this shim: plugin "
                     "reports v%d.%d, shim is pinned to v%d.%d. Falling back to "
@@ -299,17 +298,6 @@ class CubricBindings:
                     _IA_EXPECTED_MINOR,
                 )
                 return False
-            if minor > _IA_EXPECTED_MINOR:
-                logger.warning(
-                    "cubric IAdapter minor version newer than this shim was validated "
-                    "against: plugin reports v%d.%d, shim is pinned to v%d.%d. Proceeding "
-                    "under semver minor-compatibility — if transforms misbehave, verify "
-                    "the vtable layout against omni/cubric/IAdapter.h.",
-                    major,
-                    minor,
-                    _IA_EXPECTED_MAJOR,
-                    _IA_EXPECTED_MINOR,
-                )
             return True
 
         logger.warning(

@@ -6,7 +6,7 @@
 """Standalone validation script for the OVPhysX PVA sensor.
 
 Run with:
-    ./isaaclab.sh -p source/isaaclab_ovphysx/test/sensors/check_pva.py
+    uv run python source/isaaclab_ovphysx/test/sensors/check_pva.py
 
 Spawns a free-falling sphere with a PVA sensor attached, steps the simulation
 for 100 steps, and prints the world-frame position, body-frame linear/angular
@@ -16,7 +16,7 @@ body frame, so its magnitude should converge to ``~9.81 m/s^2``. The
 projected gravity unit vector should remain ``≈ (0, 0, -1)`` for a body that
 stays upright.
 
-Runs kitless under ``./isaaclab.sh -p`` — no AppLauncher needed.
+Runs kitless under ``uv run python`` — no AppLauncher needed.
 """
 
 from __future__ import annotations
