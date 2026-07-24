@@ -68,13 +68,21 @@ class ViewerCfg:
     def __post_init__(self) -> None:
         # Warn only when the user configured a non-default field so that bare ``ViewerCfg()``
         # usage (e.g. in task configs that haven't been migrated yet) stays silent.
-        differing = [
-            f.name
-            for f in fields(self)
-            if f.init
-            and f.default is not MISSING
-            and not _viewer_cfg_field_matches_default(getattr(self, f.name), f.default)
-        ]
+        #
+        # @configclass stores mutable defaults (tuples, lists) via default_factory rather than
+        # default, so we must check both to obtain the canonical default value.
+        differing = []
+        for f in fields(self):
+            if not f.init:
+                continue
+            if f.default is not MISSING:
+                default = f.default
+            elif f.default_factory is not MISSING:  # type: ignore[misc]
+                default = f.default_factory()  # type: ignore[misc]
+            else:
+                continue
+            if not _viewer_cfg_field_matches_default(getattr(self, f.name), default):
+                differing.append(f.name)
         if differing:
             warnings.warn(
                 "ViewerCfg is deprecated and will be removed in a future release. "
