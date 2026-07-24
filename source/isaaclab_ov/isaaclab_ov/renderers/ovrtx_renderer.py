@@ -265,7 +265,7 @@ class OVRTXRenderer(BaseRenderer):
         instance_seg_spec = (
             RenderBufferSpec(4, wp.uint8)
             if self.cfg.colorize_instance_segmentation
-            else RenderBufferSpec(1, wp.uint32)
+            else RenderBufferSpec(1, wp.int32)
         )
         # Semantic segmentation: colorized RGBA (uint8), else raw int32 IDs (matches Isaac RTX, whose
         # non-colorized per-pixel value is the semantic ID).

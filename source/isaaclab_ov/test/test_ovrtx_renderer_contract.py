@@ -310,3 +310,16 @@ def test_ovrtx_semantic_spec_follows_colorize_flag():
     assert non_colorized.supported_output_types()[RenderBufferKind.SEMANTIC_SEGMENTATION] == RenderBufferSpec(
         1, wp.int32
     )
+
+
+def test_ovrtx_instance_segmentation_spec_follows_colorize_flag():
+    """Instance segmentation output spec is colorized RGBA (uint8) or raw int32 IDs per the cfg flag."""
+    colorized = OVRTXRenderer.__new__(OVRTXRenderer)
+    colorized.cfg = OVRTXRendererCfg(colorize_instance_segmentation=True)
+    assert colorized.supported_output_types()[RenderBufferKind.INSTANCE_SEGMENTATION] == RenderBufferSpec(4, wp.uint8)
+
+    non_colorized = OVRTXRenderer.__new__(OVRTXRenderer)
+    non_colorized.cfg = OVRTXRendererCfg(colorize_instance_segmentation=False)
+    assert non_colorized.supported_output_types()[RenderBufferKind.INSTANCE_SEGMENTATION] == RenderBufferSpec(
+        1, wp.int32
+    )
