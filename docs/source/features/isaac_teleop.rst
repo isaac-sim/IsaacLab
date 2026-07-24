@@ -112,8 +112,9 @@ and Isaac Lab. It composes three collaborators:
   coordinate frame.
 
 * **TeleopSessionLifecycle** -- builds the retargeting pipeline, acquires OpenXR handles from
-  Isaac Sim's XR bridge, creates the ``TeleopSession``, and steps it each frame to produce an
-  action tensor.
+  Isaac Sim's XR bridge (or, in standalone mode, creates its own OpenXR session through the
+  CloudXR runtime -- see :ref:`isaac-teleop-standalone`), creates the ``TeleopSession``, and
+  steps it each frame to produce an action tensor.
 
 * **CommandHandler** -- lightweight callback registry for START / STOP / RESET commands.  Scripts
   can register callbacks via :meth:`~isaaclab_teleop.IsaacTeleopDevice.add_callback`, but the
@@ -127,6 +128,9 @@ and Isaac Lab. It composes three collaborators:
    session creation until OpenXR handles become available. Once connected, ``advance()`` returns a
    flattened action tensor (``torch.Tensor``) on the configured device. It returns ``None`` when
    the session is not yet ready or has been torn down.
+
+   In standalone mode (:ref:`isaac-teleop-standalone`), creation is **not** gated on Kit XR
+   handles -- the session starts as soon as the CloudXR runtime is available.
 
 
 .. _isaac-teleop-tracking-debug-visualization:
@@ -171,7 +175,11 @@ Teleop Control States (Start / Stop / Reset)
 
 Isaac Lab supports remote teleop control commands -- **start**, **stop**, and **reset** -- sent
 from the XR headset to the simulation.  These are used to begin and end demonstration recording,
-pause the robot, or reset the environment without touching the simulation host.
+pause the robot, or reset the environment without touching the simulation host. The same commands
+can be driven **locally** without a headset via
+:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start` /
+:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_stop` and :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset`
+(see :ref:`isaac-teleop-standalone`).
 
 How it works
 ~~~~~~~~~~~~
@@ -260,6 +268,79 @@ To use a different channel UUID (e.g. for a separate control protocol), pass any
    )
 
 The CloudXR JS client must be updated to discover this UUID when sending commands.
+
+
+.. _isaac-teleop-standalone:
+
+Run Without a Headset (Standalone I/O)
+--------------------------------------
+
+By default the teleop scripts drive Isaac Teleop through Isaac Sim's Kit XR bridge, which renders
+the scene to a connected XR headset. When you only need Isaac Teleop as an **input/output
+transport** -- for example a joint-space leader arm streaming encoder angles, or any non-XR device
+-- you can run it *standalone*, with no Kit XR rendering.
+
+The ``teleop_se3_agent.py`` and ``record_demos.py`` scripts select the mode with the ``--xr`` flag:
+
+* **With** ``--xr`` -- the full Kit XR path (headset rendering, anchor, hand / controller tracking).
+* **Without** ``--xr`` -- Isaac Teleop creates and owns its own OpenXR session through the CloudXR
+  runtime (``create_isaac_teleop_device(..., use_kit_xr_bridge=False)``); teleop input/output works
+  headless, with no Kit XR rendering.
+
+Starting teleop without a headset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Without a headset there is no client to send the **start** command, so the scripts drive the state
+machine locally:
+
+* On startup they call :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start`, which transitions
+  the teleop state machine to RUNNING (see :ref:`isaac-teleop-control-states`) -- so a headless
+  session begins running immediately, with no headset UI.
+* When a Kit viewport window is present, they also bind keys for interactive control:
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 15 85
+
+     * - Key
+       - Action
+     * - ``B``
+       - Start / resume teleoperation.
+     * - ``P``
+       - Pause teleoperation (robot holds position).
+     * - ``R``
+       - Reset the environment.
+
+Both paths flow through the same state machine, so
+:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start` /
+:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_stop` and remote headset commands are
+interchangeable, and :func:`~isaaclab_teleop.poll_control_events` stays authoritative.
+
+.. note::
+
+   A clientless CloudXR runtime advertises no HMD, so the standalone OpenXR session needs a device
+   profile that reports a system without a connected client. The scripts default ``--cloudxr_env``
+   to :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` when ``--xr`` is omitted (and to ``cloudxrjs``
+   when it is passed); see :ref:`isaac-teleop-cloudxr-profiles`.
+
+.. _isaac-teleop-so101-leader-example:
+
+Example: SO-101 leader-arm joint teleoperation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` mirrors the joint angles streamed by a physical
+SO-101 leader arm (via the ``so101_leader`` device) directly onto the simulated follower -- no XR
+headset, inverse kinematics, or anchor. Its pipeline is
+``JointStateSource -> JointStateRetargeter (mode="joint") -> TensorReorderer``.
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
+       --num_envs 1
+
+Start the ``so101_leader`` device (or its synthetic backend) alongside the sim so it pushes joint
+state on the ``so101_leader`` collection.
 
 
 .. _isaac-teleop-retargeting:
@@ -370,6 +451,12 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
+   * - ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``
+     - Controllers
+     - Right
+     - **Arm:** right controller grip pose drives the end-effector via absolute IK
+       (clutch-rebased; IK tracks position, orientation soft-weighted).
+       **Gripper:** right trigger (analog).
    * - ``IsaacContrib-PickPlace-GR1T2-Abs``
      - Hand tracking
      - Both
@@ -554,6 +641,27 @@ follows.
    them as it enforces joint limits while solving IK. Consequently, the arm may occasionally stop
    responding when the commanded target pose is unreachable within those limits -- this is expected,
    not a bug.
+
+Leader-Arm Environments
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+These environments are driven by a physical *leader* arm that streams joint angles over the Isaac
+Teleop tensor transport; the angles are mirrored directly onto the simulated follower with no XR
+headset or inverse kinematics. See
+:ref:`Example: SO-101 leader-arm joint teleoperation <isaac-teleop-so101-leader-example>` above
+for the run command and pipeline.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 18 48
+
+   * - Task ID
+     - Device
+     - Operator Interaction
+   * - ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0``
+     - SO-101 leader arm
+     - **Arm + gripper:** the leader arm's six joint angles (five arm DOF + gripper) are mirrored
+       onto the follower via ``JointStateRetargeter`` (``mode="joint"``).
 
 .. _isaac-teleop-switching-input-mode:
 
@@ -761,8 +869,9 @@ Key ``IsaacTeleopCfg`` fields:
 CloudXR Environment Profiles
 -----------------------------
 
-Isaac Lab ships two ``.env`` profiles that configure the CloudXR runtime for different XR devices.
-These are bundled inside the ``isaaclab_teleop`` package and can be referenced via constants:
+Isaac Lab ships three ``.env`` profiles that configure the CloudXR runtime -- two for XR devices
+and one for headless standalone use. These are bundled inside the ``isaaclab_teleop`` package and
+can be referenced via constants:
 
 .. list-table::
    :header-rows: 1
@@ -783,19 +892,30 @@ These are bundled inside the ``isaaclab_teleop`` package and can be referenced v
      - ``auto-native``
      - ``0``
      - ``0``
+   * - :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV`
+     - ``cloudxr-standalone.env``
+     - ``quest3``
+     - ``0``
+     - ``0``
 
-Both profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
+All three profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
 tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
 this to ``1`` in a custom profile (see below).
 They also set ``NV_ENABLE_POSE_WAIT=0`` so CloudXR does not throttle the application when frame
 times spike. This favors lower latency over CloudXR's pose-wait smoothing.
 
+:data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` is the default when running **without** ``--xr``
+(see :ref:`isaac-teleop-standalone`). It pins an emulated ``quest3`` device profile so a CloudXR
+runtime with no client still advertises an OpenXR system, working around
+``XR_ERROR_FORM_FACTOR_UNAVAILABLE``.
+
 Override at launch time
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``--cloudxr_env`` flag on ``teleop_se3_agent.py`` and ``record_demos.py`` selects which
-``.env`` profile to use. The default is ``cloudxrjs`` (Quest/Pico). Use the ``avp`` shorthand
-for Apple Vision Pro, or pass a full file path for a custom profile:
+``.env`` profile to use. When unset it defaults to ``cloudxrjs`` (Quest/Pico) with ``--xr`` and
+``standalone`` without ``--xr``. Use the ``avp`` shorthand for Apple Vision Pro, ``standalone``
+for the headless profile, or pass a full file path for a custom profile:
 
 .. tab-set::
 

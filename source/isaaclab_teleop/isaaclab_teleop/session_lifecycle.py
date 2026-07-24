@@ -146,6 +146,7 @@ class TeleopSessionLifecycle:
         cfg: IsaacTeleopCfg,
         cloudxr_env_file: str | None = None,
         auto_launch_cloudxr: bool = True,
+        use_kit_xr_bridge: bool = True,
         mcap_record_path: str | None = None,
         mcap_replay_path: str | None = None,
         enable_debug_visualization: bool = False,
@@ -162,6 +163,15 @@ class TeleopSessionLifecycle:
             auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
                 when *cloudxr_env_file* is set.  Ignored when
                 *cloudxr_env_file* is ``None``.
+            use_kit_xr_bridge: Whether to source the live session's OpenXR
+                handles from Kit's XR bridge (``isaacsim.kit.xr.teleop.bridge``).
+                When ``True`` (the default) the session waits for Kit's XR
+                system -- the full XR rendering / anchor path.  When ``False``
+                the session runs *standalone*: it skips the Kit XR bridge
+                entirely and lets ``isaacteleop`` create and own its own OpenXR
+                session through the CloudXR runtime, so teleop I/O works
+                headless without Kit XR rendering.  Ignored in replay mode
+                (which never touches the XR runtime).
             mcap_record_path: Optional path to an MCAP file the live teleop
                 session should be recorded into.  Mutually exclusive with
                 *mcap_replay_path*.  Debug-grade only -- see the Isaac Lab
@@ -196,6 +206,7 @@ class TeleopSessionLifecycle:
         self._device = torch.device(cfg.sim_device)
         self._cloudxr_env_file = cloudxr_env_file
         self._auto_launch_cloudxr = auto_launch_cloudxr
+        self._use_kit_xr_bridge = use_kit_xr_bridge
         self._mcap_record_path = mcap_record_path
         self._mcap_replay_path = mcap_replay_path
         self._is_replay = mcap_replay_path is not None
@@ -234,10 +245,13 @@ class TeleopSessionLifecycle:
         self._retargeting_ui_ctx: MultiRetargeterTuningUIImGui | None = None
         self._retargeting_ui = None
 
-        # Replay sessions never talk to Kit's XR system, so skip all XR
-        # extension subscriptions; they would only generate noise and could
-        # mis-fire if a parallel live session ever toggled /xr/enabled.
-        if not self._is_replay:
+        # Replay sessions never talk to Kit's XR system, and standalone sessions
+        # (``use_kit_xr_bridge=False``) deliberately bypass it, so skip all XR
+        # extension subscriptions in both cases; they would only generate noise,
+        # could mis-fire if a parallel live session ever toggled /xr/enabled, and
+        # in standalone mode would pull in the Kit XR rendering extensions we are
+        # trying to avoid.
+        if not self._is_replay and self._use_kit_xr_bridge:
             try:
                 # Importing bridge also performs polyfill of missing omni.kit.xr.system.openxr functions.
                 import isaacsim.kit.xr.teleop.bridge as bridge
@@ -366,6 +380,28 @@ class TeleopSessionLifecycle:
             self._message_processor.inject_reset()
         else:
             self._pending_reset = True
+
+    def request_start(self) -> None:
+        """Locally drive the teleop state machine toward RUNNING (headset-free start).
+
+        Injects a ``"start"`` command into
+        :meth:`TeleopMessageProcessor.inject_command` so
+        :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`
+        transitions to RUNNING without an XR client. No-op when no control
+        pipeline is configured.
+        """
+        if self._message_processor is not None:
+            self._message_processor.inject_command("start")
+
+    def request_stop(self) -> None:
+        """Locally drive the teleop state machine to PAUSED (headset-free stop).
+
+        Injects a ``"stop"`` command into
+        :meth:`TeleopMessageProcessor.inject_command`. No-op when no control
+        pipeline is configured.
+        """
+        if self._message_processor is not None:
+            self._message_processor.inject_command("stop")
 
     # ------------------------------------------------------------------
     # Lifecycle: start / stop
@@ -758,12 +794,17 @@ class TeleopSessionLifecycle:
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
-        In live mode, tries to acquire OpenXR handles from Kit's XR bridge.
-        If the handles are available, creates and enters the
-        :class:`TeleopSession`.  If the handles are not yet complete — either
-        because the XR session has not started or because the bridge
-        component has not finished registering — session creation is deferred
-        and will be retried on the next :meth:`step` call.
+        In live mode with :attr:`_use_kit_xr_bridge` set, tries to acquire
+        OpenXR handles from Kit's XR bridge.  If the handles are available,
+        creates and enters the :class:`TeleopSession`.  If the handles are not
+        yet complete — either because the XR session has not started or because
+        the bridge component has not finished registering — session creation is
+        deferred and will be retried on the next :meth:`step` call.
+
+        In standalone live mode (:attr:`_use_kit_xr_bridge` ``False``), the Kit
+        XR bridge is bypassed and ``TeleopSession`` is started with
+        ``oxr_handles=None`` so it creates its own OpenXR session through the
+        CloudXR runtime; start is never deferred on Kit XR readiness.
 
         In replay mode, starts a :class:`SessionMode.REPLAY` session backed
         by the MCAP file passed via ``mcap_replay_path``; no Kit XR handles
@@ -779,26 +820,35 @@ class TeleopSessionLifecycle:
         if self._is_replay:
             return self._start_replay_session()
 
-        self._ensure_xr_ar_profile_enabled()
-
-        from isaacteleop.oxr import OpenXRSessionHandles
         from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-        oxr_handles = self._acquire_kit_oxr_handles(OpenXRSessionHandles)
+        if self._use_kit_xr_bridge:
+            self._ensure_xr_ar_profile_enabled()
 
-        if oxr_handles is None:
-            if not self._session_start_deferred_logged:
-                if self._kit_xr_session_is_active():
-                    logger.info(
-                        "Kit XR session active but bridge handles incomplete; IsaacTeleop session creation deferred"
-                    )
-                else:
-                    logger.info(
-                        "OpenXR handles not yet available (waiting for XR session); "
-                        "IsaacTeleop session creation deferred"
-                    )
-                self._session_start_deferred_logged = True
-            return False
+            from isaacteleop.oxr import OpenXRSessionHandles
+
+            oxr_handles = self._acquire_kit_oxr_handles(OpenXRSessionHandles)
+
+            if oxr_handles is None:
+                if not self._session_start_deferred_logged:
+                    if self._kit_xr_session_is_active():
+                        logger.info(
+                            "Kit XR session active but bridge handles incomplete; IsaacTeleop session creation deferred"
+                        )
+                    else:
+                        logger.info(
+                            "OpenXR handles not yet available (waiting for XR session); "
+                            "IsaacTeleop session creation deferred"
+                        )
+                    self._session_start_deferred_logged = True
+                return False
+        else:
+            # Standalone mode (e.g. no ``--xr``): do not touch Kit's XR bridge.
+            # Passing ``oxr_handles=None`` makes ``TeleopSession`` create and own
+            # its own OpenXR session through the CloudXR runtime, so teleop I/O
+            # runs headless without any Kit XR rendering. Session start is never
+            # deferred here -- the runtime is available as soon as CloudXR is up.
+            oxr_handles = None
 
         mcap_config = None
         if self._mcap_record_path is not None:

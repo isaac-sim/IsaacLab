@@ -116,7 +116,7 @@ CAMERA_TARGET = (-0.01, 0.0, 0.38)
 
 def create_visualizer_cfgs():
     """Create demo-specific visualizer configs for requested backends."""
-    if "newton" not in args_cli.visualizer:
+    if "newton" not in (args_cli.visualizer or []):
         return []
 
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
@@ -172,7 +172,7 @@ def launch_omniverse_asset_resolver():
     ``pxr`` cannot resolve; Kit ships the asset resolver that can. Kit-visualizer
     runs boot Kit anyway, so this only applies to Newton-only runs.
     """
-    if "kit" in args_cli.visualizer:
+    if "kit" in (args_cli.visualizer or []):
         return None
 
     from isaaclab.utils import has_kit
@@ -334,7 +334,7 @@ def create_sim_cfg():
 
 def preview_material(color):
     """Return a preview-surface material for Kit runs; Kit-less runs spawn no USD materials."""
-    if "kit" not in args_cli.visualizer:
+    if "kit" not in (args_cli.visualizer or []):
         return None
 
     import isaaclab.sim as sim_utils

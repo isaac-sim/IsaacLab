@@ -26,7 +26,6 @@ import warp as wp
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from isaaclab.managers import CommandManager
-from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
@@ -185,15 +184,19 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
-
+        """Wire manager terms into live plots for all active visualizer backends."""
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+            "command_manager": self.command_manager,
+            "termination_manager": self.termination_manager,
+            "reward_manager": self.reward_manager,
+            "curriculum_manager": self.curriculum_manager,
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers)
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
-            "command_manager": ManagerLiveVisualizer(manager=self.command_manager),
-            "termination_manager": ManagerLiveVisualizer(manager=self.termination_manager),
-            "reward_manager": ManagerLiveVisualizer(manager=self.reward_manager),
-            "curriculum_manager": ManagerLiveVisualizer(manager=self.curriculum_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """
