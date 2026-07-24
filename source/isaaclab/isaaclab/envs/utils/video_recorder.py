@@ -28,6 +28,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_VALID_SOURCE_KINDS = ("visualizer", "sensor")
+
 
 def _parse_source(source: str) -> tuple[str, str, str]:
     """Parse a source string into (kind, type_or_name, sub).
@@ -51,9 +53,27 @@ class VideoRecorder:
 
     Instantiated by the env base class; ``step()`` is called once per env step
     after physics and rendering have completed.
+
+    Raises:
+        ImportError: If ``moviepy`` is not installed.
+        ValueError: If :attr:`~VideoRecorderCfg.source` has an unrecognized kind.
+        RuntimeError: On the first recording step if the requested visualizer or
+            sensor cannot be found or does not support frame capture.
     """
 
     def __init__(self, cfg: VideoRecorderCfg, env: object):
+        if ImageSequenceClip is None:
+            raise ImportError(
+                "moviepy is required for video recording. Install it with: pip install 'moviepy<2'"
+            )
+
+        kind, _, _ = _parse_source(cfg.source)
+        if kind not in _VALID_SOURCE_KINDS:
+            raise ValueError(
+                f"[VideoRecorder] Unrecognized source kind '{kind}' in source='{cfg.source}'. "
+                f"Expected one of: {_VALID_SOURCE_KINDS}."
+            )
+
         self.cfg = cfg
         self._env = env
         self._frames: list[np.ndarray] = []
@@ -94,73 +114,73 @@ class VideoRecorder:
 
     def _get_frame(self) -> np.ndarray | None:
         kind, type_or_name, sub = _parse_source(self.cfg.source)
-        try:
-            if kind == "visualizer":
-                return self._frame_from_visualizer(type_or_name, sub)
-            if kind == "sensor":
-                return self._frame_from_sensor(type_or_name)
-        except Exception:
-            logger.debug("[VideoRecorder] Frame capture failed.", exc_info=True)
-        return None
+        if kind == "visualizer":
+            return self._frame_from_visualizer(type_or_name, sub)
+        if kind == "sensor":
+            return self._frame_from_sensor(type_or_name)
+        # Unreachable: kind was validated in __init__, but keeps type checkers happy.
+        return None  # pragma: no cover
 
     def _frame_from_visualizer(self, viz_type: str, sub: str) -> np.ndarray | None:
         sim = getattr(self._env, "sim", None)
         if sim is None:
-            return None
+            raise RuntimeError(
+                "[VideoRecorder] env.sim is not available; cannot capture frames. "
+                "Ensure the environment is fully initialized before recording starts."
+            )
         visualizers = getattr(sim, "visualizers", [])
 
         if viz_type:
             candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
-
             if not candidates:
                 active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
-                logger.error(
-                    "[VideoRecorder] source='visualizer:%s' was requested but no visualizer of that type "
-                    "is active (active: %s). Add the corresponding VisualizerCfg to sim.visualizer_cfgs.",
-                    viz_type,
-                    active or ["none"],
+                raise RuntimeError(
+                    f"[VideoRecorder] source='visualizer:{viz_type}' requested but no '{viz_type}' "
+                    f"visualizer is active (active: {active or ['none']}). "
+                    f"Pass --viz {viz_type} or add the corresponding VisualizerCfg to sim.visualizer_cfgs."
                 )
-                return None
 
             # Kit Replicator produces black frames with Newton physics because Newton Fabric writes
-            # do not notify RTX's scene delegate. Fail fast with a clear message rather than
-            # silently producing a black video.
+            # do not notify RTX's scene delegate.
             if viz_type == "kit":
                 physics_backend = getattr(
                     getattr(sim, "physics_manager", None), "video_capture_backend", lambda: None
                 )()
                 if physics_backend == "newton_gl":
-                    logger.error(
+                    raise RuntimeError(
                         "[VideoRecorder] source='visualizer:kit' is not supported with Newton physics — "
                         "Kit Replicator cannot read Newton Fabric transforms. "
-                        "Use source='visualizer:newton' and add NewtonVisualizerCfg to sim.visualizer_cfgs."
+                        "Use source='visualizer:newton' and pass --viz newton instead."
                     )
-                    return None
         else:
             # Auto: pick the first active visualizer that supports frame capture.
             candidates = [v for v in visualizers if hasattr(v, "render_rgb_array")]
             if not candidates:
-                logger.warning(
-                    "[VideoRecorder] source='visualizer' found no recording-capable visualizer. "
-                    "Add KitVisualizerCfg or NewtonVisualizerCfg to sim.visualizer_cfgs."
+                active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
+                raise RuntimeError(
+                    "[VideoRecorder] source='visualizer' found no recording-capable visualizer "
+                    f"(active: {active or ['none']}). "
+                    "Pass --viz kit or --viz newton, or use source='sensor:<name>' to record from a scene sensor."
                 )
-                return None
 
         viz = candidates[0]
         if sub == "tiled":
-            if hasattr(viz, "render_tiled_rgb_array"):
-                return viz.render_tiled_rgb_array()
-            logger.warning("[VideoRecorder] Visualizer '%s' does not support tiled capture.", viz_type)
-            return None
-        if not hasattr(viz, "render_rgb_array"):
-            logger.warning("[VideoRecorder] Visualizer '%s' does not support render_rgb_array().", viz_type)
-            return None
+            if not hasattr(viz, "render_tiled_rgb_array"):
+                raise RuntimeError(
+                    f"[VideoRecorder] source='visualizer:{viz_type}:tiled' requested but the "
+                    f"'{viz_type}' visualizer does not support tiled capture."
+                )
+            return viz.render_tiled_rgb_array()
+
         return viz.render_rgb_array()
 
     def _frame_from_sensor(self, name: str) -> np.ndarray | None:
         scene = getattr(self._env, "scene", None)
         if scene is None:
-            return None
+            raise RuntimeError(
+                "[VideoRecorder] env.scene is not available; cannot capture sensor frames. "
+                "Ensure the environment is fully initialized before recording starts."
+            )
         sensors = getattr(scene, "sensors", {})
         sensor = sensors.get(name)
         if sensor is None:
@@ -168,22 +188,21 @@ class VideoRecorder:
             truncated = available[:8]
             suffix = f" … and {len(available) - 8} more" if len(available) > 8 else ""
             hint = (
-                "Add a CameraCfg to your scene (e.g. InteractiveSceneCfg.tiled_camera) "
+                " Add a CameraCfg to your scene (e.g. InteractiveSceneCfg.tiled_camera) "
                 "to enable sensor-based recording."
                 if not available
                 else ""
             )
-            logger.error(
-                "[VideoRecorder] Sensor '%s' not found in env.scene.sensors (available: [%s]%s). %s",
-                name,
-                ", ".join(f"'{s}'" for s in truncated),
-                suffix,
-                hint,
+            raise RuntimeError(
+                f"[VideoRecorder] Sensor '{name}' not found in env.scene.sensors "
+                f"(available: [{', '.join(repr(s) for s in truncated)}{suffix}]).{hint}"
             )
-            return None
         output = getattr(getattr(sensor, "data", None), "output", None)
         if output is None or "rgb" not in output:
-            return None
+            raise RuntimeError(
+                f"[VideoRecorder] Sensor '{name}' has no 'rgb' output. "
+                "Ensure the sensor's data_types includes 'rgb'."
+            )
         data = output["rgb"]
         # ProxyArray or torch.Tensor: shape (N, H, W, C)
         if hasattr(data, "torch"):
@@ -198,8 +217,6 @@ class VideoRecorder:
             self._recording = False
             return
         try:
-            if ImageSequenceClip is None:
-                raise ImportError("moviepy is required for video recording. Install with: pip install moviepy<2")
             os.makedirs(self.cfg.output_dir, exist_ok=True)
             path = os.path.join(self.cfg.output_dir, f"clip_{self._clip_index:04d}.mp4")
             clip = ImageSequenceClip(self._frames, fps=self.cfg.fps)

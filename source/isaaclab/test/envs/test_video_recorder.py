@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from isaaclab.envs.utils.video_recorder import VideoRecorder, _parse_source
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -80,6 +81,24 @@ def test_parse_source_strips_whitespace():
 
 
 # ---------------------------------------------------------------------------
+# Construction-time validation
+# ---------------------------------------------------------------------------
+
+
+def test_init_raises_value_error_for_unknown_source_kind():
+    """Unrecognized source kind raises ValueError at construction time."""
+    with pytest.raises(ValueError, match="Unrecognized source kind"):
+        VideoRecorder(_cfg(source="badkind:foo"), _make_env())
+
+
+def test_init_raises_import_error_when_moviepy_missing():
+    """Missing moviepy raises ImportError at construction time."""
+    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", None):
+        with pytest.raises(ImportError, match="moviepy"):
+            VideoRecorder(_cfg(), _make_env())
+
+
+# ---------------------------------------------------------------------------
 # Trigger logic
 # ---------------------------------------------------------------------------
 
@@ -94,7 +113,7 @@ def test_trigger_step_zero_fires_at_first_step():
 
 def test_trigger_step_zero_does_not_retrigger():
     """video_interval=0 → single clip, no re-trigger after it closes."""
-    viz = _FakeViz("kit")  # provide frames so clip actually closes
+    viz = _FakeViz("kit")
     recorder = VideoRecorder(
         _cfg(source="visualizer:kit", video_length=2, video_interval=0), _make_env(visualizers=[viz])
     )
@@ -145,7 +164,6 @@ def test_step_accumulates_frames_until_video_length():
     with patch.object(recorder, "_close_clip") as mock_close:
         for _ in range(3):
             recorder.step()
-        # Clip should close after 3 frames.
         assert mock_close.call_count == 1
 
     assert viz.render_calls == 3
@@ -183,33 +201,31 @@ def test_visualizer_source_typed_filters_by_type():
     assert newton_viz.render_calls == 1
 
 
-def test_visualizer_source_missing_logs_error_and_returns_none(caplog):
-    """source='visualizer:kit' with no matching active visualizer logs an error with helpful context."""
-    import logging
+def test_visualizer_source_auto_no_visualizer_raises():
+    """source='visualizer' with no active visualizers raises RuntimeError on first frame."""
+    recorder = VideoRecorder(_cfg(source="visualizer"), _make_env(visualizers=[]))
+    with pytest.raises(RuntimeError, match="no recording-capable visualizer"):
+        recorder._get_frame()
 
+
+def test_visualizer_source_typed_missing_raises():
+    """source='visualizer:kit' with only Newton active raises RuntimeError listing active types."""
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), _make_env(visualizers=[_FakeViz("newton")]))
-    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
-    assert frame is None
-    assert any("source='visualizer:kit'" in r.message for r in caplog.records)
-    assert any("newton" in r.message for r in caplog.records)  # active types listed
+    with pytest.raises(RuntimeError, match="newton"):
+        recorder._get_frame()
 
 
-def test_kit_visualizer_newton_physics_logs_error_and_returns_none(caplog):
-    """source='visualizer:kit' with Newton physics logs an error and returns None — no fallback."""
-    import logging
-
+def test_kit_visualizer_newton_physics_raises():
+    """source='visualizer:kit' with Newton physics raises RuntimeError immediately."""
     kit_viz = _FakeViz("kit")
     env = _make_env(visualizers=[kit_viz])
     env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
 
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
+    with pytest.raises(RuntimeError, match="Newton physics"):
+        recorder._get_frame()
 
-    assert frame is None
     assert kit_viz.render_calls == 0  # Kit was never called
-    assert any("source='visualizer:newton'" in r.message for r in caplog.records)
 
 
 def test_visualizer_tiled_calls_render_tiled_rgb_array():
@@ -223,16 +239,12 @@ def test_visualizer_tiled_calls_render_tiled_rgb_array():
     assert frame is tiled_frame
 
 
-def test_visualizer_tiled_logs_warning_when_not_supported(caplog):
-    """source='visualizer:kit:tiled' warns when the visualizer has no tiled capture."""
-    import logging
-
+def test_visualizer_tiled_raises_when_not_supported():
+    """source='visualizer:kit:tiled' raises RuntimeError when the visualizer has no tiled capture."""
     viz = _FakeViz("kit")  # no render_tiled_rgb_array
     recorder = VideoRecorder(_cfg(source="visualizer:kit:tiled"), _make_env(visualizers=[viz]))
-    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
-    assert frame is None
-    assert any("tiled" in r.message for r in caplog.records)
+    with pytest.raises(RuntimeError, match="tiled"):
+        recorder._get_frame()
 
 
 # ---------------------------------------------------------------------------
@@ -240,42 +252,42 @@ def test_visualizer_tiled_logs_warning_when_not_supported(caplog):
 # ---------------------------------------------------------------------------
 
 
-def test_sensor_source_reads_rgb_by_default():
+def test_sensor_source_reads_rgb():
     """source='sensor:tiled_camera' reads the rgb channel from the sensor."""
     import torch
 
     rgb = torch.ones((1, 8, 12, 3), dtype=torch.uint8) * 200
     sensor = MagicMock()
-    sensor.data.output = {"rgb": rgb}  # plain Tensor — no .torch wrapper needed
+    sensor.data.output = {"rgb": rgb}
     recorder = VideoRecorder(_cfg(source="sensor:tiled_camera"), _make_env(sensors={"tiled_camera": sensor}))
     frame = recorder._get_frame()
     assert frame is not None
     assert frame.shape == (8, 12, 3)
 
 
-
-def test_sensor_source_missing_logs_error_with_available_list(caplog):
-    """source='sensor:missing' logs an error listing available sensors."""
-    import logging
-
+def test_sensor_source_missing_raises_with_available_list():
+    """source='sensor:missing' raises RuntimeError listing available sensors."""
     sensors = {"tiled_camera": MagicMock(), "wrist_cam": MagicMock()}
     recorder = VideoRecorder(_cfg(source="sensor:missing"), _make_env(sensors=sensors))
-    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
-    assert frame is None
-    assert any("missing" in r.message for r in caplog.records)
-    assert any("tiled_camera" in r.message for r in caplog.records)  # available sensors listed
+    with pytest.raises(RuntimeError, match="missing") as exc_info:
+        recorder._get_frame()
+    assert "tiled_camera" in str(exc_info.value)
 
 
-def test_sensor_source_missing_suggests_adding_camera_when_none_exist(caplog):
-    """source='sensor:cam' with no sensors at all logs a helpful hint."""
-    import logging
-
+def test_sensor_source_missing_suggests_camera_when_none_exist():
+    """source='sensor:cam' with no sensors at all includes a hint to add a CameraCfg."""
     recorder = VideoRecorder(_cfg(source="sensor:cam"), _make_env(sensors={}))
-    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
-    assert frame is None
-    assert any("CameraCfg" in r.message for r in caplog.records)
+    with pytest.raises(RuntimeError, match="CameraCfg"):
+        recorder._get_frame()
+
+
+def test_sensor_source_no_rgb_output_raises():
+    """Sensor found but missing 'rgb' in output raises RuntimeError."""
+    sensor = MagicMock()
+    sensor.data.output = {"depth": MagicMock()}  # no rgb key
+    recorder = VideoRecorder(_cfg(source="sensor:cam"), _make_env(sensors={"cam": sensor}))
+    with pytest.raises(RuntimeError, match="no 'rgb' output"):
+        recorder._get_frame()
 
 
 # ---------------------------------------------------------------------------
@@ -323,7 +335,6 @@ def test_close_flushes_partial_clip():
     """VideoRecorder.close() writes any buffered frames before teardown."""
     viz = _FakeViz("kit")
     recorder = VideoRecorder(_cfg(video_length=100), _make_env(visualizers=[viz]))
-    # Manually inject some frames mid-clip.
     recorder._frames = [_FRAME, _FRAME]
     recorder._recording = True
 
