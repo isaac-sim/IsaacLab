@@ -27,6 +27,7 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
+    from isaaclab.test.benchmark._cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -39,10 +40,22 @@ def _parse_args(argv: list[str]):
         agent_default="rl_games_cfg_entry_point",
         agent_help="Name of the RL agent configuration entry point.",
         include_distributed=False,
+        max_iterations_type=parse_positive_int,
     )
     add_launcher_args(parser)
 
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
+    parser.add_argument(
+        "--measure_sync_step",
+        action="store_true",
+        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
+    )
+    parser.add_argument(
+        "--warmup_steps",
+        type=parse_non_negative_int,
+        default=1,
+        help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
+    )
     parser.add_argument(
         "--benchmark_formatter",
         type=str,
@@ -101,7 +114,8 @@ def run(argv: list[str]) -> None:
     from rl_games.torch_runner import Runner
 
     from isaaclab.app import launch_simulation
-    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture
+    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture, stepping
+    from isaaclab.test.benchmark._cli import validate_warmup_steps
     from isaaclab.test.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.test.benchmark.schema import StartupTime
 
@@ -150,6 +164,11 @@ def run(argv: list[str]) -> None:
         if args_cli.max_iterations is not None:
             agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations
 
+        training_steps = int(agent_cfg["params"]["config"]["max_epochs"]) * int(
+            agent_cfg["params"]["config"].get("horizon_length", 16)
+        )
+        validate_warmup_steps(args_cli.warmup_steps, training_steps)
+
         env_cfg.seed = agent_cfg["params"]["seed"]
 
         cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
@@ -169,6 +188,11 @@ def run(argv: list[str]) -> None:
                     {"name": "seed", "data": agent_cfg["params"]["seed"]},
                     {"name": "num_envs", "data": env_cfg.scene.num_envs},
                     {"name": "max_iterations", "data": agent_cfg["params"]["config"].get("max_epochs")},
+                    {
+                        "name": "environment_step_measurement_mode",
+                        "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
+                    },
+                    {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -208,113 +232,121 @@ def run(argv: list[str]) -> None:
         agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
 
         observer = RlGamesEarlyStopObserver(IsaacAlgoObserver(), **build_success_kwargs(args_cli))
-        runner = Runner(observer)
-        runner.load(agent_cfg)
-        env.seed(agent_cfg["params"]["seed"])
-        runner.reset()
+        with contextlib.closing(env):
+            runner = Runner(observer)
+            runner.load(agent_cfg)
+            env.seed(agent_cfg["params"]["seed"])
+            runner.reset()
 
-        with BenchmarkMonitor(benchmark, interval=1.0):
-            runner.run({"train": True, "play": False, "sigma": None})
+            environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+                env,
+                measure_synchronized_step_breakdown=args_cli.measure_sync_step,
+                warmup_steps=args_cli.warmup_steps,
+            )
+            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+                runner.run({"train": True, "play": False, "sigma": None})
 
-        benchmark.update_manual_recorders()
+            benchmark.update_manual_recorders()
 
-        # Flush TensorBoard events before parsing them.
-        if observer.algo is not None and getattr(observer.algo, "writer", None) is not None:
-            try:
-                observer.algo.writer.flush()
-                observer.algo.writer.close()
-            except Exception as exc:  # noqa: BLE001
+            # Flush TensorBoard events before parsing them.
+            if observer.algo is not None and getattr(observer.algo, "writer", None) is not None:
+                try:
+                    observer.algo.writer.flush()
+                    observer.algo.writer.close()
+                except Exception as exc:  # noqa: BLE001
+                    print(
+                        f"[WARNING] rl_games TensorBoard writer flush/close failed: {exc!r};"
+                        " TB logs may be incomplete and metrics may be zero.",
+                        file=sys.stderr,
+                    )
+
+            desc = RL_LIBRARY_DESCRIPTORS["rl_games"]
+            tb_dir = run_log_dir
+            log_data = parse_tf_logs(tb_dir, desc.tfevents_pattern)
+            max_epochs = agent_cfg["params"]["config"].get("max_epochs", 1)
+            if not log_data or (not log_data.get(desc.reward_tag) and max_epochs >= 1):
                 print(
-                    f"[WARNING] rl_games TensorBoard writer flush/close failed: {exc!r};"
-                    " TB logs may be incomplete and metrics may be zero.",
+                    f"[WARNING] No TensorBoard data parsed from {tb_dir!r};"
+                    " the emitted bundle will report zero metrics. Check the log directory.",
                     file=sys.stderr,
                 )
 
-        desc = RL_LIBRARY_DESCRIPTORS["rl_games"]
-        tb_dir = run_log_dir
-        log_data = parse_tf_logs(tb_dir, desc.tfevents_pattern)
-        max_epochs = agent_cfg["params"]["config"].get("max_epochs", 1)
-        if not log_data or (not log_data.get(desc.reward_tag) and max_epochs >= 1):
-            print(
-                f"[WARNING] No TensorBoard data parsed from {tb_dir!r};"
-                " the emitted bundle will report zero metrics. Check the log directory.",
-                file=sys.stderr,
+            # RL-Games logs FPS directly; iteration time is steps divided by total FPS.
+            horizon_length = agent_cfg["params"]["config"].get("horizon_length", 16)
+            steps_per_iteration = env.unwrapped.num_envs * horizon_length
+            total_fps_series = list(log_data.get("performance/step_inference_rl_update_fps", []))
+            collection_fps_series = list(log_data.get("performance/step_inference_fps", []))
+            iteration_times_s = [steps_per_iteration / f for f in total_fps_series if f > 0]
+
+            startup = StartupTime(
+                app_launch=(app_t1 - app_t0) / 1e9,
+                env_creation=(env_t1 - env_t0) / 1e9,
+                first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
+                python_imports=(imports_t1 - imports_t0) / 1e9,
+                task_config=(config_t1 - config_t0) / 1e9,
             )
 
-        # RL-Games logs FPS directly; iteration time is steps divided by total FPS.
-        horizon_length = agent_cfg["params"]["config"].get("horizon_length", 16)
-        steps_per_iteration = env.unwrapped.num_envs * horizon_length
-        total_fps_series = list(log_data.get("performance/step_inference_rl_update_fps", []))
-        collection_fps_series = list(log_data.get("performance/step_inference_fps", []))
-        iteration_times_s = [steps_per_iteration / f for f in total_fps_series if f > 0]
+            runtime = builders.build_runtime(
+                startup_time_s=startup,
+                iteration_times_s=iteration_times_s,
+                collection_fps=collection_fps_series,
+                total_fps=total_fps_series,
+                steps_per_iteration=steps_per_iteration,
+                frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_times_s=environment_step_timer.step_times_s,
+                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
+                simulation_step_calls=environment_step_timer.simulation_step_calls,
+            )
 
-        startup = StartupTime(
-            app_launch=(app_t1 - app_t0) / 1e9,
-            env_creation=(env_t1 - env_t0) / 1e9,
-            first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
-            python_imports=(imports_t1 - imports_t0) / 1e9,
-            task_config=(config_t1 - config_t0) / 1e9,
-        )
+            learning = builders.build_learning(
+                reward_series=log_data.get(desc.reward_tag, []),
+                ep_length_series=log_data.get(desc.ep_length_tag, []),
+                ema_alpha=args_cli.ema_alpha,
+                keep_series=not args_cli.no_series,
+            )
 
-        runtime = builders.build_runtime(
-            startup_time_s=startup,
-            iteration_times_s=iteration_times_s,
-            collection_fps=collection_fps_series,
-            total_fps=total_fps_series,
-            steps_per_iteration=steps_per_iteration,
-        )
+            tracker = get_success_tracker(args_cli, observer.tracker, log_data)
+            success_rate = round(tracker.tail_mean, 4) if (tracker and tracker.history) else None
 
-        learning = builders.build_learning(
-            reward_series=log_data.get(desc.reward_tag, []),
-            ep_length_series=log_data.get(desc.ep_length_tag, []),
-            ema_alpha=args_cli.ema_alpha,
-            keep_series=not args_cli.no_series,
-        )
+            versions = capture.capture_versions(benchmark)
+            hardware = capture.capture_hardware(benchmark)
+            resources = capture.capture_resources(benchmark)
 
-        tracker = get_success_tracker(args_cli, observer.tracker, log_data)
-        success_rate = round(tracker.tail_mean, 4) if (tracker and tracker.history) else None
+            end_utc = capture.now_utc_iso()
+            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
+            seed = agent_cfg["params"]["seed"] if agent_cfg["params"]["seed"] is not None else 0
 
-        versions = capture.capture_versions(benchmark)
-        hardware = capture.capture_hardware(benchmark)
-        resources = capture.capture_resources(benchmark)
+            run_identity = builders.build_run_identity(
+                run_id=capture.synth_run_id("rl_games", cfg.physics_backend, args_cli.task, seed, stamp),
+                framework="rl_games",
+                config=cfg,
+                task=args_cli.task,
+                seed=seed,
+                start_utc=start_utc,
+                end_utc=end_utc,
+                num_envs=env.unwrapped.num_envs,
+                max_iterations=agent_cfg["params"]["config"].get("max_epochs"),
+            )
 
-        end_utc = capture.now_utc_iso()
-        stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
-        seed = agent_cfg["params"]["seed"] if agent_cfg["params"]["seed"] is not None else 0
+            checkpoint_path = None
+            video_path = os.path.join(run_log_dir, "videos") if getattr(args_cli, "video", False) else None
 
-        run_identity = builders.build_run_identity(
-            run_id=capture.synth_run_id("rl_games", cfg.physics_backend, args_cli.task, seed, stamp),
-            framework="rl_games",
-            config=cfg,
-            task=args_cli.task,
-            seed=seed,
-            start_utc=start_utc,
-            end_utc=end_utc,
-            num_envs=env.unwrapped.num_envs,
-            max_iterations=agent_cfg["params"]["config"].get("max_epochs"),
-        )
+            bundle = builders.build_training_bundle(
+                run=run_identity,
+                versions=versions,
+                hardware=hardware,
+                runtime=runtime,
+                resources=resources,
+                learning=learning,
+                success_rate=success_rate,
+                checkpoint_path=checkpoint_path,
+                video_path=video_path,
+            )
 
-        checkpoint_path = None
-        video_path = os.path.join(run_log_dir, "videos") if getattr(args_cli, "video", False) else None
+            benchmark.attach_bundle(bundle)
+            benchmark.add_measurement("train", success_measurements(tracker))
 
-        bundle = builders.build_training_bundle(
-            run=run_identity,
-            versions=versions,
-            hardware=hardware,
-            runtime=runtime,
-            resources=resources,
-            learning=learning,
-            success_rate=success_rate,
-            checkpoint_path=checkpoint_path,
-            video_path=video_path,
-        )
-
-        benchmark.attach_bundle(bundle)
-        benchmark.add_measurement("train", success_measurements(tracker))
-
-        benchmark._finalize_impl()
-
-        env.close()
+            benchmark._finalize_impl()
 
 
 if __name__ == "__main__":

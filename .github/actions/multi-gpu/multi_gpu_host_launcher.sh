@@ -30,7 +30,7 @@ host_uid="$(id -u)"
 host_gid="$(id -g)"
 host_user="$(id -un)"
 # ``/isaac-sim`` is the Kit install root inside the container; pytest
-# invocations under ``./isaaclab.sh -p`` resolve the bundled Python as
+# project-environment invocations resolve the bundled Python as
 # ``./_isaac_sim/python.sh``. Mounting the workspace at ``/workspace/isaaclab``
 # brings the host's CWD into the container, so we plant a host-side symlink
 # whose target resolves only inside the container. Single creator (this step)

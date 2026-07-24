@@ -91,7 +91,14 @@ class VisualizerCfg:
 
     # Live Plots
     enable_live_plots: bool = True
-    """Enable live plotting of data."""
+    """Stream per-step scalar data (manager terms, episode reward, episode length) into the visualizer.
+
+    Plot windows start hidden or collapsed by default and can be toggled open at runtime.
+    Set to ``False`` to disable live plots entirely and avoid any collection overhead.
+    """
+
+    live_plots_update_interval: int = 5
+    """Collect and push live plot data every ``N`` simulation steps (default: every 5 steps)."""
 
     # Internal
     visualizer_type: str | None = None

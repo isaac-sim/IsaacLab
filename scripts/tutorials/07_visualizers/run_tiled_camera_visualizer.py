@@ -9,11 +9,11 @@ This script demonstrates the visualizer tiled camera panel.
 .. code-block:: bash
 
     # Kit visualizer tiled camera panel
-    ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --enable_cameras --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+    uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+ --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
 
     # Newton visualizer tiled camera panel
-    ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+    uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
         --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
 
 """

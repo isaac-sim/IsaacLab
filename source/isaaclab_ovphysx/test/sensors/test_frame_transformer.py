@@ -12,7 +12,7 @@ test cases that already exist in PhysX. One additional case exercises the
 OVPhysX-specific multi-binding gather path that combines an articulation link
 target and a standalone RigidObject target.
 
-Run via ``./isaaclab.sh -p -m pytest`` (the standard Kit Python entrypoint).
+Run via ``uv run python -m pytest`` (the standard Kit Python entrypoint).
 """
 
 from __future__ import annotations

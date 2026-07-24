@@ -1027,22 +1027,41 @@ class ArticulationData(BaseArticulationData):
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
 
-        Newton implementation: raises :class:`NotImplementedError` — Newton's
-        ``ArticulationView`` exposes only ``eval_fk`` / ``eval_jacobian`` /
-        ``eval_mass_matrix``. Use PhysX, or set the controller's
-        ``gravity_compensation=False`` until upstream Newton adds the primitive.
-        Tracking upstream: `newton#2497 <https://github.com/newton-physics/newton/issues/2497>`_,
-        `newton#2529 <https://github.com/newton-physics/newton/issues/2529>`_,
-        `newton#2625 <https://github.com/newton-physics/newton/issues/2625>`_.
+        Newton implementation: ``eval_inverse_dynamics_passive`` (writes the model-wide
+        flat DoF buffer) then a gather kernel extracts this view's DoF segment.
         """
-        raise NotImplementedError(
-            "Newton has no gravity-compensation primitive. Use PhysX, or set the controller's"
-            " ``gravity_compensation=False`` until upstream Newton adds an"
-            " ``eval_gravity_compensation`` API. Tracking upstream:"
-            " https://github.com/newton-physics/newton/issues/2497,"
-            " https://github.com/newton-physics/newton/issues/2529,"
-            " https://github.com/newton-physics/newton/issues/2625."
+        # eval_inverse_dynamics_passive reads ``state.body_q``; refresh FK if stale.
+        # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
+        self._ensure_fk_fresh()
+        # eval_inverse_dynamics_passive writes every articulation in the model-wide flat
+        # buffer (zeros outside the view); the gather kernel extracts this view's DoF
+        # segments. Newton allocates its RNEA scratch internally on every call through
+        # Warp's stream-ordered mempool allocator — capture-safe when mempools are
+        # enabled (validated by Newton's own graph-capture test) — so only the output
+        # and gather buffers need pre-allocation here.
+        self._root_view.eval_inverse_dynamics_passive(
+            SimulationManager.get_state_0(),
+            gravity_force=self._gravity_force_full_buf,
         )
+        # Topology arrays come from the same Model object the eval above computed
+        # against (the view's), so the gather can never mix models across a rebuild.
+        model = self._root_view.model
+        wp.launch(
+            articulation_kernels.gather_dof_force_rows,
+            dim=self._gravity_compensation_forces_buf.shape,
+            inputs=[
+                self._gravity_force_full_buf,
+                self._jacobian_view_art_ids,
+                model.articulation_start,
+                model.joint_qd_start,
+                self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
+                self._num_base_dofs,
+                self.has_joint_ordering,
+            ],
+            outputs=[self._gravity_compensation_forces_buf],
+            device=self.device,
+        )
+        return self._gravity_compensation_forces_ta
 
     """
     Joint state properties.
@@ -1852,9 +1871,11 @@ class ArticulationData(BaseArticulationData):
     def _create_jacobian_buffers(self, model) -> None:
         """Allocate the scratch + view-sized buffers used by task-space accessors.
 
-        Newton's :meth:`eval_jacobian` / :meth:`eval_mass_matrix` write into model-sized
-        scratch buffers spanning every articulation in the model; the gather kernels in
-        :attr:`body_com_jacobian_w` / :attr:`mass_matrix` extract this view's rows. The
+        Newton's :meth:`eval_jacobian` / :meth:`eval_mass_matrix` /
+        :meth:`eval_inverse_dynamics_passive` write into model-sized scratch buffers spanning
+        every articulation in the model; the gather kernels in
+        :attr:`body_com_jacobian_w` / :attr:`mass_matrix` /
+        :attr:`gravity_compensation_forces` extract this view's rows. The
         output buffers are sized using THIS articulation's body / DoF counts (not the
         model-wide ``max_*``) so heterogeneous scenes do not leak zero-padded rows / cols
         into the returned tensor. The DoF axis includes ``num_base_dofs`` floating-base
@@ -1917,6 +1938,13 @@ class ArticulationData(BaseArticulationData):
             (self._num_instances, self._num_joints + num_base_dofs, self._num_joints + num_base_dofs),
             dtype=wp.float32,
             device=self.device,
+        )
+
+        # -- ``gravity_compensation_forces``: model-wide flat gravity-force output
+        #    (eval_inverse_dynamics_passive) and per-view output (gather output)
+        self._gravity_force_full_buf = wp.zeros(model.joint_dof_count, dtype=wp.float32, device=self.device)
+        self._gravity_compensation_forces_buf = wp.zeros(
+            (self._num_instances, self._num_joints + num_base_dofs), dtype=wp.float32, device=self.device
         )
 
     def _validate_joint_ordering_buffers(self) -> None:
@@ -2361,6 +2389,7 @@ class ArticulationData(BaseArticulationData):
             self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w_buf)
             self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w_buf)
             self._mass_matrix_ta = ProxyArray(self._mass_matrix_buf)
+            self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces_buf)
 
             # -- deprecated state properties (lazy); type annotations declared once here
             self._root_state_w_ta: ProxyArray | None = None

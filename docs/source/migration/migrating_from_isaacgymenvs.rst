@@ -944,18 +944,39 @@ Launching Training
 
 To launch a training in Isaac Lab, use the command:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~
 
 To launch inferencing in Isaac Lab, use the command:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
 
 
 Additional Resources

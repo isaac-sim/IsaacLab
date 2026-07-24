@@ -101,15 +101,53 @@ class TeleopMessageProcessor(BaseRetargeter):
         self._shadow_state = _STOPPED
         self._run_toggle_queue: list[bool] = []
         self._prev_toggle_output = False
+        self._pending_commands: list[str] = []
         super().__init__(name=name)
 
     def inject_reset(self) -> None:
         """Schedule a reset pulse on the next pipeline step.
 
         The ``reset`` output will be ``True`` for exactly one frame, then
-        automatically cleared.
+        automatically cleared. Any in-flight start/stop toggle sequence is also
+        cancelled on that step so stale edges do not fire after the reset.
         """
         self._inject_reset_pending = True
+
+    def inject_command(self, command: str) -> None:
+        """Inject a local teleop command as if it arrived on the control channel.
+
+        Lets a host binding (e.g. a keyboard key) drive
+        :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`
+        without an XR client: ``"start"`` / ``"stop"`` enqueue the matching
+        ``run_toggle`` sequence and ``"reset"`` pulses the reset output. Natural
+        language variants (e.g. ``"start teleop"``) are accepted -- the same
+        classifier the message channel uses is applied. Unrecognized commands are
+        ignored. The command is queued and applied on the next pipeline step, so
+        this is safe to call from another thread (mirrors :meth:`inject_reset`).
+
+        Args:
+            command: A teleop command string (``"start"``, ``"stop"``, or ``"reset"``).
+        """
+        kind = _classify_command(command)
+        if kind is not None:
+            self._pending_commands.append(kind)
+
+    def _apply_command_kind(self, kind: str | None) -> bool:
+        """Apply a classified command to the ``run_toggle`` queue.
+
+        Args:
+            kind: ``"start"``, ``"stop"``, ``"reset"``, or ``None``.
+
+        Returns:
+            ``True`` if the command requests a reset pulse this frame.
+        """
+        if kind == "start" and not self._run_toggle_queue:
+            self._run_toggle_queue = self._make_toggle_sequence(_START_TOGGLE_SEQUENCES[self._shadow_state])
+        elif kind == "stop" and not self._run_toggle_queue:
+            self._run_toggle_queue = self._make_toggle_sequence(_STOP_TOGGLE_SEQUENCES[self._shadow_state])
+        elif kind == "reset":
+            return True
+        return False
 
     def _make_toggle_sequence(self, base_sequence: list[bool]) -> list[bool]:
         """Prepend a ``False`` frame if needed to guarantee a clean rising edge.
@@ -170,13 +208,22 @@ class TeleopMessageProcessor(BaseRetargeter):
                 if command is None:
                     continue
 
-                kind = _classify_command(command)
-                if kind == "start" and not self._run_toggle_queue:
-                    self._run_toggle_queue = self._make_toggle_sequence(_START_TOGGLE_SEQUENCES[self._shadow_state])
-                elif kind == "stop" and not self._run_toggle_queue:
-                    self._run_toggle_queue = self._make_toggle_sequence(_STOP_TOGGLE_SEQUENCES[self._shadow_state])
-                elif kind == "reset":
+                if self._apply_command_kind(_classify_command(command)):
                     reset = True
+
+        # Apply locally injected commands (e.g. keyboard bindings) identically to
+        # channel messages, so a host can start/stop/reset without an XR client.
+        injected_commands = self._pending_commands
+        self._pending_commands = []
+        for injected_kind in injected_commands:
+            if self._apply_command_kind(injected_kind):
+                reset = True
+
+        # Cancel any in-flight toggle sequence on reset so stale edges can't drive the
+        # state manager afterwards. Cleared here (compute thread, where it drains), not in
+        # inject_reset; shadow is left alone since reset doesn't change the manager's state.
+        if reset:
+            self._run_toggle_queue = []
 
         # Drain the toggle queue (one value per frame).
         if self._run_toggle_queue:

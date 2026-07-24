@@ -363,11 +363,13 @@ class TestInjectReset:
         result = _step(proc, _tracked(b"reset"))
         assert result["reset"] is True
 
-    def test_inject_reset_independent_of_toggle(self):
+    def test_inject_reset_cancels_pending_toggle(self):
+        # A reset cancels any toggle queued in the same step so the session does
+        # not reach RUNNING right after a reset; the reset pulse still fires.
         proc = TeleopMessageProcessor(name="test")
         proc.inject_reset()
         result = _step(proc, _tracked(b"start"))
-        assert result["run_toggle"] is True
+        assert result["run_toggle"] is False
         assert result["reset"] is True
 
 
@@ -424,9 +426,11 @@ class TestEmptyAndNullBatches:
 
 class TestMultipleMessagesInBatch:
     def test_start_then_reset_in_one_batch(self):
+        # Reset wins over a same-batch start: the toggle is cancelled so the
+        # session does not start, while the reset pulse still fires.
         proc = TeleopMessageProcessor(name="test")
         result = _step(proc, _tracked(b"start", b"reset"))
-        assert result["run_toggle"] is True
+        assert result["run_toggle"] is False
         assert result["reset"] is True
 
 

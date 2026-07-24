@@ -35,9 +35,19 @@ the Isaac Lab Python environment:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p -m pip install leapp
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               uv pip install leapp
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               ./isaaclab.sh -p -m pip install leapp
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -78,12 +88,25 @@ annotations, export a trained policy with:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-             --task <TASK_NAME> \
-             --checkpoint <PATH_TO_CHECKPOINT> \
-             --export_save_path <EXPORT_PATH>
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               uv run python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task <TASK_NAME> \
+                   --checkpoint <PATH_TO_CHECKPOINT> \
+                   --export_save_path <EXPORT_PATH>
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task <TASK_NAME> \
+                   --checkpoint <PATH_TO_CHECKPOINT> \
+                   --export_save_path <EXPORT_PATH>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows

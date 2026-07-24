@@ -17,7 +17,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
-from isaaclab.cloner import queue_usd_replication
+from isaaclab.cloner import queue_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
@@ -172,7 +172,7 @@ class Camera(SensorBase):
                 spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
-        queue_usd_replication(self._source_cfg)
+        queue_replication(self._source_cfg)
 
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
@@ -473,9 +473,7 @@ class Camera(SensorBase):
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
-            raise RuntimeError(
-                "Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
-            )
+            raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
         # reset the timestamps
         super().reset(env_ids, env_mask)
         # reset the data
@@ -502,9 +500,8 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
-            RuntimeError: Propagated from the renderer constructor when the active backend's
-                runtime requirements are not satisfied (e.g. the RTX backend requires the
-                simulation app to be launched with ``--enable_cameras``).
+            RuntimeError: Propagated from the renderer constructor when the active backend's runtime requirements
+                are not satisfied.
         """
         # Initialize parent class
         super()._initialize_impl()
