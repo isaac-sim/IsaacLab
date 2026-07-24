@@ -362,33 +362,28 @@ def maybe_save_stage(
     try:
         if not sim_utils.save_stage(stage_path, save_and_reload_in_place=False):
             pytest.fail(f"save_stage reported failure while writing the USD stage to {stage_path}.")
-        with open(stage_path, encoding="utf-8") as file:
-            stage_text = file.read()
+
+        from pxr import Usd  # noqa: PLC0415
+
+        # Flatten the saved stage to inline sublayer references and resolve asset paths.
+        opened_stage = Usd.Stage.Open(stage_path)
+        if opened_stage is None:
+            pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
+        flat_layer = opened_stage.Flatten()
+        if flat_layer is None:
+            pytest.fail(f"Could not flatten the saved stage at {stage_path}.")
 
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
             out_path = os.path.join(out_dir, stage_basename)
-            with open(out_path, "w", encoding="utf-8") as file:
-                file.write(stage_text)
+            if not flat_layer.Export(out_path):
+                pytest.fail(f"Failed to export the flattened stage to {out_path}.")
             logger.info("[ISAAC_LAB_SAVE_STAGES] wrote %s", out_path)
 
         if compare_golden:
             golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, safe_test_name)
             os.makedirs(golden_dir, exist_ok=True)
             golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
-
-            from pxr import Usd  # noqa: PLC0415
-
-            # Open and flatten the saved stage once. Flattening inlines sublayer references so
-            # the golden carries no external paths and both the bootstrap export and the
-            # comparison work from the same flattened representation — even when save_stage
-            # writes a root layer with sublayer references. Opening the export (not the live Kit
-            # stage) also keeps volatile session render prims (OmniverseKit cameras, Replicator
-            # SDG pipeline, post-process) out of the baseline.
-            opened_stage = Usd.Stage.Open(stage_path)
-            if opened_stage is None:
-                pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
-            flat_layer = opened_stage.Flatten()
 
             if not os.path.exists(golden_path):
                 if not flat_layer.Export(golden_path):
