@@ -163,7 +163,7 @@ class CurriculumManager(ManagerBase):
                     for key, value in term_state.items():
                         if isinstance(value, torch.Tensor):
                             value = value.item()
-                        terms[term_name].append(value)
+                        data.append(value)
                 else:
                     # log directly if not a dict
                     if isinstance(term_state, torch.Tensor):
