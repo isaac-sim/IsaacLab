@@ -6,11 +6,14 @@ Query: "Can I run this PhysX checkpoint in Newton?"
 
 Expected behavior:
 
-- First require successful training of the same task in both engines.
+- State that the same registered task should retain one MDP.
+- Resolve backend `PresetCfg` alternatives and flag any preset that changes a policy-facing MDP term.
+- Require successful training of the same task in both engines.
 - Compare the exact action, observation, policy-state, timing, mechanism, and episode contracts.
 
 Known failure modes:
 
+- Treat backend presets as permission to change the checkpoint contract.
 - Treat matching tensor shapes alone as compatibility.
 
 ## Scenario 2: Mimic-Drive Difference

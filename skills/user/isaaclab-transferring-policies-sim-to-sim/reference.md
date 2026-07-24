@@ -4,7 +4,10 @@ This reference follows the sections in the [sim-to-sim how-to](../../../docs/sou
 
 ## Task Readiness And Checkpoint Compatibility
 
-First ensure the same task can be trained successfully in both physics engines. Then compare:
+The same registered task should retain one MDP. Resolve each backend's `PresetCfg`; use backend
+alternatives for intentional physics, asset, and control differences without changing
+checkpoint-facing MDP terms. If an MDP-term preset differs, restore one contract or treat it as a
+different task and retrain. Ensure the task trains in both engines, then compare:
 
 | Contract | Required equality |
 | --- | --- |
@@ -65,16 +68,16 @@ Use plausible ranges around a corrected nominal model. Use curriculum only when 
 Generic command pattern:
 
 ```bash
-python train --rl_library rsl_rl --task TRAIN_TASK physics=physx
-python play --rl_library rsl_rl --task PLAY_TASK \
+uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=physx
+uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/physx_checkpoint.pt physics=physx
-python play --rl_library rsl_rl --task PLAY_TASK \
+uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/physx_checkpoint.pt physics=newton_mjwarp
 
-python train --rl_library rsl_rl --task TRAIN_TASK physics=newton_mjwarp
-python play --rl_library rsl_rl --task PLAY_TASK \
+uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=newton_mjwarp
+uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/newton_checkpoint.pt physics=newton_mjwarp
-python play --rl_library rsl_rl --task PLAY_TASK \
+uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/newton_checkpoint.pt physics=physx
 ```
 

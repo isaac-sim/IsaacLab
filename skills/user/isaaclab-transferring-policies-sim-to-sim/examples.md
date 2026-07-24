@@ -2,7 +2,7 @@
 
 ## PhysX-Trained Franka To MJWarp
 
-Ensure the task can train in both engines, compare the exact environment contract, disable the second PhysX finger drive, match nominal actuator behavior, reproduce PP with the explicit checkpoint, and then run PN with only the physics backend changed.
+Keep one MDP for the registered task, resolve and audit each backend's `PresetCfg`, and ensure the task can train in both engines. Disable the second PhysX finger drive, match nominal actuator behavior, reproduce PP with the explicit checkpoint, and then run PN with only the physics backend changed.
 
 ## MJWarp-Trained Franka To PhysX
 

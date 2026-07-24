@@ -38,15 +38,18 @@ intentionally covered in the separate sim-to-sim how-to.
 Multi-backend Asset Importing Pipeline
 --------------------------------------
 
-Isaac Lab 3.0 provides updated URDF and MJCF importers that enable the creation of multi-physics assets.
-Assets converted from the new importers come with USD configurations for both MJWarp in Newton and PhysX.
-Note that the new converter also imports USD assets with a nested rigid body structure in comparison to
-the flat USD structure in previous versions.
+Assets provided by Isaac Lab work with both ``physics=physx`` and
+``physics=newton_mjwarp``. Many of these assets still author USD Physics and PhysX schemas; Newton
+parses the supported authored properties into its model so a separate Newton-only copy is not
+required. Confirm each property against the supported-feature and schema documentation because a
+PhysX attribute can remain present without being consumed by MJWarp.
 
-The Isaac Lab importers generate a layered asset with neutral physics, PhysX, and MuJoCo payloads when
-``run_asset_transformer`` and ``run_multi_physics_conversion`` are enabled; both converter-config
-options default to ``True``. See :doc:`/source/how-to/import_new_asset`,
-:class:`~isaaclab.sim.converters.UrdfConverterCfg`, and
+When importing a new URDF or MJCF asset, use the updated Isaac Lab importers to create a
+multi-physics asset. They generate a layered asset with neutral physics, PhysX, and MuJoCo payloads
+when ``run_asset_transformer`` and ``run_multi_physics_conversion`` are enabled; both
+converter-config options default to ``True``. The new converter produces a nested rigid-body
+structure instead of the flat USD structure from earlier releases. See
+:doc:`/source/how-to/import_new_asset`, :class:`~isaaclab.sim.converters.UrdfConverterCfg`, and
 :class:`~isaaclab.sim.converters.MjcfConverterCfg`.
 
 
@@ -54,7 +57,7 @@ Use per-solver asset configuration classes
 ------------------------------------------
 
 Asset configuration classes have been structured to allow for solver-common parameters and
-solver-specifc parameters. Put common
+solver-specific parameters. Put common
 USD Physics properties in the solver-common classes such as ``RigidBodyBaseCfg`` and
 ``JointDriveBaseCfg``. Put backend-only properties in the matching subclasses:
 
@@ -94,6 +97,34 @@ Inspect every dynamic link and contact-relevant object:
   bodies, joint types, axes, and limits.
 * Check that gravity is enabled or disabled intentionally for each rigid body. A source asset can
   carry a stale body-level override that makes the task behave differently from the scene gravity.
+
+
+Match contact and friction behavior
+-----------------------------------
+
+The same nominal friction coefficient does not reproduce the same grasp in PhysX and MJWarp.
+MJWarp often exhibits more slip because contact dimensionality, material combination, contact
+geometry and count, and the global friction-cone formulation differ. Tune the target contact path
+instead of copying PhysX friction settings numerically:
+
+* First confirm that both backends use the intended collision shapes and material bindings and
+  generate contacts at the expected locations. Also confirm that the gripper can supply the
+  intended normal force.
+* Inspect the resolved MJWarp contact dimensionality, ``condim``. ``condim=1`` is frictionless,
+  ``3`` adds tangential friction, ``4`` adds torsional friction, and ``6`` also adds rolling
+  friction. Select the smallest model that represents the required contact physics and verify that
+  the active importer and contact path preserve it.
+* Tune the material friction against measured tangential slip. PhysX static and dynamic
+  coefficients and combination modes do not map one-to-one to MJWarp's resolved coefficient.
+* Tune the global ``MJWarpSolverCfg.cone`` after the contact model and coefficients are valid.
+  ``cone="elliptic"`` can suppress grasp slip more faithfully than ``"pyramidal"`` at additional
+  cost. For a validated grasp, ``impratio=10`` is a useful starting point; recheck convergence and
+  runtime after changing either setting.
+
+Record object displacement, contact count, gripper effort, penetration, and success rate for the
+same fixed grasp. Do not increase friction, ``condim``, or ``impratio`` to hide missing contacts,
+incorrect collision geometry, or insufficient actuator effort. See :ref:`mjwarp-solver-tuning` for
+the complete tuning sequence.
 
 
 Velocity limits distinction
@@ -233,13 +264,13 @@ Run task-level smoke tests to compare behavior between PhysX and MJWarp:
 
 .. code-block:: bash
 
-   python scripts/environments/zero_agent.py \
+   uv run python scripts/environments/zero_agent.py \
        --task TASK --num_envs 4 --headless physics=physx
-   python scripts/environments/zero_agent.py \
+   uv run python scripts/environments/zero_agent.py \
        --task TASK --num_envs 4 --headless physics=newton_mjwarp
-   python scripts/environments/random_agent.py \
+   uv run python scripts/environments/random_agent.py \
        --task TASK --num_envs 4 --headless physics=physx
-   python scripts/environments/random_agent.py \
+   uv run python scripts/environments/random_agent.py \
        --task TASK --num_envs 4 --headless physics=newton_mjwarp
 
 Let each continuous agent run through multiple resets, then interrupt it. Check for non-finite
@@ -252,6 +283,34 @@ states are cached, inspect explicit collision meshes, cover every heterogeneous 
 exclude a fixed base from ground-clearance tests, store positions relative to environment origins,
 and rebuild the cache after topology or geometry changes.
 
+
+Diagnose MJWarp-only failures
+-----------------------------
+
+A scene can remain finite in PhysX but produce a NaN, overflow, or unstable contact in MJWarp.
+Treat that difference as evidence to localize, not proof that one solver setting is wrong. MJWarp
+can expose invalid or ill-conditioned asset data, unsupported features, different contact
+behavior, or insufficient solver capacity that PhysX tolerated.
+
+#. Reproduce the first failing step with one environment, a fixed seed and reset state, domain
+   randomization disabled, and the same command or action sequence in both backends.
+#. For a failure at initialization or the first step, inspect mass and inertia, collision scale,
+   reset overlap, joint and mimic topology, drive import, and unsupported features before changing
+   solver parameters.
+#. For a failure that begins at contact, inspect contact locations and counts, ``nconmax`` and
+   ``njmax`` warnings, margins, ``condim``, friction, cone choice, and extreme mass or inertia
+   ratios.
+#. For a failure under control, inspect effort and gain limits, action scale and discontinuities,
+   ``dt`` and substeps, damping, armature, and joint-limit impacts.
+#. For failures that appear only with dense scenes or many environments, compare the busiest
+   environment against the per-environment contact and constraint capacities.
+
+Enable ``debug_mode`` to inspect iteration-cap usage. Increase capacity when contacts or
+constraints overflow; sweep iterations, line-search work, or tolerance only after the asset,
+reset, controller, contact model, and capacities are valid. Keep the smallest fixed-state
+reproduction and record the first non-finite quantity so later changes can be compared one at a
+time.
+
 See also
 --------
 
@@ -261,6 +320,8 @@ See also
 * :doc:`../../schema_cfgs`
 * `Newton Simulation Tuning guide
   <https://newton-physics.github.io/newton/latest/concepts/simulation_tuning.html>`__
+* `MuJoCo-Warp Contact Tuning guide
+  <https://newton-physics.github.io/newton/latest/concepts/simulation_tuning_mujoco.html>`__
 * :doc:`../../multi_backend_architecture`
 * :doc:`/source/how-to/import_new_asset`
 * :doc:`/source/features/hydra`

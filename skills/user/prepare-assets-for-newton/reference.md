@@ -4,9 +4,10 @@ This reference follows the sections in the [asset migration guide](../../../docs
 
 ## Multi-Backend Asset Importing Pipeline
 
-- Use `scripts/tools/convert_urdf.py` or `scripts/tools/convert_mjcf.py`.
-- Keep `run_asset_transformer=True` and `run_multi_physics_conversion=True`.
-- Expect neutral physics, PhysX, and MuJoCo payloads and a nested rigid-body structure.
+- Use provided Isaac Lab assets directly in PhysX and MJWarp. Newton parses their supported authored USD Physics and PhysX properties; verify support rather than assuming every authored field is used.
+- For a new asset, use `scripts/tools/convert_urdf.py` or `scripts/tools/convert_mjcf.py`.
+- Keep `run_asset_transformer=True` and `run_multi_physics_conversion=True` so new conversions contain neutral physics, PhysX, and MuJoCo payloads.
+- Expect the new converter's nested rigid-body structure.
 
 ## Use Per-Solver Asset Configuration Classes
 
@@ -28,6 +29,19 @@ Check:
 - collision approximation, scale, margins or offsets, materials, restitution, and filters;
 - articulation root, fixed base, fixed-joint merging, joint types, axes, and limits; and
 - intentional body-level gravity behavior.
+
+## Match Contact And Friction Behavior
+
+MJWarp can slip more than PhysX under nominally similar material settings. Tune in this order:
+
+1. Verify colliders, material bindings, contact locations and counts, and available gripper force.
+2. Inspect resolved `condim`: `1` is frictionless, `3` adds tangential friction, `4` adds torsional friction, and `6` adds rolling friction.
+3. Tune material friction against measured tangential slip; do not map PhysX static/dynamic settings numerically.
+4. Compare `cone="elliptic"` with `"pyramidal"` and use `impratio=10` as a grasping starting point only after the contact model is valid.
+
+Track fixed-grasp displacement, contact count, effort, penetration, success, convergence, and
+runtime. Do not hide missing contacts, bad collision geometry, or insufficient effort with
+friction, `condim`, or `impratio`.
 
 ## Velocity Limits Distinction
 
@@ -64,14 +78,23 @@ These are starting budgets, not fidelity guarantees. Use MuJoCo contacts by defa
 ### Task-Level Smoke And Reset Validation
 
 ```bash
-python scripts/environments/zero_agent.py \
-  --task TASK --num_envs 4 --headless physics=physx
-python scripts/environments/zero_agent.py \
-  --task TASK --num_envs 4 --headless physics=newton_mjwarp
-python scripts/environments/random_agent.py \
-  --task TASK --num_envs 4 --headless physics=physx
-python scripts/environments/random_agent.py \
-  --task TASK --num_envs 4 --headless physics=newton_mjwarp
+uv run python scripts/environments/zero_agent.py --task TASK --num_envs 4 --headless physics=physx
+uv run python scripts/environments/zero_agent.py --task TASK --num_envs 4 --headless physics=newton_mjwarp
+uv run python scripts/environments/random_agent.py --task TASK --num_envs 4 --headless physics=physx
+uv run python scripts/environments/random_agent.py --task TASK --num_envs 4 --headless physics=newton_mjwarp
 ```
 
 Let each agent run through multiple resets. Reject robot-object and robot-support penetration, impossible mimic states, and invalid geometry before stepping. For cached valid states, inspect explicit colliders, cover each heterogeneous group, exclude fixed bases from ground-clearance tests, use positions relative to environment origins, and rebuild after topology or geometry changes.
+
+## Diagnose MJWarp-Only Failures
+
+Reproduce the first bad step in one environment with a fixed state, no randomization, and identical
+actions. Classify it before tuning:
+
+- initialization or first step: asset data, scale, reset overlap, topology, drives, unsupported features;
+- contact onset: contact locations/counts, capacity warnings, margins, `condim`, friction, cone, mass ratios;
+- controlled motion: effort, gains, action scale, `dt`, substeps, damping, armature, limits; or
+- dense scenes: busiest-environment `nconmax` and `njmax` demand.
+
+Use `debug_mode` for iteration-cap evidence. Raise overflowing capacity first and change
+convergence work only after the model, reset, controller, contact path, and capacities are valid.

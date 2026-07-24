@@ -1,8 +1,19 @@
 # Newton/MJWarp Asset Migration Examples
 
+## Existing Isaac Lab Asset
+
+Use the asset in both backends without creating a Newton-only copy. Newton parses supported
+authored USD Physics and PhysX properties; audit unsupported or ignored fields before relying on
+them. Use the multi-physics importers when converting a new URDF or MJCF asset.
+
 ## Placeholder Inertia
 
 Audit and correct authored mass, COM, inertia, units, and frames. Reconvert when needed, then rerun the exact task. Do not compensate with solver iterations.
+
+## Excessive Grasp Slip
+
+Verify collision geometry, contacts, material bindings, and gripper force. Inspect `condim`, tune
+material friction, then compare the global cone and `impratio` against fixed-grasp metrics.
 
 ## Velocity Limit Is Exceeded
 
@@ -19,3 +30,9 @@ Tune armature, stiffness, and damping together from an open-loop step response. 
 ## Selecting A Solver Profile
 
 Choose the nearest documented profile, keep the initial convergence defaults, enable `debug_mode`, and size `njmax` and `nconmax` for the task. Use Newton contacts only when the task needs that collision pipeline.
+
+## MJWarp-Only NaN
+
+Reproduce the first failing step with one environment, fixed state and actions, and no
+randomization. Classify model/reset, contact/capacity, control, or dense-scene causes before
+changing convergence settings.

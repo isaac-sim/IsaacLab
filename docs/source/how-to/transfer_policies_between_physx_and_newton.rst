@@ -31,10 +31,17 @@ sim-to-real deployment.
 Task readiness and checkpoint compatibility
 -------------------------------------------
 
-Before attempting sim-to-sim transfer, we recommend first ensuring that the same task
-can be successfully trained in both physics engines.
-Once achieved, resolve both task variants and compare the policy interface.
-The following values must match exactly:
+The same registered task should describe the same Markov decision process (MDP) in both physics
+engines. Selecting ``physics=physx`` or ``physics=newton_mjwarp`` resolves a backend alternative
+through :class:`~isaaclab_tasks.utils.PresetCfg`; use that mechanism for intentional
+backend-specific physics, asset, and control configuration. A physics preset should not silently
+change policy-facing action, observation, reward, termination, command, or reset terms. If a
+``PresetCfg`` used by an MDP term does select different behavior, treat the resolved configurations
+as different tasks: restore one checkpoint contract or retrain for the new contract.
+
+Before attempting transfer, ensure that the same task can be trained successfully in both engines.
+Then resolve each backend configuration and audit the policy interface. The following values must
+match exactly:
 
 .. list-table::
    :header-rows: 1
@@ -195,16 +202,16 @@ pattern is:
 
 .. code-block:: bash
 
-   python train --rl_library rsl_rl --task TRAIN_TASK physics=physx
-   python play --rl_library rsl_rl --task PLAY_TASK \
+   uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=physx
+   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /absolute/path/to/physx_checkpoint.pt physics=physx
-   python play --rl_library rsl_rl --task PLAY_TASK \
+   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /absolute/path/to/physx_checkpoint.pt physics=newton_mjwarp
 
-   python train --rl_library rsl_rl --task TRAIN_TASK physics=newton_mjwarp
-   python play --rl_library rsl_rl --task PLAY_TASK \
+   uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=newton_mjwarp
+   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /absolute/path/to/newton_checkpoint.pt physics=newton_mjwarp
-   python play --rl_library rsl_rl --task PLAY_TASK \
+   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /absolute/path/to/newton_checkpoint.pt physics=physx
 
 
@@ -221,7 +228,7 @@ in MJWarp:
 .. code-block:: bash
 
    # Train the PhysX source policy.
-   python train --rl_library rsl_rl \
+   uv run isaaclab train --rl_library rsl_rl \
        --task Isaac-Lift-Franka \
        --run_name physx_source \
        physics=physx
@@ -230,14 +237,14 @@ in MJWarp:
    PHYSX_CHECKPOINT="/absolute/path/to/logs/rsl_rl/dexsuite_franka/RUN_DIRECTORY/model_ITERATION.pt"
 
    # PP: reproduce the PhysX source baseline.
-   python play --rl_library rsl_rl \
+   uv run isaaclab play --rl_library rsl_rl \
        --task Isaac-Lift-Franka-Play \
        --num_envs 32 \
        --checkpoint "$PHYSX_CHECKPOINT" \
        physics=physx
 
    # PN: deploy the PhysX-trained checkpoint in MJWarp.
-   python play --rl_library rsl_rl \
+   uv run isaaclab play --rl_library rsl_rl \
        --task Isaac-Lift-Franka-Play \
        --num_envs 32 \
        --checkpoint "$PHYSX_CHECKPOINT" \
@@ -249,7 +256,7 @@ PhysX:
 .. code-block:: bash
 
    # Train the MJWarp source policy.
-   python train --rl_library rsl_rl \
+   uv run isaaclab train --rl_library rsl_rl \
        --task Isaac-Lift-Franka \
        --run_name mjwarp_source \
        physics=newton_mjwarp
@@ -258,14 +265,14 @@ PhysX:
    MJWARP_CHECKPOINT="/absolute/path/to/logs/rsl_rl/dexsuite_franka/RUN_DIRECTORY/model_ITERATION.pt"
 
    # NN: reproduce the MJWarp source baseline.
-   python play --rl_library rsl_rl \
+   uv run isaaclab play --rl_library rsl_rl \
        --task Isaac-Lift-Franka-Play \
        --num_envs 32 \
        --checkpoint "$MJWARP_CHECKPOINT" \
        physics=newton_mjwarp
 
    # NP: deploy the MJWarp-trained checkpoint in PhysX.
-   python play --rl_library rsl_rl \
+   uv run isaaclab play --rl_library rsl_rl \
        --task Isaac-Lift-Franka-Play \
        --num_envs 32 \
        --checkpoint "$MJWARP_CHECKPOINT" \
