@@ -157,6 +157,7 @@ _INSTALL_MODULE = "isaaclab.cli.commands.install"
 # Functions that must be mocked to prevent actual system calls.
 _PATCHES = [
     f"{_INSTALL_MODULE}._install_system_deps",
+    f"{_INSTALL_MODULE}._arm_cmake_policy_compatibility",
     f"{_INSTALL_MODULE}._install_isaaclab_submodules",
     f"{_INSTALL_MODULE}._install_extra_feature",
     f"{_INSTALL_MODULE}._install_optional_submodule_extra_dependencies",
@@ -210,6 +211,10 @@ class TestCommandInstallDispatch:
                 p.stop()
 
         return mocks
+
+    def test_wraps_dependency_installs_with_arm_cmake_compatibility(self):
+        mocks = self._run("all")
+        mocks["_arm_cmake_policy_compatibility"].assert_called_once_with()
 
     # --- "all" ---
 
