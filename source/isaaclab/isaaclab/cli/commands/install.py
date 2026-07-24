@@ -7,6 +7,8 @@ import os
 import re
 import shutil
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import tomllib
@@ -24,6 +26,33 @@ from ..utils import (
     run_command,
 )
 from .misc import command_vscode_settings
+
+
+@contextmanager
+def _arm_cmake_policy_compatibility() -> Iterator[None]:
+    """Allow legacy CMake projects to configure during ARM dependency installs.
+
+    CMake 4 removed compatibility with policy versions older than 3.5. Some
+    transitive ARM dependencies, including ``nlopt==2.6.2`` and
+    ``egl-probe==1.0.2``, still declare an older minimum. CMake provides this
+    environment variable specifically so users can configure such unmaintained
+    third-party projects without patching their sources.
+    """
+    if not is_arm():
+        yield
+        return
+
+    variable = "CMAKE_POLICY_VERSION_MINIMUM"
+    saved_value = os.environ.get(variable)
+    os.environ[variable] = "3.5"
+    print_info(f"ARM install sandbox: temporarily setting {variable}=3.5 for legacy dependency builds.")
+    try:
+        yield
+    finally:
+        if saved_value is None:
+            os.environ.pop(variable, None)
+        else:
+            os.environ[variable] = saved_value
 
 
 def _install_system_deps() -> None:
@@ -1031,67 +1060,68 @@ def command_install(install_type: str = "all") -> None:
     # leave new dangling symlinks in Isaac Sim's prebundles (nvbugs 6343978).
     dangling_symlinks_before = _find_dangling_prebundle_symlinks()
 
-    try:
-        # Upgrade pip first to avoid compatibility issues (skip when using uv).
-        if not using_uv:
-            print_info("Upgrading pip...")
-            run_command(pip_cmd + ["install", "--upgrade", "pip"])
+    with _arm_cmake_policy_compatibility():
+        try:
+            # Upgrade pip first to avoid compatibility issues (skip when using uv).
+            if not using_uv:
+                print_info("Upgrading pip...")
+                run_command(pip_cmd + ["install", "--upgrade", "pip"])
 
-        # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
-        run_command(pip_cmd + ["install", "setuptools<82.0.0"])
+            # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
+            run_command(pip_cmd + ["install", "setuptools<82.0.0"])
 
-        # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
-        _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
+            # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
+            _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
 
-        # Install Isaac Sim if requested.
-        if install_isaacsim:
-            _install_isaacsim()
+            # Install Isaac Sim if requested.
+            if install_isaacsim:
+                _install_isaacsim()
 
-        # Install pytorch (version based on arch).
-        _ensure_cuda_torch()
+            # Install pytorch (version based on arch).
+            _ensure_cuda_torch()
 
-        # Install all submodules (core set + any explicitly requested optional ones).
-        _install_isaaclab_submodules(submodules_to_install)
+            # Install all submodules (core set + any explicitly requested optional ones).
+            _install_isaaclab_submodules(submodules_to_install)
 
-        # Install requested optional submodule dependency extras.
-        if optional_submodule_extra_dependencies:
-            print_info("Installing optional submodule dependencies...")
-            for submodule_name, selector in optional_submodule_extra_dependencies:
-                _install_optional_submodule_extra_dependencies(submodule_name, selector)
+            # Install requested optional submodule dependency extras.
+            if optional_submodule_extra_dependencies:
+                print_info("Installing optional submodule dependencies...")
+                for submodule_name, selector in optional_submodule_extra_dependencies:
+                    _install_optional_submodule_extra_dependencies(submodule_name, selector)
 
-        # Install requested extra feature dependencies.
-        if extra_features:
-            print_info("Installing extra feature dependencies...")
-            for feature_name, selector in extra_features:
-                _install_extra_feature(feature_name, selector)
+            # Install requested extra feature dependencies.
+            if extra_features:
+                print_info("Installing extra feature dependencies...")
+                for feature_name, selector in extra_features:
+                    _install_extra_feature(feature_name, selector)
 
-        # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
-        # Can prevent that from happening.
-        _ensure_cuda_torch()
+            # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
+            # Can prevent that from happening.
+            _ensure_cuda_torch()
 
-        # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
-        # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
-        # ``pip install -e source/isaaclab`` to be silently skipped.
-        _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
+            # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
+            # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
+            # ``pip install -e source/isaaclab`` to be silently skipped.
+            _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
 
-        # Repoint prebundled packages in Isaac Sim to the environment's copies so
-        # the active venv/conda versions are always loaded regardless of PYTHONPATH
-        # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
-        _repoint_prebundle_packages()
+            # Repoint prebundled packages in Isaac Sim to the environment's copies so
+            # the active venv/conda versions are always loaded regardless of PYTHONPATH
+            # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
+            _repoint_prebundle_packages()
 
-        # Fail loud if any pip operation above broke Isaac Sim's cross-extension
-        # symlink farms. Prebundle deletions on their own are routine (pip
-        # replaces those packages in site-packages, which shadows the prebundle
-        # at runtime); only newly dangling symlinks break extension startup.
-        _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
+            # Fail loud if any pip operation above broke Isaac Sim's cross-extension
+            # symlink farms. Prebundle deletions on their own are routine (pip
+            # replaces those packages in site-packages, which shadows the prebundle
+            # at runtime); only newly dangling symlinks break extension startup.
+            _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
 
-    finally:
-        # Restore LD_PRELOAD if we cleared it.
-        if saved_ld_preload:
-            os.environ["LD_PRELOAD"] = saved_ld_preload
-        # Restore PYTHONPATH if we filtered it.
-        if saved_pythonpath is not None:
-            os.environ["PYTHONPATH"] = saved_pythonpath
+        finally:
+            # Restore LD_PRELOAD if we cleared it.
+            if saved_ld_preload:
+                os.environ["LD_PRELOAD"] = saved_ld_preload
+            # Restore PYTHONPATH if we filtered it.
+            if saved_pythonpath is not None:
+                os.environ["PYTHONPATH"] = saved_pythonpath
 
     # Install vscode update unless we're in docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
