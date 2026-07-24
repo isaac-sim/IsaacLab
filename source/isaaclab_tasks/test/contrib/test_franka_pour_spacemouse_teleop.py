@@ -113,10 +113,12 @@ def test_teleop_config_finalizes_without_trajectory_controller_or_rl_distributio
 
     import isaaclab_tasks  # noqa: F401
 
-    cfg = FrankaPourEnvCfg_TELEOP().finalize()
+    teleop_cfg = FrankaPourEnvCfg_TELEOP()
+    assert str(teleop_cfg.actions.arm_action.class_type).endswith(":CurriculumJointPositionAction")
+    cfg = teleop_cfg.finalize()
     task_spec = gym.spec("Isaac-Pour-Franka-Teleop-v0")
 
-    assert cfg.actions.arm_action.class_type.__name__ == "CurriculumJointPositionAction"
+    assert str(cfg.actions.arm_action.class_type).endswith(":CurriculumJointPositionAction")
     assert cfg.actions.gripper_action.force_open_before_phase_stage == -1
     assert cfg.actions.gripper_action.limit_to_preload is False
     assert cfg.actions.gripper_action.default_position == pytest.approx(cfg.gripper_open_pos)
