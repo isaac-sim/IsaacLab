@@ -123,7 +123,6 @@ class Camera(SensorBase):
 
     UNSUPPORTED_TYPES: set[str] = {
         "instance_id_segmentation",
-        "instance_segmentation",
         "bounding_box_2d_tight",
         "bounding_box_2d_loose",
         "bounding_box_3d",
