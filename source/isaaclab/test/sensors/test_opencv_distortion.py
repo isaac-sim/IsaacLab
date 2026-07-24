@@ -189,8 +189,6 @@ def _read_back_intrinsics(cam, width, height):
     fake = Camera.__new__(Camera)
     fake._sensor_prims = [cam]
     fake._device = "cpu"
-    fake._warned_distortion_image_sizes = set()
-    fake._warned_distortion_missing_intrinsics = False
     fake.cfg = SimpleNamespace(height=height, width=width)
     fake._resolve_env_ids_np = lambda env_ids: np.array([0])
     fake._update_camera_state = _capture_state
@@ -267,8 +265,6 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     fake = Camera.__new__(Camera)
     fake._sensor_prims = [cam_a, cam_b]
     fake._device = "cpu"
-    fake._warned_distortion_image_sizes = set()
-    fake._warned_distortion_missing_intrinsics = False
     fake.cfg = SimpleNamespace(height=height, width=width)
     fake._resolve_env_ids_np = lambda env_ids: np.array([0, 1])
     fake._update_camera_state = lambda **kwargs: None
@@ -280,9 +276,20 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     fake._renderer = None
     fake._render_data = None
 
-    Camera._update_intrinsic_matrices(fake)
+    messages: list[str] = []
+    handler = logging.Handler()
+    handler.emit = lambda record: messages.append(record.getMessage())
+    cam_logger = logging.getLogger("isaaclab.sensors.camera.camera")
+    cam_logger.addHandler(handler)
+    try:
+        Camera._update_intrinsic_matrices(fake)
+    finally:
+        cam_logger.removeHandler(handler)
 
-    assert fake._warned_distortion_image_sizes == {(640, 480), (1280, 720)}
+    mismatch_warnings = [message for message in messages if "imageSize" in message]
+    assert len(mismatch_warnings) == 2
+    assert any("(640, 480)" in message for message in mismatch_warnings)
+    assert any("(1280, 720)" in message for message in mismatch_warnings)
 
 
 def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch():
@@ -306,8 +313,6 @@ def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch():
     fake._sensor_prims = [distortion_cam, plain_cam]
     fake._device = "cpu"
     fake.cfg = SimpleNamespace(height=height, width=width)
-    fake._warned_distortion_image_sizes = set()
-    fake._warned_distortion_missing_intrinsics = False
     fake._resolve_env_ids_np = lambda env_ids: np.array([0, 1])
     fake._update_camera_state = _capture_state
     # attributes touched by ``__del__``/``_clear_callbacks`` when the fake object is garbage collected

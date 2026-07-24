@@ -204,10 +204,6 @@ class Camera(SensorBase):
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
-        # one-time guards so the lens-distortion readback warnings fire at most once
-        # (image-size mismatches keyed by authored size)
-        self._warned_distortion_image_sizes: set[tuple[int, int]] = set()
-        self._warned_distortion_missing_intrinsics: bool = False
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
         # Renderer and render data — assigned in _initialize_impl.
@@ -663,8 +659,7 @@ class Camera(SensorBase):
         Returns the calibrated ``(fx, fy, cx, cy)`` that the RTX/OVRTX renderer projects through when
         the prim carries a complete OpenCV lens-distortion model, otherwise ``None`` so the caller can
         fall back to the focal-length/aperture projection. Unlike that projection, these intrinsics may
-        be non-square (``fx != fy``) or off-center. A missing-intrinsics or image-size mismatch warns at
-        most once per camera.
+        be non-square (``fx != fy``) or off-center.
 
         Args:
             prim: The camera prim to read the authored intrinsics from.
@@ -683,21 +678,19 @@ class Camera(SensorBase):
         intrinsics = tuple(prim.GetAttribute(f"{prefix}:{name}").Get() for name in ("fx", "fy", "cx", "cy"))
         if None in intrinsics:
             # a model token without intrinsics falls back to the focal-length/aperture projection
-            if not self._warned_distortion_missing_intrinsics:
-                logger.warning(
-                    "Camera prim '%s' declares lens-distortion model '%s' but is missing one or more"
-                    " fx/fy/cx/cy intrinsics; falling back to the focal-length/aperture projection.",
-                    prim.GetPath(),
-                    distortion_model,
-                )
-                self._warned_distortion_missing_intrinsics = True
+            logger.warning(
+                "Camera prim '%s' declares lens-distortion model '%s' but is missing one or more"
+                " fx/fy/cx/cy intrinsics; falling back to the focal-length/aperture projection.",
+                prim.GetPath(),
+                distortion_model,
+            )
             return None
-        # the intrinsics are reported in the calibrated pixel space; warn once per authored size if the
-        # render resolution differs, since the matrix will not match the rendered pixels.
+        # the intrinsics are reported in the calibrated pixel space; warn if the render resolution
+        # differs, since the matrix will not match the rendered pixels.
         image_size = prim.GetAttribute(f"{prefix}:imageSize").Get()
         if image_size is not None:
             authored_size = (int(image_size[0]), int(image_size[1]))
-            if authored_size != (width, height) and authored_size not in self._warned_distortion_image_sizes:
+            if authored_size != (width, height):
                 logger.warning(
                     "Camera prim '%s' (env %d) lens-distortion 'imageSize' %s does not match the render"
                     " resolution (%d, %d). The reported intrinsic matrix is in the calibrated pixel space.",
@@ -707,7 +700,6 @@ class Camera(SensorBase):
                     width,
                     height,
                 )
-                self._warned_distortion_image_sizes.add(authored_size)
         return tuple(float(value) for value in intrinsics)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int] | wp.array | None = None):
