@@ -16,9 +16,19 @@ running the following command:
       .. note::
          Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/list_envs.py --keyword <search_term>
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -39,9 +49,19 @@ To also see the available presets for each environment, pass ``--show_presets``:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/list_envs.py --show_presets
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -133,8 +153,8 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  |                             |                                                                         | ``newton_kamino``            |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-presets|   | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
-    |                  |                             | and perceptive inputs. Select data type via ``presets=``. Requires      | ``physx``,                   |
-    |                  |                             | running with ``--enable_cameras``.                                      | ``isaacsim_physx``,          |
+    |                  |                             | and perceptive inputs. Select data type via ``presets=``.               | ``physx``,                   |
+    |                  |                             |                                                                         | ``isaacsim_physx``,          |
     |                  |                             |                                                                         | ``newton_mjwarp``,           |
     |                  |                             |                                                                         | ``ovphysx``                  |
     |                  |                             |                                                                         | **renderer=**                |
@@ -148,8 +168,8 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-link|      | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             | from raw RGB/depth observations or features extracted by pre-trained    | ``physx``,                   |
-    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``. Requires      | ``newton_mjwarp``            |
-    |                  |                             | running with ``--enable_cameras``.                                      | **presets=** ``rgb``,        |
+    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``.               | ``newton_mjwarp``            |
+    |                  |                             |                                                                         | **presets=** ``rgb``,        |
     |                  |                             |                                                                         | ``depth``, ``resnet18``,     |
     |                  |                             |                                                                         | ``theia_tiny``               |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
@@ -234,7 +254,7 @@ for the lift-cube environment:
     |                         | |cube-shadow-lstm-link|      |                                                                             |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  | **physics=** ``physx``,      |
-    |                         |                              | Requires running with ``--enable_cameras``.                                 | ``newton_mjwarp``            |
+    |                         |                              |                                                                             | ``newton_mjwarp``            |
     |                         |                              |                                                                             | **renderer=**                |
     |                         |                              |                                                                             | ``isaacsim_rtx``,            |
     |                         |                              |                                                                             | ``newton_renderer``,         |
@@ -521,7 +541,8 @@ Environments based on legged locomotion tasks.
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot            | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
@@ -529,7 +550,8 @@ Environments based on legged locomotion tasks.
     |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     |                              |                                              |                                                                              | (Manager-based only)         |
     |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
@@ -538,25 +560,33 @@ Environments based on legged locomotion tasks.
     |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-d|    | |velocity-rough-anymal-d-link|               | Track a velocity command on rough terrain with the Anymal D robot            | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
+    |                              | |velocity-rough-cassie-link|                 | Track a velocity command on rough terrain with the Cassie robot              | **physics=** ``physx``,      |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-a1|   | |velocity-flat-unitree-a1-link|              | Track a velocity command on flat terrain with the Unitree A1 robot           | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-a1|  | |velocity-rough-unitree-a1-link|             | Track a velocity command on rough terrain with the Unitree A1 robot          | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-go1|  | |velocity-flat-unitree-go1-link|             | Track a velocity command on flat terrain with the Unitree Go1 robot          | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-go1| | |velocity-rough-unitree-go1-link|            | Track a velocity command on rough terrain with the Unitree Go1 robot         | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-go2|  | |velocity-flat-unitree-go2-link|             | Track a velocity command on flat terrain with the Unitree Go2 robot          | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-go2| | |velocity-rough-unitree-go2-link|            | Track a velocity command on rough terrain with the Unitree Go2 robot         | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-spot|         | |velocity-flat-spot-link|                    | Track a velocity command on flat terrain with the Boston Dynamics Spot robot | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
@@ -565,13 +595,15 @@ Environments based on legged locomotion tasks.
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-h1|          | |velocity-rough-h1-link|                     | Track a velocity command on rough terrain with the Unitree H1 robot          | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-g1|           | |velocity-flat-g1-link|                      | Track a velocity command on flat terrain with the Unitree G1 robot           | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-g1|          | |velocity-rough-g1-link|                     | Track a velocity command on rough terrain with the Unitree G1 robot          | **physics=** ``physx``,      |
-    |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |dr-legs|                    | |dr-legs-hold-pose-link|                     | Hold a target pose or walk with the Disney Research Legs robot               | **physics=**                 |
     |                              |                                              |                                                                              | ``newton_kamino``            |
@@ -595,6 +627,7 @@ Environments based on legged locomotion tasks.
 
 .. |velocity-flat-anymal-d-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-AnymalD <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/flat_env_cfg.py>`
 .. |velocity-rough-anymal-d-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-AnymalD <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/rough_env_cfg.py>`
+.. |velocity-rough-cassie-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-Cassie <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/cassie/rough_env_cfg.py>`
 
 .. |velocity-flat-unitree-a1-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-UnitreeA1 <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/flat_env_cfg.py>`
 .. |velocity-rough-unitree-a1-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Rough-UnitreeA1 <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/rough_env_cfg.py>`
@@ -616,8 +649,8 @@ Environments based on legged locomotion tasks.
 .. |dr-legs-hold-pose-link| replace:: :isaaclab-source:`IsaacContrib-DrLegs-HoldPose <source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/hold_pose_env_cfg.py>`
 .. |dr-legs-walk-link| replace:: :isaaclab-source:`IsaacContrib-DrLegs-Walk <source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/walk_env_cfg.py>`
 
-.. |velocity-flat-digit-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-Digit <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/flat_env_cfg.py>`
-.. |velocity-rough-digit-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-Digit <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/rough_env_cfg.py>`
+.. |velocity-flat-digit-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-Digit <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/digit/flat_env_cfg.py>`
+.. |velocity-rough-digit-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Rough-Digit <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/digit/rough_env_cfg.py>`
 .. |tracking-loco-manip-digit-link| replace:: :isaaclab-source:`IsaacContrib-Tracking-LocoManip-Digit <source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_tracking/config/digit/loco_manip_env_cfg.py>`
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
@@ -892,743 +925,614 @@ Environments based on fixed-arm manipulation tasks.
 Comprehensive List of Environments
 ==================================
 
-For environments that have a different task name listed under ``Inference Task Name``, please use the Inference Task Name
-provided when running ``play.py`` or any inferencing workflows. These tasks provide more suitable configurations for
-inferencing, including reading from an already trained checkpoint and disabling runtime perturbations used for training.
+To run inference on a trained task, pass its task name to ``play.py``. The play script applies the environment
+configuration's ``play_mode`` overrides automatically, providing configurations more suitable for inferencing,
+including disabling runtime perturbations used for training.
 
 .. START-AUTO-GENERATED: comprehensive-environment-list
 
 .. list-table::
-    :widths: 18 17 10 22 33
+    :widths: 22 12 30 36
 
     * - **Task Name**
-      - **Inference Task Name**
       - **Workflow**
       - **RL Library**
       - **Presets**
     * - Isaac-Ant
-      -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Ant-Direct
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Ant-Direct-Warp-v0
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Ant-Warp-v0
-      -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
     * - Isaac-Cartpole
-      -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Camera
-      -
       - Manager Based
       - **rl_games** (PPO, FEATURE), **rsl_rl** (PPO, FEATURE)
       - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo``, ``depth``, ``resnet18``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``, ``theia_tiny``
     * - Isaac-Cartpole-Camera-Direct
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo``, ``depth``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Cartpole-Direct
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Direct-Warp-v0
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
     * - Isaac-Cartpole-Warp-v0
-      -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
     * - Isaac-Fourbar-Pole-Swingup
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_kamino``
     * - Isaac-Humanoid
-      -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Humanoid-Direct
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``, ``physx``
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Humanoid-Direct-Warp-v0
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Humanoid-Warp-v0
-      -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
     * - Isaac-Lift-Cloth-Franka
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp_vbd``
     * - Isaac-Lift-Cube-Franka
-      - Isaac-Lift-Cube-Franka-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
     * - Isaac-Lift-Franka
-      - Isaac-Lift-Franka-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **presets=** ``cube``, ``shapes``
     * - Isaac-Lift-KukaAllegro
-      - Isaac-Lift-KukaAllegro-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **presets=** ``cube``, ``shapes``
     * - Isaac-Lift-KukaAllegro-Camera
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``
     * - Isaac-Lift-Soft-Franka
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp_vbd``, ``newton_mjwarp_vbd_proxy``, ``physx``
     * - Isaac-Open-Drawer-Franka
-      - Isaac-Open-Drawer-Franka-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Open-Drawer-Franka-Direct
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``, ``physx``
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Pendulum-Direct
-      -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       -
     * - Isaac-Reach-Franka
-      - Isaac-Reach-Franka-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Reach-Franka-Newton-IK-Rel
-      - Isaac-Reach-Franka-Newton-IK-Rel-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - Isaac-Reach-Franka-OSC
-      - Isaac-Reach-Franka-OSC-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Reach-Franka-Warp-v0
-      - Isaac-Reach-Franka-Warp-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Reach-UR10
-      - Isaac-Reach-UR10-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Reorient-Cube-Allegro
-      - Isaac-Reorient-Cube-Allegro-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Reorient-Cube-Allegro-Direct
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Cube-Allegro-Direct-Warp-v0
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Reorient-Cube-Shadow-Camera-Direct
-      - Isaac-Reorient-Cube-Shadow-Camera-Direct-Play
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Cube-Shadow-Direct
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
-      -
       - Direct
-      - **rl_games** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Franka
-      - Isaac-Reorient-Franka-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **presets=** ``cube``, ``shapes``
     * - Isaac-Reorient-KukaAllegro
-      - Isaac-Reorient-KukaAllegro-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **presets=** ``cube``, ``shapes``
     * - Isaac-Reorient-KukaAllegro-Camera
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``
     * - Isaac-Shadow-Handover-Direct
-      -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-AnymalB-Warp-v0
-      - Isaac-Velocity-Flat-AnymalB-Warp-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Velocity-Flat-AnymalC-Warp-v0
-      - Isaac-Velocity-Flat-AnymalC-Warp-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Velocity-Flat-AnymalD
-      - Isaac-Velocity-Flat-AnymalD-Play
       - Manager Based
       - **rsl_rl** (PPO, DISTILLATION, DISTILLATION_RECURRENT, RECURRENT), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Flat-AnymalD-Warp-v0
-      - Isaac-Velocity-Flat-AnymalD-Warp-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Velocity-Flat-Cassie
-      - Isaac-Velocity-Flat-Cassie-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Cassie-Warp-v0
-      - Isaac-Velocity-Flat-Cassie-Warp-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Flat-Digit
-      - Isaac-Velocity-Flat-Digit-Play
-      - Manager Based
-      - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Flat-G1
-      - Isaac-Velocity-Flat-G1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-G1-Warp-v0
-      - Isaac-Velocity-Flat-G1-Warp-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Velocity-Flat-H1
-      - Isaac-Velocity-Flat-H1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-H1-Warp-v0
-      - Isaac-Velocity-Flat-H1-Warp-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Velocity-Flat-Spot
-      - Isaac-Velocity-Flat-Spot-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-UnitreeA1-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeA1-Warp-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
     * - Isaac-Velocity-Flat-UnitreeGo1-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeGo1-Warp-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Velocity-Flat-UnitreeGo2
-      - Isaac-Velocity-Flat-UnitreeGo2-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-UnitreeGo2-Warp-v0
-      - Isaac-Velocity-Flat-UnitreeGo2-Warp-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Velocity-Rough-AnymalD
-      - Isaac-Velocity-Rough-AnymalD-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Rough-Cassie
-      - Isaac-Velocity-Rough-Cassie-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Velocity-Rough-Digit
-      - Isaac-Velocity-Rough-Digit-Play
-      - Manager Based
-      - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Rough-G1
-      - Isaac-Velocity-Rough-G1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Rough-H1
-      - Isaac-Velocity-Rough-H1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Rough-UnitreeGo2
-      - Isaac-Velocity-Rough-UnitreeGo2-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - IsaacContrib-Assemble-Trocar-G129-Dex3
-      - IsaacContrib-Assemble-Trocar-G129-Dex3-Eval
       - Manager Based
       - **rlinf** (PPO)
       -
     * - IsaacContrib-AutoMate-Assembly-Direct
-      -
       - Direct
       - **rl_games** (PPO)
       -
     * - IsaacContrib-AutoMate-Disassembly-Direct
-      -
       - Direct
       - **rl_games** (PPO)
       -
     * - IsaacContrib-Cartpole-Camera-Showcase-Direct
-      -
       - Direct
       - **skrl** (PPO, BOX_BOX, BOX_DISCRETE, BOX_MULTIDISCRETE, DICT_BOX, DICT_DISCRETE, DICT_MULTIDISCRETE, TUPLE_BOX, TUPLE_DISCRETE, TUPLE_MULTIDISCRETE)
       - **presets=** ``box_box``, ``box_discrete``, ``box_multidiscrete``, ``dict_box``, ``dict_discrete``, ``dict_multidiscrete``, ``tuple_box``, ``tuple_discrete``, ``tuple_multidiscrete``
     * - IsaacContrib-Cartpole-Showcase-Direct
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
       - Direct
       - **skrl** (PPO, BOX_BOX, BOX_DISCRETE, BOX_MULTIDISCRETE, DICT_BOX, DICT_DISCRETE, DICT_MULTIDISCRETE, DISCRETE_BOX, DISCRETE_DISCRETE, DISCRETE_MULTIDISCRETE, MULTIDISCRETE_BOX, MULTIDISCRETE_DISCRETE, MULTIDISCRETE_MULTIDISCRETE, TUPLE_BOX, TUPLE_DISCRETE, TUPLE_MULTIDISCRETE)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **presets=** ``box_box``, ``box_discrete``, ``box_multidiscrete``, ``dict_box``, ``dict_discrete``, ``dict_multidiscrete``, ``discrete_box``, ``discrete_discrete``, ``discrete_multidiscrete``, ``multidiscrete_box``, ``multidiscrete_discrete``, ``multidiscrete_multidiscrete``, ``tuple_box``, ``tuple_discrete``, ``tuple_multidiscrete``
     * - IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav
-      - IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-GearAssembly-UR10e-2F140
-      - IsaacContrib-Deploy-GearAssembly-UR10e-2F140-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-GearAssembly-UR10e-2F85
-      - IsaacContrib-Deploy-GearAssembly-UR10e-2F85-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-Reach-Rizon4s
-      - IsaacContrib-Deploy-Reach-Rizon4s-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-Reach-UR10e
-      - IsaacContrib-Deploy-Reach-UR10e-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Deploy-Reach-UR10e-ROS-Inference
-      -
       - Manager Based
       - **rsl_rl** (PPO)
       -
     * - IsaacContrib-DrLegs-HoldPose
-      -
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_kamino``
+      - **physics=** ``newton_kamino``, ``physx``
     * - IsaacContrib-DrLegs-Walk
-      -
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_kamino``
+      - **physics=** ``newton_kamino``, ``physx``
     * - IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Factory-GearMesh-Direct
-      -
       - Direct
       - **rl_games** (PPO)
       -
     * - IsaacContrib-Factory-NutThread-Direct
-      -
       - Direct
       - **rl_games** (PPO)
       -
     * - IsaacContrib-Factory-PegInsert-Direct
-      -
       - Direct
       - **rl_games** (PPO)
       -
     * - IsaacContrib-Forge-GearMesh-Direct
-      -
       - Direct
       - **rl_games** (PPO)
       -
     * - IsaacContrib-Forge-NutThread-Direct
-      -
       - Direct
       - **rl_games** (PPO)
       -
     * - IsaacContrib-Forge-PegInsert-Direct
-      -
       - Direct
       - **rl_games** (PPO)
       -
     * - IsaacContrib-Humanoid-AMP-Dance-Direct
-      -
       - Direct
       - **skrl** (AMP)
       -
     * - IsaacContrib-Humanoid-AMP-Run-Direct
-      -
       - Direct
       - **skrl** (AMP)
       -
     * - IsaacContrib-Humanoid-AMP-Walk-Direct
-      -
       - Direct
       - **skrl** (AMP)
       -
     * - IsaacContrib-Lift-Cube-Franka-IK-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Lift-Cube-Franka-IK-Rel
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Lift-Cube-OpenArm
-      - IsaacContrib-Lift-Cube-OpenArm-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
     * - IsaacContrib-Navigation-3DObstacles-ARL-Robot-1
-      - IsaacContrib-Navigation-3DObstacles-ARL-Robot-1-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - IsaacContrib-Navigation-Flat-AnymalC
-      - IsaacContrib-Navigation-Flat-AnymalC-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - IsaacContrib-NutPour-GR1T2-Pink-IK-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Open-Drawer-Franka-IK-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Open-Drawer-Franka-IK-Rel
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Open-Drawer-OpenArm
-      - IsaacContrib-Open-Drawer-OpenArm-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
     * - IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-PickPlace-G1-InspireFTP-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-PickPlace-GR1T2-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-PickPlace-Locomanipulation-G1-Abs
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Reach-Franka-IK-Abs
-      -
       - Manager Based
       -
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Reach-Franka-IK-Rel
-      -
       - Manager Based
       -
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Reach-OpenArm
-      - IsaacContrib-Reach-OpenArm-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - IsaacContrib-Reach-OpenArmBi
-      - IsaacContrib-Reach-OpenArmBi-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
     * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Franka
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Abs
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor
+      - Manager Based
       -
+      - | **physics=** ``newton_mjwarp``, ``physx``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
+    * - IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position
+      - Manager Based
+      -
+      - | **physics=** ``newton_mjwarp``, ``physx``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
+    * - IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow
       - Manager Based
       -
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Instance-Randomize-Franka
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel
-      -
       - Manager Based
       -
       -
     * - IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-SO101-IK-Abs-v0
+      - Manager Based
       -
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-SO101-v0
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel
-      -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1
-      - IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - IsaacContrib-Tracking-LocoManip-Digit
-      - IsaacContrib-Tracking-LocoManip-Digit-Play
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``physx``
     * - IsaacContrib-Velocity-Flat-AnymalB
-      - IsaacContrib-Velocity-Flat-AnymalB-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Velocity-Flat-AnymalC
-      - IsaacContrib-Velocity-Flat-AnymalC-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Velocity-Flat-AnymalC-Direct
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-Velocity-Flat-Digit
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``physx``
     * - IsaacContrib-Velocity-Flat-UnitreeA1
-      - IsaacContrib-Velocity-Flat-UnitreeA1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Velocity-Flat-UnitreeGo1
-      - IsaacContrib-Velocity-Flat-UnitreeGo1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Velocity-Rough-AnymalB
-      - IsaacContrib-Velocity-Rough-AnymalB-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - IsaacContrib-Velocity-Rough-AnymalC
-      - IsaacContrib-Velocity-Rough-AnymalC-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - IsaacContrib-Velocity-Rough-AnymalC-Direct
-      -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-Velocity-Rough-Digit
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``physx``
     * - IsaacContrib-Velocity-Rough-UnitreeA1
-      - IsaacContrib-Velocity-Rough-UnitreeA1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - IsaacContrib-Velocity-Rough-UnitreeGo1
-      - IsaacContrib-Velocity-Rough-UnitreeGo1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``

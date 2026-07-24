@@ -147,9 +147,20 @@ The Code Execution
 
 Now that we have gone through the code, let's run the script and see the result:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
 
 This should open a stage with everything similar to the :ref:`tutorial-create-manager-rl-env` tutorial.
@@ -164,9 +175,19 @@ To stop the simulation, you can either close the window, or press ``Ctrl+C`` in 
 
 In addition, you can also change the simulation device from GPU to CPU by setting the value of the ``--device`` flag explicitly:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --device cpu --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --device cpu --viz kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --device cpu --viz kit
 
 With the ``--device cpu`` flag, the simulation will run on the CPU. This is useful for debugging the simulation.
 However, the simulation will run much slower than on the GPU.

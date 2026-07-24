@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.1.3 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+
 0.1.2 (2026-06-11)
 ~~~~~~~~~~~~~~~~~~
 

@@ -650,9 +650,8 @@ class OperationalSpaceControllerAction(ActionTerm):
         / :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.nullspace_control`
         and
         :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.gravity_compensation`
-        respectively. This avoids an unconditional engine call on backends
-        that don't expose the corresponding primitive (Newton has no
-        gravity-compensation API).
+        respectively. This avoids unconditional engine calls when the controller
+        does not consume the corresponding quantity.
 
         Note: For floating-base robots the Jacobian / mass-matrix / gravity-compensation
         DoF axis prepends 6 floating-base columns. We use ``self._jacobi_joint_idx``

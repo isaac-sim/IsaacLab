@@ -33,32 +33,32 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
       .. code-block:: bash
 
          # Kit-less: Newton MJWarp + Newton visualizer
-         ./isaaclab.sh train --rl_library rsl_rl \
+         uv run isaaclab train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=newton_mjwarp --visualizer newton
 
          # Automatic PhysX-family selection: OvPhysX unless Kit is requested
-         ./isaaclab.sh train --rl_library rsl_rl \
+         uv run isaaclab train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=physx
 
          # Force Isaac Sim PhysX with the Kit visualizer
-         ./isaaclab.sh train --rl_library rsl_rl \
+         uv run isaaclab train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=isaacsim_physx --visualizer kit
 
          # Camera task: physics + renderer + domain preset
-         ./isaaclab.sh train --rl_library rsl_rl \
+         uv run isaaclab train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Camera-Direct \
            physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
          # OVRTX rendering (kit-less, no Kit visualizer)
-         ./isaaclab.sh train --rl_library rsl_rl \
+         uv run isaaclab train --rl_library rsl_rl \
            --task=Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct \
-           --enable_cameras --num_envs=16 --max_iterations=10 \
+           --num_envs=16 --max_iterations=10 \
            physics=newton_mjwarp renderer=ovrtx presets=simple_shading_diffuse_mdl
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -66,7 +66,7 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
 
       .. code-block:: batch
 
-         isaaclab.bat train --rl_library rsl_rl ^
+         uv run isaaclab train --rl_library rsl_rl ^
            --task=Isaac-Cartpole-Direct ^
            --num_envs=4096 ^
            physics=newton_mjwarp --visualizer newton
@@ -158,7 +158,7 @@ List them with:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/environments/list_envs.py
+   uv run python scripts/environments/list_envs.py
 
 Example output:
 

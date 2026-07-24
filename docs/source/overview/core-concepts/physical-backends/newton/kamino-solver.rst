@@ -18,15 +18,35 @@ Start from a Supported Newton Task
 
 Before adding Kamino, first make sure the task runs with the Newton backend:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp
 
 Then run the same task with the Kamino preset if it is available:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_kamino
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_kamino
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_kamino
 
 At the time of writing, the ``newton_kamino`` preset is defined for
 ``Isaac-Cartpole-Direct``, ``Isaac-Ant-Direct``, ``Isaac-Cartpole``,
@@ -64,15 +84,35 @@ The important pieces are:
 
 You can select the preset globally:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole physics=newton_kamino
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Cartpole physics=newton_kamino
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole physics=newton_kamino
 
 or select the physics field directly:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.sim.physics=newton_kamino
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Cartpole env.sim.physics=newton_kamino
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.sim.physics=newton_kamino
 
 Use the direct path override when only one task field should use the Kamino preset.
 Use ``physics=newton_kamino`` when you want every matching preset field in the task config

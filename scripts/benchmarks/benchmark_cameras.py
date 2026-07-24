@@ -14,10 +14,10 @@ through the auto-tune functionality.
 .. code-block:: bash
 
     # Usage with GUI
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h
+    uv run python scripts/benchmarks/benchmark_cameras.py -h
 
     # Usage with headless
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h --headless
+    uv run python scripts/benchmarks/benchmark_cameras.py -h
 
 """
 

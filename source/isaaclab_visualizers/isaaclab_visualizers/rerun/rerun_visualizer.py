@@ -105,8 +105,15 @@ def _rerun_web_viewer_url(host: str, web_port: int, connect_to: str) -> str:
 class NewtonViewerRerun(ViewerRerun):
     """Wrapper around Newton's ViewerRerun with rendering pause controls."""
 
+    #: Manager names set by :meth:`RerunVisualizer.add_live_plots`; when non-empty,
+    #: ``_get_blueprint`` produces one ``TimeSeriesView`` per manager instead of the
+    #: default single view.
+    _live_plot_manager_names: list[str]
+
     def __init__(self, *args, open_browser: bool = False, **kwargs):
         """Initialize viewer wrapper and Isaac Lab pause state."""
+        self._live_plot_manager_names = []
+        self._camera_pose: tuple | None = None
         if open_browser:
             super().__init__(*args, **kwargs)
         else:
@@ -125,6 +132,31 @@ class NewtonViewerRerun(ViewerRerun):
                 stack.callback(setattr, rr, "serve_web_viewer", original_serve_web_viewer)
                 super().__init__(*args, **kwargs)
         self._paused_rendering = False
+
+    def _get_blueprint(self):
+        """Return a per-manager blueprint when live plots are registered, else the default.
+
+        Each per-manager :class:`~rerun.blueprint.TimeSeriesView` starts visible.
+        Individual views can be toggled from the Rerun viewer's blueprint panel.
+        The stored :attr:`_camera_pose` is forwarded to :class:`~rerun.blueprint.EyeControls3D`
+        so the camera position is preserved when the live-plot blueprint replaces the initial one.
+        """
+        if self._live_plot_manager_names:
+            manager_views = [rrb.TimeSeriesView(name=name, origin=f"/{name}") for name in self._live_plot_manager_names]
+            eye_controls = None
+            if self._camera_pose is not None:
+                cam_pos, cam_target = self._camera_pose
+                eye_controls = rrb.EyeControls3D(position=cam_pos, look_target=cam_target)
+            return rrb.Blueprint(
+                rrb.Horizontal(
+                    rrb.Spatial3DView(eye_controls=eye_controls),
+                    rrb.Vertical(*manager_views),
+                    column_shares=[4, 1],
+                ),
+                rrb.TimePanel(timeline="time", state="collapsed"),
+                collapse_panels=True,
+            )
+        return super()._get_blueprint()
 
     def is_rendering_paused(self) -> bool:
         """Return whether rendering is paused by viewer controls."""
@@ -310,6 +342,7 @@ class RerunVisualizer(BaseVisualizer):
                         render_newton_visualization_markers(
                             self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
                         )
+                    self._render_live_plots()
             finally:
                 self._viewer.end_frame()
 
@@ -357,6 +390,7 @@ class RerunVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
+        self._viewer._camera_pose = pose
         rr.send_blueprint(
             rrb.Blueprint(
                 rrb.Vertical(
@@ -384,8 +418,66 @@ class RerunVisualizer(BaseVisualizer):
         return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
-        """Rerun backend currently does not expose Isaac Lab live-plot widgets."""
-        return False
+        """Rerun backend supports live plots via :meth:`newton.Viewer.log_scalar` (mapped to ``rr.Scalars``)."""
+        return True
+
+    def add_live_plots(
+        self,
+        managers: dict,
+        scalars: dict | None = None,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting and send a per-manager blueprint.
+
+        Calls the base implementation to populate :attr:`_live_plot_sources`, then sends a
+        Rerun blueprint with one :class:`rerun.blueprint.TimeSeriesView` per manager so that
+        each manager's terms appear in a separate chart panel rather than all sharing a single
+        time-series view.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
+                Each callable must take no arguments and return a numeric value.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        # Store manager names on the viewer so _get_blueprint() returns the per-manager
+        # layout.  ViewerRerun.log_scalar calls _get_blueprint() on the first scalar logged,
+        # which would overwrite any blueprint we send here — so we inject the layout into
+        # the viewer's own blueprint factory instead of calling rr.send_blueprint directly.
+        # Build the list of Rerun series-view names.  For manager sources, one view per
+        # manager groups all their terms together.  For DirectScalarLivePlots (e.g. episode
+        # metrics), each scalar gets its own view so they have independent Y axes — otherwise
+        # episode_length (~160) and mean_reward (~0-1) share an axis, hiding the smaller one.
+        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots
+
+        names = []
+        for source in self._live_plot_sources:
+            if isinstance(source, DirectScalarLivePlots):
+                for term in source._scalars:
+                    names.append(f"{source.manager_name}/{term}")
+            else:
+                names.append(source.manager_name)
+        self._viewer._live_plot_manager_names = names
+
+    def _render_live_plots(self) -> None:
+        """Push manager-term scalars to Rerun as time-series scalars."""
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        self._live_plots_step_counter += 1
+        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
+            return
+        for source in self._live_plot_sources:
+            for term_name, values in source.collect(self._live_plot_env_idx).items():
+                if len(values) == 1:
+                    self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
+                else:
+                    for i, v in enumerate(values):
+                        self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
     def is_training_paused(self) -> bool:
         """Return whether training is paused.

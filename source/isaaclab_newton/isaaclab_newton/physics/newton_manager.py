@@ -2022,6 +2022,8 @@ class NewtonManager(PhysicsManager):
             raise RuntimeError("Registering a Newton sensor task requires an initialized model and state.")
         if model.shape_count > 0 and model.bvh_shapes is None:
             model.bvh_build_shapes(state)
+        if model.particle_count > 0 and model.bvh_particles is None:
+            model.bvh_build_particles(state)
         cls._sensor_tasks[name] = update_fn
         cls._sensor_state = state
         cls._sensor_state_dirty = True
@@ -2035,7 +2037,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensor_tasks(cls, *names: str) -> None:
-        """Refit the shape BVH and run the requested scene-query tasks."""
+        """Refit the shape and particle BVHs and run the requested scene-query tasks."""
         for name in names:
             if name not in cls._sensor_tasks:
                 raise KeyError(f"Newton sensor task '{name}' is not registered.")
@@ -2070,7 +2072,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _mark_sensor_state_dirty(cls) -> None:
-        """Bind the current state and mark the shape BVH stale.
+        """Bind the current state and mark the shape and particle BVHs stale.
 
         Writes through :class:`NewtonManager` rather than ``cls`` because the
         sensor-task registry and its dirty flag are singleton state owned by the
@@ -2088,10 +2090,23 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _refit_sensor_bvh(cls) -> None:
-        """Refit the model shape BVH against the current state."""
-        if cls._model is not None and cls._model.shape_count > 0 and cls._model.bvh_shapes is not None:
-            assert cls._sensor_state is not None
+        """Refit the model shape and particle BVHs against the current state."""
+        if cls._model is None:
+            return
+
+        refit_shapes = cls._model.shape_count > 0 and cls._model.bvh_shapes is not None
+        refit_particles = cls._model.particle_count > 0 and cls._model.bvh_particles is not None
+        if not refit_shapes and not refit_particles:
+            return
+
+        if cls._sensor_state is None:
+            raise RuntimeError("Refitting Newton sensor BVHs requires an initialized sensor state.")
+
+        if refit_shapes:
             cls._model.bvh_refit_shapes(cls._sensor_state)
+
+        if refit_particles:
+            cls._model.bvh_refit_particles(cls._sensor_state)
 
     @classmethod
     def _invalidate_sensor_graph(cls) -> None:

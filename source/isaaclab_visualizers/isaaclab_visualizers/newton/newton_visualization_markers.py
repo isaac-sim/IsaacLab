@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import numpy as np
@@ -19,7 +19,6 @@ from newton.viewer import ViewerBase
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_apply
 
 logger = logging.getLogger(__name__)
@@ -29,25 +28,18 @@ _OMNIPBR_DEFAULTS = {
     "diffuse_tint": (1.0, 1.0, 1.0),
 }
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
-_DEX_CUBE_TEXTURE_URL = f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/Materials/dex_cube_mod.png"
 
 
 @dataclass(frozen=True)
 class _NewtonMarkerSpec:
     renderer: Literal["mesh", "frame", "none"]
-    mesh_type: Literal["arrow", "box", "textured_box", "sphere", "cylinder", "capsule", "cone"] | None = None
+    mesh_type: Literal["arrow", "box", "sphere", "cylinder", "capsule", "cone", "usd"] | None = None
     mesh_params: dict[str, float | tuple[float, float, float]] | None = None
     scale: tuple[float, float, float] | None = None
     color: tuple[float, float, float] | None = None
     texture: Any | None = None
-
-
-@dataclass(frozen=True)
-class _MeshData:
-    vertices: np.ndarray
-    indices: np.ndarray
-    normals: np.ndarray
-    uvs: np.ndarray
+    # Pre-loaded newton.Mesh for "usd" mesh_type; excluded from hash/compare since Mesh is unhashable.
+    preloaded_mesh: Any | None = field(default=None, hash=False, compare=False)
 
 
 def render_newton_visualization_markers(viewer: ViewerBase, visible_env_ids: list[int] | None, num_envs: int) -> None:
@@ -256,12 +248,16 @@ class NewtonVisualizationMarkers:
         if registered_key in self._registered_meshes or newton_cfg.mesh_type is None:
             return
         mesh = _create_mesh(newton_cfg)
+        normals_arr = mesh.normals
+        uvs_arr = mesh.uvs
         viewer.log_mesh(
             mesh_name,
             wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3),
             wp.array(mesh.indices.astype(np.int32), dtype=wp.int32),
-            normals=wp.array(mesh.normals.astype(np.float32), dtype=wp.vec3) if mesh.normals.size else None,
-            uvs=wp.array(mesh.uvs.astype(np.float32), dtype=wp.vec2) if mesh.uvs.size else None,
+            normals=wp.array(normals_arr.astype(np.float32), dtype=wp.vec3)
+            if normals_arr is not None and normals_arr.size
+            else None,
+            uvs=wp.array(uvs_arr.astype(np.float32), dtype=wp.vec2) if uvs_arr is not None and uvs_arr.size else None,
             texture=newton_cfg.texture,
             hidden=True,
         )
@@ -297,32 +293,32 @@ def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
         )
 
     if cfg_type == "UsdFileCfg":
-        usd_path = str(marker_cfg.usd_path).lower()
+        usd_path = str(marker_cfg.usd_path)
+        usd_path_lower = usd_path.lower()
         default_scale = _extract_scale_hint(marker_cfg)
-        if usd_path.endswith("arrow_x.usd"):
+        if usd_path_lower.endswith("arrow_x.usd"):
             return _NewtonMarkerSpec(
                 renderer="mesh",
                 mesh_type="arrow",
                 mesh_params={"base_radius": 0.08, "base_height": 0.7, "cap_radius": 0.16, "cap_height": 0.3},
                 scale=(default_scale[0], default_scale[1] * 2.5, default_scale[2] * 2.5),
             )
-        if usd_path.endswith("frame_prim.usd"):
+        if usd_path_lower.endswith("frame_prim.usd"):
             return _NewtonMarkerSpec(renderer="frame", scale=default_scale)
-        if "dexcube" in usd_path or "dex_cube" in usd_path:
-            # TODO: Remove this specialized DexCube mesh code when general
-            # UsdFileCfg-to-Newton mesh conversion is supported.
-            # DexCube USDs are roughly 6 cm wide. Keep scale separate so task
-            # configs such as scale=(1.2, 1.2, 1.2) still apply naturally.
+        newton_mesh = _load_usd_mesh(usd_path)
+        if newton_mesh is not None:
+            mesh_color = newton_mesh.color
+            color = (
+                (float(mesh_color[0]), float(mesh_color[1]), float(mesh_color[2])) if mesh_color is not None else None
+            )
             return _NewtonMarkerSpec(
                 renderer="mesh",
-                mesh_type="textured_box",
-                mesh_params={"size": (0.06, 0.06, 0.06)},
-                color=(1.0, 1.0, 1.0),
-                texture=_DEX_CUBE_TEXTURE_URL,
+                mesh_type="usd",
+                scale=default_scale,
+                color=color,
+                texture=newton_mesh.texture,
+                preloaded_mesh=newton_mesh,
             )
-
-        # TODO: Add generic UsdFileCfg -> Newton mesh extraction for mesh-backed USD marker assets.
-        # For now, only common marker USDs are mapped to lightweight Newton-native fallbacks.
 
     return _NewtonMarkerSpec(renderer="none")
 
@@ -340,8 +336,6 @@ def _create_mesh(newton_cfg: _NewtonMarkerSpec):
     if newton_cfg.mesh_type == "box":
         size = mesh_params["size"]
         return Mesh.create_box(float(size[0]) * 0.5, float(size[1]) * 0.5, float(size[2]) * 0.5)
-    if newton_cfg.mesh_type == "textured_box":
-        return _create_textured_box_mesh(mesh_params["size"])
     if newton_cfg.mesh_type == "sphere":
         return Mesh.create_sphere(radius=float(mesh_params["radius"]))
     if newton_cfg.mesh_type == "cylinder":
@@ -362,80 +356,85 @@ def _create_mesh(newton_cfg: _NewtonMarkerSpec):
             float(mesh_params["height"]) * 0.5,
             up_axis=Axis.Z,
         )
+    if newton_cfg.mesh_type == "usd":
+        if newton_cfg.preloaded_mesh is None:
+            raise ValueError("USD marker spec missing preloaded_mesh — USD loading must have failed at init time.")
+        return newton_cfg.preloaded_mesh
     raise ValueError(f"Unsupported Newton mesh type: {newton_cfg.mesh_type}")
 
 
-def _create_textured_box_mesh(size: tuple[float, float, float]) -> _MeshData:
-    # TODO: Remove this specialized DexCube mesh code when general
-    # UsdFileCfg-to-Newton mesh conversion is supported.
-    half = np.asarray(size, dtype=np.float32) * 0.5
-    usd_vertices = np.asarray(
-        [
-            (-1.0, -1.0, 1.0),
-            (-1.0, 1.0, 1.0),
-            (-1.0, 1.0, -1.0),
-            (-1.0, -1.0, -1.0),
-            (-1.0, -1.0, -1.0),
-            (-1.0, 1.0, -1.0),
-            (1.0, 1.0, -1.0),
-            (1.0, -1.0, -1.0),
-            (1.0, -1.0, -1.0),
-            (1.0, 1.0, -1.0),
-            (1.0, 1.0, 1.0),
-            (1.0, -1.0, 1.0),
-            (1.0, -1.0, 1.0),
-            (1.0, 1.0, 1.0),
-            (-1.0, 1.0, 1.0),
-            (-1.0, -1.0, 1.0),
-            (-1.0, -1.0, -1.0),
-            (1.0, -1.0, -1.0),
-            (1.0, -1.0, 1.0),
-            (-1.0, -1.0, 1.0),
-            (1.0, 1.0, -1.0),
-            (-1.0, 1.0, -1.0),
-            (-1.0, 1.0, 1.0),
-            (1.0, 1.0, 1.0),
-        ],
-        dtype=np.float32,
-    )
-    uvs = np.asarray(
-        [
-            (1.0, 0.333333),
-            (1.0, 0.666667),
-            (0.5, 0.666667),
-            (0.5, 0.333333),
-            (0.5, 0.666667),
-            (0.5, 1.0),
-            (0.0, 1.0),
-            (0.0, 0.666667),
-            (0.5, 0.333333),
-            (0.5, 0.666667),
-            (0.0, 0.666667),
-            (0.0, 0.333333),
-            (1.0, 0.0),
-            (1.0, 0.333333),
-            (0.5, 0.333333),
-            (0.5, 0.0),
-            (0.5, 0.0),
-            (0.5, 0.333333),
-            (0.0, 0.333333),
-            (0.0, 0.0),
-            (1.0, 0.666667),
-            (1.0, 1.0),
-            (0.5, 1.0),
-            (0.5, 0.666667),
-        ],
-        dtype=np.float32,
-    )
-    indices: list[int] = []
-    for base in range(0, 24, 4):
-        indices.extend([base, base + 1, base + 2, base, base + 2, base + 3])
-    return _MeshData(
-        vertices=usd_vertices * half,
-        indices=np.asarray(indices, dtype=np.int32),
-        normals=np.zeros((0, 3), dtype=np.float32),
-        uvs=uvs,
-    )
+def _load_usd_mesh(usd_path: str) -> Mesh | None:
+    """Open a USD file and return a Newton :class:`~newton.Mesh` from the first :class:`UsdGeom.Mesh` prim found.
+
+    Material properties (color, texture) are resolved from the prim's bound USD material and stored
+    on the returned :class:`~newton.Mesh`.
+
+    Args:
+        usd_path: Absolute path or URL to a USD asset.
+
+    Returns:
+        A :class:`~newton.Mesh` with vertices, indices, normals, UVs, and material properties, or
+        ``None`` if the USD could not be opened or contains no mesh geometry.
+    """
+    try:
+        from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+        from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415
+
+        local_path = retrieve_file_path(usd_path)
+        stage = Usd.Stage.Open(local_path)
+        if stage is None:
+            logger.warning("[NewtonVisualizationMarkers] Failed to open USD stage: %s", usd_path)
+            return None
+        mesh_prims = [p for p in stage.Traverse() if p.IsA(UsdGeom.Mesh)]
+        from_prototype = False
+        if not mesh_prims:
+            # Instanceable USDs store geometry in prototypes rather than the main prim tree.
+            for proto in stage.GetPrototypes():
+                mesh_prims = [
+                    p for p in proto.GetFilteredChildren(Usd.TraverseInstanceProxies()) if p.IsA(UsdGeom.Mesh)
+                ]
+                if mesh_prims:
+                    from_prototype = True
+                    break
+        if not mesh_prims:
+            logger.warning("[NewtonVisualizationMarkers] No UsdGeom.Mesh prims found in USD: %s", usd_path)
+            return None
+        if len(mesh_prims) > 1:
+            logger.debug(
+                "[NewtonVisualizationMarkers] Multiple mesh prims in '%s'; using first: %s",
+                usd_path,
+                mesh_prims[0].GetPath(),
+            )
+        mesh = Mesh.create_from_usd(mesh_prims[0], load_normals=True, load_uvs=True)
+        if mesh is not None and from_prototype:
+            # Prototype prims carry a local transform (e.g. unit-cube → metres scale) that
+            # Mesh.create_from_usd does not apply. Bake it into vertex positions now.
+            from pxr import Gf  # noqa: PLC0415
+
+            xf = UsdGeom.Xformable(mesh_prims[0])
+            mat = xf.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+            if mat != Gf.Matrix4d(1):
+                # mesh.vertices may be a numpy array or a Warp array depending on Newton version.
+                verts = mesh.vertices
+                pts = verts.numpy() if hasattr(verts, "numpy") else np.asarray(verts)
+                ones = np.ones((len(pts), 1), dtype=np.float32)
+                mat_np = np.array(mat, dtype=np.float32).T
+                pts_world = (np.hstack([pts.astype(np.float32), ones]) @ mat_np)[:, :3]
+                if hasattr(verts, "numpy"):
+                    import warp as _wp  # noqa: PLC0415
+
+                    mesh.vertices = _wp.array(pts_world, dtype=_wp.vec3, device=verts.device)
+                else:
+                    mesh.vertices = pts_world
+        return mesh
+    except Exception:
+        logger.warning(
+            "[NewtonVisualizationMarkers] Failed to load USD mesh from '%s'; marker will not be rendered.",
+            usd_path,
+            exc_info=True,
+        )
+        return None
 
 
 def _extract_scale_hint(marker_cfg: object) -> tuple[float, float, float]:
