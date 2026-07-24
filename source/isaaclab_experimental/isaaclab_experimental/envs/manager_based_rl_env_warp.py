@@ -92,6 +92,14 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             render_mode: The render mode for the environment. Defaults to None, which
                 is similar to ``"human"``.
         """
+        # Adapt the cfg for the warp managers (Newton physics check, SceneEntityCfg
+        # promotion, MDP twin swap). Idempotent: a warp-native cfg passes through
+        # unchanged, and a stable-derived cfg (``--frontend=warp`` or a registered
+        # warp task variant subclassing a stable cfg) is adapted in place.
+        from isaaclab_experimental.envs.frontend import WarpFrontend
+
+        WarpFrontend.adapt_cfg(cfg)
+
         # -- counter for curriculum
         self.common_step_counter = 0
 
@@ -411,10 +419,8 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-            if not (has_gui or offscreen_render):
+            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
+            if not (self.sim.has_gui or self.sim.has_offscreen_render):
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode does not support"
                     " rendering. Please set the simulation render mode to 'PARTIAL_RENDERING' or"
