@@ -374,20 +374,14 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
-# Enable external camera rendering by default so the replay mimics the production teleop env (perf
-# parity with live camera rendering); ``--disable_external_cameras`` turns it off. Set programmatically
-# because the ``--enable_cameras`` CLI flag was removed in Isaac Lab 3.0 (see #6656); AppLauncher still
-# consumes ``enable_cameras`` from the namespace. When enabled this also selects a camera-rendering
-# experience that provides RTX/DLSS.
-args_cli.enable_cameras = not args_cli.disable_external_cameras
-
 app_launcher_args = vars(args_cli)
-app_launcher = AppLauncher(app_launcher_args)
+# Enable external camera rendering by default so the replay mimics the production teleop env (perf
+# parity with live camera rendering); ``--disable_external_cameras`` turns it off. The
+# ``--enable_cameras`` CLI flag was removed in Isaac Lab 3.0 (see #6656), so pass the intent to
+# AppLauncher as a kwarg; this selects a camera-rendering experience that provides RTX/DLSS.
+# Everywhere else we read ``args_cli.disable_external_cameras`` directly.
+app_launcher = AppLauncher(app_launcher_args, enable_cameras=not args_cli.disable_external_cameras)
 simulation_app = app_launcher.app
-
-# AppLauncher consumes (pops) ``enable_cameras`` from the namespace dict during launch; restore it
-# so the downstream camera-removal and RTX-render gates can read ``args_cli.enable_cameras``.
-args_cli.enable_cameras = not args_cli.disable_external_cameras
 
 """Rest everything follows."""
 
@@ -1024,14 +1018,15 @@ def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
 
     The RTX/DLSS global settings are only meaningful when something renders through RTX.
     That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
-    are enabled (``args.enable_cameras``), or in XR mode (``--xr``). A pure-headless replay
-    with none of these renders nothing.
+    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
+    A pure-headless replay with none of these renders nothing.
 
     This reads the resolved namespace intent rather than any Kit/carb runtime state so the
     check keeps working as these scripts grow support for other renderers and kitless runs.
     """
     visualizers = getattr(args, "visualizer", None) or []
-    return bool(getattr(args, "enable_cameras", False)) or ("kit" in visualizers) or bool(getattr(args, "xr", False))
+    external_cameras = not getattr(args, "disable_external_cameras", False)
+    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
 
 
 def _ensure_replicator_loaded() -> None:
@@ -1113,7 +1108,7 @@ def _prepare_env_cfg(
         env_cfg.terminations.time_out = None
     # Keep camera configs when external cameras are enabled (defaulted on) so the replay
     # renders them for production parity; otherwise strip them for a lighter headless replay.
-    if not args_cli.enable_cameras:
+    if args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
     # The RTX/DLSS global settings only matter when an RTX render pipeline actually runs.
     # ``apply_isaac_rtx_global_settings`` uses ``omni.replicator`` (part of the SDG/rendering
