@@ -627,10 +627,18 @@ jobs:
     - uses: astral-sh/setup-uv@v6
       with:
         enable-cache: true
+    - name: Restore Kit-less Warp kernel cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/warp-cache
+        key: warp-newton-kitless-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock') }}
+        restore-keys: |
+          warp-newton-kitless-${{ runner.os }}-${{ runner.arch }}-
     - name: Run Kit-less Newton tests
       env:
         ISAACLAB_RUN_CI_TESTS: "1"
         PYTEST_ADDOPTS: "--without-kit"
+        WARP_CACHE_PATH: ${{ runner.temp }}/warp-cache
       run: >-
         uv run --extra test --locked python -m pytest
         source/isaaclab_newton/test
@@ -655,6 +663,13 @@ jobs:
     - uses: astral-sh/setup-uv@v6
       with:
         enable-cache: true
+    - name: Restore Kit Warp kernel cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/warp-cache
+        key: warp-newton-kit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock') }}
+        restore-keys: |
+          warp-newton-kit-${{ runner.os }}-${{ runner.arch }}-
     - name: Run Newton tests that require Kit
       env:
         ACCEPT_EULA: "Y"
@@ -667,6 +682,7 @@ jobs:
         TEST_FILTER_PATTERN: "isaaclab_newton"
         CI_MARKER: "requires_kit"
         TEST_RESULT_FILE: "isaaclab-newton-kit.xml"
+        WARP_CACHE_PATH: ${{ runner.temp }}/warp-cache
       run: >-
         uv run --extra isaacsim --locked
         --with pytest --with pytest-mock --with junitparser
