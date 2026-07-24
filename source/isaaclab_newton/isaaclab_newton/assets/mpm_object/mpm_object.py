@@ -18,7 +18,6 @@ from isaaclab.assets.deformable_object.base_deformable_object import BaseDeforma
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_newton.sim.spawners.mpm import create_mpm_particle_visualization, emit_mpm_particles
 
@@ -101,7 +100,6 @@ class MPMObject(BaseDeformableObject):
 
     def __init__(self, cfg: MPMObjectCfg):
         super().__init__(cfg)
-        queue_newton_physics_replication(cfg)
         self._registry_entry = MPMObjectRegistryEntry(self.cfg)
         SimulationManager._mpm_object_registry.append(self._registry_entry)
         if add_registered_mpm_objects_to_builder not in SimulationManager._per_world_builder_hooks:
