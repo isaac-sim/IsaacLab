@@ -318,11 +318,7 @@ def maybe_save_stage(
 
         from pxr import Usd  # noqa: PLC0415
 
-        # Open and flatten the saved stage once. Flattening inlines sublayer references and
-        # resolves asset paths relative to the destination file, so both the out_dir export and
-        # golden comparison receive portable paths instead of Nucleus-relative references.
-        # Opening the export (not the live Kit stage) also keeps volatile session render prims
-        # (OmniverseKit cameras, Replicator SDG pipeline, post-process) out of both outputs.
+        # Flatten the saved stage to inline sublayer references and resolve asset paths.
         opened_stage = Usd.Stage.Open(stage_path)
         if opened_stage is None:
             pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
