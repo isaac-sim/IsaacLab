@@ -116,10 +116,57 @@ instead of copying PhysX friction settings numerically:
   the active importer and contact path preserve it.
 * Tune the material friction against measured tangential slip. PhysX static and dynamic
   coefficients and combination modes do not map one-to-one to MJWarp's resolved coefficient.
-* Tune the global ``MJWarpSolverCfg.cone`` after the contact model and coefficients are valid.
-  ``cone="elliptic"`` can suppress grasp slip more faithfully than ``"pyramidal"`` at additional
-  cost. For a validated grasp, ``impratio=10`` is a useful starting point; recheck convergence and
-  runtime after changing either setting.
+* Tune the global ``MJWarpSolverCfg.cone`` and ``MJWarpSolverCfg.impratio`` after the contact model
+  and coefficients are valid. ``cone="elliptic"`` can suppress grasp slip more faithfully than
+  ``"pyramidal"`` at additional cost. For a validated grasp, ``impratio=10`` is a useful starting
+  point; recheck convergence and runtime after changing either setting.
+
+``condim`` is a per-collision-shape MuJoCo attribute and defaults to ``3`` when ``mjc:condim`` is
+not authored. ``impratio`` and ``cone`` are global MJWarp solver options; ``impratio`` defaults to
+``1.0``. The following task configuration writes ``mjc:condim=4`` on every collision shape below
+``object_spawn_cfg`` and selects the grasping solver starting point:
+
+.. code-block:: python
+
+    from typing import ClassVar, Literal
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.utils import configclass
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
+
+    @configclass
+    class MujocoCondimCfg(sim_utils.CollisionFragment):
+        """Task-local fragment that writes the MuJoCo contact dimension."""
+
+        _usd_namespace: ClassVar[str | None] = "mjc"
+        _usd_applied_schema: ClassVar[str | None] = None
+
+        condim: Literal[1, 3, 4, 6] | None = None
+
+
+    object_spawn_cfg = sim_utils.UsdFileCfg(
+        usd_path="path/to/object.usd",
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+            MujocoCondimCfg(condim=4),
+        ],
+    )
+
+    newton_mjwarp_cfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            cone="elliptic",
+            impratio=10.0,
+        ),
+    )
+
+Assign ``object_spawn_cfg`` to the asset's ``spawn`` field and use ``newton_mjwarp_cfg`` as the
+``newton_mjwarp`` physics preset. A file spawner applies ``collision_props`` recursively, so do not
+attach this override to an entire robot when only its fingertips need ``condim=4``. Instead, author
+``mjc:condim`` on the intended collider prims in USD, preserve the source MJCF ``geom`` ``condim``
+during conversion, or apply separate spawn configurations to the contacting assets. Set the value
+on every collider whose contact model must be controlled; then inspect the exported MJCF or
+resolved model to confirm it. ``impratio`` remains global for the entire MJWarp simulation.
 
 Record object displacement, contact count, gripper effort, penetration, and success rate for the
 same fixed grasp. Do not increase friction, ``condim``, or ``impratio`` to hide missing contacts,

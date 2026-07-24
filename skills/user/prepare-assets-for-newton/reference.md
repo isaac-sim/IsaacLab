@@ -35,13 +35,13 @@ Check:
 MJWarp can slip more than PhysX under nominally similar material settings. Tune in this order:
 
 1. Verify colliders, material bindings, contact locations and counts, and available gripper force.
-2. Inspect resolved `condim`: `1` is frictionless, `3` adds tangential friction, `4` adds torsional friction, and `6` adds rolling friction.
+2. Inspect resolved `condim`: its default `3` adds tangential friction, `1` is frictionless, `4` adds torsional friction, and `6` adds rolling friction.
 3. Tune material friction against measured tangential slip; do not map PhysX static/dynamic settings numerically.
 4. Compare `cone="elliptic"` with `"pyramidal"` and use `impratio=10` as a grasping starting point only after the contact model is valid.
 
-Track fixed-grasp displacement, contact count, effort, penetration, success, convergence, and
-runtime. Do not hide missing contacts, bad collision geometry, or insufficient effort with
-friction, `condim`, or `impratio`.
+For copy-ready code, use the guide's task-local `MujocoCondimCfg(CollisionFragment)` and set `spawn.collision_props=[UsdPhysicsCollisionCfg(...), MujocoCondimCfg(condim=4)]`. This authors per-shape `mjc:condim`; the file-spawner override is recursive. Set the global options with `NewtonCfg(solver_cfg=MJWarpSolverCfg(cone="elliptic", impratio=10.0))`.
+
+Track fixed-grasp displacement, contact count, effort, penetration, success, convergence, and runtime. Do not hide missing contacts, bad collision geometry, or insufficient effort with friction, `condim`, or `impratio`.
 
 ## Velocity Limits Distinction
 

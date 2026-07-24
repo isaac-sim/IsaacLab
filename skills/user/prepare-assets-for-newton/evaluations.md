@@ -31,9 +31,11 @@ Query: "Why does the object slip from my gripper in MJWarp but not PhysX?"
 Expected behavior:
 
 - Validate collision shapes, contacts, material bindings, and gripper force first.
-- Inspect `condim`, tune material friction, then compare cone type and `impratio` with fixed-grasp metrics.
+- Set per-shape `mjc:condim` through `spawn.collision_props`, tune material friction, then set global
+  `MJWarpSolverCfg(cone=..., impratio=...)` and compare fixed-grasp metrics.
 
-Known failure modes: raising friction or `impratio` to hide missing contacts or insufficient effort.
+Known failure modes: treating `condim` as a global solver field, treating `impratio` as an asset
+field, recursively changing unintended colliders, or hiding missing contacts or insufficient effort.
 
 ## Scenario 4: Velocity Limits
 
