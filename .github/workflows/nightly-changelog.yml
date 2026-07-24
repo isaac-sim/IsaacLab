@@ -5,9 +5,9 @@
 
 # Nightly auto-compile: rolls accumulated fragments under
 # ``source/<pkg>/changelog.d/`` into per-package ``CHANGELOG.rst`` entries,
-# bumps each ``extension.toml``, deletes consumed fragments, and pushes the
-# result back to each branch in the configured list. Keeps every tracked
-# branch's changelog current without requiring a maintainer to run
+# bumps each package's version metadata, deletes consumed fragments, and
+# pushes the result back to each branch in the configured list. Keeps every
+# tracked branch's changelog current without requiring a maintainer to run
 # ``compile`` by hand.
 #
 # Scheduled workflow — must live on the repository's default branch for the
@@ -189,12 +189,14 @@ jobs:
           python3 tools/changelog/cli.py compile $ARGS
 
       - name: Commit and push if fragments were compiled
-        # ``always()`` lets this step run even when the compile step above
-        # reported partial failure (one package's malformed file fails, the
-        # rest still wrote their CHANGELOG.rst / deleted fragments / bumped
-        # extension.toml). The staged-diff check below short-circuits cleanly
-        # if the failed package was the only one with pending work.
-        if: ${{ always() && !inputs.dry_run }}
+        # Fires when compile succeeded cleanly OR raised on at least one
+        # package (``continue-on-error: true`` above turned that conclusion
+        # to success while preserving the outcome — the surviving packages
+        # still ship). Explicitly NOT ``always()``: cancellation (timeout /
+        # maintainer cancel) leaves a partial on-disk state and the
+        # re-propagate step below wouldn't fire on ``outcome == 'cancelled'``,
+        # so this guard skips the commit/push entirely on cancel.
+        if: ${{ (success() || steps.compile.outcome == 'failure') && !inputs.dry_run }}
         env:
           # Pass the matrix branch through an env var rather than
           # interpolating ``${{ matrix.branch }}`` directly into ``run:``.
@@ -208,9 +210,11 @@ jobs:
           # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
           git config user.name "isaaclab-bot[bot]"
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
-          git add source/*/changelog.d/ \
-                  source/*/docs/CHANGELOG.rst \
-                  source/*/config/extension.toml
+          # Stage every tracked compiler output under ``source/``. Active
+          # branches store package versions in ``pyproject.toml``, while
+          # release branches still use ``config/extension.toml``; naming both
+          # path globs makes ``git add`` fail when either layout is absent.
+          git add --update -- source/
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else
@@ -223,21 +227,29 @@ jobs:
             # action. The trigger event suffix (``schedule`` vs
             # ``workflow_dispatch``) is preserved for traceability.
             #
-            # The body lists every package that bumped, derived from the
-            # staged ``extension.toml`` diff so the entries are accurate
-            # regardless of which packages happen to have pending
-            # fragments this run.
+            # The body lists every package that bumped, derived from whichever
+            # supported version metadata file changed on the target branch.
             MSG_FILE=$(mktemp)
             {
               echo "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
               echo
               echo "Bumped packages:"
-              for tom in $(git diff --staged --name-only -- 'source/*/config/extension.toml'); do
-                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/config/extension.toml|\1|')
-                old=$(git diff --staged "$tom" | awk -F'"' '/^-version/{print $2; exit}')
-                new=$(git diff --staged "$tom" | awk -F'"' '/^\+version/{print $2; exit}')
-                echo "- $pkg: $old → $new"
-              done
+              git diff --staged --name-only -- \
+                'source/*/config/extension.toml' \
+                'source/*/pyproject.toml' \
+                | sed -E 's|source/([^/]+)/.*|\1|' \
+                | sort -u \
+                | while IFS= read -r pkg; do
+                    pyproject="source/$pkg/pyproject.toml"
+                    if git diff --staged --quiet -- "$pyproject"; then
+                      tom="source/$pkg/config/extension.toml"
+                    else
+                      tom="$pyproject"
+                    fi
+                    old=$(git diff --staged -- "$tom" | awk -F'"' '/^-version/{print $2; exit}')
+                    new=$(git diff --staged -- "$tom" | awk -F'"' '/^\+version/{print $2; exit}')
+                    echo "- $pkg: $old → $new"
+                  done
             } > "$MSG_FILE"
             git commit -F "$MSG_FILE"
             # Rebase onto the target branch's current tip in case a human
