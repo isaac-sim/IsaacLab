@@ -5,12 +5,14 @@
 
 """Pure mechanics oracles used by simulation parameter-validation tests."""
 
+import math
 from dataclasses import dataclass
 
 import torch
 
 PROFILE_DOF_DT = 1.0 / 120.0
 PROFILE_FREE_DT = 1.0 / 120.0
+PROFILE_CONTACT_DT = 1.0 / 120.0
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,40 @@ class PhysicalCase:
             f"measured={measured}, expected={expected}, "
             f"rtol={self.rtol}, atol={self.atol}"
         )
+
+
+def predict_critical_incline_angle(friction: float) -> float:
+    """Predict the Coulomb static-friction threshold angle [rad]."""
+    return math.atan(friction)
+
+
+def static_friction_angle_deadband(critical_angle: float) -> float:
+    """Return the minimum static-friction threshold dead band [rad]."""
+    return max(math.radians(2.0), 0.05 * critical_angle)
+
+
+def predict_friction_stopping_distance(initial_speed: float, friction: float, gravity: float) -> float:
+    """Predict Coulomb-friction stopping distance [m] on a level surface."""
+    if friction <= 0.0:
+        raise ValueError("Friction must be positive to predict a finite stopping distance.")
+    if gravity == 0.0:
+        raise ValueError("Gravity magnitude must be non-zero to predict a stopping distance.")
+    return initial_speed * initial_speed / (2.0 * friction * abs(gravity))
+
+
+def dynamic_friction_distance_atol(initial_speed: float, dt: float = PROFILE_CONTACT_DT) -> float:
+    """Return the one-step stopping-distance uncertainty [m]."""
+    return abs(initial_speed) * dt
+
+
+def predict_rebound_height(drop_height: float, restitution: float) -> float:
+    """Predict the first rebound height [m] for a Newton restitution coefficient."""
+    return restitution * restitution * drop_height
+
+
+def contact_separation_atol(approach_speed: float, dt: float = PROFILE_CONTACT_DT) -> float:
+    """Return the first-contact separation tolerance [m]."""
+    return max(2.0e-3, 2.0 * abs(approach_speed) * dt)
 
 
 def predict_implicit_joint_step(

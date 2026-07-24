@@ -27,6 +27,7 @@ from isaaclab.test.physics.parameter_validation.fixtures import (
     make_single_dof_cfg,
 )
 from isaaclab.test.physics.parameter_validation.oracles import (
+    PROFILE_CONTACT_DT,
     PROFILE_DOF_DT,
     PROFILE_FREE_DT,
     predict_implicit_joint_step,
@@ -48,10 +49,19 @@ class _SingleDofParameterAdapter:
     backend: str
     rtol: float
     atol: float
+    contact_substeps = 4
 
     def profile_dof_cfg(self) -> SimulationCfg:
         """Create the pinned backend single-DOF simulation profile."""
         return self._sim_cfg(dt=PROFILE_DOF_DT, gravity=(0.0, 0.0, 0.0))
+
+    def profile_contact_cfg(
+        self,
+        *,
+        gravity: tuple[float, float, float] = (0.0, 0.0, -9.81),
+    ) -> SimulationCfg:
+        """Create the pinned backend contact simulation profile."""
+        raise NotImplementedError
 
     def run_single_dof_step(
         self,
@@ -357,6 +367,36 @@ class KaminoParameterAdapter(_SingleDofParameterAdapter):
         """Create the pinned Kamino collision-free body profile."""
         return self._sim_cfg(dt=PROFILE_FREE_DT, gravity=gravity, alpha=0.0, beta=0.0)
 
+    def profile_contact_cfg(
+        self,
+        *,
+        gravity: tuple[float, float, float] = (0.0, 0.0, -9.81),
+    ) -> SimulationCfg:
+        """Create the Kamino contact profile using Newton's CollisionPipeline."""
+        return SimulationCfg(
+            dt=PROFILE_CONTACT_DT,
+            gravity=gravity,
+            device=DEVICE,
+            physics=NewtonCfg(
+                solver_cfg=KaminoSolverCfg(
+                    integrator="moreau",
+                    use_collision_detector=False,
+                    constraints_alpha=0.1,
+                    constraints_beta=0.01,
+                    constraints_gamma=0.01,
+                    padmm_max_iterations=100,
+                    padmm_primal_tolerance=1.0e-4,
+                    padmm_dual_tolerance=1.0e-4,
+                    padmm_compl_tolerance=1.0e-4,
+                    padmm_rho_0=0.05,
+                    padmm_use_graph_conditionals=False,
+                    max_contacts_per_world=32,
+                ),
+                num_substeps=self.contact_substeps,
+                use_cuda_graph=False,
+            ),
+        )
+
     def position_limit_profile_cfg(self) -> SimulationCfg:
         """Create the pinned Kamino position-limit probe profile with softened constraints."""
         return self.profile_dof_cfg(alpha=0.01, beta=0.01)
@@ -404,6 +444,31 @@ class MJWarpParameterAdapter(_SingleDofParameterAdapter):
     ) -> SimulationCfg:
         """Create the pinned MJWarp collision-free body profile."""
         return self._sim_cfg(dt=PROFILE_FREE_DT, gravity=gravity)
+
+    def profile_contact_cfg(
+        self,
+        *,
+        gravity: tuple[float, float, float] = (0.0, 0.0, -9.81),
+    ) -> SimulationCfg:
+        """Create the production-default MJWarp MuJoCo-contact profile."""
+        return SimulationCfg(
+            dt=PROFILE_CONTACT_DT,
+            gravity=gravity,
+            device=DEVICE,
+            physics=NewtonCfg(
+                solver_cfg=MJWarpSolverCfg(
+                    disable_contacts=False,
+                    integrator="euler",
+                    iterations=200,
+                    ls_iterations=100,
+                    cone="elliptic",
+                    impratio=10.0,
+                    use_mujoco_contacts=True,
+                ),
+                num_substeps=self.contact_substeps,
+                use_cuda_graph=False,
+            ),
+        )
 
     @staticmethod
     def _sim_cfg(*, dt: float, gravity: tuple[float, float, float]) -> SimulationCfg:

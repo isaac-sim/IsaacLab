@@ -12,10 +12,25 @@ from pxr import Gf, Sdf, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_drive
+from isaaclab.sim.schemas import (
+    CollisionBaseCfg,
+    MassPropertiesCfg,
+    RigidBodyBaseCfg,
+    UsdPhysicsDriveCfg,
+    activate_contact_sensors,
+    apply_drive,
+    define_collision_properties,
+    define_mass_properties,
+    define_rigid_body_properties,
+)
+from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
+from isaaclab.sim.utils import bind_physics_material
 
 FREE_BODY_PRIM_PATH = "/World/Env_0/Object"
 SINGLE_DOF_PRIM_PATH = "/World/Env_0/Robot"
+CONTACT_GROUND_PRIM_PATH = "/World/Env_0/Ground"
+CONTACT_OBJECT_PRIM_PATH = "/World/Env_0/Object"
 
 JOINT_MASS = {"revolute": 1.0, "prismatic": 2.0}
 JOINT_INERTIA = (0.1, 0.1, 0.05)
@@ -34,7 +49,225 @@ FREE_BODY_MASS = 2.0
 FREE_BODY_INERTIA = (0.08, 0.12, 0.16)
 FREE_BODY_COM = (0.0, 0.0, 0.0)
 
+CONTACT_BOX_SIZE = (0.2, 0.2, 0.2)
+CONTACT_SPHERE_RADIUS = 0.1
+CONTACT_MASS = 1.0
+_CONTACT_PHYSICS_MATERIAL_NAME = "physicsMaterial"
+_MIN_MU = 1e-5
+
 _RAD2DEG = 180.0 / math.pi
+
+
+def make_contact_material(mu: float, restitution: float = 0.0) -> UsdPhysicsRigidBodyMaterialCfg:
+    """Create a backend-neutral rigid contact material."""
+    return UsdPhysicsRigidBodyMaterialCfg(
+        static_friction=mu,
+        dynamic_friction=mu,
+        restitution=restitution,
+    )
+
+
+def make_contact_box_cfg(
+    prim_path: str,
+    *,
+    size: tuple[float, float, float] = CONTACT_BOX_SIZE,
+    position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+    mu: float = 0.0,
+    restitution: float = 0.0,
+    mass: float = CONTACT_MASS,
+    kinematic: bool = False,
+    disable_gravity: bool = False,
+    rest_offset: float = 0.0,
+    contact_offset: float = 0.01,
+    spawn: bool = True,
+) -> RigidObjectCfg:
+    """Create a controlled cuboid contact fixture configuration."""
+    spawn_cfg = None
+    if spawn:
+        spawn_cfg = sim_utils.CuboidCfg(
+            size=size,
+            rigid_props=RigidBodyBaseCfg(
+                kinematic_enabled=kinematic,
+                disable_gravity=disable_gravity,
+            ),
+            collision_props=CollisionBaseCfg(
+                collision_enabled=True,
+                rest_offset=rest_offset,
+                contact_offset=contact_offset,
+            ),
+            mass_props=MassPropertiesCfg(mass=mass),
+            physics_material=make_contact_material(mu, restitution),
+            activate_contact_sensors=True,
+        )
+    return RigidObjectCfg(
+        prim_path=prim_path,
+        spawn=spawn_cfg,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=position, rot=orientation),
+    )
+
+
+def make_contact_sphere_cfg(
+    prim_path: str,
+    *,
+    radius: float = CONTACT_SPHERE_RADIUS,
+    position: tuple[float, float, float] = (0.0, 0.0, 1.0),
+    mu: float = 0.0,
+    restitution: float = 0.0,
+    disable_gravity: bool = False,
+    rest_offset: float = 0.0,
+    contact_offset: float = 0.01,
+    spawn: bool = True,
+) -> RigidObjectCfg:
+    """Create a controlled spherical contact fixture configuration."""
+    spawn_cfg = None
+    if spawn:
+        spawn_cfg = sim_utils.SphereCfg(
+            radius=radius,
+            rigid_props=RigidBodyBaseCfg(
+                disable_gravity=disable_gravity,
+            ),
+            collision_props=CollisionBaseCfg(
+                collision_enabled=True,
+                rest_offset=rest_offset,
+                contact_offset=contact_offset,
+            ),
+            mass_props=MassPropertiesCfg(mass=CONTACT_MASS),
+            physics_material=make_contact_material(mu, restitution),
+            activate_contact_sensors=True,
+        )
+    return RigidObjectCfg(
+        prim_path=prim_path,
+        spawn=spawn_cfg,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=position),
+    )
+
+
+def _scalar_first_to_xyzw(orientation: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """Convert a scalar-first quaternion to the ``(x, y, z, w)`` layout used by ``create_prim``."""
+    return (orientation[1], orientation[2], orientation[3], orientation[0])
+
+
+def _build_contact_shape_usd(
+    prim_path: str,
+    *,
+    position: tuple[float, float, float],
+    orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+    mesh_prim_type: str,
+    mesh_attributes: dict[str, float],
+    mesh_scale: tuple[float, float, float] | None = None,
+    mass: float = CONTACT_MASS,
+    kinematic: bool = False,
+    disable_gravity: bool = False,
+    mu: float = 0.0,
+    restitution: float = 0.0,
+    rest_offset: float = 0.0,
+    contact_offset: float = 0.01,
+) -> None:
+    """Author one rigid contact shape on the current stage."""
+    stage = sim_utils.get_current_stage()
+    if stage.GetPrimAtPath(prim_path).IsValid():
+        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+
+    sim_utils.create_prim(
+        prim_path,
+        "Xform",
+        translation=position,
+        orientation=_scalar_first_to_xyzw(orientation),
+        stage=stage,
+    )
+    geom_prim_path = f"{prim_path}/geometry"
+    mesh_prim_path = f"{geom_prim_path}/mesh"
+    sim_utils.create_prim(
+        mesh_prim_path,
+        mesh_prim_type,
+        scale=mesh_scale,
+        attributes=mesh_attributes,
+        stage=stage,
+    )
+
+    define_collision_properties(
+        mesh_prim_path,
+        CollisionBaseCfg(
+            collision_enabled=True,
+            rest_offset=rest_offset,
+            contact_offset=contact_offset,
+        ),
+        stage=stage,
+    )
+    material_path = f"{geom_prim_path}/{_CONTACT_PHYSICS_MATERIAL_NAME}"
+    spawn_physics_material(material_path, make_contact_material(mu, restitution), stage=stage)
+    bind_physics_material(mesh_prim_path, material_path, stage=stage)
+
+    define_mass_properties(prim_path, MassPropertiesCfg(mass=mass), stage=stage)
+    define_rigid_body_properties(
+        prim_path,
+        RigidBodyBaseCfg(
+            kinematic_enabled=kinematic,
+            disable_gravity=disable_gravity,
+        ),
+        stage=stage,
+    )
+    activate_contact_sensors(prim_path, stage=stage)
+
+
+def build_contact_box_usd(
+    prim_path: str,
+    *,
+    size: tuple[float, float, float] = CONTACT_BOX_SIZE,
+    position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+    mu: float = 0.0,
+    restitution: float = 0.0,
+    mass: float = CONTACT_MASS,
+    kinematic: bool = False,
+    disable_gravity: bool = False,
+    rest_offset: float = 0.0,
+    contact_offset: float = 0.01,
+) -> None:
+    """Author a controlled cuboid contact fixture on the current stage."""
+    cube_size = min(size)
+    mesh_scale = (size[0] / cube_size, size[1] / cube_size, size[2] / cube_size)
+    _build_contact_shape_usd(
+        prim_path,
+        position=position,
+        orientation=orientation,
+        mesh_prim_type="Cube",
+        mesh_attributes={"size": cube_size},
+        mesh_scale=mesh_scale,
+        mass=mass,
+        kinematic=kinematic,
+        disable_gravity=disable_gravity,
+        mu=mu,
+        restitution=restitution,
+        rest_offset=rest_offset,
+        contact_offset=contact_offset,
+    )
+
+
+def build_contact_sphere_usd(
+    prim_path: str,
+    *,
+    radius: float = CONTACT_SPHERE_RADIUS,
+    position: tuple[float, float, float] = (0.0, 0.0, 1.0),
+    mu: float = 0.0,
+    restitution: float = 0.0,
+    disable_gravity: bool = False,
+    rest_offset: float = 0.0,
+    contact_offset: float = 0.01,
+) -> None:
+    """Author a controlled spherical contact fixture on the current stage."""
+    _build_contact_shape_usd(
+        prim_path,
+        position=position,
+        mesh_prim_type="Sphere",
+        mesh_attributes={"radius": radius},
+        disable_gravity=disable_gravity,
+        mu=mu,
+        restitution=restitution,
+        rest_offset=rest_offset,
+        contact_offset=contact_offset,
+    )
 
 
 def build_single_dof(

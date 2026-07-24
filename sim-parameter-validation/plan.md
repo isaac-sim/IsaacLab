@@ -184,14 +184,14 @@ storage-only tests remain `T`.
 | BODY-01 | Mass | T / T / T | I / I / I | I / I / X |
 | BODY-02 | Inertia tensor and inertial-frame orientation | T / N / T | I / N / I | I / N / X |
 | BODY-03 | Center-of-mass position | T / N / T | I / N / I | I / N / I |
-| SHAPE-01 | Shape transform relative to body | T / T / N | T / T / N | T / T / N |
-| SHAPE-02 | Shape scale or dimensions | T / T / E | T / T / E | T / T / E |
-| SHAPE-03 | Collision radius | T / T / N | T / T / N | T / T / N |
+| SHAPE-01 | Shape transform relative to body | T / T / N | I / I / N | X / X / N |
+| SHAPE-02 | Shape scale or dimensions | T / T / E | I / I / E | X / X / E |
+| SHAPE-03 | Collision radius | T / T / N | I / I / N | X / X / N |
 | MAT-01 | Contact static friction | T / T / T | N / N / N | N / N / N |
 | MAT-02 | Contact dynamic friction | T / T / T | N / N / N | N / N / N |
-| MAT-03 | Combined contact friction `mu` | N / N / N | T / T / T | T / T / T |
-| MAT-04 | Restitution | T / T / T | T / T / T | T / T / T |
-| CONTACT-01 | Rest/contact offset mapped to margin/gap | T / T / T | T / T / T | T / T / T |
+| MAT-03 | Combined contact friction `mu` | N / N / N | I / I / I | X / X / X |
+| MAT-04 | Restitution | T / T / T | X / X / X | X / X / X |
+| CONTACT-01 | Rest/contact offset mapped to margin/gap | T / T / T | X / X / X | X / X / X |
 | JOINT-01 | Parent and child joint frames | T / T / N | T / T / N | T / T / N |
 | JOINT-02 | Reset/live joint position | N / T / T | N / I / I | N / I / I |
 | JOINT-03 | Reset/live joint velocity | N / T / T | N / I / I | N / I / I |
@@ -257,6 +257,9 @@ implemented. Related issues provide implementation context but do not satisfy `R
 | `JOINT-06` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#398](https://github.com/vastsoun/newton/issues/398) | [newton-physics/newton#161](https://github.com/newton-physics/newton/issues/161) added model storage; does not establish Kamino enforcement |
 | `JOINT-09` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#383](https://github.com/vastsoun/newton/issues/383) | None |
 | `BODY-01`, `BODY-02` | Newton-Kamino: runtime | [IsaacLab#6518](https://github.com/isaac-sim/IsaacLab/issues/6518) | Strict xfails in the wrench-response tests; `set_masses_index` / `set_inertias_index` update public storage and notify `BODY_INERTIAL_PROPERTIES` but leave `body_inv_mass` / `body_inv_inertia` stale |
+| `MAT-03`, `MAT-04`, `SHAPE-01`, `SHAPE-02`, `SHAPE-03`, `CONTACT-01` | Newton-Kamino: all physical authoring paths | Accepted Phase 2 gap; owner: Newton/Kamino integration maintainers | Strict xfails show that Isaac Lab-authored rigid shapes produce no physical contacts with the selected Newton CollisionPipeline (`use_collision_detector=False`); `SHAPE-02` runtime remains the separately passing documented error path |
+| `MAT-04` | Newton-MJWarp: USD, Python, runtime | Accepted Phase 2 gap; owner: Newton/MJWarp integration maintainers | The production-default MuJoCo-contact path consumes the public restitution value but produces no rebound relative to an inelastic control |
+| `CONTACT-01` | Newton-MJWarp: USD, Python, runtime | [newton-physics/newton#2106](https://github.com/newton-physics/newton/issues/2106) | MuJoCo contacts zero Newton shape margins, so public rest-offset writes do not change physical resting separation |
 
 Newton-Kamino `JOINT-05` is tracked by [vastsoun/newton#397](https://github.com/vastsoun/newton/issues/397).
 Newton-MJWarp `JOINT-05` remains `X` but is explicitly out of Isaac Lab fix scope; do not open a qualifying
@@ -637,10 +640,10 @@ disposition before Phase 5 begins.
 
    Do not copy the monolithic Kamino test file into the MJWarp package. The MJWarp adapter should invoke the
    same fixture contract and assert against its own documented oracle.
-3. **Phase 2 — limits, frames, and passive effects (Newton only):** add position/velocity/effort limits, joint
-   frames, passive damping, and backend-specific joint friction for Newton-MJWarp and Newton-Kamino.
-4. **Phase 3 — contact parameters (Newton only):** add friction, restitution, geometry, and offset fixtures for
+3. **Phase 2 — contact parameters (Newton only):** add friction, restitution, geometry, and offset fixtures for
    Newton-MJWarp and Newton-Kamino after their backend-specific contact semantics are resolved.
+4. **Phase 3 — limits, frames, and passive effects (Newton only):** add position/velocity/effort limits, joint
+   frames, passive damping, and backend-specific joint friction for Newton-MJWarp and Newton-Kamino.
 5. **Phase 4 — blocked Newton runtime contracts:** convert Newton-MJWarp and Newton-Kamino `X` cells to `E` or
    `T` as backend defects are resolved. Deferred constraints, tendons, and OVPhysX require a separate design
    revision.
@@ -687,6 +690,15 @@ the requested angular velocity from [rad/s] to the [deg/s] convention of ``UsdPh
 [IsaacLab#6689](https://github.com/isaac-sim/IsaacLab/pull/6689) invalidated the derived world COM data.
 `BODY-02` and `BODY-03` Python overrides are `N` because the common mass schema does not expose inertia,
 inertial-frame orientation, or center-of-mass fields.
+
+Phase 2 is implemented in `test_contact_parameters.py` using MJWarp's production-default MuJoCo contacts and
+Kamino's Newton CollisionPipeline. MJWarp implements all three `MAT-03` authoring paths through both static
+incline and dynamic stopping-distance fixtures, both authoring paths for `SHAPE-01`, `SHAPE-02`, and
+`SHAPE-03`, and the `SHAPE-02` runtime error contract. MJWarp `MAT-04` and `CONTACT-01` remain strict
+expected failures because the default contact path respectively produces no restitution rebound and zeroes
+Newton shape margins. All Kamino physical contact cells remain strict expected failures because the selected
+Newton CollisionPipeline produces no contacts for the Isaac Lab-authored rigid-shape fixture; the independent
+`SHAPE-02` runtime error contract passes. These failures are recorded as `X`, not as supported coverage.
 
 The appropriate CI selection, gating policy, and scheduling are intentionally left to the implementation
 change. Contact tests are likely to be less reliable in CI because their thresholds depend on integrator,
