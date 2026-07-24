@@ -23,7 +23,7 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
+from isaaclab.utils.assets import H1_TRANSFORMED_USD, ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 
 HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
 
@@ -185,7 +185,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
 
 H1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{MUJOCO_MENAGERIE_DIR}/unitree_h1/h1/h1.usda",
+        usd_path=H1_TRANSFORMED_USD,
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -264,11 +264,13 @@ H1_CFG = ArticulationCfg(
 
 
 H1_MINIMAL_CFG = H1_CFG.copy()
-H1_MINIMAL_CFG.spawn.usd_path = f"{MUJOCO_MENAGERIE_DIR}/unitree_h1/h1/h1.usda"
-"""Configuration for the Unitree H1 Humanoid robot with fewer collision meshes.
+H1_MINIMAL_CFG.spawn.usd_path = H1_TRANSFORMED_USD
+H1_MINIMAL_CFG.spawn.variants = {"CollisionModel": "locomotion_minimal"}
+"""Configuration for the Unitree H1 Humanoid robot with the ``locomotion_minimal`` collision variant.
 
-The class name is kept for task compatibility. The USD path matches :obj:`H1_CFG` (MuJoCo Menagerie
-``h1.usda``); there is no separate minimal Menagerie file wired here yet.
+Uses Divyansh's transformed H1 asset which exposes a ``CollisionModel`` variant set;
+``locomotion_minimal`` disables 22 of the 32 collision shapes, reducing peak GPU memory
+by ~9% and improving step throughput by ~5% vs the ``full`` variant (Divyansh, 2026-07-22).
 """
 
 

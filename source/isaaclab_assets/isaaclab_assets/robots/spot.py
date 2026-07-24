@@ -14,7 +14,7 @@ The following configuration parameters are available:
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import MUJOCO_MENAGERIE_DIR
+from isaaclab.utils.assets import SPOT_TRANSFORMED_USD
 
 # Note: This data was collected by the Boston Dynamics AI Institute.
 joint_parameter_lookup = [
@@ -133,7 +133,7 @@ and the output torque (N*m). It is used to interpolate the output torque based o
 
 SPOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{MUJOCO_MENAGERIE_DIR}/boston_dynamics_spot/spot.usda",
+        usd_path=SPOT_TRANSFORMED_USD,
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

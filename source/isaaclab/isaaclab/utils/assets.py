@@ -260,6 +260,21 @@ MUJOCO_MENAGERIE_DIR: str = f"{ISAAC_NUCLEUS_DIR}/Samples/Mujoco_Menagerie"
 MUJOCO_MENAGERIE_PHYSICS_VARIANT_SET: str = "Physics"
 """Variant set name on Menagerie root prims for backend-specific physics composition."""
 
+# Per-asset overrides: set these env vars to point at local fixed assets (e.g. Divyansh's
+# transformed USDs) while upstream changes are pending Nucleus upload.  When unset, each
+# falls back to the canonical Nucleus path used by the rest of the config.
+SPOT_TRANSFORMED_USD: str = os.environ.get(
+    "SPOT_TRANSFORMED_USD",
+    f"{MUJOCO_MENAGERIE_DIR}/boston_dynamics_spot/spot.usda",
+)
+"""Path to the fixed Spot USD; override via ``SPOT_TRANSFORMED_USD`` env var."""
+
+H1_TRANSFORMED_USD: str = os.environ.get(
+    "H1_TRANSFORMED_USD",
+    f"{MUJOCO_MENAGERIE_DIR}/unitree_h1/h1/h1.usda",
+)
+"""Path to the fixed H1 USD; override via ``H1_TRANSFORMED_USD`` env var."""
+
 MUJOCO_MENAGERIE_PHYSICS_VARIANT_PHYSX: str = "physx"
 """Physics variant selection for PhysX-backed simulation."""
 
