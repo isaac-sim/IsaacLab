@@ -27,7 +27,7 @@ Do not copy migration tables into answers from memory. Read the official migrati
    - For custom `.kit` files, either list every direct Isaac Sim extension dependency explicitly or enable each extension before importing its Python module.
    - Do not add extension enables to plain Python modules that can be imported before Kit starts unless the code is guarded so it runs only inside a launched Kit app.
 5. Apply the smallest focused migration change.
-6. Run a targeted smoke test or import test. For direct Isaac Sim imports, use an app-launched command such as `./isaaclab.sh -p -m pytest PATH_TO_TEST` or a script that starts `AppLauncher` before enabling extensions.
+6. Run a targeted smoke test or import test. For direct Isaac Sim imports, ensure the test or script starts `AppLauncher` before enabling extensions. For example, run an app-launching test with `uv run --extra isaacsim --with pytest python -m pytest PATH_TO_TEST`.
 7. If the official docs are missing a recurring migration issue, update `docs/source/migration/migrating_to_isaaclab_3-0.rst` instead of expanding this skill with standalone documentation.
 
 ## Validation

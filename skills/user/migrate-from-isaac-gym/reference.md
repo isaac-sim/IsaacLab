@@ -109,7 +109,7 @@ uv run python "$PROJECT/validation/evaluate_checkpoint.py" \
   --num_envs 64 --steps 256 --device cuda:0
 ```
 
-Omit `--viz` for headless validation. Use `--viz none` only when a config or command would otherwise enable visualizers. Do not use deprecated `` in new validation commands.
+Omit `--viz` for headless validation. Use `--viz none` only when a config or command would otherwise enable visualizers.
 
 On Windows, use the same `uv` commands from PowerShell and set the same path order:
 

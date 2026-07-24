@@ -45,10 +45,10 @@ _PHYSICS_BACKEND_MIRROR_NAMES = frozenset(
 # RL libraries listed in a stable order across generated docs.
 _RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
 
-# Gym IDs reserved for inference / evaluation variants and excluded from the training list.
-# Core and contributed tasks use versionless ``-Play`` / ``-Eval`` suffixes; experimental Warp
-# tasks still carry the legacy ``-Play-v0`` suffix.
-_INFERENCE_TASK_SUFFIXES = ("-Play", "-Play-v0", "-Eval")
+# Gym IDs excluded from the training list. The ``-Eval`` suffix marks dedicated
+# evaluation variants (e.g. ``IsaacContrib-Assemble-Trocar-G129-Dex3-Eval``, an alias
+# registered for RLinf eval configs) that should not appear as their own training row.
+_EVAL_TASK_SUFFIXES = ("-Eval",)
 
 # RL libraries not discoverable from Gym ``kwargs`` (e.g. RLinf YAML-based workflows).
 RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
@@ -65,7 +65,6 @@ class EnvironmentDocRow:
     """One row of the comprehensive environment list in ``environments.rst``."""
 
     task_name: str
-    inference_task_name: str | None
     workflow: str
     rl_libraries: str
     presets: str
@@ -75,7 +74,7 @@ def is_training_task(task_id: str) -> bool:
     """Return ``True`` when *task_id* is a training (non-inference) Isaac task."""
     if "Isaac" not in task_id:
         return False
-    if any(task_id.endswith(suffix) for suffix in _INFERENCE_TASK_SUFFIXES):
+    if any(task_id.endswith(suffix) for suffix in _EVAL_TASK_SUFFIXES):
         return False
     if "-Benchmark-" in task_id:
         return False
@@ -236,19 +235,6 @@ def get_workflow(entry_point: str) -> str:
     return "Direct"
 
 
-def find_inference_task_name(task_id: str, registry_ids: set[str]) -> str | None:
-    """Return the inference/play task ID paired with *task_id*, if registered."""
-    # Strip a trailing version segment (``-vN``) when present; versionless IDs
-    # (e.g. ``Isaac-Cartpole-Direct``) keep their full name as the pairing base.
-    head, sep, tail = task_id.rpartition("-")
-    base = head if (sep and tail.startswith("v") and tail[1:].isdigit()) else task_id
-    for suffix in _INFERENCE_TASK_SUFFIXES:
-        candidate = f"{base}{suffix}"
-        if candidate in registry_ids:
-            return candidate
-    return None
-
-
 def collect_environment_doc_rows(
     specs: list[EnvSpec] | None = None,
 ) -> list[EnvironmentDocRow]:
@@ -263,7 +249,6 @@ def collect_environment_doc_rows(
     if specs is None:
         specs = list(gym.registry.values())
 
-    registry_ids = {spec.id for spec in specs}
     rows: list[EnvironmentDocRow] = []
 
     for spec in specs:
@@ -279,7 +264,6 @@ def collect_environment_doc_rows(
         rows.append(
             EnvironmentDocRow(
                 task_name=spec.id,
-                inference_task_name=find_inference_task_name(spec.id, registry_ids),
                 workflow=get_workflow(spec.entry_point),
                 rl_libraries=format_rl_libraries(agents),
                 presets=format_presets_rst(preset_map),
@@ -301,10 +285,9 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
     """Render the comprehensive environment ``list-table`` block as RST."""
     lines = [
         ".. list-table::",
-        "    :widths: 18 17 10 22 33",
+        "    :widths: 22 12 30 36",
         "",
         "    * - **Task Name**",
-        "      - **Inference Task Name**",
         "      - **Workflow**",
         "      - **RL Library**",
         "      - **Presets**",
@@ -314,7 +297,6 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
         lines.extend(
             [
                 f"    * - {row.task_name}",
-                _render_list_table_cell(row.inference_task_name or ""),
                 _render_list_table_cell(row.workflow),
                 _render_list_table_cell(row.rl_libraries),
                 _render_list_table_cell(row.presets),

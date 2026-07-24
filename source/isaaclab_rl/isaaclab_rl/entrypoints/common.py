@@ -15,6 +15,7 @@ import os
 import re
 import runpy
 import sys
+import warnings
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -201,6 +202,37 @@ def dispatch_library_entrypoint(
     module = import_local_module(f"isaaclab_rl_{action}_{args_cli.rl_library}", module_path)
     module.run(library_args)
     return 0
+
+
+def resolve_play_task_name(task: str | None) -> str | None:
+    """Redirect a retired ``-Play`` task id to its training task id.
+
+    Task ids with a ``-Play`` suffix (before an optional ``-v<N>`` version) were removed in
+    favor of play-mode overrides that play scripts apply to the training configuration (see
+    ``play_mode`` on the environment configuration). When ``task`` carries the suffix,
+    is not itself registered, and the corresponding training task id is registered, the
+    training task id is returned (preserving any namespace prefix) along with a deprecation
+    warning. Externally registered ``-Play`` tasks are returned unchanged.
+
+    Args:
+        task: Gym task id, possibly with a namespace prefix.
+
+    Returns:
+        The task id to use, or None if ``task`` is None.
+    """
+    if not task:
+        return task
+    namespace, _, name = task.rpartition(":")
+    train_name = re.sub(r"-Play(-v\d+)?$", r"\1", name)
+    if train_name == name or name in gym.registry or train_name not in gym.registry:
+        return task
+    warnings.warn(
+        f"Task '{name}' was removed. Playing '{train_name}' with play-mode overrides instead. "
+        "Pass --train_env_cfg to play the training configuration as-is.",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return f"{namespace}:{train_name}" if namespace else train_name
 
 
 def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -> str:

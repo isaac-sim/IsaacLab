@@ -67,17 +67,6 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reorient-Cube-Shadow-Camera-Direct-Play",
-    entry_point=f"{__name__}.shadow_hand_camera_env:ShadowHandCameraEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.shadow_hand_camera_env_cfg:ShadowHandCameraEnvPlayCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
-    },
-)
-
-gym.register(
     id="Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct",
     entry_point=f"{__name__}.shadow_hand_camera_env:ShadowHandCameraEnv",
     disable_env_checker=True,

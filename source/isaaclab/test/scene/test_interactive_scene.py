@@ -143,8 +143,8 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
 
     captured: list = []
 
-    def fake_replicate(plan, *, stage):
-        captured.append((plan, stage))
+    def fake_replicate(plan, *, stage, replicate_physics=True):
+        captured.append((plan, stage, replicate_physics))
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
@@ -153,11 +153,87 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
         scene = InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
 
     assert len(captured) == 1
-    plan, stage = captured[0]
+    plan, stage, replicate_physics = captured[0]
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
     assert stage is scene.stage
+    assert replicate_physics is True
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("replicate_physics", [True, False])
+def test_replicate_physics_flag_controls_physx_replicator(device, replicate_physics, setup_scene, monkeypatch):
+    """replicate_physics=False must not register the PhysX replicator while envs still simulate.
+
+    The True case asserts the spy actually intercepts registration, so the False case
+    cannot pass vacuously.
+    """
+    physx_replicate_module = pytest.importorskip("isaaclab_physx.cloner.replicate")
+
+    register_calls: list = []
+    real_get_iface = physx_replicate_module.get_physx_replicator_interface
+
+    class SpyInterface:
+        def __init__(self, real):
+            self._real = real
+
+        def register_replicator(self, *args, **kwargs):
+            register_calls.append(args)
+            return self._real.register_replicator(*args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self._real, name)
+
+    monkeypatch.setattr(
+        physx_replicate_module, "get_physx_replicator_interface", lambda: SpyInterface(real_get_iface())
+    )
+
+    make_scene, sim = setup_scene
+    scene_cfg = make_scene(num_envs=3)
+    scene_cfg.replicate_physics = replicate_physics
+    scene = InteractiveScene(scene_cfg)
+    if not scene.physics_backend.startswith("physx"):
+        pytest.skip("PhysX replicator flag is only meaningful on a PhysX backend.")
+    sim.reset()
+
+    if replicate_physics:
+        assert len(register_calls) > 0
+    else:
+        assert register_calls == []
+    # all environments exist and simulate on both paths
+    assert scene["rigid_obj"].data.root_pos_w.torch.shape[0] == 3
+    assert scene["robot"].data.joint_pos.torch.shape[0] == 3
+    for _ in range(2):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+    assert torch.isfinite(scene["rigid_obj"].data.root_pos_w.torch).all()
+    assert torch.isfinite(scene["robot"].data.joint_pos.torch).all()
+
+
+def test_cfg_cloning_contexts_override_backend_default(monkeypatch: pytest.MonkeyPatch):
+    """AssetBaseCfg.cloning_contexts replaces the backend default stack for that asset."""
+    import isaaclab.cloner.replicate_session as replicate_session_module
+    from isaaclab.cloner import REPLICATION_QUEUE
+
+    # keep the queue for inspection: the fake drain does not clear it
+    monkeypatch.setattr(replicate_session_module, "replicate", lambda plan, *, stage, replicate_physics=True: None)
+
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = MySceneCfg(num_envs=2, env_spacing=1.0)
+        scene_cfg.rigid_obj.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
+        try:
+            InteractiveScene(scene_cfg)
+            queued_by_path = {cfg.prim_path: cfg for cfg in REPLICATION_QUEUE}
+            # the override rides the queued cfg; resolution happens at replicate()
+            assert queued_by_path["/World/envs/env_.*/RigidObj"].cloning_contexts == (
+                "isaaclab.cloner:UsdReplicateContext",
+            )
+            # untouched asset resolves to the backend default stack at replicate()
+            assert queued_by_path["/World/envs/env_.*/Robot"].cloning_contexts is None
+        finally:
+            REPLICATION_QUEUE.clear()
 
 
 def test_collect_asset_cfgs_resolves_env_regex_macros():
@@ -196,6 +272,7 @@ def test_collect_asset_cfgs_orders_sensors_last():
     body = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot")
     scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor, body=body)
     scene.cloner_cfg = CloneCfg()
+    scene._env_ns = scene.cloner_cfg.clone_regex.rsplit("/", 1)[0]
 
     cfgs = scene._collect_asset_cfgs()
 

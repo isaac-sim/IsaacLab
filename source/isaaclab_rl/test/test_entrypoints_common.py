@@ -22,6 +22,7 @@ from isaaclab_rl.entrypoints.common import (
     add_common_train_args,
     dispatch_library_entrypoint,
     enable_cameras_for_video,
+    resolve_play_task_name,
     wrap_sensor_capture,
 )
 
@@ -219,3 +220,41 @@ def test_dispatch_library_entrypoint_shows_help_without_library(
     assert result == 0
     output = capsys.readouterr().out
     assert "--rl_library {rsl_rl}" in output
+
+
+def test_resolve_play_task_name_redirects_removed_play_task() -> None:
+    """A retired ``-Play`` id resolves to the registered training id with a deprecation warning."""
+    gym.register(id="Isaac-ResolvePlayTest", entry_point="dummy:Env")
+    try:
+        with pytest.warns(FutureWarning, match="was removed"):
+            resolved = resolve_play_task_name("Isaac-ResolvePlayTest-Play")
+        assert resolved == "Isaac-ResolvePlayTest"
+        with pytest.warns(FutureWarning, match="was removed"):
+            resolved = resolve_play_task_name("my_module:Isaac-ResolvePlayTest-Play")
+        assert resolved == "my_module:Isaac-ResolvePlayTest"
+    finally:
+        del gym.registry["Isaac-ResolvePlayTest"]
+
+
+def test_resolve_play_task_name_redirects_removed_versioned_play_task() -> None:
+    """A retired ``-Play-v0`` id resolves to the registered versioned training id."""
+    gym.register(id="Isaac-ResolvePlayTest-v0", entry_point="dummy:Env")
+    try:
+        with pytest.warns(FutureWarning, match="was removed"):
+            resolved = resolve_play_task_name("Isaac-ResolvePlayTest-Play-v0")
+        assert resolved == "Isaac-ResolvePlayTest-v0"
+    finally:
+        del gym.registry["Isaac-ResolvePlayTest-v0"]
+
+
+def test_resolve_play_task_name_keeps_registered_and_unknown_tasks() -> None:
+    """Registered ``-Play`` ids (external projects) and unknown ids pass through unchanged."""
+    gym.register(id="Isaac-ExternalPlayTest-Play", entry_point="dummy:Env")
+    try:
+        assert resolve_play_task_name("Isaac-ExternalPlayTest-Play") == "Isaac-ExternalPlayTest-Play"
+    finally:
+        del gym.registry["Isaac-ExternalPlayTest-Play"]
+    # neither the -Play id nor the training id is registered
+    assert resolve_play_task_name("Isaac-DoesNotExist-Play") == "Isaac-DoesNotExist-Play"
+    assert resolve_play_task_name("Isaac-Something") == "Isaac-Something"
+    assert resolve_play_task_name(None) is None

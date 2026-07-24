@@ -9,7 +9,7 @@
 
 ## Install Path Routing
 
-Ask which install path the user is following before prescribing commands. For a new full-feature Isaac Sim setup, route to the pip/uv guide first.
+Ask which install path the user is following before prescribing commands. For a new full-feature Isaac Sim setup, route to the automatic uv guide first.
 
 | User context | First reference |
 | --- | --- |

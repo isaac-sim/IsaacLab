@@ -42,12 +42,3 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
                 NewtonIKJointLimitObjectiveCfg(weight=0.1),
             ],
         )
-
-
-@configclass
-class FrankaReachEnvCfg_PLAY(FrankaReachEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        self.observations.policy.enable_corruption = False
