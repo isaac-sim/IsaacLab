@@ -407,14 +407,14 @@ absolute-difference images.
       .. code-block:: bash
 
          uv run python scripts/demos/sensors/ppisp_camera.py \
-             --renderer newton --max_steps 60
+             --renderer newton_renderer --max_steps 60
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
-             --renderer newton --max_steps 60
+             --renderer newton_renderer --max_steps 60
 
 Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
 ``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage

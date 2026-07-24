@@ -1,60 +1,43 @@
 ---
 name: isaaclab-preparing-assets-for-newton
-description: Validates and prepares PhysX-compatible USD assets for Isaac Lab Newton workflows. Use when an asset runs under PhysX but Newton reports missing mass or inertia, placeholder inertials, unsupported collision or joint topology, unstable control, or task-level action and actuator mismatches.
+description: Migrates PhysX-compatible robot, object, and scene assets to Isaac Lab's Newton backend with MJWarp. Use when handling existing Isaac Lab assets or new multi-physics conversion, per-solver asset configuration, mass or inertia warnings, contact slip and friction, velocity-limit behavior, armature and damping, MJWarp solver profiles, solver-specific failures, or task-level validation.
 audience: user
 status: experimental
 owners:
   - isaaclab-maintainers
 ---
 
-# Preparing Assets For Newton
+# Prepare Assets For Newton With MJWarp
 
 ## When To Use
 
-Use this skill when a user needs to validate or prepare a USD robot, object, or scene asset for Newton after it already works or partially works under PhysX.
-
-Do not use this skill for choosing a backend at the environment level. Use `isaaclab-selecting-backends` for backend selection and `isaaclab-using-presets` for backend-specific configuration variants.
+Read the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst) first. This skill follows that page in the same order and targets Newton with MJWarp, not Newton solvers generally. Use the sim-to-sim skill only after the asset and task run in both backends.
 
 ## Workflow
 
-1. Establish a PhysX baseline for the same asset path and task spawn path.
-2. Classify the asset as PhysX-compatible, Newton-runnable, or Newton-clean.
-3. Audit authored physics metadata: rigid bodies, colliders, mass, inertia, center of mass, joint topology, and material properties.
-4. Fix authored USD physics data instead of hiding Newton warnings with task code.
-5. If runtime-resolved mass properties are needed, produce a local package or authored layer with explicit mass, diagonal inertia, and center of mass.
-6. When fixing task-side schema overrides, import universal schema fragments from `isaaclab.sim.schemas` and Newton or MuJoCo-specific cfgs from `isaaclab_newton.sim.schemas` instead of relying on deprecated core forwarding imports.
-7. Re-audit the converted asset under Newton.
-8. Validate the asset inside the target Isaac Lab task, not only in a standalone USD viewer.
-9. Check actuator joint patterns, controller body names, action dimensions, and zero-action rollout stability.
-10. Record source path, converted path, audit verdicts, smoke command, and residual warnings in project documentation.
+1. **Multi-backend Asset Importing Pipeline.** Use provided Isaac Lab assets directly in PhysX and MJWarp; Newton parses their supported authored USD Physics and PhysX properties. For a new URDF or MJCF, keep `run_asset_transformer=True` and `run_multi_physics_conversion=True` so the importer creates neutral, PhysX, and MuJoCo payloads. Account for its nested rigid-body structure.
+2. **Use per-solver asset configuration classes.** Put common USD Physics properties in solver-common base cfgs. Put MJWarp-specific fields in `Mujoco*PropertiesCfg`, Newton-native fields in `Newton*PropertiesCfg`, and PhysX-only fields in `Physx*PropertiesCfg`. Confirm support in the generated schema APIs.
+3. **Audit the authored mechanical model.** Check every dynamic link and contact-relevant object for intentional mass, COM, inertia and frames, collision geometry, approximation and scale, materials, articulation root, fixed-base and fixed-joint representation, joint axes and limits, self-collision, and gravity overrides.
+4. **Match contact and friction behavior.** Expect more default slip in MJWarp. Validate colliders, material bindings, contact locations and gripper force. Set per-shape `mjc:condim` with a task-local `CollisionFragment`, tune material friction, then set global `MJWarpSolverCfg(cone=..., impratio=...)`. Use fixed-grasp displacement, contact count, effort, penetration, and success metrics.
+5. **Velocity limits distinction.** `velocity_limit` is a rated speed and `velocity_limit_sim` is a requested solver clamp. MJWarp enforces neither. Add task or control checks for required speed bounds and use per-joint `effort_limit_sim`.
+6. **Why MJWarp often needs more armature.** Use reflected rotor inertia or controlled response tests for articulated coordinates. A plain rigid object has body inertia, not actuator armature. Correct mass, inertia, units, reset penetration, effort, action scale, control period, and contact capacity before changing armature.
+7. **Retune damping with armature.** Increasing armature changes effective inertia and damping ratio. Tune armature, stiffness, and damping together from a step response, use conservative action scales, and keep targets away from hard stops to prevent bang-bang control.
+8. **Choose an MJWarp starting profile.** Do not translate PhysX parameters numerically. Start from the nearest profile on the MJWarp solver page, keep the documented convergence defaults initially, enable `debug_mode`, and use MuJoCo contacts unless the task requires Newton's collision pipeline. Then run zero and random agents in PhysX and MJWarp through multiple resets. Check non-finite state, first-step impulses, saturation, excessive angular velocity, contact loss, and warnings. Reject penetrations, impossible mimic states, and invalid randomized geometry before stepping.
+9. **Diagnose MJWarp-only failures.** Reproduce the first bad step with one environment, a fixed state, no randomization, and identical actions. Classify initialization/model, contact/capacity, control, or dense-scene failures before tuning. Raise overflowing capacity first; change convergence settings only after the asset, reset, controller, contact model, and capacities are valid.
 
 ## Validation
 
-An asset is Newton-clean only when:
-
-1. All rigid bodies have intentional mass properties.
-2. Runtime mass and inertia values are finite and positive.
-3. Collision geometry is parseable by Newton.
-4. Joint topology is accepted by Newton.
-5. The target task can spawn and reset the asset under Newton.
-6. Zero-action rollout has finite observations, rewards, positions, and velocities.
-7. Actuator and controller names still resolve after any USD conversion.
-
-For skill changes, run:
-
-```bash
-uv run --no-project python tools/skills/cli.py check
-```
+Require an asset that parses into both backends with supported per-solver fields, intentional mass, collision and contact data, physically justified actuator parameters, finite task behavior, and valid resets. Do not classify an asset as ready while importer or solver warnings remain unexplained.
 
 ## Maintenance
 
-Keep this skill synchronized with Newton backend documentation, asset conversion utilities, and backend-specific examples. Avoid storing converted USD packages, generated audit logs, or private asset paths in this skill.
+Keep this skill synchronized section-for-section with the asset migration guide and use the MJWarp solver page for current profile values.
 
 ## References
 
-- [Reference](reference.md)
+- [Compact reference](reference.md)
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
-- [Backend selection skill](../select-backends/SKILL.md)
-- [Preset skill](../use-presets/SKILL.md)
-- [Newton documentation](../../../docs/source/overview/core-concepts/physical-backends/newton)
+- [MJWarp solver page](../../../docs/source/overview/core-concepts/physical-backends/newton/mjwarp-solver.rst)
+- [Schema configuration classes](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
+- [Newton Simulation Tuning guide](https://newton-physics.github.io/newton/latest/concepts/simulation_tuning.html)

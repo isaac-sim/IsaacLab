@@ -637,6 +637,18 @@ def _select_newton_training_control_button(viewer, target_label: str) -> None:
         def text(self, _text):
             pass
 
+        def checkbox(self, label, value):
+            return (True, not value) if label == target_label else (False, value)
+
+        def same_line(self):
+            pass
+
+        def begin_disabled(self, _disabled):
+            pass
+
+        def end_disabled(self):
+            pass
+
         def button(self, label):
             return label == target_label
 

@@ -416,24 +416,12 @@ class _SceneDataProvider:
 
 
 def _make_newton_visualizer(viewer, scene_data_provider=None):
-    visualizer = NewtonVisualizer.__new__(NewtonVisualizer)
-    visualizer.cfg = NewtonVisualizerCfg(enable_markers=False)
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg(enable_markers=False))
     visualizer._is_initialized = True
-    visualizer._is_closed = False
-    visualizer._sim_time = 0.0
-    visualizer._step_counter = 0
     visualizer._viewer = viewer
-    visualizer._state = None
     visualizer._scene_data_provider = scene_data_provider
-    visualizer._resolved_visible_env_ids = None
-    visualizer._picking_enabled = False
-    visualizer._viewer_force_binding = NewtonVisualizer._ViewerForceBinding()
     if viewer is not None:
         visualizer._viewer_force_binding.bind(viewer)
-    visualizer._state_force_callback_registered = False
-    visualizer._camera_sensor = None
-    visualizer._camera_is_owned = False
-    visualizer._generated_camera_prim_paths = []
     visualizer._log_camera_sensor_image = lambda: None
     return visualizer
 
@@ -454,6 +442,30 @@ def test_newton_viewer_model_swap_restores_only_cleared_ui_callbacks(monkeypatch
     viewer.set_model(object())
 
     assert registered_positions == ["side"]
+
+
+def test_newton_viewer_controls_use_native_pause_and_step_state():
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._paused = False
+    viewer._step_requested = False
+    viewer._paused_rendering = False
+    viewer._update_frequency = 1
+    imgui = SimpleNamespace(
+        checkbox=lambda *_args: (True, True),
+        same_line=lambda: None,
+        begin_disabled=lambda _disabled: None,
+        end_disabled=lambda: None,
+        button=lambda label: label == "Step",
+        text=lambda _text: None,
+        slider_int=lambda _label, value, *_args: (False, value),
+        is_item_hovered=lambda: False,
+    )
+
+    viewer._render_training_controls(imgui)
+
+    assert viewer._paused is True
+    assert viewer._step_requested is True
+    assert viewer._paused_rendering is False
 
 
 def test_newton_visualizer_close_neutralizes_forces_without_invalidating_graph(monkeypatch):

@@ -39,9 +39,6 @@ class ViserVisualizerCfg(VisualizerCfg):
     The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
     """
 
-    label: str | None = "Isaac Lab Simulation"
-    """Optional label shown in the viewer page title."""
-
     verbose: bool = True
     """Whether to print viewer server startup information."""
 

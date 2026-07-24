@@ -11,7 +11,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
@@ -120,6 +120,18 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     # env
     observation_space = 164 + 27  # state observation + vision CNN embedding
     state_space = 187 + 27  # asymmetric states + vision CNN embedding
+
+    def __post_init__(self):
+        # The vision env renders through the Isaac RTX tiled camera, whose render
+        # products require the Fabric cloning path. The Newton backend disables Fabric
+        # cloning (see the base env's ``clone_in_fabric`` scene preset), so under Newton
+        # the ``rgb`` annotator has no render products for ``num_envs > 1`` and the
+        # default RGB/depth/semantic render fails. Default the vision env to PhysX so it
+        # renders out of the box; Newton stays selectable via ``physics=newton_mjwarp``
+        # for the depth-only Newton-warp-renderer benchmark path (``presets=newton_renderer``).
+        super().__post_init__()
+        for backend_cfg in (self.sim.physics, self.robot_cfg, self.object_cfg):
+            backend_cfg.default = backend_cfg.physx
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""

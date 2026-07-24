@@ -148,6 +148,44 @@ _NEWTON_WARP_DATA_TYPES = (
 # Users should use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
 
+_OVRTX_TEXTURE_READINESS_DATA_TYPES = (
+    "albedo",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+)
+_OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+
+
+def make_xfail_rendering_params(
+    params: list[pytest.param],
+    expected_failures: dict[tuple[str, str, str], str],
+) -> list[pytest.param]:
+    """Mark selected rendering parameter combinations as expected failures.
+
+    Args:
+        params: Rendering parameters containing physics backend, renderer, and data type values.
+        expected_failures: Mapping from parameter value tuples to expected-failure reasons.
+
+    Returns:
+        Rendering parameters with non-strict ``xfail`` marks applied to matching combinations.
+    """
+    marked_params = []
+    for param in params:
+        reason = expected_failures.get(tuple(param.values))
+        if reason is None:
+            marked_params.append(param)
+            continue
+        # Expected failures should run once instead of consuming the RTX flaky-retry budget.
+        marks = [mark for mark in param.marks if mark.name != "flaky"]
+        marked_params.append(
+            pytest.param(
+                *param.values,
+                id=param.id,
+                marks=[*marks, pytest.mark.xfail(reason=reason, strict=False)],
+            )
+        )
+    return marked_params
+
 
 def _make_sensor_data_type_params(
     physics_backend: str,
@@ -191,16 +229,22 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
     ),
 ]
 
-KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params(
-        "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
-    ),
-    *_make_sensor_data_type_params(
-        "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
-    ),
-]
+KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
+    [
+        *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
+        *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
+        *_make_sensor_data_type_params(
+            "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+        ),
+        *_make_sensor_data_type_params(
+            "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+        ),
+    ],
+    {
+        ("newton", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+        for data_type in _OVRTX_TEXTURE_READINESS_DATA_TYPES
+    },
+)
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation

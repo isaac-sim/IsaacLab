@@ -59,7 +59,7 @@ when the simulation is played.
 .. note::
     Deformable objects require a mesh object to be spawned with backend-specific deformable body physics
     properties and a matching deformable physics material.
-    Use ``--backend physx`` for the PhysX implementation or ``--backend newton`` for the experimental Newton
+    Use ``--backend physx`` for the PhysX implementation or ``--backend newton_vbd`` for the experimental Newton
     implementation.
 
 
@@ -185,14 +185,14 @@ To run the same tutorial with the experimental Newton deformable backend:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_deformable_object.py --backend newton --visualizer kit
+         uv run python scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd --visualizer kit
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --backend newton --visualizer kit
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd --visualizer kit
 
 
 This should open a stage with a ground plane, lights, and several cubes. Two of the four cubes must be dropping
