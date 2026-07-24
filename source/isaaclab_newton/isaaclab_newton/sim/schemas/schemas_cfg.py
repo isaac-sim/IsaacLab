@@ -193,6 +193,75 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
 
 
 @configclass
+class MujocoCollisionCfg(CollisionFragment):
+    """``mjc:*`` per-collider attributes for Newton's MuJoCo solver.
+
+    These attributes tune the MuJoCo contact model on each collision shape. They are applied
+    alongside :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` via
+    :func:`~isaaclab.sim.schemas.apply_collision_properties`.
+
+    The fragment overrides :attr:`func` with
+    :func:`~isaaclab_newton.sim.schemas.apply_mujoco_collision` because ``solimp`` and ``solref``
+    are authored as fixed-length USD arrays.
+
+    .. note::
+        If a value is ``None``, the corresponding attribute is not modified and Newton uses the
+        imported value or the MuJoCo default.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "mjc"
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    func: Callable | str = "isaaclab_newton.sim.schemas:apply_mujoco_collision"
+
+    condim: Literal[1, 3, 4, 6] | None = None
+    """Number of dimensions in the contact friction cone [dimensionless].
+
+    ``1`` is frictionless, ``3`` adds tangential friction, ``4`` adds torsional friction, and
+    ``6`` adds rolling friction. Written to ``mjc:condim``. Defaults to ``3`` in Newton when the
+    attribute is not authored.
+    """
+
+    group: int | None = None
+    """MuJoCo geometry group [dimensionless].
+
+    Written to ``mjc:group``. Valid values are 0 through 5. This grouping controls MuJoCo
+    visualization and inertia-inference selection; it is not an Isaac Lab collision-filter group.
+    """
+
+    priority: int | None = None
+    """Contact-parameter precedence for this collider [dimensionless].
+
+    Written to ``mjc:priority``. When two colliders have different priorities, MuJoCo uses the
+    higher-priority collider's contact parameters. Values must be non-negative.
+    """
+
+    solimp: tuple[float, float, float, float, float] | None = None
+    """Contact impedance parameters ``(dmin, dmax, width, midpoint, power)``.
+
+    Component units are [dimensionless, dimensionless, m, dimensionless, dimensionless].
+    Written to ``mjc:solimp`` as a five-element array. Newton defaults to
+    ``(0.9, 0.95, 0.001, 0.5, 2.0)`` when the attribute is not authored.
+    """
+
+    solmix: float | None = None
+    """Contact-parameter mixing weight [dimensionless].
+
+    Written to ``mjc:solmix``. MuJoCo uses this weight to combine compatible contact parameters
+    when the colliders have equal :attr:`priority`. Values must be non-negative. Defaults to
+    ``1.0`` in Newton when the attribute is not authored.
+    """
+
+    solref: tuple[float, float] | None = None
+    """Contact reference parameters.
+
+    In positive format, the components are ``(time_constant [s], damping_ratio [dimensionless])``.
+    In non-positive direct format, they are ``(-stiffness [s^-2], -damping [s^-1])``. Written to
+    ``mjc:solref`` as a two-element array.
+    """
+
+
+@configclass
 class NewtonCollisionCfg(CollisionFragment):
     """``newton:*`` collision attributes for Newton's contact pipeline.
 
