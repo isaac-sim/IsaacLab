@@ -61,9 +61,11 @@ _ENV_CREATED_MARKER = "Base environment:"
 # exercise the Isaac Teleop device factory (the live session is out of scope for a headless smoke).
 _NO_CLOUDXR = ["--cloudxr_env", "none", "--no-auto_launch_cloudxr"]
 
-# Generous ceiling for a cold Isaac Sim launch + Franka env creation on CI hardware. The watcher
-# returns as soon as the marker is seen, so the typical wall time is well under this.
-_STARTUP_TIMEOUT_S = 600.0
+# Generous ceiling for a cold Isaac Sim launch + Franka env creation on CI hardware. On a warm
+# shader/asset cache the marker appears in ~25s, but the first launch on a cold runner can take
+# ~500s+ while caches populate, so the ceiling is sized well above that to avoid spurious timeouts.
+# The watcher returns as soon as the marker is seen, so this costs nothing on warm runs.
+_STARTUP_TIMEOUT_S = 900.0
 
 
 def _launch_until_marker(argv: list[str], markers: list[str], log_path: Path) -> str:
