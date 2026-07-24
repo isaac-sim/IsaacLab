@@ -7,8 +7,8 @@
 
 # pyright: reportAttributeAccessIssue=none, reportPrivateUsage=none
 
-from contextlib import contextmanager
 import math
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -25,15 +25,17 @@ from isaaclab.envs.mdp.events import (
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.test.physics.parameter_validation.fixtures import (
+    _MIN_MU,
     CONTACT_BOX_SIZE,
     CONTACT_GROUND_PRIM_PATH,
     CONTACT_OBJECT_PRIM_PATH,
     CONTACT_SPHERE_RADIUS,
-    _MIN_MU,
     build_contact_box_usd,
+    build_contact_ground_usd,
     build_contact_sphere_usd,
     make_contact_box_cfg,
     make_contact_sphere_cfg,
+    spawn_contact_ground,
 )
 from isaaclab.test.physics.parameter_validation.oracles import (
     PROFILE_CONTACT_DT,
@@ -52,24 +54,20 @@ _GRAVITY = 9.81
 _GROUND_SIZE = (4.0, 4.0, 0.1)
 _GROUND_TOP = 0.0
 _CONTACT_FORCE_THRESHOLD = 0.1
-_KAMINO_PIPELINE_REASON = (
-    "Accepted gap (Newton/Kamino integration): the selected Newton CollisionPipeline produces no physical "
-    "contacts for Isaac Lab-authored rigid shapes"
+_KAMINO_RESTITUTION_REASON = (
+    "Accepted gap (Newton/Kamino integration): the selected Newton CollisionPipeline produces inelastic contacts"
 )
 _MJWARP_RESTITUTION_REASON = (
     "Accepted gap (Newton-MJWarp integration): the default MuJoCo-contact path does not turn the public "
     "Newton restitution value into a rebound"
 )
-_CONTACT_BACKENDS = [
+_CONTACT_BACKENDS = [pytest.param("kamino", id="kamino"), pytest.param("mjwarp", id="mjwarp")]
+_RESTITUTION_BACKENDS = [
     pytest.param(
         "kamino",
         id="kamino",
-        marks=pytest.mark.xfail(strict=True, reason=_KAMINO_PIPELINE_REASON),
+        marks=pytest.mark.xfail(strict=True, reason=_KAMINO_RESTITUTION_REASON),
     ),
-    pytest.param("mjwarp", id="mjwarp"),
-]
-_RESTITUTION_BACKENDS = [
-    _CONTACT_BACKENDS[0],
     pytest.param(
         "mjwarp",
         id="mjwarp",
@@ -141,21 +139,21 @@ def _contact_scene(
     object_local_offset: float = 0.0,
     gravity: tuple[float, float, float] = (0.0, 0.0, -_GRAVITY),
 ):
-    """Build one controlled two-body contact scene."""
+    """Build one controlled static-ground contact scene."""
     initial_mu = _MIN_MU if authoring == "runtime" else mu
     initial_restitution = 0.0 if authoring == "runtime" else restitution
     initial_rest_offset = 0.0 if authoring == "runtime" else rest_offset
     initial_contact_offset = 0.01 if authoring == "runtime" else contact_offset
+    # Runtime event terms require a rigid asset, so author the static ground with its target properties and apply
+    # runtime changes only to the dynamic object.
     ground_kwargs = {
         "size": _GROUND_SIZE,
         "position": (0.0, 0.0, -0.05),
         "orientation": _ramp_orientation(ground_angle),
-        "mu": initial_mu,
-        "restitution": initial_restitution,
-        "kinematic": True,
-        "disable_gravity": True,
-        "rest_offset": initial_rest_offset,
-        "contact_offset": initial_contact_offset,
+        "mu": mu,
+        "restitution": restitution,
+        "rest_offset": rest_offset,
+        "contact_offset": contact_offset,
     }
     object_box_kwargs = {
         "size": object_size,
@@ -181,18 +179,17 @@ def _contact_scene(
         sim._app_control_on_stop_handle = None
         sim_utils.create_prim("/World/Env_0", "Xform")
         if authoring == "usd":
-            build_contact_box_usd(CONTACT_GROUND_PRIM_PATH, **ground_kwargs)
+            build_contact_ground_usd(CONTACT_GROUND_PRIM_PATH, **ground_kwargs)
             if object_shape == "box":
                 build_contact_box_usd(CONTACT_OBJECT_PRIM_PATH, **object_box_kwargs)
             else:
                 build_contact_sphere_usd(CONTACT_OBJECT_PRIM_PATH, **object_sphere_kwargs)
-            ground_cfg = make_contact_box_cfg(CONTACT_GROUND_PRIM_PATH, spawn=False, **ground_kwargs)
             if object_shape == "box":
                 object_cfg = make_contact_box_cfg(CONTACT_OBJECT_PRIM_PATH, spawn=False, **object_box_kwargs)
             else:
                 object_cfg = make_contact_sphere_cfg(CONTACT_OBJECT_PRIM_PATH, spawn=False, **object_sphere_kwargs)
         else:
-            ground_cfg = make_contact_box_cfg(CONTACT_GROUND_PRIM_PATH, spawn=True, **ground_kwargs)
+            spawn_contact_ground(CONTACT_GROUND_PRIM_PATH, **ground_kwargs)
             if object_shape == "box":
                 object_cfg = make_contact_box_cfg(CONTACT_OBJECT_PRIM_PATH, spawn=True, **object_box_kwargs)
             elif object_shape == "sphere":
@@ -211,7 +208,6 @@ def _contact_scene(
                     object_cfg = make_contact_sphere_cfg(CONTACT_OBJECT_PRIM_PATH, spawn=False, **object_sphere_kwargs)
             mesh_prim = sim.stage.GetPrimAtPath(f"{CONTACT_OBJECT_PRIM_PATH}/geometry/mesh")
             mesh_prim.GetAttribute("xformOp:translate").Set((0.0, 0.0, -object_local_offset))
-        ground = RigidObject(ground_cfg)
         body = RigidObject(object_cfg)
         sensor = ContactSensor(
             ContactSensorCfg(
@@ -221,7 +217,6 @@ def _contact_scene(
             )
         )
         sim.reset()
-        ground.update(0.0)
         body.update(0.0)
         sensor.update(0.0, force_recompute=True)
 
@@ -229,22 +224,17 @@ def _contact_scene(
             device=_DEVICE,
             num_envs=1,
             sim=sim,
-            scene=_AssetScene({"ground": ground, "object": body}),
+            scene=_AssetScene({"object": body}),
         )
         if authoring == "runtime":
             sim.step()
-            ground.update(PROFILE_CONTACT_DT)
             body.update(PROFILE_CONTACT_DT)
-            ground.write_root_link_pose_to_sim_index(root_pose=ground.data.default_root_pose.torch)
-            ground.write_root_com_velocity_to_sim_index(root_velocity=ground.data.default_root_vel.torch)
             body.write_root_link_pose_to_sim_index(root_pose=body.data.default_root_pose.torch)
             body.write_root_com_velocity_to_sim_index(root_velocity=body.data.default_root_vel.torch)
-            _apply_runtime_material(env, "ground", mu, restitution)
             _apply_runtime_material(env, "object", mu, restitution)
             if rest_offset != 0.0 or contact_offset != 0.0:
-                _apply_runtime_offsets(env, "ground", rest_offset, contact_offset)
                 _apply_runtime_offsets(env, "object", rest_offset, contact_offset)
-        yield sim, ground, body, sensor, env
+        yield sim, body, sensor, env
 
 
 def _apply_runtime_material(env, asset_name: str, mu: float, restitution: float) -> None:
@@ -280,9 +270,8 @@ def _apply_runtime_offsets(env, asset_name: str, rest_offset: float, contact_off
     term(env, None, **params)
 
 
-def _step(sim, ground: RigidObject, body: RigidObject, sensor: ContactSensor) -> float:
+def _step(sim, body: RigidObject, sensor: ContactSensor) -> float:
     sim.step()
-    ground.update(PROFILE_CONTACT_DT)
     body.update(PROFILE_CONTACT_DT)
     sensor.update(PROFILE_CONTACT_DT, force_recompute=True)
     return float(torch.linalg.vector_norm(sensor.data.net_forces_w.torch[0]).item())
@@ -296,10 +285,10 @@ def _measure_ramp(parameter_adapter, authoring: str, angle: float, mu: float) ->
         object_position=(0.0, 0.0, 0.18),
         ground_angle=angle,
         mu=mu,
-    ) as (sim, ground, body, sensor, _):
+    ) as (sim, body, sensor, _):
         initial_position = body.data.root_link_pos_w.torch[0].clone()
         for _ in range(240):
-            _step(sim, ground, body, sensor)
+            _step(sim, body, sensor)
         displacement = torch.linalg.vector_norm(body.data.root_link_pos_w.torch[0] - initial_position)
         speed = torch.linalg.vector_norm(body.data.root_com_lin_vel_w.torch[0])
         return float(displacement), float(speed)
@@ -326,15 +315,15 @@ def _measure_stopping_distance(parameter_adapter, authoring: str, mu: float, ini
         object_shape="box",
         object_position=(0.0, 0.0, 0.11),
         mu=mu,
-    ) as (sim, ground, body, sensor, _):
+    ) as (sim, body, sensor, _):
         for _ in range(60):
-            _step(sim, ground, body, sensor)
+            _step(sim, body, sensor)
         velocity = torch.zeros((1, 6), device=_DEVICE)
         velocity[0, 0] = initial_speed
         body.write_root_com_velocity_to_sim_index(root_velocity=velocity)
         start = float(body.data.root_link_pos_w.torch[0, 0])
         for _ in range(480):
-            _step(sim, ground, body, sensor)
+            _step(sim, body, sensor)
             if abs(float(body.data.root_com_lin_vel_w.torch[0, 0])) < 0.05:
                 break
         return abs(float(body.data.root_link_pos_w.torch[0, 0]) - start)
@@ -367,11 +356,11 @@ def _measure_rebound_height(parameter_adapter, authoring: str, restitution: floa
         object_position=(0.0, 0.0, _GROUND_TOP + CONTACT_SPHERE_RADIUS + drop_height),
         mu=0.0,
         restitution=restitution,
-    ) as (sim, ground, body, sensor, _):
+    ) as (sim, body, sensor, _):
         impact_seen = False
         apex = _GROUND_TOP + CONTACT_SPHERE_RADIUS
         for _ in range(600):
-            force = _step(sim, ground, body, sensor)
+            force = _step(sim, body, sensor)
             velocity_z = float(body.data.root_com_lin_vel_w.torch[0, 2])
             if force > _CONTACT_FORCE_THRESHOLD:
                 impact_seen = True
@@ -414,9 +403,9 @@ def _measure_first_contact_step(
         object_size=size,
         object_radius=radius,
         object_local_offset=local_offset,
-    ) as (sim, ground, body, sensor, _):
+    ) as (sim, body, sensor, _):
         for step in range(180):
-            if _step(sim, ground, body, sensor) > _CONTACT_FORCE_THRESHOLD:
+            if _step(sim, body, sensor) > _CONTACT_FORCE_THRESHOLD:
                 return step
     raise AssertionError("Contact was not detected within the shape-contact probe")
 
@@ -449,7 +438,7 @@ def test_shape_02_runtime_scale_rejected(parameter_adapter):
         "cfg",
         object_shape="box",
         object_position=(0.0, 0.0, 0.8),
-    ) as (_, _, _, _, env):
+    ) as (_, _, _, env):
         with pytest.raises(RuntimeError, match="Randomizing scale while simulation is running"):
             randomize_rigid_body_scale(
                 env,  # pyright: ignore[reportArgumentType]
@@ -476,11 +465,7 @@ _MJWARP_MARGIN_REASON = "newton-physics/newton#2106: production-default MuJoCo c
 @pytest.mark.parametrize(
     "parameter_adapter",
     [
-        pytest.param(
-            "kamino",
-            id="kamino",
-            marks=pytest.mark.xfail(strict=True, reason=_KAMINO_PIPELINE_REASON),
-        ),
+        pytest.param("kamino", id="kamino"),
         pytest.param(
             "mjwarp",
             id="mjwarp",
@@ -500,9 +485,9 @@ def test_contact_01_margin_controls_resting_separation(parameter_adapter, author
         object_position=(0.0, 0.0, 0.8),
         rest_offset=margin,
         contact_offset=contact_offset,
-    ) as (sim, ground, body, sensor, _):
+    ) as (sim, body, sensor, _):
         for _ in range(360):
-            _step(sim, ground, body, sensor)
+            _step(sim, body, sensor)
         separation = float(body.data.root_com_pos_w.torch[0, 2]) - CONTACT_SPHERE_RADIUS - _GROUND_TOP
         expected = 2.0 * margin
         case = _case(

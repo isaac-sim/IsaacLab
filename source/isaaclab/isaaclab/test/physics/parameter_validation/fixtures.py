@@ -25,6 +25,7 @@ from isaaclab.sim.schemas import (
 )
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
+from isaaclab.sim.spawners.shapes import spawn_cuboid
 from isaaclab.sim.utils import bind_physics_material
 
 FREE_BODY_PRIM_PATH = "/World/Env_0/Object"
@@ -107,6 +108,35 @@ def make_contact_box_cfg(
     )
 
 
+def spawn_contact_ground(
+    prim_path: str,
+    *,
+    size: tuple[float, float, float] = CONTACT_BOX_SIZE,
+    position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+    mu: float = 0.0,
+    restitution: float = 0.0,
+    rest_offset: float = 0.0,
+    contact_offset: float = 0.01,
+) -> None:
+    """Spawn a controlled static cuboid contact fixture."""
+    spawn_cfg = sim_utils.CuboidCfg(
+        size=size,
+        collision_props=CollisionBaseCfg(
+            collision_enabled=True,
+            rest_offset=rest_offset,
+            contact_offset=contact_offset,
+        ),
+        physics_material=make_contact_material(mu, restitution),
+    )
+    spawn_cuboid(
+        prim_path,
+        spawn_cfg,
+        translation=position,
+        orientation=_scalar_first_to_xyzw(orientation),
+    )
+
+
 def make_contact_sphere_cfg(
     prim_path: str,
     *,
@@ -163,8 +193,9 @@ def _build_contact_shape_usd(
     restitution: float = 0.0,
     rest_offset: float = 0.0,
     contact_offset: float = 0.01,
+    rigid: bool = True,
 ) -> None:
-    """Author one rigid contact shape on the current stage."""
+    """Author one contact shape on the current stage."""
     stage = sim_utils.get_current_stage()
     if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
@@ -199,16 +230,17 @@ def _build_contact_shape_usd(
     spawn_physics_material(material_path, make_contact_material(mu, restitution), stage=stage)
     bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
-    define_mass_properties(prim_path, MassPropertiesCfg(mass=mass), stage=stage)
-    define_rigid_body_properties(
-        prim_path,
-        RigidBodyBaseCfg(
-            kinematic_enabled=kinematic,
-            disable_gravity=disable_gravity,
-        ),
-        stage=stage,
-    )
-    activate_contact_sensors(prim_path, stage=stage)
+    if rigid:
+        define_mass_properties(prim_path, MassPropertiesCfg(mass=mass), stage=stage)
+        define_rigid_body_properties(
+            prim_path,
+            RigidBodyBaseCfg(
+                kinematic_enabled=kinematic,
+                disable_gravity=disable_gravity,
+            ),
+            stage=stage,
+        )
+        activate_contact_sensors(prim_path, stage=stage)
 
 
 def build_contact_box_usd(
@@ -242,6 +274,35 @@ def build_contact_box_usd(
         restitution=restitution,
         rest_offset=rest_offset,
         contact_offset=contact_offset,
+    )
+
+
+def build_contact_ground_usd(
+    prim_path: str,
+    *,
+    size: tuple[float, float, float] = CONTACT_BOX_SIZE,
+    position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+    mu: float = 0.0,
+    restitution: float = 0.0,
+    rest_offset: float = 0.0,
+    contact_offset: float = 0.01,
+) -> None:
+    """Author a controlled static cuboid contact fixture on the current stage."""
+    cube_size = min(size)
+    mesh_scale = (size[0] / cube_size, size[1] / cube_size, size[2] / cube_size)
+    _build_contact_shape_usd(
+        prim_path,
+        position=position,
+        orientation=orientation,
+        mesh_prim_type="Cube",
+        mesh_attributes={"size": cube_size},
+        mesh_scale=mesh_scale,
+        mu=mu,
+        restitution=restitution,
+        rest_offset=rest_offset,
+        contact_offset=contact_offset,
+        rigid=False,
     )
 
 

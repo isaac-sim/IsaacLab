@@ -3,7 +3,7 @@
 **Status:** Draft design, implementation in progress
 **Backends in v1:** `isaaclab_physx`, Newton-MJWarp, Newton-Kamino
 **Deferred backends:** `isaaclab_ovphysx`
-**Last updated:** 2026-07-23
+**Last updated:** 2026-07-24
 
 The goal of this document is to outline a set of tests that validate that Isaac Lab correctly sets physical
 parameters in its simulation backends. The simulator should be treated as a black box: each test should use a
@@ -184,14 +184,14 @@ storage-only tests remain `T`.
 | BODY-01 | Mass | T / T / T | I / I / I | I / I / X |
 | BODY-02 | Inertia tensor and inertial-frame orientation | T / N / T | I / N / I | I / N / X |
 | BODY-03 | Center-of-mass position | T / N / T | I / N / I | I / N / I |
-| SHAPE-01 | Shape transform relative to body | T / T / N | I / I / N | X / X / N |
-| SHAPE-02 | Shape scale or dimensions | T / T / E | I / I / E | X / X / E |
-| SHAPE-03 | Collision radius | T / T / N | I / I / N | X / X / N |
+| SHAPE-01 | Shape transform relative to body | T / T / N | I / I / N | I / I / N |
+| SHAPE-02 | Shape scale or dimensions | T / T / E | I / I / E | I / I / E |
+| SHAPE-03 | Collision radius | T / T / N | I / I / N | I / I / N |
 | MAT-01 | Contact static friction | T / T / T | N / N / N | N / N / N |
 | MAT-02 | Contact dynamic friction | T / T / T | N / N / N | N / N / N |
-| MAT-03 | Combined contact friction `mu` | N / N / N | I / I / I | X / X / X |
+| MAT-03 | Combined contact friction `mu` | N / N / N | I / I / I | I / I / I |
 | MAT-04 | Restitution | T / T / T | X / X / X | X / X / X |
-| CONTACT-01 | Rest/contact offset mapped to margin/gap | T / T / T | X / X / X | X / X / X |
+| CONTACT-01 | Rest/contact offset mapped to margin/gap | T / T / T | X / X / X | I / I / I |
 | JOINT-01 | Parent and child joint frames | T / T / N | T / T / N | T / T / N |
 | JOINT-02 | Reset/live joint position | N / T / T | N / I / I | N / I / I |
 | JOINT-03 | Reset/live joint velocity | N / T / T | N / I / I | N / I / I |
@@ -257,7 +257,7 @@ implemented. Related issues provide implementation context but do not satisfy `R
 | `JOINT-06` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#398](https://github.com/vastsoun/newton/issues/398) | [newton-physics/newton#161](https://github.com/newton-physics/newton/issues/161) added model storage; does not establish Kamino enforcement |
 | `JOINT-09` | Newton-Kamino: USD, Python, runtime | [vastsoun/newton#383](https://github.com/vastsoun/newton/issues/383) | None |
 | `BODY-01`, `BODY-02` | Newton-Kamino: runtime | [IsaacLab#6518](https://github.com/isaac-sim/IsaacLab/issues/6518) | Strict xfails in the wrench-response tests; `set_masses_index` / `set_inertias_index` update public storage and notify `BODY_INERTIAL_PROPERTIES` but leave `body_inv_mass` / `body_inv_inertia` stale |
-| `MAT-03`, `MAT-04`, `SHAPE-01`, `SHAPE-02`, `SHAPE-03`, `CONTACT-01` | Newton-Kamino: all physical authoring paths | Accepted Phase 2 gap; owner: Newton/Kamino integration maintainers | Strict xfails show that Isaac Lab-authored rigid shapes produce no physical contacts with the selected Newton CollisionPipeline (`use_collision_detector=False`); `SHAPE-02` runtime remains the separately passing documented error path |
+| `MAT-04` | Newton-Kamino: USD, Python, runtime | Accepted Phase 2 gap; owner: Newton/Kamino integration maintainers | The selected Newton CollisionPipeline produces inelastic contacts despite the authored restitution value |
 | `MAT-04` | Newton-MJWarp: USD, Python, runtime | Accepted Phase 2 gap; owner: Newton/MJWarp integration maintainers | The production-default MuJoCo-contact path consumes the public restitution value but produces no rebound relative to an inelastic control |
 | `CONTACT-01` | Newton-MJWarp: USD, Python, runtime | [newton-physics/newton#2106](https://github.com/newton-physics/newton/issues/2106) | MuJoCo contacts zero Newton shape margins, so public rest-offset writes do not change physical resting separation |
 
@@ -376,6 +376,10 @@ state.
 Contact parameters require separate fixtures because the single-DOF articulation intentionally disables
 collisions:
 
+- **Ground collider:** use a static collider with no rigid-body or mass API, matching the normal Newton scene
+  topology. Runtime material and offset event terms require a rigid asset, so the static ground is authored with
+  the target value while the public runtime event updates only the dynamic object; both contacting shapes have
+  the same target value when the measurement begins.
 - **Static friction (`FIX-FRICTION-STATIC`):** place a box on an inclined plane. It should remain at rest below
   the critical angle \(\theta_c=\arctan(\mu_s)\) and slide above it, using a dead band around \(\theta_c\). On
   PhysX this exercises `MAT-01`; on Newton backends the same fixture exercises `MAT-03` with \(\mu_s=\mu\).
@@ -414,11 +418,11 @@ contract into multiple pytest cases, but it must preserve the listed controlled 
 | FIX-LIMIT-EFFORT | JOINT-06 | Initial acceleration under sub-limit and over-limit commands | Known effective inertia; drive terms disabled or included in oracle |
 | FIX-PASSIVE | JOINT-08, JOINT-09 | Velocity decay or breakaway threshold using backend-specific damping/friction law | Drive disabled; zero-loss paired control |
 | FIX-ACTUATOR | ACT-01, ACT-02 | Controller effort and resulting trajectory after gain update | Explicit actuator path with implicit solver drive disabled; run against each solver as an end-to-end compatibility check |
-| FIX-FRICTION-STATIC | MAT-01 (PhysX), MAT-03 (Newton) | Rest/sliding classification on both sides of the critical incline angle | Identical material values on both shapes unless combination is under test; Newton uses one `mu` for \(\mu_s\) |
-| FIX-FRICTION-DYNAMIC | MAT-02 (PhysX), MAT-03 (Newton) | Stopping distance and velocity decay under the backend's contact law | Level plane, zero restitution, known initial speed; Newton uses one `mu` for \(\mu_d\) |
-| FIX-RESTITUTION | MAT-04 | First post-impact apex or normal-velocity ratio | Zero friction; first impact only |
-| FIX-SHAPE-CONTACT | SHAPE-01, SHAPE-02, SHAPE-03 | First-contact step and resting separation relative to a control shape | Slow approach; fixed body poses and velocities |
-| FIX-CONTACT-OFFSET | CONTACT-01 | First generated-contact step and equilibrium separation | Paired baseline; report public rest/contact offsets and mapped margin/gap |
+| FIX-FRICTION-STATIC | MAT-01 (PhysX), MAT-03 (Newton) | Rest/sliding classification on both sides of the critical incline angle | Static ground collider; identical material values on both shapes unless combination is under test; Newton uses one `mu` for \(\mu_s\) |
+| FIX-FRICTION-DYNAMIC | MAT-02 (PhysX), MAT-03 (Newton) | Stopping distance and velocity decay under the backend's contact law | Static level-ground collider, zero restitution, known initial speed; Newton uses one `mu` for \(\mu_d\) |
+| FIX-RESTITUTION | MAT-04 | First post-impact apex or normal-velocity ratio | Static ground collider, zero friction; first impact only |
+| FIX-SHAPE-CONTACT | SHAPE-01, SHAPE-02, SHAPE-03 | First-contact step and resting separation relative to a control shape | Static ground collider; slow approach; fixed dynamic-body pose and velocity |
+| FIX-CONTACT-OFFSET | CONTACT-01 | First generated-contact step and equilibrium separation | Static ground collider; paired baseline; report public rest/contact offsets and mapped margin/gap |
 
 The measurement API and frame are part of the contract. Pose and velocity assertions must state `link` or
 `COM`; joint-frame assertions use world-space motion; contact assertions use a backend-supported contact
@@ -640,8 +644,9 @@ disposition before Phase 5 begins.
 
    Do not copy the monolithic Kamino test file into the MJWarp package. The MJWarp adapter should invoke the
    same fixture contract and assert against its own documented oracle.
-3. **Phase 2 — contact parameters (Newton only):** add friction, restitution, geometry, and offset fixtures for
-   Newton-MJWarp and Newton-Kamino after their backend-specific contact semantics are resolved.
+3. **Phase 2 — contact parameters (Newton only, complete with accepted gaps):** friction, restitution, geometry,
+   and offset fixtures are implemented for Newton-MJWarp and Newton-Kamino. Strict expected failures remain for
+   restitution on both backends and contact margins on MJWarp.
 4. **Phase 3 — limits, frames, and passive effects (Newton only):** add position/velocity/effort limits, joint
    frames, passive damping, and backend-specific joint friction for Newton-MJWarp and Newton-Kamino.
 5. **Phase 4 — blocked Newton runtime contracts:** convert Newton-MJWarp and Newton-Kamino `X` cells to `E` or
@@ -696,9 +701,11 @@ Kamino's Newton CollisionPipeline. MJWarp implements all three `MAT-03` authorin
 incline and dynamic stopping-distance fixtures, both authoring paths for `SHAPE-01`, `SHAPE-02`, and
 `SHAPE-03`, and the `SHAPE-02` runtime error contract. MJWarp `MAT-04` and `CONTACT-01` remain strict
 expected failures because the default contact path respectively produces no restitution rebound and zeroes
-Newton shape margins. All Kamino physical contact cells remain strict expected failures because the selected
-Newton CollisionPipeline produces no contacts for the Isaac Lab-authored rigid-shape fixture; the independent
-`SHAPE-02` runtime error contract passes. These failures are recorded as `X`, not as supported coverage.
+Newton shape margins. The fixture now uses a static ground collider instead of a kinematic rigid body. With that
+topology, Kamino implements all authoring paths for `MAT-03` and `CONTACT-01`, both authoring paths for
+`SHAPE-01`, `SHAPE-02`, and `SHAPE-03`, and the `SHAPE-02` runtime error contract. Kamino `MAT-04` remains a
+strict expected failure because its selected contact pipeline produces inelastic contacts. The remaining
+failures are recorded as `X`, not as supported coverage.
 
 The appropriate CI selection, gating policy, and scheduling are intentionally left to the implementation
 change. Contact tests are likely to be less reliable in CI because their thresholds depend on integrator,
