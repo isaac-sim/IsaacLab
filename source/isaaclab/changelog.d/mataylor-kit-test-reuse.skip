@@ -1,0 +1,12 @@
+Added
+^^^^^
+
+* Added ``ISAACLAB_SESSION_KIT=1`` mode to ``tools/conftest.py`` so a single
+  Kit/SimulationApp instance can be shared across all test files in one pytest
+  session, eliminating redundant Kit boots when running headless test suites.
+  A ``_SessionKitLauncher(AppLauncher)`` subclass injected via ``pytest_configure``
+  short-circuits ``__init__`` after the first construction; subsequent
+  module-level ``AppLauncher()`` calls in each test file alias the running instance
+  instead of starting a new one.
+* Added unit tests for the singleton and monkey-patch contract in
+  ``source/isaaclab/test/app/test_session_kit_launcher.py``.
