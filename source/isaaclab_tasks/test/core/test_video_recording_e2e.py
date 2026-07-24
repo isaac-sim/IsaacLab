@@ -100,6 +100,7 @@ def _recorder_cfg(output_dir: str, source: str, prefix: str = "clip") -> VideoRe
 
 def _cartpole_cfg(*, num_envs: int = 1):
     from isaaclab_physx.physics import PhysxCfg
+
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
     cfg = CartpoleEnvCfg()
@@ -110,6 +111,7 @@ def _cartpole_cfg(*, num_envs: int = 1):
 
 def _cartpole_cfg_newton(*, num_envs: int = 1):
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
     cfg = CartpoleEnvCfg()
@@ -121,6 +123,7 @@ def _cartpole_cfg_newton(*, num_envs: int = 1):
 def _cartpole_camera_cfg_physx(*, num_envs: int = 1):
     """CartpoleCameraEnv with PhysX physics and RGB tiled camera (RTX renderer)."""
     from isaaclab_physx.physics import PhysxCfg
+
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
     cfg = CartpoleCameraEnvCfg()
@@ -137,6 +140,7 @@ def _cartpole_camera_cfg_newton(*, num_envs: int = 1):
     camera sensor automatically switches to the Newton Warp renderer.
     """
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
     cfg = CartpoleCameraEnvCfg()

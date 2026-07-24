@@ -394,12 +394,26 @@ class SimulationContext:
         return default_configs
 
     def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
-        """Apply shared default visualizer settings to a backend-specific config."""
+        """Apply shared default visualizer settings to a backend-specific config.
+
+        Only sets fields that are still at the backend class's own factory default,
+        so explicitly customized values on ``cfg`` (e.g. ``window_width=320``) are
+        preserved while env-level hints (e.g. ``eye``, ``lookat``) are propagated.
+        """
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:
             return
+        # Instantiate a fresh backend cfg to detect which fields the caller
+        # has already customized beyond the class defaults.
+        try:
+            factory_defaults = type(cfg)()
+        except Exception:
+            factory_defaults = None
         for field in fields(default_cfg):
             if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+                continue
+            # Preserve explicitly customized fields on cfg.
+            if factory_defaults is not None and getattr(cfg, field.name) != getattr(factory_defaults, field.name):
                 continue
             setattr(cfg, field.name, getattr(default_cfg, field.name))
 
@@ -471,6 +485,8 @@ class SimulationContext:
         if cli_disable_all:
             resolved = []
         elif not cli_explicit:
+            for cfg in visualizer_cfgs:
+                self._apply_default_visualizer_cfg(cfg)
             self._apply_visualizer_cli_overrides(visualizer_cfgs)
             resolved = visualizer_cfgs
         elif not visualizer_cfgs:
@@ -480,6 +496,8 @@ class SimulationContext:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
             cli_requested_set = set(cli_requested)
             resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+            for cfg in resolved:
+                self._apply_default_visualizer_cfg(cfg)
             existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             for viz_type in cli_requested:
                 if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
