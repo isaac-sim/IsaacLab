@@ -30,7 +30,32 @@ env:
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
+  # Build the test image once and push it to ECR so the test jobs below pull it
+  # instead of each rebuilding it. The action falls back to a local build when
+  # ECR is unavailable (e.g. a runner without the SSM ecr-cache-url parameter).
+  build:
+    name: Build Docker Image
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build and push image to ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.curobo
+        cache-tag: cache-main-curobo
+
   test-isaaclab-tasks:
+    needs: [build]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -42,12 +67,14 @@ jobs:
         fetch-depth: 0
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.curobo
+        cache-tag: cache-main-curobo
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -91,6 +118,7 @@ jobs:
         fi
 
   test-general:
+    needs: [build]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
 
@@ -101,12 +129,14 @@ jobs:
         fetch-depth: 0
         lfs: true
 
-    - name: Build Docker Image
-      uses: ./.github/actions/docker-build
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.curobo
+        cache-tag: cache-main-curobo
 
     - name: Run General Tests
       id: run-general-tests
