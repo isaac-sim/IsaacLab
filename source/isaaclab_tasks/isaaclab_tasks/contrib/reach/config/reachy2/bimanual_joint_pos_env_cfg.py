@@ -73,8 +73,15 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         # ── Actions — right arm (inherited arm_action → repurpose for right) ──
         self.actions.arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
-            joint_names=["r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw",
-                         "r_elbow_pitch", "r_wrist_roll", "r_wrist_pitch", "r_wrist_yaw"],
+            joint_names=[
+                "r_shoulder_pitch",
+                "r_shoulder_roll",
+                "r_elbow_yaw",
+                "r_elbow_pitch",
+                "r_wrist_roll",
+                "r_wrist_pitch",
+                "r_wrist_yaw",
+            ],
             scale=0.5,
             use_default_offset=True,
         )
@@ -82,8 +89,15 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         # ── Actions — left arm (new term) ──────────────────────────────────
         self.actions.l_arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
-            joint_names=["l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw",
-                         "l_elbow_pitch", "l_wrist_roll", "l_wrist_pitch", "l_wrist_yaw"],
+            joint_names=[
+                "l_shoulder_pitch",
+                "l_shoulder_roll",
+                "l_elbow_yaw",
+                "l_elbow_pitch",
+                "l_wrist_roll",
+                "l_wrist_pitch",
+                "l_wrist_yaw",
+            ],
             scale=0.5,
             use_default_offset=True,
         )

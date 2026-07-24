@@ -93,7 +93,7 @@
     <child link="base_link"/>
   </joint>
   <link name="base_link">
-    
+
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0.13045"/>
       <geometry>
@@ -112,7 +112,7 @@
   <!-- 	<child link="base_link"/> -->
   <!-- </joint> -->
   <link name="back_bar">
-    
+
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0.318"/>
       <geometry>
@@ -121,7 +121,7 @@
     </collision>
   </link>
   <link name="left_bar">
-    
+
     <collision>
       <origin rpy="0 0 0" xyz="0.0 0 0.3254603066811681"/>
       <geometry>
@@ -130,7 +130,7 @@
     </collision>
   </link>
   <link name="right_bar">
-    
+
     <collision>
       <origin rpy="0 0 0" xyz="0.0 0 0.3254603066811681"/>
       <geometry>
@@ -2594,9 +2594,9 @@
     <parent link="logo"/>
     <child link="sr_cam_r_frame"/>
   </joint>
-  
-  
-  
+
+
+
   <!-- <link name="r_wrist_cam_frame"/> -->
   <!-- <joint name="r_wrist_cam_frame_joint" type="fixed"> -->
   <!--   <origin xyz="0 0 0" rpy="0.0 0 0"/> -->

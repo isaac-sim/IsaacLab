@@ -43,8 +43,10 @@ Asset generation:
             joint_drive=UrdfConverterCfg.JointDriveCfg(target_type="position"),
             ros_package_paths=[
                 {"name": "reachy_description", "path": "/path/to/reachy2_core/reachy_description"},
-                {"name": "dynamixel_description",
-                 "path": "/path/to/reachy2_core/reachy_controllers/dynamixel_control/dynamixel_description"},
+                {
+                    "name": "dynamixel_description",
+                    "path": "/path/to/reachy2_core/reachy_controllers/dynamixel_control/dynamixel_description",
+                },
             ],
         )
         UrdfConverter(cfg)

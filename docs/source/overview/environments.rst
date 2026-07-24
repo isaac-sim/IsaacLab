@@ -1068,21 +1068,21 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reorient-Cube-Shadow-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Cube-Shadow-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
       - Direct
-      - **rl_games** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Franka
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1372,6 +1372,14 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
+    * - IsaacContrib-Reach-Reachy2-Bimanual
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+    * - IsaacContrib-Reach-Reachy2-Bimanual-Play
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
       - Manager Based
       -
@@ -1452,6 +1460,10 @@ including disabling runtime perturbations used for training.
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-SO101-IK-Abs-v0
+      - Manager Based
+      -
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
