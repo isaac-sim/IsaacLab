@@ -63,9 +63,7 @@ class VideoRecorder:
 
     def __init__(self, cfg: VideoRecorderCfg, env: object):
         if ImageSequenceClip is None:
-            raise ImportError(
-                "moviepy is required for video recording. Install it with: pip install 'moviepy<2'"
-            )
+            raise ImportError("moviepy is required for video recording. Install it with: pip install 'moviepy<2'")
 
         kind, _, _ = _parse_source(cfg.source)
         if kind not in _VALID_SOURCE_KINDS:
@@ -197,8 +195,7 @@ class VideoRecorder:
         output = getattr(getattr(sensor, "data", None), "output", None)
         if output is None or "rgb" not in output:
             raise RuntimeError(
-                f"[VideoRecorder] Sensor '{name}' has no 'rgb' output. "
-                "Ensure the sensor's data_types includes 'rgb'."
+                f"[VideoRecorder] Sensor '{name}' has no 'rgb' output. Ensure the sensor's data_types includes 'rgb'."
             )
         data = output["rgb"]
         # ProxyArray or torch.Tensor: shape (N, H, W, C)

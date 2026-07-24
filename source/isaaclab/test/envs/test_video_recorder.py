@@ -106,7 +106,9 @@ def test_init_raises_import_error_when_moviepy_missing():
 def test_trigger_step_zero_fires_at_first_step():
     """video_interval=0 → single clip starts at step 1."""
     viz = _FakeViz("kit")
-    recorder = VideoRecorder(_cfg(source="visualizer:kit", video_length=100, video_interval=0), _make_env(visualizers=[viz]))
+    recorder = VideoRecorder(
+        _cfg(source="visualizer:kit", video_length=100, video_interval=0), _make_env(visualizers=[viz])
+    )
     assert not recorder._recording
     recorder.step()
     assert recorder._recording
@@ -329,9 +331,7 @@ def test_visualizer_tiled_calls_render_tiled_rgb_array():
         viz = _FakeViz(viz_type)
         tiled_frame = np.ones((16, 24, 3), dtype=np.uint8) * 64
         viz.render_tiled_rgb_array = MagicMock(return_value=tiled_frame)
-        recorder = VideoRecorder(
-            _cfg(source=f"visualizer:{viz_type}:tiled"), _make_env(visualizers=[viz])
-        )
+        recorder = VideoRecorder(_cfg(source=f"visualizer:{viz_type}:tiled"), _make_env(visualizers=[viz]))
         frame = recorder._get_frame()
         viz.render_tiled_rgb_array.assert_called_once()
         assert frame is tiled_frame

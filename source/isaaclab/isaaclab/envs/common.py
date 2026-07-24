@@ -38,9 +38,7 @@ class ViewerCfg:
             from isaaclab.sim import SimulationCfg
             from isaaclab_visualizers.kit import KitVisualizerCfg
 
-            sim_cfg = SimulationCfg(
-                visualizer_cfgs=[KitVisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))]
-            )
+            sim_cfg = SimulationCfg(visualizer_cfgs=[KitVisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))])
     """
 
     eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
