@@ -360,6 +360,24 @@ def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
     assert np.allclose(np.array(builder.body_inertia[dynamic_body]), 2.0)
 
 
+def test_mpm_prepare_builder_converts_convex_mesh_colliders():
+    """Convex meshes must use the triangle-mesh type accepted by implicit MPM."""
+    import newton
+
+    builder = newton.ModelBuilder()
+    body = builder.add_body(label="convex_mesh_collider")
+    mesh = newton.Mesh(
+        vertices=[(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (0.0, 1.0, 0.0)],
+        indices=[0, 1, 2],
+    )
+    shape = builder.add_shape_mesh(body, mesh=mesh)
+    builder.shape_type[shape] = newton.GeoType.CONVEX_MESH
+
+    NewtonMPMManager._prepare_builder_for_finalize(builder)
+
+    assert builder.shape_type[shape] == newton.GeoType.MESH
+
+
 def test_active_manager_create_builder_registers_mpm_attributes():
     """The active MPM manager registers solver-specific builder attributes."""
     sim_cfg = SimulationCfg(

@@ -402,6 +402,22 @@ class TestVisualizationClonePlan(unittest.TestCase):
         if translation is not None:
             xform.AddTranslateOp().Set(translation)
 
+    def test_visualization_builder_imports_standalone_stage_as_one_world(self):
+        stage = Usd.Stage.CreateInMemory()
+        self._define_xform(stage, "/World")
+        self._define_xform(stage, "/World/Robot")
+        builder = mock.Mock()
+
+        with (
+            mock.patch.object(visualization_builder_module, "ModelBuilder", return_value=builder),
+            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: "newton"),
+            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: "physx"),
+        ):
+            result = visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], None)
+
+        self.assertIs(result, builder)
+        builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"])
+
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)

@@ -26,11 +26,21 @@ from isaaclab_newton.cloner.newton_clone_utils import (
 def build_visualization_builder_from_stage_envs(
     stage: Usd.Stage,
     env_paths: Sequence[tuple[int, str]],
-    clone_plan: Any,
+    clone_plan: Any | None,
     *,
     up_axis: str = "Z",
 ) -> ModelBuilder:
-    """Build the Newton shadow visualization builder from cloned USD environments."""
+    """Build a Newton shadow visualization builder from a USD stage.
+
+    Cloned scenes use the clone plan to preserve per-environment world layout and
+    labels. Standalone scenes without a clone plan are imported as one world.
+    """
+    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+    builder = ModelBuilder(up_axis=up_axis)
+    if clone_plan is None or not env_paths:
+        builder.add_usd(stage, schema_resolvers=schema_resolvers)
+        return builder
+
     env_path_by_id = dict(env_paths)
 
     sources = tuple(clone_plan.sources)
@@ -41,8 +51,6 @@ def build_visualization_builder_from_stage_envs(
     poses = [resolve_prim_pose(stage.GetPrimAtPath(env_path_by_id[int(env_id)])) for env_id in env_ids.tolist()]
     positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
     quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
-    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-    builder = ModelBuilder(up_axis=up_axis)
     builder.add_usd(stage, ignore_paths=["/World/envs", *sources], schema_resolvers=schema_resolvers)
     source_builders = build_source_builders(
         stage,

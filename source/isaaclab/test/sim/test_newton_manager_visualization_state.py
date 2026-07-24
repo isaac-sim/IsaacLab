@@ -21,6 +21,8 @@ import pytest
 
 pytestmark = pytest.mark.integration
 
+_DEFAULT = object()
+
 
 def _reset_newton_manager_state():
     from isaaclab_newton.physics import NewtonManager
@@ -44,9 +46,18 @@ def _make_env_stage(num_envs: int = 1):
     return stage
 
 
-def _set_sim_context(monkeypatch, nm, clone_plan=None, scene_data_provider=None):
-    clone_plan = clone_plan if clone_plan is not None else SimpleNamespace()
-    scene_data_provider = scene_data_provider if scene_data_provider is not None else SimpleNamespace()
+def _make_standalone_stage():
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World/Robot")
+    return stage
+
+
+def _set_sim_context(monkeypatch, nm, clone_plan=_DEFAULT, scene_data_provider=_DEFAULT):
+    clone_plan = SimpleNamespace() if clone_plan is _DEFAULT else clone_plan
+    scene_data_provider = SimpleNamespace() if scene_data_provider is _DEFAULT else scene_data_provider
     sim = SimpleNamespace(
         get_clone_plan=lambda: clone_plan,
         get_scene_data_provider=lambda: scene_data_provider,
@@ -123,8 +134,8 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     assert NewtonManager._state_0 is not None
 
 
-def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, caplog):
-    """When the stage walk produces no bodies, model/state stay unset and an error is logged."""
+def test_ensure_visualization_model_empty_builder_supports_marker_only_scene(monkeypatch, caplog):
+    """An empty shadow model supports marker-only and geometry-only scenes."""
     from isaaclab_newton.physics import NewtonManager
     from isaaclab_newton.physics import newton_manager as nm
 
@@ -137,13 +148,16 @@ def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, ca
     class _EmptyBuilder:
         body_count = 0
 
+        def finalize(self, device):
+            return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
+
     monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: _EmptyBuilder())
 
-    with caplog.at_level("ERROR"):
+    with caplog.at_level("INFO"):
         NewtonManager._ensure_visualization_model()
 
-    assert NewtonManager._model is None
-    assert NewtonManager._state_0 is None
+    assert NewtonManager._model is not None
+    assert NewtonManager._state_0 is not None
     assert any("no Newton bodies" in r.message for r in caplog.records)
 
 
@@ -171,6 +185,39 @@ def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(mon
 
     assert NewtonManager.get_num_envs() == 4
     assert NewtonManager._model.num_envs == 4
+
+
+def test_ensure_visualization_model_builds_single_world_for_standalone_scene(monkeypatch):
+    """A scene outside ``/World/envs`` is imported as one visualization world."""
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import newton_manager as nm
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
+    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_standalone_stage())
+    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
+    _set_sim_context(monkeypatch, nm, clone_plan=None)
+    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
+
+    build_calls = []
+
+    class _FakeBuilder:
+        body_count = 1
+
+        def finalize(self, device):
+            return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
+
+    def _build(stage, env_paths, clone_plan, *, up_axis):
+        build_calls.append((stage, env_paths, clone_plan, up_axis))
+        return _FakeBuilder()
+
+    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", _build)
+
+    NewtonManager._ensure_visualization_model()
+
+    assert build_calls[0][1:3] == ([], None)
+    assert NewtonManager.get_num_envs() == 1
+    assert NewtonManager._model.num_envs == 1
 
 
 def test_ensure_visualization_model_missing_stage_leaves_state_unset(monkeypatch, caplog):

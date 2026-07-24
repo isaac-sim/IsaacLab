@@ -2287,33 +2287,26 @@ class NewtonManager(PhysicsManager):
         up_axis_token = UsdGeom.GetStageUpAxis(stage)
         up_axis = Axis.from_string(str(up_axis_token))
 
-        env_pattern = re.compile(r"^env_(\d+)$")
-        env_paths = sorted(
-            (int(match.group(1)), child.GetPath().pathString)
-            for child in stage.GetPrimAtPath("/World/envs").GetChildren()
-            if (match := env_pattern.match(child.GetName()))
-        )
-        if not env_paths:
-            logger.error(
-                "[NewtonManager] No /World/envs/env_<id> prims found; cannot build a "
-                "Newton visualization model from the cloned Isaac Lab scene."
+        env_paths = []
+        envs_prim = stage.GetPrimAtPath("/World/envs")
+        if envs_prim.IsValid():
+            env_pattern = re.compile(r"^env_(\d+)$")
+            env_paths = sorted(
+                (int(match.group(1)), child.GetPath().pathString)
+                for child in envs_prim.GetChildren()
+                if (match := env_pattern.match(child.GetName()))
             )
-            return
 
-        NewtonManager._num_envs = len(env_paths)
+        NewtonManager._num_envs = len(env_paths) if env_paths else 1
         sim = SimulationContext.instance()
         assert sim is not None
         builder = build_visualization_builder_from_stage_envs(stage, env_paths, sim.get_clone_plan(), up_axis=up_axis)
 
         if builder.body_count == 0:
-            logger.error(
-                "[NewtonManager] USD stage walk produced no Newton bodies; the shadow "
-                "Newton model for visualization will be empty. Common causes: the cloned "
-                "envs are not yet on the stage, or PhysX schemas could not be parsed by "
-                "Newton's add_usd. Check that /World/envs/env_<id> prims exist when the "
-                "renderer is initialized."
+            logger.info(
+                "[NewtonManager] USD stage walk produced no Newton bodies; finalizing an "
+                "empty visualization model for marker-only or geometry-only scenes."
             )
-            return
 
         device = PhysicsManager._device or "cpu"
         try:
