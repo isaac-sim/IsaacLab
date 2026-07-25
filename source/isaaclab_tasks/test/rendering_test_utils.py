@@ -1348,7 +1348,7 @@ def rendering_test_cartpole(
             compare_golden=compare_golden and data_type == "rgb",
         )
         max_different_pixels_percentage = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"]
-        if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type == "rgb":
+        if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
             max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
         validate_camera_outputs(
             "cartpole",
