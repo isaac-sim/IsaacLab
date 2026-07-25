@@ -252,11 +252,17 @@
   },
   {
     "package": "matplotlib",
-    "license": "Python Software Foundation License"
+    "license": "Python Software Foundation License",
+    "license_aliases": [
+      "PSF-2.0"
+    ]
   },
   {
     "package": "certifi",
-    "license": "Mozilla Public License 2.0 (MPL 2.0)"
+    "license": "Mozilla Public License 2.0 (MPL 2.0)",
+    "license_aliases": [
+      "MPL-2.0"
+    ]
   },
   {
       "package": "rl_games",
@@ -286,7 +292,12 @@
   {
       "package": "qpsolvers",
       "license": "GNU Lesser General Public License v3 (LGPLv3)",
-      "comment": "OSRB"
+      "comment": "OSRB",
+      "license_aliases": [
+        "LGPL-3.0",
+        "LGPL-3.0-only",
+        "LGPL-3.0-or-later"
+      ]
   },
   {
     "package": "Markdown",
@@ -346,7 +357,18 @@
   {
     "package": "pygame",
     "license": "GNU Library or Lesser General Public License (LGPL)",
-    "comment": "OSRB"
+    "comment": "OSRB",
+    "license_aliases": [
+      "LGPL-2.0",
+      "LGPL-2.0-only",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "LGPL-3.0",
+      "LGPL-3.0-only",
+      "LGPL-3.0-or-later"
+    ]
   },
   {
     "package": "scikit-learn",
@@ -426,7 +448,10 @@
   {
     "package": "aiohappyeyeballs",
     "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB"
+    "comment": "PSFL / OSRB",
+    "license_aliases": [
+      "PSF-2.0"
+    ]
   },
   {
     "package": "cffi",
@@ -466,12 +491,18 @@
   {
     "package": "typing_extensions",
     "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB"
+    "comment": "PSFL / OSRB",
+    "license_aliases": [
+      "PSF-2.0"
+    ]
   },
   {
     "package": "standard-distutils",
     "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB"
+    "comment": "PSFL / OSRB",
+    "license_aliases": [
+      "PSF-2.0"
+    ]
   },
   {
     "package": "vhacdx",
@@ -506,12 +537,18 @@
   {
     "package": "pytetwild",
     "license": "Mozilla Public License 2.0 (MPL 2.0)",
-    "comment": "MPL-2.0 / OSRB"
+    "comment": "MPL-2.0 / OSRB",
+    "license_aliases": [
+      "MPL-2.0"
+    ]
   },
   {
     "package": "distlib",
     "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB"
+    "comment": "PSFL / OSRB",
+    "license_aliases": [
+      "PSF-2.0"
+    ]
   },
   {
     "package": "ovrtx",

@@ -293,3 +293,245 @@ jobs:
       shell: bash
       run: |
         rm -rf "${{ steps.extract-wheelhouse.outputs.wheelhouse_root }}"
+
+  docker-license-check:
+    name: Docker Dependency Licenses Check
+    # The Isaac Sim base image is private, so fork PRs cannot build or scan it.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 90
+    env:
+      NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Load image configuration
+      id: config
+      shell: bash
+      run: |
+        set -euo pipefail
+        config=.github/workflows/config.yaml
+        base_image="$(yq -r .isaacsim_image_name "$config")"
+        base_tag="$(yq -r .isaacsim_image_tag "$config")"
+        image_tag="isaac-lab-ci:pr-${{ github.event.pull_request.number }}-${{ github.sha }}"
+        echo "base_image=${base_image}:${base_tag}" >> "$GITHUB_OUTPUT"
+        echo "base_image_name=${base_image}" >> "$GITHUB_OUTPUT"
+        echo "base_image_tag=${base_tag}" >> "$GITHUB_OUTPUT"
+        echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
+
+    - name: Build or fetch Isaac Lab image
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ steps.config.outputs.image_tag }}
+        isaacsim-base-image: ${{ steps.config.outputs.base_image_name }}
+        isaacsim-version: ${{ steps.config.outputs.base_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Log in to NGC for the base image
+      uses: ./.github/actions/_lib/setup-docker-config
+
+    - name: Pull Isaac Sim base image
+      shell: bash
+      run: docker pull "${{ steps.config.outputs.base_image }}"
+
+    - name: Scan Isaac Sim base dependency licenses
+      uses: aquasecurity/trivy-action@v0.36.0
+      env:
+        TRIVY_PKG_TYPES: os,library
+        TRIVY_SKIP_VERSION_CHECK: true
+      with:
+        scan-type: image
+        image-ref: ${{ steps.config.outputs.base_image }}
+        scanners: license
+        format: json
+        output: trivy-isaacsim-licenses.json
+        exit-code: '0'
+        severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+        timeout: 30m
+
+    - name: Scan Isaac Lab dependency licenses
+      uses: aquasecurity/trivy-action@v0.36.0
+      env:
+        TRIVY_PKG_TYPES: os,library
+        TRIVY_SKIP_VERSION_CHECK: true
+      with:
+        scan-type: image
+        image-ref: ${{ steps.config.outputs.image_tag }}
+        scanners: license
+        format: json
+        output: trivy-isaaclab-licenses.json
+        exit-code: '0'
+        severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+        timeout: 30m
+        skip-setup-trivy: true
+
+    - name: Check licenses against policy and exceptions
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        CURRENT_REPORT=trivy-isaaclab-licenses.json
+        BASE_REPORT=trivy-isaacsim-licenses.json
+        EXCEPTIONS_FILE=.github/workflows/license-exceptions.json
+        ALLOWED_LICENSES="mit apache bsd isc zlib"
+
+        for report in "$CURRENT_REPORT" "$BASE_REPORT"; do
+          if ! jq empty "$report"; then
+            echo "::error::Failed to parse Trivy report: $report"
+            exit 1
+          fi
+          if ! jq -e 'any(.Results[]; .Class == "license")' "$report" >/dev/null; then
+            echo "::error::Trivy report contains no license results: $report"
+            exit 1
+          fi
+        done
+
+        # Refuse to pass if Trivy did not inventory both dependency types in
+        # the final image. Loose-file licenses are intentionally excluded.
+        for package_class in os-pkgs lang-pkgs; do
+          if ! jq -e --arg class "$package_class" \
+            'any(.Results[]; .Class == $class)' "$CURRENT_REPORT" >/dev/null; then
+            echo "::error::Trivy report is missing the $package_class inventory"
+            exit 1
+          fi
+        done
+
+        extract_findings() {
+          jq -r '
+            .Results[]
+            | select(.Class == "license")
+            | .Target as $package_type
+            | .Licenses[]?
+            | select((.PkgName // "") != "")
+            | [$package_type, .PkgName, .Name, .Category, .Severity]
+            | @tsv
+          ' "$1" | sort -u
+        }
+
+        extract_findings "$CURRENT_REPORT" > current-findings.tsv
+        extract_findings "$BASE_REPORT" > base-findings.tsv
+        cut -f1-3 base-findings.tsv | tr '[:upper:]' '[:lower:]' > base-identities.tsv
+
+        if [ ! -s current-findings.tsv ]; then
+          echo "::error::Trivy found no package licenses in the Isaac Lab image"
+          exit 1
+        fi
+
+        TOTAL_FINDINGS=$(wc -l < current-findings.tsv)
+        INHERITED_FINDINGS=0
+        ALLOWED_FINDINGS=0
+        NVIDIA_FINDINGS=0
+        EXCEPTED_FINDINGS=0
+        FAILED_FINDINGS=0
+        : > license-violations.md
+
+        while IFS=$'\t' read -r package_type package license category severity; do
+          identity=$(printf '%s\t%s\t%s' "$package_type" "$package" "$license" \
+            | tr '[:upper:]' '[:lower:]')
+
+          if grep -Fqx -- "$identity" base-identities.tsv; then
+            INHERITED_FINDINGS=$((INHERITED_FINDINGS + 1))
+            continue
+          fi
+
+          if [[ "${package,,}" == nvidia* ]]; then
+            NVIDIA_FINDINGS=$((NVIDIA_FINDINGS + 1))
+            continue
+          fi
+
+          license_allowed=false
+          for allowed_license in $ALLOWED_LICENSES; do
+            if [[ "${license,,}" == *"$allowed_license"* ]]; then
+              license_allowed=true
+              break
+            fi
+          done
+          if [ "$license_allowed" = true ]; then
+            ALLOWED_FINDINGS=$((ALLOWED_FINDINGS + 1))
+            continue
+          fi
+
+          if jq -e \
+            --arg package "$package" \
+            --arg license "$license" \
+            --arg package_type "$package_type" '
+              any(.[];
+                (.package | ascii_downcase) == ($package | ascii_downcase)
+                and ((.package_type == null) or (.package_type == $package_type))
+                and (
+                  (.license == null)
+                  or ((.license | ascii_downcase) == ($license | ascii_downcase))
+                  or any(.license_aliases[]?;
+                    ascii_downcase == ($license | ascii_downcase)
+                  )
+                )
+              )
+            ' "$EXCEPTIONS_FILE" >/dev/null; then
+            EXCEPTED_FINDINGS=$((EXCEPTED_FINDINGS + 1))
+            continue
+          fi
+
+          FAILED_FINDINGS=$((FAILED_FINDINGS + 1))
+          printf '| %s | %s | %s | %s | %s |\n' \
+            "$package_type" "$package" "$license" "$category" "$severity" \
+            >> license-violations.md
+        done < current-findings.tsv
+
+        {
+          echo "## Docker dependency license check"
+          echo
+          if [ "$FAILED_FINDINGS" -eq 0 ]; then
+            echo "**Passed.** No unapproved dependency licenses were introduced by the Isaac Lab image."
+          else
+            echo "**Failed.** Found $FAILED_FINDINGS unapproved dependency license finding(s)."
+          fi
+          echo
+          echo "| Result | Count |"
+          echo "|---|---:|"
+          echo "| Total package-license findings | $TOTAL_FINDINGS |"
+          echo "| Inherited from Isaac Sim base image | $INHERITED_FINDINGS |"
+          echo "| Allowed permissive licenses | $ALLOWED_FINDINGS |"
+          echo "| NVIDIA package policy | $NVIDIA_FINDINGS |"
+          echo "| Reviewed exceptions | $EXCEPTED_FINDINGS |"
+          echo "| Violations | $FAILED_FINDINGS |"
+          if [ "$FAILED_FINDINGS" -gt 0 ]; then
+            echo
+            echo "### Unapproved licenses"
+            echo
+            echo "| Package type | Package | License | Category | Severity |"
+            echo "|---|---|---|---|---|"
+            cat license-violations.md
+          fi
+        } | tee docker-license-summary.md
+
+        cat docker-license-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+        if [ "$FAILED_FINDINGS" -gt 0 ]; then
+          exit 1
+        fi
+
+    - name: Upload license reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: docker-license-reports
+        path: |
+          trivy-isaacsim-licenses.json
+          trivy-isaaclab-licenses.json
+          docker-license-summary.md
+        if-no-files-found: warn
+        retention-days: 14
+
+    - name: Clean up Docker credentials
+      if: always()
+      shell: bash
+      run: |
+        if [ -n "${DOCKER_CONFIG:-}" ] && [ -d "${DOCKER_CONFIG}" ]; then
+          rm -rf "${DOCKER_CONFIG}"
+        fi
