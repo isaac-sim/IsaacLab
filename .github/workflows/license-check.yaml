@@ -344,6 +344,28 @@ jobs:
     - name: Log in to NGC for the base image
       uses: ./.github/actions/_lib/setup-docker-config
 
+    - name: Ensure Isaac Lab image is available locally
+      shell: bash
+      run: |
+        set -euo pipefail
+        image_tag="${{ steps.config.outputs.image_tag }}"
+        if docker image inspect "$image_tag" >/dev/null 2>&1; then
+          exit 0
+        fi
+
+        if [[ -z "${ECR_IMAGE:-}" ]]; then
+          echo "::error::Isaac Lab image is neither local nor available from ECR"
+          exit 1
+        fi
+
+        registry="${ECR_IMAGE%%/*}"
+        region="${registry#*.dkr.ecr.}"
+        region="${region%.amazonaws.com}"
+        aws ecr get-login-password --region "$region" \
+          | docker login --username AWS --password-stdin "$registry"
+        docker pull "$ECR_IMAGE"
+        docker tag "$ECR_IMAGE" "$image_tag"
+
     - name: Pull Isaac Sim base image
       shell: bash
       run: docker pull "${{ steps.config.outputs.base_image }}"
