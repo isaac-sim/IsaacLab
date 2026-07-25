@@ -90,7 +90,7 @@ For example, to view 100 random objects with 2 standard cameras, one could run
 
 .. code-block:: bash
 
-   python scripts/benchmarks/benchmark_cameras.py --height 100 --width 100 --num_standard_cameras 2 --standard_camera_data_types instance_segmentation_fast normals --num_objects 100 --experiment_length 100
+   python scripts/benchmarks/benchmark_cameras.py --height 100 --width 100 --num_standard_cameras 2 --standard_camera_data_types instance_segmentation normals --num_objects 100 --experiment_length 100
 
 If your system cannot handle this due to performance reasons, then the process will be killed.
 It's recommended to monitor CPU/RAM utilization and GPU utilization while running this script, to get

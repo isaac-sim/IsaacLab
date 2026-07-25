@@ -56,7 +56,7 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     semantic_filter: str | list[str] = "*:*"
     """A string or list specifying a semantic filter predicate for :attr:`semantic_segmentation` and
-    :attr:`instance_segmentation_fast`. Defaults to ``"*:*"`` (all semantic types and labels).
+    :attr:`instance_segmentation`. Defaults to ``"*:*"`` (all semantic types and labels).
 
     Mirrors :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`. If a string, it is a
     disjunctive-normal-form predicate over ``(semantic_type, labels)`` clauses separated by ``;``. Each
@@ -82,10 +82,10 @@ class NewtonWarpRendererCfg(RendererCfg):
     """
 
     colorize_instance_segmentation: bool = True
-    """Whether to colorize the instance segmentation image. Defaults to True.
+    """Whether to colorize the semantic instance segmentation image. Defaults to True.
 
-    If True, :attr:`instance_segmentation_fast` is returned as an ``(N, H, W, 4) uint8`` RGBA image, else
-    an ``(N, H, W, 1) int32`` id image. ``data.info["instance_segmentation_fast"]`` provides ``idToLabels``
+    If True, :attr:`instance_segmentation` is returned as an ``(N, H, W, 4) uint8`` RGBA image, else
+    an ``(N, H, W, 1) int32`` id image. ``data.info["instance_segmentation"]`` provides ``idToLabels``
     (id/color to prim path) and ``idToSemantics`` (id/color to semantic label).
     """
 

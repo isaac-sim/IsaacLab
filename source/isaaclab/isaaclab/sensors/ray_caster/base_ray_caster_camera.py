@@ -57,7 +57,6 @@ class BaseRayCasterCamera(BaseRayCaster):
         "instance_id_segmentation",
         "instance_id_segmentation_fast",
         "instance_segmentation",
-        "instance_segmentation_fast",
         "semantic_segmentation",
         "skeleton_data",
         "motion_vectors",
