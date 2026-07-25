@@ -59,7 +59,7 @@ class RenderData:
     # separately in :meth:`set_outputs` rather than through this map, because Newton emits a single
     # ray-hit-distance buffer that must be reused as the source for the planar-depth conversion.
     #
-    # The segmentation family (``semantic_segmentation`` / ``instance_segmentation_fast``) is likewise
+    # The segmentation family (``semantic_segmentation`` / ``instance_segmentation``) is likewise
     # handled separately: Newton emits a single per-shape index buffer that is remapped into each
     # requested segmentation output by
     # :class:`~isaaclab_newton.renderers.segmentation.NewtonSegmentationMapper`.
@@ -187,7 +187,7 @@ class RenderData:
             # :meth:`_convert_segmentation`.
             if output_name == RenderBufferKind.SEMANTIC_SEGMENTATION:
                 colorize = bool(self._renderer_cfg.colorize_semantic_segmentation)
-            elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
+            elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION:
                 colorize = bool(self._renderer_cfg.colorize_instance_segmentation)
             else:
                 colorize = None
@@ -271,7 +271,7 @@ class RenderData:
         """Remap Newton's shape-index buffer into each requested segmentation output.
 
         Newton emits a single per-pixel shape index (:attr:`CameraOutputs.shape_index_image`);
-        ``semantic_segmentation`` / ``instance_segmentation_fast`` are each derived from it by a
+        ``semantic_segmentation`` / ``instance_segmentation`` are each derived from it by a
         :class:`~isaaclab_newton.renderers.segmentation.NewtonSegmentationMapping`.
         No-op when no segmentation output was requested.
         """
@@ -450,7 +450,7 @@ class NewtonWarpRenderer(BaseRenderer):
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.SEMANTIC_SEGMENTATION: seg_spec(self.cfg.colorize_semantic_segmentation),
-            RenderBufferKind.INSTANCE_SEGMENTATION_FAST: seg_spec(self.cfg.colorize_instance_segmentation),
+            RenderBufferKind.INSTANCE_SEGMENTATION: seg_spec(self.cfg.colorize_instance_segmentation),
         }
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
@@ -487,7 +487,7 @@ class NewtonWarpRenderer(BaseRenderer):
         # requested segmentation outputs.
         if (
             RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
-            or RenderBufferKind.INSTANCE_SEGMENTATION_FAST in spec.cfg.data_types
+            or RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         ):
             if self._seg_mapper is None:
                 self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg)
@@ -495,9 +495,9 @@ class NewtonWarpRenderer(BaseRenderer):
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
             )
-        if RenderBufferKind.INSTANCE_SEGMENTATION_FAST in spec.cfg.data_types:
+        if RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
-                RenderBufferKind.INSTANCE_SEGMENTATION_FAST, bool(self.cfg.colorize_instance_segmentation)
+                RenderBufferKind.INSTANCE_SEGMENTATION, bool(self.cfg.colorize_instance_segmentation)
             )
 
         render_data = RenderData(self.newton_sensor, spec, seg_mapper=self._seg_mapper, renderer_cfg=self.cfg)

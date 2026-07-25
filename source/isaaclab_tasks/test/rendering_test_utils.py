@@ -81,7 +81,7 @@ _SSIM_DISABLED_DATA_TYPES: set[str] = {
     "depth",
     "distance_to_camera",
     "distance_to_image_plane",
-    "instance_segmentation_fast",
+    "instance_segmentation",
     "instance_id_segmentation_fast",
     "motion_vectors",
 }
@@ -125,7 +125,7 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "distance_to_camera",
     "distance_to_image_plane",
     "normals",
-    "instance_segmentation_fast",
+    "instance_segmentation",
     "instance_id_segmentation_fast",
     "motion_vectors",
 )
@@ -140,12 +140,12 @@ _NEWTON_WARP_DATA_TYPES = (
     "distance_to_image_plane",
     "normals",
     "semantic_segmentation",
-    "instance_segmentation_fast",
+    "instance_segmentation",
 )
 
 # Data types the OVRTX renderer supports. ``instance_id_segmentation_fast`` is intentionally
 # excluded: it has no real-world sensor equivalent, so the OVRTX integration does not support it.
-# Users should use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
+# Users should use ``instance_segmentation`` or ``semantic_segmentation`` instead.
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
 
 _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
@@ -937,7 +937,7 @@ def validate_camera_outputs(
         # by zeroing RGB on both images.
         result_image_for_comparison = result_image
         golden_image_for_comparison = golden_image
-        if data_type in {"instance_segmentation_fast", "instance_id_segmentation_fast"}:
+        if data_type in {"instance_segmentation", "instance_id_segmentation_fast"}:
 
             def _alpha_only(img: Image.Image) -> Image.Image:
                 r, g, b, a = img.split()
@@ -1031,13 +1031,13 @@ def maybe_validate_semantic_segmentation(
     )
 
 
-def maybe_validate_instance_segmentation_fast(
+def maybe_validate_instance_segmentation(
     data_type: str,
     camera_data: "CameraData",
     expected_prim_paths: set[str],
     expected_semantics: list[dict[str, str]],
 ) -> None:
-    """For the ``instance_segmentation_fast`` data type, assert ``camera.data.info`` matches ground truth.
+    """For the ``instance_segmentation`` data type, assert ``camera.data.info`` matches ground truth.
 
     No-op for any other data type. Instance segmentation exposes two mappings that the Isaac RTX and OVRTX
     renderers must both satisfy: ``idToLabels`` (instance -> USD prim path) and ``idToSemantics`` (instance ->
@@ -1059,17 +1059,17 @@ def maybe_validate_instance_segmentation_fast(
     Args:
         data_type: The camera data type under test.
         camera_data: The camera's :class:`~isaaclab.sensors.camera.CameraData`; its ``info`` and colorized
-            ``instance_segmentation_fast`` output image are read internally.
+            ``instance_segmentation`` output image are read internally.
         expected_prim_paths: Expected set of non-reserved ``idToLabels`` values (one USD prim path per instance).
         expected_semantics: Expected multiset of non-reserved ``idToSemantics`` values (``{semantic_type: label}``
             per instance).
     """
-    if data_type != "instance_segmentation_fast":
+    if data_type != "instance_segmentation":
         return
 
     info = camera_data.info
     assert info is not None, "camera.data.info is None; renderer did not populate segmentation metadata."
-    segmentation = info["instance_segmentation_fast"]
+    segmentation = info["instance_segmentation"]
     id_to_labels = segmentation["idToLabels"]
     id_to_semantics = segmentation["idToSemantics"]
 
@@ -1079,17 +1079,17 @@ def maybe_validate_instance_segmentation_fast(
 
     # The colorized keys are non-stable across runs, so validate them against the rendered image instead of
     # hard-coding: the map keys must be exactly the unique colors present in the image plus the reserved keys.
-    instance_image = camera_data.output["instance_segmentation_fast"]
+    instance_image = camera_data.output["instance_segmentation"]
     color_image = instance_image if isinstance(instance_image, torch.Tensor) else instance_image.torch
     color_image = color_image.reshape(-1, color_image.shape[-1]).cpu().numpy()
     unique_colors = {tuple(int(channel) for channel in row) for row in np.unique(color_image, axis=0)}
     assert set(id_to_labels) == unique_colors | reserved_keys, (
-        f"instance_segmentation_fast idToLabels keys != rendered colors + reserved.\n"
+        f"instance_segmentation idToLabels keys != rendered colors + reserved.\n"
         f"  image colors:    {sorted(unique_colors)}\n"
         f"  idToLabels keys: {sorted(id_to_labels)}"
     )
     assert set(id_to_semantics) == unique_colors | reserved_keys, (
-        f"instance_segmentation_fast idToSemantics keys != rendered colors + reserved.\n"
+        f"instance_segmentation idToSemantics keys != rendered colors + reserved.\n"
         f"  image colors:       {sorted(unique_colors)}\n"
         f"  idToSemantics keys: {sorted(id_to_semantics)}"
     )
@@ -1100,7 +1100,7 @@ def maybe_validate_instance_segmentation_fast(
 
     actual_prim_paths = {value for key, value in id_to_labels.items() if key not in reserved_keys}
     assert actual_prim_paths == expected_prim_paths, (
-        f"instance_segmentation_fast idToLabels prim paths mismatch.\n"
+        f"instance_segmentation idToLabels prim paths mismatch.\n"
         f"  expected: {sorted(expected_prim_paths)}\n"
         f"  actual:   {sorted(actual_prim_paths)}"
     )
@@ -1110,7 +1110,7 @@ def maybe_validate_instance_segmentation_fast(
 
     actual_semantics = [value for key, value in id_to_semantics.items() if key not in reserved_keys]
     assert _as_multiset(actual_semantics) == _as_multiset(expected_semantics), (
-        f"instance_segmentation_fast idToSemantics labels mismatch.\n"
+        f"instance_segmentation idToSemantics labels mismatch.\n"
         f"  expected: {expected_semantics}\n"
         f"  actual:   {actual_semantics}"
     )
@@ -1164,7 +1164,7 @@ def rendering_test_shadow_hand(
         distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
         distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
         normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
-        instance_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation_fast"])
+        instance_segmentation = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation"])
         instance_id_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
         motion_vectors = _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
 
@@ -1222,7 +1222,7 @@ def rendering_test_shadow_hand(
 
         # Instance segmentation yields one instance per env's ``class:cube`` object (num_envs=4). The colorized
         # keys are non-stable, so they are validated against the rendered image; only the values are hard-coded.
-        maybe_validate_instance_segmentation_fast(
+        maybe_validate_instance_segmentation(
             data_type,
             env._tiled_camera.data,
             expected_prim_paths={f"/World/envs/env_{i}/object" for i in range(4)},
@@ -1261,9 +1261,7 @@ def rendering_test_cartpole(
             data_types=["distance_to_image_plane"]
         )
         normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
-        instance_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
-            data_types=["instance_segmentation_fast"]
-        )
+        instance_segmentation = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["instance_segmentation"])
         instance_id_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
             data_types=["instance_id_segmentation_fast"]
         )
@@ -1292,7 +1290,7 @@ def rendering_test_cartpole(
         normals = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
-        instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
@@ -1370,7 +1368,7 @@ def rendering_test_cartpole(
 
         # Instance segmentation yields one instance per env's ``class:cartpole`` robot (num_envs=4). The colorized
         # keys are non-stable, so they are validated against the rendered image; only the values are hard-coded.
-        maybe_validate_instance_segmentation_fast(
+        maybe_validate_instance_segmentation(
             data_type,
             env._tiled_camera.data,
             expected_prim_paths={f"/World/envs/env_{i}/Robot" for i in range(4)},
@@ -1429,15 +1427,9 @@ def rendering_test_dexsuite_kuka(
         normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
         normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
         normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
-        instance_segmentation_fast64 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation_fast"], width=64, height=64
-        )
-        instance_segmentation_fast128 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation_fast"], width=128, height=128
-        )
-        instance_segmentation_fast256 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation_fast"], width=256, height=256
-        )
+        instance_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=64, height=64)
+        instance_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=128, height=128)
+        instance_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=256, height=256)
         instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
             data_types=["instance_id_segmentation_fast"], width=64, height=64
         )
@@ -1595,8 +1587,8 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
-        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
+        pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -1723,8 +1715,8 @@ def rendering_test_franka_soft(
     if physics_backend == "physx" or renderer == "isaacsim_rtx_renderer":
         pytest.skip("Random teardown hangs in the kit-based combinations (OMPE-101977).")
 
-    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
-        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
+        pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
 
     if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
         pytest.skip("The test cases will be enabled after NVBUG#6418121 is fixed.")
