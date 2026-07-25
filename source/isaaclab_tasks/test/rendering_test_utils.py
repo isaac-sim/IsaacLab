@@ -57,8 +57,7 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "dexsuite_kuka_hetero": 8.0,
 }
 
-# OVRTX 0.4 Cartpole RGB/RGBA varies by up to 1.839% across otherwise structurally equivalent runs
-# (NVBUG#6152566). Keep the relaxed threshold scoped to this exact case; the SSIM gate remains enabled.
+# Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
 _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
