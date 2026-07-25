@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+13.1.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Relaxed ``func`` annotation on :class:`~isaaclab.managers.ObservationTermCfg`,
+  :class:`~isaaclab.managers.RewardTermCfg`, and
+  :class:`~isaaclab.managers.TerminationTermCfg` to ``Callable[..., torch.Tensor | None]``
+  so kernel-style ``func(env, out) -> None`` terms type-check alongside the
+  existing torch return-tensor form.
+* **Breaking:** Renamed the ``"instance_segmentation_fast"`` camera data type to
+  ``"instance_segmentation"``. The new name conveys the functionality (requires prims tagged
+  with semantic labels) and aligns with the existing ``"semantic_segmentation"`` data type. The
+  ``_fast`` suffix leaked an implementation detail (non-stable instance IDs) that is not meaningful
+  for Newton, where IDs are always stable.
+
+  Migration: replace ``"instance_segmentation_fast"`` with ``"instance_segmentation"`` in all
+  :attr:`~isaaclab.sensors.camera.CameraCfg.data_types` lists and ``camera.data.output`` /
+  ``camera.data.info`` key lookups.
+
+  :attr:`~isaaclab.renderers.output_contract.RenderBufferKind.INSTANCE_SEGMENTATION_FAST` has been
+  removed; use :attr:`~isaaclab.renderers.output_contract.RenderBufferKind.INSTANCE_SEGMENTATION`
+  instead.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.managers.CurriculumManager.get_active_iterable_terms`
+  crashing with ``TypeError`` when a curriculum term state is a ``dict``, which
+  broke Newton visualizer live plots during training.
+
+
 13.0.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~~
 
