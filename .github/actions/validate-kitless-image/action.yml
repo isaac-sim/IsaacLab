@@ -1,0 +1,124 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Validate Kit-less Image
+description: >
+  Validates the shipped kit-less container with Newton training, OVRTX
+  initialization, an existing pytest subset, and the non-root runtime contract.
+
+inputs:
+  image-tag:
+    description: Local Docker image tag to validate.
+    required: true
+  mount-source:
+    description: >
+      Mount the checked-out source, scripts, and apps over the baked copies.
+      Enable this for dependency-cache hits so validation uses the current
+      checkout; disable it when validating the exact image that will be
+      published.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+  - name: Validate kit-less runtime image
+    shell: bash
+    env:
+      IMAGE_TAG: ${{ inputs.image-tag }}
+      MOUNT_SOURCE: ${{ inputs.mount-source }}
+    run: |
+      set -euo pipefail
+
+      mount_args=()
+      if [ "$MOUNT_SOURCE" = "true" ]; then
+        mount_args=(
+          -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro"
+          -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro"
+          -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro"
+        )
+      fi
+
+      run_training_smoke() {
+        local label="$1"
+        shift
+        local log
+        log="$(mktemp)"
+        if ! docker run --rm --gpus all --network host \
+          "${mount_args[@]}" \
+          "$IMAGE_TAG" "$@" 2>&1 | tee "$log"; then
+          echo "::error::${label} training smoke test failed."
+          rm -f "$log"
+          return 1
+        fi
+        if grep -q "Traceback (most recent call last):" "$log"; then
+          echo "::error::${label} training smoke test raised a traceback."
+          rm -f "$log"
+          return 1
+        fi
+        if ! grep -q "Training time:" "$log"; then
+          echo "::error::${label} training smoke test did not report 'Training time:'."
+          rm -f "$log"
+          return 1
+        fi
+        rm -f "$log"
+      }
+
+      run_training_smoke "Newton" \
+        isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Direct \
+        --num_envs 16 \
+        presets=newton_mjwarp \
+        --max_iterations 5
+
+      docker run --rm "$IMAGE_TAG" \
+        python -c '
+      import importlib.util
+
+      modules = ("rl_games", "rsl_rl", "stable_baselines3", "skrl")
+      missing = [name for name in modules if importlib.util.find_spec(name) is None]
+      assert not missing, f"missing core RL frameworks: {missing}"
+      print("core RL frameworks available:", ", ".join(modules))
+      '
+
+      # Renderer construction loads the native OVRTX stack and creates a Vulkan
+      # device. Full rendering correctness remains in build.yaml.
+      docker run --rm --gpus all --network host \
+        "$IMAGE_TAG" \
+        python -c '
+      from ovrtx import Renderer, RendererConfig
+
+      renderer = Renderer(RendererConfig(log_file_path="/tmp/ovrtx.log", keep_system_alive=True))
+      assert renderer, "ovrtx.Renderer construction returned a falsy value"
+      print("ovrtx renderer initialized")
+      '
+
+      # Install pytest only in this disposable container layer. The shipped
+      # runtime image remains free of test-only dependencies.
+      docker run --rm --gpus all --network host \
+        "${mount_args[@]}" \
+        "$IMAGE_TAG" \
+        bash -lc '
+      set -euo pipefail
+      uv sync --active --frozen --no-dev --no-managed-python --no-python-downloads \
+        --extra rl-games \
+        --extra rsl-rl \
+        --extra rtx \
+        --extra sb3 \
+        --extra skrl \
+        --extra test
+      python -m pytest \
+        source/isaaclab_newton/test/test_mock_interfaces \
+        -q -p no:cacheprovider
+      '
+
+      runtime_identity="$(docker run --rm --entrypoint bash "$IMAGE_TAG" \
+        -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
+      read -r runtime_uid runtime_gid runtime_user <<< "$runtime_identity"
+      echo "Kit-less runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
+      if [ "$runtime_uid" = "0" ]; then
+        echo "::error::Kit-less Docker image must not run as root by default."
+        exit 1
+      fi

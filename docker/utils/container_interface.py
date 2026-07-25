@@ -37,8 +37,9 @@ class ContainerInterface:
                 A list of yaml files to extend ``docker-compose.yaml`` settings. These are extended in the order
                 they are provided. Defaults to None, in which case no additional yaml files are added.
             envs:
-                A list of environment variable files to extend the ``.env.base`` file. These are extended in the order
-                they are provided. Defaults to None, in which case no additional environment variable files are added.
+                A list of environment variable files to extend the profile's default environment files. These are
+                extended in the order they are provided. Defaults to None, in which case no additional environment
+                variable files are added.
             statefile:
                 An instance of the :class:`Statefile` class to manage state variables. Defaults to None, in
                 which case a new configuration object is created by reading the configuration file at the path
@@ -90,6 +91,16 @@ class ContainerInterface:
         # load the environment variables from the .env files
         self._parse_dot_vars()
 
+    @property
+    def requires_base_image(self) -> bool:
+        """Whether the selected profile extends the Isaac Sim-based base image."""
+        return self.profile not in {"base", "kitless"}
+
+    @property
+    def supports_x11(self) -> bool:
+        """Whether the selected profile supports the X11 Compose overlay."""
+        return self.profile != "kitless"
+
     def print_info(self):
         """Print the container interface information."""
         print("=" * 60)
@@ -139,17 +150,19 @@ class ContainerInterface:
 
     def build(self):
         """Build the Docker image."""
-        print("[INFO] Building the docker image for the profile 'base'...\n")
-        # build the image for the base profile
-        cmd = (
-            ["docker", "compose"]
-            + ["--file", "docker-compose.yaml"]
-            + ["--profile", "base"]
-            + ["--env-file", ".env.base"]
-            + ["build", self.base_service_name]
-        )
-        subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
-        print("[INFO] Finished building the docker image for the profile 'base'.\n")
+        # Base-derived profiles must build their parent image first. Standalone
+        # profiles, such as kitless, build only their selected service.
+        if self.profile == "base" or self.requires_base_image:
+            print("[INFO] Building the docker image for the profile 'base'...\n")
+            cmd = (
+                ["docker", "compose"]
+                + ["--file", "docker-compose.yaml"]
+                + ["--profile", "base"]
+                + ["--env-file", ".env.base"]
+                + ["build", self.base_service_name]
+            )
+            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+            print("[INFO] Finished building the docker image for the profile 'base'.\n")
 
         # build the image for the profile
         if self.profile != "base":
@@ -176,8 +189,9 @@ class ContainerInterface:
             # Create the file with sticky bit on the group
             container_history_file.touch(mode=0o2644, exist_ok=True)
 
-        # build the image for the base profile if not running base (up will build base already if profile is base)
-        if self.profile != "base":
+        # Build the parent image before starting a base-derived profile. Compose
+        # builds base and standalone profiles directly during ``up --build``.
+        if self.requires_base_image:
             cmd = (
                 ["docker", "compose"]
                 + ["--file", "docker-compose.yaml"]
@@ -207,7 +221,7 @@ class ContainerInterface:
             print(f"[INFO] Entering the existing '{self.container_name}' container in a bash session...\n")
             cmd = (
                 ["docker", "exec", "--interactive", "--tty"]
-                + (["-e", f"DISPLAY={os.environ['DISPLAY']}"] if "DISPLAY" in os.environ else [])
+                + (["-e", f"DISPLAY={os.environ['DISPLAY']}"] if self.supports_x11 and "DISPLAY" in os.environ else [])
                 + [self.container_name, "bash"]
             )
             subprocess.run(cmd)
@@ -304,16 +318,20 @@ class ContainerInterface:
         Args:
             yamls: A list of yaml files to extend ``docker-compose.yaml`` settings. These are extended in the order
                 they are provided.
-            envs: A list of environment variable files to extend the ``.env.base`` file. These are extended in the order
-                they are provided.
+            envs: A list of environment variable files to extend the profile's default environment files. These are
+                extended in the order they are provided.
         """
         self.add_yamls = ["--file", "docker-compose.yaml"]
         self.add_profiles = ["--profile", f"{self.profile}"]
-        self.add_env_files = ["--env-file", ".env.base"]
 
-        # extend env file based on profile
-        if self.profile != "base":
-            self.add_env_files += ["--env-file", f".env.{self.profile}"]
+        # Base-derived profiles inherit the base environment. Standalone
+        # profiles must not load Isaac Sim-specific base settings.
+        if self.profile == "kitless":
+            self.add_env_files = ["--env-file", ".env.kitless"]
+        else:
+            self.add_env_files = ["--env-file", ".env.base"]
+            if self.profile != "base":
+                self.add_env_files += ["--env-file", f".env.{self.profile}"]
 
         # extend the env file based on the passed envs
         if envs is not None:

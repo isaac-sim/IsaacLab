@@ -9,7 +9,10 @@ import argparse
 import shutil
 from pathlib import Path
 
-from utils import ContainerInterface, x11_utils
+if __package__:
+    from .utils import ContainerInterface, x11_utils
+else:
+    from utils import ContainerInterface, x11_utils
 
 
 def parse_cli_args() -> argparse.Namespace:
@@ -26,7 +29,10 @@ def parse_cli_args() -> argparse.Namespace:
     # We have to create separate parent parsers for common options to our subparsers
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument(
-        "profile", nargs="?", default="base", help="Optional container profile specification. Example: 'base' or 'ros'."
+        "profile",
+        nargs="?",
+        default="base",
+        help="Optional container profile specification. Examples: 'base', 'ros2', or 'kitless'.",
     )
     parent_parser.add_argument(
         "--files",
@@ -43,7 +49,7 @@ def parse_cli_args() -> argparse.Namespace:
         default=None,
         help=(
             "Allows additional '.env' files to be passed to the docker compose command. These files will be merged with"
-            " '.env.base' in their provided order."
+            " the profile's default environment files in their provided order."
         ),
     )
     parent_parser.add_argument(
@@ -123,29 +129,23 @@ def main(args: argparse.Namespace):
         return
 
     print(f"[INFO] Using container profile: {ci.profile}")
-    if args.command == "build":
-        # check if x11 forwarding is enabled
+
+    # The kit-less image is a headless training image and intentionally has no
+    # X11 service overlay. Preserve the existing X11 behavior for other profiles.
+    if args.command in {"build", "start"} and ci.supports_x11:
         x11_outputs = x11_utils.x11_check(ci.statefile)
-        # if x11 forwarding is enabled, add the x11 yaml and environment variables
         if x11_outputs is not None:
             (x11_yaml, x11_envar) = x11_outputs
             ci.add_yamls += x11_yaml
             ci.environ.update(x11_envar)
-        # build the image
+
+    if args.command == "build":
         ci.build()
     elif args.command == "start":
-        # check if x11 forwarding is enabled
-        x11_outputs = x11_utils.x11_check(ci.statefile)
-        # if x11 forwarding is enabled, add the x11 yaml and environment variables
-        if x11_outputs is not None:
-            (x11_yaml, x11_envar) = x11_outputs
-            ci.add_yamls += x11_yaml
-            ci.environ.update(x11_envar)
-        # start the container
         ci.start()
     elif args.command == "enter":
-        # refresh the x11 forwarding
-        x11_utils.x11_refresh(ci.statefile)
+        if ci.supports_x11:
+            x11_utils.x11_refresh(ci.statefile)
         # enter the container
         ci.enter()
     elif args.command == "config":
@@ -155,8 +155,8 @@ def main(args: argparse.Namespace):
     elif args.command == "stop":
         # stop the container
         ci.stop()
-        # cleanup the x11 forwarding
-        x11_utils.x11_cleanup(ci.statefile)
+        if ci.supports_x11:
+            x11_utils.x11_cleanup(ci.statefile)
     else:
         raise RuntimeError(f"Invalid command provided: {args.command}. Please check the help message.")
 

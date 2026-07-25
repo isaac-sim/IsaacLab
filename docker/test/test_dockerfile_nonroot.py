@@ -35,12 +35,18 @@ DOCKERFILE_RUNTIME_USERS = {
     "Dockerfile.base": "isaaclab",
     "Dockerfile.curobo": "isaaclab",
     "Dockerfile.installci": "isaaclab",
+    "Dockerfile.kitless": "isaaclab",
     "Dockerfile.ros2": "isaaclab",
 }
 
 # Dockerfiles that are expected to *create* the non-root runtime user
 # (i.e. contain groupadd/useradd/USER isaaclab).
-DOCKERFILES_CREATING_RUNTIME_USER = {"Dockerfile.base", "Dockerfile.curobo", "Dockerfile.installci"}
+DOCKERFILES_CREATING_RUNTIME_USER = {
+    "Dockerfile.base",
+    "Dockerfile.curobo",
+    "Dockerfile.installci",
+    "Dockerfile.kitless",
+}
 
 USER_DIRECTIVE_RE = re.compile(r"^USER\s+(\S+)\s*$")
 
@@ -103,6 +109,30 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
     assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
 
 
+def test_kitless_dockerfile_uses_frozen_dependencies_without_isaac_sim_or_ovphysx():
+    """The kit-less image locks Newton, OVRTX, and all core RL frameworks."""
+    dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
+
+    assert (
+        "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
+        in dockerfile_text
+    )
+    assert "COPY pyproject.toml uv.lock" in dockerfile_text
+    assert "uv sync --active --frozen" in dockerfile_text
+    assert "--no-dev" in dockerfile_text
+    for extra in ("rl-games", "rsl-rl", "rtx", "sb3", "skrl"):
+        assert f"--extra {extra}" in dockerfile_text
+    assert "--extra rlinf" not in dockerfile_text
+    assert "--extra ov" not in dockerfile_text
+    assert "'isaacsim' not in names" in dockerfile_text
+    assert "'ovphysx' not in names" in dockerfile_text
+    assert "'ovrtx' in names" in dockerfile_text
+    assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
+    assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
+    assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
+    assert "COPY isaaclab.sh ./" in dockerfile_text
+
+
 # --------------------------------------------------------------------------- #
 # Volume mount-point writability
 #
@@ -116,7 +146,11 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
 # validate the parser and that each non-root Dockerfile wires it in.
 # --------------------------------------------------------------------------- #
 
-NONROOT_VOLUME_DOCKERFILES = ["Dockerfile.base", "Dockerfile.curobo"]
+NONROOT_VOLUME_DOCKERFILES = {
+    "Dockerfile.base": "x-default-isaac-lab-volumes",
+    "Dockerfile.curobo": "x-default-isaac-lab-volumes",
+    "Dockerfile.kitless": "x-kitless-isaac-lab-volumes",
+}
 
 
 def _volume_mounts_module():
@@ -139,12 +173,29 @@ def test_compose_volume_targets_parse():
 
     assert targets, "no named-volume targets parsed from docker-compose.yaml"
     for required in (
-        "${DOCKER_ISAACSIM_ROOT_PATH}/kit/cache",
+        "${DOCKER_ISAACSIM_ROOT_PATH:-/isaac-sim}/kit/cache",
         "${DOCKER_ISAACLAB_PATH}/logs",
         "${DOCKER_ISAACLAB_PATH}/data_storage",
         "${DOCKER_ISAACLAB_PATH}/docs/_build",
     ):
         assert required in targets, f"{required} missing from parsed volume targets: {targets}"
+
+
+def test_kitless_compose_volume_targets_parse():
+    """The kit-less parser includes each persistent cache and output directory."""
+    targets = _volume_mounts_module().named_volume_targets(
+        DOCKER_DIR / "docker-compose.yaml", "x-kitless-isaac-lab-volumes"
+    )
+
+    assert targets, "no kit-less named-volume targets parsed from docker-compose.yaml"
+    for required in (
+        "${DOCKER_USER_HOME}/.cache/uv",
+        "${DOCKER_USER_HOME}/.cache/warp",
+        "${DOCKER_ISAACLAB_PATH}/docs/_build",
+        "${DOCKER_ISAACLAB_PATH}/logs",
+        "${DOCKER_ISAACLAB_PATH}/data_storage",
+    ):
+        assert required in targets, f"{required} missing from parsed kit-less volume targets: {targets}"
 
 
 def test_resolved_targets_are_absolute_paths(monkeypatch):
@@ -161,8 +212,8 @@ def test_resolved_targets_are_absolute_paths(monkeypatch):
     assert "/workspace/isaaclab/logs" in resolved
 
 
-@pytest.mark.parametrize("dockerfile_name", NONROOT_VOLUME_DOCKERFILES)
-def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str):
+@pytest.mark.parametrize(("dockerfile_name", "volumes_key"), NONROOT_VOLUME_DOCKERFILES.items())
+def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str, volumes_key: str):
     """Each non-root Dockerfile derives its mount points from the parser, with a guard.
 
     Guards the wiring: the build must call ``volume_mounts.py`` under
@@ -174,3 +225,5 @@ def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str):
     assert "set -o pipefail" in text
     assert "docker/utils/volume_mounts.py" in text
     assert "chown -R isaaclab:isaaclab ${dirs}" in text
+    if volumes_key != "x-default-isaac-lab-volumes":
+        assert f"--volumes_key {volumes_key}" in text
