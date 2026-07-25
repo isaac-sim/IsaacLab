@@ -21,14 +21,12 @@ environments entirely inside the physics runtime without touching USD.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 import torch
 
 from pxr import Sdf, Usd
 
 from isaaclab.cloner.cloner_utils import split_clone_template
-from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 
 
 def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
@@ -122,15 +120,11 @@ class OvPhysxReplicateContext:
         self._queue.clear()
 
 
-def queue_ovphysx_replication(cfg: Any) -> None:
-    """Register ``cfg`` for OvPhysX replication when :func:`~isaaclab.cloner.replicate` next runs.
-
-    Appends ``(cfg, OvPhysxReplicateContext)`` to
-    :data:`~isaaclab.cloner.REPLICATION_QUEUE`. The actual row resolution and dispatch
-    happen inside :func:`~isaaclab.cloner.replicate`, so this helper is safe to call from
-    any asset constructor — no active session is required.
-    """
-    REPLICATION_QUEUE.append((cfg, OvPhysxReplicateContext))
+PHYSICS_CONTEXT = OvPhysxReplicateContext
+"""Physics replication context for OvPhysX assets.  OvPhysxReplicateContext authors USD
+internally, so USD replication is not separately added.
+TODO: decompose into UsdReplicateContext + a pure-physics OvPhysxReplicateContext to match
+the physx/newton split."""
 
 
 def ovphysx_replicate(

@@ -9,14 +9,13 @@ import os
 
 import omni
 import omni.kit.commands
-from isaacsim.core.experimental.utils.app import enable_extension
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
 from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.sim.utils import delete_prim, export_prim_to_file
+from isaaclab.sim.utils import delete_prim, enable_extension, export_prim_to_file
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -249,10 +248,10 @@ class MeshConverter(AssetConverterBase):
         """
         enable_extension("omni.kit.asset_converter")
 
-        import omni.kit.asset_converter
+        import omni.kit.asset_converter as kit_asset_converter
 
         # Create converter context
-        converter_context = omni.kit.asset_converter.AssetConverterContext()
+        converter_context = kit_asset_converter.AssetConverterContext()
         # Set up converter settings
         # Don't import/export materials
         converter_context.ignore_materials = not load_materials
@@ -269,7 +268,7 @@ class MeshConverter(AssetConverterBase):
         converter_context.use_double_precision_to_usd_transform_op = True
 
         # Create converter task
-        instance = omni.kit.asset_converter.get_instance()
+        instance = kit_asset_converter.get_instance()
         task = instance.create_converter_task(in_file, out_file, None, converter_context)
         # Start conversion task and wait for it to finish
         success = await task.wait_until_finished()

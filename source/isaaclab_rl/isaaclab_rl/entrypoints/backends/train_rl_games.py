@@ -68,7 +68,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="if toggled, this experiment will be tracked with Weights and Biases",
     )
     add_launcher_args(parser)
-    args_cli, hydra_args = setup_preset_cli(parser, argv)
+    args_cli, hydra_args = setup_preset_cli(parser, argv, agent_library="rl_games")
     enable_cameras_for_video(args_cli)
     set_hydra_args(hydra_args)
     return args_cli

@@ -34,6 +34,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the Hydra preset tokens.
     """
     from isaaclab.app import add_launcher_args
+    from isaaclab.test.benchmark._cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -41,7 +42,9 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
-    parser.add_argument("--num_frames", type=int, default=100, help="Number of inference steps to benchmark.")
+    parser.add_argument(
+        "--num_frames", type=parse_positive_int, default=100, help="Number of measured inference steps."
+    )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument(
         "--checkpoint",
@@ -53,6 +56,17 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
+    parser.add_argument(
+        "--measure_sync_step",
+        action="store_true",
+        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
+    )
+    parser.add_argument(
+        "--warmup_frames",
+        type=parse_non_negative_int,
+        default=1,
+        help="Number of preceding env.step() calls to exclude from timing and throughput.",
+    )
     parser.add_argument(
         "--benchmark_formatter",
         type=str,
@@ -148,6 +162,11 @@ def run(argv: list[str]) -> None:
                     {"name": "task", "data": args.task},
                     {"name": "num_envs", "data": args.num_envs},
                     {"name": "num_frames", "data": args.num_frames},
+                    {
+                        "name": "environment_step_measurement_mode",
+                        "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
+                    },
+                    {"name": "environment_step_warmup_frames", "data": args.warmup_frames},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -159,74 +178,86 @@ def run(argv: list[str]) -> None:
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-        num_envs = env.unwrapped.num_envs
+        with contextlib.closing(env):
+            num_envs = env.unwrapped.num_envs
 
-        # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_rsl_rl does.
-        if agent_cfg.class_name == "OnPolicyRunner":
-            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-        elif agent_cfg.class_name == "DistillationRunner":
-            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-        else:
-            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-        runner.load(resume_path)
-        policy = runner.get_inference_policy(device=env.unwrapped.device)
+            # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_rsl_rl does.
+            if agent_cfg.class_name == "OnPolicyRunner":
+                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+            elif agent_cfg.class_name == "DistillationRunner":
+                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+            else:
+                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+            runner.load(resume_path)
+            policy = runner.get_inference_policy(device=env.unwrapped.device)
 
-        with BenchmarkMonitor(benchmark, interval=1.0):
-            step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args.num_frames)
+            environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+                env,
+                measure_synchronized_step_breakdown=args.measure_sync_step,
+                warmup_steps=args.warmup_frames,
+            )
+            total_frames = args.warmup_frames + args.num_frames
+            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
 
-        benchmark.update_manual_recorders()
+            first_step_s = all_step_times[0]
+            step_times = all_step_times[args.warmup_frames :]
 
-        startup = StartupTime(
-            app_launch=(app_t1 - app_t0) / 1e9,
-            env_creation=(env_t1 - env_t0) / 1e9,
-            first_step=(step_times[0] if step_times else 0.0),
-        )
+            benchmark.update_manual_recorders()
 
-        fps = [num_envs / t for t in step_times if t > 0]
-        runtime = builders.build_runtime(
-            startup_time_s=startup,
-            iteration_times_s=step_times,
-            collection_fps=fps,
-            total_fps=fps,
-            steps_per_iteration=num_envs,
-        )
+            startup = StartupTime(
+                app_launch=(app_t1 - app_t0) / 1e9,
+                env_creation=(env_t1 - env_t0) / 1e9,
+                first_step=first_step_s,
+            )
 
-        versions = capture.capture_versions(benchmark)
-        hardware = capture.capture_hardware(benchmark)
-        resources = capture.capture_resources(benchmark)
+            fps = [num_envs / t for t in step_times if t > 0]
+            runtime = builders.build_runtime(
+                startup_time_s=startup,
+                iteration_times_s=step_times,
+                collection_fps=fps,
+                total_fps=fps,
+                steps_per_iteration=num_envs,
+                frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_times_s=environment_step_timer.step_times_s,
+                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
+                simulation_step_calls=environment_step_timer.simulation_step_calls,
+            )
 
-        end_utc = capture.now_utc_iso()
-        stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
-        seed = agent_cfg.seed if agent_cfg.seed is not None else 0
+            versions = capture.capture_versions(benchmark)
+            hardware = capture.capture_hardware(benchmark)
+            resources = capture.capture_resources(benchmark)
 
-        run_identity = builders.build_run_identity(
-            run_id=capture.synth_run_id("rsl_rl", cfg.physics_backend, args.task, seed, stamp),
-            framework="rsl_rl",
-            config=cfg,
-            task=args.task,
-            seed=seed,
-            start_utc=start_utc,
-            end_utc=end_utc,
-            num_envs=num_envs,
-        )
+            end_utc = capture.now_utc_iso()
+            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
+            seed = agent_cfg.seed if agent_cfg.seed is not None else 0
 
-        bundle = builders.build_play_bundle(
-            run=run_identity,
-            versions=versions,
-            hardware=hardware,
-            runtime=runtime,
-            resources=resources,
-            success_rate=success_rate,
-            reward=reward,
-            ep_length=ep_length,
-            checkpoint_path=resume_path,
-        )
+            run_identity = builders.build_run_identity(
+                run_id=capture.synth_run_id("rsl_rl", cfg.physics_backend, args.task, seed, stamp),
+                framework="rsl_rl",
+                config=cfg,
+                task=args.task,
+                seed=seed,
+                start_utc=start_utc,
+                end_utc=end_utc,
+                num_envs=num_envs,
+            )
 
-        benchmark.attach_bundle(bundle)
+            bundle = builders.build_play_bundle(
+                run=run_identity,
+                versions=versions,
+                hardware=hardware,
+                runtime=runtime,
+                resources=resources,
+                success_rate=success_rate,
+                reward=reward,
+                ep_length=ep_length,
+                checkpoint_path=resume_path,
+            )
 
-        benchmark._finalize_impl()
+            benchmark.attach_bundle(bundle)
 
-        env.close()
+            benchmark._finalize_impl()
 
 
 if __name__ == "__main__":

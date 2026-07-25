@@ -44,6 +44,27 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("h5py").setLevel(logging.WARNING)
 
 
+def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
+    """Remove pytest arguments that Kit would otherwise interpret."""
+    if "pytest" not in sys.modules:
+        return argv
+
+    indexes_to_remove: set[int] = set()
+    for index, argument in enumerate(argv):
+        if argument == "-m" and index + 1 < len(argv):
+            marker_expression = argv[index + 1]
+            if any(marker in marker_expression for marker in ("pytest", "isaacsim_ci", "windows_ci", "arm_ci")):
+                indexes_to_remove.update((index, index + 1))
+        elif (
+            (argument.startswith("--config-file=") and "pyproject.toml" in argument)
+            or argument == "--capture=no"
+            or re.fullmatch(r"-v+", argument)
+        ):
+            indexes_to_remove.add(index)
+
+    return [argument for index, argument in enumerate(argv) if index not in indexes_to_remove]
+
+
 class ExplicitAction(argparse.Action):
     """Custom action to track if an argument was explicitly passed by the user."""
 
@@ -235,7 +256,7 @@ class AppLauncher:
         # and will be passed directly to the SimulationApp initialization.
         #
         # We could potentially require users to enter each argument they want passed here
-        # as a kwarg, but this would require them to pass livestream, headless, and
+        # as a kwarg, but this would require them to pass livestream, display settings, and
         # any other options we choose to add here explicitly, and with the correct keywords.
         #
         # @hunter: I feel that this is cumbersome and could introduce error, and would prefer to do
@@ -382,9 +403,6 @@ class AppLauncher:
 
         Currently, it adds the following parameters to the argparser object:
 
-        * ``headless`` (bool): [Deprecated CLI] If True, visualizers are disabled and host execution is headless.
-          To run headless by default, omit ``--viz``. To force headless when config visualizers may be enabled,
-          use ``--viz none``.
         * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
@@ -394,10 +412,6 @@ class AppLauncher:
           - ``1``: `WebRTC`_ over public network
           - ``2``: `WebRTC`_ over local/private network
 
-        * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
-          headless mode. This flag must be set to True if the environments contains any camera sensors.
-          The values map the same as that for the ``ENABLE_CAMERAS`` environment variable.
-          If False, then enable_cameras mode is determined by the ``ENABLE_CAMERAS`` environment variable.
         * ``device`` (str): The device to run the simulation on.
           Valid options are:
 
@@ -408,16 +422,8 @@ class AppLauncher:
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
-          If provided as an empty string, the experience file is determined based on the command-line flags:
-
-          * If headless and enable_cameras are True, the experience file is set to
-            ``isaaclab.python.headless.rendering.kit``.
-          * If headless is False and enable_cameras is True, the experience file is set to
-            ``isaaclab.python.rendering.kit``.
-          * If headless and enable_cameras are False, the experience file is set to
-            ``isaaclab.python.kit``.
-          * If headless is True and enable_cameras is False, the experience file is set to
-            ``isaaclab.python.headless.kit``.
+          If provided as an empty string, the experience file is selected from the resolved visualizer and XR
+          settings. Rendering support is available by default, including in headless execution.
 
         * ``deterministic`` (bool): Publishes ``/isaaclab/render/deterministic`` for reproducible rendering.
           Does not change how the default experience file is chosen.
@@ -491,26 +497,11 @@ class AppLauncher:
             description="Arguments for the AppLauncher. For more details, please check the documentation.",
         )
         arg_group.add_argument(
-            "--headless",
-            action=ExplicitTrueAction,
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
-            help=(
-                "[DEPRECATED] Disable visualizers and force headless mode (display off)."
-                " Omit '--viz' for default headless, or use '--viz none' to force-disable visualizers."
-            ),
-        )
-        arg_group.add_argument(
             "--livestream",
             type=int,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1],
             choices={0, 1, 2},
             help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
-        )
-        arg_group.add_argument(
-            "--enable_cameras",
-            action="store_true",
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1],
-            help="Enable camera sensors and relevant extension dependencies.",
         )
         arg_group.add_argument(
             "--xr",
@@ -551,7 +542,8 @@ class AppLauncher:
             default="",
             help=(
                 "The experience file to load when launching the SimulationApp. If an empty string is provided,"
-                " the experience file is determined based on the headless flag. If a relative path is provided,"
+                " the experience file is determined from the resolved visualizer and XR settings. If a relative"
+                " path is provided,"
                 " it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in that order)."
             ),
         )
@@ -810,25 +802,12 @@ class AppLauncher:
         # the bool of headless_arg to avoid messy string processing,
         headless_env = int(os.environ.get("HEADLESS", 0))
         headless_arg = launcher_args.pop("headless", AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1])
-        headless_arg_explicit = launcher_args.pop("headless_explicit", False)
         headless_valid_vals = {0, 1}
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
-        if headless_arg and headless_arg_explicit:
-            logger.warning(
-                "The '--headless' CLI argument is deprecated. Omit '--viz' for default headless. "
-                "If config visualizers are enabled and you want to force headless, use '--viz none'."
-            )
-            if self._cli_visualizer_explicit:
-                logger.warning(
-                    "Both '--headless' and '--visualizer/--viz' were provided. "
-                    "Deprecated '--headless' takes precedence and disables all visualizers."
-                )
-            self._cli_visualizer_disable_all = True
-            self._cli_visualizer_types = []
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
@@ -873,12 +852,11 @@ class AppLauncher:
                 # - config visualizers without kit => headless
                 # - config includes kit => allow non-headless
                 if (not self._cfg_has_any_visualizers) or (not self._cfg_has_kit_visualizer):
-                    if not headless_arg_explicit:
-                        logger.info(
-                            "No visualizer was selected, so running in headless mode. "
-                            "To launch a visualizer app, pass '--viz <names>' "
-                            "(for example '--viz kit')."
-                        )
+                    logger.info(
+                        "No visualizer was selected, so running in headless mode. "
+                        "To launch a visualizer app, pass '--viz <names>' "
+                        "(for example '--viz kit')."
+                    )
                     if not self._headless:
                         logger.debug(
                             "Forcing headless mode because no Kit visualizer was requested via CLI or upstream "
@@ -929,19 +907,9 @@ class AppLauncher:
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
-        enable_cameras_env = int(os.environ.get("ENABLE_CAMERAS", 0))
-        enable_cameras_arg = launcher_args.get("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
-        enable_cameras_valid_vals = {0, 1}
-        if enable_cameras_env not in enable_cameras_valid_vals:
-            raise ValueError(
-                f"Invalid value for environment variable `ENABLE_CAMERAS`: {enable_cameras_env} ."
-                f"Expected: {enable_cameras_valid_vals} ."
-            )
-        # We allow enable_cameras kwarg to supersede ENABLE_CAMERAS envvar
-        if enable_cameras_arg is True:
-            self._enable_cameras = enable_cameras_arg
-        else:
-            self._enable_cameras = bool(enable_cameras_env)
+        self._enable_cameras = bool(
+            launcher_args.pop("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
+        )
         self._offscreen_render = False
         if self._enable_cameras and self._headless:
             self._offscreen_render = True
@@ -1206,27 +1174,7 @@ class AppLauncher:
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
-        # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest, -m isaacsim_ci, -m windows_ci, -m arm_ci,
-        # and -c **/pyproject.toml
-        indexes_to_remove = []
-        for idx, arg in enumerate(sys.argv[:-1]):
-            if arg == "-m":
-                value_for_dash_m = sys.argv[idx + 1]
-                if (
-                    "pytest" in value_for_dash_m
-                    or "isaacsim_ci" in value_for_dash_m
-                    or "windows_ci" in value_for_dash_m
-                    or "arm_ci" in value_for_dash_m
-                ):
-                    indexes_to_remove.append(idx)
-                    indexes_to_remove.append(idx + 1)
-            if arg.startswith("--config-file=") and "pyproject.toml" in arg:
-                indexes_to_remove.append(idx)
-            if arg == "--capture=no":
-                indexes_to_remove.append(idx)
-        for idx in sorted(indexes_to_remove, reverse=True):
-            sys.argv = sys.argv[:idx] + sys.argv[idx + 1 :]
+        sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
 

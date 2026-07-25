@@ -25,7 +25,13 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
-from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+from isaaclab_rl.entrypoints.common import (
+    CHECKPOINT_SELECTORS,
+    add_frontend_args,
+    create_isaaclab_env,
+    resolve_checkpoint_selector,
+    resolve_play_task_name,
+)
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
     RslRlVecEnvWrapper,
@@ -55,6 +61,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+add_frontend_args(parser)
 parser.add_argument(
     "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
@@ -65,10 +72,17 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument(
+    "--train_env_cfg",
+    action="store_true",
+    default=False,
+    help="Play with the training environment configuration as-is, skipping play-mode overrides.",
+)
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
-args_cli, remaining_args = setup_preset_cli(parser)
+args_cli, remaining_args = setup_preset_cli(parser, agent_library="rsl_rl")
+args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -88,7 +102,7 @@ sys.argv = [sys.argv[0]] + remaining_args
 installed_version = metadata.version("rsl-rl-lib")
 
 
-@hydra_task_config(args_cli.task, args_cli.agent)
+@hydra_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Play with RSL-RL agent."""
     with launch_simulation(env_cfg, args_cli):
@@ -130,12 +144,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
         env_cfg.log_dir = log_dir
 
-        env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+        )
 
         if args_cli.video:
             video_kwargs = {

@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "PHYSICS_CONTEXT",
     "PhysxReplicateContext",
     "physx_replicate",
-    "queue_physx_replication",
 ]
 
-from .replicate import PhysxReplicateContext, physx_replicate, queue_physx_replication
+from .replicate import PHYSICS_CONTEXT, PhysxReplicateContext, physx_replicate

@@ -11,6 +11,11 @@ isaaclab_teleop
 
     IsaacTeleopCfg
     IsaacTeleopDevice
+    HapticFeedbackCfg
+    ControllerHapticFeedbackCfg
+    GloveHapticFeedbackCfg
+    HapticFeedbackReceiver
+    HapticFeedbackDriver
     XrCfg
     XrAnchorRotationMode
     XrAnchorSynchronizer
@@ -20,6 +25,7 @@ isaaclab_teleop
   .. autosummary::
 
     create_isaac_teleop_device
+    create_haptic_feedback_driver
     remove_camera_configs
 
 Configuration
@@ -42,6 +48,28 @@ Device
     :show-inheritance:
 
 .. autofunction:: create_isaac_teleop_device
+
+Haptic Feedback
+---------------
+
+.. autoclass:: HapticFeedbackCfg
+    :members:
+
+.. autoclass:: ControllerHapticFeedbackCfg
+    :members:
+    :show-inheritance:
+
+.. autoclass:: GloveHapticFeedbackCfg
+    :members:
+    :show-inheritance:
+
+.. autoclass:: HapticFeedbackReceiver
+    :members:
+
+.. autoclass:: HapticFeedbackDriver
+    :members:
+
+.. autofunction:: create_haptic_feedback_driver
 
 XR Anchor
 ---------
