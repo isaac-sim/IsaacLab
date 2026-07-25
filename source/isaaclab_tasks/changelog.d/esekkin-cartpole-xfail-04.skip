@@ -1,0 +1,2 @@
+Test-only: temporarily marked the OVRTX 0.4 Cartpole RGB/RGBA comparison as an expected failure pending
+NVBUG#6152566. No user-facing API change.

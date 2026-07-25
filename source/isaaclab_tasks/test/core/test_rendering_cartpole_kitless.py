@@ -21,11 +21,15 @@ from rendering_test_utils import (
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+_OVRTX_RGB_XFAIL_REASON = "OVRTX 0.4 produces nondeterministic Cartpole RGB/RGBA output (NVBUG#6152566)."
 _RENDERING_PARAMS = make_xfail_rendering_params(
     KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     {
-        ("ovphysx", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
-        for data_type in ("albedo", "simple_shading_diffuse_mdl", "simple_shading_full_mdl")
+        ("newton", "ovrtx_renderer", "rgb"): _OVRTX_RGB_XFAIL_REASON,
+        **{
+            ("ovphysx", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+            for data_type in ("albedo", "simple_shading_diffuse_mdl", "simple_shading_full_mdl")
+        },
     },
 )
 _COMPARISON_SCORES: list[dict] = []
