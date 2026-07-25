@@ -15,35 +15,20 @@ marker templates) stay module-level constants.
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkersCfg
 
-from isaaclab_tasks.utils.hydra import preset
-
 from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_ACTUATED_JOINT_NAMES,
-    SHADOW_ACTUATED_JOINT_NAMES_NEWTON,
+    SHADOW_ACTUATED_JOINT_NAMES as ACTUATED_JOINT_NAMES,
 )
 from isaaclab_assets.robots.shadow_hand import (
     SHADOW_FINGERTIP_BODY_NAMES as FINGERTIP_BODY_NAMES,
 )
 
 __all__ = [
-    "ACTUATED_JOINT_NAMES_PRESET",
+    "ACTUATED_JOINT_NAMES",
     "FINGERTIP_BODY_NAMES",
     "GOAL_MARKER_CFG",
     "GOAL_POSITION_OFFSET",
     "OBJECT_RADIUS",
 ]
-
-
-# Per-backend actuated joint names, resolved by the physics preset key -- the Newton asset
-# renumbers the fingers (+1), so it needs its own ordered list. Built from the asset lists
-# (the single source); reorient assembles the identical preset independently.
-ACTUATED_JOINT_NAMES_PRESET = preset(
-    physx=SHADOW_ACTUATED_JOINT_NAMES,
-    newton_mjwarp=SHADOW_ACTUATED_JOINT_NAMES_NEWTON,
-    ovphysx=SHADOW_ACTUATED_JOINT_NAMES,
-    default=SHADOW_ACTUATED_JOINT_NAMES_NEWTON,
-)
-"""Per-backend actuated joint names, resolved by the physics preset key."""
 
 
 OBJECT_RADIUS: float = 0.0335

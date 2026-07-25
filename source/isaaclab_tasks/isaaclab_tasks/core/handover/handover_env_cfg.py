@@ -22,7 +22,7 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.handover.handover_common import (
-    ACTUATED_JOINT_NAMES_PRESET,
+    ACTUATED_JOINT_NAMES,
     FINGERTIP_BODY_NAMES,
     GOAL_MARKER_CFG,
     OBJECT_RADIUS,
@@ -142,11 +142,10 @@ def _shadow_hand_cfg(
     differences (right vs left) come from the caller's *prim_path* / *init_pos* /
     *init_rot* — the gain tuning is identical on both hands.
 
-    The Newton variant reuses the shared actuator defined on
-    ``SHADOW_HAND_NEWTON_CFG`` (renamed-joint targeting and a passive distal
-    coupling), overriding only the finger gains to ``20.0`` / ``2.0`` -- the smallest
-    tested setting at which the handover policy learns the catch (mean reward at iter
-    200 / 2048 envs ~27 -> ~777 vs reorient's base gains).
+    The Newton variant reuses the shared actuator defined on ``SHADOW_HAND_NEWTON_CFG``,
+    overriding only the finger gains to ``20.0`` / ``2.0`` -- the smallest tested setting
+    at which the handover policy learns the catch (mean reward at iter 200 / 2048 envs
+    ~27 -> ~777 vs reorient's base gains).
     """
     physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
         init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
@@ -164,10 +163,9 @@ def _shadow_hand_cfg(
             torch.tensor(SHADOW_HAND_NEWTON_CFG.init_state.rot, dtype=torch.float64),
         ).tolist()
     )
-    # The Newton hand inherits the shared actuator from ``SHADOW_HAND_NEWTON_CFG``
-    # (renamed-joint targeting + passive distal coupling), overriding only the finger gains:
-    # the catch needs a higher nominal gain (20.0/2.0) than reorient's base. Per-hand prim
-    # path and init pose also differ here.
+    # The Newton hand inherits the shared actuator from ``SHADOW_HAND_NEWTON_CFG``,
+    # overriding only the finger gains: the catch needs a higher nominal gain
+    # (20.0/2.0) than reorient's base. Per-hand prim path and init pose also differ here.
     newton_cfg = SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
         init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
@@ -276,9 +274,9 @@ class PhysicsCfg(PresetCfg):
             update_data_interval=2,
             ccd_iterations=50,  # bumped from default 35 for multi-finger contact geometry
         ),
-        # 4 substeps (vs the single-agent port's 2): sustained ball-palm contact
-        # against the near-passive distal joints explodes ~0.7% of 8192 envs to
-        # NaN at 2 substeps (zero-action probe, 300 steps); 4 substeps shows none.
+        # 4 substeps (vs the reorient task's 2): sustained ball-palm contact against the
+        # distal joints explodes ~0.7% of 8192 envs to NaN at 2 substeps (zero-action
+        # probe, 300 steps); 4 substeps shows none.
         num_substeps=4,
         debug_mode=False,
     )
@@ -307,7 +305,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     # robot
     right_robot_cfg: PresetCfg = RIGHT_HAND_CFG
     left_robot_cfg: PresetCfg = LEFT_HAND_CFG
-    actuated_joint_names: PresetCfg = ACTUATED_JOINT_NAMES_PRESET
+    actuated_joint_names = ACTUATED_JOINT_NAMES
     fingertip_body_names = FINGERTIP_BODY_NAMES
 
     # in-hand object
