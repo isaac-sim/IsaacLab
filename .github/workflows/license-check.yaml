@@ -296,8 +296,12 @@ jobs:
 
   docker-license-check:
     name: Docker Dependency Licenses Check
-    # The Isaac Sim base image is private, so fork PRs cannot build or scan it.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # The Isaac Sim base image is private, so fork PRs cannot normally build or scan it.
+    # TODO: Remove the PR-specific exception after validating this new job.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      (github.event.pull_request.number == 6724 &&
+       github.event.pull_request.head.repo.full_name == 'kellyguo11/IsaacLab-public')
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     env:
