@@ -1,6 +1,85 @@
 Changelog
 ---------
 
+0.6.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added optional tracking debug visualization for IsaacTeleop sessions. Red sphere markers
+  are rendered at each OpenXR hand joint and RGB axis markers at the controller aim poses
+  when the ``enable_debug_visualization`` argument of
+  :func:`~isaaclab_teleop.create_isaac_teleop_device` is set (exposed as the
+  ``--enable_debug_visualization`` CLI flag on the teleoperation scripts).
+* Added controller haptic feedback to the IsaacTeleop stack. A new
+  :class:`~isaaclab_teleop.HapticFeedbackReceiver` protocol, ``HapticFeedbackCfg``, and
+  ``HapticFeedbackDriver`` let an environment vibrate the XR motion controller from a
+  sim-side contact force (e.g. a gripper pressing on an object). When
+  :meth:`~isaaclab_teleop.create_isaac_teleop_device` receives a ``haptic_cfg``, the device
+  builds an ``isaacteleop`` ``HapticSink`` (fed by ``TactileVectorToControllerPulse``) and
+  renders per-hand forces pushed via
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_haptic`.
+* Added haptic glove feedback and generalized the haptic-feedback seam to be device-agnostic.
+  :class:`~isaaclab_teleop.HapticFeedbackReceiver` now carries a per-hand vector payload, and
+  ``HapticFeedbackCfg`` is a base with :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg`
+  (controller vibration) and :class:`~isaaclab_teleop.GloveHapticFeedbackCfg` (per-finger glove
+  power) backends. The device selects the backend via
+  :meth:`~isaaclab_teleop.HapticFeedbackCfg.build_sink`, and the signal source is pluggable
+  (``contact_force_magnitude`` and ``per_finger_object_grip``).
+* Added a standalone (non-Kit-XR) session mode to
+  :class:`~isaaclab_teleop.IsaacTeleopDevice`, selected via the new
+  ``use_kit_xr_bridge`` argument on
+  :func:`~isaaclab_teleop.create_isaac_teleop_device`. When ``False`` the
+  device bypasses the ``isaacsim.kit.xr.teleop.bridge`` extension and lets
+  ``isaacteleop`` own its own OpenXR session through the CloudXR runtime, so
+  teleop input/output works headless without Kit XR rendering. The
+  ``record_demos.py`` and ``teleop_se3_agent.py`` teleop scripts wire this to
+  the ``--xr`` flag: omitting ``--xr`` now runs IsaacTeleop for I/O only, while
+  passing ``--xr`` keeps the full Kit XR rendering path unchanged.
+* Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start` and
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_stop` (backed by a new
+  ``inject_command`` on the teleop message processor) to drive the teleop state
+  machine to RUNNING / PAUSED without an XR client. Without ``--xr`` the
+  ``record_demos.py`` and ``teleop_se3_agent.py`` scripts call ``request_start``
+  at startup so a headless session begins with no headset UI, and (when a Kit
+  window is present) bind ``B`` / ``P`` / ``R`` to start-resume / pause / reset.
+* Added :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV`, a ``cloudxr-standalone.env``
+  CloudXR profile that emulates a Quest 3 device so a clientless runtime advertises
+  an OpenXR system (working around ``XR_ERROR_FORM_FACTOR_UNAVAILABLE``). The teleop
+  scripts default ``--cloudxr_env`` to this profile when ``--xr`` is omitted (and to
+  ``cloudxrjs`` when it is passed); the new ``standalone`` shorthand selects it
+  explicitly.
+
+Changed
+^^^^^^^
+
+* **Breaking:** ``HapticFeedbackCfg`` is now an abstract base; use
+  :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg` for controller vibration. The
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_haptic` payload changed from a scalar force to a
+  per-hand vector.
+
+* Bumped the Isaac Teleop pin to ``isaacteleop~=1.4.0`` (``teleop`` extra), which delivers the
+  per-endpoint haptic-glove fix so left- and right-hand glove feedback are driven independently.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed teleop session restart churn when the retargeting pipeline raises during a step
+  (e.g. on degenerate tracking data): the failure is now diagnosed against the actual Kit
+  XR session state instead of always being reported as an external XR teardown, and session
+  re-creation is rate-limited to once per second. External Stop-AR/Start-AR recovery latency
+  is unchanged.
+* Fixed the deprecated Manus/Vive integration importing a removed Isaac Sim extension helper.
+
+
 0.5.3 (2026-06-11)
 ~~~~~~~~~~~~~~~~~~
 

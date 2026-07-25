@@ -271,6 +271,7 @@ class RerunVisualizer(BaseVisualizer):
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
         self._viewer.set_model(self._model)
+        self._viewer.show_particles = self.cfg.show_particles
         apply_viewer_visible_worlds(
             self._viewer,
             env_ids=self._env_ids,
@@ -304,6 +305,7 @@ class RerunVisualizer(BaseVisualizer):
                 ("grpc_port", grpc_port),
                 ("web_port", web_port),
                 ("open_browser", self.cfg.open_browser),
+                ("show_particles", self.cfg.show_particles),
                 ("record_to_rrd", self.cfg.record_to_rrd or "<none>"),
             ],
         )
