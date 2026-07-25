@@ -133,6 +133,10 @@ _KIT_APP_DRAIN_SLEEP_SECONDS = 0.01
 _WARMUP_MAX_FRAMES = 50
 """Hard cap on render frames pumped during convergence-based warmup."""
 
+_FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES = 5
+"""Franka cloth VBD + RTX is ~2 min/frame at this point in the test suite (14 prior scenes).
+Use a fixed short count; the test has 12 % / SSIM-0.85 thresholds so convergence is unnecessary."""
+
 _WARMUP_STABLE_DIFF_PCT = 0.5
 """Fraction of pixels (%) with inter-frame L2 > 1.0 below which two consecutive frames are
 considered stable (renderer TAA has converged).  Used by :func:`_frames_converged`."""
@@ -1072,6 +1076,7 @@ def _capture_kit_viewport_with_pose_reapply(
     resolution: tuple[int, int] | None = None,
     physics_backend: str = "",
     prior_physics_steps: int = 0,
+    max_warmup_frames: int | None = None,
 ) -> np.ndarray:
     """Set the configured eye/lookat, warm RTX, then capture.
 
@@ -1088,6 +1093,9 @@ def _capture_kit_viewport_with_pose_reapply(
             transform re-sync.
         prior_physics_steps: When > 0, injects a Newton body-transform re-sync
             between the two ``app.update()`` calls.
+        max_warmup_frames: When set, overrides the default convergence cap.  Use a
+            small value when per-frame render cost is very high and test thresholds
+            are loose enough that convergence is not required (e.g. franka cloth RTX).
     """
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
@@ -1114,22 +1122,29 @@ def _capture_kit_viewport_with_pose_reapply(
                     break
                 prev = curr
         else:
-            _warm_kit_rtx_render_product(env, annotator, use_convergence=True)
+            _warm_kit_rtx_render_product(env, annotator, use_convergence=True, max_frames_override=max_warmup_frames)
         return _capture_kit_viewport_rgb(annotator)
     finally:
         with contextlib.suppress(Exception):
             annotator.detach([render_product])
 
 
-def _warm_kit_rtx_render_product(env, annotator, *, use_convergence: bool = False) -> None:
+def _warm_kit_rtx_render_product(
+    env, annotator, *, use_convergence: bool = False, max_frames_override: int | None = None
+) -> None:
     """Pump Kit/RTX until the annotator produces stable frames.
 
     When ``use_convergence`` is False (default, used by integration tests), runs a fixed
     :data:`_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS` iterations — the original behavior.
     When True (used by golden image captures), continues until two consecutive frames
     satisfy :func:`_frames_converged` or :data:`_WARMUP_MAX_FRAMES` is reached.
+    When ``max_frames_override`` is set, it replaces both caps above — useful when the
+    per-frame render cost is high and loose thresholds make convergence unnecessary.
     """
-    max_frames = _WARMUP_MAX_FRAMES if use_convergence else _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS
+    if max_frames_override is not None:
+        max_frames = max_frames_override
+    else:
+        max_frames = _WARMUP_MAX_FRAMES if use_convergence else _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS
     prev: np.ndarray | None = None
     for i in range(max_frames):
         env.sim.render()

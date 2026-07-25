@@ -570,13 +570,17 @@ def run_visualizer_golden_franka_cloth(
             # Do not pass physics_backend="newton" here: the VBD cloth solver never
             # sets NewtonManager._newton_fabric_ready (cloth particles bypass the
             # rigid-body Fabric sync path), so _drain_until_newton_fabric_ready
-            # would run its full 200-iteration loop (~1.5 h on CI). Cloth geometry
-            # is already in the USD stage from env.step(), so the standard RTX
-            # convergence warmup is sufficient.
+            # would run its full 200-iteration loop. Cloth geometry is already in
+            # the USD stage from env.step(), so a short fixed warmup is sufficient.
+            # Cap warmup at _FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES: by this point
+            # in the test suite (~14 prior scenes), RTX takes ~2 min per render call
+            # and never converges within 50 frames anyway; the test's 12%/SSIM-0.85
+            # thresholds do not require convergence.
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
                 env,
                 _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION,
+                max_warmup_frames=_viz_utils._FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES,
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
