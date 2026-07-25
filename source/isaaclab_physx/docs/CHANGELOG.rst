@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+3.1.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to use the renamed
+  ``"instance_segmentation"`` data type (previously ``"instance_segmentation_fast"``).
+  The renderer maps this key to the Replicator ``"instance_segmentation_fast"`` annotator internally.
+
+
 3.0.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 
