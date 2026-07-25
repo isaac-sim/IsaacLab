@@ -85,9 +85,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
       with:
-        # On schedule, always rebuild from the develop tip regardless of
-        # which ref the cron run defaults to. Other events use github.ref.
-        ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
+        # Multi-version docs always use develop's Sphinx configuration,
+        # including when manually dispatched from the release landing branch.
+        ref: develop
 
     - name: Setup python
       uses: actions/setup-python@v5
