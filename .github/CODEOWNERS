@@ -22,7 +22,7 @@
 /apps/ @kellyguo11 @hujc @matthewtrepte @StafaH
 
 # Core framework
-/source/isaaclab/ @ooctipus @AntoineRichard @kellyguo11 @StafaH
+/source/isaaclab/ @ooctipus @AntoineRichard @kellyguo11 @StafaH @pbarejko
 /source/isaaclab/isaaclab/envs/mimic_* @peterd-NV @kellyguo11
 /source/isaaclab/isaaclab/envs/manager_based_rl_mimic_env.py @peterd-NV @kellyguo11
 /source/isaaclab/isaaclab/envs/leapp_deployment_env.py @frlai @StafaH @kellyguo11
@@ -46,7 +46,7 @@ source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-muel
 /source/isaaclab_ovphysx/ @AntoineRichard @marcodiiga @kellyguo11
 
 /source/isaaclab_physx/ @AntoineRichard @ooctipus @kellyguo11
-/source/isaaclab_ppisp/ @moennen @StafaH @pbarejko @kellyguo11
+/source/isaaclab_ppisp/ @moennen @pbarejko @kellyguo11
 /source/isaaclab_teleop/ @rwiltz @hougantc-nvda @kellyguo11
 /source/isaaclab_visualizers/ @matthewtrepte @StafaH @kellyguo11
 
@@ -59,7 +59,7 @@ source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-muel
 
 # Standalone scripts
 /scripts/ @StafaH @kellyguo11 @ooctipus
-/scripts/benchmarks/ @AntoineRichard @StafaH @kellyguo11 @ooctipus @pv-nvidia
+/scripts/benchmarks/ @AntoineRichard @StafaH @kellyguo11 @r-schmitt
 /scripts/imitation_learning/ @peterd-NV @rwiltz @kellyguo11
 /scripts/imitation_learning/locomanipulation_sdg/ @jaybdub @peterd-NV @kellyguo11
 /scripts/reinforcement_learning/leapp/ @frlai @StafaH @kellyguo11
