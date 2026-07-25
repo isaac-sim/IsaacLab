@@ -101,11 +101,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Shapes included in the model shape BVH used by scene queries (ray-cast sensors,
-# tiled cameras). Newton's default covers visible shapes only, which drops
-# collision-only geometry that ray-cast sensors are expected to hit.
-_SENSOR_BVH_SHAPE_FLAGS = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
-
 # Tagged union for entries in _cl_site_index_map.
 # _GlobalSite: (global_shape_idx, None)           — body_pattern was None
 # _LocalSite:  (None, [[env0_idx, ...], ...])     — per-world site indices
@@ -344,6 +339,7 @@ class NewtonManager(PhysicsManager):
     _sensor_state: State | None = None
     _sensor_state_dirty: bool = True
     _sensor_graph_capture_failed: bool = False
+    _sensor_bvh_has_collision_shapes: bool = False  # set once a ray-cast sensor widens the shape BVH
 
     # USD/Fabric sync
     _newton_stage_path = None
@@ -915,6 +911,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_state = None
         NewtonManager._sensor_state_dirty = True
         NewtonManager._sensor_graph_capture_failed = False
+        NewtonManager._sensor_bvh_has_collision_shapes = False
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
@@ -972,7 +969,6 @@ class NewtonManager(PhysicsManager):
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
             shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
-            shape_flags=_SENSOR_BVH_SHAPE_FLAGS,
         )
 
         cls._register_builder_attributes(builder)
@@ -2091,16 +2087,32 @@ class NewtonManager(PhysicsManager):
         return cls._contacts
 
     @classmethod
-    def _register_sensor_task(cls, name: str, update_fn: Callable[[], None]) -> None:
-        """Register a graph-capturable scene-query task."""
+    def _register_sensor_task(
+        cls, name: str, update_fn: Callable[[], None], *, include_collision_shapes: bool = False
+    ) -> None:
+        """Register a graph-capturable scene-query task.
+
+        Args:
+            name: Unique task name.
+            update_fn: Graph-capturable callable run by :meth:`_update_sensor_tasks`.
+            include_collision_shapes: Whether the task must see collision-only
+                geometry. Newton builds the shape BVH over visible shapes, which is
+                what renderers want; the first ray-cast sensor rebuilds it with
+                collision shapes added, since those must be hit even when they carry
+                no visual representation.
+        """
         if name in cls._sensor_tasks:
             raise ValueError(f"Newton sensor task '{name}' is already registered.")
         model = cls.get_model()
         state = cls.get_state_0()
         if model is None or state is None:
             raise RuntimeError("Registering a Newton sensor task requires an initialized model and state.")
-        if model.shape_count > 0 and model.bvh_shapes is None:
-            model.bvh_build_shapes(state, shape_flags=_SENSOR_BVH_SHAPE_FLAGS)
+        if model.shape_count > 0:
+            if include_collision_shapes and not cls._sensor_bvh_has_collision_shapes:
+                model.bvh_build_shapes(state, shape_flags=ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES)
+                NewtonManager._sensor_bvh_has_collision_shapes = True
+            elif model.bvh_shapes is None:
+                model.bvh_build_shapes(state)
         if model.particle_count > 0 and model.bvh_particles is None:
             model.bvh_build_particles(state)
         cls._sensor_tasks[name] = update_fn
