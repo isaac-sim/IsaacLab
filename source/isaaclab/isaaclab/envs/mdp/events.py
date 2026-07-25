@@ -268,12 +268,13 @@ class _RandomizeRigidBodyMaterialNewton:
     ):
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
         from isaaclab_newton.assets import Articulation as NewtonArticulation  # noqa: PLC0415
-        from newton.solvers import SolverKamino, SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
+        from newton.solvers import SolverKamino  # noqa: PLC0415
 
         self.asset = asset
         self.asset_cfg = asset_cfg
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+        self._notify_shape_properties = ModelFlags.SHAPE_PROPERTIES
         # Kamino deduplicates contact materials globally by (mu, restitution) at build time and
         # shares them across environments, so its in-place material update rejects per-shape /
         # per-env overrides. When Kamino is active we instead sample one value per build-time
@@ -943,11 +944,11 @@ class _RandomizeRigidBodyColliderOffsetsNewton:
 
     def __init__(self, asset: RigidObject | Articulation):
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
 
         self.asset = asset
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+        self._notify_shape_properties = ModelFlags.SHAPE_PROPERTIES
 
         model = self._newton_manager.get_model()
         self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
@@ -1172,10 +1173,10 @@ class randomize_physics_scene_gravity(ManagerTermBase):
     def _init_newton(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Cache Newton manager reference and solver notification flag."""
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
 
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_model_properties = SolverNotifyFlags.MODEL_PROPERTIES
+        self._notify_model_properties = ModelFlags.MODEL_PROPERTIES
 
     def _call_newton(
         self,

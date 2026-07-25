@@ -141,6 +141,21 @@ class NewtonMPMManager(NewtonManager):
             cls._solver.project_outside(state_1, state_1, substep_dt)
 
     @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Skip the solver-internal reset for implicit MPM.
+
+        :meth:`SolverImplicitMPM.reset` only honors a per-world mask when the
+        solver runs one FEM environment per world (``Config.separate_worlds``).
+        With the shared topology Isaac Lab builds, a masked reset is rejected,
+        and a full reset would clear the particle history of environments that
+        were not reset. Leaving MPM history untouched on an environment reset
+        matches the solver's behavior before it gained :meth:`reset`.
+
+        Args:
+            world_mask: Per-world reset mask, ignored.
+        """
+
+    @classmethod
     def _solver_specific_clear(cls) -> None:
         """Reset MPM-specific class state on teardown.
 

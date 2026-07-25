@@ -98,7 +98,7 @@ prerelease-mode = "allow"
 overrides = [
     { name = "mujoco", specifier = "~=3.10.0" },
     { name = "mujoco-warp", specifier = "~=3.10.0,>=3.10.0.2" },
-    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/newton-physics/newton.git?rev=ff9b71d54c83f251b996954606dfa3f8bd6c9ce6" },
+    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/newton-physics/newton.git?rev=d7581b732d83843577411d36f6a58cccee909bce" },
     { name = "newton-usd-schemas", specifier = ">=0.4.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "torch", marker = "(platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')", specifier = "==2.11.0" },
@@ -4538,7 +4538,7 @@ wheels = [
 [[package]]
 name = "newton"
 version = "1.5.0.dev0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=ff9b71d54c83f251b996954606dfa3f8bd6c9ce6#ff9b71d54c83f251b996954606dfa3f8bd6c9ce6" }
+source = { git = "https://github.com/newton-physics/newton.git?rev=d7581b732d83843577411d36f6a58cccee909bce#d7581b732d83843577411d36f6a58cccee909bce" }
 dependencies = [
     { name = "warp-lang" },
 ]
