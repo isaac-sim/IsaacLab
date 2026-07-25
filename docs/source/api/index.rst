@@ -85,6 +85,7 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    assets
    cable
    controllers
+   coupling
    deformable
    mdp
    rl

@@ -20,10 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-from pxr import UsdPhysics
-
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
 from isaaclab.sim.utils.transforms import resolve_prim_pose
@@ -188,11 +185,13 @@ class SensorBase(ABC):
             inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
             device=self._device,
         )
+        self._data_generation += 1
 
     def update(self, dt: float, force_recompute: bool = False):
         # Skip update if sensor is not initialized
         if not self._is_initialized:
             return
+        self._data_generation += 1
         # Update the timestamp for the sensors
         wp.launch(
             update_timestamp_kernel,
@@ -208,7 +207,7 @@ class SensorBase(ABC):
         )
         # Update the buffers
         if force_recompute or self._is_visualizing:
-            self._update_outdated_buffers()
+            self._update_outdated_buffers(force_recompute=force_recompute)
 
     """
     Implementation specific.
@@ -231,6 +230,8 @@ class SensorBase(ABC):
         clone_plan = self._clone_plan
         clone_plan_matches = ()
         if clone_plan is not None:
+            from isaaclab.cloner.cloner_utils import iter_clone_plan_matches  # noqa: PLC0415
+
             clone_plan_matches = tuple(iter_clone_plan_matches(clone_plan, self.cfg.prim_path))
         if clone_plan_matches:
             self._parent_prims = []
@@ -255,6 +256,8 @@ class SensorBase(ABC):
         self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        self._data_generation = 0
+        self._data_generation_last_update = -1
 
         # Initialize debug visualization handle
         if self._debug_vis_handle is None:
@@ -390,8 +393,10 @@ class SensorBase(ABC):
     Helper functions.
     """
 
-    def _update_outdated_buffers(self):
+    def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
         """Fills the sensor data for the outdated sensors."""
+        if not force_recompute and self._data_generation == self._data_generation_last_update:
+            return
         self._update_buffers_impl(self._is_outdated)
         # update timestamps and clear outdated flags
         wp.launch(
@@ -400,6 +405,7 @@ class SensorBase(ABC):
             inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update],
             device=self._device,
         )
+        self._data_generation_last_update = self._data_generation
 
     def _resolve_indices_and_mask(
         self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None
@@ -457,6 +463,7 @@ class SensorBase(ABC):
               mounted directly at the body origin.
         """
         prim, target_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
+        from pxr import UsdPhysics  # noqa: PLC0415
 
         ancestor_prim = get_first_matching_ancestor_prim(
             prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)

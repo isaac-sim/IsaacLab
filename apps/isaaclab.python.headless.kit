@@ -23,6 +23,9 @@ log.outputStreamLevel = "Warn"
 # Omniverse related dependencies #
 ##################################
 [dependencies]
+"omni.physics" = {}
+"omni.physics.physx" = {}
+"omni.physics.stageupdate" = {}
 "omni.physx" = {}
 "omni.physx.tensors" = {}
 "omni.physx.fabric" = {}
@@ -62,11 +65,11 @@ interceptSysStdOutput = false
 logSysStdOutput = false
 
 [settings]
-# MGPU is always on, you can turn it from the settings, and force this off to save even more resource if you
-# only want to use a single GPU on your MGPU system
-# False for Isaac Sim
-renderer.multiGpu.enabled = true
-renderer.multiGpu.autoEnable = true
+# Use one renderer GPU by default. Applications that need single-process multi-GPU rendering can override these
+# settings through AppLauncher's ``kit_args``.
+renderer.multiGpu.enabled = false
+renderer.multiGpu.autoEnable = false
+renderer.multiGpu.maxGpuCount = 1
 'rtx-transient'.resourcemanager.enableTextureStreaming = true
 app.asyncRendering = false
 app.asyncRenderingLowLatency = false
@@ -180,7 +183,6 @@ folders = [
     "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
     "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
     "${app}", # needed to find other app files
-    "${app}/../source", # needed to find extensions in Isaac Lab
 ]
 
 [settings.ngx]
@@ -190,22 +192,9 @@ enabled=true # Enable this for DLSS
 # Isaac Sim Extensions #
 ########################
 [dependencies]
-"isaacsim.simulation_app" = {}
-"isaacsim.core.simulation_manager" = {}
 "isaacsim.core.version" = {}
-
-########################
-# Isaac Lab Extensions #
-########################
-
-# Load Isaac Lab extensions last
-"isaaclab" = {order = 1000}
-"isaaclab_physx" = {order = 1000}
-"isaaclab_newton" = {order = 1000}
-"isaaclab_assets" = {order = 1000}
-"isaaclab_tasks" = {order = 1000}
-"isaaclab_mimic" = {order = 1000}
-"isaaclab_rl" = {order = 1000}
+# USD schema plugins must load before the schema registry is first accessed.
+"omni.usd.schema.mujoco" = {}
 
 # Asset path
 # set the S3 directory manually to the latest published S3

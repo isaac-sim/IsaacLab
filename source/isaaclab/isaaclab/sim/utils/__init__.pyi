@@ -38,6 +38,7 @@ __all__ = [
     "resolve_matching_prims_from_source",
     "find_matching_prim_paths",
     "find_global_fixed_joint_prim",
+    "has_deformable_body_api",
     "add_labels",
     "get_labels",
     "remove_labels",
@@ -59,7 +60,12 @@ __all__ = [
     "resolve_prim_pose",
     "resolve_prim_scale",
     "convert_world_pose_to_local",
+    "disable_extension",
+    "enable_extension",
+    "get_extension_path",
 ]
+
+from .extensions import disable_extension, enable_extension, get_extension_path
 
 from .legacy import (
     add_reference_to_stage,
@@ -100,6 +106,7 @@ from .queries import (
     resolve_matching_prims_from_source,
     find_matching_prim_paths,
     find_global_fixed_joint_prim,
+    has_deformable_body_api,
 )
 from .semantics import (
     add_labels,

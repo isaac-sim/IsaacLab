@@ -5,6 +5,10 @@
 
 from __future__ import annotations
 
+import math
+
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -28,9 +32,9 @@ class CartpoleTiledCameraCfg(PresetCfg):
         spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         )
-        width: int = 100
-        height: int = 100
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
+        width: int = 96
+        height: int = 96
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(newton_renderer=NewtonWarpRendererCfg())
 
     default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
     depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])
@@ -52,17 +56,15 @@ class CartpoleCameraEnvCfg(PresetCfg):
         tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
         write_image_to_file = False
 
-        frame_stack: int = -1
-        """Number of frames to stack along the channel dim.
+        frame_stack: int = 2
+        """Number of frames to stack along the channel dimension.
 
-        ``-1`` (default) auto-resolves to ``2`` when the physics lacks damping and the render
-        carries no temporal cue, else ``1``; see
-        :meth:`~isaaclab_tasks.core.cartpole.cartpole_direct_camera_env.CartpoleCameraEnv._resolve_frame_stack_default`.
-        Set to ``1`` to force single-frame; set to ``N > 1`` to force an explicit stack size.
+        Values less than two disable stacking.
         """
 
         # spaces: an image instead of the 4-dim joint-state vector
-        observation_space = [3, 100, 100]
+        observation_space = [3, 96, 96]
+        state_space = 4
 
         # change viewer settings
         viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
@@ -71,12 +73,12 @@ class CartpoleCameraEnvCfg(PresetCfg):
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
 
         # reset: smaller initial pole angle than the proprioceptive task
-        initial_pole_angle_range = [-0.125, 0.125]
+        initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
 
     default = BaseCartpoleCameraEnvCfg()
-    depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 100, 100])
+    depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])
     albedo = BaseCartpoleCameraEnvCfg()
-    semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[4, 100, 100])
+    semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[4, 96, 96])
     simple_shading_constant_diffuse = BaseCartpoleCameraEnvCfg()
     simple_shading_diffuse_mdl = BaseCartpoleCameraEnvCfg()
     simple_shading_full_mdl = BaseCartpoleCameraEnvCfg()

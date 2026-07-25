@@ -25,21 +25,22 @@ simulation_app = AppLauncher(headless=True).app
 import json
 import os
 import tempfile
+import types
 import unittest
 
+import numpy as np
+import pytest
 import torch
 import warp as wp
+from isaaclab_newton.actuators.kernels import sync_torque_telemetry
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationCfg, build_simulation_context
-
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
+from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 
 from isaaclab_assets import ANYMAL_C_CFG
 
@@ -121,6 +122,8 @@ def _run_simulation(
     num_steps: int = NUM_STEPS,
     decimation: int = 1,
     feedforward: float | None = None,
+    joint_ordering: tuple[str, ...] | None = None,
+    permutation_sensitive_commands: bool = False,
 ) -> dict:
     """Run ANYmal-C and return recorded trajectories + telemetry.
 
@@ -139,11 +142,13 @@ def _run_simulation(
             inner loop).
         feedforward: When not ``None``, set a constant per-DOF feedforward
             effort target. Used by the implicit-FF equivalence test.
+        joint_ordering: Optional explicit public joint-name order.
+        permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
+            physical joint name.
 
     Returns:
-        Dict with ``joint_pos``, ``joint_vel``, ``computed_torque``,
-        ``applied_torque`` (lists of per-step tensors) plus ``target_pos``
-        and ``target_vel`` snapshots.
+        Recorded joint-name metadata, commands, public trajectories and torque telemetry, and backend-order
+        adapter effort traces.
     """
     sim_cfg = SimulationCfg(dt=dt, physics=newton_cfg, use_newton_actuators=use_newton_actuators)
     with build_simulation_context(
@@ -155,7 +160,11 @@ def _run_simulation(
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-        art_cfg = ANYMAL_C_CFG.replace(actuators=actuators, prim_path="/World/Env_.*/Robot")
+        art_cfg = ANYMAL_C_CFG.replace(
+            actuators=actuators,
+            prim_path="/World/Env_.*/Robot",
+            joint_ordering=joint_ordering,
+        )
         articulation = Articulation(art_cfg)
         sim.reset()
         assert articulation.is_initialized
@@ -170,18 +179,45 @@ def _run_simulation(
             and SimulationManager._decimation > 1
         )
 
+        joint_names = tuple(articulation.joint_names)
+        backend_joint_names = tuple(articulation.backend_joint_names)
+        installed_ordering = articulation.joint_ordering
+        joint_ordering_state = (
+            None
+            if installed_ordering is None
+            else {
+                "user_names": joint_names,
+                "backend_names": backend_joint_names,
+                "user_to_backend_indices": installed_ordering.user_to_backend_indices,
+                "backend_to_user_indices": installed_ordering.backend_to_user_indices,
+                "is_identity": False,
+            }
+        )
         init_pos = wp.to_torch(articulation.data.joint_pos).clone()
-        target_pos = init_pos + TARGET_OFFSET
-        target_vel = torch.zeros_like(init_pos)
+        if permutation_sensitive_commands:
+            scale_by_name = {name: index + 1 for index, name in enumerate(backend_joint_names)}
+            joint_scale = torch.tensor(
+                [scale_by_name[name] for name in joint_names],
+                device=articulation.device,
+                dtype=init_pos.dtype,
+            ).unsqueeze(0)
+            joint_scale = joint_scale.expand_as(init_pos)
+            target_pos = init_pos + 0.01 * joint_scale
+            target_vel = 0.001 * joint_scale
+            effort_target = 0.1 * joint_scale
+        else:
+            target_pos = init_pos + TARGET_OFFSET
+            target_vel = torch.zeros_like(init_pos)
+            effort_target = None if feedforward is None else torch.full_like(init_pos, feedforward)
+
         articulation.set_joint_position_target_index(target=target_pos)
         articulation.set_joint_velocity_target_index(target=target_vel)
-        if feedforward is not None:
-            articulation.set_joint_effort_target_index(
-                target=torch.full_like(init_pos, feedforward),
-            )
+        if effort_target is not None:
+            articulation.set_joint_effort_target_index(target=effort_target)
 
         recorded_pos, recorded_vel = [], []
         recorded_computed, recorded_applied = [], []
+        recorded_adapter_computed, recorded_adapter_applied = [], []
         for _ in range(num_steps):
             if handles_dec:
                 articulation.write_data_to_sim()
@@ -196,15 +232,46 @@ def _run_simulation(
             recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
             recorded_computed.append(wp.to_torch(articulation.data.computed_torque).clone())
             recorded_applied.append(wp.to_torch(articulation.data.applied_torque).clone())
+            if use_newton_actuators:
+                recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
+                recorded_adapter_applied.append(wp.to_torch(articulation.data._sim_bind_joint_effort).clone())
 
     return {
+        "joint_names": joint_names,
+        "backend_joint_names": backend_joint_names,
+        "joint_ordering": joint_ordering_state,
+        "adapter_joint_names": backend_joint_names,
         "joint_pos": recorded_pos,
         "joint_vel": recorded_vel,
         "computed_torque": recorded_computed,
         "applied_torque": recorded_applied,
+        "adapter_computed_effort": recorded_adapter_computed,
+        "adapter_applied_effort": recorded_adapter_applied,
         "target_pos": target_pos.clone(),
         "target_vel": target_vel.clone(),
+        "effort_target": None if effort_target is None else effort_target.clone(),
     }
+
+
+def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
+    """Match Newton-backend actuator traces under reversed public joint ordering."""
+    identity_result = _run_simulation(
+        IDEAL_PD_ACTUATORS,
+        use_newton_actuators=True,
+        permutation_sensitive_commands=True,
+    )
+    requested_joint_names = tuple(reversed(identity_result["joint_names"]))
+    reversed_result = _run_simulation(
+        IDEAL_PD_ACTUATORS,
+        use_newton_actuators=True,
+        joint_ordering=requested_joint_names,
+        permutation_sensitive_commands=True,
+    )
+
+    installed_ordering = reversed_result["joint_ordering"]
+    assert installed_ordering is not None
+    assert not installed_ordering["is_identity"]
+    assert_articulation_ordering_trace_matches(identity_result, reversed_result, requested_joint_names)
 
 
 # ---------------------------------------------------------------------------
@@ -691,6 +758,64 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(cp_kp_after[env_idx], cp_kp_before[env_idx])
                 torch.testing.assert_close(cp_kd_after[env_idx], cp_kd_before[env_idx])
+
+
+class TestNewtonActuatorGainSnapshotEnvStride(unittest.TestCase):
+    """Regression: the init-time kp/kd snapshot must be correct for every env.
+
+    ``build_newton_actuator_defaults`` scatters each Newton actuator's
+    ``controller.kp`` / ``controller.kd`` into a per-articulation
+    ``(num_envs, num_joints)`` tensor (``newton_default_stiffness`` /
+    ``newton_default_damping``), which ``randomize_actuator_gains`` reads as
+    its DR baseline. On a floating-base articulation the actuator ``indices``
+    are laid out env-major with a per-env stride equal to the *whole model's*
+    per-env DOF count (free-root DOFs + joints), which exceeds
+    ``articulation.num_joints``. If the scatter decodes the env with
+    ``num_joints`` instead of that stride, env 1's DOFs alias to the wrong
+    rows (and partly out of bounds), corrupting the snapshot for every env
+    past the first.
+
+    ANYmal-C is floating base (6 free-root DOFs + 12 actuated joints -> a
+    per-env stride of 18 vs. ``num_joints == 12``), so the bug manifests here
+    with ``NUM_ENVS == 2``: without the fix, ``newton_default_stiffness[1]``
+    is not uniformly the configured gain (its leading entries stay zero, as
+    they are never written).
+    """
+
+    def test_snapshot_matches_config_for_all_envs(self):
+        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
+        with build_simulation_context(
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
+        ) as sim:
+            sim._app_control_on_stop_handle = None
+            for i in range(NUM_ENVS):
+                sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
+            art_cfg = ANYMAL_C_CFG.replace(
+                actuators=IDEAL_PD_ACTUATORS,
+                prim_path="/World/Env_.*/Robot",
+            )
+            anymal = Articulation(art_cfg)
+            sim.reset()
+            assert anymal.is_initialized
+
+            stiffness = anymal.newton_default_stiffness
+            damping = anymal.newton_default_damping
+            self.assertIsNotNone(stiffness, "expected a Newton kp snapshot with use_newton_actuators=True")
+            self.assertIsNotNone(damping, "expected a Newton kd snapshot with use_newton_actuators=True")
+
+            n_j = anymal.num_joints
+            self.assertEqual(tuple(stiffness.shape), (NUM_ENVS, n_j))
+            self.assertEqual(tuple(damping.shape), (NUM_ENVS, n_j))
+
+            # IDEAL_PD_ACTUATORS covers all 12 joints with constant gains, so
+            # every cell of both env rows must equal the configured value.
+            expected_kp = torch.full((NUM_ENVS, n_j), 40.0, device=anymal.device)
+            expected_kd = torch.full((NUM_ENVS, n_j), 5.0, device=anymal.device)
+            torch.testing.assert_close(stiffness, expected_kp)
+            torch.testing.assert_close(damping, expected_kd)
 
 
 # ---------------------------------------------------------------------------
@@ -1181,91 +1306,6 @@ class TestDecimationRemotizedPD(_DecimationMixin, TestRemotizedPDEquivalence):
     """RemotizedPD — decimation=2 + CUDA graph."""
 
 
-class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
-    """Regression test for Newton actuator authoring in manager-based clone paths.
-
-    The default G1 config uses ``ImplicitActuatorCfg`` for every group, which
-    intentionally skips ``NewtonActuator`` USD authoring. To exercise the
-    authoring path we override the scene's robot actuators with explicit
-    ``DCMotorCfg`` groups covering the same joint patterns.
-    """
-
-    def test_newton_actuators_present_for_g1_manager_env(self):
-        env_cfg = G1FlatEnvCfg()
-        env_cfg.scene.num_envs = 1
-        env_cfg.decimation = 1
-        env_cfg.scene.contact_forces = None
-        env_cfg.rewards.feet_air_time = None
-        env_cfg.rewards.feet_slide = None
-        env_cfg.terminations.base_contact = None
-        env_cfg.sim.physics = NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=95,
-                nconmax=10,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-        env_cfg.sim.use_newton_actuators = True
-        env_cfg.scene.robot.actuators = {
-            "legs": DCMotorCfg(
-                joint_names_expr=[
-                    ".*_hip_yaw_joint",
-                    ".*_hip_roll_joint",
-                    ".*_hip_pitch_joint",
-                    ".*_knee_joint",
-                    "torso_joint",
-                ],
-                saturation_effort=300.0,
-                effort_limit=300.0,
-                velocity_limit=20.0,
-                stiffness=150.0,
-                damping=5.0,
-            ),
-            "feet": DCMotorCfg(
-                joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
-                saturation_effort=20.0,
-                effort_limit=20.0,
-                velocity_limit=20.0,
-                stiffness=20.0,
-                damping=2.0,
-            ),
-            "arms": DCMotorCfg(
-                joint_names_expr=[
-                    ".*_shoulder_pitch_joint",
-                    ".*_shoulder_roll_joint",
-                    ".*_shoulder_yaw_joint",
-                    ".*_elbow_pitch_joint",
-                    ".*_elbow_roll_joint",
-                ],
-                saturation_effort=300.0,
-                effort_limit=300.0,
-                velocity_limit=20.0,
-                stiffness=40.0,
-                damping=10.0,
-            ),
-        }
-        env = ManagerBasedRLEnv(cfg=env_cfg)
-        try:
-            stage = env.unwrapped.sim.stage
-            actuator_prim_count = sum(1 for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator")
-            self.assertGreater(
-                actuator_prim_count,
-                0,
-                "Expected authored NewtonActuator prims in manager-based scene workflow.",
-            )
-            self.assertGreater(
-                len(SimulationManager.get_model().actuators),
-                0,
-                "Expected Newton model actuators to be non-empty with use_newton_actuators=True.",
-            )
-        finally:
-            env.close()
-
-
 # ---------------------------------------------------------------------------
 # Neural network actuator authoring: MLP and LSTM
 # ---------------------------------------------------------------------------
@@ -1430,6 +1470,140 @@ class TestNeuralLSTMAuthoring(unittest.TestCase):
         lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralLSTM"]
         for a in lstm_acts:
             self.assertIn("ClampingDCMotor", a["clamping_types"])
+
+
+def test_sync_torque_telemetry_reads_backend_effort_buffers_in_user_order() -> None:
+    """Report torque telemetry in public joint order from backend-order effort buffers."""
+    joint_pos = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
+    joint_vel = wp.zeros_like(joint_pos)
+    joint_pos_target = wp.zeros_like(joint_pos)
+    joint_vel_target = wp.zeros_like(joint_pos)
+    joint_stiffness = wp.zeros_like(joint_pos)
+    joint_damping = wp.zeros_like(joint_pos)
+    effort_limit = wp.full((1, 3), 1000.0, dtype=wp.float32, device="cpu")
+    joint_modes = wp.array(np.asarray([0, 1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array(np.asarray([2, 0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    sim_bind_joint_effort = wp.array(
+        np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+    actuator_computed_effort = wp.array(
+        np.asarray([[10.0, 20.0, 30.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+    computed = wp.zeros_like(joint_pos)
+    applied = wp.zeros_like(joint_pos)
+
+    wp.launch(
+        sync_torque_telemetry,
+        dim=joint_pos.shape,
+        inputs=[
+            joint_pos,
+            joint_vel,
+            joint_pos_target,
+            joint_vel_target,
+            joint_stiffness,
+            joint_damping,
+            effort_limit,
+            joint_modes,
+            sim_bind_joint_effort,
+            actuator_computed_effort,
+            user_to_backend,
+            True,
+        ],
+        outputs=[computed, applied],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(computed.numpy(), np.asarray([[30.0, 100.0, 20.0]], dtype=np.float32))
+    np.testing.assert_allclose(applied.numpy(), np.asarray([[300.0, 100.0, 200.0]], dtype=np.float32))
+
+
+def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> None:
+    """Report torque telemetry directly from user-order actuator buffers."""
+    joint_pos = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
+    joint_modes = wp.array(np.asarray([0, 1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array(np.asarray([2, 0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_effort = wp.array(np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    user_computed_effort = wp.array(np.asarray([[10.0, 20.0, 30.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    computed = wp.zeros_like(joint_pos)
+    applied = wp.zeros_like(joint_pos)
+
+    wp.launch(
+        sync_torque_telemetry,
+        dim=joint_pos.shape,
+        inputs=[
+            joint_pos,
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.full((1, 3), 1000.0, dtype=wp.float32, device="cpu"),
+            joint_modes,
+            user_effort,
+            user_computed_effort,
+            user_to_backend,
+            False,
+        ],
+        outputs=[computed, applied],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(computed.numpy(), np.asarray([[10.0, 200.0, 30.0]], dtype=np.float32))
+    np.testing.assert_allclose(applied.numpy(), np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32))
+
+
+def test_newton_actuator_defaults_follow_requested_public_joint_order() -> None:
+    """Convert Newton actuator gain snapshots and managed IDs into public joint order."""
+    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
+
+    controller = types.SimpleNamespace(
+        kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
+        kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
+    )
+    actuator = types.SimpleNamespace(
+        controller=controller,
+        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
+    )
+
+    stiffness, damping, managed = build_newton_actuator_defaults(
+        actuators=[actuator],
+        num_envs=2,
+        num_joints=3,
+        dof_offset=0,
+        env_stride=3,
+        device="cpu",
+        joint_user_to_backend_indices=(2, 0, 1),
+    )
+
+    torch.testing.assert_close(stiffness, torch.tensor([[30.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
+    torch.testing.assert_close(damping, torch.tensor([[3.0, 1.0, 0.0], [3.1, 1.1, 0.0]]))
+    torch.testing.assert_close(managed, torch.tensor([0, 1], dtype=torch.int32))
+
+
+def test_newton_actuator_defaults_reject_incomplete_joint_permutation() -> None:
+    """Reject malformed actuator-default ordering maps with an actionable error."""
+    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"joint_user_to_backend_indices must contain each backend joint index exactly once; "
+            r"expected a permutation of 0\.\.2, got \(0, 0, 2\)\."
+        ),
+    ):
+        build_newton_actuator_defaults(
+            actuators=[],
+            num_envs=1,
+            num_joints=3,
+            dof_offset=0,
+            env_stride=3,
+            device="cpu",
+            joint_user_to_backend_indices=(0, 0, 2),
+        )
 
 
 if __name__ == "__main__":

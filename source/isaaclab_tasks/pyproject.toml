@@ -9,20 +9,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_tasks"
-version = "8.1.1"
+version = "9.0.0"
 description = "Extension containing suite of environments for robot learning."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "rl", "il", "learning"]
 requires-python = ">=3.12"
+# Only interpackage dependencies should go here.
 dependencies = [
-    "numpy>=2",
-    "torch>=2.10",
-    "torchvision>=0.25.0",
-    "protobuf>=4.25.8,!=5.26.0",
-    "tensorboard",
+    "isaaclab",
+    "isaaclab_assets",
 ]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
+isaaclab_assets = { path = "../isaaclab_assets", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

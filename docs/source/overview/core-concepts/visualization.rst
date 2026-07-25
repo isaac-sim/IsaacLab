@@ -10,7 +10,7 @@ visualizers are meant for fast, interactive feedback.
 Most visualizers can be combined with any physics engine or rendering backend.
 The exception is the Kit visualizer with kit-less OV backends:
 ``--visualizer kit`` cannot be used with ``presets=ovphysx`` or
-``ovrtx_renderer`` in the same process. Use ``--visualizer newton``,
+``ovrtx`` in the same process. Use ``--visualizer newton``,
 ``--visualizer rerun``, ``--visualizer viser``, or omit ``--visualizer``
 for headless execution.
 
@@ -67,29 +67,51 @@ Quick Start
 
 Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` alias):
 
-.. code-block:: bash
+.. tab-set::
 
-    # Launch all visualizers (comma-delimited list, no spaces)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+   .. tab-item:: uv (Recommended)
 
-    # Launch only the Newton visualizer
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+      .. code-block:: bash
 
-    # Launch the Viser web-based visualizer
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
+          # Launch all visualizers (comma-delimited list, no spaces)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+
+          # Launch only the Newton visualizer
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+
+          # Launch the Viser web-based visualizer
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Launch all visualizers (comma-delimited list, no spaces)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+
+          # Launch only the Newton visualizer
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+
+          # Launch the Viser web-based visualizer
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
 
 
 To run in headless mode, omit the ``--viz`` argument:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
+   .. tab-item:: uv (Recommended)
 
-.. note::
+      .. code-block:: bash
 
-    The ``--headless`` argument is deprecated.
-    For compatibility, ``--headless`` still takes precedence and disables all visualizers.
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole
 
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
 
 .. _visualization-configuration:
 
@@ -143,7 +165,6 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 - ``--viz`` (alias: ``--visualizer``) uses comma-separated values (for example ``--viz kit,newton``).
 - If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
 - ``--viz none`` explicitly disables all visualizers.
-- If ``--headless`` is passed, it overrides ``--viz`` and disables visualizers.
 
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
@@ -162,6 +183,22 @@ There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments f
   enables randomly sampling the selected envs. If disabled, the first ``max_visible_envs`` envs are selected.
 
 Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
+
+Newton environments can share simulated coordinates, for example when ``scene.env_spacing=0``.
+Use :attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.world_spacing` to arrange selected
+worlds visually without changing their simulated poses:
+
+.. code-block:: python
+
+
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    NewtonVisualizerCfg(
+        visible_env_indices=[0, 1, 2, 3],
+        world_spacing=(2.0, 2.0, 0.0),
+    )
+
+Dense environment-major :class:`~isaaclab.markers.VisualizationMarkers` batches follow the same
+selection and visual offsets. This includes point-cloud and task-geometry markers.
 
 .. _visualization-common-modes:
 
@@ -187,12 +224,6 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
    * - ``--viz none``
      - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Run headless with all visualizers disabled.
-   * - ``--headless``
-     - any
-     - Run headless with deprecation warning.
-   * - ``--headless --viz <names>``
-     - any
-     - Run headless; ``--headless`` takes precedence.
 
 Camera Modes
 ~~~~~~~~~~~~
@@ -209,7 +240,7 @@ Kit and Newton visualizers can also run additional tiled camera image panels.
 If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
 a non-interactive tiled camera image view. Number of tiles is capped at 100.
 
-Note, Kit tiled camera views require launching with ``--enable_cameras``.
+Kit tiled camera views work without an additional camera option.
 
 .. list-table:: Camera Modes
    :header-rows: 1
@@ -242,6 +273,55 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
   To enable or disable the tiled camera panel, use the "Visualizer Tiled Camera" option found in the Tiled Camera View dropdown menu on the left sidebar.
 
 
+Live Plots
+~~~~~~~~~~
+
+Live plots stream per-step scalar data into the visualizer each step.  All four backends
+support live plots.  Live plots are **enabled by default** (``enable_live_plots=True``)
+but plot windows and panels start **hidden or collapsed**, so there is no overhead unless
+you open them.
+
+**What is plotted:**
+
+- **Manager-based environments** (:class:`~isaaclab.envs.ManagerBasedRLEnv`): all active
+  manager terms (actions, observations, rewards, commands, terminations, curriculum) grouped
+  per manager, plus ``episode/total_reward`` and ``episode/episode_length`` as top-level
+  training metrics.
+- **Direct environments** (:class:`~isaaclab.envs.DirectRLEnv`): ``episode/total_reward``
+  and ``episode/episode_length``.
+
+Each multi-dimensional term (e.g. ``joint_pos`` with 8 joints) is displayed as a single
+chart with one line per component, matching the Kit visualizer's per-term grouping.
+
+**Disabling live plots:**
+
+Live plots are on by default but are automatically skipped when running truly headless (no
+Kit GUI and no standalone visualizer such as Newton, Rerun, or Viser).  To disable them
+explicitly (e.g. to reduce overhead during profiling):
+
+.. code-block:: python
+
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    visualizer_cfg = NewtonVisualizerCfg(
+        enable_live_plots=False,
+    )
+
+**Per-backend behavior:**
+
+- **Kit (Omniverse):** Plots appear as collapsible panels in the IsaacLab omni.ui window,
+  collapsed by default.  Toggle individual panels to show them.
+- **Newton:** A floating **"Live Plots"** ImGui window appears at the bottom-right of the
+  viewport, collapsed to its title bar by default.  Click the title bar to expand it.
+  Individual term groups are shown as collapsing headers inside the window.
+- **Rerun:** One :class:`~rerun.blueprint.TimeSeriesView` per manager/group is added to the
+  blueprint, hidden by default.  Toggle panels on via the Rerun blueprint panel on the left.
+  Set ``keep_scalar_history=True`` in :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg`
+  so that scalars accumulate as a time series in the Rerun timeline.
+- **Viser:** One collapsible folder per term is added to the Viser sidebar, collapsed by
+  default.  Expand individual folders to show their charts.
+
+
 Video Recording
 ---------------
 
@@ -265,19 +345,19 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
    * - Renderer preset
      - ``--visualizer kit --video``
      - ``--visualizer newton --video``
-   * - ``isaacsim_rtx_renderer``
+   * - ``isaacsim_rtx``
      - ✅ Kit RTX captures video *(default, no change)*
      - ✅ Newton GL captures video *(overrides RTX backend)*
    * - ``newton_renderer``
      - ✅ Kit RTX captures video *(overrides Newton backend)*
      - ✅ Newton GL captures video *(default, no change)*
-   * - ``ovrtx_renderer``
+   * - ``ovrtx``
      - ❌ **Raises an error** — see note below
      - ✅ Newton GL captures video; ovrtx provides camera sensor data
 
 .. note::
 
-   ``--visualizer kit`` combined with ``ovrtx_renderer`` raises a ``ValueError`` at startup.
+   ``--visualizer kit`` combined with ``ovrtx`` raises a ``ValueError`` at startup.
    Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries compiled against
    different USD namespaces (``pxrInternal_v0_25_11`` vs ``ovInternal_v0_25_11``), which
    causes a dynamic-linker crash when loaded into the same process.
@@ -287,49 +367,49 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --enable_cameras \
      --visualizer newton \
      --video \
      --video_length=300 \
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
-     physics=newton_mjwarp renderer=ovrtx_renderer presets=rgb
+     --benchmark_formatter=summary \
+     physics=newton_mjwarp renderer=ovrtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Newton video backend**
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --enable_cameras \
      --visualizer newton \
      --video \
      --video_length=300 \
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
-     physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+     --benchmark_formatter=summary \
+     physics=physx renderer=isaacsim_rtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Kit video backend**
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --enable_cameras \
      --visualizer kit \
      --video \
      --video_length=300 \
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
-     physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+     --benchmark_formatter=summary \
+     physics=physx renderer=isaacsim_rtx presets=rgb
 
 
 Visualizer Backends
@@ -364,7 +444,7 @@ Omniverse Visualizer
         lookat=(0.0, 0.0, 0.0),
 
         enable_markers=True,
-        enable_live_plots=True,
+        enable_live_plots=True,  # set to False to disable live plots
     )
 
 Newton Visualizer
@@ -524,7 +604,8 @@ server, allowing you to view and interact with the scene from any browser.
 - Optional public share URL for remote viewing
 - Recording to ``.viser`` format for replay
 - Environment filtering to control which environments are rendered
-- Visualization debug markers
+- Visualization debug markers (joints, contacts, center of mass, particles, and more — toggled
+  from the **Isaac Lab → Visualization Markers** sidebar panel)
 
 .. important::
 
@@ -576,11 +657,6 @@ URL printed by Isaac Lab. On a remote machine, set ``display_address`` to the ma
 ensure the configured ``port`` is reachable from your browser. Set ``share=True`` to request Viser's
 public share/tunnel URL when that service is available.
 
-.. note::
-
-   The Viser visualizer does not currently support live plots.
-
-
 Performance Note
 ----------------
 
@@ -601,19 +677,25 @@ The Rerun web-based visualizer may experience performance issues or crashes when
 environments. For large-scale simulations, the Newton visualizer is recommended. Alternatively, to reduce load,
 the num of environments can be overwritten and decreased using ``--num_envs``:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
 
 
 **Rerun Visualizer FPS Control**
 
 The FPS control in the Rerun visualizer UI may not affect the visualization frame rate in all configurations.
-
-
-**Live Plots**
-
-Currently, live plots are only available in the Kit Visualizer.
 
 
 **Newton Contact Visualization**
@@ -681,4 +763,4 @@ See Also
 - :doc:`/source/overview/core-concepts/renderers` — renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/overview/core-concepts/scene_data_providers` — how scene data flows from physics to visualizers
 - :doc:`/source/overview/core-concepts/physical-backends/newton/index` — Newton backend guide
-- :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide with ``--headless`` deprecation details
+- :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide for visualizer behavior

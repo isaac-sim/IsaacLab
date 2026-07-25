@@ -34,6 +34,8 @@ import importlib.util
 
 import pytest
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 _REQUIRED_MODULES = ("isaaclab_newton", "newton")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 _SKIP_MISSING_NEWTON = pytest.mark.skipif(

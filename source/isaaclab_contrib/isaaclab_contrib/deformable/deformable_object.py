@@ -13,12 +13,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
@@ -289,8 +287,6 @@ class DeformableObject(BaseDeformableObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        queue_usd_replication(cfg)
-        queue_newton_physics_replication(cfg)
 
         # initialize deformable type to None, should be set to either surface or volume on initialization
         self._deformable_type: str | None = None
@@ -719,7 +715,8 @@ class DeformableObject(BaseDeformableObject):
         # (UsdGeom.TetMesh for volume, UsdGeom.Mesh for surface) with a
         # ``*DeformableSimAPI`` applied, so we split candidates by that schema.
         def _is_sim_mesh(prim) -> bool:
-            return any("DeformableSimAPI" in api for api in prim.GetAppliedSchemas())
+            # composed view: also sees token-authored (unregistered) schemas, unlike GetAppliedSchemas
+            return any("DeformableSimAPI" in api for api in prim.GetPrimTypeInfo().GetAppliedAPISchemas())
 
         tet_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "TetMesh")
         mesh_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "Mesh")

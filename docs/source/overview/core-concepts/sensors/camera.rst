@@ -31,20 +31,16 @@ The renderer used by a camera is configured via the ``renderer_cfg`` field on
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 30 40
+   :widths: 30 30
 
    * - ``renderer_cfg``
      - Requires Isaac Sim?
-     - Supported data types
    * - ``IsaacRtxRendererCfg`` *(default)*
      - Yes
-     - All annotators (rgb, rgba, depth, distances, normals, motion vectors, semantic/instance segmentation)
    * - ``NewtonWarpRendererCfg``
      - No (kit-less)
-     - rgb, rgba, rgb_hdr, depth, normals, instance segmentation
    * - ``OVRTXRendererCfg``
      - No (+ ``isaaclab_ov``)
-     - rgb, rgba, rgb_hdr, depth, distances, normals, semantic segmentation
 
 .. note::
 
@@ -111,7 +107,7 @@ parameters.
     tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
         offset=CameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
-        data_types=["rgb", "depth"],  # only rgb and depth supported with Newton renderer
+        data_types=["rgb", "depth"],  # see the support matrix below for all Newton-supported types
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
@@ -152,7 +148,7 @@ The active preset is selected at launch via ``physics=``, ``renderer=``, or ``pr
    python train.py task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
    # Use OVRTX renderer
-   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx
 
    # Use default (Isaac RTX)
    python train.py task=Isaac-Cartpole-Camera-Direct
@@ -169,12 +165,24 @@ Accessing camera data
 The returned data has shape ``(num_cameras, height, width, num_channels)``, ready to use directly
 as an observation in RL training.
 
-When using the RTX renderer, add ``--enable_cameras`` when launching:
+Camera rendering is enabled automatically when launching an RTX camera task:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rl_games \
-        --task=Isaac-Cartpole-Camera-Direct --enable_cameras
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run isaaclab train --rl_library rl_games \
+              --task=Isaac-Cartpole-Camera-Direct
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh train --rl_library rl_games \
+              --task=Isaac-Cartpole-Camera-Direct
 
 
 Annotators
@@ -228,11 +236,11 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
    * - ``distance_to_camera``
      - ✅
      - ✅
-     - ❌
+     - ✅
    * - ``distance_to_image_plane``
      - ✅
      - ✅
-     - ❌
+     - ✅
    * - ``depth``
      - ✅
      - ✅
@@ -243,15 +251,15 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ✅
    * - ``motion_vectors``
      - ✅
-     - ❌
+     - ✅
      - ❌
    * - ``semantic_segmentation``
      - ✅
      - ✅
-     - ❌
+     - ✅
    * - ``instance_segmentation_fast``
      - ✅
-     - ❌
+     - ✅
      - ✅
    * - ``instance_id_segmentation_fast``
      - ✅
@@ -392,10 +400,21 @@ It loads a PPISP-authored USD or USDZ Gaussian scene, creates baseline and
 PPISP camera sensors for the selected camera, and saves baseline, PPISP, and
 absolute-difference images.
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
-       --renderer newton --max_steps 60
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/sensors/ppisp_camera.py \
+             --renderer newton_renderer --max_steps 60
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+             --renderer newton_renderer --max_steps 60
 
 Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
 ``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
@@ -505,6 +524,11 @@ An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segme
 
 - If ``colorize_instance_segmentation=True``: shape ``(B, H, W, 4)``, type ``torch.uint8``.
 - If ``colorize_instance_segmentation=False``: shape ``(B, H, W, 1)``, type ``torch.int32``.
+
+Pixels belonging to prims with no assigned semantic label are rendered black
+(RGBA ``(0, 0, 0, 255)``) when ``colorize_instance_segmentation=True``. When
+``colorize_instance_segmentation=False``, those pixels instead carry the raw
+UNLABELLED instance ID (``1``) rather than a color value.
 
 The ``idToLabels`` dict maps color to USD prim path. The ``idToSemantics`` dict maps color to
 semantic label.

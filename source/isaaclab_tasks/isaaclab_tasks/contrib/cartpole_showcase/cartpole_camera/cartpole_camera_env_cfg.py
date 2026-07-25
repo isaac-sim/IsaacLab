@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import math
+
 from gymnasium import spaces
 
 import isaaclab.sim as sim_utils
@@ -57,6 +59,7 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     # camera
     tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
     write_image_to_file = False
+    frame_stack = 1
 
     # spaces
     action_space = 1
@@ -71,7 +74,10 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
+    initial_cart_position_range = (-1.0, 1.0)  # [m]
+    initial_cart_velocity_range = (-0.5, 0.5)  # [m/s]
     initial_pole_angle_range = [-0.125, 0.125]  # the range in which the pole angle is sampled from on reset [rad]
+    initial_pole_velocity_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad/s]
 
     # reward scales
     rew_scale_alive = 1.0

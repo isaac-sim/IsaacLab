@@ -8,6 +8,7 @@ __all__ = [
     "NewtonCableMaterialCfg",
     "NewtonDeformableBodyMaterialCfg",
     "NewtonDeformableMaterialCfg",
+    "NewtonMaterialCfg",
     "NewtonSurfaceDeformableBodyMaterialCfg",
 ]
 
@@ -16,5 +17,6 @@ from .physics_materials_cfg import (
     NewtonCableMaterialCfg,
     NewtonDeformableBodyMaterialCfg,
     NewtonDeformableMaterialCfg,
+    NewtonMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
 )

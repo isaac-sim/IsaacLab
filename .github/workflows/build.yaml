@@ -191,6 +191,7 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+      ovphysx_wheelhouse_resource: ${{ steps.load.outputs.ovphysx_wheelhouse_resource }}
       ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
     steps:
     - uses: actions/checkout@v6
@@ -205,6 +206,7 @@ jobs:
         echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$f")" >> "$GITHUB_OUTPUT"
     - id: image_tag
       shell: bash
       env:
@@ -270,6 +272,72 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
+
+  # aarch64 build + marker-gated tests on NVIDIA DGX Spark self-hosted runners.
+  # Build and test must share one runner because ECR is not wired for arm64 —
+  # the locally-built image cannot be handed off across machines.
+  arm-ci:
+    name: arm-ci
+    runs-on: [self-hosted, arm64]
+    needs: [changes, config]
+    if: needs.changes.outputs.run_docker_tests == 'true'
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build base image (linux/arm64)
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        platform: linux/arm64
+        # The Spark runner is long-lived self-hosted with no ECR, so its local
+        # deps-cache tags accumulate; evict ones older than 14 days each run.
+        evict-stale-cache: "true"
+
+    - name: Resolve OV runtime pins from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
+
+    - name: Run arm_ci marker tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: tools
+        result-file: arm-ci-report.xml
+        container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        # ovphysx stays pinned to 0.4.13 here (see the aarch64 note below).
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ovphysx==0.4.13"
+        # ovphysx-backed test params require ovphysx >= 0.5.1, which has no aarch64
+        # wheel yet; keep the newton/ovrtx rendering coverage, mirroring the public
+        # pip-index fallback of rendering-correctness-kitless. Running them anyway
+        # exhausts ovrtx SyncScopeIds (>15 renderer creations in one process).
+        test-k-expr: not ovphysx
+        ci-marker: arm_ci
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Run shared Cartpole smoke
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
+        result-file: arm-ci-cartpole-smoke-report.xml
+        container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: arm-ci-reports
+        path: reports/
+        retention-days: 7
 
   #endregion
 
@@ -595,18 +663,29 @@ jobs:
     if: >-
       github.event_name != 'push' &&
       needs.build.result == 'success'
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
+    - name: Resolve OV runtime pins from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        extra-pip-packages: "ovrtx ovphysx"
+        # isaaclab_ovphysx requires ovphysx >= 0.5.1, which is only available from the
+        # NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip index
+        # and keep only the ovrtx-based isaaclab_ov coverage.
+        exclude-pattern: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'isaaclab_ovphysx' }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} ovphysx', steps.ov_pins.outputs.ovrtx) }}
+        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the
@@ -753,8 +832,10 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         include-files: >-
           test_rendering_cartpole.py,
-          test_rendering_dexsuite_kuka_homo.py,
           test_rendering_dexsuite_kuka_hetero.py,
+          test_rendering_dexsuite_kuka_homo.py,
+          test_rendering_franka_cloth.py,
+          test_rendering_franka_soft.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
@@ -769,22 +850,35 @@ jobs:
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
+    - name: Resolve OV runtime pins from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "ovrtx ovphysx==0.4.13"
+        # ovphysx-backed test params require ovphysx >= 0.5.1, which is only available
+        # from the NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip
+        # index and keep the newton/ovrtx kitless rendering coverage.
+        test-k-expr: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'not ovphysx' }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} ovphysx', steps.ov_pins.outputs.ovrtx) }}
+        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
           test_rendering_cartpole_kitless.py,
-          test_rendering_dexsuite_kuka_homo_kitless.py,
           test_rendering_dexsuite_kuka_hetero_kitless.py,
+          test_rendering_dexsuite_kuka_homo_kitless.py,
+          test_rendering_franka_cloth_kitless.py,
+          test_rendering_franka_soft_kitless.py,
           test_rendering_shadow_hand_kitless.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless' || '' }}

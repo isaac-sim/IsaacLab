@@ -82,7 +82,7 @@ This guide demonstrates how to estimate the number of cameras one can run on the
 Configure Rendering
 -------------------
 
-This guide demonstrates how to select rendering mode presets and overwrite preset rendering settings.
+This guide demonstrates how to customize the RTX rendering settings.
 
 .. toctree::
     :maxdepth: 1
@@ -136,6 +136,18 @@ These guides explain how to interface with reinforcement learning environments i
     add_own_library
 
 
+Transferring Policies Between Physics Backends
+-----------------------------------------------
+
+This guide explains how to validate and evaluate policies trained in PhysX and deployed in Newton,
+and policies trained in Newton and deployed in PhysX.
+
+.. toctree::
+    :maxdepth: 1
+
+    transfer_policies_between_physx_and_newton
+
+
 Recording an Animation and Video
 --------------------------------
 
@@ -146,6 +158,7 @@ This guide explains how to record an animation and video in Isaac Lab.
 
     record_animation
     record_video
+    capture_sensor_frames
 
 
 Dynamically Modifying Environment Parameters With CurriculumTerm

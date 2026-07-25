@@ -7,18 +7,15 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 from typing import TYPE_CHECKING
 
-import numpy as np
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import JointType, Model, ModelBuilder, eval_fk
+from newton import Model
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
-from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
 
 from isaaclab_contrib.cable.cable_object import install_cable_builder_hooks
@@ -27,7 +24,7 @@ from .deformable_object import (
     install_deformable_builder_hooks,
     setup_registered_deformable_fabric_sync,
 )
-from .newton_manager_cfg import VBDSolverCfg
+from .newton_manager_cfg import NewtonModelSolverCfg, VBDSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -58,6 +55,24 @@ def _sync_cable_curve_points(
     fabric_points[i][count] = wp.transform_point(inv_world, tail_world)
 
 
+def _apply_model_cfg(model: Model) -> None:
+    """Apply the active solver cfg's :class:`NewtonModelCfg` to the finalized model.
+
+    Sets the model-global ``soft_contact_ke/kd/mu``. Per-shape material defaults
+    are applied earlier via ``builder.default_shape_cfg``, not here.
+    """
+    from isaaclab.physics import PhysicsManager
+
+    solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+    if not isinstance(solver_cfg, NewtonModelSolverCfg) or solver_cfg.model_cfg is None:
+        return
+
+    model_cfg = solver_cfg.model_cfg
+    model.soft_contact_ke = float(model_cfg.soft_contact_ke)
+    model.soft_contact_kd = float(model_cfg.soft_contact_kd)
+    model.soft_contact_mu = float(model_cfg.soft_contact_mu)
+
+
 class NewtonVBDManager(NewtonManager):
     """:class:`NewtonManager` specialization for the VBD solver.
 
@@ -69,13 +84,6 @@ class NewtonVBDManager(NewtonManager):
     _newton_cable_last_edge_length_attr = "newton:cableLastEdgeLength"
     _curves_dirty: bool = False
     _cable_body_q_cpu = None
-    _non_cable_articulation_mask: wp.array | None = None
-    """(articulation_count,) wp.bool — False for articulations containing
-    :attr:`newton.JointType.CABLE` joints, True elsewhere. Used to skip cable
-    articulations in :meth:`forward` because Newton's ``eval_fk`` does not
-    handle cable joints (their relative transform falls through to identity,
-    collapsing rod segments onto their parent anchors).
-    """
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -102,7 +110,6 @@ class NewtonVBDManager(NewtonManager):
         """Clear VBD-specific Fabric sync state and shared builder hooks."""
         cls._curves_dirty = False
         cls._cable_body_q_cpu = None
-        cls._non_cable_articulation_mask = None
         NewtonManager._cable_registry = []
         NewtonManager._deformable_registry = []
         NewtonManager._per_world_builder_hooks = []
@@ -152,26 +159,8 @@ class NewtonVBDManager(NewtonManager):
         """
         super().start_simulation()
 
-        # Apply global model parameters from :class:`NewtonModelCfg` to the finalized model.
-        # Sets ``soft_contact_ke/kd/mu`` and optionally overrides per-shape
-        # ``shape_material_ke/kd/mu`` on the Newton model.
-        cfg = PhysicsManager._cfg
-        if cfg is not None and hasattr(cfg, "model_cfg") and cfg.model_cfg is not None:
-            model = cls._model
-            if model is None:
-                return
-
-            model_cfg = cfg.model_cfg
-            model.soft_contact_ke = float(model_cfg.soft_contact_ke)
-            model.soft_contact_kd = float(model_cfg.soft_contact_kd)
-            model.soft_contact_mu = float(model_cfg.soft_contact_mu)
-
-            if model_cfg.shape_material_ke is not None:
-                model.shape_material_ke.fill_(float(model_cfg.shape_material_ke))
-            if model_cfg.shape_material_kd is not None:
-                model.shape_material_kd.fill_(float(model_cfg.shape_material_kd))
-            if model_cfg.shape_material_mu is not None:
-                model.shape_material_mu.fill_(float(model_cfg.shape_material_mu))
+        if cls._model is not None:
+            _apply_model_cfg(cls._model)
 
         # Setup USD/Fabric sync for Kit viewport deformable rendering
         setup_registered_deformable_fabric_sync(cls)
@@ -229,88 +218,6 @@ class NewtonVBDManager(NewtonManager):
                     curves_registered = True
             if curves_registered:
                 cls._mark_curves_dirty()
-
-    @classmethod
-    def _build_non_cable_articulation_mask(cls) -> None:
-        """Build :attr:`_non_cable_articulation_mask` from finalized joint topology.
-        NOTE: Can be removed once Newton patches cable joints in eval_fk.
-
-        Walks :attr:`newton.Model.joint_type` and :attr:`newton.Model.joint_articulation`
-        to find articulations that contain at least one :attr:`newton.JointType.CABLE`
-        joint, then allocates a device-resident boolean mask that is ``False`` for
-        those articulations and ``True`` elsewhere. Leaves the mask as ``None``
-        when there are no cables registered so :meth:`forward` can take the
-        unmasked fast path via ``super().forward()``.
-
-        Raises:
-            RuntimeError: If cables are registered but the finalized model is
-                missing the joint topology needed to build the mask, or contains
-                no :attr:`newton.JointType.CABLE` joints. Falling through to
-                ``super().forward()`` in those cases would corrupt cable
-                ``body_q`` silently each render.
-        """
-        if not cls._cable_registry:
-            return
-
-        model = cls._model
-        if model is None or model.joint_type is None or model.joint_articulation is None:
-            raise RuntimeError(
-                "Cannot build non-cable articulation mask: cables are registered but Newton model"
-                " state is incomplete (missing model/joint_type/joint_articulation). Without the"
-                " mask, `forward()` calls eval_fk on cable joints and silently collapses rod"
-                " segments onto their parent anchors."
-            )
-        if model.articulation_count == 0:
-            raise RuntimeError(
-                "Cannot build non-cable articulation mask: cables are registered but the finalized"
-                " model has zero articulations."
-            )
-
-        joint_type_np = model.joint_type.numpy()
-        joint_articulation_np = model.joint_articulation.numpy()
-        cable_art_ids = {
-            int(joint_articulation_np[j])
-            for j in range(len(joint_type_np))
-            if int(joint_type_np[j]) == int(JointType.CABLE) and int(joint_articulation_np[j]) >= 0
-        }
-        if not cable_art_ids:
-            raise RuntimeError(
-                "Cannot build non-cable articulation mask: cables are registered but the finalized"
-                " model has no JointType.CABLE joints. The cable replicate hook likely did not run."
-            )
-
-        mask_np = np.ones(model.articulation_count, dtype=np.bool_)
-        for art_id in cable_art_ids:
-            mask_np[art_id] = False
-        cls._non_cable_articulation_mask = wp.array(mask_np, dtype=wp.bool, device=PhysicsManager._device)
-
-    @classmethod
-    def forward(cls) -> None:
-        """Update articulation kinematics, skipping cable articulations.
-        NOTE: Can be removed once Newton patches cable joints in eval_fk.
-
-        Newton's ``eval_fk`` has no case for :attr:`newton.JointType.CABLE`, so a
-        cable joint's relative transform falls through to the identity, snapping
-        each child segment onto its parent's joint anchor and destroying the
-        rod state that VBD integrated directly into ``body_q``. This override
-        passes :attr:`_non_cable_articulation_mask` so cable articulations are
-        excluded from the FK pass triggered by Kit-style visualizers (which set
-        :meth:`~isaaclab.visualizers.BaseVisualizer.requires_forward_before_step`
-        to ``True``).
-        """
-        if cls._non_cable_articulation_mask is None:
-            if cls._cable_registry:
-                cls._build_non_cable_articulation_mask()
-            else:
-                super().forward()
-                return
-        eval_fk(
-            cls._model,
-            cls._state_0.joint_q,
-            cls._state_0.joint_qd,
-            cls._state_0,
-            cls._non_cable_articulation_mask,
-        )
 
     @classmethod
     def sync_curves_to_usd(cls) -> None:
@@ -394,7 +301,7 @@ class NewtonVBDManager(NewtonManager):
                     env_paths.append((int(m.group(1)), child.GetPath().pathString))
         env_paths.sort(key=lambda x: x[0])
 
-        builder = ModelBuilder(up_axis=up_axis)
+        builder = cls.create_builder(up_axis=up_axis)
 
         schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
@@ -418,7 +325,7 @@ class NewtonVBDManager(NewtonManager):
 
             # Build a prototype from the first env (all envs assumed identical)
             _, proto_path = env_paths[0]
-            proto = ModelBuilder(up_axis=up_axis)
+            proto = cls.create_builder(up_axis=up_axis)
             proto.add_usd(
                 stage,
                 root_path=proto_path,
@@ -474,10 +381,16 @@ class NewtonVBDManager(NewtonManager):
             }
             NewtonManager._num_envs = len(env_paths)
 
-        # run vbd builder coloring
+        # Coloring is required by the VBD solver for particles and VBD-integrated bodies.
+        # Safe without particles: color() skips particle coloring when particle_count == 0.
         builder.color()
 
         cls.set_builder(builder)
+
+    @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
+        """Construct the configured VBD solver."""
+        return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> None:
@@ -486,9 +399,7 @@ class NewtonVBDManager(NewtonManager):
         VBD always uses Newton's :class:`CollisionPipeline` and steps with
         separate input/output states, so the flags are fixed.
         """
-        valid = set(inspect.signature(SolverVBD.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
-        NewtonManager._solver = SolverVBD(model, **kwargs)
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
 

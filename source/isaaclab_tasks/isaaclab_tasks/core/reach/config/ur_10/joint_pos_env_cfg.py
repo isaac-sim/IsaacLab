@@ -43,15 +43,3 @@ class UR10ReachEnvCfg(ReachEnvCfg):
         # end-effector is along x-direction
         self.commands.ee_pose.body_name = "ee_link"
         self.commands.ee_pose.ranges.pitch = (math.pi / 2, math.pi / 2)
-
-
-@configclass
-class UR10ReachEnvCfg_PLAY(UR10ReachEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False

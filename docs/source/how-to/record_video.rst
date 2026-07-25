@@ -19,9 +19,20 @@ Note that enabling recording is equivalent to enabling rendering during training
 
 Example usage:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
 
 
 The recorded videos will be saved in the same directory as the training checkpoints, under
@@ -37,7 +48,7 @@ The video recording feature is implemented using the ``VideoRecorder`` class. Th
   and world-space perspective parameters ``eye`` and ``lookat`` (defaults to a diagonal view of the
   scene).
 * ``VideoRecorder`` (``isaaclab.envs.utils.video_recorder``) picks a video backend from the scene
-  (Kit vs Newton GL), builds the matching low-level capture object, and returns RGB frames via
+  (Kit vs Newton GL), reuses an active Newton visualizer when available, and returns RGB frames via
   ``render_rgb_array()``.
 * Direct RL, Direct MARL and manager-based RL environments copy the task's
   :class:`~isaaclab.envs.common.ViewerCfg` ``eye`` and ``lookat`` into those fields before the
@@ -80,37 +91,48 @@ precedence and only one ``--video`` stream is recorded. Rerun records ``.rrd`` r
 the Rerun visualizer rather than producing ``--video`` clips, and Viser does not currently provide a
 ``--video`` recording backend.
 
+When the Newton visualizer selects the backend, video capture reuses its framebuffer directly. For
+example,
+``visible_env_indices=[0, 1, 2, 3]`` makes both the live Newton view and the recorded clip contain
+only those four simulation worlds. The same framebuffer also preserves the live camera and
+viewer-side scene markers without a second Newton rendering pass. Newton UI panels, including the
+tiled camera panel, are not part of the recorded scene framebuffer. This does not apply when
+``VideoRecorderCfg.backend_source = "renderer"``, because renderer-selected capture is independent
+of active visualizers.
+
 Set ``VideoRecorderCfg.backend_source = "renderer"`` to ignore active visualizers and choose from the
 physics/renderer stack instead. In that mode, PhysX physics (``physics=physx``) or Isaac RTX
-(``renderer=isaacsim_rtx_renderer``) selects the Kit path. Newton physics (``physics=newton_mjwarp``) or
+(``renderer=isaacsim_rtx``) selects the Kit path. Newton physics (``physics=newton_mjwarp``) or
 the Newton Warp renderer (``renderer=newton_renderer``) selects the Newton GL path when no Kit
-signal is present. OVRTX (``renderer=ovrtx_renderer`` from ``isaaclab_ov``) can pair with IsaacSim
+signal is present. OVRTX (``renderer=ovrtx`` from ``isaaclab_ov``) can pair with IsaacSim
 or Newton physics; in that case the video backend is selected via the physics preset. If both Kit and
 Newton GL signals are present, the Kit path is chosen.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder.py
    :language: python
-   :lines: 38-59
+   :pyobject: _select_video_backend
 
 
 Construction and dispatch
 --------------------------
 
 When ``env_render_mode`` is ``"rgb_array"`` (as when wrappers or scripts request RGB frames for
-video), the recorder instantiates the backend-specific helper and passes through ``eye``, ``lookat``,
-and window size.
+video), Kit and renderer-selected Newton captures are created before simulation reset. This lets the
+Kit path register its fallback camera before physics initializes. Visualizer-selected Newton capture
+instead binds to the initialized visualizer on the first frame and reuses its framebuffer.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder.py
    :language: python
-   :lines: 70-114
+   :pyobject: VideoRecorder.__init__
 
 
 Customising the camera view
 ----------------------------
 
-When ``--video`` is passed, the recording camera uses the same configured
-position and look-at target as the active Kit or Newton visualizer when that visualizer drives backend
-selection. Otherwise, the defaults come from
+When ``--video`` is passed, active Newton visualization supplies the camera and framebuffer used by
+the recording, including the visualizer's configured resolution. The Kit path copies the active Kit
+visualizer's configured position and look-at target when it drives backend selection. Otherwise, the
+defaults come from
 :class:`~isaaclab.envs.common.ViewerCfg`:
 
 * ``eye = (7.5, 7.5, 7.5)`` — camera position in world space (metres)
@@ -146,13 +168,13 @@ Summary
    * - Stack example (``physics=`` / ``renderer=``)
      - Video backend
      - Capture mechanism
-   * - ``physics=physx`` or ``renderer=isaacsim_rtx_renderer``
+   * - ``physics=physx`` or ``renderer=isaacsim_rtx``
      - Kit (``"kit"``)
      - ``/OmniverseKit_Persp`` + Replicator RGB
    * - ``physics=newton_mjwarp`` or ``renderer=newton_renderer`` (no Kit signals)
      - Newton GL (``"newton_gl"``)
      - ``newton.viewer.ViewerGL`` on the SDP Newton model
-   * - ``physics=newton_mjwarp`` + ``renderer=ovrtx_renderer`` (OVRTX + Newton physics)
+   * - ``physics=newton_mjwarp`` + ``renderer=ovrtx`` (OVRTX + Newton physics)
      - Newton GL (``"newton_gl"``)
      - ``newton.viewer.ViewerGL`` on the SDP Newton model
    * - ``--visualizer kit`` with default ``backend_source``
@@ -160,10 +182,11 @@ Summary
      - Visualizer ``eye`` / ``lookat`` copied to ``/OmniverseKit_Persp`` + Replicator RGB
    * - ``--visualizer newton`` with default ``backend_source``
      - Newton GL (``"newton_gl"``)
-     - Visualizer ``eye`` / ``lookat`` initially, then live Newton viewer camera sync per frame
+     - Active visualizer framebuffer (live camera, selected worlds, and markers)
 
 
 See also
 --------
 
+* :doc:`capture_sensor_frames` - save image-like scene sensor outputs during training
 * :doc:`/source/overview/core-concepts/visualization` - interactive visualizers

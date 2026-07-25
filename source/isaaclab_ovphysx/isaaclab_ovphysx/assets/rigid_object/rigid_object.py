@@ -26,7 +26,6 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
-from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
 from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
@@ -63,7 +62,6 @@ class RigidObject(BaseRigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        queue_ovphysx_replication(cfg)
         # The binding manager is created in ``_initialize_impl``; it owns all
         # TensorBinding creation, caching, and the CPU/GPU device policy.
         self._root_view: OvPhysxView | None = None
@@ -782,7 +780,7 @@ class RigidObject(BaseRigidObject):
         self.data._root_com_pose_w.timestamp = -1.0
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_COM_POSE is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data)
+        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         # Wheel binding shape is (N, 7); squeeze singleton body dim with a flat float32 view.
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE, self._cpu_body_coms.reshape((self._num_instances, 7)), indices=cpu_env_ids
@@ -820,7 +818,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         self.data._root_com_pose_w.timestamp = -1.0
-        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data)
+        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE,
             self._cpu_body_coms.reshape((self._num_instances, 7)),

@@ -1,5 +1,4 @@
-Creating the Isaac Sim Symbolic Link
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Creating the Isaac Sim Symbolic Link
 
 Set up a symbolic link between the installed Isaac Sim root folder
 and ``_isaac_sim`` in the Isaac Lab directory. This makes it convenient
@@ -22,7 +21,8 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          # Option 1: If pre-built binaries were installed:
          # ln -s ${HOME}/isaacsim _isaac_sim
          #
-         # Option 2: If Isaac Sim was built from source:
+         # Option 2: If Isaac Sim was built from source
+         # (use linux-aarch64 instead of linux-x86_64 on aarch64):
          # ln -s ${HOME}/IsaacSim/_build/linux-x86_64/release _isaac_sim
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows

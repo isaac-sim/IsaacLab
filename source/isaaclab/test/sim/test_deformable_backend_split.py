@@ -8,6 +8,7 @@
 import dataclasses
 
 import isaaclab_physx.sim.schemas as physx_schemas
+import pytest
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
@@ -33,6 +34,8 @@ from isaaclab.sim.spawners.materials import (
     DeformableBodyMaterialBaseCfg,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
+
+pytestmark = pytest.mark.integration
 
 
 def _field_names(cls) -> set[str]:

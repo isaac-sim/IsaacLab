@@ -190,9 +190,19 @@ simulation loop.
 
 You can exercise this coupling path with the Franka soft-body lifting task:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
 For the surface-deformable cloth variant, use ``--task Isaac-Lift-Cloth-Franka``.
 
@@ -221,8 +231,11 @@ Tune the coupled contact behavior before training a policy:
   friction value. Use
   :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_kd` for
   stabilization if contacts chatter.
-* Tune the ``soft_contact_*`` values together with ``shape_material_*`` values
-  because rigid shape material parameters also affect the effective contact.
+* Tune the ``soft_contact_*`` values together with the rigid shape contact
+  material, because the shape's ``ke``/``kd``/``mu`` also affect the effective
+  contact. Set shape defaults via
+  :class:`~isaaclab_newton.physics.NewtonShapeCfg` on ``NewtonCfg.default_shape_cfg``,
+  or override per asset through the asset's Newton contact material.
 * If ``soft_contact_ke`` is not sufficient, or ``soft_contact_mu`` must be
   unphysically high, tune the Franka arm and hand actuator stiffness and maximum
   effort. For the gripper command, fully close the fingers and let the actuator

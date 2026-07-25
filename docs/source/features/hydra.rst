@@ -23,33 +23,73 @@ As a result, training with hydra arguments can be run with the following syntax:
     .. tab-item:: rsl_rl
         :sync: rsl_rl
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
 
-The above command will run training with the task ``Isaac-Cartpole`` in headless mode, and set the
-``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+The above command will run training with the task ``Isaac-Cartpole`` without selecting a visualizer,
+and set the ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
 
 .. note::
 
@@ -111,11 +151,14 @@ For example, for the configuration of the Cartpole camera environment:
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py
     :language: python
     :start-at: class CartpoleTiledCameraCfg
-    :end-at: observation_space = [3, 100, 100]
-    :emphasize-lines: 12, 44
+    :end-at: observation_space = [3, 96, 96]
+    :emphasize-lines: 12, 43
 
-If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
-``env.observation_space=[3,100,128]`` must be updated and given as input as well.
+The configuration declares the single-frame shape. At environment initialization, the default
+``frame_stack=2`` expands it to an effective policy observation shape of ``[6,96,96]``.
+If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the
+single-frame parameter ``env.observation_space=[3,96,128]`` must be updated and given as input as
+well, producing an effective stacked shape of ``[6,96,128]``.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:
@@ -405,23 +448,40 @@ to make intent explicit on the command line.
 
    * - Name
      - Renderer
-   * - ``default`` / ``isaacsim_rtx_renderer``
+   * - ``default`` / ``isaacsim_rtx``
      - Isaac Sim RTX renderer (used when no ``renderer=`` or ``presets=`` is given)
    * - ``newton_renderer``
      - Newton Warp renderer
-   * - ``ovrtx_renderer``
+   * - ``ovrtx``
      - OV RTX renderer
    * - ``rtx``
      - Automatic RTX renderer selection (Isaac Sim RTX when running with Isaac Sim, and OVRTX for kit-less)
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
-for that task, grouped by selector type:
+for that task, grouped by selector type. Reinforcement-learning commands also list
+the registered ``--agent`` values for the selected library. When a task declares
+preset-to-agent compatibility, the compatible presets appear beneath each agent:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Camera-Direct --help
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl \
+               --task Isaac-Cartpole-Camera --help
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl \
+               --task Isaac-Cartpole-Camera --help
+
+Preset and agent selection are otherwise independent. A task may use an alternate
+agent for symmetry, recurrence, or another algorithm without changing its environment
+preset.
 
 .. note::
 
@@ -497,7 +557,7 @@ working together:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py
     :language: python
-    :lines: 21-42
+    :lines: 20-25
 
 A single ``presets=newton_mjwarp`` on the command line resolves every ``PresetCfg``
 and ``preset()`` that defines a ``newton_mjwarp`` field: the physics engine is swapped

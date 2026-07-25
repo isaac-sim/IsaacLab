@@ -12,10 +12,10 @@ from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 from filelock import FileLock
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
+from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
@@ -25,6 +25,7 @@ from isaaclab.sim.utils import (
     create_prim,
     get_current_stage,
     get_first_matching_child_prim,
+    has_deformable_body_api,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -211,7 +212,7 @@ def spawn_ground_plane(
 
     # Create physics material
     if cfg.physics_material is not None:
-        cfg.physics_material.func(f"{prim_path}/physicsMaterial", cfg.physics_material)
+        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage)
         # Apply physics material to ground plane
         collision_prim = get_first_matching_child_prim(
             prim_path,
@@ -368,8 +369,36 @@ def _spawn_from_usd_file(
             schemas.modify_mass_properties(prim_path, cfg.mass_props)
 
     # modify articulation root properties
-    if cfg.articulation_props is not None:
-        schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
+    # ``fix_root_link`` is a spawner-level topology flag (not a schema property); it is honored on the
+    # fragment path independently of whether any articulation schema properties were supplied.
+    articulation_props = cfg.articulation_props
+    articulation_fix_root_link = cfg.fix_root_link
+    # transition shim, remove later: route a legacy single cfg (a dataclass, not a fragment) to the
+    # legacy writer -- it owns its own ``fix_root_link`` field; everything else goes to the fragment
+    # writer, routing by type so an empty list is still a valid (topology-only) fragment collection
+    # rather than being mis-sent to the legacy writer.
+    if (
+        articulation_props is not None
+        and not isinstance(articulation_props, (list, tuple))
+        and not isinstance(articulation_props, schemas.SchemaFragment)
+    ):
+        if articulation_fix_root_link is not None:
+            logger.warning(
+                f"Ignoring the spawner-level 'fix_root_link={articulation_fix_root_link}' because"
+                " 'articulation_props' is a legacy cfg, which owns its own 'fix_root_link' field. Set"
+                " it on that cfg instead."
+            )
+        schemas.modify_articulation_root_properties(prim_path, articulation_props)
+    else:
+        articulation_frags = (
+            list(articulation_props)
+            if isinstance(articulation_props, (list, tuple))
+            else ([articulation_props] if isinstance(articulation_props, schemas.SchemaFragment) else [])
+        )
+        if articulation_frags or articulation_fix_root_link is not None:
+            schemas.apply_articulation_root_properties(
+                prim_path, articulation_frags, fix_root_link=articulation_fix_root_link
+            )
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
         # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> modify_*
@@ -448,7 +477,7 @@ def _spawn_from_usd_file(
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
-        if "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas():
+        if has_deformable_body_api(prim):
             schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props, stage)
         else:
             schemas.define_deformable_body_properties(prim_path, cfg.deformable_props, stage, deformable_type)
@@ -462,15 +491,15 @@ def _spawn_from_usd_file(
     if cfg.visual_material is not None:
         if not has_kit():
             logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
-            return stage.GetPrimAtPath(prim_path)
-        if not cfg.visual_material_path.startswith("/"):
-            material_path = f"{prim_path}/{cfg.visual_material_path}"
         else:
-            material_path = cfg.visual_material_path
-        # create material
-        cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
-        bind_visual_material(prim_path, material_path, stage=stage)
+            if not cfg.visual_material_path.startswith("/"):
+                material_path = f"{prim_path}/{cfg.visual_material_path}"
+            else:
+                material_path = cfg.visual_material_path
+            # create material
+            cfg.visual_material.func(material_path, cfg.visual_material)
+            # apply material
+            bind_visual_material(prim_path, material_path, stage=stage)
 
     # apply physics material
     if cfg.physics_material is not None:
@@ -478,8 +507,8 @@ def _spawn_from_usd_file(
             material_path = f"{prim_path}/{cfg.physics_material_path}"
         else:
             material_path = cfg.physics_material_path
-        # create material
-        cfg.physics_material.func(material_path, cfg.physics_material)
+        # create material (accepts a legacy material cfg or rigid-body fragment(s))
+        spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         # apply material
         bind_physics_material(prim_path, material_path, stage=stage)
 
@@ -531,6 +560,8 @@ def spawn_from_usd_with_compliant_contact_material(
         prim_paths = cfg.physics_material_prim_path
 
     if stiff is not None or damp is not None:
+        from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
+
         material_kwargs = {}
         if stiff is not None:
             material_kwargs["compliant_contact_stiffness"] = stiff

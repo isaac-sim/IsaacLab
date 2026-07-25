@@ -26,6 +26,8 @@ from isaaclab.cli.commands.install import (
     _torch_first_on_sys_path_is_prebundle,
 )
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -75,23 +77,22 @@ def _make_site_packages(
 
 
 class TestInstallSubmodulesTargetedDependencyUpgrades:
-    """Tests for extension.toml-driven dependency upgrades."""
+    """Tests for pyproject.toml-driven dependency upgrades."""
 
-    def _make_extension(self, tmp_path, extension_toml: str) -> Path:
+    def _make_extension(self, tmp_path, pyproject_toml: str) -> Path:
         """Create a minimal installable extension fixture."""
         source_dir = tmp_path / "source"
         extension_dir = source_dir / "isaaclab_teleop"
-        config_dir = extension_dir / "config"
-        config_dir.mkdir(parents=True)
+        extension_dir.mkdir(parents=True)
         (extension_dir / "setup.py").write_text("# test fixture\n", encoding="utf-8")
-        (config_dir / "extension.toml").write_text(extension_toml, encoding="utf-8")
+        (extension_dir / "pyproject.toml").write_text(pyproject_toml, encoding="utf-8")
         return extension_dir
 
     def test_installs_editable_then_upgrades_declared_dependency_from_metadata(self, tmp_path):
         """An opted-in dependency is upgraded using the requirement recorded in installed metadata."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = ["isaacteleop"]\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = ["isaacteleop"]\n',
         )
 
         python_exe = str(tmp_path / "python")
@@ -119,7 +120,7 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
         """uv upgrades only the declared package rather than using a global upgrade."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = ["isaacteleop"]\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = ["isaacteleop"]\n',
         )
 
         python_exe = str(tmp_path / "python")
@@ -193,7 +194,7 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
 
     def test_skips_when_toml_has_no_upgrade_dependencies(self, tmp_path):
         """Extensions without pip upgrade opt-ins do not trigger metadata probes."""
-        extension_dir = self._make_extension(tmp_path, "[isaac_lab_settings]\n")
+        extension_dir = self._make_extension(tmp_path, "[tool.isaaclab]\n")
 
         assert install_cmd._get_extension_pip_upgrade_dependencies(extension_dir) == []
 
@@ -201,7 +202,7 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
         """Invalid TOML value types warn and disable targeted upgrades."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = "isaacteleop"\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = "isaacteleop"\n',
         )
 
         with mock.patch("isaaclab.cli.commands.install.print_warning") as mock_warning:
@@ -363,10 +364,10 @@ class TestEnsureCudaTorch:
     # ---- x86 scenarios -------------------------------------------------------
 
     def test_x86_skips_install_when_correct_version_present(self, tmp_path):
-        """x86: torch 2.10.0+cu128 already installed → pip install is not called."""
+        """x86: torch 2.11.0+cu128 already installed → pip install is not called."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
-        pip_show_out = "Name: torch\nVersion: 2.10.0+cu128\n"
+        pip_show_out = "Name: torch\nVersion: 2.11.0+cu128\n"
 
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
@@ -411,7 +412,7 @@ class TestEnsureCudaTorch:
 
         def _run(cmd, **kwargs):
             calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.10.0+cu130\n" if "show" in cmd else ""
+            stdout = "Name: torch\nVersion: 2.11.0+cu130\n" if "show" in cmd else ""
             return _cp(0, stdout)
 
         with (
@@ -452,10 +453,10 @@ class TestEnsureCudaTorch:
         assert "cu130" in combined
 
     def test_arm_skips_install_when_correct_version_present(self, tmp_path):
-        """ARM: torch 2.10.0+cu130 already installed → pip install is not called."""
+        """ARM: torch 2.11.0+cu130 already installed → pip install is not called."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
-        pip_show_out = "Name: torch\nVersion: 2.10.0+cu130\n"
+        pip_show_out = "Name: torch\nVersion: 2.11.0+cu130\n"
 
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
@@ -475,7 +476,7 @@ class TestEnsureCudaTorch:
 
         def _run(cmd, **kwargs):
             calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.10.0+cu128\n" if "show" in cmd else ""
+            stdout = "Name: torch\nVersion: 2.11.0+cu128\n" if "show" in cmd else ""
             return _cp(0, stdout)
 
         with (

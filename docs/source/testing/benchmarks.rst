@@ -6,7 +6,7 @@ Benchmarking Framework
 Isaac Lab provides a comprehensive benchmarking framework for measuring the performance
 of simulations, training workflows, and system resources. The framework is designed to
 work without depending on Isaac Sim's benchmark services, enabling standalone benchmarking
-with pluggable output backends.
+with pluggable output formatters.
 
 Overview
 --------
@@ -23,9 +23,9 @@ The benchmarking framework consists of several key components:
        ┌───────────┼───────────┐
        │           │           │
        ▼           ▼           ▼
-   ┌───────┐  ┌─────────┐  ┌──────────┐
-   │Phases │  │Recorders│  │ Backends │
-   └───────┘  └─────────┘  └──────────┘
+   ┌───────┐  ┌─────────┐  ┌────────────┐
+   │Phases │  │Recorders│  │ Formatters │
+   └───────┘  └─────────┘  └────────────┘
 
 **Key Components:**
 
@@ -34,7 +34,7 @@ The benchmarking framework consists of several key components:
 - **Metadata**: Data classes for recording context (hardware, versions, parameters)
 - **TestPhase**: Container for organizing measurements into logical groups
 - **Recorders**: System information collectors (CPU, GPU, memory, versions)
-- **Backends**: Output formatters (JSON, Osmo, OmniPerf, Summary)
+- **Formatters**: Output formatters (JSON, Osmo, OmniPerf, Summary, Schema)
 
 .. seealso::
 
@@ -59,7 +59,7 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
    # Initialize benchmark
    benchmark = BaseIsaacLabBenchmark(
        benchmark_name="MyBenchmark",
-       backend_type="json",
+       formatter_type="json",
        output_path="./results",
    )
 
@@ -96,58 +96,166 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
 Running Benchmark Scripts
 -------------------------
 
-Isaac Lab provides shell scripts for running benchmark suites:
+Isaac Lab provides unified ``runtime.py``, ``startup.py``, ``training.py``, and ``play.py``
+entry points under ``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
+emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
+``--benchmark_formatter`` accepts a comma-separated list (e.g.
+``schema,omniperf``) to emit several formats in a single run. Each selected
+formatter writes timestamped output; the Osmo formatter writes one
+phase-suffixed JSON file per phase.
 
-Non-RL Benchmarks
-~~~~~~~~~~~~~~~~~
+The examples below use ``uv run isaaclab benchmark``. From an existing
+Isaac Lab environment, run the same workflows directly instead:
 
-Measure environment stepping performance without training:
+* Runtime: ``./isaaclab.sh -p scripts/benchmarks/runtime.py <arguments>``
+* Startup: ``./isaaclab.sh -p scripts/benchmarks/startup.py <arguments>``
+* Training: ``./isaaclab.sh -p scripts/benchmarks/training.py <arguments>``
+* Play: ``./isaaclab.sh -p scripts/benchmarks/play.py <arguments>``
+
+Non-RL / Runtime Benchmarks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Measure environment stepping performance without any RL library:
 
 .. code-block:: bash
 
-   # Run all non-RL benchmarks
-   ./scripts/benchmarks/run_non_rl_benchmarks.sh ./output_dir
-
-   # Run a single benchmark manually
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
+   uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole \
        --num_envs 4096 \
-       --num_frames 100 \
-       --benchmark_backend json \
+       --num_frames 1000 \
+       --warmup_frames 50 \
+       --benchmark_formatter json \
        --output_path ./results
 
 RL Training Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Measure training performance with RSL-RL:
+Measure training performance.  Use ``--rl_library`` to select the RL library
+(``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``):
 
 .. code-block:: bash
 
-   # Run training benchmarks
-   ./scripts/benchmarks/run_training_benchmarks.sh ./output_dir
-
-   # Run manually with RSL-RL
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   # Benchmark with RSL-RL
+   uv run isaaclab benchmark training \
+       --rl_library rsl_rl \
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
-       --benchmark_backend json \
+       --benchmark_formatter json \
        --output_path ./results
+
+   # Benchmark with RL Games
+   uv run isaaclab benchmark training \
+       --rl_library rl_games \
+       --task Isaac-Cartpole \
+       --num_envs 4096 \
+       --max_iterations 500 \
+       --benchmark_formatter json \
+       --output_path ./results
+
+RL Play Benchmarks
+~~~~~~~~~~~~~~~~~~
+
+Load a trained checkpoint and benchmark policy inference (the *play* workflow).
+The same ``--rl_library`` dispatch selects the RL library (``rsl_rl``, ``rl_games``,
+``skrl``, or ``sb3``).  In addition to the inference throughput, the emitted
+``PlayBundle`` reports the rolled-out policy's reward, episode length, and success
+rate.  The checkpoints consumed here are produced by ``training.py``.
+
+.. code-block:: bash
+
+   # Benchmark inference of a trained RSL-RL policy
+   uv run isaaclab benchmark play \
+       --rl_library rsl_rl \
+       --task Isaac-Cartpole \
+       --num_envs 4096 \
+       --num_frames 1000 \
+       --checkpoint /path/to/model.pt \
+       --benchmark_formatter json \
+       --output_path ./results
+
+The checkpoint is resolved in the following order:
+
+#. ``--checkpoint`` — a local filesystem path or a Nucleus URI.
+#. Otherwise, the published Nucleus checkpoint for the task is downloaded
+   (a warning is logged).
+#. If neither is available, an error is raised.
+
+.. note::
+
+   ``reward``, ``ep_length``, and ``success_rate`` aggregate only **completed**
+   episodes.  Set ``--num_frames`` larger than the task's episode length so at
+   least one episode finishes during the rollout; otherwise these fields remain
+   ``null`` (the inference throughput is still reported).
+
+Environment-Step Timing Semantics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Runtime, training, and play benchmarks report
+:class:`~isaaclab.test.benchmark.EnvironmentStepTiming`. The default
+``host_return`` measurement mode records wall time until ``env.step()`` returns
+without forcing queued device work to complete. It describes the host-visible
+call boundary, not a device-complete boundary; asynchronously queued work can be
+paid at a later synchronization point.
+
+Pass ``--measure_sync_step`` to collect the
+``serialized_synchronized`` diagnostic. It synchronizes at every measured
+environment and simulation boundary, then partitions synchronized
+environment-step wall time into:
+
+* time inside nested ``SimulationContext.step()`` calls; and
+* time outside those calls.
+
+The outside-simulation remainder includes required action and actuator
+processing, state updates, observations, rewards, terminations, resets,
+manager execution, wrappers, and measurement synchronization. It is therefore
+not an estimate of removable Isaac Lab overhead.
+
+.. warning::
+
+   The synchronized diagnostic serializes device work and changes the execution
+   schedule it measures. Every timing and throughput field in such a run,
+   including ``collection_fps``, ``total_fps``, ``iteration_time_s``, and
+   ``total_wall_time_s``, is observer-perturbed. Flat formatters prefix those
+   fields with ``Serialized Diagnostic``. Compare results only when
+   ``measurement_mode`` is the same, and do not treat the instrumented rates as
+   production throughput.
+   Estimating a specific removable overhead requires a paired counterfactual
+   benchmark with that feature enabled and disabled under the same workload.
+
+For example, add the diagnostic flag to any runtime, training, or play command:
+
+.. code-block:: bash
+
+   uv run isaaclab benchmark runtime \
+       --task Isaac-Ant-Direct \
+       --num_envs 4096 \
+       --measure_sync_step
 
 PhysX Micro-Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Measure asset method and property performance using mock interfaces:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Run PhysX micro-benchmarks
-   ./scripts/benchmarks/run_physx_benchmarks.sh ./output_dir
+   .. tab-item:: uv (Recommended)
 
-   # Run articulation benchmarks manually
-   ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
-       --num_iterations 1000 \
-       --num_instances 4096
+      .. code-block:: bash
+
+         # Run articulation benchmarks
+         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+             --num_iterations 1000 \
+             --num_instances 4096
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Run articulation benchmarks
+         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+             --num_iterations 1000 \
+             --num_instances 4096
 
 For detailed documentation on micro-benchmarks, including available benchmark files,
 input modes, and how to add new benchmarks, see :ref:`testing_micro_benchmarks`.
@@ -163,23 +271,23 @@ understanding where time is spent during initialization.
 .. code-block:: bash
 
    # Basic usage — reports top 30 functions per phase
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
+   uv run isaaclab benchmark startup \
        --task Isaac-Ant \
        --num_envs 4096 \
-       --benchmark_backend summary
+       --benchmark_formatter summary
 
 The script profiles five phases independently:
 
-- **app_launch**: ``launch_simulation()`` context entry (Kit/USD/PhysX init)
+- **app_launch**: ``launch_simulation()`` context entry (simulation runtime initialization)
 - **python_imports**: importing gymnasium, torch, isaaclab_tasks, etc.
 - **task_config**: ``resolve_task_config()`` (Hydra config resolution)
 - **env_creation**: ``gym.make()`` + ``env.reset()`` (scene creation, sim start)
 - **first_step**: a single ``env.step()`` call
 
-Each phase records a wall-clock time plus per-function own-time and cumulative
-time as ``SingleMeasurement`` entries. Only IsaacLab functions and first-level
-calls into external libraries are included (deep internals of torch, USD, etc.
-are filtered out).
+Schema output records each phase wall-clock time and per-function own-time,
+cumulative time, and call count. Flat formatters project the same data into
+measurements. Only Isaac Lab functions and first-level calls into external
+libraries are included (deep internals of torch, USD, etc. are filtered out).
 
 **Whitelist mode** — For dashboard time-series comparisons across runs, use a
 YAML whitelist config to report a fixed set of functions instead of top-N.
@@ -201,10 +309,10 @@ Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
+   uv run isaaclab benchmark startup \
        --task Isaac-Ant \
        --num_envs 4096 \
-       --benchmark_backend omniperf \
+       --benchmark_formatter omniperf \
        --whitelist_config scripts/benchmarks/startup_whitelist.yaml
 
 Phases listed in the YAML use the whitelist; phases not listed fall back to
@@ -233,9 +341,9 @@ A default whitelist is provided at ``scripts/benchmarks/startup_whitelist.yaml``
    * - ``--whitelist_config``
      - None
      - Path to YAML whitelist file
-   * - ``--benchmark_backend``
-     - ``omniperf``
-     - Output backend (``json``, ``osmo``, ``omniperf``, ``summary``)
+   * - ``--benchmark_formatter``
+     - ``schema``
+     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
    * - ``--output_path``
      - ``.``
      - Directory for output files
@@ -253,15 +361,15 @@ Common Arguments
    * - Argument
      - Default
      - Description
-   * - ``--benchmark_backend``
-     - ``json``
-     - Output backend: ``json``, ``osmo``, ``omniperf``, or ``summary``
+   * - ``--benchmark_formatter``
+     - ``schema``
+     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
    * - ``--output_path``
      - ``./``
      - Directory for output files
 
-Non-RL Benchmark Arguments
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Non-RL / Runtime Benchmark Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -274,14 +382,17 @@ Non-RL Benchmark Arguments
      - required
      - Environment task name (e.g., ``Isaac-Cartpole``)
    * - ``--num_envs``
-     - ``4096``
+     - ``None`` (task config)
      - Number of parallel environments
    * - ``--num_frames``
-     - ``100``
-     - Number of simulation frames to run
-   * - ``--enable_cameras``
+     - ``1000``
+     - Number of environment steps to measure
+   * - ``--warmup_frames``
+     - ``50``
+     - Exact number of environment steps to exclude from timing; zero measures the first step
+   * - ``--measure_sync_step``
      - ``false``
-     - Enable camera rendering (for RGB/depth tasks)
+     - Collect the serialized synchronized diagnostic described above
 
 RL Training Arguments
 ~~~~~~~~~~~~~~~~~~~~~
@@ -293,15 +404,69 @@ RL Training Arguments
    * - Argument
      - Default
      - Description
+   * - ``--rl_library``
+     - required
+     - RL library: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
    * - ``--task``
      - required
      - Environment task name
    * - ``--num_envs``
-     - ``4096``
+     - ``None`` (task config)
      - Number of parallel environments
    * - ``--max_iterations``
-     - ``500``
+     - ``None`` (task config)
      - Number of training iterations
+   * - ``--warmup_steps``
+     - ``1``
+     - Number of initial environment steps to exclude before recording timing
+   * - ``--measure_sync_step``
+     - ``false``
+     - Collect the serialized synchronized diagnostic described above
+
+RL Play Arguments
+~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 60
+
+   * - Argument
+     - Default
+     - Description
+   * - ``--task``
+     - required
+     - Environment task name
+   * - ``--rl_library``
+     - required
+     - RL library that produced the checkpoint: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
+   * - ``--num_envs``
+     - ``None`` (task config)
+     - Number of parallel environments
+   * - ``--num_frames``
+     - ``100``
+     - Number of measured inference steps
+   * - ``--warmup_frames``
+     - ``1``
+     - Number of preceding environment steps to exclude from timing and throughput
+   * - ``--checkpoint``
+     - ``None`` (published Nucleus checkpoint)
+     - Local path or Nucleus URI of the checkpoint to roll out
+   * - ``--benchmark_formatter``
+     - ``schema``
+     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
+   * - ``--measure_sync_step``
+     - ``false``
+     - Collect the serialized synchronized diagnostic described above
+
+Runtime and play execute ``warmup_frames + num_frames`` environment steps. Thus,
+the requested ``num_frames`` is always the exact number of measured steps. Play
+warmup frames are excluded only from timing and throughput; they still contribute
+to reward, episode-length, success-rate, and resource measurements.
+
+Runtime warmup frames are excluded from steady-state timing, throughput, and
+synchronized environment-step measurements. When warmup is nonzero, the first
+warmup frame ordinary wall-clock time is retained separately as the ``first_step`` startup diagnostic.
+With zero warmup, the first measured frame supplies that diagnostic.
 
 Measurement Types
 -----------------
@@ -404,17 +569,27 @@ Example:
    benchmark.add_measurement("simulation", metadata=task_metadata)
    benchmark.add_measurement("training", measurement=reward_measurement)
 
-Output Backends
----------------
+Output Formatters
+-----------------
 
-JSON Backend
-~~~~~~~~~~~~
+JSON Formatter
+~~~~~~~~~~~~~~
 
 Full output with all phases, measurements, and metadata:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_backend json --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter json --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter json --output_path ./results
 
 Output structure:
 
@@ -437,14 +612,24 @@ Output structure:
      }
    ]
 
-Osmo Backend
-~~~~~~~~~~~~
+Osmo Formatter
+~~~~~~~~~~~~~~
 
 Simplified key-value format for CI/CD integration:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_backend osmo --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter osmo --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter osmo --output_path ./results
 
 Output structure:
 
@@ -457,14 +642,24 @@ Output structure:
      "task": "Isaac-Cartpole"
    }
 
-OmniPerf Backend
-~~~~~~~~~~~~~~~~
+OmniPerf Formatter
+~~~~~~~~~~~~~~~~~~
 
 Format for database upload and performance tracking:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_backend omniperf --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter omniperf --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter omniperf --output_path ./results
 
 Output structure:
 
@@ -479,8 +674,30 @@ Output structure:
      }
    }
 
-Summary Backend
-~~~~~~~~~~~~~~~
+Schema Formatter
+~~~~~~~~~~~~~~~~
+
+Writes a schema-v1 bundle attached with
+:meth:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark.attach_bundle`. Use it
+with a ``RuntimeBundle``, ``TrainingBundle``, or ``StartupBundle`` when a
+typed, stable output contract is required.
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter schema --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter schema --output_path ./results
+
+Summary Formatter
+~~~~~~~~~~~~~~~~~
 
 Human-readable console report plus JSON file. Prints a formatted summary to the
 terminal while also writing the same data as JSON. Standard phases (runtime,
@@ -489,9 +706,19 @@ any additional phases (e.g., from the startup profiling benchmark) are rendered
 automatically with their ``SingleMeasurement`` and ``StatisticalMeasurement``
 entries. Use when you want a quick readout without opening the JSON:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_backend summary --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter summary --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter summary --output_path ./results
 
 When ``summary`` is selected, frametime recorders are enabled automatically when
 running with Isaac Sim (Kit).
@@ -508,7 +735,7 @@ monitoring during blocking operations like RL training loops:
 
    benchmark = BaseIsaacLabBenchmark(
        benchmark_name="TrainingBenchmark",
-       backend_type="json",
+       formatter_type="json",
        output_path="./results",
    )
 
@@ -564,13 +791,13 @@ Step 1: Initialize Benchmark
    from isaaclab.test.benchmark import BaseIsaacLabBenchmark
 
    parser = argparse.ArgumentParser()
-   parser.add_argument("--benchmark_backend", default="json")
+   parser.add_argument("--benchmark_formatter", default="json")
    parser.add_argument("--output_path", default="./")
    args = parser.parse_args()
 
    benchmark = BaseIsaacLabBenchmark(
        benchmark_name="CustomBenchmark",
-       backend_type=args.benchmark_backend,
+       formatter_type=args.benchmark_formatter,
        output_path=args.output_path,
    )
 
@@ -620,14 +847,23 @@ Step 4: Finalize
 Integration with CI/CD
 ----------------------
 
-The shell scripts in ``scripts/benchmarks/`` are designed for CI/CD integration:
+The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD integration:
 
 .. code-block:: bash
 
    # GitHub Actions / GitLab CI example
-   - name: Run Benchmarks
+   - name: Run Runtime Benchmark
      run: |
-       ./scripts/benchmarks/run_non_rl_benchmarks.sh ./benchmark_results
+       uv run isaaclab benchmark runtime \
+           --task Isaac-Cartpole --num_envs 4096 --num_frames 1000 \
+           --benchmark_formatter json --output_path ./benchmark_results
+
+   - name: Run Training Benchmark
+     run: |
+       uv run isaaclab benchmark training \
+           --rl_library rsl_rl --task Isaac-Cartpole --num_envs 4096 \
+           --max_iterations 500 --benchmark_formatter json \
+           --output_path ./benchmark_results
 
    - name: Upload Results
      uses: actions/upload-artifact@v3
@@ -635,11 +871,13 @@ The shell scripts in ``scripts/benchmarks/`` are designed for CI/CD integration:
        name: benchmark-results
        path: ./benchmark_results/
 
-For Osmo integration, use the ``osmo`` backend:
+For Osmo integration, use the ``osmo`` formatter:
 
 .. code-block:: bash
 
-   ./scripts/benchmarks/run_non_rl_benchmarks.sh ./results
+   uv run isaaclab benchmark runtime \
+       --task Isaac-Cartpole --num_envs 4096 --num_frames 1000 \
+       --benchmark_formatter osmo --output_path ./results
    # Results are in Osmo-compatible JSON format
 
 Troubleshooting
@@ -650,9 +888,19 @@ Import Errors
 
 Ensure you're running through the Isaac Lab launcher:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p your_benchmark.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python your_benchmark.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p your_benchmark.py
 
 Not:
 
@@ -682,15 +930,15 @@ Ensure ``_finalize_impl()`` is called before the script exits:
    finally:
        benchmark._finalize_impl()
 
-Backend Not Recognized
-~~~~~~~~~~~~~~~~~~~~~~
+Formatter Not Recognized
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Valid backend types are: ``json``, ``osmo``, ``omniperf``, ``summary``
+Valid formatter types are: ``schema``, ``json``, ``osmo``, ``omniperf``, or ``summary``
 
 .. code-block:: bash
 
    # Correct
-   --benchmark_backend json
+   --benchmark_formatter json
 
    # Incorrect
-   --benchmark_backend JSON  # Case sensitive
+   --benchmark_formatter JSON  # Case sensitive

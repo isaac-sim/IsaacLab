@@ -39,7 +39,6 @@ from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.app import AppLauncher
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.sim import SimulationContext
 
@@ -82,7 +81,7 @@ _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tupl
 )
 """Generated tiled-camera target-relative eye offset matching the shared visualizer viewing direction."""
 
-# Resolution overrides for this test module (cartpole preset defaults: tiled camera 100×100; Kit helper was 320×240).
+# Resolution overrides for this test module (cartpole preset defaults: tiled camera 96×96; Kit helper was 320×240).
 _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
@@ -90,7 +89,7 @@ _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
 """Newton: ``NewtonVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
-"""Tiled camera per-env tile width/height (preset default is 100×100); keeps ``observation_space`` consistent."""
+"""Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
 
 _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
 """Number of generated visualizer camera tiles exercised by tiled-camera integration tests."""
@@ -236,8 +235,7 @@ def assert_no_newton_imgui_bundle_warning(capsys: pytest.CaptureFixture[str], ca
 
 
 def _configure_sim_for_visualizer_test(env: CartpoleCameraEnv) -> None:
-    """Settings used by the previous smoke tests; keep RTX sensors enabled for camera paths."""
-    AppLauncher.apply_rtx_determinism_settings()
+    """Set ``/isaaclab/render/rtx_sensors`` True so the sim takes the RTX-sensor render path."""
     env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
     env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
 

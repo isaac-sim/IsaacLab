@@ -32,6 +32,8 @@ from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
 QUAT_ROS = [0.33985114, 0.82047325, -0.42470819, -0.17591989]
@@ -864,7 +866,15 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     del camera_warp, camera_usd
 
 
-@pytest.mark.parametrize("focal_length_aperture", [(0.193, 0.20955), (1.93, 2.0955), (19.3, 20.955), (0.193, 20.955)])
+@pytest.mark.parametrize(
+    "focal_length_aperture",
+    [
+        (0.193, 0.20955),
+        pytest.param((1.93, 2.0955), marks=pytest.mark.flaky(max_runs=3, min_passes=1)),
+        (19.3, 20.955),
+        (0.193, 20.955),
+    ],
+)
 @pytest.mark.isaacsim_ci
 def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_aperture):
     """

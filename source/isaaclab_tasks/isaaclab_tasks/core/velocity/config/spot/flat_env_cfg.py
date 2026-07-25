@@ -3,8 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.physics import (
+    KaminoSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+)
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -43,6 +50,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
 
 
 ##
@@ -223,6 +231,7 @@ class SpotEventCfg(PresetCfg):
     default = SpotPhysxEventCfg()
     newton_mjwarp = SpotNewtonEventCfg()
     physx = default
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -364,10 +373,12 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         # simulation settings
         self.sim.dt = 0.002  # 500 Hz
         self.sim.render_interval = self.decimation
-        self.sim.physics_material.static_friction = 1.0
-        self.sim.physics_material.dynamic_friction = 1.0
-        self.sim.physics_material.friction_combine_mode = "multiply"
-        self.sim.physics_material.restitution_combine_mode = "multiply"
+        self.sim.physics_material = PhysxRigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=1.0,
+            dynamic_friction=1.0,
+        )
         self.sim.physics = PhysicsCfg()
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
@@ -383,7 +394,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
             terrain_generator=COBBLESTONE_ROAD_CFG,
             max_init_terrain_level=COBBLESTONE_ROAD_CFG.num_rows - 1,
             collision_group=-1,
-            physics_material=sim_utils.RigidBodyMaterialCfg(
+            physics_material=PhysxRigidBodyMaterialCfg(
                 friction_combine_mode="multiply",
                 restitution_combine_mode="multiply",
                 static_friction=1.0,
@@ -399,25 +410,3 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # no height scan
         self.scene.height_scanner = None
-
-
-class SpotFlatEnvCfg_PLAY(SpotFlatEnvCfg):
-    def __post_init__(self) -> None:
-        # post init of parent
-        super().__post_init__()
-
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # spawn the robot randomly in the grid (instead of their terrain levels)
-        self.scene.terrain.max_init_terrain_level = None
-
-        # reduce the number of terrains to save memory
-        if self.scene.terrain.terrain_generator is not None:
-            self.scene.terrain.terrain_generator.num_rows = 5
-            self.scene.terrain.terrain_generator.num_cols = 5
-            self.scene.terrain.terrain_generator.curriculum = False
-
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False
-        # remove random pushing event

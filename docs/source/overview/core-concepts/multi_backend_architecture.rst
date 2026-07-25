@@ -1,6 +1,15 @@
 Multi-Backend Architecture
 ==========================
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-selecting-backends`` and
+   ``isaaclab-using-presets`` agent skills
+   (`skills/user/select-backends/ <../../../../skills/user/select-backends/SKILL.md>`__,
+   `skills/user/use-presets/ <../../../../skills/user/use-presets/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 Isaac Lab 3.0 introduced a multi-backend architecture that enables running simulations with
 different physics backends (PhysX, Newton, and OvPhysX) while maintaining a unified API.
 This page explains how the backend system works and how to extend it.
@@ -184,16 +193,33 @@ below shows only the physics-related fields:
 
 Users then select a physics backend at the command line:
 
-.. code-block:: bash
+.. tab-set::
 
-    # Default (PhysX)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+   .. tab-item:: uv (Recommended)
 
-    # MJWarp (Newton backend)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+      .. code-block:: bash
 
-    # OvPhysX backend
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+          # Default (PhysX)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # MJWarp (Newton backend)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+          # OvPhysX backend
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Default (PhysX)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # MJWarp (Newton backend)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+          # OvPhysX backend
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
 
 The Physics Manager
 -------------------

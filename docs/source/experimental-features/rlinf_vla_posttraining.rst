@@ -72,10 +72,12 @@ From the Isaac Lab root directory:
    # (interactive sessions prompt automatically; headless mode requires this)
    export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
+   # Step 1: Install safe dependencies via the rlinf extra
    # NOTE: On DGX Spark / aarch64 systems, build decord from source first
    # (see "Building decord on DGX Spark / aarch64" below), then run this step.
-   uv pip install -e "source/isaaclab_contrib[rlinf]"
+   # --inexact keeps the existing environment (e.g. Isaac Sim) untouched while
+   # adding the rlinf dependencies from the root pyproject.
+   uv sync --inexact --extra rlinf
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
    uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
@@ -118,8 +120,7 @@ The training and evaluation commands below work unchanged.
 .. _rlinf-decord-aarch64:
 
 Then preload the OpenMP library so it can be loaded into the Python process
-(see the IsaacLab `pip installation guide
-<https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/pip_installation.html#installing-dependencies>`_):
+(see :ref:`installation-method-python-env`):
 
 .. code-block:: bash
 
@@ -132,30 +133,69 @@ Quick Start
 
 **Training** — RL fine-tuning of a pretrained VLA model:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh train --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/checkpoint
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh train --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/checkpoint
 
 **Evaluation** — Evaluate a pretrained (base) model with video recording:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/base_model \
-       --video
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --video
 
 **Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/base_model \
-       --rl_model_path /path/to/checkpoints/global_step_N \
-       --video
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --rl_model_path /path/to/checkpoints/global_step_N \
+             --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --rl_model_path /path/to/checkpoints/global_step_N \
+             --video
 
 Here ``--model_path`` points to the HuggingFace-format base model (with
 ``config.json``), and ``--rl_model_path`` points to the RLinf checkpoint
@@ -178,7 +218,7 @@ Checkpoints
 
 Checkpoints are saved every ``save_interval`` epochs (default: ``2``) to::
 
-   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-IsaacContrib-Assemble-Trocar-G129-Dex3/<experiment_name>/checkpoints/global_step_<N>/
+   logs/rlinf/<timestamp>-IsaacContrib-Assemble-Trocar-G129-Dex3/<experiment_name>/checkpoints/global_step_<N>/
 
 The placeholders are configurable in the task YAML
 (``source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/config/isaaclab_ppo_gr00t_assemble_trocar.yaml``):
@@ -233,15 +273,14 @@ Key Files
 
 .. code-block:: text
 
-   scripts/reinforcement_learning/rlinf/
-   ├── README.md          # Detailed documentation
-   ├── train.py           # Training entry point
-   ├── play.py            # Evaluation entry point
-   └── cli_args.py        # Shared CLI argument definitions
+   source/isaaclab_rl/isaaclab_rl/entrypoints/backends/
+   ├── train_rlinf.py      # Training entry point
+   ├── play_rlinf.py       # Evaluation entry point
+   └── cli_args_rlinf.py   # Shared CLI argument definitions
 
    source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/
    ├── __init__.py
    └── extension.py       # Task registration, obs/action conversion
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
-see ``scripts/reinforcement_learning/rlinf/README.md``.
+use the unified ``./isaaclab.sh train --rl_library rlinf`` and ``./isaaclab.sh play --rl_library rlinf`` commands.

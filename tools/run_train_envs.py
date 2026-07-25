@@ -6,7 +6,8 @@
 """
 This scripts run training with different RL libraries over a subset of the environments.
 
-It calls the script ``scripts/reinforcement_learning/${args.lib_name}/train.py`` with the appropriate arguments.
+It calls the script ``scripts/reinforcement_learning/train.py`` with ``--rl_library ${args.lib_name}`` and the
+appropriate arguments.
 Each training run has the corresponding "commit tag" appended to the run name, which allows comparing different
 training logs of the same environments.
 
@@ -64,10 +65,11 @@ def main(args: argparse.Namespace):
             [
                 f"{ISAACLAB_PATH}/isaaclab.sh",
                 "-p",
-                f"{ISAACLAB_PATH}/scripts/reinforcement_learning/{args.lib_name}/train.py",
+                f"{ISAACLAB_PATH}/scripts/reinforcement_learning/train.py",
+                "--rl_library",
+                args.lib_name,
                 "--task",
                 env_name,
-                "--headless",
             ]
             + extra_args,
             check=False,  # do not raise an error if the script fails

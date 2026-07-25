@@ -1,6 +1,154 @@
 Changelog
 ---------
 
+0.8.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``idToLabels`` (instance to USD prim path) and ``idToSemantics`` (instance to semantic label)
+  mappings to the OVRTX renderer's ``instance_segmentation_fast`` output, exposed through
+  ``camera.data.info["instance_segmentation_fast"]``. The mappings are decoded from the
+  ``StableIdSemanticIdMap``, ``StableIdMap``, and ``SemanticIdMap`` render vars and are keyed by the raw
+  ``(r, g, b, a)`` color tuple when ``colorize_instance_segmentation=True`` (matching Replicator's fast
+  instance-segmentation node) or by the raw instance ID otherwise.
+* Added OVRTX rendering to stream Newton MPM particle positions into registered
+  ``UsdGeom.Points`` prims, so kitless cameras can visualize MPM particle clouds.
+
+Changed
+^^^^^^^
+
+* Changed the colorized ``semantic_segmentation`` ``idToLabels`` keys produced by the OVRTX renderer from the
+  stringified ``"(r, g, b, a)"`` form to raw ``(r, g, b, a)`` tuples, matching Replicator's fast segmentation
+  nodes and the Isaac RTX renderer. Index ``camera.data.info["semantic_segmentation"]["idToLabels"]`` with an
+  ``(r, g, b, a)`` tuple instead of its string form.
+* Removed support for ``instance_id_segmentation_fast`` from the OVRTX renderer, as it has no
+  real-world sensor equivalent. Requesting this data type via
+  :class:`~isaaclab_ov.renderers.OVRTXRendererCfg` will now raise an error at camera allocation
+  time. Use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
+* Updated the optional OVRTX runtime dependency to ``ovrtx>=0.4.0,<0.5.0``. Reinstall the OVRTX
+  extra with ``./isaaclab.sh -i 'ov[ovrtx]'`` to use the supported 0.4 runtime.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer raising ``RuntimeError: Cannot convert Torch type torch.uint32`` when reading a
+  non-colorized ID segmentation output (``semantic_segmentation``, ``instance_segmentation_fast``, or
+  ``instance_id_segmentation_fast`` with the corresponding ``colorize_*`` flag set to ``False``) on Torch
+  builds that expose ``torch.uint32``.
+* Fixed the OVRTX renderer producing string keys (e.g. ``"0"``, ``"1"``, ``"2"``) instead of integer keys
+  in the non-colorized ``idToLabels`` and ``idToSemantics`` mappings for ``semantic_segmentation`` and
+  ``instance_segmentation_fast``. Index ``camera.data.info[...]["idToLabels"]`` and
+  ``camera.data.info[...]["idToSemantics"]`` with integer pixel/semantic IDs when
+  ``colorize_semantic_segmentation=False`` or ``colorize_instance_segmentation=False``.
+* Worked around OVRTX 0.4 tiled RenderProducts retaining only cameras present at stage load by
+  initially authoring only the resolvable source camera and rewriting the relationship after runtime cloning.
+
+
+0.7.1 (2026-07-15)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deformable body rendering support in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for Newton surface and volume
+  deformables. :meth:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer.update_geometries`
+  syncs ``particle_q`` mesh points into OVRTX bindings each frame through
+  asynchronous zero-copy handoffs.
+
+Fixed
+^^^^^
+
+* Fixed deprecation warnings emitted during OVRTX rendering by replacing uses
+  of the deprecated ``MappedRenderVar.tensor`` accessor with direct DLPack
+  reads in :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+
+
+0.7.0 (2026-07-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added semantic-segmentation label metadata to the OVRTX renderer. The
+  ``SemanticIdMap`` render var is now decoded into
+  ``camera.data.info["semantic_segmentation"]["idToLabels"]``, matching the
+  Isaac RTX / Replicator contract (keys are semantic IDs or RGBA colors, values
+  are ``{semantic_type: label}`` dicts, always including ``BACKGROUND`` and
+  ``UNLABELLED``).
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_semantic_segmentation`
+  to select between colorized RGBA (``uint8``) and raw ``int32`` semantic-ID
+  output, at parity with the Isaac RTX renderer.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX segmentation colorization hash to use 32-bit wraparound
+  arithmetic (it previously widened to ``uint64``, changing the hashed bits).
+  Colorized semantic and instance segmentation IDs now map to the same colors
+  as ``omni.replicator`` / the Isaac RTX renderer.
+
+
+0.6.0 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``motion_vectors`` data type support to :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+
+Fixed
+^^^^^
+
+* Removed overly broad ``except Exception`` handling in :class:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer`
+  that downgraded failures in scene initialization, camera and object binding setup, scene partition writes,
+  Newton transform syncing, and :meth:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer.render` to log
+  warnings and silently continue. These now propagate so callers can decide how to handle the failure.
+
+
+0.5.4 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_segmentation` and
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_id_segmentation` config fields
+  to :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`.
+* Added support for the ``instance_segmentation_fast`` and ``instance_id_segmentation_fast``
+  data types in the OVRTX renderer, via the ``NonStableInstanceSegmentation`` and
+  ``InstanceSegmentationSD`` AOVs respectively. When the corresponding
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_segmentation` /
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_id_segmentation` flag is
+  ``True`` (default), instance IDs are colorized and returned as ``uint8`` RGBA; when ``False``,
+  raw ``uint32`` instance IDs are returned.
+
+Changed
+^^^^^^^
+
+* Consolidated the OVRTX tile-extraction Warp kernels into a single generic
+  :func:`~isaaclab_ov.renderers.ovrtx_renderer_kernels.extract_all_tiles_kernel`.
+
+
+0.5.3 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS`` environment variable to control whether
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` enables OVRTX GPU transform reads.
+
+
 0.5.2 (2026-06-26)
 ~~~~~~~~~~~~~~~~~~
 

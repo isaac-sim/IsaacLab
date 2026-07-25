@@ -31,9 +31,19 @@ LEAPP with:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p -m pip install leapp
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               uv pip install leapp
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               ./isaaclab.sh -p -m pip install leapp
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -79,11 +89,23 @@ Use the RSL-RL export script to export a trained checkpoint:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-             --task <TASK_NAME> \
-             --checkpoint <PATH_TO_CHECKPOINT>
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               uv run python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task <TASK_NAME> \
+                   --checkpoint <PATH_TO_CHECKPOINT>
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task <TASK_NAME> \
+                   --checkpoint <PATH_TO_CHECKPOINT>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -102,11 +124,23 @@ For example, to export a UR10 reach policy:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-             --task Isaac-Reach-UR10 \
-             --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               uv run python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task Isaac-Reach-UR10 \
+                   --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task Isaac-Reach-UR10 \
+                   --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -291,12 +325,25 @@ to see the policy running in a viewport, pass a visualization option such as ``-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
-             --task <TASK_NAME> \
-             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-             --viz kit
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               uv run python scripts/reinforcement_learning/leapp/deploy.py \
+                   --task <TASK_NAME> \
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+                   --viz kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
+                   --task <TASK_NAME> \
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+                   --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows

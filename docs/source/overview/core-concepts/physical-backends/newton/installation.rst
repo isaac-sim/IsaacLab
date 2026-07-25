@@ -49,19 +49,15 @@ Ensure pip is up to date:
 
     uv pip install --upgrade pip
 
-[Optional] Install Isaac Sim 6.0:
+[Optional] Install Isaac Sim:
 
-.. code-block:: bash
-
-    uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+.. isaaclab-isaacsim-install::
 
 Install the correct version of torch and torchvision:
 
-.. code-block:: bash
+.. isaaclab-torch-install:: cu128
 
-    uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
-
-Install Isaac Lab extensions and dependencies (this includes Newton 1.0):
+Install Isaac Lab extensions and dependencies (this includes the pinned Newton development commit):
 
 .. code-block:: bash
 
@@ -73,6 +69,15 @@ Testing the Installation
 
 To verify that the installation was successful, run the following command from the root directory of your Isaac Lab repository:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp

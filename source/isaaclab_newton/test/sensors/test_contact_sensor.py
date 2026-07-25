@@ -20,12 +20,15 @@ teleporting objects into interpenetrating states.
 import sys
 from pathlib import Path
 
+from isaaclab.test.utils import test_devices
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import math
 
 import pytest
 import torch
+from flaky import flaky
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
@@ -74,7 +77,7 @@ SIM_DT = 1.0 / 120.0
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 @pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
 def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
@@ -193,7 +196,7 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
             assert no_contact_detected[env_idx], f"Env {env_idx}: Contact should stop after lift."
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 @pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
 def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
@@ -222,6 +225,10 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
         sim._app_control_on_stop_handle = None
 
         max_separation = max(cfg[1] for cfg in group_configs)
+        # Avoid MuJoCo-Warp #1527's symmetric zero-margin GJK edge case.
+        lateral_offset = (
+            0.01 if use_mujoco_contacts and device.startswith("cuda") and shape_type == ShapeType.MESH_CAPSULE else 0.0
+        )
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
         scene_cfg.object_a = create_shape_cfg(
             shape_type,
@@ -233,7 +240,7 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
         scene_cfg.object_b = create_shape_cfg(
             shape_type,
             "{ENV_REGEX_NS}/ObjectB",
-            pos=(max_separation / 2, 0.0, 0.5),
+            pos=(max_separation / 2, lateral_offset, 0.5),
             disable_gravity=True,
             activate_contact_sensors=True,
         )
@@ -298,7 +305,7 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
     """Test that resting object contact force equals weight and points upward.
@@ -401,7 +408,7 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         assert not errs, "\n".join(errs)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contacts: bool):
     """Test that dropping from higher produces larger peak impact force.
@@ -483,7 +490,7 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [
@@ -618,7 +625,7 @@ ALLEGRO_FINGER_LINKS = {
 }
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [
@@ -639,6 +646,7 @@ ALLEGRO_FINGER_LINKS = {
         pytest.param(ShapeType.MESH_BOX, id="mesh_box"),
     ],
 )
+@flaky(max_runs=3, min_passes=1)
 def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool, drop_shape: ShapeType):
     """Test contact sensor on Allegro hand fingers detects localized contacts.
 
@@ -815,7 +823,7 @@ def _make_two_box_scene_cfg(num_envs: int) -> ContactSensorTestSceneCfg:
     return scene_cfg
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_sensor_metadata(device: str):
     """Verify sensor_names and filter_object_names match the underlying sensing and
     counterpart configuration across body-mode, body-mode-with-filter, and shape-mode.

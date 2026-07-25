@@ -366,6 +366,27 @@ def test_legacy_kamino_attribute_alias_warns():
         assert cfg.kamino is cfg.newton_kamino
 
 
+@pytest.mark.parametrize(
+    "legacy_name,canonical_name",
+    [
+        ("ovrtx_renderer", "ovrtx"),
+        ("isaacsim_rtx_renderer", "isaacsim_rtx"),
+    ],
+)
+def test_legacy_renderer_suffix_attribute_alias_warns(legacy_name, canonical_name):
+    """The suffixed renderer preset names alias to their ``_renderer``-less fields during deprecation."""
+
+    @configclass
+    class _RendererPresetsCfg(PresetCfg):
+        default: PhysxCfg = PhysxCfg()
+        ovrtx: PhysxCfg = PhysxCfg()
+        isaacsim_rtx: PhysxCfg = PhysxCfg()
+
+    cfg = _RendererPresetsCfg()
+    with pytest.warns(FutureWarning, match=f"Preset '{legacy_name}' is deprecated"):
+        assert getattr(cfg, legacy_name) is getattr(cfg, canonical_name)
+
+
 def test_legacy_alias_suppressed_when_legacy_name_is_real_field():
     """An env that legitimately defines ``newton`` should not warn or be remapped."""
 
@@ -1511,3 +1532,36 @@ def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
     # physics=newton_mjwarp (typed selector) must error.
     with pytest.raises(ValueError, match="physics=newton_mjwarp"):
         hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
+
+
+# =============================================================================
+# Tests: play-mode overrides
+# =============================================================================
+
+
+def test_register_task_play_mode_applies_play_mode(monkeypatch):
+    """``register_task(play_mode=True)`` applies the env cfg's play-mode overrides after loading."""
+    import sys
+
+    import gymnasium as gym
+
+    @configclass
+    class PlayModeEnvCfg:
+        played: bool = False
+
+        def play_mode(self):
+            self.played = True
+
+    gym.register(
+        id="Isaac-Hydra-PlayMode-Test",
+        entry_point="dummy:Env",
+        kwargs={"env_cfg_entry_point": PlayModeEnvCfg},
+    )
+    monkeypatch.setattr(sys, "argv", ["test"])
+    try:
+        env_cfg, _, _ = hydra_mod.register_task("Isaac-Hydra-PlayMode-Test", None, play_mode=True)
+        assert env_cfg.played
+        env_cfg, _, _ = hydra_mod.register_task("Isaac-Hydra-PlayMode-Test", None)
+        assert not env_cfg.played
+    finally:
+        del gym.registry["Isaac-Hydra-PlayMode-Test"]

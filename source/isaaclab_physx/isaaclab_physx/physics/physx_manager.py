@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import time
+import warnings
 from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
@@ -284,6 +285,11 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager."""
+        from isaaclab_physx import _patch_isaacsim_simulation_manager, _subscribe_to_simulation_manager_enable
+
+        _subscribe_to_simulation_manager_enable()
+        _patch_isaacsim_simulation_manager()
+
         from isaaclab.sim.utils.stage import get_current_stage_id
 
         super().initialize(sim_context)
@@ -300,6 +306,18 @@ class PhysxManager(PhysicsManager):
         sim.set_setting("/app/player/playSimulations", False)  # type: ignore[union-attr]
         omni.kit.app.get_app().update()
         sim.set_setting("/app/player/playSimulations", True)  # type: ignore[union-attr]
+
+    @classmethod
+    def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
+        """Fix and normalize an articulation root for the PhysX parser."""
+        root = super().fix_articulation_root(articulation_prim, stage)
+        if root.HasAPI(UsdPhysics.RigidBodyAPI):
+            return cls._relocate_articulation_root(
+                root,
+                companion_schema="PhysxArticulationAPI",
+                companion_namespace="physxArticulation",
+            )
+        return root
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -658,16 +676,26 @@ class PhysxManager(PhysicsManager):
         # default physics material (from SimulationCfg, or create default if None)
         physics_material = sim_cfg.physics_material
         if physics_material is None:
-            from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+            from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 
-            physics_material = RigidBodyMaterialCfg()
+            physics_material = RigidBodyMaterialBaseCfg()
         mat_path = f"{sim_cfg.physics_prim_path}/defaultMaterial"
         physics_material.func(mat_path, physics_material)
         sim_utils.bind_physics_material(sim_cfg.physics_prim_path, mat_path)
 
         # warnings
-        if cfg.solver_type == 1 and not cfg.enable_external_forces_every_iteration:
-            logger.warning("TGS solver with enable_external_forces_every_iteration=False may cause noisy velocities.")
+        if not cfg.enable_external_forces_every_iteration:
+            warning_message = (
+                "PhysxCfg.enable_external_forces_every_iteration is deprecated and will be removed in a future "
+                "PhysX release. External forces are applied every iteration by default; remove this override."
+            )
+            if cfg.solver_type == 1:
+                warning_message += " Disabling this behavior with the TGS solver may cause noisy velocities."
+            warnings.warn(
+                warning_message,
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if not cfg.enable_stabilization and sim_cfg.dt > 0.0333:
             logger.warning("Large timestep without stabilization may cause physics issues.")
 

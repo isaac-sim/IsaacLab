@@ -5,7 +5,12 @@
 
 """Warp kernels for OVRTX rendering pipeline."""
 
+from typing import Any
+
 import warp as wp
+
+# Segmentation colorization is shared across renderer backends to keep colors visually consistent.
+from isaaclab.renderers.segmentation_colors import random_color_from_id_wp
 
 
 @wp.kernel
@@ -72,92 +77,32 @@ def extract_tile_from_tiled_buffer_kernel(
 
 
 @wp.kernel
-def extract_all_rgba_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.uint8, ndim=4),  # type: ignore
+def extract_all_tiles_kernel(
+    tiled_buffer: wp.array(dtype=Any, ndim=3),  # type: ignore
+    output_buffer: wp.array(dtype=Any, ndim=4),  # type: ignore
     num_cols: int,
     tile_width: int,
     tile_height: int,
-    num_channels: int,
 ):
-    """Extract ALL RGBA or RGB tiles from a tiled buffer in a single kernel launch.
+    """Extract ALL tiles from a tiled buffer into per-env tiles in a single kernel launch.
+
+    Generic over the tile channel layout (RGB, RGBA, or single-channel depth) and dtype (e.g. uint8 color,
+    float32 depth/HDR color, or float16 HDR color widened to float32 on output). The channel count is taken
+    from ``output_buffer`` rather than passed explicitly, and each element is cast to the output dtype, so the
+    same kernel body serves every tile-extraction case; see the :func:`warp.overload` registrations below for
+    the concrete dtype pairs this is compiled for.
+
+    Precondition:
+        ``output_buffer``'s channel count (last dimension) must not exceed ``tiled_buffer``'s (the per-thread
+        channel loop below indexes ``tiled_buffer`` up to that bound). In this package, always launch this
+        kernel through ``OVRTXRenderer._launch_extract_all_tiles``, which validates this before every launch
+        instead of relying on each call site to remember to check. Passing a wider output buffer than the
+        tiled input reads out of bounds on the GPU.
 
     Args:
-        tiled_buffer: 3D uint8 array of shape (H, W, 4) for RGBA or (H, W, 3) for RGB.
-        output_buffer: 4D uint8 array of shape (num_envs, H, W, 4) for RGBA or (num_envs, H, W, 3) for RGB.
-        num_cols: number of columns in the tiled buffer.
-        tile_width: width of each tile.
-        tile_height: height of each tile.
-        num_channels: number of channels in the output buffer. Use 3 for RGB or 4 for RGBA.
-            If a value other than 3 or 4 is given, it will be treated as 3 (RGB).
-    """
-    env_idx, y, x = wp.tid()
-    tile_x = env_idx % num_cols
-    tile_y = env_idx // num_cols
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-
-    # RGB
-    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
-    output_buffer[env_idx, y, x, 1] = tiled_buffer[src_y, src_x, 1]
-    output_buffer[env_idx, y, x, 2] = tiled_buffer[src_y, src_x, 2]
-
-    # Alpha (if it is RGBA)
-    if num_channels == 4:
-        output_buffer[env_idx, y, x, 3] = tiled_buffer[src_y, src_x, 3]
-
-
-@wp.kernel
-def extract_all_rgb_float_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.float32, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore  (num_envs, H, W, 3)
-    num_cols: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract ALL RGB float tiles from a tiled buffer in a single kernel launch."""
-    env_idx, y, x = wp.tid()
-    tile_x = env_idx % num_cols
-    tile_y = env_idx // num_cols
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
-    output_buffer[env_idx, y, x, 1] = tiled_buffer[src_y, src_x, 1]
-    output_buffer[env_idx, y, x, 2] = tiled_buffer[src_y, src_x, 2]
-
-
-@wp.kernel
-def extract_all_rgb_half_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.float16, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore  (num_envs, H, W, 3)
-    num_cols: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract ALL RGB half tiles into float32 output in a single kernel launch."""
-    env_idx, y, x = wp.tid()
-    tile_x = env_idx % num_cols
-    tile_y = env_idx // num_cols
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    output_buffer[env_idx, y, x, 0] = wp.float32(tiled_buffer[src_y, src_x, 0])
-    output_buffer[env_idx, y, x, 1] = wp.float32(tiled_buffer[src_y, src_x, 1])
-    output_buffer[env_idx, y, x, 2] = wp.float32(tiled_buffer[src_y, src_x, 2])
-
-
-@wp.kernel
-def extract_all_depth_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.float32, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore
-    num_cols: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract all depth tiles from a tiled buffer in a single kernel launch.
-
-    Args:
-        tiled_buffer: 3D float32 array of shape (H, W, 1) for depth.
-        output_buffer: 4D float32 array of shape (num_envs, H, W, 1) for depth.
+        tiled_buffer: 3D array of shape (H, W, C) holding all tiles packed into one buffer.
+        output_buffer: 4D array of shape (num_envs, H, W, C) to receive the per-env tiles, with C no greater
+            than ``tiled_buffer``'s channel count.
         num_cols: number of columns in the tiled buffer.
         tile_width: width of each tile.
         tile_height: height of each tile.
@@ -167,7 +112,36 @@ def extract_all_depth_tiles_kernel(
     tile_y = env_idx // num_cols
     src_x = tile_x * tile_width + x
     src_y = tile_y * tile_height + y
-    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
+    for channel in range(output_buffer.shape[3]):
+        output_buffer[env_idx, y, x, channel] = output_buffer.dtype(tiled_buffer[src_y, src_x, channel])
+
+
+# uint8 color tiles (e.g. RGB/RGBA, semantic segmentation).
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.uint8, ndim=3), wp.array(dtype=wp.uint8, ndim=4), int, int, int],
+)
+# float32 tiles (e.g. depth, normals, HDR color).
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.float32, ndim=3), wp.array(dtype=wp.float32, ndim=4), int, int, int],
+)
+# float16 tiles (e.g. HDR color), widened to a float32 output buffer.
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.float16, ndim=3), wp.array(dtype=wp.float32, ndim=4), int, int, int],
+)
+# uint32 tiles (e.g. raw instance segmentation IDs).
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.uint32, ndim=3), wp.array(dtype=wp.uint32, ndim=4), int, int, int],
+)
+# uint32 tiles cast to an int32 output buffer (raw semantic segmentation IDs; matches Isaac RTX's int32
+# non-colorized semantic output, whose per-pixel value is the semantic ID).
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.uint32, ndim=3), wp.array(dtype=wp.int32, ndim=4), int, int, int],
+)
 
 
 @wp.kernel
@@ -186,114 +160,6 @@ def extract_depth_tile_from_tiled_buffer_kernel(
     tile_buffer[y, x, 0] = tiled_buffer[src_y, src_x]
 
 
-@wp.func
-def color_hash(seed: wp.uint32) -> wp.uint32:
-    """Simple hash function for better distribution. Used for colorization."""
-    # uint32 integers are promoted to uint64 to avoid overflow during multiplication.
-    h = wp.uint64(seed)
-    h = h ^ (h >> wp.uint64(16))
-    h = h * wp.uint64(wp.uint32(0x85EBCA6B))
-    h = h ^ (h >> wp.uint64(13))
-    h = h * wp.uint64(wp.uint32(0xC2B2AE35))
-    h = h ^ (h >> wp.uint64(16))
-    return wp.uint32(h)
-
-
-@wp.func
-def random_color_from_id(input_id: wp.uint32) -> wp.uint32:
-    """Generate random color from a single ID.
-
-    Generate visually distinct colours by linearly spacing the hue channel in HSV space and then convert to RGB space.
-
-    Args:
-        input_id: uint32 semantic ID
-
-    Returns:
-        uint32 color: ``r | (g<<8) | (b<<16) | (a<<24)``
-    """
-    if input_id == wp.uint32(0):
-        # BACKGROUND special case
-        return wp.uint32(0)
-    if input_id == wp.uint32(1):
-        # UNLABELLED special case
-        return wp.uint32(0xFF000000)
-
-    hash_val = color_hash(input_id)
-
-    # Golden ratio inverse = 1.0 / 1.618033988749895 (Replicator constant)
-    GOLDEN_RATIO_INV = wp.float64(1.0) / wp.float64(1.618033988749895)
-
-    # Use golden ratio spacing for maximum hue spread
-    hue_tmp = wp.float64(input_id) * GOLDEN_RATIO_INV
-    hue = hue_tmp - wp.floor(hue_tmp)
-
-    # Add hash-based perturbation for better distribution
-    hue_perturbation = wp.float64(hash_val & wp.uint32(0xFFFF)) / wp.float64(65536.0)
-    hue_tmp = hue + hue_perturbation * wp.float64(0.1)
-    hue = hue_tmp - wp.floor(hue_tmp)
-
-    # Use hash to determine saturation and value for maximum spread
-    sat_part = wp.uint32((hash_val >> wp.uint32(16)) & wp.uint32(0xFF))
-    val_part = wp.uint32((hash_val >> wp.uint32(8)) & wp.uint32(0xFF))
-
-    # Saturation: 0.7 to 1.0 for vibrant colors
-    saturation = wp.float64(0.7) + wp.float64(0.3) * (wp.float64(sat_part) / wp.float64(255.0))
-
-    # Value: 0.8 to 1.0 for bright colors
-    value = wp.float64(0.8) + wp.float64(0.2) * (wp.float64(val_part) / wp.float64(255.0))
-
-    # HSV to RGB conversion (match Replicator: ``f`` uses pre-modulo ``int(hue*6)``, then ``i %= 6``).
-    hue_i = wp.int32(hue * wp.float64(6.0))
-    hue_f = hue * wp.float64(6.0) - wp.float64(hue_i)
-    p = value * (wp.float64(1.0) - saturation)
-    q = value * (wp.float64(1.0) - saturation * hue_f)
-    t = value * (wp.float64(1.0) - saturation * (wp.float64(1.0) - hue_f))
-
-    r = wp.float64(0.0)
-    g = wp.float64(0.0)
-    b = wp.float64(0.0)
-
-    hue_i = hue_i % 6
-
-    if hue_i == 0:
-        r = value
-        g = t
-        b = p
-    elif hue_i == 1:
-        r = q
-        g = value
-        b = p
-    elif hue_i == 2:
-        r = p
-        g = value
-        b = t
-    elif hue_i == 3:
-        r = p
-        g = q
-        b = value
-    elif hue_i == 4:
-        r = t
-        g = p
-        b = value
-    else:
-        r = value
-        g = p
-        b = q
-
-    ri = wp.min(255, wp.max(0, wp.int32(r * wp.float64(255.0))))
-    gi = wp.min(255, wp.max(0, wp.int32(g * wp.float64(255.0))))
-    bi = wp.min(255, wp.max(0, wp.int32(b * wp.float64(255.0))))
-    ai = wp.int32(255)
-
-    color = (
-        wp.uint32(ri)
-        | (wp.uint32(gi) << wp.uint32(8))
-        | (wp.uint32(bi) << wp.uint32(16))
-        | (wp.uint32(ai) << wp.uint32(24))
-    )
-    return color
-
-
 @wp.kernel
 def generate_random_colors_from_ids_kernel(
     input_ids: wp.array(dtype=wp.uint32, ndim=3),  # type: ignore
@@ -306,7 +172,7 @@ def generate_random_colors_from_ids_kernel(
         output_colors: 3D uint32 array for colors per pixel; each word is ``r | (g<<8) | (b<<16) | (a<<24)``.
     """
     i, j, k = wp.tid()
-    output_colors[i, j, k] = random_color_from_id(input_ids[i, j, k])
+    output_colors[i, j, k] = random_color_from_id_wp(input_ids[i, j, k])
 
 
 @wp.kernel

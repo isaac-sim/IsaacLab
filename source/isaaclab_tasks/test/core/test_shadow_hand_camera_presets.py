@@ -83,10 +83,11 @@ _VALID_COMBOS = [
     pytest.param("ovrtx", ["rgb"], True, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
     pytest.param("ovrtx", ["albedo"], True, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
     pytest.param("ovrtx", ["depth"], False, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
-    # ── Warp renderer: only rgb and depth are supported ──
+    # ── Warp renderer: rgb, depth, and semantic_segmentation are supported ──
     ("newton_warp", ["rgb"], True),
     ("newton_warp", ["depth"], False),  # depth-only OK when CNN disabled
     ("newton_warp", ["rgb", "depth"], True),  # multiple supported types
+    ("newton_warp", ["rgb", "depth", "semantic_segmentation"], True),
 ]
 
 
@@ -126,12 +127,6 @@ _INVALID_COMBOS = [
         ["simple_shading_full_mdl"],
         True,
         "simple_shading_full_mdl",
-    ),
-    (
-        "newton_warp",
-        ["rgb", "depth", "semantic_segmentation"],
-        True,
-        "semantic_segmentation",
     ),
     # ── Depth-only with CNN enabled is not valid for training ──
     (
@@ -235,9 +230,9 @@ def test_all_camera_presets_present(shadow_hand_camera_presets):
 _RENDERER_PRESETS = [
     # preset_name, expected_class
     ("default", IsaacRtxRendererCfg),
-    ("isaacsim_rtx_renderer", IsaacRtxRendererCfg),
+    ("isaacsim_rtx", IsaacRtxRendererCfg),
     ("newton_renderer", NewtonWarpRendererCfg),
-    pytest.param("ovrtx_renderer", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
+    pytest.param("ovrtx", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
 ]
 
 
@@ -267,7 +262,7 @@ def test_rtx_preset_has_auto_renderer_type(shadow_hand_camera_presets):
 def test_all_renderer_presets_present(shadow_hand_camera_presets):
     """Every preset in MultiBackendRendererCfg is discoverable."""
     renderer_presets = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]
-    expected_names = {"default", "rtx", "isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer"}
+    expected_names = {"default", "rtx", "isaacsim_rtx", "newton_renderer", "ovrtx"}
     missing = expected_names - set(renderer_presets.keys())
     assert not missing, f"Renderer presets missing from collected presets: {missing}"
 
@@ -277,10 +272,8 @@ def test_all_renderer_presets_present(shadow_hand_camera_presets):
 # when paired with the warp renderer preset
 # ---------------------------------------------------------------------------
 
-_WARP_VALID_CAMERA_PRESETS = ["rgb", "depth"]
+_WARP_VALID_CAMERA_PRESETS = ["rgb", "depth", "default", "full"]
 _WARP_INVALID_CAMERA_PRESETS = [
-    "default",
-    "full",
     "albedo",
     "simple_shading_constant_diffuse",
     "simple_shading_diffuse_mdl",
@@ -290,7 +283,7 @@ _WARP_INVALID_CAMERA_PRESETS = [
 
 @pytest.mark.parametrize("camera_preset", _WARP_VALID_CAMERA_PRESETS)
 def test_warp_with_valid_camera_preset(shadow_hand_camera_presets, camera_preset):
-    """Warp + {rgb, depth} camera presets must not raise (depth with CNN disabled)."""
+    """Warp + supported camera presets must not raise (depth-only with CNN disabled)."""
     camera_cfg = shadow_hand_camera_presets["tiled_camera"][camera_preset]
     warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
     enabled = camera_cfg.data_types != ["depth"]  # disable CNN for depth-only

@@ -7,10 +7,10 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 
 import numpy as np
+import warp as wp
 from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
@@ -32,6 +32,14 @@ class NewtonMJWarpManager(NewtonManager):
     """
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
+        """Construct the configured MuJoCo Warp solver."""
+        kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
+        # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
+        kwargs.pop("ls_parallel", None)
+        return SolverMuJoCo(model, **kwargs)
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
         """Construct :class:`SolverMuJoCo` and populate the base-class slots.
 
@@ -41,10 +49,7 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
-        ignored = {"class_type", "solver_type", "ls_parallel"}
-        valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"} - ignored
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
-        NewtonManager._solver = SolverMuJoCo(model, **kwargs)
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
 
@@ -78,6 +83,40 @@ class NewtonMJWarpManager(NewtonManager):
                 device=PhysicsManager._device,
                 requested_attributes=cls._model.get_requested_contact_attributes(),
             )
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Clear MuJoCo Warp solver-internal state for flagged worlds.
+
+        Specializes the base hook, whose :meth:`SolverBase.reset` call resolves
+        to :meth:`SolverMuJoCo.reset` here: with ``flags=0`` it zeroes only the
+        solver-owned buffers persisting across steps (``qacc_warmstart``,
+        ``qfrc_applied``, ``xfrc_applied``, ``ctrl``, ``act``) for the flagged
+        worlds, while the joint state IsaacLab authored during the env reset is
+        left untouched.  Without this, a NaN produced in one solve persists
+        across :meth:`isaaclab.envs.ManagerBasedEnv.reset` because the next
+        solver substep warm-starts from the NaN — the world is then permanently
+        dead.  See https://github.com/newton-physics/newton/issues/1266.
+
+        With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
+        and its reset path is not mask-aware — it clears the buffers for every
+        world.  Since this hook fires on every step/forward boundary (usually
+        with an all-``False`` mask), the CPU path is gated on at least one
+        world actually being flagged so warm-starting is not defeated on every
+        step.
+
+        Args:
+            world_mask: Per-world bool mask of shape ``(world_count,)``;
+                ``True`` for worlds that need their MJWarp internals cleared.
+                ``None`` is treated as a no-op.
+        """
+        if world_mask is None:
+            return
+        if cls._solver.use_mujoco_cpu and not world_mask.numpy().any():
+            return
+        # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
+        # joint_q/joint_qd and has already written the authored reset pose.
+        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _log_solver_debug(cls) -> None:

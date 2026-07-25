@@ -1,6 +1,16 @@
 Contribution Guidelines
 =======================
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-following-coding-style``,
+   ``isaaclab-preparing-pr-workflow``, and ``isaaclab-writing-changelog-fragments`` agent skills
+   (`skills/developer/coding-style/ <../../../skills/developer/coding-style/SKILL.md>`__,
+   `skills/developer/pr-workflow/ <../../../skills/developer/pr-workflow/SKILL.md>`__,
+   `skills/developer/changelog-fragments/ <../../../skills/developer/changelog-fragments/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 We wholeheartedly welcome contributions to the project to make the framework more mature
 and useful for everyone. These may happen in forms of:
 
@@ -695,30 +705,65 @@ Please make sure that you add tests for your changes.
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         # Run all tests
-         ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+         .. tab-item:: uv (Recommended)
 
-         # Run all tests in a particular file
-         ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+            .. code-block:: bash
 
-         # Run a particular test
-         ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               # Run all tests
+               ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+
+               # Run all tests in a particular file
+               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+
+               # Run a particular test
+               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               # Run all tests
+               ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+
+               # Run all tests in a particular file
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+
+               # Run a particular test
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code-block:: bash
+      .. tab-set::
 
-         # Run all tests
-         isaaclab.bat --test  # or "isaaclab.bat -t"
+         .. tab-item:: uv (Recommended)
 
-         # Run all tests in a particular file
-         isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+            .. code-block:: bash
 
-         # Run a particular test
-         isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               # Run all tests
+               isaaclab.bat --test  # or "isaaclab.bat -t"
+
+               # Run all tests in a particular file
+               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+
+               # Run a particular test
+               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               # Run all tests
+               isaaclab.bat --test  # or "isaaclab.bat -t"
+
+               # Run all tests in a particular file
+               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+
+               # Run a particular test
+               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
 
 
 Tools
