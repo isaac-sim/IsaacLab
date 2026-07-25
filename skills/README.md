@@ -25,7 +25,8 @@ User skills:
 - `user/diagnose-joint-poses/`: measure and correct robot initial joint poses from semantic or visual pose requests.
 - `user/select-backends/`: choose and validate PhysX, Newton, and backend-specific task presets.
 - `user/use-presets/`: define and use preset configurations for multi-backend and variant-rich tasks.
-- `user/prepare-assets-for-newton/`: validate and prepare PhysX-compatible USD assets for Newton task workflows.
+- `user/prepare-assets-for-newton/`: prepare assets for Newton and migrate PhysX-authored assets without losing their physical contract.
+- `user/isaaclab-transferring-policies-sim-to-sim/`: validate bidirectional PhysX/Newton policy transfer and diagnose transfer gaps.
 - `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 
 Planned user skills:

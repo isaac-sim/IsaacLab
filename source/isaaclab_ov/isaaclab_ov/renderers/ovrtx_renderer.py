@@ -231,7 +231,7 @@ class OVRTXRenderData:
         self.warp_buffers: dict[str, wp.array] = {}
         # Per-output metadata collected during render() and copied into CameraData.info by read_output().
         # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
-        # "instance_segmentation_fast" (with "idToLabels" and "idToSemantics" mappings).
+        # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
         self.renderer_info: dict[str, Any] = {}
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
@@ -263,7 +263,7 @@ class OVRTXRenderer(BaseRenderer):
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         instance_seg_spec = (
-            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.uint32)
+            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.int32)
         )
         # Semantic segmentation: colorized RGBA (uint8), else raw int32 IDs (matches Isaac RTX, whose
         # non-colorized per-pixel value is the semantic ID).
@@ -279,7 +279,7 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SEMANTIC_SEGMENTATION: semantic_seg_spec,
-            RenderBufferKind.INSTANCE_SEGMENTATION_FAST: instance_seg_spec,
+            RenderBufferKind.INSTANCE_SEGMENTATION: instance_seg_spec,
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
@@ -423,13 +423,20 @@ class OVRTXRenderer(BaseRenderer):
         self._renderer.open_usd_from_string(combined_usd_string)
         logger.info("OVRTX loaded USD from string successfully")
 
+        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
         if num_envs > 1:
             self._clone_sources_in_ovrtx()
             self._update_scene_partitions_after_clone(num_envs)
+            # OVRTX 0.4 keeps the initial Fabric camera relationship after clone_usd creates the remaining
+            # cameras. Rewrite it so the RenderProduct includes every camera in its tiled output.
+            self._renderer.write_array_attribute(
+                prim_paths=[render_product_path],
+                attribute_name="camera",
+                tensors=[camera_paths],
+            )
 
         self._initialized_scene = True
 
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
         self._camera_xform_binding = self._renderer.bind_attribute(
             prim_paths=camera_paths,
             attribute_name="omni:xform",
@@ -985,7 +992,7 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Extract a uint32 ID-segmentation render var into ``output_buffers[buffer_key]``.
 
-        Shared by ``semantic_segmentation`` (``SemanticSegmentation``) and ``instance_segmentation_fast``
+        Shared by ``semantic_segmentation`` (``SemanticSegmentation``) and ``instance_segmentation``
         (``NonStableInstanceSegmentation``), which only differ in the source render var, the destination buffer,
         and whether to colorize.
 
@@ -1051,7 +1058,7 @@ class OVRTXRenderer(BaseRenderer):
         }
 
     def _process_instance_segmentation_maps(self, render_data: OVRTXRenderData, frame) -> None:
-        """Decode the instance-segmentation map render vars into ``renderer_info["instance_segmentation_fast"]``.
+        """Decode the instance-segmentation map render vars into ``renderer_info["instance_segmentation"]``.
 
         An *instance pixel ID* is a compact integer that the renderer assigns to each visible object instance.
         Every pixel in the segmentation buffer holds the ID of the instance rendered at that location; the same
@@ -1078,7 +1085,7 @@ class OVRTXRenderer(BaseRenderer):
         missing = [v for v in required_vars if v not in frame.render_vars]
         if missing:
             raise RuntimeError(
-                f"instance_segmentation_fast was requested but the following render vars are missing from the "
+                f"instance_segmentation was requested but the following render vars are missing from the "
                 f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars.keys())}"
             )
 
@@ -1096,7 +1103,7 @@ class OVRTXRenderer(BaseRenderer):
             colorize=self.cfg.colorize_instance_segmentation,
             device=self._device,
         )
-        render_data.renderer_info["instance_segmentation_fast"] = {
+        render_data.renderer_info["instance_segmentation"] = {
             "idToLabels": id_to_labels,
             "idToSemantics": id_to_semantics,
         }
@@ -1257,12 +1264,12 @@ class OVRTXRenderer(BaseRenderer):
             frame,
             output_buffers,
             "NonStableInstanceSegmentation",
-            "instance_segmentation_fast",
+            "instance_segmentation",
             self.cfg.colorize_instance_segmentation,
         )
         # Decode the StableIdSemanticIdMap/StableIdMap/SemanticIdMap trio into
-        # camera.data.info["instance_segmentation_fast"]["idToLabels"] and ["idToSemantics"].
-        if "instance_segmentation_fast" in output_buffers:
+        # camera.data.info["instance_segmentation"]["idToLabels"] and ["idToSemantics"].
+        if "instance_segmentation" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
 
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:

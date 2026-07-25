@@ -39,7 +39,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 DEFAULT_INPUT_SCENE = f"{ISAAC_NUCLEUS_DIR}/Samples/Scene_ParticleField/valiant_auto.usdz"
@@ -106,11 +106,6 @@ parser.add_argument(
     default=None,
     help="Directory to write comparison images. Defaults to scripts/demos/sensors/output/ppisp_camera_ovrtx.",
 )
-parser.add_argument(
-    "--disable_ovrtx_cloning",
-    action="store_true",
-    help="Export all envs to OVRTX instead of using OVRTX internal env cloning.",
-)
 parser.add_argument("--ovrtx_log_level", type=str, default="verbose", help="OVRTX carb log level.")
 parser.add_argument("--ovrtx_log_file", type=str, default="/tmp/ovrtx_renderer.log", help="OVRTX log file path.")
 
@@ -169,7 +164,6 @@ def make_renderer_cfg() -> Any:
         ) from exc
 
     return OVRTXRendererCfg(
-        use_ovrtx_cloning=not args_cli.disable_ovrtx_cloning,
         log_level=args_cli.ovrtx_log_level,
         log_file_path=args_cli.ovrtx_log_file,
     )
@@ -267,14 +261,15 @@ def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_
     stage = sim_utils.get_current_stage()
     target_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     camera_rel_path = source_camera_path_to_default_rel_path(source_stage, source_camera_prim_path)
+    scene_prims = sim_utils.find_matching_prims("/World/envs/env_.*/Scene", stage)
+    if not scene_prims:
+        raise RuntimeError("No duplicated scene prims found under /World/envs.")
+
     authored_count = 0
-    for env_id in range(args_cli.num_envs):
-        scene_path = f"/World/envs/env_{env_id}/Scene"
+    for scene_prim in scene_prims:
+        scene_path = scene_prim.GetPath().pathString
         target_camera_path = f"{scene_path}/{camera_rel_path}"
-        scene_prim = stage.GetPrimAtPath(scene_path)
         target_camera_prim = stage.GetPrimAtPath(target_camera_path)
-        if not scene_prim or not scene_prim.IsValid():
-            raise RuntimeError(f"Duplicated scene prim not found: {scene_path}")
         if not target_camera_prim or not target_camera_prim.IsValid():
             raise RuntimeError(f"Duplicated camera prim not found: {target_camera_path}")
 
@@ -520,6 +515,7 @@ def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppi
 
 def main() -> None:
     """Main function."""
+    args_cli.input_scene = retrieve_file_path(args_cli.input_scene)
     source_stage = Usd.Stage.Open(args_cli.input_scene)
     if source_stage is None:
         raise RuntimeError(f"Failed to open input scene: {args_cli.input_scene}")

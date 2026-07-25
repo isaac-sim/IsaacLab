@@ -1,6 +1,139 @@
 Changelog
 ---------
 
+2.0.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added backend joint/body ordering introspection properties to
+  :class:`~isaaclab_newton.assets.Articulation`.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.register_post_step_callback`
+  and :meth:`~isaaclab_newton.physics.NewtonManager.unregister_post_step_callback`
+  for hooks that must run inside the stepped (and CUDA-graph-captured) region
+  after the last solver substep. Articulations with a non-identity ordering use
+  them to publish backend-order state to their public-order buffers every step
+  and to release the hook when the articulation is destroyed.
+* Added ``ke``, ``kd``, and ``mu`` fields to
+  :class:`~isaaclab_newton.physics.NewtonShapeCfg`, forwarded onto Newton's
+  ``ModelBuilder.default_shape_cfg`` at builder construction. These set the
+  per-shape contact defaults for shapes that lack an explicit per-asset
+  material; per-asset materials override them. Defaults mirror Newton's
+  ``ShapeConfig`` values.
+* Added :class:`~isaaclab_newton.sensors.NewtonRaycastSensor` that ray-casts against every collision
+  shape in the Newton scene through the model's shape BVH using :func:`newton.intersect_ray`, with
+  per-environment worlds, hit distances and surface normals, and debug visualization.
+* Added ``semantic_segmentation`` camera data-type support to
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`, and brought the existing
+  ``instance_segmentation_fast`` output up to the full Isaac RTX contract (colorized palettes plus
+  ``idToLabels`` / ``idToSemantics`` metadata on ``camera.data.info``). Both are reconstructed on
+  the host from Newton's per-shape index buffer and the USD stage's :class:`UsdSemantics.LabelsAPI`
+  labels, reaching parity with :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`.
+* Added :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.semantic_filter`,
+  :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.colorize_semantic_segmentation`, and
+  :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.semantic_segmentation_mapping` to
+  :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`, mirroring the Isaac RTX renderer.
+* Added the Newton implementation of
+  :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`, backed by
+  Newton's inverse-dynamics API (``eval_inverse_dynamics_passive``). The accessor previously
+  raised ``NotImplementedError`` on the Newton backend; gravity compensation in
+  task-space controllers (operational-space control, Pink IK) now works on Newton.
+* Added :data:`~isaaclab_newton.cloner.PHYSICS_CONTEXT`, the backend's default physics
+  replication context referenced by asset cfgs. USD clones accompany Newton replication only
+  under Kit — added automatically by :func:`~isaaclab.cloner.replicate` — so headless runs
+  skip the USD authoring cost without assets branching on Kit availability.
+
+Changed
+^^^^^^^
+
+* Updated the pinned Newton commit to
+  ``81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9`` with compatible MuJoCo and
+  schema versions, and migrated the Newton Warp renderer to the current
+  tiled-camera APIs. Reinstall Isaac Lab to use the updated stack.
+* Changed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to refit the shape BVH through the new
+  Newton BVH API (:meth:`newton.Model.bvh_refit_shapes`) via the Newton manager, replacing the
+  deprecated ``newton.geometry.build_bvh_shape`` / ``newton.geometry.refit_bvh_shape`` helpers.
+* Changed the Newton implementation selected by :class:`~isaaclab.sensors.RayCaster` to use the live
+  scene BVH. The previous configured Warp-mesh implementations remain available as
+  :class:`~isaaclab_newton.sensors.LegacyRayCaster`,
+  :class:`~isaaclab_newton.sensors.LegacyRayCasterCamera`,
+  :class:`~isaaclab_newton.sensors.LegacyMultiMeshRayCaster`, and
+  :class:`~isaaclab_newton.sensors.LegacyMultiMeshRayCasterCamera`.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the Newton backend class names ``RayCasterCamera``, ``MultiMeshRayCaster``, and
+  ``MultiMeshRayCasterCamera`` in favor of their ``Legacy``-prefixed names. Backend-dispatching classes
+  under :mod:`isaaclab.sensors` continue to work without changes.
+
+Removed
+^^^^^^^
+
+* Removed the ``write_joint_state_data_index``, ``write_joint_state_data_mask``,
+  ``write_joint_vel_data_index``, and ``write_joint_vel_data_mask`` kernels from
+  ``isaaclab_newton.assets.articulation.kernels``. Prefer the public-order asset
+  write APIs (:meth:`~isaaclab.assets.Articulation.write_joint_position_to_sim_index`
+  and its siblings), which apply the ordering conversion internally. Code that
+  works directly with raw solver views can instead launch the public elementwise
+  reorder kernels (the ``reorder_2d_user_to_backend`` /
+  ``reorder_2d_backend_to_user`` and ``reorder_3d_user_to_backend`` /
+  ``reorder_3d_backend_to_user`` family) from
+  ``isaaclab.assets.articulation.ordering_kernels`` together with the asset's
+  ordering maps.
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+* Removed ``queue_newton_physics_replication``: direct the contexts through
+  :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` and
+  :func:`~isaaclab.cloner.queue_replication` instead.
+
+Fixed
+^^^^^
+
+* Fixed unnecessary wrench-buffer resets when Newton articulations had no instantaneous wrenches.
+* Fixed simulation (re)initialization aborting with a spurious ``Warp CUDA
+  error 1: invalid argument`` on the first buffer copy when a garbage
+  collection pass inside a CUDA graph capture freed a graph-scoped
+  allocation while the capture was paused for a conditional body (Warp
+  latches the failed free's error without clearing it). Garbage collection
+  is now paused for the duration of graph capture, and
+  :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation` drains
+  any stale device error before dispatching initialization callbacks.
+* Fixed a CUDA ``700`` (illegal memory access) that could occur on the first
+  simulation step after a hard reset (:meth:`NewtonManager.reset` with
+  ``soft=False``). On a hard reset the Newton :class:`Model` is re-created,
+  which reallocates its device arrays, but the collision pipeline still held
+  references to the old model. Once the old model's device buffers were freed
+  and reused (which happens under GPU memory pressure between resets), those
+  dangling references caused an illegal memory access on the first ``step()``
+  after the reset (typically surfacing in ``compute_shape_aabbs`` or
+  ``narrow_phase_kernel_gjk_mpr``). The reset now clears the cached collision
+  pipeline and contacts so a fresh pipeline is rebuilt against the re-finalized
+  model, and invalidates any previously-captured CUDA graph. The graph is then
+  re-captured by :meth:`initialize_solver` exactly as on first initialization.
+  This restores correct behavior with CUDA graph capture enabled.
+* Fixed the Newton cloner discarding USD-authored ``physics:approximation`` on
+  collision meshes: cloned environments flattened every collision mesh to a single
+  convex hull regardless of the authored mode (``convexDecomposition``,
+  ``boundingSphere``, ``boundingCube``, ``meshSimplification``, or ``none``),
+  without a warning. The cloner now honors authored approximations the same way
+  non-cloned scene loading does, and applies the default convex-hull simplification
+  only to meshes with no authored approximation. Also switched the core install to
+  ``newton[sim,importers]`` so the mesh-processing dependencies (``coacd``,
+  ``fast-simplification``, ...) ship by default and ``convexDecomposition``
+  decomposes instead of silently falling back to a single convex hull.
+* Fixed detached articulation links with Newton and Isaac RTX by falling back
+  from unvalidated cubric adapter versions.
+* Fixed Newton particles disappearing from Newton Warp camera output by keeping the particle
+  bounding volume hierarchy synchronized with the current simulation state.
+* Fixed headless execution of the Newton MPM standalone demos.
+
+* Added consistent ``newton_mjwarp`` physics selection to standalone demos
+  whose configurations already support Newton physics.
+
+
 1.9.1 (2026-07-15)
 ~~~~~~~~~~~~~~~~~~
 

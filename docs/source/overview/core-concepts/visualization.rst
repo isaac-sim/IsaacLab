@@ -273,6 +273,55 @@ Kit tiled camera views work without an additional camera option.
   To enable or disable the tiled camera panel, use the "Visualizer Tiled Camera" option found in the Tiled Camera View dropdown menu on the left sidebar.
 
 
+Live Plots
+~~~~~~~~~~
+
+Live plots stream per-step scalar data into the visualizer each step.  All four backends
+support live plots.  Live plots are **enabled by default** (``enable_live_plots=True``)
+but plot windows and panels start **hidden or collapsed**, so there is no overhead unless
+you open them.
+
+**What is plotted:**
+
+- **Manager-based environments** (:class:`~isaaclab.envs.ManagerBasedRLEnv`): all active
+  manager terms (actions, observations, rewards, commands, terminations, curriculum) grouped
+  per manager, plus ``episode/total_reward`` and ``episode/episode_length`` as top-level
+  training metrics.
+- **Direct environments** (:class:`~isaaclab.envs.DirectRLEnv`): ``episode/total_reward``
+  and ``episode/episode_length``.
+
+Each multi-dimensional term (e.g. ``joint_pos`` with 8 joints) is displayed as a single
+chart with one line per component, matching the Kit visualizer's per-term grouping.
+
+**Disabling live plots:**
+
+Live plots are on by default but are automatically skipped when running truly headless (no
+Kit GUI and no standalone visualizer such as Newton, Rerun, or Viser).  To disable them
+explicitly (e.g. to reduce overhead during profiling):
+
+.. code-block:: python
+
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    visualizer_cfg = NewtonVisualizerCfg(
+        enable_live_plots=False,
+    )
+
+**Per-backend behavior:**
+
+- **Kit (Omniverse):** Plots appear as collapsible panels in the IsaacLab omni.ui window,
+  collapsed by default.  Toggle individual panels to show them.
+- **Newton:** A floating **"Live Plots"** ImGui window appears at the bottom-right of the
+  viewport, collapsed to its title bar by default.  Click the title bar to expand it.
+  Individual term groups are shown as collapsing headers inside the window.
+- **Rerun:** One :class:`~rerun.blueprint.TimeSeriesView` per manager/group is added to the
+  blueprint, hidden by default.  Toggle panels on via the Rerun blueprint panel on the left.
+  Set ``keep_scalar_history=True`` in :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg`
+  so that scalars accumulate as a time series in the Rerun timeline.
+- **Viser:** One collapsible folder per term is added to the Viser sidebar, collapsed by
+  default.  Expand individual folders to show their charts.
+
+
 Video Recording
 ---------------
 
@@ -395,7 +444,7 @@ Omniverse Visualizer
         lookat=(0.0, 0.0, 0.0),
 
         enable_markers=True,
-        enable_live_plots=True,
+        enable_live_plots=True,  # set to False to disable live plots
     )
 
 Newton Visualizer
@@ -555,7 +604,8 @@ server, allowing you to view and interact with the scene from any browser.
 - Optional public share URL for remote viewing
 - Recording to ``.viser`` format for replay
 - Environment filtering to control which environments are rendered
-- Visualization debug markers
+- Visualization debug markers (joints, contacts, center of mass, particles, and more — toggled
+  from the **Isaac Lab → Visualization Markers** sidebar panel)
 
 .. important::
 
@@ -607,11 +657,6 @@ URL printed by Isaac Lab. On a remote machine, set ``display_address`` to the ma
 ensure the configured ``port`` is reachable from your browser. Set ``share=True`` to request Viser's
 public share/tunnel URL when that service is available.
 
-.. note::
-
-   The Viser visualizer does not currently support live plots.
-
-
 Performance Note
 ----------------
 
@@ -651,11 +696,6 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 **Rerun Visualizer FPS Control**
 
 The FPS control in the Rerun visualizer UI may not affect the visualization frame rate in all configurations.
-
-
-**Live Plots**
-
-Currently, live plots are only available in the Kit Visualizer.
 
 
 **Newton Contact Visualization**
