@@ -107,6 +107,20 @@ class TerrainGeneratorCfg:
     This value is passed on to all the height field sub-terrain configurations.
     """
 
+    convert_to_heightfield: bool = False
+    """Whether to collide against a heightfield instead of the generated collision mesh. Defaults to False.
+
+    Physics backends that support heightfield collision (e.g. Newton) can rasterize the terrain's collision
+    mesh into an equivalent heightfield at :attr:`horizontal_scale` resolution, which is significantly faster
+    to compile and collide against. Backends without heightfield support ignore this setting.
+
+    When all entries in :attr:`sub_terrains` are height field configurations (i.e. they derive from
+    :class:`~isaaclab.terrains.height_field.HfTerrainBaseCfg`), the conversion is always performed since the
+    heightfield reproduces the terrain exactly. For terrains containing mesh sub-terrains, the conversion is
+    lossy (for instance, overhangs and floating geometry are flattened), so it is only performed when this
+    flag is set to True.
+    """
+
     sub_terrains: dict[str, SubTerrainBaseCfg] = MISSING
     """Dictionary of sub-terrain configurations.
 

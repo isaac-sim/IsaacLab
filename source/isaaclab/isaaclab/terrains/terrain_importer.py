@@ -19,6 +19,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
+    from .terrain_generator_cfg import TerrainGeneratorCfg
     from .terrain_importer_cfg import TerrainImporterCfg
 
 # import logger
@@ -94,7 +95,8 @@ class TerrainImporter:
             # collide against heightfields (e.g. Newton) can swap the large collision
             # mesh for an equivalent heightfield at solver-init time; other backends
             # ignore the attribute.
-            self._tag_heightfield_collider(self.terrain_prim_paths[-1], terrain_generator.cfg.horizontal_scale)
+            if self._is_heightfield_collider_requested(self.cfg.terrain_generator):
+                self._tag_heightfield_collider(self.terrain_prim_paths[-1], terrain_generator.cfg.horizontal_scale)
             if self.cfg.use_terrain_origins:
                 # configure the terrain origins based on the terrain generator
                 self.configure_env_origins(terrain_generator.terrain_origins)
@@ -255,6 +257,28 @@ class TerrainImporter:
         # import the mesh
         create_prim_from_mesh(
             prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
+        )
+
+    def _is_heightfield_collider_requested(self, cfg: TerrainGeneratorCfg) -> bool:
+        """Check whether the generated terrain should be collided against as a heightfield.
+
+        Terrains made up entirely of height field sub-terrains are always converted, since the
+        heightfield reproduces their collision mesh exactly. Terrains containing mesh sub-terrains
+        are only converted when :attr:`~isaaclab.terrains.TerrainGeneratorCfg.convert_to_heightfield`
+        is enabled, as the conversion is lossy for them.
+
+        Args:
+            cfg: The configuration of the terrain generator.
+
+        Returns:
+            Whether the terrain collider should be tagged for heightfield conversion.
+        """
+        from .height_field import HfTerrainBaseCfg
+
+        if cfg.convert_to_heightfield:
+            return True
+        return len(cfg.sub_terrains) > 0 and all(
+            isinstance(sub_cfg, HfTerrainBaseCfg) for sub_cfg in cfg.sub_terrains.values()
         )
 
     def _tag_heightfield_collider(self, prim_path: str, horizontal_scale: float):
