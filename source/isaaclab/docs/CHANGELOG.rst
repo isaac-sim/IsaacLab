@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+6.1.17 (2026-07-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for an optional ``demo_recorder_cfg_entry_point`` Gym registry entry in demonstration collection.
+
+Fixed
+^^^^^
+
+* Fixed simulator tests and examples to use the available legacy Franka Panda USD asset.
+
+
 6.1.16 (2026-07-14)
 ~~~~~~~~~~~~~~~~~~~
 

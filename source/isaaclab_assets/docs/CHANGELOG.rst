@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.3.5 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :obj:`~isaaclab_assets.FRANKA_PANDA_CFG` to use the available legacy Franka Panda USD asset.
+
+
 0.3.4 (2026-05-12)
 ~~~~~~~~~~~~~~~~~~
 
