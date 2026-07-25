@@ -40,8 +40,7 @@ env:
 
 on:
   schedule:
-    # Run nightly at 5 AM UTC (one hour after daily-compatibility, so we
-    # don't compete for runner capacity).
+    # Run nightly at 5 AM UTC.
     - cron: '0 5 * * *'
   workflow_dispatch:
     inputs:
@@ -70,7 +69,6 @@ jobs:
     # CSV → JSON array bridge. ``workflow_dispatch`` inputs can only be
     # string / bool / choice, so the branch list arrives as a comma-
     # separated string; the matrix below needs a JSON list to fan out.
-    # Mirrors the ``setup-versions`` job in ``daily-compatibility.yml``.
     name: Resolve branch list
     runs-on: ubuntu-latest
     timeout-minutes: 1
@@ -111,7 +109,6 @@ jobs:
       # Each matrix entry shows up as a separate job tile in the Actions
       # UI, so one requested ref failing doesn't hide another's success
       # (and ``gh run rerun --failed`` re-runs only the failed entry).
-      # Mirrors ``daily-compatibility.yml``'s matrix style.
       fail-fast: false
       matrix:
         branch: ${{ fromJson(needs.resolve-branches.outputs.branches) }}
