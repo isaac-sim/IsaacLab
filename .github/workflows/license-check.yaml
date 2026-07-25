@@ -320,8 +320,12 @@ jobs:
       run: |
         set -euo pipefail
         config=.github/workflows/config.yaml
-        base_image="$(yq -r .isaacsim_image_name "$config")"
-        base_tag="$(yq -r .isaacsim_image_tag "$config")"
+        base_image="$(awk -F ':[[:space:]]*' '$1 == "isaacsim_image_name" { print $2; exit }' "$config")"
+        base_tag="$(awk -F ':[[:space:]]*' '$1 == "isaacsim_image_tag" { print $2; exit }' "$config")"
+        if [[ -z "$base_image" || -z "$base_tag" ]]; then
+          echo "::error::Missing Isaac Sim image configuration in $config"
+          exit 1
+        fi
         image_tag="isaac-lab-ci:pr-${{ github.event.pull_request.number }}-${{ github.sha }}"
         echo "base_image=${base_image}:${base_tag}" >> "$GITHUB_OUTPUT"
         echo "base_image_name=${base_image}" >> "$GITHUB_OUTPUT"
