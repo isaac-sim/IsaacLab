@@ -552,6 +552,15 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
 
+    def play_mode(self):
+        # play-mode overrides of parent
+        super().play_mode()
+
+        self.commands.object_pose.debug_vis = True
+        if self.curriculum is not None:
+            self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
+            self.curriculum.adr.params["promotion_only"] = True
+
 
 class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
     """Dexsuite lift task definition"""
@@ -563,23 +572,8 @@ class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
         if self.curriculum is not None:
             self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation
 
+    def play_mode(self):
+        # play-mode overrides of parent
+        super().play_mode()
 
-class DexsuiteReorientEnvCfg_PLAY(DexsuiteReorientEnvCfg):
-    """Dexsuite reorientation task evaluation environment definition"""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.commands.object_pose.debug_vis = True
-        self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
-        self.curriculum.adr.params["promotion_only"] = True
-
-
-class DexsuiteLiftEnvCfg_PLAY(DexsuiteLiftEnvCfg):
-    """Dexsuite lift task evaluation environment definition"""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.commands.object_pose.debug_vis = True
         self.commands.object_pose.position_only = True
-        self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
-        self.curriculum.adr.params["promotion_only"] = True

@@ -600,14 +600,7 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, device, grav
     required for this comparison to be meaningful, since BFS and DFS produce
     the same order on a single-joint chain.
     """
-    fixture_path = (
-        Path(__file__).resolve().parents[3]
-        / "isaaclab_physx"
-        / "test"
-        / "assets"
-        / "data"
-        / "articulation_ordering_branching.usda"
-    )
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
@@ -656,18 +649,10 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     workflow documented in
     ``docs/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer.rst``.
 
-    The branching fixture lives in the isaaclab_physx test data directory; it is referenced cross-package so
-    the two backends assert against a single shared ground-truth asset (same pattern as
-    :func:`test_mjwarp_ordering_resolver_matches_newton_backend_names`).
+    The branching fixture is shared between both backends; a copy lives in this package's
+    test data directory so the two backends assert against the same ground-truth asset.
     """
-    fixture_path = (
-        Path(__file__).resolve().parents[3]
-        / "isaaclab_physx"
-        / "test"
-        / "assets"
-        / "data"
-        / "articulation_ordering_branching.usda"
-    )
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",

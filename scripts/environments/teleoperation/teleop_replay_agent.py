@@ -361,11 +361,26 @@ parser.add_argument(
     default=False,
     help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
 )
+parser.add_argument(
+    "--disable_external_cameras",
+    action="store_true",
+    default=False,
+    help=(
+        "Disable external camera rendering. External cameras render by default so the replay mimics"
+        " the production teleop env; pass this flag to strip camera sensors for a lighter headless"
+        " replay."
+    ),
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 app_launcher_args = vars(args_cli)
-app_launcher = AppLauncher(app_launcher_args)
+# Enable external camera rendering by default so the replay mimics the production teleop env (perf
+# parity with live camera rendering); ``--disable_external_cameras`` turns it off. The
+# ``--enable_cameras`` CLI flag was removed in Isaac Lab 3.0 (see #6656), so pass the intent to
+# AppLauncher as a kwarg; this selects a camera-rendering experience that provides RTX/DLSS.
+# Everywhere else we read ``args_cli.disable_external_cameras`` directly.
+app_launcher = AppLauncher(app_launcher_args, enable_cameras=not args_cli.disable_external_cameras)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -933,18 +948,20 @@ def _exit_code_for_outcomes(all_runs: list[_RunStats]) -> int:
 def _resolve_cloudxr_env(value: str | None) -> str | None:
     """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
 
-    Mirrors :func:`scripts.tools.record_demos._resolve_cloudxr_env` so the same
-    short names (``"cloudxrjs"``, ``"avp"``) behave identically on the
-    recording and replay sides. Accepts ``"none"`` / empty / ``None`` to mean
-    "no CloudXR" and otherwise returns the value unchanged.
+    Resolves the same short names (``"cloudxrjs"``, ``"avp"``, ``"standalone"``) to
+    the same absolute paths as :func:`scripts.tools.record_demos._resolve_cloudxr_env`.
+    The two differ on ``None``: that function auto-defaults a profile from ``--xr``,
+    whereas replay treats ``None`` (like ``"none"`` / empty) as "no CloudXR". Any other
+    value is returned unchanged.
     """
     if value is None or value.strip() == "" or value.lower() == "none":
         return None
     if not _CLOUDXR_ENV_SHORTHANDS:
-        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV
+        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
 
         _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
         _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
+        _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
@@ -996,7 +1013,39 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
     return launcher
 
 
-def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBasedRLEnvCfg, object | None]:
+def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
+    """Return whether the CLI selects a renderer that actually drives RTX rendering.
+
+    The RTX/DLSS global settings are only meaningful when something renders through RTX.
+    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
+    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
+    A pure-headless replay with none of these renders nothing.
+
+    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
+    check keeps working as these scripts grow support for other renderers and kitless runs.
+    """
+    visualizers = getattr(args, "visualizer", None) or []
+    external_cameras = not getattr(args, "disable_external_cameras", False)
+    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
+
+
+def _ensure_replicator_loaded() -> None:
+    """Enable ``omni.replicator.core`` so RTX/DLSS global settings can be applied.
+
+    :func:`apply_isaac_rtx_global_settings` sets the antialiasing mode through
+    ``omni.replicator.core``, which ships with the SDG/rendering extensions. Some Kit
+    experiences (e.g. the Kit-viewport-only app selected by ``--visualizer kit`` without
+    cameras or XR) do not preload it, so enable it on demand via the extension manager
+    before applying RTX settings. Idempotent when the extension is already enabled.
+    """
+    import omni.kit.app
+
+    omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate("omni.replicator.core", True)
+
+
+def _prepare_env_cfg(
+    task: str, num_envs: int, device: str, apply_rtx_settings: bool = False
+) -> tuple[ManagerBasedRLEnvCfg, object | None]:
     """Build and tweak an env config suitable for non-interactive replay.
 
     Mirrors the env-config mutations performed by ``record_demos.py``'s
@@ -1025,6 +1074,16 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBase
       cycle (sim reinit + teleop device reset) so Pink IK starts the next
       attempt with fresh articulation views.
 
+    Args:
+        task: Registered task name to load the env config for.
+        num_envs: Number of parallel environments.
+        device: Simulation device (e.g. ``"cuda:0"``).
+        apply_rtx_settings: Whether an RTX render pipeline will actually run this
+            session (Kit visualizer, external cameras, or XR). Only then are the
+            RTX/DLSS global settings applied; a headless replay that renders
+            nothing neither needs them nor has the extensions loaded to apply
+            them. See :func:`_rtx_rendering_requested`.
+
     Returns:
         Tuple ``(env_cfg, success_term)``. ``success_term`` is ``None`` when
         the env doesn't define a ``success`` termination term.
@@ -1047,10 +1106,19 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBase
         )
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
-    env_cfg = remove_camera_configs(env_cfg)
-    apply_isaac_rtx_global_settings(
-        IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
-    )
+    # Keep camera configs when external cameras are enabled (defaulted on) so the replay
+    # renders them for production parity; otherwise strip them for a lighter headless replay.
+    if args_cli.disable_external_cameras:
+        env_cfg = remove_camera_configs(env_cfg)
+    # The RTX/DLSS global settings only matter when an RTX render pipeline actually runs.
+    # ``apply_isaac_rtx_global_settings`` uses ``omni.replicator`` (part of the SDG/rendering
+    # extensions), which some experiences do not preload, so ensure it is loaded first. A
+    # pure-headless replay renders nothing, so skip both.
+    if apply_rtx_settings:
+        _ensure_replicator_loaded()
+        apply_isaac_rtx_global_settings(
+            IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
+        )
     return env_cfg, success_term
 
 
@@ -1555,7 +1623,12 @@ def main() -> int:
             _resolve_cloudxr_env(args_cli.cloudxr_env), args_cli.auto_launch_cloudxr
         )
 
-        env_cfg, success_term = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
+        env_cfg, success_term = _prepare_env_cfg(
+            args_cli.task,
+            args_cli.num_envs,
+            args_cli.device,
+            apply_rtx_settings=_rtx_rendering_requested(args_cli),
+        )
 
         if not hasattr(env_cfg, "isaac_teleop") or env_cfg.isaac_teleop is None:
             raise ValueError(

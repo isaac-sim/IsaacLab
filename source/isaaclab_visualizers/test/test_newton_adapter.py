@@ -467,3 +467,87 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
     assert colors == (0.0, 1.0, 0.0)
     assert torch.allclose(torch.tensor(starts.numpy()[0]), torch.tensor([1.0, 2.0, 3.0]))
     assert torch.allclose(torch.tensor(ends.numpy()[0]), torch.tensor([1.0, 2.0, 3.1]))
+
+
+# ── USD marker inference and None-normal guard ────────────────────────
+
+
+class UsdFileCfg:
+    """Minimal stand-in that duck-types ``isaaclab.sim.spawners.UsdFileCfg``."""
+
+    def __init__(self, usd_path, scale=None):
+        self.usd_path = usd_path
+        self.scale = scale
+
+
+def test_infer_newton_marker_cfg_generic_usd_loads_mesh():
+    import os
+
+    import newton
+    from isaaclab_visualizers.newton.newton_visualization_markers import _infer_newton_marker_cfg
+
+    usd_path = os.path.join(os.path.dirname(newton.__file__), "tests", "assets", "cube_cylinder.usda")
+    spec = _infer_newton_marker_cfg(UsdFileCfg(usd_path))
+
+    assert spec.renderer == "mesh"
+    assert spec.mesh_type == "usd"
+    assert spec.preloaded_mesh is not None
+    assert spec.preloaded_mesh.vertices.shape[0] > 0
+
+
+def test_infer_newton_marker_cfg_missing_usd_falls_back_to_renderer_none():
+    from isaaclab_visualizers.newton.newton_visualization_markers import _infer_newton_marker_cfg
+
+    spec = _infer_newton_marker_cfg(UsdFileCfg("/nonexistent/missing.usd"))
+
+    assert spec.renderer == "none"
+
+
+def test_infer_newton_marker_cfg_arrow_x_usd_still_maps_to_builtin_arrow():
+    from isaaclab_visualizers.newton.newton_visualization_markers import _infer_newton_marker_cfg
+
+    spec = _infer_newton_marker_cfg(UsdFileCfg("/assets/arrow_x.usd"))
+
+    assert spec.renderer == "mesh"
+    assert spec.mesh_type == "arrow"
+    assert spec.preloaded_mesh is None
+
+
+def test_infer_newton_marker_cfg_frame_prim_usd_still_maps_to_frame_renderer():
+    from isaaclab_visualizers.newton.newton_visualization_markers import _infer_newton_marker_cfg
+
+    spec = _infer_newton_marker_cfg(UsdFileCfg("/assets/frame_prim.usd"))
+
+    assert spec.renderer == "frame"
+
+
+def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
+    import isaaclab_visualizers.newton.newton_visualization_markers as _mod
+    import numpy as np
+    from isaaclab_visualizers.newton.newton_visualization_markers import (
+        NewtonVisualizationMarkers,
+        _NewtonMarkerSpec,
+    )
+
+    fake_mesh = SimpleNamespace(
+        vertices=np.zeros((4, 3), dtype=np.float32),
+        indices=np.array([0, 1, 2, 0, 2, 3], dtype=np.int32),
+        normals=None,
+        uvs=None,
+    )
+    monkeypatch.setattr(_mod, "_create_mesh", lambda cfg: fake_mesh)
+
+    log_calls = []
+
+    class _LoggingViewer:
+        def log_mesh(self, name, vertices, indices, normals=None, uvs=None, texture=None, hidden=True):
+            log_calls.append({"normals": normals, "uvs": uvs})
+
+    fake_self = SimpleNamespace(_registered_meshes=set())
+    spec = _NewtonMarkerSpec(renderer="mesh", mesh_type="usd", preloaded_mesh=fake_mesh)
+
+    NewtonVisualizationMarkers._ensure_mesh_registered(fake_self, _LoggingViewer(), "/test/mesh", spec)
+
+    assert len(log_calls) == 1
+    assert log_calls[0]["normals"] is None
+    assert log_calls[0]["uvs"] is None

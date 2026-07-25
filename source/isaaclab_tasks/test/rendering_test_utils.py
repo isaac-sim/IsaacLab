@@ -148,6 +148,44 @@ _NEWTON_WARP_DATA_TYPES = (
 # Users should use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
 
+_OVRTX_TEXTURE_READINESS_DATA_TYPES = (
+    "albedo",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+)
+_OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+
+
+def make_xfail_rendering_params(
+    params: list[pytest.param],
+    expected_failures: dict[tuple[str, str, str], str],
+) -> list[pytest.param]:
+    """Mark selected rendering parameter combinations as expected failures.
+
+    Args:
+        params: Rendering parameters containing physics backend, renderer, and data type values.
+        expected_failures: Mapping from parameter value tuples to expected-failure reasons.
+
+    Returns:
+        Rendering parameters with non-strict ``xfail`` marks applied to matching combinations.
+    """
+    marked_params = []
+    for param in params:
+        reason = expected_failures.get(tuple(param.values))
+        if reason is None:
+            marked_params.append(param)
+            continue
+        # Expected failures should run once instead of consuming the RTX flaky-retry budget.
+        marks = [mark for mark in param.marks if mark.name != "flaky"]
+        marked_params.append(
+            pytest.param(
+                *param.values,
+                id=param.id,
+                marks=[*marks, pytest.mark.xfail(reason=reason, strict=False)],
+            )
+        )
+    return marked_params
+
 
 def _make_sensor_data_type_params(
     physics_backend: str,
@@ -191,16 +229,22 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
     ),
 ]
 
-KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params(
-        "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
-    ),
-    *_make_sensor_data_type_params(
-        "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
-    ),
-]
+KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
+    [
+        *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
+        *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
+        *_make_sensor_data_type_params(
+            "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+        ),
+        *_make_sensor_data_type_params(
+            "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+        ),
+    ],
+    {
+        ("newton", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+        for data_type in _OVRTX_TEXTURE_READINESS_DATA_TYPES
+    },
+)
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
@@ -318,33 +362,28 @@ def maybe_save_stage(
     try:
         if not sim_utils.save_stage(stage_path, save_and_reload_in_place=False):
             pytest.fail(f"save_stage reported failure while writing the USD stage to {stage_path}.")
-        with open(stage_path, encoding="utf-8") as file:
-            stage_text = file.read()
+
+        from pxr import Usd  # noqa: PLC0415
+
+        # Flatten the saved stage to inline sublayer references and resolve asset paths.
+        opened_stage = Usd.Stage.Open(stage_path)
+        if opened_stage is None:
+            pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
+        flat_layer = opened_stage.Flatten()
+        if flat_layer is None:
+            pytest.fail(f"Could not flatten the saved stage at {stage_path}.")
 
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
             out_path = os.path.join(out_dir, stage_basename)
-            with open(out_path, "w", encoding="utf-8") as file:
-                file.write(stage_text)
+            if not flat_layer.Export(out_path):
+                pytest.fail(f"Failed to export the flattened stage to {out_path}.")
             logger.info("[ISAAC_LAB_SAVE_STAGES] wrote %s", out_path)
 
         if compare_golden:
             golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, safe_test_name)
             os.makedirs(golden_dir, exist_ok=True)
             golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
-
-            from pxr import Usd  # noqa: PLC0415
-
-            # Open and flatten the saved stage once. Flattening inlines sublayer references so
-            # the golden carries no external paths and both the bootstrap export and the
-            # comparison work from the same flattened representation — even when save_stage
-            # writes a root layer with sublayer references. Opening the export (not the live Kit
-            # stage) also keeps volatile session render prims (OmniverseKit cameras, Replicator
-            # SDG pipeline, post-process) out of the baseline.
-            opened_stage = Usd.Stage.Open(stage_path)
-            if opened_stage is None:
-                pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
-            flat_layer = opened_stage.Flatten()
 
             if not os.path.exists(golden_path):
                 if not flat_layer.Export(golden_path):
@@ -735,6 +774,10 @@ def make_require_ovlibs_install_fixture():
 
     @pytest.fixture(autouse=True)
     def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
+        # TODO: Remove once usd-core>=26.5 is the minimum - that release fixes the race condition.
+        # Limit OpenUSD's work-thread pool to one thread to avoid race condition in usd-core<26.5
+        monkeypatch.setenv("PXR_WORK_THREAD_LIMIT", "1")
+
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return

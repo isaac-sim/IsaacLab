@@ -136,6 +136,18 @@ These guides explain how to interface with reinforcement learning environments i
     add_own_library
 
 
+Transferring Policies Between Physics Backends
+-----------------------------------------------
+
+This guide explains how to validate and evaluate policies trained in PhysX and deployed in Newton,
+and policies trained in Newton and deployed in PhysX.
+
+.. toctree::
+    :maxdepth: 1
+
+    transfer_policies_between_physx_and_newton
+
+
 Recording an Animation and Video
 --------------------------------
 

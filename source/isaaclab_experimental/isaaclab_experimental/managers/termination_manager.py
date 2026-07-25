@@ -22,8 +22,9 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import TerminationTermCfg
+
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

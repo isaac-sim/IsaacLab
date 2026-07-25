@@ -1003,9 +1003,11 @@ CUDA Out of Memory
 Deterministic Debugging (Play Environment)
 -------------------------------------------
 
-The ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play`` environment provides a fully
-deterministic setup for debugging policy behavior against a specific real-world scenario.
-All randomization is disabled and observation noise is turned off, so the simulation is
+Playing the ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference`` environment
+provides a fully deterministic setup for debugging policy behavior against a specific
+real-world scenario. The ``play_mode`` method of
+``Rizon4sGearAssemblyROSInferenceEnvCfg`` is applied automatically by the play command:
+all randomization is disabled and observation noise is turned off, so the simulation is
 identical on every reset.
 
 To use it, run the standard play command:
@@ -1017,7 +1019,7 @@ To use it, run the standard play command:
       .. code-block:: bash
 
           uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \
+              --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
               --num_envs 1 \
               --checkpoint <path_to_model.pt>
 
@@ -1026,27 +1028,27 @@ To use it, run the standard play command:
       .. code-block:: bash
 
           ./isaaclab.sh play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \
+              --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
               --num_envs 1 \
               --checkpoint <path_to_model.pt>
 
-To match a specific real-world setup, edit the constants at the top of the
-``Rizon4sGearAssemblyEnvCfg_PLAY`` class in
+To match a specific real-world setup, edit the play-mode constants at the top of the
+``Rizon4sGearAssemblyROSInferenceEnvCfg`` class in
 ``isaaclab_tasks/.../gear_assembly/config/rizon_4s/ros_inference_env_cfg.py``:
 
 .. code-block:: python
 
     @configclass
-    class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
-        # ── Scene setup ──
+    class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
+        # ── Play-mode scene setup ──
         GEAR_TYPE: str = "gear_large"                          # which gear to grasp
         GEAR_BASE_POS: tuple = (0.481, -0.073, -0.005)        # (x, y, z) meters
-        GEAR_BASE_ROT: tuple = (0.0, 0.0, 0.70711, -0.70711)  # quaternion (x,y,z,w)
+        GEAR_BASE_ROT: tuple = (0.0, 0.0, -0.70711, 0.70711)  # quaternion (x,y,z,w)
         GEAR_Z_OFFSET: float = 0.0675                          # gear height above base
 
-        # ── Observation overrides (None = use simulated values) ──
+        # ── Play-mode observation overrides (None = use simulated values) ──
         OBS_SHAFT_POS: tuple | None = None   # e.g. (0.481, -0.073, -0.005)
-        OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, 0.70711, -0.70711)
+        OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, -0.70711, 0.70711)
 
 When ``OBS_SHAFT_POS`` or ``OBS_SHAFT_QUAT`` are set (not ``None``), the
 play command automatically overwrites the corresponding portions of the
