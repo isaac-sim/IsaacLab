@@ -73,7 +73,7 @@ Then add a ``newton_kamino`` entry beside the existing ``default``, ``physx``, a
     :language: python
     :start-at: class CartpolePhysicsCfg
     :end-at: ovphysx: OvPhysxCfg = OvPhysxCfg()
-    :emphasize-lines: 16-38
+    :emphasize-lines: 17-38
 
 The important pieces are:
 

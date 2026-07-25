@@ -13,7 +13,10 @@ No Kit/GPU required — safe for CI and beginners.
 import sys
 from argparse import Namespace
 
+import pytest
 from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.app import scan
@@ -67,6 +70,30 @@ def test_rtx_is_renderer_selector():
     assert "rtx" in preset_map[PresetTarget.RENDERER]
 
 
+def test_isaacsim_physx_is_physics_selector():
+    """The concrete Isaac Sim PhysX selector is exposed as ``physics=isaacsim_physx``."""
+    preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
+
+    assert preset_map is not None
+    assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
+
+
+def test_cartpole_physx_preset_is_plain_physx_cfg():
+    """Task configs expose ``physx`` as concrete PhysX, not a public auto wrapper."""
+    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpolePhysicsCfg
+
+    physics_cfg = CartpolePhysicsCfg()
+
+    assert isinstance(physics_cfg.physx, PhysxCfg)
+    assert isinstance(physics_cfg.default, PhysxCfg)
+
+
+def test_physx_and_isaacsim_physx_presets_conflict():
+    """``physx`` and ``isaacsim_physx`` are distinct choices even when both use PhysxCfg."""
+    with pytest.raises(ValueError, match="Conflicting global presets"):
+        _resolve_with_presets("physx,isaacsim_physx")
+
+
 def test_preset_mjwarp_ovrtx_does_not_need_kit():
     """Newton + OVRTX renderer is kitless — no AppLauncher required."""
     env_cfg = _resolve_with_presets("newton_mjwarp,ovrtx")
@@ -74,20 +101,58 @@ def test_preset_mjwarp_ovrtx_does_not_need_kit():
     assert needs_kit is False
 
 
-def test_preset_rtx_with_physx_resolves_to_isaac_rtx_and_needs_kit():
-    """The RTX preset uses Isaac RTX when PhysX requires Isaac Sim."""
+def test_preset_rtx_resolves_to_ovphysx_and_ovrtx_without_kit():
+    """The RTX preset uses kitless PhysX-family backends when no Kit runtime is requested."""
     env_cfg = _resolve_with_presets("rtx")
     config_scan = _resolve_runtime_renderer(env_cfg)
 
+    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
+
+
+def test_renderer_selector_rtx_resolves_to_ovphysx_and_ovrtx_without_kit():
+    """The RTX renderer selector uses kitless PhysX-family backends without Kit signals."""
+    env_cfg = _resolve_with_args("renderer=rtx")
+    config_scan = _resolve_runtime_renderer(env_cfg)
+
+    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
+
+
+def test_renderer_selector_physx_rtx_resolves_to_ovphysx_without_kit():
+    """Automatic PhysX and RTX selectors use kitless backends when no Kit runtime is requested."""
+    env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
+
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+
+    config_scan = _resolve_runtime_renderer(env_cfg)
+
+    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
+
+
+def test_renderer_selector_physx_rtx_resolves_to_physx_with_kit_visualizer():
+    """Automatic PhysX and RTX selectors use Isaac Sim backends when the Kit visualizer is requested."""
+    env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
+
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+
+    config_scan = _resolve_runtime_renderer(env_cfg, Namespace(visualizer="kit"))
+
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
     assert config_scan.needs_kit is True
 
 
-def test_renderer_selector_rtx_with_physx_resolves_to_isaac_rtx_and_needs_kit():
-    """The RTX renderer selector uses Isaac RTX when PhysX requires Isaac Sim."""
-    env_cfg = _resolve_with_args("renderer=rtx")
+def test_renderer_selector_isaacsim_physx_rtx_resolves_to_physx_and_needs_kit():
+    """The explicit Isaac Sim PhysX selector keeps RTX on the Kit-compatible backend."""
+    env_cfg = _resolve_with_args("physics=isaacsim_physx", "renderer=rtx")
     config_scan = _resolve_runtime_renderer(env_cfg)
 
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
     assert config_scan.needs_kit is True
 
@@ -126,15 +191,17 @@ def test_preset_mjwarp_newton_renderer_does_not_need_kit():
     assert needs_kit is False
 
 
-def test_preset_physx_needs_kit():
-    """PhysX physics requires Kit."""
+def test_preset_physx_with_default_kit_camera_resolves_to_physx():
+    """Automatic PhysX resolves to Isaac Sim PhysX when the default camera requires Kit."""
     env_cfg = _resolve_with_presets("physx")
-    needs_kit = scan(env_cfg).needs_kit
-    assert needs_kit is True
+    config_scan = scan(env_cfg)
+
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert config_scan.needs_kit is True
 
 
 def test_preset_default_needs_kit():
-    """Default (PhysX + Isaac RTX) requires Kit."""
+    """Default automatic PhysX plus Isaac RTX requires Kit."""
     env_cfg = _resolve_with_presets("default")
     needs_kit = scan(env_cfg).needs_kit
     assert needs_kit is True

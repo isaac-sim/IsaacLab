@@ -24,8 +24,10 @@ from isaaclab_assets.robots.ant import ANT_CFG
 
 @configclass
 class AntPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    default = physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=45,
@@ -59,7 +61,6 @@ class AntPhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 @configclass

@@ -27,13 +27,14 @@ from isaaclab_tasks.utils import PresetCfg
 @configclass
 class CabinetDirectPhysicsCfg(PresetCfg):
     physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             integrator="implicitfast",
         ),
         num_substeps=1,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
     default = physx
 
 

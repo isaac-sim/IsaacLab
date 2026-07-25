@@ -24,8 +24,10 @@ from isaaclab_assets import HUMANOID_CFG
 
 @configclass
 class HumanoidPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    default = physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=80,
@@ -38,7 +40,6 @@ class HumanoidPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 @configclass
