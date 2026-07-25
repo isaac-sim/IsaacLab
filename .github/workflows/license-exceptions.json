@@ -522,7 +522,10 @@
   {
     "package": "omniverseclient",
     "license": "NVIDIA Proprietary Software, https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/",
-    "comment": "NVIDIA"
+    "comment": "NVIDIA",
+    "license_aliases": [
+      "CUSTOM License: NVIDIA Proprietary Software,..."
+    ]
   },
   {
     "package": "ovphysx",
@@ -549,6 +552,208 @@
     "license_aliases": [
       "PSF-2.0"
     ]
+  },
+  {
+    "package": "binutils",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.3-or-later",
+    "license_aliases": [
+      "GPL-2.0-or-later",
+      "LGPL-2.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "binutils-common",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.3-or-later",
+    "license_aliases": [
+      "GPL-2.0-or-later",
+      "LGPL-2.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "build-essential",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-or-later",
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "cpp-x86-64-linux-gnu",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "dpkg-dev",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "license_aliases": [
+      "GPL-2.0-or-later",
+      "public-domain-s-s-d"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "gcc-13-base",
+    "package_type": "OS Packages",
+    "license": "Artistic-2.0",
+    "license_aliases": [
+      "GFDL-1.2-only",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-only",
+      "LGPL-2.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libc-dev-bin",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.3-only",
+    "license_aliases": [
+      "GPL-2.0-only",
+      "LGPL-2.1-only"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libc6-dev",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.3-only",
+    "license_aliases": [
+      "GPL-2.0-only",
+      "LGPL-2.1-only"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libctf-nobfd0",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.3-or-later",
+    "license_aliases": [
+      "GPL-2.0-or-later",
+      "LGPL-2.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libdpkg-perl",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "license_aliases": [
+      "GPL-2.0-or-later",
+      "public-domain-s-s-d"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libgdbm-compat4t64",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.3-no-invariants-or-later",
+    "license_aliases": [
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-only",
+      "GPL-3.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libgdbm6t64",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.3-no-invariants-or-later",
+    "license_aliases": [
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-only",
+      "GPL-3.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libmpc3",
+    "package_type": "OS Packages",
+    "license": "LGPL-3.0-only",
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libmpfr6",
+    "package_type": "OS Packages",
+    "license": "LGPL-3.0-only",
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "libsframe1",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.3-or-later",
+    "license_aliases": [
+      "GPL-2.0-or-later",
+      "LGPL-2.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "linux-libc-dev",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "lto-disabled-list",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "license_aliases": [
+      "GPL-2.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "make",
+    "package_type": "OS Packages",
+    "license": "GPL-3.0-only",
+    "license_aliases": [
+      "GPL-3.0-or-later"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "patch",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-or-later",
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "wget",
+    "package_type": "OS Packages",
+    "license": "GFDL-1.2-only",
+    "license_aliases": [
+      "GPL-3.0-only"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
+  },
+  {
+    "package": "xz-utils",
+    "package_type": "OS Packages",
+    "license": "Autoconf",
+    "license_aliases": [
+      "config-h",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-only",
+      "LGPL-2.0-only",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "noderivs",
+      "none",
+      "PD",
+      "PD-debian",
+      "permissive-fsf",
+      "permissive-nowarranty",
+      "probably-PD"
+    ],
+    "comment": "Existing Dockerfile.base build/runtime dependency"
   },
   {
     "package": "ovrtx",

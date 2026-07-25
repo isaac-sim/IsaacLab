@@ -256,7 +256,10 @@ jobs:
           if [ "$match_found" = false ]; then
             # Check if the package is in the exceptions list
             EXCEPTION=$(jq -r --arg pkg "$pkg" --arg license "$LICENSE" \
-              '.[] | select(.package == $pkg)' "$EXCEPTIONS_FILE")
+              '.[] | select(
+                .package == $pkg
+                and ((.package_type == null) or (.package_type == "Python"))
+              )' "$EXCEPTIONS_FILE")
 
             # If the package is in the exceptions list
             if [ -n "$EXCEPTION" ]; then
@@ -453,6 +456,21 @@ jobs:
           exit 1
         fi
 
+        # Match the existing Python license job's package-level semantics. If
+        # Trivy reports any permissive license option for a package, accept all
+        # license rows for that package (for example, dual-licensed hidapi).
+        : > allowed-package-identities.tsv
+        while IFS=$'\t' read -r package_type package license _category _severity; do
+          for allowed_license in $ALLOWED_LICENSES; do
+            if [[ "${license,,}" == *"$allowed_license"* ]]; then
+              printf '%s\t%s\n' "$package_type" "$package" \
+                | tr '[:upper:]' '[:lower:]' >> allowed-package-identities.tsv
+              break
+            fi
+          done
+        done < current-findings.tsv
+        sort -u -o allowed-package-identities.tsv allowed-package-identities.tsv
+
         TOTAL_FINDINGS=$(wc -l < current-findings.tsv)
         INHERITED_FINDINGS=0
         ALLOWED_FINDINGS=0
@@ -475,14 +493,9 @@ jobs:
             continue
           fi
 
-          license_allowed=false
-          for allowed_license in $ALLOWED_LICENSES; do
-            if [[ "${license,,}" == *"$allowed_license"* ]]; then
-              license_allowed=true
-              break
-            fi
-          done
-          if [ "$license_allowed" = true ]; then
+          package_identity=$(printf '%s\t%s' "$package_type" "$package" \
+            | tr '[:upper:]' '[:lower:]')
+          if grep -Fqx -- "$package_identity" allowed-package-identities.tsv; then
             ALLOWED_FINDINGS=$((ALLOWED_FINDINGS + 1))
             continue
           fi
