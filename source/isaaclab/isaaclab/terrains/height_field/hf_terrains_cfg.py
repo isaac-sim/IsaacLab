@@ -15,10 +15,9 @@ class HfTerrainBaseCfg(SubTerrainBaseCfg):
     """The base configuration for height field terrains."""
 
     convert_to_heightfield: bool = True
-    """Whether the sub-terrain can be collided against as a heightfield. Defaults to True.
+    """Whether the sub-terrain should be converted to a heightfield. Defaults to True.
 
-    Height field terrains are generated from a height field, so the conversion back to a heightfield
-    reproduces them exactly.
+    Height field terrains are generated from a height field, so the conversion reproduces them exactly.
     """
 
     border_width: float = 0.0

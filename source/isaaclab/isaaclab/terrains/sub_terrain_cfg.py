@@ -90,17 +90,10 @@ class SubTerrainBaseCfg:
     """
 
     convert_to_heightfield: bool = False
-    """Whether the sub-terrain can be collided against as a heightfield. Defaults to False.
+    """Whether the sub-terrain should be converted to a heightfield.
 
-    Physics backends that support heightfield collision (e.g. Newton) can rasterize the terrain's collision
-    mesh into an equivalent heightfield, which is significantly faster to compile and collide against.
-    Backends without heightfield support ignore this setting.
-
-    The conversion is only performed when every sub-terrain in
-    :attr:`~isaaclab.terrains.TerrainGeneratorCfg.sub_terrains` enables it, since the generated terrain is a
-    single collision mesh. Height field sub-terrains enable it by default, as the heightfield reproduces them
-    exactly. Mesh sub-terrains keep it disabled, since the conversion is lossy for them (for instance,
-    overhangs and floating geometry are flattened).
+    If True, the sub-terrain will be converted to a heightfield, and only if all sub-terrains in the terrain
+    generator are marked for conversion.
     """
 
     flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None
