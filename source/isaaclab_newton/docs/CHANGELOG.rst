@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+2.1.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoCollisionCfg` for authoring
+  per-collider MuJoCo contact parameters used by MJWarp.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to use the renamed
+  ``"instance_segmentation"`` data type key (previously ``"instance_segmentation_fast"``).
+
+
 2.0.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 

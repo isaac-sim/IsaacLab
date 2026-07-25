@@ -82,8 +82,8 @@ def test_instance_segmentation_groups_by_labelled_ancestor():
     """Shapes group by their nearest labelled ancestor; idToSemantics carries the class label."""
     stage, shape_paths = _scene()
     mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg())
-    mapper.build_mapping("instance_segmentation_fast", colorize=False)
-    mapping = mapper.get_mapping("instance_segmentation_fast", colorize=False)
+    mapper.build_mapping("instance_segmentation", colorize=False)
+    mapping = mapper.get_mapping("instance_segmentation", colorize=False)
 
     ids = mapping.shape_to_id.numpy().tolist()
     # env_0 pole and cart share the env_0/Robot instance; env_1 is a separate instance; ground unlabelled.

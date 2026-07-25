@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.2.1 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added particle visualization toggle to :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg`, enabled by default.
+
+
 1.2.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 
