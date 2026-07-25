@@ -24,8 +24,9 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 @configclass
 class CartpolePhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    default = physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=5,
