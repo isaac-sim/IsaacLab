@@ -1,6 +1,224 @@
 Changelog
 ---------
 
+13.0.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a protected direct-environment hook for backend-native device-mask resets.
+* Added :attr:`~isaaclab.visualizers.BaseVisualizer.physics_backend` property to
+  :class:`~isaaclab.visualizers.BaseVisualizer` to expose the active physics backend
+  name at runtime, surfaced in the Kit viewport title, Newton ImGui panel, Rerun
+  stream, and Viser label.
+* Added ``has_joint_ordering`` and ``has_body_ordering`` properties to the
+  articulation data container, reporting whether a non-identity public
+  joint or body ordering is active without re-deriving it from the map.
+* Added ``stop_on_success`` parameter to the :func:`~isaaclab.sim.utils.apply_nested` decorator to
+  control whether the traversal skips a prim's descendants once the wrapped function succeeds on it.
+* Added the ``global_world_only`` field to :class:`~isaaclab.sensors.RayCasterCfg`, and the
+  ``sensor_shape_prim_expr`` and ``filter_shape_prim_expr`` fields to
+  :class:`~isaaclab.sensors.ContactSensorCfg`. These configure Newton-backend behavior and are
+  ignored by the PhysX and OvPhysX backends, so a single
+  :class:`~isaaclab.sensors.RayCasterCfg` or :class:`~isaaclab.sensors.ContactSensorCfg` selects the
+  matching backend implementation automatically without a per-task preset.
+* Added :func:`isaaclab.sim.enable_extension`, :func:`isaaclab.sim.disable_extension`, and
+  :func:`isaaclab.sim.get_extension_path` for interacting with Kit extensions without Isaac Sim utility dependencies.
+* Added support for an optional ``demo_recorder_cfg_entry_point`` Gym registry entry in demonstration collection.
+* Added :mod:`isaaclab.renderers.segmentation_colors`, a shared host + Warp implementation of the
+  Replicator-compatible segmentation colorization (``random_color_from_id`` / ``color_hash`` /
+  ``pack_rgba`` and the reserved ``BACKGROUND`` / ``UNLABELLED`` ids). It provides a single source of
+  truth for the color palette used by the OVRTX and Newton Warp renderers so colorized segmentation
+  outputs are visually consistent across backends.
+* Added :attr:`~isaaclab.cloner.CloneCfg.clone_combinations` support for
+  heterogeneous scenes backed by direct clone plans.
+* Added :func:`~isaaclab.scene.add` to fold environment-scoped scene
+  assets into heterogeneous clone combinations while deduplicating equivalent
+  environment definitions.
+* Added a direct clone-only demo that composes registered flat PhysX task
+  scenes, excludes task scenes whose floor is not at level 0, and replaces
+  task lights and floors with one Dome light and one shared ground plane,
+  without constructing task environments.
+* Added :meth:`~isaaclab.envs.ManagerBasedRLEnvCfg.play_mode`,
+  :meth:`~isaaclab.envs.DirectRLEnvCfg.play_mode` and
+  :meth:`~isaaclab.envs.DirectMARLEnvCfg.play_mode` to define play-mode overrides on the
+  environment configuration. Play scripts call this method after the configuration is loaded.
+  The base implementations cap the number of environments at 50 and disable observation
+  corruption/noise; task configurations can override the method to customize playback behavior.
+* Added :attr:`~isaaclab.cloner.CloneCfg.replicate_physics` as the cloner-side home of the
+  policy; :class:`~isaaclab.scene.InteractiveScene` pipes the scene flag into it and
+  :func:`~isaaclab.cloner.replicate` applies it.
+* Added :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` to override, per asset, the
+  physics cloning contexts resolved at replication time; ``None`` uses the active backend's
+  default physics context (``isaaclab_<backend>.cloner.PHYSICS_CONTEXT``). USD clones are
+  added automatically under Kit and are not authored through this field.
+* Added :class:`~isaaclab.ui.live_plots.ManagerLivePlots`, a backend-agnostic data collector
+  that samples manager terms each step and feeds them to any visualizer backend.
+* Added :meth:`~isaaclab.visualizers.BaseVisualizer.add_live_plots` and
+  :meth:`~isaaclab.visualizers.BaseVisualizer._render_live_plots` to
+  :class:`~isaaclab.visualizers.BaseVisualizer`, providing a unified entry point for live
+  plotting across all visualizer backends.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the velocity-limit semantics of implicit actuators.
+  :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit` now describes the joint's peak
+  velocity: it populates the articulation data buffers (e.g.
+  :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits`, read by velocity-limit
+  terminations and rewards) and is not pushed to the physics solver, while
+  :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit_sim` remains the solver-level
+  clamp. Setting both on an implicit actuator is now valid (previously a ``ValueError``).
+  Configurations that set only ``velocity_limit_sim`` or neither attribute behave exactly as
+  before. Configurations that set only ``velocity_limit`` change behavior: the value was
+  previously ignored for implicit actuators (with a deprecation warning) and now feeds the
+  velocity-limit data buffers, which affects velocity-limit terminations and rewards; a
+  warning is emitted at actuator construction in this case. To keep the old behavior, remove
+  ``velocity_limit`` from the actuator configuration; to impose a solver-level clamp, use
+  ``velocity_limit_sim``.
+* **Breaking:** Removed ``ISAACLAB_METADATA`` and ``ISAACLAB_EXT_DIR`` from :mod:`isaaclab`.
+  These were populated from the now-deleted ``config/extension.toml`` Kit extension manifest.
+  Use :attr:`isaaclab.__version__` for version information instead.
+* Updated ``panda_instanceable.usd`` Nucleus path to
+  ``Robots/FrankaEmika/Legacy/panda_instanceable.usd`` in doc examples and test files.
+* Updated ``omniverseclient`` dependency from ``2.71.1.7015`` to ``2.72.1``
+  for compatibility with newer versions of ovrtx (``0.4+``)
+* Changed the Newton backend implementations selected by
+  :class:`~isaaclab.sensors.RayCasterCamera`, :class:`~isaaclab.sensors.MultiMeshRayCaster`, and
+  :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` to their Warp-mesh ``Legacy``-prefixed classes,
+  following :class:`~isaaclab.sensors.RayCaster` moving to the Newton scene BVH. These
+  backend-dispatching sensors continue to work without configuration changes.
+* Changed the runtime benchmark to exclude configurable warmup frames and
+  report effective throughput over the complete measured interval, and
+  report environment-step host-return rates across runtime, play, and training
+  benchmarks. Added ``--warmup_frames`` to play benchmarks and
+  ``--warmup_steps`` to training benchmarks to exclude the first N
+  ``env.step()`` calls from environment-step timing. The new options default
+  to ``1`` to remove cold start. Runtime and play now execute the requested
+  warmup frames before the requested number of measured frames; pass
+  ``--warmup_frames 0`` to measure the first frame. Added an optional serialized
+  synchronized breakdown of time inside and outside simulation calls; the
+  outside-simulation remainder is not classified as overhead.
+* Changed the stock Kit experiences to stop registering deprecated Isaac Sim extension aliases and deprecated extension
+  search paths. Custom Kit experiences should depend on current ``isaacsim.*`` or ``omni.*`` extensions directly.
+* **Breaking:** Removed the deprecated command-line render flags. Omit visualizer selection for headless execution,
+  use ``--viz kit`` for the Kit visualizer, and launch camera tasks without an additional camera option.
+* Changed task-space action docstrings that advised keeping gravity compensation
+  disabled on the Newton backend — :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+  is now implemented on Newton, so ``gravity_compensation`` /
+  ``enable_gravity_compensation`` may be enabled on both backends.
+* Changed the :attr:`~isaaclab.cloner.CloneCfg.clone_strategy` default from
+  :func:`~isaaclab.cloner.random` to :func:`~isaaclab.cloner.sequential`,
+  matching :func:`~isaaclab.cloner.make_clone_plan` and
+  :class:`~isaaclab.cloner.ReplicateSession`. Set
+  ``clone_cfg.clone_strategy = random`` explicitly to keep random
+  prototype-to-environment assignment.
+* **Breaking:** Changed :data:`~isaaclab.cloner.REPLICATION_QUEUE` to hold asset cfgs instead
+  of ``(cfg, BackendCtxCls)`` pairs: construction registers *which* cfgs participate via
+  :func:`~isaaclab.cloner.queue_replication`, and *how* each is cloned resolves inside
+  :func:`~isaaclab.cloner.replicate`. Code appending pairs should register the cfg and direct
+  contexts through :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`.
+* :attr:`~isaaclab.visualizers.VisualizerCfg.enable_live_plots` now defaults to ``True`` so
+  live plots are active without requiring explicit opt-in.
+* :meth:`~isaaclab.envs.ManagerBasedEnv.setup_manager_visualizers` now calls
+  :meth:`~isaaclab.visualizers.BaseVisualizer.add_live_plots` on all active visualizers and is
+  invoked unconditionally (previously only when ``sim.has_gui`` was ``True``), so standalone
+  visualizers (Newton, Rerun, Viser) receive live plots in headless training runs.
+* :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` now delegates data collection to
+  :class:`~isaaclab.ui.live_plots.ManagerLivePlots` instead of calling
+  :meth:`~isaaclab.managers.ManagerBase.get_active_iterable_terms` directly, aligning the Kit
+  omni.ui path with the general backend-agnostic interface.
+* **Breaking:** Renamed the ``newton`` renderer selector in the PPISP camera
+  demo to ``newton_renderer``. Update commands to pass
+  ``--renderer newton_renderer``.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+* Removed ``queue_usd_replication``: register the cfg with
+  :func:`~isaaclab.cloner.queue_replication` and direct contexts through the cfg's
+  ``cloning_contexts`` field instead.
+
+Fixed
+^^^^^
+
+* Fixed contact sensors with history buffers to update at their configured cadence
+  during lazy scene updates.
+* Fixed LEAPP export baking zero ``kp``/``kd`` gains into the policy graph for policies trained
+  with explicit actuators (e.g. :class:`~isaaclab.actuators.DCMotor`,
+  :class:`~isaaclab.actuators.IdealPDActuator`). Such actuators compute their PD term internally
+  and apply it as joint effort, leaving the simulation-level joint stiffness/damping at zero, so
+  the exporter -- which read ``data.default_joint_stiffness`` / ``data.default_joint_damping`` --
+  exported zero gains and the deployed policy was unactuated. The gain outputs are now sourced from
+  ``asset.actuators`` so the exported graph carries the real PD gains for every actuator model.
+* Fixed :func:`~isaaclab.cloner.usd_replicate` authoring missing intermediate
+  ancestors of nested clone destinations (for example the ``Groceries`` scope in
+  ``/World/envs/env_{}/Groceries/Object``) as ``over`` prim specs. The copied
+  prims composed as undefined, so their references never expanded and renderers
+  skipped them in every environment except the source one.
+* Fixed :meth:`~isaaclab.sim.schemas.modify_rigid_body_properties` and
+  :meth:`~isaaclab.sim.schemas.modify_mass_properties` only modifying the first rigid body on assets
+  with nested rigid-body hierarchies (e.g. USD generated by the URDF importer in Isaac Sim 6.0 and
+  later). The traversal now continues into the children of successfully handled prims for these
+  functions.
+* Fixed :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`,
+  :func:`~isaaclab.sim.schemas.apply_collision_properties`, and
+  :func:`~isaaclab.sim.schemas.apply_mass_properties` force-applying their defining USD API on
+  the input prim. They now modify the prims in the subtree that already carry the API, matching
+  the legacy nested writers, and only apply a fresh API on the input prim when the subtree
+  carries none. Previously, passing a fragment list for ``rigid_props`` on a USD asset whose
+  spawn prim carries the articulation root turned the asset's links into nested rigid bodies,
+  and the PhysX parser dropped the articulation's joints.
+* Fixed :func:`~isaaclab.sim.schemas.apply_collision_properties` unconditionally returning
+  ``True``. It now raises ``ValueError`` on an invalid prim path and reports fragment failures
+  and skipped instanced prims in its return value, matching
+  :func:`~isaaclab.sim.schemas.apply_rigid_body_properties` and
+  :func:`~isaaclab.sim.schemas.apply_mass_properties`.
+* Fixed training benchmarks to reject warm-up settings that leave no measured
+  steps and close environments when training or result processing fails.
+* Fixed effective throughput metrics to report the conventional sample standard
+  deviation of observed rates.
+* Fixed play benchmark environments not closing when policy loading,
+  execution, or result processing failed.
+* Fixed Pink IK controller initialization when the Isaac Sim experimental utilities extension was unavailable.
+* Fixed mesh conversion initialization when the Isaac Sim experimental utilities extension was unavailable.
+* Fixed MJCF conversion after removing the bundled Isaac Sim dependency extensions from application startup.
+* Fixed GUI camera and XR applications missing the Replicator extension required by camera sensors.
+* Fixed the GUI application failing to resolve its window icon path during startup.
+* Fixed the documented wheel installation command missing the resolver overrides required by Isaac Sim.
+* Fixed benchmark runs requesting OmniPerf output when using a Kit-less simulation preset.
+* Fixed remaining scripts and deprecated XR utilities importing removed Isaac Sim extension helpers.
+* Fixed pytest verbosity flags, including trailing flags, enabling verbose Kit logging during simulator tests.
+* Fixed camera renderers retaining pre-reset transforms when an environment
+  resets state without advancing the physics-step counter.
+* Fixed :func:`~isaaclab.cloner.resolve_clone_plan_source` raising
+  ``NotImplementedError`` for assets cloned into only a subset of envs, which
+  blocked heterogeneous scenes where a robot type is present in just one task
+  group. Partial-env coverage now resolves to a destination glob spanning only
+  the envs that received the asset.
+* Fixed static :class:`~isaaclab.assets.AssetBaseCfg` assets (e.g. tables) being
+  spawned only into their source env in heterogeneous scenes. They are now queued
+  for USD replication so the clone plan spreads them to every env of their group.
+* Fixed USD replication double-applying per-env grid origins to assets cloned into
+  nested (sub-env) destinations, which offset static assets to the wrong place.
+  Env-origin transforms are now authored only on env-root prims; nested assets keep
+  their intra-env transform and inherit the origin from their env parent.
+* Fixed :attr:`~isaaclab.scene.InteractiveSceneCfg.replicate_physics` being ignored since the
+  replication-session refactor: scenes configured with ``replicate_physics=False`` invoked
+  native physics replication anyway, silently discarding per-environment USD differences
+  (e.g. prestartup scale randomization). Cloning is now USD-only in that case, so the physics
+  engine parses each environment's USD prims directly; assets whose only cloning mechanism is
+  physics replication are not cloned.
+* Fixed the Franka arms demo asset URL and OVRTX camera scene localization.
+
+* Fixed the heterogeneous-scene demo to use the current launcher arguments and
+  registered Digit task identifier.
+
+
 12.0.0 (2026-07-15)
 ~~~~~~~~~~~~~~~~~~~
 

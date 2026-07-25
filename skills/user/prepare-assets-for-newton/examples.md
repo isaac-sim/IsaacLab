@@ -13,7 +13,7 @@ Audit and correct authored mass, COM, inertia, units, and frames. Reconvert when
 ## Excessive Grasp Slip
 
 Verify collision geometry, contacts, material bindings, and gripper force. Author per-shape
-`mjc:condim` with the guide's task-local `MujocoCondimCfg` in `spawn.collision_props`, tune material
+`mjc:condim` with `MujocoCollisionCfg` in `spawn.collision_props`, tune material
 friction, then set global `MJWarpSolverCfg(cone="elliptic", impratio=10.0)` and compare fixed-grasp
 metrics. Limit recursive spawner overrides to assets whose colliders should all use that `condim`.
 

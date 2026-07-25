@@ -83,9 +83,9 @@ def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")
 
 
-def test_ovrtx_instance_segmentation_fast_uses_non_stable_instance_segmentation_render_var():
-    """Requesting instance_segmentation_fast from OVRTX selects the NonStableInstanceSegmentation render variable."""
-    assert get_render_var_config(["instance_segmentation_fast"]) == (
+def test_ovrtx_instance_segmentation_uses_non_stable_instance_segmentation_render_var():
+    """Requesting instance_segmentation from OVRTX selects the NonStableInstanceSegmentation render var."""
+    assert get_render_var_config(["instance_segmentation"]) == (
         "/Render/Vars/NonStableInstanceSegmentation",
         "NonStableInstanceSegmentation",
         "NonStableInstanceSegmentation",
@@ -174,7 +174,7 @@ def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars():
 
 def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars():
     """Requesting instance segmentation authors the pixel AOV plus the three ID/label map render vars."""
-    render_var_configs = get_render_var_configs(["instance_segmentation_fast"])
+    render_var_configs = get_render_var_configs(["instance_segmentation"])
 
     assert render_var_configs == [
         (
@@ -208,7 +208,7 @@ def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars():
 
 def test_ovrtx_semantic_and_instance_segmentation_share_a_single_semantic_id_map():
     """Requesting both segmentation outputs authors ``SemanticIdMap`` exactly once (it is shared)."""
-    render_var_configs = get_render_var_configs(["semantic_segmentation", "instance_segmentation_fast"])
+    render_var_configs = get_render_var_configs(["semantic_segmentation", "instance_segmentation"])
 
     sources = [source for _, _, source in render_var_configs]
     assert sources.count("SemanticIdMap") == 1

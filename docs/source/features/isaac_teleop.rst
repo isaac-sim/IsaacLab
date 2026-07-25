@@ -1437,6 +1437,48 @@ Optimize XR Performance
    perceptible quality loss. Reduce further only if you still cannot hit the headset's display
    rate.
 
+.. dropdown:: Disable external camera rendering
+   :open:
+
+   The teleop scripts (``teleop_se3_agent.py``, ``record_demos.py``, and
+   ``teleop_replay_agent.py``) render external camera sensors by default. Camera render products
+   add significant GPU cost and contend with the XR view, so if your task does not need camera
+   observations during teleoperation, disable them with ``--disable_external_cameras``:
+
+   .. code-block:: bash
+
+      uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+          --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+          --visualizer kit --xr \
+          --disable_external_cameras
+
+   The flag strips the environment's camera sensors (equivalent to calling
+   :func:`~isaaclab_teleop.remove_camera_configs` on the env config) and selects a lighter Kit
+   experience. Omit it to keep cameras enabled (the default) -- required when recording camera
+   observations, or when you want ``teleop_replay_agent.py`` to mirror the production render load.
+
+.. dropdown:: Run headless (skip the local viewport)
+   :open:
+
+   Passing ``--visualizer kit`` opens the local Kit viewport, which renders a window on the host
+   in addition to the XR view. On a server or cloud instance -- or whenever you do not need the
+   local window -- run headless so only the XR view is rendered, freeing GPU for the headset:
+
+   .. code-block:: bash
+
+      uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+          --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+          --viz none --xr
+
+   In headless XR the OpenXR/AR session **starts automatically** -- there is no local viewport to
+   click **Start XR**, so Isaac Lab begins streaming as soon as a CloudXR client connects.
+
+   .. note::
+
+      The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
+      (omit ``--visualizer``); pass ``--visualizer none`` / ``--viz none`` to force it when a
+      config might otherwise enable a visualizer, or set ``HEADLESS=1`` in the environment.
+
 .. dropdown:: Configure retargeting execution
    :open:
 

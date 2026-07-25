@@ -1,0 +1,4 @@
+# No changelog entry / version bump: the only isaaclab_teleop change is a new test
+# (source/isaaclab_teleop/test/test_teleop_scripts_smoke.py) that launches the teleop
+# entry-point scripts. The user-facing teleop-script fixes live under scripts/ and are
+# not part of a published package.
