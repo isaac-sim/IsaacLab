@@ -262,10 +262,8 @@ class TerrainImporter:
     def _is_heightfield_collider_requested(self, cfg: TerrainGeneratorCfg) -> bool:
         """Check whether the generated terrain should be collided against as a heightfield.
 
-        Terrains made up entirely of height field sub-terrains are always converted, since the
-        heightfield reproduces their collision mesh exactly. Terrains containing mesh sub-terrains
-        are only converted when :attr:`~isaaclab.terrains.TerrainGeneratorCfg.convert_to_heightfield`
-        is enabled, as the conversion is lossy for them.
+        The generated terrain is a single collision mesh, so it can only be converted when every
+        sub-terrain sets :attr:`~isaaclab.terrains.SubTerrainBaseCfg.convert_to_heightfield`.
 
         Args:
             cfg: The configuration of the terrain generator.
@@ -273,12 +271,8 @@ class TerrainImporter:
         Returns:
             Whether the terrain collider should be tagged for heightfield conversion.
         """
-        from .height_field import HfTerrainBaseCfg
-
-        if cfg.convert_to_heightfield:
-            return True
         return len(cfg.sub_terrains) > 0 and all(
-            isinstance(sub_cfg, HfTerrainBaseCfg) for sub_cfg in cfg.sub_terrains.values()
+            sub_cfg.convert_to_heightfield for sub_cfg in cfg.sub_terrains.values()
         )
 
     def _tag_heightfield_collider(self, prim_path: str, horizontal_scale: float):

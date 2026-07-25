@@ -14,6 +14,13 @@ from ..sub_terrain_cfg import SubTerrainBaseCfg
 class HfTerrainBaseCfg(SubTerrainBaseCfg):
     """The base configuration for height field terrains."""
 
+    convert_to_heightfield: bool = True
+    """Whether the sub-terrain can be collided against as a heightfield. Defaults to True.
+
+    Height field terrains are generated from a height field, so the conversion back to a heightfield
+    reproduces them exactly.
+    """
+
     border_width: float = 0.0
     """The width of the border/padding around the terrain (in m). Defaults to 0.0.
 
