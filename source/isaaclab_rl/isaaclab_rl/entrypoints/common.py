@@ -27,7 +27,7 @@ import torch
 from PIL import Image
 
 from isaaclab.app import AppLauncher
-from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.io import dump_yaml
@@ -235,13 +235,19 @@ def resolve_play_task_name(task: str | None) -> str | None:
     return f"{namespace}:{train_name}" if namespace else train_name
 
 
-def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -> str:
+def resolve_play_checkpoint(
+    checkpoint: str | None,
+    framework: str,
+    task: str,
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | None = None,
+) -> str:
     """Resolve an explicit or published checkpoint for a play workflow.
 
     Args:
         checkpoint: Local or Nucleus checkpoint path.
         framework: RL library name.
         task: Gym task id; namespaces and a trailing ``-Play`` are ignored for published lookups.
+        env_cfg: Resolved environment config used to identify the active backends.
 
     Returns:
         Local checkpoint path.
@@ -254,11 +260,15 @@ def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -
 
         return retrieve_file_path(checkpoint)
 
-    from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+    from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names,
+        get_published_pretrained_checkpoint,
+    )
 
     logger.warning("No --checkpoint given; using the published checkpoint for %s / %s.", framework, task)
     published_task = task.split(":")[-1].replace("-Play", "")
-    path = get_published_pretrained_checkpoint(framework, published_task)
+    backend_names = get_pretrained_checkpoint_backend_names(env_cfg) if env_cfg is not None else ()
+    path = get_published_pretrained_checkpoint(framework, published_task, *backend_names)
     if path is None:
         raise FileNotFoundError(
             f"No checkpoint available for framework {framework!r} and task {task!r}; pass --checkpoint"

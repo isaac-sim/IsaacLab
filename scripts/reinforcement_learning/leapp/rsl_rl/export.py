@@ -42,6 +42,7 @@ retrieve_file_path = None
 patch_env_for_export = None
 ensure_env_spec_id = None
 get_published_pretrained_checkpoint = None
+get_pretrained_checkpoint_backend_names = None
 get_checkpoint_path = None
 hydra_task_config = None
 installed_version = None
@@ -118,7 +119,8 @@ def _load_runtime_dependencies() -> None:
     global _RUNTIME_IMPORTS_LOADED
     global annotate, leapp, torch
     global DistillationRunner, ManagerBasedRLEnv, OnPolicyRunner, RslRlVecEnvWrapper, get_checkpoint_path, gym
-    global ensure_env_spec_id, get_published_pretrained_checkpoint, handle_deprecated_rsl_rl_cfg, hydra_task_config
+    global ensure_env_spec_id, get_pretrained_checkpoint_backend_names, get_published_pretrained_checkpoint
+    global handle_deprecated_rsl_rl_cfg, hydra_task_config
     global installed_version
     global patch_env_for_export, retrieve_file_path
 
@@ -149,6 +151,9 @@ def _load_runtime_dependencies() -> None:
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper as RslRlVecEnvWrapperCls
     from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg as handle_deprecated_rsl_rl_cfg_fn
     from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
+    )
+    from isaaclab_rl.utils.pretrained_checkpoint import (
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
     )
 
@@ -175,6 +180,7 @@ def _load_runtime_dependencies() -> None:
     retrieve_file_path = retrieve_file_path_fn
     patch_env_for_export = patch_env_for_export_fn
     ensure_env_spec_id = ensure_env_spec_id_fn
+    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
     get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
@@ -275,7 +281,8 @@ def export_rsl_rl_agent(
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
     if args_cli.use_pretrained_checkpoint:
-        resume_path = get_published_pretrained_checkpoint("rsl_rl", checkpoint_task_name)
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        resume_path = get_published_pretrained_checkpoint("rsl_rl", checkpoint_task_name, *backend_names)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return False

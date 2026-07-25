@@ -155,6 +155,54 @@ The contributed Cartpole showcase tasks likewise pair each non-default
 configs, such as RSL-RL symmetry or recurrent policies and skrl's AMP/IPPO/MAPPO
 algorithms, are algorithm choices rather than preset requirements.
 
+Pretrained checkpoints
+----------------------
+
+Pass ``--use_pretrained_checkpoint`` to load the published policy matching the
+resolved task configuration. Checkpoints are grouped by RL library and use the
+following filename:
+
+.. code-block:: text
+
+   <task_name>_<physics_backend>_<render_backend>.<extension>
+
+For example, ``Isaac-Cartpole_newton_none.pt`` is the RSL-RL policy for
+state-based Cartpole on Newton, while
+``Isaac-Cartpole-Camera_newton_rtx.pt`` is the camera policy using Newton
+physics and RTX rendering. State-only tasks use ``none`` for the render backend.
+Pass the same physics, renderer, and domain selectors used during training so
+the checkpoint and policy network agree:
+
+.. code-block:: bash
+
+   ./isaaclab.sh play --rl_library rsl_rl \
+       --task Isaac-Cartpole-Camera \
+       --use_pretrained_checkpoint \
+       physics=newton_mjwarp renderer=isaacsim_rtx
+
+Maintainers can generate the preferred core-task checkpoint matrix with
+``scripts/tools/train_and_publish_checkpoints.py``. The script selects RSL-RL
+when available, falls back to RL-Games, and uses SKRL MAPPO for multi-agent
+tasks. It preserves each task's default domain preset and trains only backend
+combinations declared by that task. Newton Kamino presets are excluded from
+this matrix; tasks whose only Newton preset is Kamino are skipped for Newton.
+
+.. code-block:: bash
+
+   # Inspect and smoke-test the supported matrix.
+   ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py \
+       --list --all --core
+   ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py \
+       --smoke --all --core
+
+   # Run each agent config's full schedule and collect the last/best checkpoint.
+   ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py \
+       --train --all --core
+
+Collected files are written under ``logs/pretrained_checkpoints/<rl_library>/``
+by default. Re-running the command skips completed jobs, so interrupted matrices
+can be resumed.
+
 
 RL-Games
 --------

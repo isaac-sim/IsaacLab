@@ -144,7 +144,7 @@ def run(argv: list[str]) -> None:
                 metadata={"agent": args.agent},
             )
         else:
-            resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task)
+            resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task, env_cfg)
 
         cfg = capture.run_config_from_presets(remaining)
         formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]

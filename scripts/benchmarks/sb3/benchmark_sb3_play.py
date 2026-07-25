@@ -147,7 +147,7 @@ def run(argv: list[str]) -> None:
                 metadata={"agent": args_cli.agent},
             )
         else:
-            resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "sb3", args_cli.task)
+            resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "sb3", args_cli.task, env_cfg)
 
         cfg = capture.run_config_from_presets(remaining_args)
         formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]

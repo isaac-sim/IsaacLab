@@ -54,9 +54,13 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.math import quat_apply
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
+from isaaclab_tasks.utils import resolve_presets
 
 TASK = "Isaac-Velocity-Rough-H1"
 RL_LIBRARY = "rsl_rl"
@@ -82,16 +86,17 @@ class H1RoughDemo:
         loads pre-trained checkpoints, and registers keyboard events."""
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
-        # load the trained jit policy
-        checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK)
         # create envionrment
-        env_cfg = H1RoughEnvCfg()
+        env_cfg = resolve_presets(H1RoughEnvCfg())
         env_cfg.play_mode()
         env_cfg.scene.num_envs = 25
         env_cfg.episode_length_s = 1000000
         env_cfg.curriculum = None
         env_cfg.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         env_cfg.commands.base_velocity.ranges.heading = (-1.0, 1.0)
+        # load the trained jit policy
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, *backend_names)
         # wrap around environment for rsl-rl
         self.env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=env_cfg))
         self.device = self.env.unwrapped.device

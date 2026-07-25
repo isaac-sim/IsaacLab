@@ -8,7 +8,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -126,8 +125,7 @@ class EventCfg:
 
 # Reuse the single-agent Shadow Hand Newton port (USD path, ``rot`` reapplication
 # workaround, effort limits, joint regex). The multi-agent variant only diverges
-# in actuator gains (stiffness/damping bumped for the catch task) and adds a
-# ``distal_passive`` override for the J0 USD-baked values.
+# in actuator gains (stiffness/damping bumped for the catch task).
 _SHADOW_HAND_NEWTON_CFG = ShadowHandRobotCfg().newton_mjwarp
 
 
@@ -142,8 +140,8 @@ def _shadow_hand_cfg(
     differences (right vs left) come from the caller's *prim_path* / *init_pos* /
     *init_rot* — the gain tuning is identical on both hands.
 
-    The Newton variant layers two :class:`~isaaclab.actuators.ImplicitActuatorCfg`
-    overrides on top of the single-agent Newton port:
+    The Newton variant overrides the ``fingers`` actuator from the single-agent
+    Newton port:
 
     * ``fingers`` actuator: ``stiffness=20.0`` / ``damping=2.0`` (vs PhysX's
       ``5.0`` / ``0.5`` on wrists and ``1.0`` / ``0.1`` on fingers). PhysX layers
@@ -154,12 +152,6 @@ def _shadow_hand_cfg(
       authority. ``20.0`` / ``2.0`` is the smallest tested setting at which
       MAPPO learns the catch (mean reward at iter 200 / 2048 envs goes from
       ~27 at PhysX-mirrored gains to ~777).
-    * ``distal_passive`` on the four ``robot0_(FF|MF|RF|LF)J0`` joints with
-      ``stiffness=10.0`` / ``damping=0.1``. The Newton USD bakes
-      ``stiffness=286 / damping=57`` on these joints from the MJCF→USD
-      translation, which fights the ``MjcTendon`` coupling and bounces the
-      ball. ``stiffness=10`` (~1/3 of PhysX's ``limit_stiffness=30``) keeps
-      the joints near-passive while the tendon constraint dominates.
     """
     physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
         init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
@@ -169,13 +161,6 @@ def _shadow_hand_cfg(
         init_state=_SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=init_rot),
         actuators={
             "fingers": _SHADOW_HAND_NEWTON_CFG.actuators["fingers"].replace(stiffness=20.0, damping=2.0),
-            "distal_passive": ImplicitActuatorCfg(
-                joint_names_expr=["robot0_(FF|MF|RF|LF)J0"],
-                stiffness=10.0,
-                damping=0.1,
-                friction=1e-2,
-                armature=2e-3,
-            ),
         },
     )
     return preset(default=physx_cfg, physx=physx_cfg, newton_mjwarp=newton_cfg)

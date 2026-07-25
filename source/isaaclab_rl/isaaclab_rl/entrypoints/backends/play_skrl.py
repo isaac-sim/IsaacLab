@@ -28,7 +28,10 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector, resolve_play_task_name
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -147,7 +150,8 @@ def main():
         log_root_path = os.path.abspath(log_root_path)
         print(f"[INFO] Loading experiment from directory: {log_root_path}")
         if args_cli.use_pretrained_checkpoint:
-            resume_path = get_published_pretrained_checkpoint("skrl", train_task_name)
+            backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+            resume_path = get_published_pretrained_checkpoint("skrl", train_task_name, *backend_names)
             if not resume_path:
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
