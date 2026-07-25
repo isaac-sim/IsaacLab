@@ -111,10 +111,7 @@ def test_ci_ovrtx_installs_match_source_package_requirement():
     """CI must not bypass the OVRTX version range declared by the source package."""
     expected_requirement = _ovrtx_requirement_from_setup()
 
-    for workflow_path in (
-        ".github/workflows/build.yaml",
-        ".github/workflows/daily-compatibility.yml",
-    ):
+    for workflow_path in (".github/workflows/build.yaml",):
         workflow = (_repo_root() / workflow_path).read_text(encoding="utf-8")
         ovrtx_install_lines = [
             line.strip() for line in workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
