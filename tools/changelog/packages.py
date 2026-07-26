@@ -318,6 +318,22 @@ class FragmentBatch:
     that exercise edge cases without a real fragments directory.
     """
 
+    # ---- Nested types ---------------------------------------------------
+
+    class PartialDeletion(OSError):
+        """An unlink failed part-way through consuming a batch.
+
+        ``deleted`` holds the paths already removed, so the caller can
+        account for them instead of treating a partial deletion as none.
+        """
+
+        def __init__(self, cause: OSError, deleted: list[Path]):
+            super().__init__(str(cause))
+            self.cause = cause
+            self.deleted = deleted
+
+    # ---- Class constants ------------------------------------------------
+
     # Canonical ordering of section headings in compiled output. Anything
     # not listed here keeps insertion order *after* these.
     _SECTION_ORDER: ClassVar[list[str]] = ["Added", "Changed", "Deprecated", "Removed", "Fixed"]
@@ -423,10 +439,7 @@ class FragmentBatch:
         A ``.skip`` is matched on filename alone and never parsed, so its
         contents are irrelevant to whether it is removed.
         """
-        deleted = list(self.skip_paths)
-        for path in deleted:
-            path.unlink()
-        return deleted
+        return self._unlink_all(self.skip_paths)
 
     # ---- Internals ------------------------------------------------------
 
@@ -436,9 +449,27 @@ class FragmentBatch:
 
     def _delete_valid(self) -> list[Path]:
         """Delete the consumed fragments. Returns the paths removed."""
-        deleted = [f.path for f in self.valid]
-        for path in deleted:
-            path.unlink()
+        return self._unlink_all([f.path for f in self.valid])
+
+    @classmethod
+    def _unlink_all(cls, paths: list[Path]) -> list[Path]:
+        """Delete ``paths``, returning those actually removed.
+
+        A failure part-way carries the deletions already made out with it
+        rather than dropping them. Returning "all five or none" when three
+        are genuinely gone leaves real changes unaccounted for -- the same
+        class of omission that lets a consumed fragment survive on a branch.
+
+        Raises:
+            PartialDeletion: An unlink failed; ``deleted`` holds what went.
+        """
+        deleted: list[Path] = []
+        for path in paths:
+            try:
+                path.unlink()
+            except OSError as e:
+                raise cls.PartialDeletion(e, deleted) from e
+            deleted.append(path)
         return deleted
 
     # ---- Pure helpers ---------------------------------------------------
@@ -513,17 +544,22 @@ class Package:
     class CompileFailed(Exception):
         """A compile that raised *after* it had already written to disk.
 
-        Carries the paths written before the failure. A caller that stages
-        what the compile reports must still receive them: the writes really
-        happened, and leaving them unstaged strands a half-applied compile in
-        the working tree, which in turn makes the nightly's ``git rebase``
-        refuse to run.
+        Carries the paths it had written when it failed, so the caller can
+        put them back. They must not be kept: a compile is only meaningful
+        whole, and half of one is a changelog entry announcing a version the
+        manifest never received, over a fragment that was never consumed —
+        which the next run would compile into a second, identical entry.
+
+        Discarding them is also what keeps the working tree clean, which the
+        nightly's ``git rebase`` requires. Committing them would satisfy that
+        too, which is why the distinction is worth stating: the tree must be
+        clean *and* the branch must not carry a half-applied compile.
         """
 
-        def __init__(self, cause: Exception, touched: list[Path]):
+        def __init__(self, cause: Exception, written: list[Path]):
             super().__init__(str(cause))
             self.cause = cause
-            self.touched = touched
+            self.written = written
 
     root: Path
 
@@ -700,7 +736,12 @@ class Package:
                     # from the working tree — report them so the deletion is
                     # staged rather than silently reverted on next checkout.
                     print(f"  {self.name}: cleaned {n} stale skip file(s).")
-                    return False, batch.delete_skips()
+                    try:
+                        return False, batch.delete_skips()
+                    except FragmentBatch.PartialDeletion as e:
+                        # Same contract as the main path: whatever went is
+                        # reported, wrapped so the caller can undo it.
+                        raise self.CompileFailed(e, e.deleted) from e
             else:
                 print(f"  {self.name}: no fragments, skipping.")
             return False, []
@@ -738,10 +779,10 @@ class Package:
                 f"{_display_path(self.changelog_path)} does not exist; "
                 f"package {self.name!r} is not managed (missing CHANGELOG.rst)."
             )
-        # Everything below mutates the working tree. Once the first write
-        # lands the run is no longer all-or-nothing, so a later failure has to
-        # hand back what it already did rather than let those paths vanish
-        # from the caller's staging set.
+        # Everything below mutates the working tree, so from the first write
+        # on the compile is no longer all-or-nothing. A later failure reports
+        # what it managed to write so the caller can undo it -- see
+        # :class:`CompileFailed` for why undoing beats keeping.
         touched: list[Path] = []
         try:
             touched.extend(self.write_changelog_entry(entry, dry_run=dry_run))
@@ -759,10 +800,15 @@ class Package:
                 if deleted_skips:
                     msg += f" and {len(deleted_skips)} skip file(s)"
                 print(msg + ".")
+        except FragmentBatch.PartialDeletion as e:
+            # Deletions that did land are changes like any other, so they
+            # join the set the caller has to undo.
+            touched.extend(e.deleted)
+            raise self.CompileFailed(e, touched) from e
         except (OSError, ValueError) as e:
             if not touched:
-                # Nothing reached disk, so the caller has nothing to stage and
-                # the original exception type is the more useful one. Only a
+                # Nothing reached disk, so there is nothing to undo and the
+                # original exception type is the more useful one. Only a
                 # genuinely half-applied compile needs the wrapper.
                 raise
             raise self.CompileFailed(e, touched) from e

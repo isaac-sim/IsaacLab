@@ -147,7 +147,7 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
         # ``CompileFailed`` wraps a failure that happened after the compile had
         # already written; this command has nothing to stage, so it is reported
         # exactly like a failure that happened before the first write.
-        except (Package.CompileFailed, FileNotFoundError, ValueError) as e:
+        except (Package.CompileFailed, OSError, ValueError) as e:
             print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
             failures.append((pkg.name, str(e)))
             continue
@@ -267,12 +267,14 @@ def cmd_sync_lock(args: argparse.Namespace, _parser: argparse.ArgumentParser) ->
     as a gate that fails when the lock has drifted.
     """
     lock = LockFile(RootPackage(REPO_ROOT))
-    if not lock.exists:
-        print(f"No {LockFile.LOCK_NAME} on this branch — nothing to sync.")
-        return 0
     try:
         if not args.check:
             lock.sync()
+            return 0
+        if not lock.exists:
+            # ``check`` is silent by contract; say so here where a human
+            # is watching. ``sync`` prints its own no-op notice.
+            print(f"No {LockFile.LOCK_NAME} on this branch — nothing to sync.")
             return 0
         changes = lock.check()
     except LockFile.Error as e:

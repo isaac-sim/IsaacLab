@@ -37,30 +37,17 @@ class GitRepo:
     instead of mocking subprocess.
     """
 
+    # ---- Nested types ---------------------------------------------------
+
     class NonFastForward(GitError):
         """Raised when ``git push`` is rejected because the remote advanced."""
+
+    # ---- Construction ---------------------------------------------------
 
     def __init__(self, cwd: Path):
         self.cwd = cwd
 
-    def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-        # ``-c color.ui=false`` because this output is parsed, not displayed.
-        # git suppresses colour for a pipe by default, but a developer or
-        # runner with ``color.ui = always`` configured overrides that, and the
-        # resulting ANSI escapes silently break line-prefix matching: a diff
-        # line arrives as ``\x1b[31m-version = "1.2.3"``, so the version
-        # extraction reports "?" and the non-fast-forward detection stops
-        # recognising a rejected push. Neither failure is loud.
-        return subprocess.run(
-            ["git", "-c", "color.ui=false", *args],
-            cwd=self.cwd,
-            text=True,
-            capture_output=True,
-            check=check,
-        )
-
-    def config(self, key: str, value: str) -> None:
-        self._run("config", key, value)
+    # ---- Public API -----------------------------------------------------
 
     def add(self, paths: Iterable[Path | str]) -> None:
         """Stage ``paths``, including deletions.
@@ -78,31 +65,57 @@ class GitRepo:
             path_strs = [p for p in path_strs if Path(p).exists() or p in known]
         if not path_strs:
             return
-        self._run("add", "--", *path_strs)
+        self._run("add", "--", *self._literal(path_strs))
 
-    def _tracked(self, paths: Iterable[Path | str]) -> list[str]:
-        """Return the subset of ``paths`` git has under version control.
+    def restore(self, paths: Iterable[Path | str]) -> None:
+        """Undo working-tree changes to ``paths``, including deletions.
 
-        ``-z`` is load-bearing, not a style choice. With ``core.quotePath`` at
-        its default, ``git ls-files`` C-quotes any path containing a non-ASCII
-        byte -- ``josé-fix.rst`` comes back as ``"jos\\303\\251-fix.rst"``.
-        Fragment slugs allow those characters, so the quoted form would fail
-        the caller's comparison, its deletion would be dropped from the staging
-        set, and the fragment would survive on the branch to be compiled a
-        second time. NUL-delimited output is emitted verbatim.
+        Used to roll back a compile that failed part-way. Only paths git
+        already tracks can be restored; anything the compile created fresh is
+        removed instead, so a half-applied compile leaves nothing behind
+        either way.
         """
-        listed = self._run("ls-files", "-z", "--", *[str(p) for p in paths]).stdout.split("\0")
-        # ``ls-files`` reports repo-relative paths; callers hold absolute ones.
-        return [str(self.cwd / line) for line in listed if line]
+        path_strs = [str(p) for p in paths]
+        if not path_strs:
+            return
+        tracked = set(self._tracked(path_strs))
+        if restorable := [p for p in path_strs if p in tracked]:
+            self._run("checkout", "--", *self._literal(restorable))
+        for p in path_strs:
+            if p not in tracked and Path(p).exists():
+                Path(p).unlink()
 
     def has_staged_changes(self) -> bool:
+        """Whether anything is currently staged for commit."""
         return self._run("diff", "--staged", "--quiet", check=False).returncode != 0
 
     def staged_diff(self, path: Path | str) -> str:
-        return self._run("diff", "--staged", "--", str(path)).stdout
+        """Return the staged diff for one path.
 
-    def commit(self, message: str) -> None:
-        self._run("commit", "-m", message)
+        ``--no-color`` rather than relying on the ``color.ui`` override in
+        :meth:`_run`: ``color.diff`` is more specific and wins over it, so a
+        config carrying ``color.diff = always`` would still wrap these lines
+        in ANSI escapes and break the caller's prefix matching.
+        """
+        return self._run("diff", "--staged", "--no-color", "--", str(path)).stdout
+
+    def commit(self, message: str, *, author_name: str, author_email: str) -> None:
+        """Commit the staged changes under a one-off identity.
+
+        The identity is passed per-invocation with ``-c`` rather than written
+        via ``git config``, which would permanently rewrite the identity of
+        whatever clone this ran in — including a maintainer's own, if they
+        run the command locally.
+        """
+        self._run(
+            "-c",
+            f"user.name={author_name}",
+            "-c",
+            f"user.email={author_email}",
+            "commit",
+            "-m",
+            message,
+        )
 
     def fetch(self, remote: str, ref: str) -> None:
         """Fetch ``ref`` from ``remote``.
@@ -115,21 +128,80 @@ class GitRepo:
         self._run("fetch", remote, ref)
 
     def rebase(self, onto: str) -> None:
+        """Replay the current branch's commits onto ``onto``."""
         self._run("rebase", onto)
 
     def push(self, remote: str, refspec: str) -> None:
+        """Push ``refspec`` to ``remote``.
+
+        Raises:
+            NonFastForward: The remote moved; the caller may fetch, rebase
+                and retry.
+            GitError: Any other failure, including a rejection by a remote
+                hook or ruleset, which retrying cannot fix.
+        """
         result = self._run("push", "--porcelain", remote, refspec, check=False)
         if result.returncode == 0:
             return
         combined = ((result.stdout or "") + (result.stderr or "")).strip()
-        # ``--porcelain`` emits one machine-readable status line per ref, with
-        # a flag character in column zero: ``!`` marks a rejected ref. Testing
-        # that flag rather than scanning the human summary for "[rejected]"
-        # keeps the retry decision working under any locale -- the prose is
-        # translated, the flag is not.
-        if any(line.startswith("!") for line in (result.stdout or "").splitlines()):
+        # ``--porcelain`` emits one machine-readable status line per ref with a
+        # flag character in column zero; ``!`` marks a rejected ref. Reading
+        # the flag rather than scanning the human summary keeps this working
+        # under any locale — the prose is translated, the flag is not.
+        #
+        # ``!`` alone is not enough to retry on, though: it covers both "the
+        # remote moved" and "a hook or ruleset said no". Only the former is
+        # recoverable, and retrying the latter costs two pointless fetch and
+        # rebase cycles while logging a misleading reason.
+        rejected = [line for line in (result.stdout or "").splitlines() if line.startswith("!")]
+        if rejected and not any("remote rejected" in line for line in rejected):
             raise self.NonFastForward(combined)
         raise GitError(f"git push failed: {combined}")
+
+    # ---- Internals ------------------------------------------------------
+
+    def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        """Run git in this working tree and capture its output.
+
+        ``-c color.ui=false`` because this output is parsed, not displayed.
+        git suppresses colour for a pipe by default, but a developer or runner
+        configured with ``color.ui = always`` overrides that, and the escapes
+        silently break line-prefix matching. Commands whose output is parsed
+        line-by-line pass ``--no-color`` as well, since the per-command colour
+        settings outrank this one.
+        """
+        return subprocess.run(
+            ["git", "-c", "color.ui=false", *args],
+            cwd=self.cwd,
+            text=True,
+            capture_output=True,
+            check=check,
+        )
+
+    def _tracked(self, paths: Iterable[Path | str]) -> list[str]:
+        """Return the subset of ``paths`` git has under version control.
+
+        ``-z`` is load-bearing, not a style choice. With ``core.quotePath`` at
+        its default, ``git ls-files`` C-quotes any path containing a non-ASCII
+        byte -- ``josé-fix.rst`` comes back as ``"jos\\303\\251-fix.rst"``.
+        Fragment slugs allow those characters, so the quoted form would fail
+        the caller's comparison, its deletion would be dropped from the staging
+        set, and the fragment would survive on the branch to be compiled a
+        second time. NUL-delimited output is emitted verbatim.
+        """
+        listed = self._run("ls-files", "-z", "--", *self._literal(paths)).stdout.split("\0")
+        # ``ls-files`` reports repo-relative paths; callers hold absolute ones.
+        return [str(self.cwd / line) for line in listed if line]
+
+    @staticmethod
+    def _literal(paths: Iterable[Path | str]) -> list[str]:
+        """Mark ``paths`` as literal pathspecs.
+
+        Git reads a bare pathspec as a glob, and fragment slugs may contain
+        ``*``, ``?`` or ``[``. Without this, ``feat[Z].rst`` would also match
+        ``featZ.rst`` and could stage or restore an unrelated file.
+        """
+        return [f":(literal){p}" for p in paths]
 
 
 class AutoBumpRun:
@@ -166,6 +238,18 @@ class AutoBumpRun:
         dry_run: bool = False,
         repo_root: Path = REPO_ROOT,
     ):
+        """Configure one nightly run.
+
+        Args:
+            branch: Target branch to push the auto-commit to.
+            remote: Remote to push to.
+            event_name: GitHub event that triggered the run; surfaces in the
+                commit message's parenthetical suffix.
+            dry_run: Preview only — compile without writing, and skip
+                commit and push entirely.
+            repo_root: Working tree to operate on. Defaults to this
+                checkout; tests point it at a tempdir.
+        """
         # Configuration and collaborators only. The products of a run --
         # which files changed, what compiled, what failed -- are returned by
         # the phases that produce them rather than accumulated here, so
@@ -198,10 +282,9 @@ class AutoBumpRun:
             self._report_dry_run(any_compiled)
             return self._exit_code()
         if not touched:
-            if not any_compiled:
-                print("No fragments found in any package.")
-            else:
-                print("All compiles ran but produced no on-disk writes (already up to date).")
+            # Nothing was written, so nothing compiled either: outside dry-run
+            # a compile that processes fragments always writes.
+            print("No fragments found in any package.")
             return self._exit_code()
         self._stage_and_commit(touched)
         self._push_with_retry()
@@ -222,15 +305,23 @@ class AutoBumpRun:
             try:
                 compiled, pkg_touched = pkg.compile(dry_run=self.dry_run)
             except Package.CompileFailed as e:
-                # Raised after the compile already wrote to disk. Those writes
-                # are real and must still be staged: an unstaged half-applied
-                # compile leaves the working tree dirty, and the rebase in the
-                # push-retry loop refuses to run against a dirty tree.
+                # Raised after the compile already wrote. Those writes are
+                # rolled back rather than committed: half a compile is a
+                # changelog entry announcing a version the manifest never
+                # received, over a fragment that was never consumed — which
+                # the next run would compile into a second identical entry.
+                # Restoring also leaves the tree clean, which the rebase in
+                # the push-retry loop requires.
                 print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
                 self.failures.append((pkg.name, str(e)))
-                touched.extend(e.touched)
+                if not self.dry_run:
+                    self.repo.restore(e.written)
                 continue
-            except (FileNotFoundError, ValueError) as e:
+            except (OSError, ValueError) as e:
+                # Matches what ``Package.compile`` raises when it fails before
+                # writing. A narrower tuple would let e.g. PermissionError
+                # escape and take the whole batch down with it — the opposite
+                # of the per-package isolation this loop exists for.
                 print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
                 self.failures.append((pkg.name, str(e)))
                 continue
@@ -268,17 +359,18 @@ class AutoBumpRun:
 
     def _stage_and_commit(self, touched: list[Path]) -> None:
         """Stage exactly ``touched`` and commit it as the bot."""
-        # Author identity belongs in-process: the workflow YAML stops
-        # carrying changelog-tool knowledge so cli.py-only PRs don't need
-        # paired YAML edits to stay consistent.
-        self.repo.config("user.name", self.AUTHOR_NAME)
-        self.repo.config("user.email", self.AUTHOR_EMAIL)
         self.repo.add(touched)
         if not self.repo.has_staged_changes():
             print("Nothing actually staged after compile — skipping commit.")
             return
-        self.repo.commit(self._build_commit_message(touched))
-        print(f"Committed bump for {len(touched)} file(s).")
+        # Author identity belongs in-process: the workflow YAML stops carrying
+        # changelog-tool knowledge, so cli.py-only PRs need no paired YAML edit.
+        self.repo.commit(
+            self._build_commit_message(touched),
+            author_name=self.AUTHOR_NAME,
+            author_email=self.AUTHOR_EMAIL,
+        )
+        print(f"Committed {len(touched)} file(s).")
 
     def _build_commit_message(self, touched: list[Path]) -> str:
         """Compose the auto-commit subject and its per-package bump list."""
@@ -291,11 +383,11 @@ class AutoBumpRun:
         version_files = {pkg.toml_path: pkg.name for pkg in self.packages}
         bumped = sorted(p for p in touched if p in version_files)
         if not bumped:
-            # Reachable now that the lock is reconciled on every run: a night
-            # with no pending fragments can still have a lock to re-point.
-            # Saying "Compile changelog fragments" over an empty package list
-            # would misdescribe the commit.
-            return f"{self.COMMIT_PREFIX} Sync {LockFile.LOCK_NAME} with workspace versions ({self.event_name})\n"
+            # No package bumped, so "Compile changelog fragments" over an empty
+            # list would misdescribe the commit. Name what actually changed:
+            # a lock re-point and a stale-skip sweep are both ordinary nights,
+            # and a run may be either or both.
+            return f"{self.COMMIT_PREFIX} {self._no_bump_subject(touched)} ({self.event_name})\n"
         lines = [
             f"{self.COMMIT_PREFIX} Compile changelog fragments ({self.event_name})",
             "",
@@ -307,6 +399,26 @@ class AutoBumpRun:
             new = self._version_from_diff(diff, "+")
             lines.append(f"- {version_files[path]}: {old} → {new}")
         return "\n".join(lines) + "\n"
+
+    def _no_bump_subject(self, touched: list[Path]) -> str:
+        """Subject for a commit that changed something but bumped nothing.
+
+        Two causes, independently possible: the lock was re-pointed, and/or
+        stale ``.skip`` markers were swept. Naming only one of them — or
+        naming the lock on a branch that has none — turns the commit log
+        into a misleading record of what the nightly did.
+        """
+        parts = []
+        if any(p.name == LockFile.LOCK_NAME for p in touched):
+            parts.append(f"Sync {LockFile.LOCK_NAME} with workspace versions")
+        if any(p.suffix == ".skip" for p in touched):
+            parts.append("clean stale skip files")
+        if not parts:
+            return "Compile changelog fragments"
+        subject = parts[0]
+        for extra in parts[1:]:
+            subject += f" and {extra}"
+        return subject
 
     def _relative(self, path: Path) -> Path:
         """``path`` relative to the repo root, or unchanged if it lies outside."""

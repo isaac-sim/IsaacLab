@@ -344,7 +344,13 @@ def test_every_managed_package_has_parseable_changelog_header():
 
     self_heal = re.compile(r"^(Changelog\n-+)\n(?!\n)", re.MULTILINE)
     bad: list[tuple[str, str]] = []
-    for pkg in packages.Package.discover():
+    discovered = packages.Package.discover()
+    # Anchor first. If discovery comes back empty — the symptom of a
+    # ``toml_path`` that does not match this branch's layout — every
+    # assertion below would pass over an empty loop while the nightly
+    # quietly compiled nothing.
+    assert discovered, "Package.discover() found no managed packages; the layout assumption is wrong for this branch"
+    for pkg in discovered:
         text = pkg.changelog_path.read_text(encoding="utf-8")
         text = self_heal.sub(r"\1\n\n", text, count=1)
         if packages.CHANGELOG_HEADER_RE.search(text) is None:

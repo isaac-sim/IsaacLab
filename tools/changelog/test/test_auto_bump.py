@@ -18,6 +18,7 @@ import subprocess
 from pathlib import Path
 
 import autobump
+import cli
 import packages
 import pytest
 
@@ -127,30 +128,7 @@ def _author_log(bare: Path, branch: str = "develop") -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Happy path
-# ---------------------------------------------------------------------------
-
-
-def test_auto_bump_happy_path_commits_and_pushes(synthetic_repo: Path, tmp_path: Path):
-    _write_managed_pkg(synthetic_repo / "source", "isaaclab")
-    _drop_fragment(synthetic_repo / "source" / "isaaclab", "feat-x")
-
-    _commit_baseline(synthetic_repo)
-    rc = autobump.AutoBumpRun(
-        branch="develop",
-        remote="origin",
-        event_name="schedule",
-        repo_root=synthetic_repo,
-    ).run()
-
-    assert rc == 0
-    # The bot's commit should be on top of the develop tip on the bare remote.
-    authors = _author_log(tmp_path / "origin.git")
-    assert authors[0] == autobump.AutoBumpRun.AUTHOR_NAME
-
-
-# ---------------------------------------------------------------------------
-# Regression: every file the compile wrote must be staged, whatever it is
+# The staging contract: every file the compile wrote must reach the commit
 # ---------------------------------------------------------------------------
 
 
@@ -198,6 +176,7 @@ def test_auto_bump_stages_every_file_the_compile_wrote(synthetic_repo: Path, tmp
         check=True,
     ).stdout.split()
 
+    assert _author_log(tmp_path / "origin.git")[0] == autobump.AutoBumpRun.AUTHOR_NAME
     assert reported, "compile reported nothing — the assertion below would be vacuous"
     for path in reported:
         assert path.relative_to(synthetic_repo).as_posix() in files
@@ -864,17 +843,22 @@ def test_retry_fetch_prefers_the_branch_over_a_same_named_tag(synthetic_repo: Pa
     assert "decoy commit" not in subjects
 
 
-def test_partial_compile_failure_still_reports_what_it_wrote(synthetic_repo: Path, tmp_path: Path, monkeypatch):
-    """A compile that raises after writing must hand those paths back.
+def test_partial_compile_failure_is_rolled_back_not_committed(synthetic_repo: Path, tmp_path: Path, monkeypatch):
+    """A compile that raises after writing must be undone, not shipped.
 
-    Otherwise the writes stay unstaged, the working tree is left dirty, and
-    the rebase in the push-retry loop refuses to run -- one malformed package
-    would wedge the push for every healthy one.
+    Half a compile is a changelog entry announcing a version the manifest
+    never received, over a fragment that was never consumed. Committing that
+    leaves the package self-inconsistent *and* leaves the fragment on the
+    branch, so the next night compiles it into a second identical entry —
+    the duplicate-bump failure this whole design exists to prevent.
+
+    Rolling back satisfies the other requirement too: the tree ends clean,
+    which the rebase in the push-retry loop needs.
     """
     good = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     bad = _write_managed_pkg(synthetic_repo / "source", "isaaclab_assets")
     _drop_fragment(good, "feat-x")
-    _drop_fragment(bad, "feat-y")
+    bad_fragment = _drop_fragment(bad, "feat-y")
     _commit_baseline(synthetic_repo)
 
     real_write_version = packages.Package.write_version
@@ -886,16 +870,36 @@ def test_partial_compile_failure_still_reports_what_it_wrote(synthetic_repo: Pat
 
     monkeypatch.setattr(packages.Package, "write_version", fail_after_changelog)
 
-    run = autobump.AutoBumpRun(
-        branch="develop",
-        remote="origin",
-        event_name="schedule",
-        repo_root=synthetic_repo,
+    assert (
+        autobump.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 1  # the bad package is still a failure
     )
-    assert run.run() == 1  # the bad package is still a failure
 
-    # The bad package's already-written changelog must have been staged, so
-    # nothing is left dirty behind the commit.
+    # The healthy package shipped...
+    files = subprocess.run(
+        ["git", "show", "develop", "--name-only", "--format="],
+        cwd=tmp_path / "origin.git",
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    assert _version_file("isaaclab") in files
+
+    # ...and nothing from the failed one did.
+    assert not any(f.startswith("source/isaaclab_assets/") for f in files), (
+        f"a half-applied compile reached the branch: {files}"
+    )
+    # Its fragment survives on disk, so the next run can retry it cleanly.
+    assert bad_fragment.exists()
+    # And its changelog is back to the committed baseline — no orphan entry.
+    assert "0.1.1" not in (bad / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")
+
+    # The tree is clean either way, which the rebase in the retry loop needs.
     dirty = subprocess.run(
         ["git", "status", "--porcelain"],
         cwd=synthetic_repo,
@@ -904,3 +908,91 @@ def test_partial_compile_failure_still_reports_what_it_wrote(synthetic_repo: Pat
         check=True,
     ).stdout.strip()
     assert dirty == "", f"working tree left dirty after partial failure: {dirty!r}"
+
+
+def test_untracked_file_that_vanished_does_not_abort_staging(synthetic_repo: Path, tmp_path: Path, monkeypatch):
+    """A reported path that is gone *and* was never tracked must be skipped.
+
+    ``git add`` fails the whole invocation on such a pathspec, which would
+    take down the staging of every healthy package alongside it. This is the
+    branch ``GitRepo._tracked`` exists for, and no ordinary fixture reaches
+    it: fragments are committed in the baseline, so they are always tracked.
+    """
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    _drop_fragment(pkg_root, "feat-x")
+    _commit_baseline(synthetic_repo)
+
+    # A path that never existed in git and does not exist now.
+    phantom = pkg_root / "changelog.d" / "never-tracked.rst"
+    real_compile = packages.Package.compile
+
+    def compile_reporting_a_phantom(self, **kwargs):
+        compiled, touched = real_compile(self, **kwargs)
+        return compiled, [*touched, phantom]
+
+    monkeypatch.setattr(packages.Package, "compile", compile_reporting_a_phantom)
+
+    assert (
+        autobump.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+    files = subprocess.run(
+        ["git", "show", "develop", "--name-only", "--format="],
+        cwd=tmp_path / "origin.git",
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    assert _version_file("isaaclab") in files
+
+
+def test_dry_run_reports_lock_drift_without_writing(synthetic_repo: Path, tmp_path: Path):
+    """Dry-run must preview the lock sync too, and write nothing.
+
+    The lock is reconciled on every run, so a dry run reaches it — and a
+    dry run that silently rewrote the lock would be the worst kind of
+    surprise.
+    """
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab", starting_version="1.0.0")
+    lock = _write_workspace_lock(synthetic_repo, ["isaaclab"])
+    _drop_fragment(pkg_root, "feat-x")
+    _commit_baseline(synthetic_repo)
+    before = lock.read_text(encoding="utf-8")
+
+    assert (
+        autobump.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            dry_run=True,
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+
+    assert lock.read_text(encoding="utf-8") == before
+    assert autobump.AutoBumpRun.AUTHOR_NAME not in _author_log(tmp_path / "origin.git")
+
+
+def test_auto_bump_argparse_wiring(synthetic_repo: Path, monkeypatch):
+    """The subcommand parses and reaches the orchestrator.
+
+    Every other test constructs ``AutoBumpRun`` directly, so nothing else
+    would notice if the parser stopped handing over what it promises.
+    """
+    _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    monkeypatch.setattr(cli, "REPO_ROOT", synthetic_repo)
+    monkeypatch.setattr(autobump, "REPO_ROOT", synthetic_repo)
+
+    parser = cli._build_parser()
+    args = parser.parse_args(["auto-bump", "--branch", "develop", "--dry-run"])
+
+    assert args.branch == "develop"
+    assert args.dry_run is True
+    assert args.remote == "origin"
+    assert args.func(args, parser) == 0
