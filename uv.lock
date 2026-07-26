@@ -3009,7 +3009,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "13.1.0"
+version = "13.2.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -3029,7 +3029,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "0.5.0"
+version = "0.5.1"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -3356,7 +3356,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "2.1.0"
+version = "2.2.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -3428,7 +3428,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "9.1.0"
+version = "9.1.1"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
