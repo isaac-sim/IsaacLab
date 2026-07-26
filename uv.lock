@@ -98,7 +98,7 @@ prerelease-mode = "allow"
 overrides = [
     { name = "mujoco", specifier = "~=3.10.0" },
     { name = "mujoco-warp", specifier = "~=3.10.0,>=3.10.0.2" },
-    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/newton-physics/newton.git?rev=81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9" },
+    { name = "newton", extras = ["sim", "importers"], git = "https://github.com/newton-physics/newton.git?rev=d7581b732d83843577411d36f6a58cccee909bce" },
     { name = "newton-usd-schemas", specifier = ">=0.4.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "torch", marker = "(platform_machine != 'AMD64' and platform_machine != 'aarch64' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')", specifier = "==2.11.0" },
@@ -3322,7 +3322,7 @@ requires-dist = [
     { name = "usd-core", marker = "platform_machine in 'x86_64 AMD64'", specifier = ">=25.11,<26.0" },
     { name = "usd-exchange", marker = "platform_machine in 'aarch64 arm64'", specifier = ">=2.2" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
-    { name = "warp-lang", specifier = "==1.15.0.dev20260626" },
+    { name = "warp-lang", specifier = "==1.16.0.dev20260723" },
 ]
 provides-extras = ["test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "rtx", "mimic", "teleop", "rlinf", "all"]
 
@@ -4930,7 +4930,7 @@ wheels = [
 [[package]]
 name = "newton"
 version = "1.5.0.dev0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9#81cdcfc2dd89f8b7285e32b5e3853092a97fa6f9" }
+source = { git = "https://github.com/newton-physics/newton.git?rev=d7581b732d83843577411d36f6a58cccee909bce#d7581b732d83843577411d36f6a58cccee909bce" }
 dependencies = [
     { name = "warp-lang" },
 ]
@@ -8371,16 +8371,16 @@ wheels = [
 
 [[package]]
 name = "warp-lang"
-version = "1.15.0.dev20260626"
+version = "1.16.0.dev20260723"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "numpy" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.15.0.dev20260626-py3-none-macosx_11_0_arm64.whl", hash = "sha256:351cb3e0679767f29a7d1fd639537fe40f66fe9f29355d4d19c5cbde8959916d" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.15.0.dev20260626-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:e43f8eedb80300bd4e024a50d2bf9b5177bb16a838d936f1d4a0a2499cf531e2" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.15.0.dev20260626-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:d87dc2f286372cbb2c1c66857e7b9ee62a9d485ecf01b193349ecb6f5b4d938c" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.15.0.dev20260626-py3-none-win_amd64.whl", hash = "sha256:81b2328cc5bfafc70776cad651d99d28d280d3f544bd5e555400d1d379528de4" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.16.0.dev20260723-py3-none-macosx_11_0_arm64.whl", hash = "sha256:e5d18c242dbc5fd2a251fb83c1a07cb8b28bd482daa5cefa72e8cb7d39529631" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.16.0.dev20260723-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:b722791dbb7ad0a2a13b76842b9d0c1c6acc160da8d70fcfc33b85aa2bbeb79f" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.16.0.dev20260723-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:51a01b4c367bed672532eccff9a6bb32ebc7b16bc20f7fab9c863ee667409af2" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.16.0.dev20260723-py3-none-win_amd64.whl", hash = "sha256:4d35531efb0c64066edb570a738d14976d049a3786a1bd0ba4d073f1d2c5b3aa" },
 ]
 
 [[package]]

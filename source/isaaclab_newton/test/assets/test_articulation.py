@@ -30,7 +30,7 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton.solvers import SolverNotifyFlags
+from newton import ModelFlags
 
 from pxr import UsdPhysics
 
@@ -1260,7 +1260,7 @@ def test_gravity_vec_w_tracks_model_gravity(sim, num_articulations, device, add_
         dtype=torch.float32,
     )
     wp.to_torch(model_gravity_arr).copy_(new_gravity)
-    SimulationManager.add_model_change(SolverNotifyFlags.MODEL_PROPERTIES)
+    SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
 
     # Live view: new per-env values are visible immediately, no invalidation step.
     torch.testing.assert_close(articulation.data.GRAVITY_VEC_W.torch, new_gravity)
@@ -2724,7 +2724,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset, articulati
     com[:, 0, arm_idx, :] = new_com.squeeze(-2)
     articulation.root_view.set_attribute("body_com", SimulationManager.get_model(), wp.from_torch(com, dtype=wp.vec3f))
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
     torch.testing.assert_close(
@@ -2848,7 +2848,7 @@ def test_write_root_state(
     com[:, 0, root_idx, :] = new_com.squeeze(-2)
     articulation.root_view.set_attribute("body_com", SimulationManager.get_model(), wp.from_torch(com, dtype=wp.vec3f))
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
     torch.testing.assert_close(
@@ -2927,7 +2927,7 @@ def test_write_root_state_functions_data_consistency(
     com[:, 0, root_idx, :] = offset.squeeze(-2)
     articulation.root_view.set_attribute("body_com", SimulationManager.get_model(), wp.from_torch(com, dtype=wp.vec3f))
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     rand_state = torch.rand(num_articulations, 13, device=device)
     rand_state[..., :3] += env_pos
@@ -3367,7 +3367,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
 
     wp.to_torch(friction_binding)[:] = friction
     wp.to_torch(restitution_binding)[:] = restitution
-    SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+    SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
     # Simulate physics
     sim.step()
@@ -3386,7 +3386,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
 
         wp.to_torch(friction_binding)[:, 0] = subset_friction
         wp.to_torch(restitution_binding)[:, 0] = subset_restitution
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
         sim.step()
         articulation.update(sim.cfg.dt)
@@ -3447,7 +3447,7 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
     articulation.root_view.set_attribute("shape_gap", model, wp.from_torch(new_gap, dtype=wp.float32))
 
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
+        SimulationManager._solver.notify_model_changed(ModelFlags.SHAPE_PROPERTIES)
 
     updated_margin = wp.to_torch(articulation.root_view.get_attribute("shape_margin", model))
     updated_gap = wp.to_torch(articulation.root_view.get_attribute("shape_gap", model))

@@ -19,6 +19,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
+    from .terrain_generator_cfg import TerrainGeneratorCfg
     from .terrain_importer_cfg import TerrainImporterCfg
 
 # import logger
@@ -90,6 +91,12 @@ class TerrainImporter:
                 cfg=self.cfg.terrain_generator, device=self.device
             )
             self.import_mesh("terrain", terrain_generator.terrain_mesh)
+            # Tag the terrain collider with its height-field resolution. Backends that
+            # collide against heightfields (e.g. Newton) can swap the large collision
+            # mesh for an equivalent heightfield at solver-init time; other backends
+            # ignore the attribute.
+            if self._is_heightfield_collider_requested(self.cfg.terrain_generator):
+                self._tag_heightfield_collider(self.terrain_prim_paths[-1], terrain_generator.cfg.horizontal_scale)
             if self.cfg.use_terrain_origins:
                 # configure the terrain origins based on the terrain generator
                 self.configure_env_origins(terrain_generator.terrain_origins)
@@ -251,6 +258,44 @@ class TerrainImporter:
         create_prim_from_mesh(
             prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
         )
+
+    def _is_heightfield_collider_requested(self, cfg: TerrainGeneratorCfg) -> bool:
+        """Check whether the generated terrain should be collided against as a heightfield.
+
+        The generated terrain is a single collision mesh, so it can only be converted when every
+        sub-terrain sets :attr:`~isaaclab.terrains.SubTerrainBaseCfg.convert_to_heightfield`.
+
+        Args:
+            cfg: The configuration of the terrain generator.
+
+        Returns:
+            Whether the terrain collider should be tagged for heightfield conversion.
+        """
+        return len(cfg.sub_terrains) > 0 and all(
+            sub_cfg.convert_to_heightfield for sub_cfg in cfg.sub_terrains.values()
+        )
+
+    def _tag_heightfield_collider(self, prim_path: str, horizontal_scale: float):
+        """Author a ``newton:heightfield:resolution`` attribute on the terrain prim.
+
+        The attribute records the terrain's horizontal grid spacing [m] so a backend
+        that supports heightfield collision can rasterize the collision mesh into an
+        equivalent heightfield at the same resolution. The attribute is inert for
+        backends that do not consume it.
+
+        Args:
+            prim_path: Prim path of the imported terrain.
+            horizontal_scale: Terrain horizontal grid spacing [m].
+        """
+        from pxr import Sdf
+
+        from isaaclab.sim.utils.stage import get_current_stage
+
+        prim = get_current_stage().GetPrimAtPath(prim_path)
+        if not prim.IsValid():
+            return
+        attr = prim.CreateAttribute("newton:heightfield:resolution", Sdf.ValueTypeNames.Float)
+        attr.Set(float(horizontal_scale))
 
     def import_usd(self, name: str, usd_path: str):
         """Import a mesh from a USD file.

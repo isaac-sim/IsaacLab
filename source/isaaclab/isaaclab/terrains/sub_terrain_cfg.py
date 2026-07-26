@@ -89,6 +89,13 @@ class SubTerrainBaseCfg:
     :attr:`isaaclab.scene.TerrainImporterCfg.size` attribute.
     """
 
+    convert_to_heightfield: bool = False
+    """Whether the sub-terrain should be converted to a heightfield.
+
+    If True, the sub-terrain will be converted to a heightfield, and only if all sub-terrains in the terrain
+    generator are marked for conversion.
+    """
+
     flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None
     """Dictionary of configurations for sampling flat patches on the sub-terrain. Defaults to None,
     in which case no flat patch sampling is performed.
