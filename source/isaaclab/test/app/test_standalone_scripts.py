@@ -165,6 +165,7 @@ def test_commands_respect_script_launcher_capabilities():
         for case in build_cases(SPECS)
         if case.spec.relative_path == "scripts/demos/sensors/cameras.py" and case.visualizer == "none"
     )
+    assert camera_case.command()[3:5] == ["--num_envs", "1"]
     assert camera_case.command()[-2:] == ["--visualizer", "none"]
 
     kitless_case = next(
