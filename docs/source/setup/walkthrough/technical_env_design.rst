@@ -146,7 +146,7 @@ and ``_get_rewards`` with the following.
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        total_reward = torch.linalg.norm(self.velocity, dim=-1, keepdim=True)
+        total_reward = torch.linalg.norm(self.velocity, dim=-1)
         return total_reward
 
 The robot exists as an Articulation object within the Isaac Lab API. That object carries a data class, the ``ArticulationData``, which contains all the data for **specific** robots on the stage.
