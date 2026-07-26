@@ -2319,16 +2319,21 @@ class NewtonManager(PhysicsManager):
                 if (match := env_pattern.match(child.GetName()))
             )
 
-        NewtonManager._num_envs = len(env_paths) if env_paths else 1
         sim = SimulationContext.instance()
         assert sim is not None
-        builder = build_visualization_builder_from_stage_envs(stage, env_paths, sim.get_clone_plan(), up_axis=up_axis)
+        clone_plan = sim.get_clone_plan()
+        if clone_plan is not None and not env_paths:
+            logger.warning(
+                "[NewtonManager] Clone plan is available but no environment prims were found; "
+                "deferring visualization model creation."
+            )
+            return
+        NewtonManager._num_envs = len(env_paths) if clone_plan is not None else 1
+        builder = build_visualization_builder_from_stage_envs(stage, env_paths, clone_plan, up_axis=up_axis)
 
         if builder.body_count == 0:
-            logger.info(
-                "[NewtonManager] USD stage walk produced no Newton bodies; finalizing an "
-                "empty visualization model for marker-only or geometry-only scenes."
-            )
+            log = logger.warning if clone_plan is not None or env_paths else logger.info
+            log("[NewtonManager] USD stage walk produced no Newton bodies; finalizing an empty visualization model.")
 
         device = PhysicsManager._device or "cpu"
         try:

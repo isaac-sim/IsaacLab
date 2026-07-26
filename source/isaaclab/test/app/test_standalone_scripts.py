@@ -93,8 +93,14 @@ def test_runtime_groups_partition_matrix_without_overlap():
     grouped_ids = [case.id for group in groups for case in group]
     assert sorted(grouped_ids) == sorted(case.id for case in cases)
     assert len(grouped_ids) == len(set(grouped_ids))
-    assert all(case.physics_backend == "isaacsim_physx" or case.renderer_backend == "isaac_rtx" for case in groups[0])
-    assert all(case.physics_backend != "isaacsim_physx" and case.renderer_backend != "isaac_rtx" for case in groups[1])
+    assert all(
+        case.physics_backend == "isaacsim_physx" or case.renderer_backend == "isaac_rtx" or case.visualizer == "kit"
+        for case in groups[0]
+    )
+    assert all(
+        case.physics_backend != "isaacsim_physx" and case.renderer_backend != "isaac_rtx" and case.visualizer != "kit"
+        for case in groups[1]
+    )
 
     with pytest.raises(ValueError, match="runtime group"):
         select_runtime_group(cases, "invalid")

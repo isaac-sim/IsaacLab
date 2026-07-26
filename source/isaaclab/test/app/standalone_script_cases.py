@@ -309,7 +309,9 @@ def select_runtime_group(cases: list[LaunchCase], runtime_group: str) -> list[La
     return [
         case
         for case in cases
-        if (case.physics_backend == "isaacsim_physx" or case.renderer_backend == "isaac_rtx")
+        if (
+            case.physics_backend == "isaacsim_physx" or case.renderer_backend == "isaac_rtx" or case.visualizer == "kit"
+        )
         == (runtime_group == "kit")
     ]
 

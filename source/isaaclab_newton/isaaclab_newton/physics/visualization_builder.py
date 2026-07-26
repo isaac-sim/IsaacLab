@@ -38,10 +38,12 @@ def build_visualization_builder_from_stage_envs(
     """
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = ModelBuilder(up_axis=up_axis)
-    if clone_plan is None or not env_paths:
+    if clone_plan is None:
         import_result = builder.add_usd(stage, schema_resolvers=schema_resolvers)
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
         return builder
+    if not env_paths:
+        raise ValueError("clone plan requires at least one environment path")
 
     env_path_by_id = dict(env_paths)
 

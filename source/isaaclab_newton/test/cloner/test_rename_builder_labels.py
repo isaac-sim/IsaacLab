@@ -420,6 +420,24 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertIs(result, builder)
         builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"])
 
+    def test_visualization_builder_rejects_clone_plan_without_environment_paths(self):
+        """A cloned scene must not be cached as an incomplete single-world model."""
+        stage = Usd.Stage.CreateInMemory()
+        self._define_xform(stage, "/World")
+        clone_plan = ClonePlan(
+            sources=(),
+            destinations=(),
+            clone_mask=torch.empty((0, 0), dtype=torch.bool),
+            env_ids=torch.empty(0, dtype=torch.long),
+        )
+
+        with (
+            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
+            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
+            self.assertRaisesRegex(ValueError, "requires at least one environment path"),
+        ):
+            visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], clone_plan)
+
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
