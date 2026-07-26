@@ -93,7 +93,7 @@ from pathlib import Path
 
 from autobump import AutoBumpRun
 from lockfile import LockFile
-from packages import CHANGELOG_HEADER_RE, REPO_ROOT, Package, PRDiff, RootPackage, Version
+from packages import CHANGELOG_HEADER_RE, REPO_ROOT, FragmentFilename, Package, PRDiff, RootPackage, Version
 
 # ---------------------------------------------------------------------------
 # Subcommand handlers
@@ -201,10 +201,8 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
         print("::error::Missing changelog fragments for the following packages:")
         for pkg_name in missing:
             print(f"  • {pkg_name}")
-            print(f"    → add  source/{pkg_name}/changelog.d/<slug>.rst         (patch bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.minor.rst   (minor bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.major.rst   (major bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.skip        (no entry, no bump)")
+            for line in FragmentFilename.help_lines_for_package(pkg_name):
+                print(f"    → {line}")
         print()
         print("Slug = your branch name with `/` replaced by `-` (or any short, unique name).")
         print()

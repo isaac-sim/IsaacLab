@@ -47,12 +47,12 @@ def test_validate_accepts_major_suffix(tmp_path):
 
 
 def test_validate_rejects_unknown_filename_from_fixture():
-    err = packages.Fragment(FIXTURES / "invalid_filenames" / "multi.dot.slug.rst").validate()
+    err = packages.Fragment(FIXTURES / "invalid_filenames" / "has..consecutive-dots.rst").validate()
     assert err is not None and "invalid filename" in err
 
 
 def test_validate_rejects_unknown_bump_tier_from_fixture():
-    err = packages.Fragment(FIXTURES / "invalid_filenames" / "1234.notabump.rst").validate()
+    err = packages.Fragment(FIXTURES / "invalid_filenames" / "-leading-dash.rst").validate()
     assert err is not None and "invalid filename" in err
 
 

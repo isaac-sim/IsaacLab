@@ -104,15 +104,54 @@ def test_aggregate_bump_logic(bumps, expected):
         ("jdoe-ci-only.skip", False, True),
         (".gitkeep", False, False),
         ("README.md", False, False),
-        ("1234.patch.rst", False, False),  # only minor/major are recognised tiers
-        ("foo.bar.rst", False, False),  # extra dots in slug are reserved for tier suffix
+        # Dotted slugs (version-bearing branch names) — accepted; the longest
+        # matching tier suffix wins, so the slug keeps its embedded dots.
+        ("bump-newton-1.2.0rc2.minor.rst", True, False),
+        ("foo.bar.rst", True, False),  # slug = ``foo.bar``, tier = patch
+        ("1234.patch.rst", True, False),  # slug = ``1234.patch``, tier = patch
+        # The contributor footgun worth pinning: ``foo.skip.rst`` is a patch
+        # fragment with slug ``foo.skip``, not a skip marker — ``.skip`` is
+        # its own suffix, mutually exclusive with ``.rst``.
+        ("foo.skip.rst", True, False),
+        # Slugs violating git-refname rules: leading `.`/`-`, consecutive
+        # dots, `.lock` ending, forbidden chars, `/`.
+        (".leading-dot.rst", False, False),
+        ("-leading-dash.rst", False, False),
+        ("trailing-dot..rst", False, False),
+        ("has..consecutive.rst", False, False),
+        ("ends-in.lock.rst", False, False),
+        ("has space.rst", False, False),
+        ("has~tilde.rst", False, False),
+        ("nested/path.rst", False, False),
         ("1234.minor", False, False),  # missing .rst extension
         ("1234.rst.bak", False, False),
     ],
 )
-def test_fragment_filename_regexes(name, is_fragment, is_skip):
-    assert bool(packages.FRAGMENT_RE.match(name)) is is_fragment
-    assert bool(packages.SKIP_RE.match(name)) is is_skip
+def test_fragment_filename_classifies(name, is_fragment, is_skip):
+    fn = packages.FragmentFilename(name)
+    assert fn.is_fragment is is_fragment
+    assert fn.is_skip is is_skip
+
+
+def test_dotted_slug_round_trips_with_its_tier():
+    """A version-bearing branch name survives as a slug.
+
+    The motivating case: branch names routinely carry version numbers,
+    and the old pattern reserved every dot for the tier suffix.
+    """
+    fn = packages.FragmentFilename("bump-newton-1.2.0rc2.minor.rst")
+    assert fn.slug == "bump-newton-1.2.0rc2"
+    assert fn.tier == "minor"
+
+
+def test_user_facing_patterns_derive_from_the_suffix_list():
+    """One source of truth: adding a tier updates every message at once."""
+    assert packages.FragmentFilename.pattern_summary() == (
+        "<slug>.rst, <slug>.minor.rst, <slug>.major.rst, or <slug>.skip"
+    )
+    lines = packages.FragmentFilename.help_lines_for_package("isaaclab_newton")
+    assert len(lines) == len(packages.FragmentFilename.SUFFIXES)
+    assert all("source/isaaclab_newton/changelog.d/" in line for line in lines)
 
 
 # ---------------------------------------------------------------------------
