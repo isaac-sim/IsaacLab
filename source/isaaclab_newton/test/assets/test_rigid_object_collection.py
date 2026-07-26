@@ -126,15 +126,17 @@ def generate_cubes_scene(
     return cube_object_collection, origins
 
 
-def test_initialization_ignores_unrelated_sibling_rigid_objects():
+@pytest.mark.parametrize("device", test_devices())
+def test_initialization_ignores_unrelated_sibling_rigid_objects(device):
     """Test that a collection view selects only its configured rigid objects."""
     num_envs = 2
     num_cubes = 3
-    with _newton_sim_context("cuda:0", auto_add_lighting=True) as sim:
+    with _newton_sim_context(device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         object_collection, _ = generate_cubes_scene(
             num_envs=num_envs,
             num_cubes=num_cubes,
+            device=device,
             spawn_unrelated_sibling=True,
         )
 
