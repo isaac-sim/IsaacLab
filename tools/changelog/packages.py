@@ -48,10 +48,14 @@ class FragmentFilename:
     :class:`Fragment`.
 
     Suffix matching is anchored from the right with the longest suffix winning
-    (``foo.minor.rst`` is ``foo`` + minor, never ``foo.minor`` + patch). Slug
-    rules mirror ``git check-ref-format`` per-segment rules excluding ``/`` —
-    so dots inside the slug are fine (``bump-newton-1.2.0rc2.minor.rst`` is
-    valid), which matters because branch names routinely carry version numbers.
+    (``foo.minor.rst`` is ``foo`` + minor, never ``foo.minor`` + patch).
+
+    Slug rules are ``git check-ref-format --branch`` minus ``/`` — exactly the
+    names git lets you give a branch, which is the point: the convention is
+    "slug = your branch name". So dots are fine
+    (``bump-newton-1.2.0rc2.minor.rst``), a leading ``-`` is not, and ``/``
+    becomes ``-`` because a slug is a filename.
+    ``test_slug_rules_track_git_branch_rules`` pins the equivalence.
     """
 
     # Recognised filename suffixes, longest first. Exposed as a class

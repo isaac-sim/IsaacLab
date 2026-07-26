@@ -12,6 +12,7 @@ inputs the test suite verifies.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import packages
@@ -172,3 +173,62 @@ def test_user_facing_patterns_derive_from_the_suffix_list():
 )
 def test_parse_slug_for_filenames(name, expected_slug):
     assert packages.Fragment.parse_slug(name) == expected_slug
+
+
+@pytest.mark.parametrize(
+    "slug",
+    [
+        # Accepted by git, and so by us.
+        "simple",
+        "with-dash",
+        "with_underscore",
+        "MixedCase",
+        "1234",
+        "bump-newton-1.2.0rc2",
+        "foo.bar",
+        "v1.0",
+        "@",
+        # Rejected by git, and so by us.
+        "-leading-dash",
+        ".leading-dot",
+        "trailing-dot.",
+        "has..dots",
+        "ends.lock",
+        "has space",
+        "has~tilde",
+        "has^caret",
+        "has:colon",
+        "has?question",
+        "has*star",
+        "has[bracket",
+        "has\\backslash",
+        "has@{brace",
+        "",
+        "..",
+    ],
+)
+def test_slug_rules_track_git_branch_rules(slug):
+    """Our slug rule must stay equal to what git accepts as a branch name.
+
+    The convention contributors are given is "name the fragment after your
+    branch", so any name git allows for a branch has to be allowed here and
+    any name it refuses has to be refused. Asking git directly is what keeps
+    the two from drifting — the rule is reimplemented in Python only because
+    validating every fragment through a subprocess would be absurd.
+
+    ``/`` is the one deliberate exception, covered separately below: git
+    allows it in a branch, a filename cannot contain it.
+    """
+    ours = packages.FragmentFilename(f"{slug}.rst").is_valid
+    theirs = subprocess.run(["git", "check-ref-format", "--branch", slug], capture_output=True).returncode == 0
+    assert ours is theirs, f"{slug!r}: ours={ours} git={theirs}"
+
+
+def test_slug_rejects_the_path_separator_git_allows():
+    """The single, deliberate divergence from git's branch rules.
+
+    ``feature/thing`` is a fine branch name and an impossible filename, so
+    the documented convention is to replace ``/`` with ``-``.
+    """
+    assert subprocess.run(["git", "check-ref-format", "--branch", "nested/path"], capture_output=True).returncode == 0
+    assert packages.FragmentFilename("nested/path.rst").is_valid is False
