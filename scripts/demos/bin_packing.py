@@ -60,7 +60,7 @@ import isaaclab.utils.math as math_utils
 ##
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -69,6 +69,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObjectCollection
+    from isaaclab.scene import InteractiveScene
 
 ##
 # Scene Configuration

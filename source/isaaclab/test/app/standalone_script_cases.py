@@ -39,6 +39,7 @@ class ScriptOverride:
 
     args: tuple[str, ...] = ()
     readiness_pattern: str | None = None
+    startup_timeout: float | None = None
     skip_reason: str | None = None
     fixed_physics_backend: str | None = None
     visualizers: tuple[str, ...] | None = None
@@ -54,6 +55,7 @@ class ScriptSpec:
     options: dict[str, tuple[str, ...]]
     args: tuple[str, ...]
     readiness_pattern: str | None
+    startup_timeout: float | None
     skip_reason: str | None
     fixed_physics_backend: str | None
     visualizers: tuple[str, ...]
@@ -162,9 +164,11 @@ OVERRIDES = {
     ),
     "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "scripts/demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
+        args=("--flat_ground",),
+        startup_timeout=600.0,
         case_skip_reasons={
             ("newton_mjwarp", "default", "kit"): "Kit viewport fails with the Newton multi-mesh raycaster"
-        }
+        },
     ),
     "scripts/demos/sensors/newton_raycast_heightfield.py": ScriptOverride(
         fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton", "rerun", "viser")
@@ -176,7 +180,9 @@ OVERRIDES = {
         readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
     ),
     "scripts/demos/sensors/ppisp_camera.py": ScriptOverride(
-        args=("--max_steps", "3", "--warmup_steps", "1"), visualizers=("none",)
+        args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
+        startup_timeout=600.0,
+        visualizers=("none",),
     ),
     "scripts/demos/sensors/ppisp_camera_ovrtx.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1"),
@@ -243,6 +249,7 @@ def discover_specs() -> list[ScriptSpec]:
                     options=options,
                     args=override.args,
                     readiness_pattern=readiness_pattern,
+                    startup_timeout=override.startup_timeout,
                     skip_reason=override.skip_reason,
                     fixed_physics_backend=override.fixed_physics_backend,
                     visualizers=visualizers,

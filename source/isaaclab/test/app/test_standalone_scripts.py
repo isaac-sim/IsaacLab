@@ -451,7 +451,7 @@ def test_standalone_script_remains_healthy_after_startup(case):
     result = run_until_ready(
         case.command(),
         case.spec.readiness_pattern,
-        startup_timeout=STARTUP_TIMEOUT,
+        startup_timeout=max(STARTUP_TIMEOUT, case.spec.startup_timeout or 0.0),
         soak_time=SOAK_TIME,
         screenshot_path=screenshot_path,
         screenshot_delay=SCREENSHOT_DELAY,
@@ -475,7 +475,7 @@ def test_multi_mesh_raycaster_supports_each_asset_type(case, asset_type):
     result = run_until_ready(
         command,
         case.spec.readiness_pattern,
-        startup_timeout=max(STARTUP_TIMEOUT, 300),
+        startup_timeout=max(STARTUP_TIMEOUT, case.spec.startup_timeout or 0.0),
         soak_time=SOAK_TIME,
     )
     assert_smoke_passed(result, case)
@@ -525,6 +525,7 @@ def test_launch_matrix_runs_supported_case_with_screenshot(monkeypatch, tmp_path
     monkeypatch.setattr(module, "backend_is_available", lambda backend: True)
     monkeypatch.setattr(module, "visualizer_is_available", lambda visualizer: True)
     case = replace(next(case for case in build_cases(SPECS) if case.skip_reason is None), visualizer="newton")
+    case = replace(case, spec=replace(case.spec, startup_timeout=600.0))
     calls = []
 
     def _run(*args, **kwargs):
@@ -535,6 +536,7 @@ def test_launch_matrix_runs_supported_case_with_screenshot(monkeypatch, tmp_path
     test_standalone_script_remains_healthy_after_startup(case)
 
     assert calls[0][0] == (case.command(), case.spec.readiness_pattern)
+    assert calls[0][1]["startup_timeout"] == 600.0
     assert calls[0][1]["screenshot_path"] == tmp_path / f"{case.id}.png"
     assert calls[0][1]["screenshot_delay"] == 3.0
 

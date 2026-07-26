@@ -22,7 +22,10 @@
 
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -32,6 +35,11 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
+parser.add_argument(
+    "--flat_ground",
+    action="store_true",
+    help="Use a lightweight flat mesh instead of the high-resolution rough terrain.",
+)
 parser.add_argument(
     "--asset_type",
     type=str,
@@ -57,10 +65,10 @@ import random
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -71,7 +79,22 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+
 DEBUG_VISUALIZATION_ENABLED = "none" not in (args_cli.visualizer or [])
+if args_cli.flat_ground:
+    ground_spawn_cfg = sim_utils.MeshCuboidCfg(
+        size=(20.0, 20.0, 0.1),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+    ground_init_state = AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05))
+else:
+    ground_spawn_cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+        scale=(1, 1, 1),
+    )
+    ground_init_state = AssetBaseCfg.InitialStateCfg()
 
 RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -194,10 +217,8 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     # ground plane
     ground = AssetBaseCfg(
         prim_path="/World/Ground",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
-            scale=(1, 1, 1),
-        ),
+        spawn=ground_spawn_cfg,
+        init_state=ground_init_state,
     )
 
     # lights
@@ -241,6 +262,8 @@ def randomize_shape_color(prim_path_expr: str):
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     """Run the simulator."""
+    from isaaclab.assets import Articulation
+
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
@@ -292,6 +315,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        from isaaclab.scene import InteractiveScene
+
         # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
