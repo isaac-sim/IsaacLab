@@ -106,7 +106,8 @@ uv run isaaclab -f
 
 ## Changelog
 
-- **Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.** Each PR adds a fragment file under `source/<package>/changelog.d/`; the changelog and version are compiled by the nightly CI workflow.
+- **Do not edit `CHANGELOG.rst` or a package's version field directly.** Each PR adds a fragment file under `source/<package>/changelog.d/`; the changelog and version are compiled by the nightly CI workflow. Which file holds the version is branch-dependent (`pyproject.toml` here), which is part of why it should not be edited by hand.
+- **If you do set a version by hand** — the escape hatch for a large jump, e.g. `2.1` → `4.7` — re-point the lockfile afterwards with `uv run python tools/changelog/cli.py sync-lock`. `uv.lock` pins every workspace member by version, so a manual edit leaves `uv sync --locked` failing until the two agree. `sync-lock --check` reports drift without writing.
 - **Add one fragment per touched package.** Pick any short, unique slug for the filename — your branch name (with `/` replaced by `-`) is a good default. The filename suffix declares the bump tier; within a batch the highest tier wins for the package.
 
   | Filename | Effect |
