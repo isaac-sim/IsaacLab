@@ -62,7 +62,7 @@ class HandoverEnv(DirectMARLEnv):
         self.num_fingertips = len(self.finger_bodies)
 
         # joint limits
-        joint_pos_limits = self.right_hand.data.joint_limits.torch.to(self.device)
+        joint_pos_limits = self.right_hand.data.joint_limits.torch
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 
@@ -71,7 +71,7 @@ class HandoverEnv(DirectMARLEnv):
         self.goal_rot[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
         self.goal_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
         # goal = object default position + shared offset (mirrors HandoverCommand.__init__)
-        self.goal_pos[:, :] = self.object.data.default_root_pose.torch[:, :3].to(self.device) + torch.tensor(
+        self.goal_pos[:, :] = self.object.data.default_root_pose.torch[:, :3] + torch.tensor(
             GOAL_POSITION_OFFSET, dtype=torch.float, device=self.device
         )
         # initialize goal marker
@@ -198,7 +198,7 @@ class HandoverEnv(DirectMARLEnv):
         self._goal_distance.update(goal_dist)
         rew_dist = handover_reward(goal_dist, self.cfg.dist_reward_scale)
 
-        # log reward components as tensors, not .item(): a per-step host sync stalls the GPU
+        # log as tensors, not .item(): a per-step host sync stalls the GPU
         if "log" not in self.extras:
             self.extras["log"] = dict()
         goal_dist_mean = goal_dist.mean()
@@ -226,7 +226,7 @@ class HandoverEnv(DirectMARLEnv):
         if env_ids is None:
             env_ids = self.right_hand._ALL_INDICES
         # Flush per-episode success (sticky binary: object ever reached the goal within threshold).
-        # 0-dim device tensor: avoids a host sync here; consumers read it at logging cadence
+        # 0-dim device tensor, for the same reason
         self.extras.setdefault("log", {})["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean()
         for statistic, value in self._goal_distance.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value

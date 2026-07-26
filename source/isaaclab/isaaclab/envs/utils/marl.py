@@ -81,6 +81,9 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             )
             self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
+            # latest converted observations, refreshed by reset() and step()
+            self._obs_buf: VecEnvObs = {}
+
         @property
         def episode_length_buf(self) -> torch.Tensor:
             """Episode lengths from the wrapped multi-agent environment."""
@@ -93,7 +96,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
         @property
         def obs_buf(self) -> VecEnvObs:
             """Latest observations from the wrapped multi-agent environment."""
-            return self._convert_observations(self.env.obs_dict)
+            return self._obs_buf
 
         def _convert_observations(self, obs: dict[AgentID, ObsType]) -> VecEnvObs:
             """Convert multi-agent observations to the single-agent policy observation."""
@@ -108,7 +111,8 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
 
         def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
             obs, extras = self.env.reset(seed, options)
-            return self._convert_observations(obs), extras
+            self._obs_buf = self._convert_observations(obs)
+            return self._obs_buf, extras
 
         def step(self, action: torch.Tensor) -> VecEnvStepReturn:
             # split single-agent actions to build the multi-agent ones
@@ -123,14 +127,14 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             # step the environment
             obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
 
-            obs = self._convert_observations(obs)
+            self._obs_buf = self._convert_observations(obs)
 
             # process environment outputs to return single-agent data
             rewards = sum(rewards.values())
             terminated = math.prod(terminated.values()).to(dtype=torch.bool)
             time_outs = math.prod(time_outs.values()).to(dtype=torch.bool)
 
-            return obs, rewards, terminated, time_outs, extras
+            return self._obs_buf, rewards, terminated, time_outs, extras
 
         def render(self, recompute: bool = False) -> np.ndarray | None:
             return self.env.render(recompute)

@@ -38,6 +38,13 @@ class _FakeMultiAgentEnv:
     def reset(self, seed=None, options=None):
         return self.obs_dict, {}
 
+    def step(self, actions):
+        # shift the observations so a step is distinguishable from a reset
+        self.obs_dict = {agent: obs + 10.0 for agent, obs in self.obs_dict.items()}
+        rewards = {agent: torch.zeros(2) for agent in self.possible_agents}
+        dones = {agent: torch.zeros(2, dtype=torch.bool) for agent in self.possible_agents}
+        return self.obs_dict, rewards, dones, dones, {}
+
     def state(self):
         return torch.tensor([[7.0, 8.0], [9.0, 10.0]])
 
@@ -76,7 +83,24 @@ def test_multi_agent_to_single_agent_forwards_episode_lengths():
 
 
 def test_multi_agent_to_single_agent_exposes_latest_observations():
-    """The public observation buffer should reflect the wrapped environment's buffer."""
+    """The public observation buffer should track the observations last returned by reset and step."""
     env = multi_agent_to_single_agent(_FakeMultiAgentEnv())
 
+    reset_obs, _ = env.reset()
+    torch.testing.assert_close(env.obs_buf["policy"], reset_obs["policy"])
     torch.testing.assert_close(env.obs_buf["policy"], torch.tensor([[1.0, 2.0, 5.0], [3.0, 4.0, 6.0]]))
+
+    step_obs = env.step(torch.zeros(2, 2))[0]
+    torch.testing.assert_close(env.obs_buf["policy"], step_obs["policy"])
+    torch.testing.assert_close(env.obs_buf["policy"], torch.tensor([[11.0, 12.0, 15.0], [13.0, 14.0, 16.0]]))
+
+
+def test_multi_agent_to_single_agent_state_observation_tracks_steps():
+    """The state-as-observation mode should also refresh the buffer on every transition."""
+    env = multi_agent_to_single_agent(_FakeMultiAgentEnv(), state_as_observation=True)
+
+    reset_obs, _ = env.reset()
+    torch.testing.assert_close(env.obs_buf["policy"], reset_obs["policy"])
+
+    step_obs = env.step(torch.zeros(2, 2))[0]
+    torch.testing.assert_close(env.obs_buf["policy"], step_obs["policy"])

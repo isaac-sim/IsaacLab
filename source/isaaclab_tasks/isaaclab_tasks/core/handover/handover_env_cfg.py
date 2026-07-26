@@ -166,7 +166,7 @@ def _shadow_hand_cfg(
     # The Newton hand inherits the shared actuator from ``SHADOW_HAND_NEWTON_CFG``,
     # overriding only the finger gains: the catch needs a higher nominal gain
     # (20.0/2.0) than reorient's base. Per-hand prim path and init pose also differ here.
-    newton_cfg = SHADOW_HAND_NEWTON_CFG.replace(
+    newton_mjwarp_cfg = SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
         init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
         actuators={
@@ -180,7 +180,7 @@ def _shadow_hand_cfg(
         spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
         init_state=SHADOW_HAND_CFG.init_state.replace(pos=init_pos, rot=init_rot),
     )
-    return preset(default=newton_cfg, physx=physx_cfg, newton_mjwarp=newton_cfg, ovphysx=ovphysx_cfg)
+    return preset(default=newton_mjwarp_cfg, physx=physx_cfg, newton_mjwarp=newton_mjwarp_cfg, ovphysx=ovphysx_cfg)
 
 
 # Per-hand presets shared by the Direct environment and the manager scene.
@@ -244,7 +244,7 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
     )
-    ovphysx = physx  # OvPhysX is PhysX-based; reuse the PhysX-tuned rigid sphere
+    ovphysx = physx
     default = newton_mjwarp
 
 
