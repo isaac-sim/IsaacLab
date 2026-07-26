@@ -11,7 +11,7 @@ those branches disagree about where a package records its version:
 ``config/extension.toml`` with a bare top-level ``version`` on release
 branches cut before that move.
 
-Tests must not encode either answer. They ask :attr:`cli.Package.toml_path`
+Tests must not encode either answer. They ask :attr:`packages.Package.toml_path`
 — the code under test — and write whatever shape that file implies. That is
 what lets the same suite be cherry-picked alongside the code and keep
 testing the truth rather than a layout it no longer runs on.
@@ -25,17 +25,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import cli
+import packages
 
 
 def version_file_for(root: Path) -> Path:
     """Path of the version metadata file for the package at ``root``."""
-    return cli.Package(root).toml_path
+    return packages.Package(root).toml_path
 
 
 def version_file_rel(name: str) -> str:
     """Repo-relative POSIX path of ``source/<name>``'s version metadata file."""
-    return cli.Package(Path("source") / name).toml_path.as_posix()
+    return packages.Package(Path("source") / name).toml_path.as_posix()
 
 
 def write_version_file(root: Path, name: str, version: str) -> Path:

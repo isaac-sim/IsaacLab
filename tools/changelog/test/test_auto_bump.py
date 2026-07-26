@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""End-to-end tests for :class:`cli.AutoBumpRun`.
+"""End-to-end tests for :class:`autobump.AutoBumpRun`.
 
 The orchestrator owns the nightly compile + commit + push lifecycle that
 used to live as inline shell in ``.github/workflows/nightly-changelog.yml``.
@@ -17,7 +17,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-import cli
+import autobump
+import packages
 import pytest
 
 from conftest import version_file_rel, write_version_file
@@ -135,7 +136,7 @@ def test_auto_bump_happy_path_commits_and_pushes(synthetic_repo: Path, tmp_path:
     _drop_fragment(synthetic_repo / "source" / "isaaclab", "feat-x")
 
     _commit_baseline(synthetic_repo)
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -145,7 +146,7 @@ def test_auto_bump_happy_path_commits_and_pushes(synthetic_repo: Path, tmp_path:
     assert rc == 0
     # The bot's commit should be on top of the develop tip on the bare remote.
     authors = _author_log(tmp_path / "origin.git")
-    assert authors[0] == cli.AutoBumpRun.AUTHOR_NAME
+    assert authors[0] == autobump.AutoBumpRun.AUTHOR_NAME
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +169,7 @@ def test_auto_bump_stages_every_file_the_compile_wrote(synthetic_repo: Path, tmp
     _drop_fragment(pkg_root, "feat-x")
 
     _commit_baseline(synthetic_repo)
-    run = cli.AutoBumpRun(
+    run = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -218,7 +219,7 @@ def test_auto_bump_rebases_on_non_fast_forward(synthetic_repo: Path, tmp_path: P
     _git(sidecar, "commit", "--allow-empty", "-m", "human work")
     _git(sidecar, "push", "origin", "develop")
 
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -228,7 +229,7 @@ def test_auto_bump_rebases_on_non_fast_forward(synthetic_repo: Path, tmp_path: P
     assert rc == 0
     authors = _author_log(bare)
     # The bot's commit must be on top, with the human's commit one below.
-    assert authors[0] == cli.AutoBumpRun.AUTHOR_NAME
+    assert authors[0] == autobump.AutoBumpRun.AUTHOR_NAME
     assert "Human Dev" in authors[1:]
 
 
@@ -257,7 +258,7 @@ def test_auto_bump_raises_after_exhausting_retries(synthetic_repo: Path, tmp_pat
     _git(sidecar, "commit", "--allow-empty", "-m", "initial human commit")
     _git(sidecar, "push", "origin", "develop")
 
-    real_fetch = cli.GitRepo.fetch
+    real_fetch = autobump.GitRepo.fetch
 
     def racing_fetch(self, remote: str, ref: str) -> None:
         # Order matters: real fetch first (captures FETCH_HEAD at the
@@ -269,10 +270,10 @@ def test_auto_bump_raises_after_exhausting_retries(synthetic_repo: Path, tmp_pat
         _git(sidecar, "commit", "--allow-empty", "-m", "another human commit")
         _git(sidecar, "push", "origin", "develop")
 
-    monkeypatch.setattr(cli.GitRepo, "fetch", racing_fetch)
+    monkeypatch.setattr(autobump.GitRepo, "fetch", racing_fetch)
 
-    with pytest.raises(cli.GitError):
-        cli.AutoBumpRun(
+    with pytest.raises(autobump.GitError):
+        autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -297,7 +298,7 @@ def test_auto_bump_ships_healthy_packages_when_one_fails(synthetic_repo: Path, t
     (bad / "docs" / "CHANGELOG.rst").write_text("not a real changelog\n", encoding="utf-8")
 
     _commit_baseline(synthetic_repo)
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -328,7 +329,7 @@ def test_auto_bump_dry_run_does_not_commit(synthetic_repo: Path, tmp_path: Path)
     frag = _drop_fragment(pkg_root, "feat-x")
 
     _commit_baseline(synthetic_repo)
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -339,7 +340,7 @@ def test_auto_bump_dry_run_does_not_commit(synthetic_repo: Path, tmp_path: Path)
 
     bare = tmp_path / "origin.git"
     authors = _author_log(bare)
-    assert cli.AutoBumpRun.AUTHOR_NAME not in authors
+    assert autobump.AutoBumpRun.AUTHOR_NAME not in authors
     # Fragment must still be on disk — dry-run is a preview, not a commit.
     assert frag.exists()
 
@@ -354,7 +355,7 @@ def test_auto_bump_with_no_fragments_is_a_noop(synthetic_repo: Path, tmp_path: P
     # No fragment dropped.
 
     _commit_baseline(synthetic_repo)
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -363,7 +364,7 @@ def test_auto_bump_with_no_fragments_is_a_noop(synthetic_repo: Path, tmp_path: P
 
     assert rc == 0
     authors = _author_log(tmp_path / "origin.git")
-    assert cli.AutoBumpRun.AUTHOR_NAME not in authors
+    assert autobump.AutoBumpRun.AUTHOR_NAME not in authors
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +386,7 @@ def _write_workspace_lock(work: Path, names: list[str]) -> Path:
     )
     blocks = []
     for name in names:
-        version = cli.Package.declared_version(work / "source" / name)
+        version = packages.Package.declared_version(work / "source" / name)
         blocks.append(
             f'[[package]]\nname = "{name}"\nversion = "{version}"\nsource = {{ editable = "source/{name}" }}\n'
         )
@@ -404,7 +405,7 @@ def test_auto_bump_syncs_and_commits_uv_lock(synthetic_repo: Path, tmp_path: Pat
     _drop_fragment(pkg_root, "feat-x")
 
     _commit_baseline(synthetic_repo)
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -440,7 +441,7 @@ def test_auto_bump_without_a_lock_still_commits(synthetic_repo: Path, tmp_path: 
     _drop_fragment(pkg_root, "feat-x")
 
     _commit_baseline(synthetic_repo)
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="release/3.0.0-beta2",
         remote="origin",
         event_name="schedule",
@@ -449,7 +450,7 @@ def test_auto_bump_without_a_lock_still_commits(synthetic_repo: Path, tmp_path: 
 
     assert rc == 0
     authors = _author_log(tmp_path / "origin.git", branch="release/3.0.0-beta2")
-    assert authors[0] == cli.AutoBumpRun.AUTHOR_NAME
+    assert authors[0] == autobump.AutoBumpRun.AUTHOR_NAME
 
 
 def test_auto_bump_reds_the_tile_but_still_ships_when_the_lock_needs_a_full_relock(
@@ -471,7 +472,7 @@ def test_auto_bump_reds_the_tile_but_still_ships_when_the_lock_needs_a_full_relo
     )
 
     _commit_baseline(synthetic_repo)
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -503,7 +504,7 @@ def test_auto_bump_reds_the_tile_but_still_ships_when_the_lock_needs_a_full_relo
 # against one branch's filenames, so this file keeps testing the truth after
 # a cherry-pick instead of testing a layout it no longer runs on. Where a
 # fixture needs to know the layout it asks the code under test
-# (:attr:`cli.Package.toml_path`) rather than hardcoding an answer.
+# (:attr:`packages.Package.toml_path`) rather than hardcoding an answer.
 # ---------------------------------------------------------------------------
 
 
@@ -528,7 +529,7 @@ def test_commit_message_names_the_package_once_per_bump(synthetic_repo: Path, tm
 
     _commit_baseline(synthetic_repo)
     assert (
-        cli.AutoBumpRun(
+        autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -562,7 +563,7 @@ def test_consumed_fragments_are_deleted_in_the_commit(synthetic_repo: Path, tmp_
 
     _commit_baseline(synthetic_repo)
     assert (
-        cli.AutoBumpRun(
+        autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -598,7 +599,7 @@ def test_skip_only_cleanup_stages_its_deletions(synthetic_repo: Path, tmp_path: 
 
     _commit_baseline(synthetic_repo)
     assert (
-        cli.AutoBumpRun(
+        autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -634,7 +635,7 @@ def test_multi_file_version_write_is_staged_and_reported_once(synthetic_repo: Pa
     pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab", starting_version="1.0.0")
     _drop_fragment(pkg_root, "feat-x")
 
-    real_write_version = cli.Package.write_version
+    real_write_version = packages.Package.write_version
     # A path that is not ``toml_path`` on any branch — using a real layout's
     # filename here would collide with the actual version file on whichever
     # branch uses it, and the test would stop testing a *second* write site.
@@ -648,11 +649,11 @@ def test_multi_file_version_write_is_staged_and_reported_once(synthetic_repo: Pa
         sidecar.write_text(f'version = "{new_version}"\n', encoding="utf-8")
         return [*touched, sidecar]
 
-    monkeypatch.setattr(cli.Package, "write_version", dual_write)
+    monkeypatch.setattr(packages.Package, "write_version", dual_write)
 
     _commit_baseline(synthetic_repo)
     assert (
-        cli.AutoBumpRun(
+        autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -690,7 +691,7 @@ def test_lock_present_but_workspace_undeclared_reds_the_tile_without_blocking(sy
     _drop_fragment(pkg_root, "feat-x")
 
     _commit_baseline(synthetic_repo)
-    rc = cli.AutoBumpRun(
+    rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",
@@ -729,7 +730,7 @@ def test_non_ascii_fragment_deletion_is_staged(synthetic_repo: Path, tmp_path: P
 
     _commit_baseline(synthetic_repo)
     assert (
-        cli.AutoBumpRun(
+        autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -770,7 +771,7 @@ def test_lock_failure_is_reported_on_every_run_not_just_the_bumping_one(syntheti
     _commit_baseline(synthetic_repo)
 
     def run_once() -> int:
-        return cli.AutoBumpRun(
+        return autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -801,7 +802,7 @@ def test_push_rejection_is_detected_from_porcelain_not_prose(synthetic_repo: Pat
     _git(sidecar, "commit", "--allow-empty", "-m", "human work")
     _git(sidecar, "push", "origin", "develop")
 
-    real_run = cli.GitRepo._run
+    real_run = autobump.GitRepo._run
 
     def localized_run(self, *args, check=True):
         result = real_run(self, *args, check=check)
@@ -814,10 +815,10 @@ def test_push_rejection_is_detected_from_porcelain_not_prose(synthetic_repo: Pat
             result.stdout = result.stdout.replace("[rejected]", "[rejeté]").replace("non-fast-forward", "non-accéléré")
         return result
 
-    monkeypatch.setattr(cli.GitRepo, "_run", localized_run)
+    monkeypatch.setattr(autobump.GitRepo, "_run", localized_run)
 
     assert (
-        cli.AutoBumpRun(
+        autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -826,7 +827,7 @@ def test_push_rejection_is_detected_from_porcelain_not_prose(synthetic_repo: Pat
         == 0
     )
     authors = _author_log(bare)
-    assert authors[0] == cli.AutoBumpRun.AUTHOR_NAME
+    assert authors[0] == autobump.AutoBumpRun.AUTHOR_NAME
     assert "Human Dev" in authors[1:]
 
 
@@ -858,7 +859,7 @@ def test_retry_fetch_prefers_the_branch_over_a_same_named_tag(synthetic_repo: Pa
     _git(sidecar, "push", "origin", "HEAD:refs/heads/develop")
 
     assert (
-        cli.AutoBumpRun(
+        autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
@@ -870,7 +871,7 @@ def test_retry_fetch_prefers_the_branch_over_a_same_named_tag(synthetic_repo: Pa
     # in the bare repo, a bare ``git log develop`` reads the *tag* -- the same
     # ambiguity this test exists to pin down, which would otherwise make the
     # assertions inspect the wrong history.
-    assert _author_log(bare, "refs/heads/develop")[0] == cli.AutoBumpRun.AUTHOR_NAME
+    assert _author_log(bare, "refs/heads/develop")[0] == autobump.AutoBumpRun.AUTHOR_NAME
     # The rebase must have landed on top of the human's branch commit, not the
     # tag's decoy commit.
     subjects = subprocess.run(
@@ -897,16 +898,16 @@ def test_partial_compile_failure_still_reports_what_it_wrote(synthetic_repo: Pat
     _drop_fragment(bad, "feat-y")
     _commit_baseline(synthetic_repo)
 
-    real_write_version = cli.Package.write_version
+    real_write_version = packages.Package.write_version
 
     def fail_after_changelog(self, new_version, *, dry_run):
         if self.name == "isaaclab_assets":
             raise ValueError("simulated failure after the changelog was written")
         return real_write_version(self, new_version, dry_run=dry_run)
 
-    monkeypatch.setattr(cli.Package, "write_version", fail_after_changelog)
+    monkeypatch.setattr(packages.Package, "write_version", fail_after_changelog)
 
-    run = cli.AutoBumpRun(
+    run = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
         event_name="schedule",

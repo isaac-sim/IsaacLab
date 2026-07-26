@@ -17,7 +17,7 @@ import re
 import shutil
 from pathlib import Path
 
-import cli
+import packages
 import pytest
 
 EXAMPLES = Path(__file__).parent / "integration"
@@ -58,7 +58,7 @@ def test_demo_compile_matches_changelog_after(tmp_path, demo, expected_version):
     shutil.copytree(demo_dir / "fragments", fragments_tmp)
 
     # Run the compiler against the (copied) fragments.
-    pkg = cli.Package(pkg_root)
+    pkg = packages.Package(pkg_root)
     pkg.compile(fragments_dir=fragments_tmp)
 
     actual = (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")

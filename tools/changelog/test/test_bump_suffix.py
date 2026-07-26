@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import cli
+import packages
 import pytest
 
 EXAMPLES = Path(__file__).parent / "integration"
@@ -27,7 +27,7 @@ EXAMPLES = Path(__file__).parent / "integration"
 
 def test_patch_bump_demo_aggregates_to_patch():
     """``examples/01_patch_bump/`` has two ``.rst`` files (no suffix) → patch."""
-    batch = cli.FragmentBatch.from_dir(EXAMPLES / "01_patch_bump" / "fragments")
+    batch = packages.FragmentBatch.from_dir(EXAMPLES / "01_patch_bump" / "fragments")
     assert batch.invalid == []
     assert {f.name for f in batch.valid} == {
         "jdoe-fix-mass-units.rst",
@@ -39,7 +39,7 @@ def test_patch_bump_demo_aggregates_to_patch():
 
 def test_minor_bump_demo_aggregates_to_minor():
     """``examples/02_minor_bump/`` mixes patch + minor fragments → minor wins."""
-    batch = cli.FragmentBatch.from_dir(EXAMPLES / "02_minor_bump" / "fragments")
+    batch = packages.FragmentBatch.from_dir(EXAMPLES / "02_minor_bump" / "fragments")
     assert batch.invalid == []
     assert {f.name for f in batch.valid} == {
         "jdoe-fix-rotation-frame.rst",
@@ -53,7 +53,7 @@ def test_minor_bump_demo_aggregates_to_minor():
 
 def test_major_bump_demo_aggregates_to_major():
     """``examples/03_major_bump/`` mixes patch + minor + major → major wins."""
-    batch = cli.FragmentBatch.from_dir(EXAMPLES / "03_major_bump" / "fragments")
+    batch = packages.FragmentBatch.from_dir(EXAMPLES / "03_major_bump" / "fragments")
     assert batch.invalid == []
     assert {f.name for f in batch.valid} == {
         "jdoe-fix-articulation-state.rst",
@@ -83,7 +83,7 @@ def test_major_bump_demo_aggregates_to_major():
     ],
 )
 def test_aggregate_bump_logic(bumps, expected):
-    assert cli.FragmentBatch._aggregate(bumps) == expected
+    assert packages.FragmentBatch._aggregate(bumps) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -111,8 +111,8 @@ def test_aggregate_bump_logic(bumps, expected):
     ],
 )
 def test_fragment_filename_regexes(name, is_fragment, is_skip):
-    assert bool(cli.FRAGMENT_RE.match(name)) is is_fragment
-    assert bool(cli.SKIP_RE.match(name)) is is_skip
+    assert bool(packages.FRAGMENT_RE.match(name)) is is_fragment
+    assert bool(packages.SKIP_RE.match(name)) is is_skip
 
 
 # ---------------------------------------------------------------------------
@@ -132,4 +132,4 @@ def test_fragment_filename_regexes(name, is_fragment, is_skip):
     ],
 )
 def test_parse_slug_for_filenames(name, expected_slug):
-    assert cli.Fragment.parse_slug(name) == expected_slug
+    assert packages.Fragment.parse_slug(name) == expected_slug

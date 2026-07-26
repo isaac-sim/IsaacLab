@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import cli
+import packages
 import pytest
 
 FIXTURES = Path(__file__).parent
@@ -27,17 +28,17 @@ def _write(path: Path, body: str) -> Path:
 
 def test_validate_accepts_well_formed(tmp_path):
     p = _write(tmp_path / "1234.rst", "Added\n^^^^^\n\n* Added X.\n")
-    assert cli.Fragment(p).validate() is None
+    assert packages.Fragment(p).validate() is None
 
 
 def test_validate_accepts_minor_suffix(tmp_path):
     p = _write(tmp_path / "1234.minor.rst", "Added\n^^^^^\n\n* Added X.\n")
-    assert cli.Fragment(p).validate() is None
+    assert packages.Fragment(p).validate() is None
 
 
 def test_validate_accepts_major_suffix(tmp_path):
     p = _write(tmp_path / "1234.major.rst", "Removed\n^^^^^^^\n\n* Removed X.\n")
-    assert cli.Fragment(p).validate() is None
+    assert packages.Fragment(p).validate() is None
 
 
 # ---------------------------------------------------------------------------
@@ -46,27 +47,27 @@ def test_validate_accepts_major_suffix(tmp_path):
 
 
 def test_validate_rejects_unknown_filename_from_fixture():
-    err = cli.Fragment(FIXTURES / "invalid_filenames" / "multi.dot.slug.rst").validate()
+    err = packages.Fragment(FIXTURES / "invalid_filenames" / "multi.dot.slug.rst").validate()
     assert err is not None and "invalid filename" in err
 
 
 def test_validate_rejects_unknown_bump_tier_from_fixture():
-    err = cli.Fragment(FIXTURES / "invalid_filenames" / "1234.notabump.rst").validate()
+    err = packages.Fragment(FIXTURES / "invalid_filenames" / "1234.notabump.rst").validate()
     assert err is not None and "invalid filename" in err
 
 
 def test_validate_rejects_empty_file_from_fixture():
-    err = cli.Fragment(FIXTURES / "invalid_content" / "3001.rst").validate()
+    err = packages.Fragment(FIXTURES / "invalid_content" / "3001.rst").validate()
     assert err is not None and "empty" in err
 
 
 def test_validate_rejects_missing_section_heading_from_fixture():
-    err = cli.Fragment(FIXTURES / "invalid_content" / "3002.rst").validate()
+    err = packages.Fragment(FIXTURES / "invalid_content" / "3002.rst").validate()
     assert err is not None and "section" in err.lower()
 
 
 def test_validate_rejects_section_without_bullets_from_fixture():
-    err = cli.Fragment(FIXTURES / "invalid_content" / "3003.rst").validate()
+    err = packages.Fragment(FIXTURES / "invalid_content" / "3003.rst").validate()
     assert err is not None and "bullet" in err.lower()
 
 
@@ -74,7 +75,7 @@ def test_validate_rejects_orphan_paragraph_from_fixture():
     """A flush-left paragraph between bullets / after the last bullet must be
     rejected — the compile step would splice it verbatim into ``CHANGELOG.rst``
     and Sphinx then fails the doc build with ``Unexpected indentation``."""
-    err = cli.Fragment(FIXTURES / "invalid_content" / "3004.rst").validate()
+    err = packages.Fragment(FIXTURES / "invalid_content" / "3004.rst").validate()
     assert err is not None and "orphan" in err.lower()
 
 
@@ -84,14 +85,14 @@ def test_validate_rejects_orphan_paragraph_from_fixture():
 # ---------------------------------------------------------------------------
 
 
-def _pkg_under(tmp_path: Path, name: str) -> cli.Package:
+def _pkg_under(tmp_path: Path, name: str) -> packages.Package:
     """Build a managed-looking Package rooted at ``tmp_path/source/<name>``."""
     root = tmp_path / "source" / name
     root.mkdir(parents=True)
     (root / "docs").mkdir(parents=True)
     (root / "pyproject.toml").write_text('[project]\nversion = "0.0.0"\n', encoding="utf-8")
     (root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
-    return cli.Package(root)
+    return packages.Package(root)
 
 
 def test_check_fragments_immutability_rejects_modified_fragment(tmp_path):
@@ -99,7 +100,7 @@ def test_check_fragments_immutability_rejects_modified_fragment(tmp_path):
     pkg = _pkg_under(tmp_path, "isaaclab")
     changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/jdoe-fix-bug.rst"}
     added = {"source/isaaclab/code.py"}  # fragment exists already; the PR only modified it
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == ["isaaclab"]
     invalid_map = dict(invalid)
     assert "source/isaaclab/changelog.d/jdoe-fix-bug.rst" in invalid_map
@@ -120,7 +121,7 @@ def test_check_fragments_chain_allows_other_pr_fragment(tmp_path):
         "source/isaaclab/changelog.d/bob-feature-b.rst",  # this PR's own fragment
     }
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
     assert invalid == []
 
@@ -135,7 +136,7 @@ def test_check_fragments_slug_collision_with_existing(tmp_path):
     (pkg.root / "changelog.d" / "jdoe-fix-bug.minor.rst").write_text("Added\n^^^^^\n\n* y\n", encoding="utf-8")
     changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst"}
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
     invalid_map = dict(invalid)
     assert "source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst" in invalid_map
     assert "collides" in invalid_map["source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst"]
@@ -167,7 +168,7 @@ def test_check_fragments_collision_independent_of_iterdir_order(tmp_path, monkey
 
     monkeypatch.setattr(Path, "iterdir", ordered_iterdir)
 
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
     invalid_map = dict(invalid)
     assert "source/isaaclab/changelog.d/jdoe-foo.minor.rst" in invalid_map
     assert "collides" in invalid_map["source/isaaclab/changelog.d/jdoe-foo.minor.rst"]
@@ -185,7 +186,7 @@ def test_check_fragments_slug_collision_within_pr(tmp_path):
         "source/isaaclab/changelog.d/jdoe-fix.minor.rst",
     }
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
     # One of the two is the offender; the other is the first-seen "winner".
     invalid_paths = [p for p, _ in invalid]
     assert any("jdoe-fix" in p for p in invalid_paths)
@@ -199,7 +200,7 @@ def test_check_fragments_skip_file_satisfies_requirement(tmp_path):
     (pkg.root / "changelog.d" / "ci-only.skip").write_text("", encoding="utf-8")
     changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/ci-only.skip"}
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
     assert invalid == []
 
@@ -209,7 +210,7 @@ def test_check_fragments_no_source_changes_means_no_required_fragment(tmp_path):
     pkg = _pkg_under(tmp_path, "isaaclab")
     changed = {"docs/something.rst"}  # not under source/isaaclab/
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
     assert invalid == []
 
@@ -219,7 +220,7 @@ def test_check_fragments_missing_when_source_touched_without_fragment(tmp_path):
     pkg = _pkg_under(tmp_path, "isaaclab")
     changed = {"source/isaaclab/code.py"}
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == ["isaaclab"]
     assert invalid == []
 
@@ -231,8 +232,8 @@ def test_check_fragments_missing_when_source_touched_without_fragment(tmp_path):
 
 def test_display_path_strips_repo_root_for_internal_paths():
     """Inside-repo paths are shown relative for terse log lines."""
-    p = cli.REPO_ROOT / "tools" / "changelog" / "cli.py"
-    assert cli._display_path(p) == "tools/changelog/cli.py"
+    p = packages.REPO_ROOT / "tools" / "changelog" / "cli.py"
+    assert packages._display_path(p) == "tools/changelog/cli.py"
 
 
 def test_display_path_falls_back_to_absolute_for_external(tmp_path):
@@ -242,7 +243,7 @@ def test_display_path_falls_back_to_absolute_for_external(tmp_path):
     external = tmp_path / "external_fragments" / "1234.rst"
     external.parent.mkdir(parents=True)
     external.write_text("", encoding="utf-8")
-    assert cli._display_path(external) == str(external)
+    assert packages._display_path(external) == str(external)
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +258,7 @@ def test_compile_raises_on_package_missing_changelog(tmp_path):
     pkg_root.mkdir(parents=True)
     (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
     # No docs/CHANGELOG.rst — package is not managed.
-    pkg = cli.Package(pkg_root)
+    pkg = packages.Package(pkg_root)
     assert pkg.is_managed is False
 
     fragments = tmp_path / "fragments"
@@ -315,7 +316,7 @@ def test_changelog_header_re_accepts_minimum_stub():
     without a trailing blank line) leaves no anchor for the prepend and
     must be rejected.
     """
-    assert cli.CHANGELOG_HEADER_RE.search("Changelog\n---------\n\n") is not None
+    assert packages.CHANGELOG_HEADER_RE.search("Changelog\n---------\n\n") is not None
 
 
 def test_changelog_header_re_rejects_unterminated_stub():
@@ -325,7 +326,7 @@ def test_changelog_header_re_rejects_unterminated_stub():
     20-byte shape, wedging the nightly compile job (run
     https://github.com/isaac-sim/IsaacLab/actions/runs/26494922179).
     """
-    assert cli.CHANGELOG_HEADER_RE.search("Changelog\n---------\n") is None
+    assert packages.CHANGELOG_HEADER_RE.search("Changelog\n---------\n") is None
 
 
 def test_every_managed_package_has_parseable_changelog_header():
@@ -343,10 +344,10 @@ def test_every_managed_package_has_parseable_changelog_header():
 
     self_heal = re.compile(r"^(Changelog\n-+)\n(?!\n)", re.MULTILINE)
     bad: list[tuple[str, str]] = []
-    for pkg in cli.Package.discover():
+    for pkg in packages.Package.discover():
         text = pkg.changelog_path.read_text(encoding="utf-8")
         text = self_heal.sub(r"\1\n\n", text, count=1)
-        if cli.CHANGELOG_HEADER_RE.search(text) is None:
+        if packages.CHANGELOG_HEADER_RE.search(text) is None:
             bad.append((pkg.name, str(pkg.changelog_path)))
     assert not bad, (
         "Malformed CHANGELOG.rst — each file must contain "
@@ -369,7 +370,7 @@ def test_write_changelog_entry_self_heals_missing_blank_line(tmp_path):
     (pkg_root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
     # The exact malformed shape that wedged the nightly.
     (pkg_root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n", encoding="utf-8")
-    pkg = cli.Package(pkg_root)
+    pkg = packages.Package(pkg_root)
     pkg.write_changelog_entry("0.2.0 (2026-05-28)\n~~~~~~~~~~~~~~~~~~\n", dry_run=False)
     out = (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")
     assert out.startswith("Changelog\n---------\n\n0.2.0 (2026-05-28)")
@@ -387,7 +388,7 @@ def test_write_changelog_entry_self_heal_is_noop_on_well_formed(tmp_path):
     (pkg_root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
     original = "Changelog\n---------\n\n0.1.0 (2026-05-20)\n~~~~~~~~~~~~~~~~~~\n\nAdded\n^^^^^\n\n* Initial.\n"
     (pkg_root / "docs" / "CHANGELOG.rst").write_text(original, encoding="utf-8")
-    pkg = cli.Package(pkg_root)
+    pkg = packages.Package(pkg_root)
     pkg.write_changelog_entry("0.2.0 (2026-05-28)\n~~~~~~~~~~~~~~~~~~\n", dry_run=False)
     out = (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")
     # New entry on top; the original 0.1.0 block still ends in a single ``\n``
@@ -419,7 +420,7 @@ def test_compile_failure_preserves_fragments_and_version(tmp_path):
     fragment = pkg_root / "changelog.d" / "test.rst"
     fragment.write_text("Added\n^^^^^\n\n* Did a thing.\n", encoding="utf-8")
 
-    pkg = cli.Package(pkg_root)
+    pkg = packages.Package(pkg_root)
     with pytest.raises(ValueError, match="Could not locate changelog header"):
         pkg.compile(dry_run=False)
 
@@ -461,7 +462,7 @@ def test_cmd_compile_continues_after_per_package_failure(tmp_path, monkeypatch, 
     # time (default arg), so a monkeypatch of the module constant alone
     # wouldn't redirect it. Patch the classmethod to return our two packages.
     monkeypatch.setattr(
-        cli.Package,
+        packages.Package,
         "discover",
         classmethod(
             lambda cls: sorted([cls(packages_root / "good_pkg"), cls(packages_root / "bad_pkg")], key=lambda p: p.name)
@@ -498,7 +499,7 @@ def test_compile_rejects_fragments_that_check_would_reject(tmp_path):
     (pkg_root / "docs").mkdir(parents=True)
     (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
     (pkg_root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
-    pkg = cli.Package(pkg_root)
+    pkg = packages.Package(pkg_root)
 
     fragments = tmp_path / "fragments"
     fragments.mkdir()

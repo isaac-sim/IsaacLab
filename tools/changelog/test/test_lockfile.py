@@ -13,7 +13,7 @@ does change and what must not.
 
 from __future__ import annotations
 
-import cli
+import packages
 import pytest
 from lockfile import LockFile
 
@@ -87,7 +87,7 @@ def _write_workspace(root, *, lock=LOCK, root_toml=ROOT_TOML, versions=None):
         pkg = root / "source" / name
         pkg.mkdir(parents=True, exist_ok=True)
         write_version_file(pkg, name, version)
-    return LockFile(root, cli.Package.declared_version)
+    return LockFile(root, packages.Package.declared_version)
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +221,7 @@ def test_absent_lock_is_a_clean_noop(tmp_path):
     """Release branches cut before the uv workspace carry no ``uv.lock``.
     That must be a no-op, not a traceback — the same cli.py is cherry-picked
     to those branches."""
-    lock = LockFile(tmp_path, cli.Package.declared_version)
+    lock = LockFile(tmp_path, packages.Package.declared_version)
     assert lock.exists is False
     assert lock.sync() == []
 
@@ -231,7 +231,7 @@ def test_absent_lock_is_a_clean_noop(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not (cli.REPO_ROOT / "uv.lock").is_file(), reason="branch carries no uv.lock")
+@pytest.mark.skipif(not (packages.REPO_ROOT / "uv.lock").is_file(), reason="branch carries no uv.lock")
 def test_repo_lock_membership_is_repairable():
     """The real lock's member set must match the real root manifest.
 
@@ -241,7 +241,7 @@ def test_repo_lock_membership_is_repairable():
     lock is version-in-sync: the nightly is what brings those into line, so
     drift there is expected between runs.
     """
-    LockFile(cli.REPO_ROOT, cli.Package.declared_version).assert_repairable()
+    LockFile(packages.REPO_ROOT, packages.Package.declared_version).assert_repairable()
 
 
 # ---------------------------------------------------------------------------
@@ -316,4 +316,4 @@ def test_check_wraps_parser_errors(tmp_path):
 
 
 def test_check_on_a_branch_without_a_lock_is_empty(tmp_path):
-    assert LockFile(tmp_path, cli.Package.declared_version).check() == []
+    assert LockFile(tmp_path, packages.Package.declared_version).check() == []

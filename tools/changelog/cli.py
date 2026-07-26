@@ -90,25 +90,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from autobump import AutoBumpRun, GitError, GitRepo  # noqa: F401
+from autobump import AutoBumpRun
 from lockfile import LockFile
-
-# Re-exported so ``import cli`` stays the one entry point for the tool and
-# its tests: the domain model moved to its own module for readability, not
-# to change who may reach for it.
-from packages import (  # noqa: F401
-    CHANGELOG_HEADER_RE,
-    FRAGMENT_RE,
-    PACKAGES_ROOT,
-    REPO_ROOT,
-    SKIP_RE,
-    Fragment,
-    FragmentBatch,
-    Package,
-    PRDiff,
-    Version,
-    _display_path,
-)
+from packages import CHANGELOG_HEADER_RE, REPO_ROOT, Package, PRDiff, Version
 
 # ---------------------------------------------------------------------------
 # Subcommand handlers

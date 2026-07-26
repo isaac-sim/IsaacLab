@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import cli
+import packages
 
 FIXTURES = Path(__file__).parent
 
@@ -26,14 +26,14 @@ def _write(path: Path, body: str) -> Path:
 
 def test_parse_fragment_single_section(tmp_path):
     p = _write(tmp_path / "1.rst", "Added\n^^^^^\n\n* Added :class:`~pkg.Foo`.\n")
-    sections = cli.Fragment(p).parse()
+    sections = packages.Fragment(p).parse()
     assert list(sections.keys()) == ["Added"]
     assert sections["Added"] == ["* Added :class:`~pkg.Foo`.\n"]
 
 
 def test_parse_fragment_multiple_sections_preserves_dict_order(tmp_path):
     p = _write(tmp_path / "1.rst", "Added\n^^^^^\n\n* a1\n\nFixed\n^^^^^\n\n* f1\n* f2\n")
-    sections = cli.Fragment(p).parse()
+    sections = packages.Fragment(p).parse()
     assert list(sections.keys()) == ["Added", "Fixed"]
     assert sections["Added"] == ["* a1\n"]
     assert sections["Fixed"] == ["* f1\n", "* f2\n"]
@@ -42,17 +42,17 @@ def test_parse_fragment_multiple_sections_preserves_dict_order(tmp_path):
 def test_parse_fragment_underline_must_be_at_least_heading_length(tmp_path):
     """Heading 'Added' (5 chars) needs >=5 carets; '^^' must not match."""
     p = _write(tmp_path / "1.rst", "Added\n^^\n\n* a1\n")
-    assert cli.Fragment(p).parse() == {}
+    assert packages.Fragment(p).parse() == {}
 
 
 def test_parse_fragment_empty_file(tmp_path):
     p = _write(tmp_path / "1.rst", "")
-    assert cli.Fragment(p).parse() == {}
+    assert packages.Fragment(p).parse() == {}
 
 
 def test_parse_fragment_no_section_headings(tmp_path):
     p = _write(tmp_path / "1.rst", "Just a free-form note with no headings.\n")
-    assert cli.Fragment(p).parse() == {}
+    assert packages.Fragment(p).parse() == {}
 
 
 # ---------------------------------------------------------------------------
@@ -67,14 +67,14 @@ def test_parse_fragment_no_section_headings(tmp_path):
 
 def test_fragment_batch_flags_invalid_filenames_from_fixture():
     """Files with dotted slugs or unknown bump tiers go in ``invalid``."""
-    batch = cli.FragmentBatch.from_dir(FIXTURES / "invalid_filenames")
+    batch = packages.FragmentBatch.from_dir(FIXTURES / "invalid_filenames")
     assert batch.valid == []
     assert {p.name for p in batch.invalid} == {"multi.dot.slug.rst", "1234.notabump.rst"}
 
 
 def test_fragment_batch_missing_directory(tmp_path):
     """A non-existent directory is treated as empty, not an error."""
-    batch = cli.FragmentBatch.from_dir(tmp_path / "does-not-exist")
+    batch = packages.FragmentBatch.from_dir(tmp_path / "does-not-exist")
     assert batch.valid == []
     assert batch.invalid == []
     assert batch.skip_paths == []
@@ -84,7 +84,7 @@ def test_fragment_batch_collects_skip_files_separately(tmp_path):
     """``.skip`` files are tolerated — exposed via ``skip_paths``, not ``valid``."""
     (tmp_path / "1234.skip").write_text("", encoding="utf-8")
     (tmp_path / "1235.rst").write_text("Added\n^^^^^\n\n* x\n", encoding="utf-8")
-    batch = cli.FragmentBatch.from_dir(tmp_path)
+    batch = packages.FragmentBatch.from_dir(tmp_path)
     assert {f.name for f in batch.valid} == {"1235.rst"}
     assert {p.name for p in batch.skip_paths} == {"1234.skip"}
 
@@ -108,7 +108,7 @@ def _make_pkg(root: Path, name: str, *, has_ext: bool = True, has_changelog: boo
 def test_package_discover_includes_complete_packages(tmp_path):
     _make_pkg(tmp_path, "complete_a")
     _make_pkg(tmp_path, "complete_b")
-    pkgs = cli.Package.discover(tmp_path)
+    pkgs = packages.Package.discover(tmp_path)
     assert [p.name for p in pkgs] == ["complete_a", "complete_b"]
     assert all(p.is_managed for p in pkgs)
 
@@ -116,28 +116,28 @@ def test_package_discover_includes_complete_packages(tmp_path):
 def test_package_discover_excludes_packages_missing_changelog(tmp_path):
     _make_pkg(tmp_path, "complete")
     _make_pkg(tmp_path, "no_changelog", has_changelog=False)
-    assert [p.name for p in cli.Package.discover(tmp_path)] == ["complete"]
+    assert [p.name for p in packages.Package.discover(tmp_path)] == ["complete"]
 
 
 def test_package_discover_excludes_packages_missing_pyproject_toml(tmp_path):
     _make_pkg(tmp_path, "complete")
     _make_pkg(tmp_path, "no_extension", has_ext=False)
-    assert [p.name for p in cli.Package.discover(tmp_path)] == ["complete"]
+    assert [p.name for p in packages.Package.discover(tmp_path)] == ["complete"]
 
 
 def test_package_discover_returns_sorted_alphabetically(tmp_path):
     _make_pkg(tmp_path, "zebra")
     _make_pkg(tmp_path, "alpha")
     _make_pkg(tmp_path, "mango")
-    assert [p.name for p in cli.Package.discover(tmp_path)] == ["alpha", "mango", "zebra"]
+    assert [p.name for p in packages.Package.discover(tmp_path)] == ["alpha", "mango", "zebra"]
 
 
 def test_package_discover_missing_root_returns_empty(tmp_path):
-    assert cli.Package.discover(tmp_path / "does-not-exist") == []
+    assert packages.Package.discover(tmp_path / "does-not-exist") == []
 
 
 def test_package_is_managed_property(tmp_path):
     _make_pkg(tmp_path, "complete")
     _make_pkg(tmp_path, "no_changelog", has_changelog=False)
-    assert cli.Package(tmp_path / "complete").is_managed is True
-    assert cli.Package(tmp_path / "no_changelog").is_managed is False
+    assert packages.Package(tmp_path / "complete").is_managed is True
+    assert packages.Package(tmp_path / "no_changelog").is_managed is False
