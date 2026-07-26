@@ -143,9 +143,10 @@ def _shadow_hand_cfg(
     *init_rot* — the gain tuning is identical on both hands.
 
     The Newton variant reuses the shared actuator defined on ``SHADOW_HAND_NEWTON_CFG``,
-    overriding only the finger gains to ``20.0`` / ``2.0`` -- the smallest tested setting
-    at which the handover policy learns the catch (mean reward at iter 200 / 2048 envs
-    ~27 -> ~777 vs reorient's base gains).
+    raising its gains to ``20.0`` / ``2.0`` -- the smallest tested setting at which the
+    handover policy learns the catch (mean reward at iter 200 / 2048 envs ~27 -> ~777 vs
+    reorient's base gains). The scalar replaces the per-joint gain mapping, so this applies
+    to every joint in the group, wrists included.
     """
     physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
         init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
@@ -163,9 +164,9 @@ def _shadow_hand_cfg(
             torch.tensor(SHADOW_HAND_NEWTON_CFG.init_state.rot, dtype=torch.float64),
         ).tolist()
     )
-    # The Newton hand inherits the shared actuator from ``SHADOW_HAND_NEWTON_CFG``,
-    # overriding only the finger gains: the catch needs a higher nominal gain
-    # (20.0/2.0) than reorient's base. Per-hand prim path and init pose also differ here.
+    # The Newton hand inherits the shared actuator from ``SHADOW_HAND_NEWTON_CFG``, raising its
+    # gains: the catch needs a higher nominal gain (20.0/2.0) than reorient's base. Per-hand prim
+    # path and init pose also differ here.
     newton_mjwarp_cfg = SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
         init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
