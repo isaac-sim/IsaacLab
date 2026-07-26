@@ -487,6 +487,21 @@ class Package:
     directly may not be managed (use :attr:`is_managed`).
     """
 
+    class CompileFailed(Exception):
+        """A compile that raised *after* it had already written to disk.
+
+        Carries the paths written before the failure. A caller that stages
+        what the compile reports must still receive them: the writes really
+        happened, and leaving them unstaged strands a half-applied compile in
+        the working tree, which in turn makes the nightly's ``git rebase``
+        refuse to run.
+        """
+
+        def __init__(self, cause: Exception, touched: list[Path]):
+            super().__init__(str(cause))
+            self.cause = cause
+            self.touched = touched
+
     root: Path
 
     @property
@@ -700,21 +715,34 @@ class Package:
                 f"{_display_path(self.changelog_path)} does not exist; "
                 f"package {self.name!r} is not managed (missing CHANGELOG.rst)."
             )
+        # Everything below mutates the working tree. Once the first write
+        # lands the run is no longer all-or-nothing, so a later failure has to
+        # hand back what it already did rather than let those paths vanish
+        # from the caller's staging set.
         touched: list[Path] = []
-        touched.extend(self.write_changelog_entry(entry, dry_run=dry_run))
-        touched.extend(self.write_version(new_version, dry_run=dry_run))
+        try:
+            touched.extend(self.write_changelog_entry(entry, dry_run=dry_run))
+            touched.extend(self.write_version(new_version, dry_run=dry_run))
 
-        if not dry_run:
-            deleted_frags, deleted_skips = batch.delete_all()
-            # Deletions are part of the change set: they must be staged with
-            # the entry that consumed them, or the fragments come back on the
-            # next checkout and recompile into a duplicate version block.
-            touched.extend(deleted_frags)
-            touched.extend(deleted_skips)
-            msg = f"  {self.name}: deleted {len(deleted_frags)} fragment(s)"
-            if deleted_skips:
-                msg += f" and {len(deleted_skips)} skip file(s)"
-            print(msg + ".")
+            if not dry_run:
+                deleted_frags, deleted_skips = batch.delete_all()
+                # Deletions are part of the change set: they must be staged
+                # with the entry that consumed them, or the fragments come
+                # back on the next checkout and recompile into a duplicate
+                # version block.
+                touched.extend(deleted_frags)
+                touched.extend(deleted_skips)
+                msg = f"  {self.name}: deleted {len(deleted_frags)} fragment(s)"
+                if deleted_skips:
+                    msg += f" and {len(deleted_skips)} skip file(s)"
+                print(msg + ".")
+        except (OSError, ValueError) as e:
+            if not touched:
+                # Nothing reached disk, so the caller has nothing to stage and
+                # the original exception type is the more useful one. Only a
+                # genuinely half-applied compile needs the wrapper.
+                raise
+            raise self.CompileFailed(e, touched) from e
 
         return True, touched
 

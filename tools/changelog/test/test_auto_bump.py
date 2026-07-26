@@ -707,3 +707,220 @@ def test_lock_present_but_workspace_undeclared_reds_the_tile_without_blocking(sy
     ).stdout.split()
     assert _version_file("isaaclab") in files
     assert "uv.lock" not in files
+
+
+# ---------------------------------------------------------------------------
+# Hostile-input and environment robustness
+# ---------------------------------------------------------------------------
+
+
+def test_non_ascii_fragment_deletion_is_staged(synthetic_repo: Path, tmp_path: Path):
+    """A fragment slug with a non-ASCII character must still get its deletion staged.
+
+    ``git ls-files`` C-quotes such paths under the default ``core.quotePath``
+    (``"jos\\303\\251-fix.rst"``), and the fragment filename pattern happily
+    accepts them. If the quoted form is compared against the caller's real
+    path it never matches, the deletion is dropped, the fragment survives on
+    the branch, and the next nightly compiles it a second time -- the exact
+    duplicate-entry, double-bump failure this whole design exists to prevent.
+    """
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    frag = _drop_fragment(pkg_root, "josé-fix")
+
+    _commit_baseline(synthetic_repo)
+    assert (
+        cli.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+
+    assert not frag.exists()
+    committed = subprocess.run(
+        ["git", "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", "develop"],
+        cwd=tmp_path / "origin.git",
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    assert "source/isaaclab/docs/CHANGELOG.rst" in committed
+    assert "source/isaaclab/changelog.d/josé-fix.rst" not in committed
+
+
+def test_lock_failure_is_reported_on_every_run_not_just_the_bumping_one(synthetic_repo: Path, tmp_path: Path):
+    """An unrepairable lock must keep reporting failure until a human fixes it.
+
+    Reconciling the lock only when a package happened to bump would report the
+    problem on the first night and then fall silent: the following night has
+    no pending fragments, exits early, never looks at the lock, and reports
+    success while the branch is still inconsistent.
+    """
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    _write_workspace_lock(synthetic_repo, ["isaaclab"])
+    root_toml = synthetic_repo / "pyproject.toml"
+    root_toml.write_text(
+        root_toml.read_text(encoding="utf-8")
+        + 'isaaclab_assets = { path = "source/isaaclab_assets", editable = true }\n',
+        encoding="utf-8",
+    )
+    _drop_fragment(pkg_root, "feat-x")
+    _commit_baseline(synthetic_repo)
+
+    def run_once() -> int:
+        return cli.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+
+    assert run_once() == 1, "first run: mismatch reported"
+    # Second run has no fragments left to compile, but the lock is still broken.
+    assert run_once() == 1, "second run must still report the unrepairable lock"
+
+
+def test_push_rejection_is_detected_from_porcelain_not_prose(synthetic_repo: Path, tmp_path: Path, monkeypatch):
+    """Non-fast-forward detection must not depend on git's human-readable text.
+
+    git translates its summary output; the ``--porcelain`` status flag in
+    column zero is structural. Simulating a localized git (all prose replaced)
+    proves the retry decision comes from the flag.
+    """
+    _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    _drop_fragment(synthetic_repo / "source" / "isaaclab", "feat-x")
+    _commit_baseline(synthetic_repo)
+
+    bare = tmp_path / "origin.git"
+    sidecar = tmp_path / "sidecar"
+    subprocess.run(["git", "clone", str(bare), str(sidecar)], check=True, capture_output=True)
+    _git(sidecar, "config", "user.name", "Human Dev")
+    _git(sidecar, "config", "user.email", "dev@example.com")
+    _git(sidecar, "commit", "--allow-empty", "-m", "human work")
+    _git(sidecar, "push", "origin", "develop")
+
+    real_run = cli.GitRepo._run
+
+    def localized_run(self, *args, check=True):
+        result = real_run(self, *args, check=check)
+        if args and args[0] == "push":
+            # Simulate a git whose human-readable text is translated: the
+            # summary field and the stderr prose lose every English token the
+            # old substring scan keyed on ("[rejected]", "non-fast-forward"),
+            # while the structural ``!`` flag in column zero is untouched.
+            result.stderr = "erreur: échec de l'envoi de certaines références\n"
+            result.stdout = result.stdout.replace("[rejected]", "[rejeté]").replace("non-fast-forward", "non-accéléré")
+        return result
+
+    monkeypatch.setattr(cli.GitRepo, "_run", localized_run)
+
+    assert (
+        cli.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+    authors = _author_log(bare)
+    assert authors[0] == cli.AutoBumpRun.AUTHOR_NAME
+    assert "Human Dev" in authors[1:]
+
+
+def test_retry_fetch_prefers_the_branch_over_a_same_named_tag(synthetic_repo: Path, tmp_path: Path):
+    """The retry must rebase onto the branch, even if a tag shares its name.
+
+    ``git fetch origin develop`` with both a tag and a branch called
+    ``develop`` resolves the *tag* into ``FETCH_HEAD``. The rebase would then
+    replay the auto-commit onto an unrelated commit while the push targets
+    ``refs/heads/develop`` -- so the two halves of the retry would disagree
+    about what "develop" means.
+    """
+    _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    _drop_fragment(synthetic_repo / "source" / "isaaclab", "feat-x")
+    _commit_baseline(synthetic_repo)
+
+    bare = tmp_path / "origin.git"
+    sidecar = tmp_path / "sidecar"
+    subprocess.run(["git", "clone", str(bare), str(sidecar)], check=True, capture_output=True)
+    _git(sidecar, "config", "user.name", "Human Dev")
+    _git(sidecar, "config", "user.email", "dev@example.com")
+    # A tag named exactly like the branch, pointing somewhere else entirely.
+    _git(sidecar, "commit", "--allow-empty", "-m", "decoy commit")
+    _git(sidecar, "tag", "develop")
+    _git(sidecar, "push", "origin", "refs/tags/develop")
+    _git(sidecar, "reset", "--hard", "HEAD~1")
+    # ...and a real human commit on the branch, to force the retry path.
+    _git(sidecar, "commit", "--allow-empty", "-m", "human work")
+    _git(sidecar, "push", "origin", "HEAD:refs/heads/develop")
+
+    assert (
+        cli.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+    # Qualify the ref here too: with both a tag and a branch named ``develop``
+    # in the bare repo, a bare ``git log develop`` reads the *tag* -- the same
+    # ambiguity this test exists to pin down, which would otherwise make the
+    # assertions inspect the wrong history.
+    assert _author_log(bare, "refs/heads/develop")[0] == cli.AutoBumpRun.AUTHOR_NAME
+    # The rebase must have landed on top of the human's branch commit, not the
+    # tag's decoy commit.
+    subjects = subprocess.run(
+        ["git", "log", "refs/heads/develop", "--format=%s"],
+        cwd=bare,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split("\n")
+    assert "human work" in subjects
+    assert "decoy commit" not in subjects
+
+
+def test_partial_compile_failure_still_reports_what_it_wrote(synthetic_repo: Path, tmp_path: Path, monkeypatch):
+    """A compile that raises after writing must hand those paths back.
+
+    Otherwise the writes stay unstaged, the working tree is left dirty, and
+    the rebase in the push-retry loop refuses to run -- one malformed package
+    would wedge the push for every healthy one.
+    """
+    good = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    bad = _write_managed_pkg(synthetic_repo / "source", "isaaclab_assets")
+    _drop_fragment(good, "feat-x")
+    _drop_fragment(bad, "feat-y")
+    _commit_baseline(synthetic_repo)
+
+    real_write_version = cli.Package.write_version
+
+    def fail_after_changelog(self, new_version, *, dry_run):
+        if self.name == "isaaclab_assets":
+            raise ValueError("simulated failure after the changelog was written")
+        return real_write_version(self, new_version, dry_run=dry_run)
+
+    monkeypatch.setattr(cli.Package, "write_version", fail_after_changelog)
+
+    run = cli.AutoBumpRun(
+        branch="develop",
+        remote="origin",
+        event_name="schedule",
+        repo_root=synthetic_repo,
+    )
+    assert run.run() == 1  # the bad package is still a failure
+
+    # The bad package's already-written changelog must have been staged, so
+    # nothing is left dirty behind the commit.
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=synthetic_repo,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+    assert dirty == "", f"working tree left dirty after partial failure: {dirty!r}"

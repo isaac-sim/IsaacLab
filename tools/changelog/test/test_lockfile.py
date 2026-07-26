@@ -242,3 +242,78 @@ def test_repo_lock_membership_is_repairable():
     drift there is expected between runs.
     """
     LockFile(cli.REPO_ROOT, cli.Package.declared_version).assert_repairable()
+
+
+# ---------------------------------------------------------------------------
+# Block scoping: a name is not a safe key
+# ---------------------------------------------------------------------------
+
+# A lock carrying the same name twice: once as the editable workspace member,
+# once as a registry release of the same project. Only the editable block may
+# be re-pointed; moving the registry pin would leave its recorded hashes and
+# source metadata describing a different version.
+DUPLICATE_NAME_LOCK = """\
+version = 1
+requires-python = ">=3.11"
+
+[[package]]
+name = "isaaclab"
+version = "13.0.0"
+source = { editable = "source/isaaclab" }
+
+[[package]]
+name = "isaaclab"
+version = "12.4.0"
+source = { registry = "https://pypi.org/simple" }
+"""
+
+DUPLICATE_NAME_ROOT_TOML = """\
+[project]
+name = "isaaclab-dev"
+version = "0.0.0"
+
+[tool.uv.sources]
+isaaclab = { path = "source/isaaclab", editable = true }
+"""
+
+
+def test_registry_block_sharing_a_member_name_is_not_rewritten(tmp_path):
+    lock = _write_workspace(
+        tmp_path,
+        lock=DUPLICATE_NAME_LOCK,
+        root_toml=DUPLICATE_NAME_ROOT_TOML,
+        versions={"isaaclab": "13.1.0"},
+    )
+    updated, changes = lock.drift()
+    assert changes == [("isaaclab", "13.0.0", "13.1.0")]
+    # The editable block moved...
+    assert 'version = "13.1.0"\nsource = { editable = "source/isaaclab" }' in updated
+    # ...and the registry block kept its own pin.
+    assert 'version = "12.4.0"\nsource = { registry = "https://pypi.org/simple" }' in updated
+
+
+# ---------------------------------------------------------------------------
+# check(): must not be a weaker gate than sync()
+# ---------------------------------------------------------------------------
+
+
+def test_check_applies_the_membership_guard(tmp_path):
+    """``--check`` exists to catch a lock that needs attention. Reporting
+    "in sync" for a lock whose membership cannot be repaired would make the
+    gate actively misleading."""
+    root_toml = ROOT_TOML + 'isaaclab-newton = { path = "source/isaaclab_newton", editable = true }\n'
+    lock = _write_workspace(tmp_path, root_toml=root_toml)
+    with pytest.raises(LockFile.MembershipMismatch):
+        lock.check()
+
+
+def test_check_wraps_parser_errors(tmp_path):
+    """Malformed TOML must arrive as this module's own error, not a raw
+    traceback out of the command handler."""
+    lock = _write_workspace(tmp_path, lock="this is not toml = [[[\n")
+    with pytest.raises(LockFile.Error):
+        lock.check()
+
+
+def test_check_on_a_branch_without_a_lock_is_empty(tmp_path):
+    assert LockFile(tmp_path, cli.Package.declared_version).check() == []

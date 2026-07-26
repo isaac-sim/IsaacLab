@@ -111,6 +111,19 @@ class LockFile:
             if (editable := pkg.get("source", {}).get("editable")) is not None
         }
 
+    def editable_block_indexes(self) -> set[int]:
+        """Return the positions of the editable members' ``[[package]]`` blocks.
+
+        Package *names* are not a safe key for the rewrite. A lock may carry
+        two blocks under one name -- an editable workspace member and a
+        registry release of the same project -- and a name-keyed rewrite would
+        move the registry block's pin too, leaving its hashes and source
+        metadata describing a different version. Blocks are counted in file
+        order instead, which is unambiguous.
+        """
+        data = tomllib.loads(self.path.read_text(encoding="utf-8"))
+        return {i for i, pkg in enumerate(data.get("package", [])) if pkg.get("source", {}).get("editable") is not None}
+
     def declared_members(self) -> set[Path]:
         """Return the package roots the root ``pyproject.toml`` declares as editable.
 
@@ -166,8 +179,15 @@ class LockFile:
                 targets[name] = version
         return targets
 
+    PACKAGE_HEADER = "[[package]]"
+
     @classmethod
-    def rewrite(cls, text: str, targets: dict[str, str]) -> tuple[str, list[tuple[str, str, str]]]:
+    def rewrite(
+        cls,
+        text: str,
+        targets: dict[str, str],
+        editable_blocks: set[int] | None = None,
+    ) -> tuple[str, list[tuple[str, str, str]]]:
         """Return ``(new lock text, [(package, old version, new version), ...])``.
 
         Only the ``version`` line of a named package's own ``[[package]]``
@@ -178,12 +198,21 @@ class LockFile:
             text: Current lockfile contents.
             targets: Versions to write, keyed by package name. Names absent
                 from this mapping are left alone.
+            editable_blocks: Positions, in file order, of the ``[[package]]``
+                blocks that may be rewritten. ``None`` applies no positional
+                restriction and matches on name alone -- for exercising the
+                line mechanics in isolation. Production callers pass
+                :meth:`editable_block_indexes`, because a name can appear on
+                both an editable member and a registry package and only the
+                former may move.
         """
         out: list[str] = []
         changes: list[tuple[str, str, str]] = []
         # Name of the block currently open, or None when we are outside a
         # ``[[package]]`` block or have already rewritten its version.
         current: str | None = None
+        # Index of the ``[[package]]`` block being read; -1 until the first.
+        block = -1
         for line in text.splitlines(keepends=True):
             if line.startswith("["):
                 # Any table header — ``[[package]]``, ``[package.metadata]``,
@@ -193,11 +222,14 @@ class LockFile:
                 # Keeping the key bound to its own table is cheap next to the
                 # cost of corrupting a lockfile.
                 current = None
+                if line.startswith(cls.PACKAGE_HEADER):
+                    block += 1
             elif (match := cls._NAME_RE.match(line)) is not None:
                 current = match.group(1)
             elif current is not None and (match := cls._VERSION_RE.match(line)) is not None:
+                allowed = editable_blocks is None or block in editable_blocks
                 old, new = match.group(1), targets.get(current)
-                if new is not None and new != old:
+                if allowed and new is not None and new != old:
                     line = f'version = "{new}"\n'
                     changes.append((current, old, new))
                 current = None
@@ -207,7 +239,34 @@ class LockFile:
     def drift(self) -> tuple[str, list[tuple[str, str, str]]]:
         """Return the rewritten text and the drift it would resolve, writing nothing."""
         text = self.path.read_text(encoding="utf-8")
-        return self.rewrite(text, self.target_versions())
+        return self.rewrite(text, self.target_versions(), self.editable_block_indexes())
+
+    def _guarded_drift(self) -> tuple[str, list[tuple[str, str, str]]]:
+        """Compute the drift behind the membership guard and the TOML guard.
+
+        Every entry point goes through here, so none of them can accidentally
+        report a clean lock while :meth:`assert_repairable` would have raised,
+        or surface a parser error as a bare traceback.
+        """
+        try:
+            self.assert_repairable()
+            return self.drift()
+        except (OSError, tomllib.TOMLDecodeError) as e:
+            # Unreadable or malformed TOML on either side. Surfaced as this
+            # module's own error type so callers need not import tomllib to
+            # write an ``except`` clause.
+            raise self.Error(f"could not read {self.LOCK_NAME} or {self.ROOT_TOML_NAME}: {e}") from e
+
+    def check(self) -> list[tuple[str, str, str]]:
+        """Return the drift without writing, under the same guards as :meth:`sync`.
+
+        Raises:
+            MembershipMismatch: The lock needs a full ``uv lock``.
+            Error: The lock or the root manifest could not be read.
+        """
+        if not self.exists:
+            return []
+        return self._guarded_drift()[1]
 
     def sync(self, *, dry_run: bool = False) -> list[Path]:
         """Re-point the lock's member versions at their manifests.
@@ -229,14 +288,7 @@ class LockFile:
         if not self.exists:
             print(f"No {self.LOCK_NAME} on this branch — nothing to sync.")
             return []
-        try:
-            self.assert_repairable()
-            updated, changes = self.drift()
-        except (OSError, tomllib.TOMLDecodeError) as e:
-            # Unreadable or malformed TOML on either side. Surfaced as this
-            # module's own error type so callers need not import tomllib to
-            # write an ``except`` clause.
-            raise self.Error(f"could not read {self.LOCK_NAME} or {self.ROOT_TOML_NAME}: {e}") from e
+        updated, changes = self._guarded_drift()
         if not changes:
             print(f"{self.LOCK_NAME} is already in sync with the workspace versions.")
             return []

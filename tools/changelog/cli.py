@@ -139,7 +139,7 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
             parser.error(f"--package {args.package!r}: directory not found at {pkg.root}")
         if not pkg.is_managed:
             parser.error(
-                f"--package {args.package!r} is not managed: missing pyproject.toml or "
+                f"--package {args.package!r} is not managed: missing {pkg.toml_path.name} or "
                 f"docs/CHANGELOG.rst at {pkg.root}. Run with --all to see the discovered list."
             )
         packages = [pkg]
@@ -159,7 +159,10 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
                 explicit_version=explicit_version,
                 dry_run=args.dry_run,
             )
-        except (FileNotFoundError, ValueError) as e:
+        # ``CompileFailed`` wraps a failure that happened after the compile had
+        # already written; this command has nothing to stage, so it is reported
+        # exactly like a failure that happened before the first write.
+        except (Package.CompileFailed, FileNotFoundError, ValueError) as e:
             print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
             failures.append((pkg.name, str(e)))
             continue
@@ -286,7 +289,7 @@ def cmd_sync_lock(args: argparse.Namespace, _parser: argparse.ArgumentParser) ->
         if not args.check:
             lock.sync()
             return 0
-        _, changes = lock.drift()
+        changes = lock.check()
     except LockFile.Error as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1

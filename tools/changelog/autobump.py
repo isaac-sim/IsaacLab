@@ -81,8 +81,17 @@ class GitRepo:
         self._run("add", "--", *path_strs)
 
     def _tracked(self, paths: Iterable[Path | str]) -> list[str]:
-        """Return the subset of ``paths`` git has under version control."""
-        listed = self._run("ls-files", "--", *[str(p) for p in paths]).stdout.split("\n")
+        """Return the subset of ``paths`` git has under version control.
+
+        ``-z`` is load-bearing, not a style choice. With ``core.quotePath`` at
+        its default, ``git ls-files`` C-quotes any path containing a non-ASCII
+        byte -- ``josé-fix.rst`` comes back as ``"jos\\303\\251-fix.rst"``.
+        Fragment slugs allow those characters, so the quoted form would fail
+        the caller's comparison, its deletion would be dropped from the staging
+        set, and the fragment would survive on the branch to be compiled a
+        second time. NUL-delimited output is emitted verbatim.
+        """
+        listed = self._run("ls-files", "-z", "--", *[str(p) for p in paths]).stdout.split("\0")
         # ``ls-files`` reports repo-relative paths; callers hold absolute ones.
         return [str(self.cwd / line) for line in listed if line]
 
@@ -96,23 +105,31 @@ class GitRepo:
         self._run("commit", "-m", message)
 
     def fetch(self, remote: str, ref: str) -> None:
+        """Fetch ``ref`` from ``remote``.
+
+        Callers pass a fully qualified ``refs/heads/<branch>``: an unqualified
+        name is ambiguous, and a tag sharing the branch's name would win the
+        lookup and land in ``FETCH_HEAD``, sending the retry rebase onto the
+        wrong commit.
+        """
         self._run("fetch", remote, ref)
 
     def rebase(self, onto: str) -> None:
         self._run("rebase", onto)
 
     def push(self, remote: str, refspec: str) -> None:
-        result = self._run("push", remote, refspec, check=False)
+        result = self._run("push", "--porcelain", remote, refspec, check=False)
         if result.returncode == 0:
             return
-        stderr = (result.stderr or "") + (result.stdout or "")
-        # ``non-fast-forward`` is the git-side message; ``[rejected]`` covers
-        # the GitHub ruleset path. Either one means the remote tip moved or
-        # rejected the push for a recoverable reason; let the orchestrator
-        # decide whether to retry.
-        if "non-fast-forward" in stderr or "[rejected]" in stderr:
-            raise self.NonFastForward(stderr.strip())
-        raise GitError(f"git push failed: {stderr.strip()}")
+        combined = ((result.stdout or "") + (result.stderr or "")).strip()
+        # ``--porcelain`` emits one machine-readable status line per ref, with
+        # a flag character in column zero: ``!`` marks a rejected ref. Testing
+        # that flag rather than scanning the human summary for "[rejected]"
+        # keeps the retry decision working under any locale -- the prose is
+        # translated, the flag is not.
+        if any(line.startswith("!") for line in (result.stdout or "").splitlines()):
+            raise self.NonFastForward(combined)
+        raise GitError(f"git push failed: {combined}")
 
 
 class AutoBumpRun:
@@ -159,8 +176,14 @@ class AutoBumpRun:
 
     def run(self) -> int:
         self._compile_all()
+        # The lock is reconciled on every run, before the "nothing to do" exit
+        # rather than after it. A lock that cannot be repaired is a standing
+        # inconsistency on the branch, and checking it only on nights that
+        # happened to compile a fragment would report it once and then go
+        # quiet -- the failure would look fixed simply because no package had
+        # pending work that night.
+        self._sync_lock()
         if self.dry_run:
-            self._sync_lock()
             self._report_dry_run()
             return self._exit_code()
         if not self.touched:
@@ -169,7 +192,6 @@ class AutoBumpRun:
             else:
                 print("All compiles ran but produced no on-disk writes (already up to date).")
             return self._exit_code()
-        self._sync_lock()
         self._stage_and_commit()
         self._push_with_retry()
         return self._exit_code()
@@ -178,6 +200,15 @@ class AutoBumpRun:
         for pkg in self.packages:
             try:
                 compiled, touched = pkg.compile(dry_run=self.dry_run)
+            except Package.CompileFailed as e:
+                # Raised after the compile already wrote to disk. Those writes
+                # are real and must still be staged: an unstaged half-applied
+                # compile leaves the working tree dirty, and the rebase in the
+                # push-retry loop refuses to run against a dirty tree.
+                print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
+                self.failures.append((pkg.name, str(e)))
+                self.touched.extend(e.touched)
+                continue
             except (FileNotFoundError, ValueError) as e:
                 print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
                 self.failures.append((pkg.name, str(e)))
@@ -242,13 +273,20 @@ class AutoBumpRun:
         # still keep them in ``config/extension.toml``. Files touched by a
         # future write site that carries no ``version`` line (``uv.lock``,
         # ``CHANGELOG.rst``) are staged but not enumerated here.
+        version_files = {pkg.toml_path: pkg.name for pkg in self.packages}
+        bumped = sorted(p for p in self.touched if p in version_files)
+        if not bumped:
+            # Reachable now that the lock is reconciled on every run: a night
+            # with no pending fragments can still have a lock to re-point.
+            # Saying "Compile changelog fragments" over an empty package list
+            # would misdescribe the commit.
+            return f"{self.COMMIT_PREFIX} Sync {LockFile.LOCK_NAME} with workspace versions ({self.event_name})\n"
         lines = [
             f"{self.COMMIT_PREFIX} Compile changelog fragments ({self.event_name})",
             "",
             "Bumped packages:",
         ]
-        version_files = {pkg.toml_path: pkg.name for pkg in self.packages}
-        for path in sorted(p for p in self.touched if p in version_files):
+        for path in bumped:
             diff = self.repo.staged_diff(self._relative(path))
             old = _extract_version_from_diff(diff, "-")
             new = _extract_version_from_diff(diff, "+")
@@ -275,7 +313,7 @@ class AutoBumpRun:
                     f"fetching and rebasing onto {self.branch}: {e}",
                     file=sys.stderr,
                 )
-                self.repo.fetch(self.remote, self.branch)
+                self.repo.fetch(self.remote, f"refs/heads/{self.branch}")
                 self.repo.rebase("FETCH_HEAD")
         # All retries exhausted.
         assert last_err is not None  # the loop only exits here when it raised at least once
