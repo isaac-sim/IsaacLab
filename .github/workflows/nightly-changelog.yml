@@ -188,6 +188,27 @@ jobs:
           echo "Running: python3 tools/changelog/cli.py compile $ARGS"
           python3 tools/changelog/cli.py compile $ARGS
 
+      - name: Sync uv.lock with the bumped versions
+        # The compile step rewrites ``version`` in each bumped package's
+        # pyproject.toml, but ``uv.lock`` pins those same workspace members by
+        # version. Leaving the lock behind makes every ``uv sync --locked`` /
+        # ``--frozen`` consumer (notably the install-ci suite) fail with
+        # "the lockfile needs to be updated" until a human re-locks by hand.
+        #
+        # Deliberately NOT ``uv lock``: a full resolve can rewrite third-party
+        # pins, hashes, and markers, and that diff must not land unreviewed in
+        # an auto-commit. The script only rewrites the workspace members' own
+        # ``version`` lines — no network, no resolution — and hard-fails if the
+        # lock is stale in a way a version rewrite cannot fix (a member added
+        # or removed), which is the case that genuinely needs ``uv lock``.
+        #
+        # A failure here reds the tile but does not block the commit step below
+        # (which is ``always()``): shipping the version bump with a stale lock
+        # is no worse than today, and the red tile is the signal to re-lock by
+        # hand.
+        if: ${{ !inputs.dry_run }}
+        run: python3 tools/changelog/sync_uv_lock.py
+
       - name: Commit and push if fragments were compiled
         # ``always()`` lets this step run even when the compile step above
         # reported partial failure (one package's malformed file fails, the
@@ -211,6 +232,14 @@ jobs:
           git add source/*/changelog.d/ \
                   source/*/docs/CHANGELOG.rst \
                   source/*/pyproject.toml
+          # Only carry the re-locked uv.lock along when a version actually
+          # bumped. Gating on the staged pyproject diff keeps an unrelated
+          # resolver drift from landing as a lock-only auto-commit under a
+          # "Compile changelog fragments" subject. The -f guard keeps branches
+          # without a lockfile from aborting the whole ``git add``.
+          if [ -f uv.lock ] && ! git diff --staged --quiet -- 'source/*/pyproject.toml'; then
+            git add uv.lock
+          fi
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else
