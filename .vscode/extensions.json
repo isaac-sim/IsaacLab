@@ -6,7 +6,7 @@
 		"ms-python.python",
         "ms-python.vscode-pylance",
 		"ban.spellright",
-		"ms-iot.vscode-ros",
+		"Ranch-Hand-Robotics.rde-pack",
 		"ExecutableBookProject.myst-highlight",
 	]
 }
