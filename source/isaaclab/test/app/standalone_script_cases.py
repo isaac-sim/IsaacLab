@@ -72,7 +72,7 @@ class ScriptSpec:
         for option in ("--physics", "--backend"):
             if choices := self.options.get(option):
                 return tuple((option, choice) for choice in choices)
-        return ((None, self.fixed_physics_backend or "physx"),)
+        return ((None, self.fixed_physics_backend or "isaacsim_physx"),)
 
     @property
     def rendering_backends(self) -> tuple[tuple[str | None, str], ...]:
@@ -146,9 +146,9 @@ OVERRIDES = {
     ),
     "scripts/demos/deformables.py": ScriptOverride(
         case_skip_reasons={
-            ("physx", "default", "newton"): "Newton visualizer requires the Newton VBD physics backend",
-            ("physx", "default", "rerun"): "Rerun cannot import PhysX deformable attributes",
-            ("physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
+            ("isaacsim_physx", "default", "newton"): "Newton visualizer requires the Newton VBD physics backend",
+            ("isaacsim_physx", "default", "rerun"): "Rerun cannot import PhysX deformable attributes",
+            ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
     ),
     "scripts/demos/mpm/newton_mpm_granular.py": ScriptOverride(
@@ -273,13 +273,25 @@ def build_cases(specs: list[ScriptSpec]) -> list[LaunchCase]:
     ]
 
 
+def select_shard(cases: list[LaunchCase], shard_index: int, shard_count: int) -> list[LaunchCase]:
+    """Select one stable, zero-based shard from a launch-case matrix."""
+    if shard_count < 1:
+        raise ValueError(f"shard_count must be positive, got {shard_count}")
+    if shard_index < 0 or shard_index >= shard_count:
+        raise ValueError(f"shard_index must be in [0, {shard_count}), got {shard_index}")
+    return [case for index, case in enumerate(cases) if index % shard_count == shard_index]
+
+
 def backend_is_available(backend: str) -> bool:
     """Return whether the package implementing a selected backend is importable."""
     if backend == "default":
         return True
     if backend == "isaac_rtx":
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
-    package = "isaaclab_newton" if backend.startswith("newton") else f"isaaclab_{backend}"
+    if backend in {"physx", "isaacsim_physx"}:
+        package = "isaaclab_physx"
+    else:
+        package = "isaaclab_newton" if backend.startswith("newton") else f"isaaclab_{backend}"
     return importlib.util.find_spec(package) is not None
 
 

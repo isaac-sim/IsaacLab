@@ -102,6 +102,14 @@ inputs:
     description: 'Visualizer slice used when standalone-script-scope is set'
     default: 'none'
     required: false
+  standalone-script-shard-index:
+    description: 'Zero-based standalone launch-matrix shard index'
+    default: ''
+    required: false
+  standalone-script-shard-count:
+    description: 'Total number of standalone launch-matrix shards'
+    default: ''
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
@@ -315,6 +323,8 @@ runs:
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
         standalone-script-scope: ${{ inputs.standalone-script-scope }}
         standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
+        standalone-script-shard-index: ${{ inputs.standalone-script-shard-index }}
+        standalone-script-shard-count: ${{ inputs.standalone-script-shard-count }}
 
     - name: Check Test Results
       if: always()

@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(
     description="View ARL Robot 1 with Lee Position Controller.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
+parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()

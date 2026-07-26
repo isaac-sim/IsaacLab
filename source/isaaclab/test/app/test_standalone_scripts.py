@@ -10,6 +10,8 @@ matrix. GUI cases additionally require ``DISPLAY`` or ``WAYLAND_DISPLAY``.
 ``ISAACLAB_STANDALONE_SOAK_TIME`` and ``ISAACLAB_STANDALONE_STARTUP_TIMEOUT``
 may be used to tune the default five-second soak and three-minute startup limit.
 Set ``ISAACLAB_STANDALONE_VISUALIZER`` to run one visualizer slice of the matrix.
+Set ``ISAACLAB_STANDALONE_SCRIPT_SHARD_INDEX`` and
+``ISAACLAB_STANDALONE_SCRIPT_SHARD_COUNT`` together to run one stable matrix shard.
 ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when visual evidence is captured.
 """
 
@@ -32,6 +34,7 @@ from standalone_script_cases import (
     discover_specs,
     gui_is_available,
     run_until_ready,
+    select_shard,
     visualizer_is_available,
 )
 
@@ -44,6 +47,12 @@ if VISUALIZER:
     if VISUALIZER not in script_cases.VISUALIZERS:
         raise ValueError(f"unsupported ISAACLAB_STANDALONE_VISUALIZER: {VISUALIZER!r}")
     CASES = [case for case in CASES if case.visualizer == VISUALIZER]
+SHARD_INDEX = os.environ.get("ISAACLAB_STANDALONE_SCRIPT_SHARD_INDEX")
+SHARD_COUNT = os.environ.get("ISAACLAB_STANDALONE_SCRIPT_SHARD_COUNT")
+if bool(SHARD_INDEX) != bool(SHARD_COUNT):
+    raise ValueError("ISAACLAB_STANDALONE_SCRIPT_SHARD_INDEX and _SHARD_COUNT must be set together")
+if SHARD_INDEX and SHARD_COUNT:
+    CASES = select_shard(CASES, int(SHARD_INDEX), int(SHARD_COUNT))
 MULTI_MESH_RAYCASTER_CASES = [
     case
     for case in CASES
@@ -77,6 +86,21 @@ def test_launch_matrix_covers_declared_backends_and_visualizers():
         assert {case.renderer_backend for case in spec_cases} == {backend for _, backend in spec.rendering_backends}
         assert {case.visualizer for case in spec_cases} == set(spec.visualizers)
         assert len(spec_cases) == len(spec.physics_backends) * len(spec.rendering_backends) * len(spec.visualizers)
+
+
+def test_case_sharding_partitions_matrix_without_overlap():
+    """Stable shards must cover every launch case exactly once."""
+    cases = build_cases(SPECS)
+    shards = [select_shard(cases, shard_index, 4) for shard_index in range(4)]
+    sharded_ids = [case.id for shard in shards for case in shard]
+    assert sorted(sharded_ids) == sorted(case.id for case in cases)
+    assert len(sharded_ids) == len(set(sharded_ids))
+    assert max(map(len, shards)) - min(map(len, shards)) <= 1
+
+    with pytest.raises(ValueError, match="shard_count"):
+        select_shard(cases, 0, 0)
+    with pytest.raises(ValueError, match="shard_index"):
+        select_shard(cases, 4, 4)
 
 
 def test_showroom_documents_options_for_each_mentioned_demo():
@@ -330,7 +354,7 @@ if __name__ == '__main__':
 
 @pytest.mark.parametrize(
     ("backend", "package"),
-    [("physx", "isaaclab_physx"), ("newton_mjwarp", "isaaclab_newton")],
+    [("isaacsim_physx", "isaaclab_physx"), ("newton_mjwarp", "isaaclab_newton")],
 )
 def test_backend_availability_resolves_implementation_package(monkeypatch, backend, package):
     """Backend gating must query the package that implements each declared backend."""
@@ -474,7 +498,7 @@ def test_launch_matrix_skips_unavailable_runtime_capabilities(monkeypatch):
     """Display, physics, renderer, and visualizer gates must report distinct reasons."""
     module = sys.modules[__name__]
     monkeypatch.setattr(module, "RUN_LAUNCH_MATRIX", True)
-    base_case = next(case for case in CASES if case.skip_reason is None and case.visualizer == "none")
+    base_case = next(case for case in build_cases(SPECS) if case.skip_reason is None and case.visualizer == "none")
 
     missing_module_case = replace(base_case, spec=replace(base_case.spec, required_modules=("missing_runtime",)))
     monkeypatch.setattr(script_cases, "module_is_available", lambda module_name: False)
@@ -505,7 +529,7 @@ def test_launch_matrix_runs_supported_case_with_screenshot(monkeypatch, tmp_path
     monkeypatch.setattr(module, "gui_is_available", lambda: True)
     monkeypatch.setattr(module, "backend_is_available", lambda backend: True)
     monkeypatch.setattr(module, "visualizer_is_available", lambda visualizer: True)
-    case = replace(next(case for case in CASES if case.skip_reason is None), visualizer="newton")
+    case = replace(next(case for case in build_cases(SPECS) if case.skip_reason is None), visualizer="newton")
     calls = []
 
     def _run(*args, **kwargs):
@@ -528,5 +552,5 @@ def test_launch_matrix_runs_web_visualizer_without_display(monkeypatch):
     monkeypatch.setattr(module, "backend_is_available", lambda backend: True)
     monkeypatch.setattr(module, "visualizer_is_available", lambda visualizer: True)
     monkeypatch.setattr(module, "run_until_ready", lambda *args, **kwargs: SmokeResult(True, 0, "ready", 0.1, False))
-    case = replace(next(case for case in CASES if case.skip_reason is None), visualizer="rerun")
+    case = replace(next(case for case in build_cases(SPECS) if case.skip_reason is None), visualizer="rerun")
     test_standalone_script_remains_healthy_after_startup(case)

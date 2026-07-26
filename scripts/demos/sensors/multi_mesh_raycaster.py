@@ -39,7 +39,9 @@ parser.add_argument(
     help="Asset type to use.",
     choices=["allegro_hand", "anymal_d", "objects"],
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 add_launcher_args(parser)
 # demos should open Kit visualizer by default
 parser.set_defaults(visualizer=["kit"])

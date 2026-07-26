@@ -41,7 +41,9 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
