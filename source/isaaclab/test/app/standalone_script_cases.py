@@ -273,13 +273,16 @@ def build_cases(specs: list[ScriptSpec]) -> list[LaunchCase]:
     ]
 
 
-def select_shard(cases: list[LaunchCase], shard_index: int, shard_count: int) -> list[LaunchCase]:
-    """Select one stable, zero-based shard from a launch-case matrix."""
-    if shard_count < 1:
-        raise ValueError(f"shard_count must be positive, got {shard_count}")
-    if shard_index < 0 or shard_index >= shard_count:
-        raise ValueError(f"shard_index must be in [0, {shard_count}), got {shard_index}")
-    return [case for index, case in enumerate(cases) if index % shard_count == shard_index]
+def select_runtime_group(cases: list[LaunchCase], runtime_group: str) -> list[LaunchCase]:
+    """Select launch cases by whether they require the Isaac Sim Kit runtime."""
+    if runtime_group not in {"kit", "non-kit"}:
+        raise ValueError(f"unsupported runtime group: {runtime_group!r}")
+    return [
+        case
+        for case in cases
+        if (case.physics_backend == "isaacsim_physx" or case.renderer_backend == "isaac_rtx")
+        == (runtime_group == "kit")
+    ]
 
 
 def backend_is_available(backend: str) -> bool:

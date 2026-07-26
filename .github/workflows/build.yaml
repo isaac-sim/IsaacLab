@@ -350,7 +350,7 @@ jobs:
         container-name: isaac-lab-core-3-test
 
   test-standalone-demos:
-    name: standalone demos (headless, ${{ matrix.shard-label }})
+    name: standalone demos (headless, ${{ matrix.runtime-label }})
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
@@ -361,14 +361,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - shard-index: "0"
-          shard-label: "1/4"
-        - shard-index: "1"
-          shard-label: "2/4"
-        - shard-index: "2"
-          shard-label: "3/4"
-        - shard-index: "3"
-          shard-label: "4/4"
+        - runtime-group: kit
+          runtime-label: Kit
+        - runtime-group: non-kit
+          runtime-label: non-Kit
     steps:
     - uses: actions/checkout@v6
       with:
@@ -382,9 +378,8 @@ jobs:
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
-        standalone-script-shard-index: ${{ matrix.shard-index }}
-        standalone-script-shard-count: "4"
-        container-name: isaac-lab-standalone-demos-${{ matrix.shard-index }}-test
+        standalone-script-runtime-group: ${{ matrix.runtime-group }}
+        container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
         omni-github-test-type: standalone-demo
 
   test-isaaclab-rl:
