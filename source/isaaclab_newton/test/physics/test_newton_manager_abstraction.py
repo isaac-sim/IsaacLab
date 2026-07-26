@@ -360,11 +360,12 @@ def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
     assert np.allclose(np.array(builder.body_inertia[dynamic_body]), 2.0)
 
 
-def test_mpm_prepare_builder_converts_convex_mesh_colliders():
-    """Convex meshes must use the triangle-mesh type accepted by implicit MPM."""
+def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
+    """Convex meshes must become triangle meshes before implicit MPM consumes the model."""
     import newton
 
     builder = newton.ModelBuilder()
+    NewtonMPMManager._register_builder_attributes(builder)
     body = builder.add_body(label="convex_mesh_collider")
     mesh = newton.Mesh(
         vertices=[(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (0.0, 1.0, 0.0)],
@@ -372,10 +373,28 @@ def test_mpm_prepare_builder_converts_convex_mesh_colliders():
     )
     shape = builder.add_shape_mesh(body, mesh=mesh)
     builder.shape_type[shape] = newton.GeoType.CONVEX_MESH
+    builder.add_particles(
+        pos=[(0.0, 0.0, 0.1)],
+        vel=[(0.0, 0.0, 0.0)],
+        mass=[0.01],
+        radius=[0.02],
+        custom_attributes={
+            "mpm:viscosity": 50.0,
+            "mpm:friction": 0.0,
+            "mpm:tensile_yield_ratio": 1.0,
+            "mpm:yield_pressure": 1.0e15,
+            "mpm:yield_stress": 0.0,
+            "mpm:young_modulus": 1.0e15,
+            "mpm:damping": 0.0,
+        },
+    )
 
     NewtonMPMManager._prepare_builder_for_finalize(builder)
+    model = builder.finalize(device="cuda:0")
+    solver = NewtonMPMManager._create_solver(model, MPMSolverCfg(max_iterations=2, voxel_size=0.05))
 
     assert builder.shape_type[shape] == newton.GeoType.MESH
+    assert isinstance(solver, SolverImplicitMPM)
 
 
 def test_active_manager_create_builder_registers_mpm_attributes():

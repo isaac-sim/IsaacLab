@@ -44,6 +44,11 @@ if VISUALIZER:
     if VISUALIZER not in script_cases.VISUALIZERS:
         raise ValueError(f"unsupported ISAACLAB_STANDALONE_VISUALIZER: {VISUALIZER!r}")
     CASES = [case for case in CASES if case.visualizer == VISUALIZER]
+MULTI_MESH_RAYCASTER_CASES = [
+    case
+    for case in CASES
+    if case.spec.relative_path == "scripts/demos/sensors/multi_mesh_raycaster.py" and case.visualizer == "none"
+]
 RUN_LAUNCH_MATRIX = os.environ.get("ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS") == "1"
 SCREENSHOT_DIR = os.environ.get("ISAACLAB_STANDALONE_SCREENSHOT_DIR")
 SOAK_TIME = float(os.environ.get("ISAACLAB_STANDALONE_SOAK_TIME", "5"))
@@ -439,21 +444,14 @@ def test_standalone_script_remains_healthy_after_startup(case):
 @pytest.mark.rendering
 @pytest.mark.smoke
 @pytest.mark.parametrize("asset_type", ("anymal_d", "objects"))
-@pytest.mark.parametrize("physics_backend", ("physx", "newton_mjwarp"))
-def test_multi_mesh_raycaster_supports_each_asset_type(physics_backend, asset_type):
+@pytest.mark.parametrize("case", MULTI_MESH_RAYCASTER_CASES, ids=lambda case: case.physics_backend)
+def test_multi_mesh_raycaster_supports_each_asset_type(case, asset_type):
     """The multi-mesh raycaster must support every non-default asset path on each physics backend."""
     if not RUN_LAUNCH_MATRIX:
         pytest.skip("set ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1 to run the launch matrix")
-    if not backend_is_available(physics_backend):
-        pytest.skip(f"physics backend package for {physics_backend!r} is not installed")
+    if not backend_is_available(case.physics_backend):
+        pytest.skip(f"physics backend package for {case.physics_backend!r} is not installed")
 
-    case = next(
-        case
-        for case in CASES
-        if case.spec.relative_path == "scripts/demos/sensors/multi_mesh_raycaster.py"
-        and case.physics_backend == physics_backend
-        and case.visualizer == "none"
-    )
     command = [*case.command(), "--asset_type", asset_type]
     result = run_until_ready(
         command,

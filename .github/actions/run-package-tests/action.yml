@@ -94,6 +94,14 @@ inputs:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
     required: false
+  standalone-script-scope:
+    description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
+    default: ''
+    required: false
+  standalone-script-visualizer:
+    description: 'Visualizer slice used when standalone-script-scope is set'
+    default: 'none'
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
@@ -305,6 +313,8 @@ runs:
         wheelhouse-host-dir: ${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
+        standalone-script-scope: ${{ inputs.standalone-script-scope }}
+        standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
 
     - name: Check Test Results
       if: always()
