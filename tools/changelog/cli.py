@@ -85,6 +85,7 @@ incremental bumps, not for jumps.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -92,7 +93,7 @@ from pathlib import Path
 
 from autobump import AutoBumpRun
 from lockfile import LockFile
-from packages import CHANGELOG_HEADER_RE, REPO_ROOT, Package, PRDiff, Version
+from packages import CHANGELOG_HEADER_RE, REPO_ROOT, Package, PRDiff, RootPackage, Version
 
 # ---------------------------------------------------------------------------
 # Subcommand handlers
@@ -265,7 +266,7 @@ def cmd_sync_lock(args: argparse.Namespace, _parser: argparse.ArgumentParser) ->
     repairing a lock by hand after a manual version edit, and ``--check``
     as a gate that fails when the lock has drifted.
     """
-    lock = LockFile(REPO_ROOT, Package.declared_version)
+    lock = LockFile(RootPackage(REPO_ROOT))
     if not lock.exists:
         print(f"No {LockFile.LOCK_NAME} on this branch — nothing to sync.")
         return 0
@@ -402,12 +403,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_auto_bump.add_argument(
         "--event-name",
-        default="manual",
+        # GitHub Actions exports GITHUB_EVENT_NAME into every step, so the
+        # workflow does not have to pass it through. Anything the runner
+        # already knows is better read here than restated in YAML that has to
+        # be kept in step with this file.
+        default=os.environ.get("GITHUB_EVENT_NAME", "manual"),
         metavar="NAME",
         help=(
             "GitHub event that triggered this run (e.g. 'schedule', 'workflow_dispatch'). "
-            "Surfaces in the commit message's parenthetical suffix; defaults to 'manual' for "
-            "local invocations."
+            "Surfaces in the commit message's parenthetical suffix. Defaults to "
+            "$GITHUB_EVENT_NAME when set, else 'manual' for local invocations."
         ),
     )
     p_auto_bump.add_argument(

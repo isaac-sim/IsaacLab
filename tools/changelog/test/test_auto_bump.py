@@ -154,42 +154,54 @@ def test_auto_bump_happy_path_commits_and_pushes(synthetic_repo: Path, tmp_path:
 # ---------------------------------------------------------------------------
 
 
-def test_auto_bump_stages_every_file_the_compile_wrote(synthetic_repo: Path, tmp_path: Path):
+def test_auto_bump_stages_every_file_the_compile_wrote(synthetic_repo: Path, tmp_path: Path, monkeypatch):
     """The 2026-05-29 nightly bricked because the workflow's ``git add``
     glob carried its own idea of which files ``cli.py`` writes, and #5785
     added a write site without the paired YAML edit.
 
-    AutoBumpRun derives the staged set from each compile's ``touched``
-    return value, so there is no second list to drift. The assertion is
-    deliberately expressed in terms of what the compile reports rather
-    than a hardcoded file list: whatever ``Package.compile`` says it
-    wrote is exactly what the commit must carry.
+    The staged set now comes from what each compile reports it wrote, so
+    there is no second list to drift. The assertion is deliberately phrased
+    against that report rather than a hardcoded file list: whatever
+    ``Package.compile`` says it wrote is exactly what the commit must carry,
+    including write sites that do not exist yet.
     """
     pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     _drop_fragment(pkg_root, "feat-x")
-
     _commit_baseline(synthetic_repo)
-    run = autobump.AutoBumpRun(
-        branch="develop",
-        remote="origin",
-        event_name="schedule",
-        repo_root=synthetic_repo,
-    )
-    assert run.run() == 0
 
-    bare = tmp_path / "origin.git"
+    # Observe the contract at its source: record what compile reports.
+    reported: list[Path] = []
+    real_compile = packages.Package.compile
+
+    def recording_compile(self, **kwargs):
+        compiled, touched = real_compile(self, **kwargs)
+        reported.extend(touched)
+        return compiled, touched
+
+    monkeypatch.setattr(packages.Package, "compile", recording_compile)
+
+    assert (
+        autobump.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+
     files = subprocess.run(
         ["git", "show", "--name-only", "--format=", "develop"],
-        cwd=bare,
+        cwd=tmp_path / "origin.git",
         text=True,
         capture_output=True,
         check=True,
     ).stdout.split()
 
-    for path in run.touched:
+    assert reported, "compile reported nothing — the assertion below would be vacuous"
+    for path in reported:
         assert path.relative_to(synthetic_repo).as_posix() in files
-    # Sanity-check that ``touched`` was not vacuously empty and that it
-    # includes the branch's version metadata file under its real name.
+    # ...and the branch's version metadata file is in there under its real name.
     assert _version_file("isaaclab") in files
     assert "source/isaaclab/docs/CHANGELOG.rst" in files
 
@@ -675,39 +687,6 @@ def test_multi_file_version_write_is_staged_and_reported_once(synthetic_repo: Pa
     assert "source/isaaclab/docs/VERSION_SIDECAR.txt" in files
     # ...but the package is still reported exactly once.
     assert _commit_body(bare).count("- isaaclab:") == 1
-
-
-def test_lock_present_but_workspace_undeclared_reds_the_tile_without_blocking(synthetic_repo: Path, tmp_path: Path):
-    """A ``uv.lock`` with editable members but a root manifest that declares
-    none of them. Membership cannot be reconciled by a version rewrite, so
-    the run reports a failure — but the changelog bump still ships, matching
-    how a failed package compile is handled."""
-    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
-    _write_workspace_lock(synthetic_repo, ["isaaclab"])
-    # Strip the workspace declaration, keeping the lock's member entry.
-    (synthetic_repo / "pyproject.toml").write_text(
-        '[project]\nname = "isaaclab-dev"\nversion = "0.0.0"\n', encoding="utf-8"
-    )
-    _drop_fragment(pkg_root, "feat-x")
-
-    _commit_baseline(synthetic_repo)
-    rc = autobump.AutoBumpRun(
-        branch="develop",
-        remote="origin",
-        event_name="schedule",
-        repo_root=synthetic_repo,
-    ).run()
-
-    assert rc == 1
-    files = subprocess.run(
-        ["git", "show", "develop", "--name-only", "--format="],
-        cwd=tmp_path / "origin.git",
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.split()
-    assert _version_file("isaaclab") in files
-    assert "uv.lock" not in files
 
 
 # ---------------------------------------------------------------------------

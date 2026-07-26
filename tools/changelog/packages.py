@@ -27,6 +27,8 @@ from functools import cached_property
 from pathlib import Path
 from typing import ClassVar
 
+import tomllib
+
 # Walk three levels up: tools/changelog/packages.py -> tools/changelog/ -> tools/ -> repo root.
 REPO_ROOT = Path(__file__).parent.parent.parent
 PACKAGES_ROOT = REPO_ROOT / "source"
@@ -237,18 +239,25 @@ class Fragment:
         fragments only): non-empty file with at least one valid section
         heading and at least one bullet point.
         """
+        # 1. Filename shape — the suffix declares the bump tier, so an
+        #    unrecognised name has no tier and cannot be compiled.
         if not self.is_valid_filename:
             return (
                 "invalid filename — must be <slug>.rst, <slug>.minor.rst, "
                 "<slug>.major.rst, or <slug>.skip (slug = your branch name "
                 "with `/` replaced by `-`, no dots)"
             )
+        # 2. Still on disk — a fragment consumed by an earlier compile is
+        #    gone and has nothing left to validate.
         if not self.path.exists():
-            # Deleted fragments don't need validating (consumed by a previous compile).
             return None
+        # 3. Non-empty — an empty file contributes no entry, so it is a
+        #    mistake rather than a no-op worth accepting.
         text = self.path.read_text(encoding="utf-8")
         if not text.strip():
             return "fragment is empty"
+        # 4. At least one recognised section heading — without one there is
+        #    nothing to merge into the changelog.
         sections = self.parse()
         if not sections:
             return (
@@ -256,23 +265,23 @@ class Fragment:
                 "Added / Changed / Deprecated / Removed / Fixed, each underlined "
                 "with carets ``^`` of equal-or-greater length)"
             )
-        # Every declared section must carry at least one bullet — otherwise
-        # the compiled output emits a heading with no body, which is both
-        # ugly and almost certainly a contributor authoring mistake (typed
-        # the heading, forgot the bullet).
+        # 5. Every declared section carries a bullet — otherwise the compiled
+        #    output emits a heading with no body, which is both ugly and
+        #    almost certainly an authoring slip (typed the heading, forgot
+        #    the bullet).
         empty = [s for s, lines in sections.items() if not any(line.lstrip().startswith("*") for line in lines)]
         if empty:
             return (
                 f"section(s) {', '.join(repr(s) for s in empty)} have no bullet entries — "
                 "use ``* `` to start each entry, or remove the heading"
             )
-        # Every line inside a section body must be a bullet (``* ``), a
-        # continuation (leading whitespace), or blank. A column-0 non-blank
-        # line that isn't a bullet terminates the list under RST rules and
-        # then sits as a paragraph adjacent to the next ``* `` — which the
-        # compile step splices into ``CHANGELOG.rst`` under the same
-        # ``^^^`` subheading and Sphinx then rejects with
-        # ``Unexpected indentation``. Catch it here before merge.
+        # 6. No orphan paragraphs — every line in a section body must be a
+        #    bullet (``* ``), a continuation (leading whitespace), or blank.
+        #    A column-0 non-blank line that isn't a bullet terminates the
+        #    list under RST rules and then sits as a paragraph adjacent to
+        #    the next ``* ``, which the compile step splices into
+        #    ``CHANGELOG.rst`` under the same ``^^^`` subheading; Sphinx
+        #    then fails the doc build with ``Unexpected indentation``.
         for section, lines in sections.items():
             for offset, line in enumerate(lines):
                 if not line.strip():
@@ -347,7 +356,19 @@ class FragmentBatch:
         valid.sort(key=lambda f: (f.merge_time(), f.name))
         return cls(valid, invalid, skips)
 
-    # ---- Queries against this batch's state ---------------------------
+    # ---- Public API: inspect the batch, compile it, then consume it -----
+
+    @cached_property
+    def parsed(self) -> list[tuple[Fragment, dict[str, list[str]]]]:
+        """``(fragment, sections)`` pairs, dropping fragments that parse empty.
+
+        Cached because parsing re-reads every fragment from disk and a single
+        compile consults it repeatedly -- the bump tier, the merged sections
+        and the compiler's own progress line all derive from it. The batch is
+        immutable and short-lived, so one parse per run is both correct and
+        the only sensible cost.
+        """
+        return [(f, s) for f, s in ((f, f.parse()) for f in self.valid) if s]
 
     def aggregate_bump(self) -> str:
         """Highest bump tier declared by fragments that parsed to content.
@@ -356,15 +377,7 @@ class FragmentBatch:
         excluded so they don't influence the version. Defaults to
         ``patch`` if nothing parsed.
         """
-        return self._aggregate([f.bump for f, _ in self.parsed()])
-
-    def parsed(self) -> list[tuple[Fragment, dict[str, list[str]]]]:
-        """Return ``(fragment, sections)`` pairs, dropping fragments that parse empty."""
-        return [(f, s) for f, s in ((f, f.parse()) for f in self.valid) if s]
-
-    def merged_sections(self) -> dict[str, list[str]]:
-        """Cross-fragment merged section map for this batch."""
-        return self._merge_sections([s for _, s in self.parsed()])
+        return self._aggregate([f.bump for f, _ in self.parsed])
 
     def compile_to_entry(
         self,
@@ -388,13 +401,11 @@ class FragmentBatch:
             chosen_bump = self.aggregate_bump()
             new_version = current_version.bumped(chosen_bump)
             bump_label = f" (bump: {chosen_bump})"
-        entry = self._format_entry(new_version.text, self.merged_sections())
+        entry = self._format_entry(new_version.text, self._merged_sections())
         return new_version, bump_label, entry
 
-    # ---- Cleanup -------------------------------------------------------
-
-    # These return the paths they removed, not just counts. A deletion is a
-    # change to the working tree exactly like a write is, and the nightly
+    # Deletions return the paths they removed, not just counts. A deletion is
+    # a change to the working tree exactly like a write is, and the nightly
     # auto-commit stages what the compile reports it changed — so a consumed
     # fragment that vanishes from disk without appearing in that report would
     # never be staged, survive on the branch, and recompile the next night
@@ -402,24 +413,36 @@ class FragmentBatch:
 
     def delete_all(self) -> tuple[list[Path], list[Path]]:
         """Delete every consumed fragment + skip file. Returns ``(fragments, skips)`` deleted."""
-        return self.delete_valid(), self.delete_skips()
+        return self._delete_valid(), self.delete_skips()
 
-    def delete_valid(self) -> list[Path]:
+    def delete_skips(self) -> list[Path]:
+        """Delete the ``.skip`` files. Returns the paths removed.
+
+        Separate from :meth:`delete_all` because a batch of nothing but skip
+        files produces no entry and no bump, yet still has to consume them.
+        A ``.skip`` is matched on filename alone and never parsed, so its
+        contents are irrelevant to whether it is removed.
+        """
+        deleted = list(self.skip_paths)
+        for path in deleted:
+            path.unlink()
+        return deleted
+
+    # ---- Internals ------------------------------------------------------
+
+    def _merged_sections(self) -> dict[str, list[str]]:
+        """Cross-fragment merged section map for this batch."""
+        return self._merge_sections([s for _, s in self.parsed])
+
+    def _delete_valid(self) -> list[Path]:
         """Delete the consumed fragments. Returns the paths removed."""
         deleted = [f.path for f in self.valid]
         for path in deleted:
             path.unlink()
         return deleted
 
-    def delete_skips(self) -> list[Path]:
-        """Delete the ``.skip`` files. Returns the paths removed."""
-        deleted = list(self.skip_paths)
-        for path in deleted:
-            path.unlink()
-        return deleted
-
-    # ---- Pure transformations (the data class methods) ----------------
-    # Static so callers and tests can exercise them with synthetic
+    # ---- Pure helpers ---------------------------------------------------
+    # Stateless, so callers and tests can exercise them with synthetic
     # primitives — no FragmentBatch instance needed when the question
     # is "given these tiers, which wins?" or "how do these dicts merge?"
 
@@ -697,7 +720,7 @@ class Package:
                 "fix or remove them before compiling."
             )
 
-        parsed_pairs = batch.parsed()
+        parsed_pairs = batch.parsed
         if not parsed_pairs:
             print(f"  {self.name}: all fragments empty after parsing, skipping.")
             return False, []
@@ -758,6 +781,50 @@ class Package:
         if override is None:
             return self.default_fragment_dir
         return override if override.is_absolute() else (REPO_ROOT / override).resolve()
+
+
+@dataclass(frozen=True)
+class RootPackage:
+    """The repo-root ``pyproject.toml`` — the uv workspace declaration.
+
+    :class:`Package` models a *member's* manifest; this models the root one.
+    Membership is declared here, so this is what a lockfile is validated
+    against: without it the root manifest would have no owner and every
+    caller needing the member list would parse it inline.
+    """
+
+    # ---- Fields ---------------------------------------------------------
+
+    root: Path
+
+    # ---- Properties -----------------------------------------------------
+
+    @property
+    def path(self) -> Path:
+        """Absolute path to the root manifest (which may not exist)."""
+        return self.root / "pyproject.toml"
+
+    @property
+    def exists(self) -> bool:
+        """Whether this branch carries a root manifest at all."""
+        return self.path.is_file()
+
+    # ---- Public API -----------------------------------------------------
+
+    def declared_members(self) -> set[Path]:
+        """Return the package roots declared as editable workspace members.
+
+        ``[tool.uv.sources]`` is the authoritative member list — not
+        ``source/*/``, which also holds directories uv does not track, and
+        not :meth:`Package.discover`, which filters to packages the changelog
+        compiler manages (``isaaclab_tasks_experimental`` is a workspace
+        member with no ``CHANGELOG.rst``).
+        """
+        data = tomllib.loads(self.path.read_text(encoding="utf-8"))
+        sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+        return {
+            self.root / spec["path"] for spec in sources.values() if isinstance(spec, dict) and spec.get("editable")
+        }
 
 
 @dataclass(frozen=True)
@@ -823,91 +890,114 @@ class PRDiff:
         for pkg in packages:
             pkg_prefix = f"source/{pkg.name}/"
             changelog_dir = f"source/{pkg.name}/changelog.d/"
-
             source_changed = [f for f in self.changed if f.startswith(pkg_prefix) and not f.startswith(changelog_dir)]
             fragment_changes = [f for f in self.changed if f.startswith(changelog_dir)]
 
-            # Map *pre-existing* fragments in the package's changelog.d/ by slug,
-            # for the uniqueness check below. The CI checkout contains both
-            # base-branch fragments and the PR's additions side by side, so we
-            # must explicitly exclude added files — otherwise an added file can
-            # overwrite the entry for a colliding pre-existing fragment with
-            # the same slug, hiding the very collision we're trying to detect.
-            # Skip ``.gitkeep`` and unrecognised filenames — they can't collide.
-            added_basenames = {Path(f).name for f in self.added if f.startswith(changelog_dir)}
-            existing_slugs: dict[str, str] = {}
-            existing_dir = pkg.default_fragment_dir
-            if existing_dir.is_dir():
-                for p in existing_dir.iterdir():
-                    if p.is_dir() or p.name == ".gitkeep" or p.name in added_basenames:
-                        continue
-                    slug = Fragment.parse_slug(p.name)
-                    if slug is not None:
-                        existing_slugs[slug] = p.name
-
-            added_slugs: dict[str, str] = {}
-            for f in fragment_changes:
-                path = Path(f)
-                if path.name == ".gitkeep":
-                    continue
-
-                # Rule 1: immutability — modifying an existing fragment is forbidden.
-                if f not in self.added:
-                    invalid_fragments.append(
-                        (
-                            f,
-                            "fragments are immutable — add a new fragment with a different slug "
-                            "instead of editing an existing one",
-                        )
-                    )
-                    continue
-
-                # Rule 2: content validity (only for *.rst, not *.skip).
-                if not SKIP_RE.match(path.name):
-                    err = Fragment(REPO_ROOT / f).validate()
-                    if err:
-                        invalid_fragments.append((f, err))
-                        continue
-
-                # Rule 3: slug uniqueness within the package's changelog.d/.
-                slug = Fragment.parse_slug(path.name)
-                if slug is None:
-                    # Filename validation already flagged this above for *.rst,
-                    # but a malformed *.skip would slip through. Surface it.
-                    invalid_fragments.append(
-                        (f, "invalid filename — must be <slug>.rst, <slug>.minor.rst, <slug>.major.rst, or <slug>.skip")
-                    )
-                    continue
-                if slug in existing_slugs and existing_slugs[slug] != path.name:
-                    invalid_fragments.append(
-                        (
-                            f,
-                            f"slug {slug!r} collides with existing fragment "
-                            f"{existing_slugs[slug]!r} — rename to {slug}-2 (or any unused slug)",
-                        )
-                    )
-                    continue
-                if slug in added_slugs and added_slugs[slug] != path.name:
-                    invalid_fragments.append(
-                        (
-                            f,
-                            f"slug {slug!r} collides with another added fragment "
-                            f"{added_slugs[slug]!r} — rename one to {slug}-2 (or any unused slug)",
-                        )
-                    )
-                    continue
-                added_slugs[slug] = path.name
-
-            if not source_changed:
-                continue
-
-            # Rule 4: this PR must add at least one valid fragment for the package.
-            owned = [
-                f
-                for f in fragment_changes
-                if f in self.added and (FRAGMENT_RE.match(Path(f).name) or SKIP_RE.match(Path(f).name))
-            ]
-            if not owned:
+            invalid_fragments.extend(self._check_fragments(pkg, changelog_dir, fragment_changes))
+            if source_changed and not self._has_owned_fragment(fragment_changes):
                 missing.append(pkg.name)
 
         return missing, invalid_fragments
+
+    # ---- Internals: one method per documented rule -----------------------
+
+    def _check_fragments(self, pkg: Package, changelog_dir: str, fragment_changes: list[str]) -> list[tuple[str, str]]:
+        """Apply rules 1–3 to each fragment the PR touched in one package.
+
+        The three run in order and short-circuit per file: a fragment that
+        fails immutability is not then also reported as malformed, which
+        would bury the actionable message under a derived one.
+        """
+        existing_slugs = self._existing_slugs(pkg, changelog_dir)
+        added_slugs: dict[str, str] = {}
+        problems: list[tuple[str, str]] = []
+
+        for f in fragment_changes:
+            path = Path(f)
+            if path.name == ".gitkeep":
+                continue
+            if (err := self._check_immutability(f)) is not None:
+                problems.append((f, err))
+                continue
+            if (err := self._check_content(f, path)) is not None:
+                problems.append((f, err))
+                continue
+            slug, err = self._check_slug_uniqueness(path, existing_slugs, added_slugs)
+            if err is not None:
+                problems.append((f, err))
+                continue
+            added_slugs[slug] = path.name
+        return problems
+
+    def _check_immutability(self, changed_path: str) -> str | None:
+        """Rule 1 — a fragment already on the base branch may not be edited."""
+        if changed_path in self.added:
+            return None
+        return "fragments are immutable — add a new fragment with a different slug instead of editing an existing one"
+
+    @staticmethod
+    def _check_content(changed_path: str, path: Path) -> str | None:
+        """Rule 2 — an added ``*.rst`` fragment must parse. ``*.skip`` is exempt."""
+        if SKIP_RE.match(path.name):
+            return None
+        return Fragment(REPO_ROOT / changed_path).validate()
+
+    @staticmethod
+    def _check_slug_uniqueness(
+        path: Path,
+        existing_slugs: dict[str, str],
+        added_slugs: dict[str, str],
+    ) -> tuple[str, str | None]:
+        """Rule 3 — no two fragments in one ``changelog.d/`` may share a slug.
+
+        Returns ``(slug, error)``; ``error`` is ``None`` when the slug is
+        free. Collisions are reported against both pre-existing fragments and
+        others added by the same PR.
+        """
+        slug = Fragment.parse_slug(path.name)
+        if slug is None:
+            # Filename validation already flagged this for ``*.rst``, but a
+            # malformed ``*.skip`` would otherwise slip through.
+            return "", ("invalid filename — must be <slug>.rst, <slug>.minor.rst, <slug>.major.rst, or <slug>.skip")
+        if slug in existing_slugs and existing_slugs[slug] != path.name:
+            return slug, (
+                f"slug {slug!r} collides with existing fragment "
+                f"{existing_slugs[slug]!r} — rename to {slug}-2 (or any unused slug)"
+            )
+        if slug in added_slugs and added_slugs[slug] != path.name:
+            return slug, (
+                f"slug {slug!r} collides with another added fragment "
+                f"{added_slugs[slug]!r} — rename one to {slug}-2 (or any unused slug)"
+            )
+        return slug, None
+
+    def _has_owned_fragment(self, fragment_changes: list[str]) -> bool:
+        """Rule 4 — did this PR *add* a recognisable fragment for the package?
+
+        Chained PRs naturally satisfy this: the parent's fragment shows up in
+        the child's diff as added, so only slug uniqueness constrains them.
+        """
+        return any(
+            f in self.added and (FRAGMENT_RE.match(Path(f).name) or SKIP_RE.match(Path(f).name))
+            for f in fragment_changes
+        )
+
+    def _existing_slugs(self, pkg: Package, changelog_dir: str) -> dict[str, str]:
+        """Map slug → filename for fragments already on the base branch.
+
+        The CI checkout holds base-branch fragments and the PR's additions
+        side by side, so added files are excluded explicitly: otherwise an
+        added file overwrites the entry for a pre-existing fragment sharing
+        its slug, hiding the very collision rule 3 exists to catch.
+        """
+        added_basenames = {Path(f).name for f in self.added if f.startswith(changelog_dir)}
+        existing: dict[str, str] = {}
+        directory = pkg.default_fragment_dir
+        if not directory.is_dir():
+            return existing
+        for p in directory.iterdir():
+            if p.is_dir() or p.name == ".gitkeep" or p.name in added_basenames:
+                continue
+            if (slug := Fragment.parse_slug(p.name)) is not None:
+                existing[slug] = p.name
+        return existing

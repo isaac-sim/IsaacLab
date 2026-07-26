@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from lockfile import LockFile
-from packages import REPO_ROOT, Package
+from packages import REPO_ROOT, Package, RootPackage
 
 
 class GitError(Exception):
@@ -148,10 +148,14 @@ class AutoBumpRun:
     secrets and is consumed by the workflow, not this class.
     """
 
+    # ---- Class constants ------------------------------------------------
+
     AUTHOR_NAME = "isaaclab-bot[bot]"
     AUTHOR_EMAIL = "282401363+isaaclab-bot[bot]@users.noreply.github.com"
     PUSH_RETRIES = 3
     COMMIT_PREFIX = "[CI][Auto Version Bump]"
+
+    # ---- Construction ---------------------------------------------------
 
     def __init__(
         self,
@@ -162,6 +166,12 @@ class AutoBumpRun:
         dry_run: bool = False,
         repo_root: Path = REPO_ROOT,
     ):
+        # Configuration and collaborators only. The products of a run --
+        # which files changed, what compiled, what failed -- are returned by
+        # the phases that produce them rather than accumulated here, so
+        # ``run`` reads as a pipeline instead of a sequence of side effects.
+        # ``failures`` is the one exception: it is fed by two separate phases
+        # and consumed only at the very end.
         self.branch = branch
         self.remote = remote
         self.event_name = event_name
@@ -169,37 +179,48 @@ class AutoBumpRun:
         self.repo_root = repo_root
         self.repo = GitRepo(repo_root)
         self.packages = Package.discover(packages_root=repo_root / "source")
-        self.lock = LockFile(repo_root, Package.declared_version)
-        self.touched: list[Path] = []
+        self.lock = LockFile(RootPackage(repo_root))
         self.failures: list[tuple[str, str]] = []
-        self.any_compiled = False
+
+    # ---- Public API -----------------------------------------------------
 
     def run(self) -> int:
-        self._compile_all()
+        """Execute the whole nightly lifecycle. Returns a process exit code."""
+        touched, any_compiled = self._compile_all()
         # The lock is reconciled on every run, before the "nothing to do" exit
         # rather than after it. A lock that cannot be repaired is a standing
         # inconsistency on the branch, and checking it only on nights that
         # happened to compile a fragment would report it once and then go
         # quiet -- the failure would look fixed simply because no package had
         # pending work that night.
-        self._sync_lock()
+        touched += self._sync_lock()
         if self.dry_run:
-            self._report_dry_run()
+            self._report_dry_run(any_compiled)
             return self._exit_code()
-        if not self.touched:
-            if not self.any_compiled:
+        if not touched:
+            if not any_compiled:
                 print("No fragments found in any package.")
             else:
                 print("All compiles ran but produced no on-disk writes (already up to date).")
             return self._exit_code()
-        self._stage_and_commit()
+        self._stage_and_commit(touched)
         self._push_with_retry()
         return self._exit_code()
 
-    def _compile_all(self) -> None:
+    # ---- Internals: the phases of ``run``, in order ----------------------
+
+    def _compile_all(self) -> tuple[list[Path], bool]:
+        """Compile every managed package.
+
+        Returns ``(touched, any_compiled)`` — the paths written across all
+        packages, and whether any package had fragments to process. One
+        package's failure is recorded and skipped so the rest still ship.
+        """
+        touched: list[Path] = []
+        any_compiled = False
         for pkg in self.packages:
             try:
-                compiled, touched = pkg.compile(dry_run=self.dry_run)
+                compiled, pkg_touched = pkg.compile(dry_run=self.dry_run)
             except Package.CompileFailed as e:
                 # Raised after the compile already wrote to disk. Those writes
                 # are real and must still be staged: an unstaged half-applied
@@ -207,24 +228,23 @@ class AutoBumpRun:
                 # push-retry loop refuses to run against a dirty tree.
                 print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
                 self.failures.append((pkg.name, str(e)))
-                self.touched.extend(e.touched)
+                touched.extend(e.touched)
                 continue
             except (FileNotFoundError, ValueError) as e:
                 print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
                 self.failures.append((pkg.name, str(e)))
                 continue
-            self.any_compiled = self.any_compiled or compiled
-            self.touched.extend(touched)
+            any_compiled = any_compiled or compiled
+            touched.extend(pkg_touched)
+        return touched, any_compiled
 
-    def _sync_lock(self) -> None:
+    def _sync_lock(self) -> list[Path]:
         """Re-point ``uv.lock`` at the versions the compile just wrote.
 
-        Runs once, after every package has compiled — ``uv.lock`` is a
-        single repo-level artifact pinning all members at once, so there is
-        nothing per-package about it. The written path joins
-        :attr:`touched`, which is what gets the lock staged through the same
-        manifest as every other compiler output; no separate ``git add``
-        exists to drift.
+        Returns the paths written, which join the compile's own so the lock
+        is staged through one manifest — ``uv.lock`` is a single repo-level
+        artifact pinning all members at once, so the sync is global rather
+        than per-package, and no separate ``git add`` exists to drift.
 
         A failure is recorded like a failed package compile — non-zero exit,
         red tile — but deliberately does not block the commit. A lock that
@@ -233,48 +253,43 @@ class AutoBumpRun:
         changelog for a problem the auto-commit did not cause.
         """
         try:
-            self.touched.extend(self.lock.sync(dry_run=self.dry_run))
+            return self.lock.sync(dry_run=self.dry_run)
         except LockFile.Error as e:
             print(f"  ERROR ({LockFile.LOCK_NAME}): {e}", file=sys.stderr)
             self.failures.append((LockFile.LOCK_NAME, str(e)))
+            return []
 
-    def _report_dry_run(self) -> None:
-        if self.any_compiled:
+    def _report_dry_run(self, any_compiled: bool) -> None:
+        """Print what a real run would have done. Writes nothing."""
+        if any_compiled:
             print(f"DRY RUN — compile complete; would commit/push to {self.branch}.")
         else:
             print("DRY RUN — no fragments found in any package.")
 
-    def _stage_and_commit(self) -> None:
+    def _stage_and_commit(self, touched: list[Path]) -> None:
+        """Stage exactly ``touched`` and commit it as the bot."""
         # Author identity belongs in-process: the workflow YAML stops
         # carrying changelog-tool knowledge so cli.py-only PRs don't need
         # paired YAML edits to stay consistent.
         self.repo.config("user.name", self.AUTHOR_NAME)
         self.repo.config("user.email", self.AUTHOR_EMAIL)
-        self.repo.add(self.touched)
+        self.repo.add(touched)
         if not self.repo.has_staged_changes():
             print("Nothing actually staged after compile — skipping commit.")
             return
-        self.repo.commit(self._build_commit_message())
-        print(f"Committed bump for {len(self.touched)} file(s).")
+        self.repo.commit(self._build_commit_message(touched))
+        print(f"Committed bump for {len(touched)} file(s).")
 
-    def _relative(self, path: Path) -> Path:
-        """``path`` relative to the repo root, or unchanged if it lies outside."""
-        try:
-            return path.relative_to(self.repo_root)
-        except ValueError:
-            return path
-
-    def _build_commit_message(self) -> str:
-        # Derive the per-package "old → new" lines from the staged version
-        # metadata diffs. The set of version files is taken from the packages
-        # themselves (:attr:`Package.toml_path`) rather than a hardcoded
-        # filename, so this produces a correct message both here — where
-        # versions live in ``pyproject.toml`` — and on release branches that
-        # still keep them in ``config/extension.toml``. Files touched by a
-        # future write site that carries no ``version`` line (``uv.lock``,
-        # ``CHANGELOG.rst``) are staged but not enumerated here.
+    def _build_commit_message(self, touched: list[Path]) -> str:
+        """Compose the auto-commit subject and its per-package bump list."""
+        # The set of version files is taken from the packages themselves
+        # (:attr:`Package.toml_path`) rather than a hardcoded filename, so
+        # this produces a correct message both here — where versions live in
+        # ``pyproject.toml`` — and on release branches that still keep them
+        # in ``config/extension.toml``. Files that carry no ``version`` line
+        # (``uv.lock``, ``CHANGELOG.rst``) are staged but not enumerated.
         version_files = {pkg.toml_path: pkg.name for pkg in self.packages}
-        bumped = sorted(p for p in self.touched if p in version_files)
+        bumped = sorted(p for p in touched if p in version_files)
         if not bumped:
             # Reachable now that the lock is reconciled on every run: a night
             # with no pending fragments can still have a lock to re-point.
@@ -288,12 +303,30 @@ class AutoBumpRun:
         ]
         for path in bumped:
             diff = self.repo.staged_diff(self._relative(path))
-            old = _extract_version_from_diff(diff, "-")
-            new = _extract_version_from_diff(diff, "+")
+            old = self._version_from_diff(diff, "-")
+            new = self._version_from_diff(diff, "+")
             lines.append(f"- {version_files[path]}: {old} → {new}")
         return "\n".join(lines) + "\n"
 
+    def _relative(self, path: Path) -> Path:
+        """``path`` relative to the repo root, or unchanged if it lies outside."""
+        try:
+            return path.relative_to(self.repo_root)
+        except ValueError:
+            return path
+
     def _push_with_retry(self) -> None:
+        """Push the auto-commit, rebasing onto the branch tip if it moved.
+
+        A human commit landing between checkout and push (a window of a
+        couple of minutes on a branch taking ~8 commits a day) rejects the
+        push as non-fast-forward. Without the retry the whole night's batch
+        would wait for the next run.
+
+        The retry deliberately does not re-compile: a fragment added by the
+        racing commit is left for the next night rather than amending the
+        commit currently being pushed.
+        """
         refspec = f"HEAD:refs/heads/{self.branch}"
         last_err: GitRepo.NonFastForward | None = None
         for attempt in range(self.PUSH_RETRIES):
@@ -320,26 +353,33 @@ class AutoBumpRun:
         raise GitError(f"push failed after {self.PUSH_RETRIES} attempts; last error: {last_err}")
 
     def _exit_code(self) -> int:
-        if self.failures:
-            print(file=sys.stderr)
-            print(f"::error::{len(self.failures)} package(s) failed to compile:", file=sys.stderr)
-            for name, reason in self.failures:
-                print(f"  • {name}: {reason}", file=sys.stderr)
-            return 1
-        return 0
+        """Return 1 if anything failed this run, 0 otherwise.
 
+        Failures are reported but never block the commit, so the exit code
+        is what keeps the job tile red while the healthy packages still ship.
+        """
+        if not self.failures:
+            return 0
+        print(file=sys.stderr)
+        print(f"::error::{len(self.failures)} item(s) failed:", file=sys.stderr)
+        for name, reason in self.failures:
+            print(f"  • {name}: {reason}", file=sys.stderr)
+        return 1
 
-def _extract_version_from_diff(diff_text: str, prefix: str) -> str:
-    """Pull the version string out of a staged version-metadata diff line.
+    # ---- Pure helpers ---------------------------------------------------
 
-    The diff contains lines like ``-version = "1.2.3"`` (old) and
-    ``+version = "1.3.0"`` (new). ``prefix`` selects which side to read.
-    Returns ``"?"`` if no match — the commit message is informational, not
-    machine-parsed, so a missing value shouldn't fail the run.
-    """
-    for line in diff_text.splitlines():
-        if line.startswith(f"{prefix}version"):
-            m = re.search(r'"([^"]+)"', line)
-            if m:
-                return m.group(1)
-    return "?"
+    @staticmethod
+    def _version_from_diff(diff_text: str, prefix: str) -> str:
+        """Pull the version string out of a staged version-metadata diff line.
+
+        The diff contains lines like ``-version = "1.2.3"`` (old) and
+        ``+version = "1.3.0"`` (new); ``prefix`` selects which side to read.
+        Returns ``"?"`` if no match — the commit message is informational,
+        not machine-parsed, so a missing value shouldn't fail the run.
+        """
+        for line in diff_text.splitlines():
+            if line.startswith(f"{prefix}version"):
+                m = re.search(r'"([^"]+)"', line)
+                if m:
+                    return m.group(1)
+        return "?"
