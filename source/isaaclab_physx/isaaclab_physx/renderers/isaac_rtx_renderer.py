@@ -95,7 +95,7 @@ class IsaacRtxRenderData:
     """Render data for Isaac RTX renderer."""
 
     annotators: dict[str, Any]
-    render_product_paths: list[str]
+    render_product: Any
     output_data: dict[str, ProxyArray] | None = None
     spec: CameraRenderSpec | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
@@ -293,9 +293,15 @@ class IsaacRtxRenderer(BaseRenderer):
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
 
-        # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(spec.cfg.width, spec.cfg.height))
-        render_product_paths = [rp.path]
+        # Create replicator tiled render product, using a unique name from requested outputs so
+        # sequential envs in one Kit process (e.g. simple_shading_* pytest cases) do not reuse
+        # a stale Replicator / SyntheticData activation. Prefer the public data-type names: all
+        # simple_shading_* modes share the same underlying AOV (``SimpleShadingSD``).
+        rp = rep.create.render_product_tiled(
+            cameras=cam_prim_paths,
+            tile_resolution=(spec.cfg.width, spec.cfg.height),
+            name="__".join(spec.cfg.data_types),
+        )
 
         # Synthetic-data instance mapping filter for segmentation; before annotator attach.
         SyntheticData.Get().set_instance_mapping_semantic_filter(
@@ -385,7 +391,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # Attach annotators to render product
         for annotator in annotators.values():
-            annotator.attach(render_product_paths)
+            annotator.attach([rp.path])
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
@@ -398,7 +404,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         return IsaacRtxRenderData(
             annotators=annotators,
-            render_product_paths=render_product_paths,
+            render_product=rp,
             spec=spec,
             ppisp_pipeline=ppisp_pipeline,
         )
@@ -591,9 +597,21 @@ class IsaacRtxRenderer(BaseRenderer):
             camera_data.info[output_name] = render_data.renderer_info.get(output_name)
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
-        """Detach annotators from render product.
+        """Detach annotators, destroy the owned tiled render product, and drop held refs.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        if render_data:
+        if render_data is None:
+            return
+
+        if render_data.render_product is not None:
             for annotator in render_data.annotators.values():
-                annotator.detach(render_data.render_product_paths)
-            render_data.spec = None
+                annotator.detach([render_data.render_product.path])
+
+            render_data.render_product.destroy()
+            render_data.render_product = None
+
+        render_data.annotators.clear()
+        render_data.output_data = None
+        render_data.spec = None
+        render_data.renderer_info.clear()
+        render_data.ppisp_pipeline = None
+        render_data._hdr_scratch_wp = None
