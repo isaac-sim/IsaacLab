@@ -363,6 +363,8 @@ def main():
             physics_cfg.solver_cfg.nconmax = 128
             physics_cfg.solver_cfg.naconmax = 2048
             physics_cfg.solver_cfg.njmax = 512
+            # MJWarp's internal convex CCD does not support the decomposed YCB collision meshes.
+            physics_cfg.solver_cfg.use_mujoco_contacts = False
 
         # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)

@@ -132,7 +132,6 @@ class SmokeResult:
 
 OVERRIDES = {
     "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
-    "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--enable_cameras",)),
     "scripts/demos/h1_locomotion.py": ScriptOverride(
         skip_reason="downloads a published policy and requires interactive viewport input",
         visualizers=("kit",),

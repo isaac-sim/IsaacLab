@@ -601,6 +601,12 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
     monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_reset_solver_internals_delegate",
+        NewtonManager._reset_solver_internals,
+        raising=False,
+    )
 
     NewtonManager.forward()
 
@@ -608,6 +614,31 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
     assert solver_resets == [[False, True]]
     assert world_mask.numpy().tolist() == [False, False]
     assert fk_mask.numpy().tolist() == [False, False]
+
+
+def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypatch):
+    """Base-class state reads must use the active MPM manager's reset behavior."""
+    world_mask = wp.array([True], dtype=wp.bool, device="cpu")
+    fk_mask = wp.array([], dtype=wp.bool, device="cpu")
+
+    class _RejectingSolver:
+        def reset(self, state, world_mask=None, flags=0):
+            raise AssertionError("the base reset hook must not run for implicit MPM")
+
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_eval_fk", lambda worlds, articulations: None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", _RejectingSolver(), raising=False)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_reset_solver_internals_delegate",
+        NewtonMPMManager._reset_solver_internals,
+        raising=False,
+    )
+
+    NewtonManager.forward()
+
+    assert world_mask.numpy().tolist() == [False]
 
 
 # ---------------------------------------------------------------------------
@@ -737,6 +768,10 @@ def test_initialize_solver_populates_canonical_state(
         assert isinstance(NewtonManager._solver, expected_solver_cls)
         assert NewtonManager._use_single_state is expected_use_single_state
         assert NewtonManager._needs_collision_pipeline is expected_needs_collision_pipeline
+        assert NewtonManager._reset_solver_internals_delegate.__self__ is expected_manager
+        assert (
+            NewtonManager._reset_solver_internals_delegate.__func__ is expected_manager._reset_solver_internals.__func__
+        )
 
         # ``_contacts`` is allocated whichever way contacts are handled
         # (MuJoCo internal buffer or Newton pipeline output).

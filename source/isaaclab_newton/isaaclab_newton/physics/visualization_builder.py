@@ -17,6 +17,7 @@ from pxr import Usd
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
+    _restore_visible_colliders_without_visual_shapes,
     build_source_builders,
     rename_builder_labels,
     replicate_builder_mapping,
@@ -38,7 +39,8 @@ def build_visualization_builder_from_stage_envs(
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = ModelBuilder(up_axis=up_axis)
     if clone_plan is None or not env_paths:
-        builder.add_usd(stage, schema_resolvers=schema_resolvers)
+        import_result = builder.add_usd(stage, schema_resolvers=schema_resolvers)
+        _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
         return builder
 
     env_path_by_id = dict(env_paths)
@@ -51,7 +53,8 @@ def build_visualization_builder_from_stage_envs(
     poses = [resolve_prim_pose(stage.GetPrimAtPath(env_path_by_id[int(env_id)])) for env_id in env_ids.tolist()]
     positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
     quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
-    builder.add_usd(stage, ignore_paths=["/World/envs", *sources], schema_resolvers=schema_resolvers)
+    import_result = builder.add_usd(stage, ignore_paths=["/World/envs", *sources], schema_resolvers=schema_resolvers)
+    _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
     source_builders = build_source_builders(
         stage,
         sources,

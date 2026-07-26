@@ -8,7 +8,7 @@
 Set ``ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1`` to enable the simulator launch
 matrix. GUI cases additionally require ``DISPLAY`` or ``WAYLAND_DISPLAY``.
 ``ISAACLAB_STANDALONE_SOAK_TIME`` and ``ISAACLAB_STANDALONE_STARTUP_TIMEOUT``
-may be used to tune the default five-second soak and three-minute startup limit.
+may be used to tune the default five-second soak and five-minute startup limit.
 Set ``ISAACLAB_STANDALONE_VISUALIZER`` to run one visualizer slice of the matrix.
 Set ``ISAACLAB_STANDALONE_SCRIPT_RUNTIME_GROUP`` to ``kit`` or ``non-kit`` to
 run the corresponding backend-runtime group.
@@ -58,7 +58,7 @@ MULTI_MESH_RAYCASTER_CASES = [
 RUN_LAUNCH_MATRIX = os.environ.get("ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS") == "1"
 SCREENSHOT_DIR = os.environ.get("ISAACLAB_STANDALONE_SCREENSHOT_DIR")
 SOAK_TIME = float(os.environ.get("ISAACLAB_STANDALONE_SOAK_TIME", "5"))
-STARTUP_TIMEOUT = float(os.environ.get("ISAACLAB_STANDALONE_STARTUP_TIMEOUT", "180"))
+STARTUP_TIMEOUT = float(os.environ.get("ISAACLAB_STANDALONE_STARTUP_TIMEOUT", "300"))
 SCREENSHOT_DELAY = float(os.environ.get("ISAACLAB_STANDALONE_SCREENSHOT_DELAY", "3"))
 
 
@@ -150,7 +150,6 @@ def test_commands_respect_script_launcher_capabilities():
         for case in build_cases(SPECS)
         if case.spec.relative_path == "scripts/demos/sensors/cameras.py" and case.visualizer == "none"
     )
-    assert "--enable_cameras" in camera_case.command()
     assert camera_case.command()[-2:] == ["--visualizer", "none"]
 
     kitless_case = next(

@@ -78,7 +78,7 @@ class _FakeVisualizationModelBuilder:
     def add_usd(self, stage, root_path=None, ignore_paths=None, schema_resolvers=None, **kwargs):
         del stage, ignore_paths, schema_resolvers, kwargs
         if root_path is None:
-            return
+            return {"path_shape_map": {}}
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
         for attr in _VIS_BUILTIN_LABEL_ATTRS:
@@ -90,6 +90,7 @@ class _FakeVisualizationModelBuilder:
         self.custom_attributes["mujoco:equality_constraint_world"].values.append(self._current_world or 0)
         self.geometry_sources.append(root_path)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
+        return {"path_shape_map": {}}
 
     def add_builder(self, builder, xform=None):
         del xform
@@ -407,6 +408,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self._define_xform(stage, "/World")
         self._define_xform(stage, "/World/Robot")
         builder = mock.Mock()
+        builder.add_usd.return_value = {"path_shape_map": {}}
 
         with (
             mock.patch.object(visualization_builder_module, "ModelBuilder", return_value=builder),
