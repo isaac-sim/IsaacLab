@@ -110,10 +110,10 @@ for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # C-style loop; start at 1 to sk
     ./isaaclab.sh -p -m pytest \
       --ignore=tools/conftest.py \
       --ignore=source/isaaclab/test/install_ci \
-      tools -v 2>&1 \
+      tools 2>&1 \
       | tee "$shard_log" \
       | stdbuf -oL grep -aE \
-          '🚀|^source/.*::.* (PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)|^(Total|Passing|Failing|Crashed|Startup Hang|Timeout|Total Wall Time|Total Test Time|Passing Percentage):|^~~~~|^=+ |^E +|^ +File |Traceback|^FAILED|^ERROR ' \
+          '🚀|^source/.*\.py[ :]|^(Total|Passing|Failing|Crashed|Startup Hang|Timeout|Total Wall Time|Total Test Time|Passing Percentage):|^~~~~|^=+ |^E +|^ +File |Traceback|^FAILED|^ERROR ' \
       | stdbuf -oL sed "s/^/[cuda:${cuda}] /"
 
     exit "${PIPESTATUS[0]}"  # exit with pytest's code, not tee/grep/sed's (PIPESTATUS[0] = first pipe stage)

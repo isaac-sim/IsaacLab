@@ -605,7 +605,8 @@ def _run_one_pass(
         "-m",
         "pytest",
         # Keep pytest capture enabled so Kit startup logs are only shown for failed tests.
-        "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
+        # Default verbosity: one line per file with per-test progress characters, instead of
+        # one line per test. Retries below re-run with "-v" so a hang still names the culprit.
         "--no-header",
         "--show-capture=all",
         f"--config-file={ctx.workspace_root}/pyproject.toml",
@@ -627,6 +628,12 @@ def _run_one_pass(
     wall_time, pre_kill_diag = 0.0, ""
     startup_hang_attempts = 0
     timeout_attempts = 0
+
+    def _retry_verbosely():
+        """Add ``-v`` to ``cmd`` so the retry logs per-test names for hang triage."""
+        if "-v" not in cmd:
+            cmd.insert(3, "-v")
+
     while True:
         with contextlib.suppress(FileNotFoundError):
             os.remove(report_file)
@@ -639,6 +646,7 @@ def _run_one_pass(
 
         if kill_reason == "startup_hang" and startup_hang_attempts < STARTUP_HANG_RETRIES:
             startup_hang_attempts += 1
+            _retry_verbosely()
             logger.warning(
                 f"⚠️  {ctx.test_file}{suffix}: startup hang detected after {ctx.startup_deadline}s"
                 f" (attempt {startup_hang_attempts}/{STARTUP_HANG_RETRIES + 1}), retrying..."
@@ -655,6 +663,7 @@ def _run_one_pass(
 
         if kill_reason == "timeout" and not has_report and timeout_attempts < TIMEOUT_RETRIES:
             timeout_attempts += 1
+            _retry_verbosely()
             logger.warning(
                 f"⚠️  {ctx.test_file}{suffix}: timeout detected after {ctx.timeout}s"
                 f" (attempt {timeout_attempts}/{TIMEOUT_RETRIES + 1}), retrying..."
