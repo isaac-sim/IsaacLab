@@ -13,6 +13,9 @@ does change and what must not.
 
 from __future__ import annotations
 
+import argparse
+
+import cli
 import packages
 import pytest
 from lockfile import LockFile
@@ -282,3 +285,34 @@ def test_repo_lock_membership_is_repairable():
     drift there is expected between runs.
     """
     LockFile(RootPackage(packages.REPO_ROOT)).assert_repairable()
+
+
+# ---------------------------------------------------------------------------
+# The CLI surface
+# ---------------------------------------------------------------------------
+
+
+def test_sync_lock_check_reports_drift_and_exits_non_zero(tmp_path, monkeypatch, capsys):
+    """``sync-lock --check`` must render the drift it found and fail.
+
+    Covers the command handler, not just the model: the handler formats the
+    drift records itself, so a change to what ``check`` returns breaks here
+    and nowhere else.
+    """
+    _write_workspace(tmp_path, versions={"isaaclab": "13.1.0", "isaaclab_tasks": "9.1.0"})
+    monkeypatch.setattr(cli, "REPO_ROOT", tmp_path)
+
+    rc = cli.cmd_sync_lock(argparse.Namespace(check=True), argparse.ArgumentParser())
+
+    assert rc == 1
+    assert "isaaclab: 13.0.0 -> 13.1.0" in capsys.readouterr().out
+
+
+def test_sync_lock_reports_clean_and_exits_zero(tmp_path, monkeypatch, capsys):
+    _write_workspace(tmp_path)
+    monkeypatch.setattr(cli, "REPO_ROOT", tmp_path)
+
+    rc = cli.cmd_sync_lock(argparse.Namespace(check=True), argparse.ArgumentParser())
+
+    assert rc == 0
+    assert "is in sync" in capsys.readouterr().out

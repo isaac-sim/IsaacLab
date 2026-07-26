@@ -282,8 +282,8 @@ def cmd_sync_lock(args: argparse.Namespace, _parser: argparse.ArgumentParser) ->
         print(f"{LockFile.LOCK_NAME} is in sync with the workspace versions.")
         return 0
     print(f"{LockFile.LOCK_NAME} is out of sync with the workspace versions:")
-    for name, old, new in changes:
-        print(f"  {name}: {old} -> {new}")
+    for drift in changes:
+        print(f"  {drift.package}: {drift.old} -> {drift.new}")
     # Flush before writing to stderr so the summary cannot overtake the list
     # above when both streams land in the same terminal or CI log.
     sys.stdout.flush()
