@@ -487,25 +487,6 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
     env_cfg.sim.physics.enable_external_forces_every_iteration = True
 
 
-def _maybe_disable_instancing_for_current_stage(physics_backend: str, renderer: str, data_type: str) -> None:
-    """Disable USD instancing for the current stage to work around NVBUG#6418121.
-
-    HDC_TODO: Remove this temporary workaround once NVBUG#6418121 is fixed.
-    """
-    disable_instancing = False
-
-    if renderer == "isaacsim_rtx_renderer":
-        disable_instancing = True
-
-    if disable_instancing:
-        from isaaclab.sim.utils.prims import get_current_stage, make_uninstanceable
-
-        stage = get_current_stage()
-        make_uninstanceable("/World/envs", stage)
-
-        print("[rendering_test_utils] Disabled USD instancing for the current stage to work around NVBUG#6418121.")
-
-
 def _skip_if_newton_motion_vectors(physics_backend: str, data_type: str) -> None:
     """Skip ``motion_vectors`` golden-image tests running on the Newton physics backend.
 
@@ -1619,8 +1600,6 @@ def rendering_test_franka_cloth(
     try:
         env = ManagerBasedRLEnv(env_cfg)
 
-        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
-
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
         # We step only once to let the cloth fall uniformly on the gravity but not collide with the cube on the table.
@@ -1727,9 +1706,6 @@ def rendering_test_franka_soft(
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
 
-    if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
-        pytest.skip("The test cases will be enabled after NVBUG#6418121 is fixed.")
-
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
@@ -1763,9 +1739,6 @@ def rendering_test_franka_soft(
             actions[:, 3:7] = ee_quat_curr
 
             env.step(actions)
-
-        # This workaround invalidates the physx data views and would lead to issues if it was done before stepping.
-        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
