@@ -35,12 +35,13 @@ from standalone_script_cases import (
     gui_is_available,
     run_until_ready,
     select_runtime_group,
+    select_script_scope,
     visualizer_is_available,
 )
 
 SPECS = discover_specs()
 SCOPE = os.environ.get("ISAACLAB_STANDALONE_SCRIPT_SCOPE", "all")
-SELECTED_SPECS = [spec for spec in SPECS if SCOPE == "all" or f"scripts/{SCOPE}/" in spec.relative_path]
+SELECTED_SPECS = select_script_scope(SPECS, SCOPE)
 CASES = build_cases(SELECTED_SPECS)
 VISUALIZER = os.environ.get("ISAACLAB_STANDALONE_VISUALIZER")
 if VISUALIZER:
@@ -97,6 +98,14 @@ def test_runtime_groups_partition_matrix_without_overlap():
 
     with pytest.raises(ValueError, match="runtime group"):
         select_runtime_group(cases, "invalid")
+
+
+def test_script_scope_rejects_empty_selection():
+    """A stale or misspelled scope must not produce a vacuously green launch matrix."""
+    assert select_script_scope(SPECS, "all") is SPECS
+    assert all(spec.relative_path.startswith("scripts/demos/mpm/") for spec in select_script_scope(SPECS, "demos/mpm"))
+    with pytest.raises(ValueError, match="selected no scripts"):
+        select_script_scope(SPECS, "missing")
 
 
 def test_showroom_documents_options_for_each_mentioned_demo():

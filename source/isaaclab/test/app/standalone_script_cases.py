@@ -281,6 +281,27 @@ def build_cases(specs: list[ScriptSpec]) -> list[LaunchCase]:
     ]
 
 
+def select_script_scope(specs: list[ScriptSpec], scope: str) -> list[ScriptSpec]:
+    """Select scripts within a repository-relative demo or tutorial directory.
+
+    Args:
+        specs: Discovered standalone script specifications.
+        scope: Directory below ``scripts``, or ``"all"`` for every script.
+
+    Returns:
+        Specifications selected by the requested scope.
+
+    Raises:
+        ValueError: If a non-default scope does not select any scripts.
+    """
+    if scope == "all":
+        return specs
+    selected_specs = [spec for spec in specs if f"scripts/{scope}/" in spec.relative_path]
+    if not selected_specs:
+        raise ValueError(f"standalone script scope selected no scripts: {scope!r}")
+    return selected_specs
+
+
 def select_runtime_group(cases: list[LaunchCase], runtime_group: str) -> list[LaunchCase]:
     """Select launch cases by whether they require the Isaac Sim Kit runtime."""
     if runtime_group not in {"kit", "non-kit"}:

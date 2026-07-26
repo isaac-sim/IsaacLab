@@ -68,6 +68,23 @@ def _unauthored_collision_mesh_shapes(builder: ModelBuilder, authored_shape_indi
     ]
 
 
+def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
+    """Return whether a prim hierarchy contains visible geometry without collision."""
+    root_prim = stage.GetPrimAtPath(prim_path)
+    if not root_prim:
+        return False
+    for prim in Usd.PrimRange(root_prim):
+        if not prim.IsA(UsdGeom.Gprim) or prim.HasAPI(UsdPhysics.CollisionAPI):
+            continue
+        imageable = UsdGeom.Imageable(prim)
+        if imageable.ComputeVisibility() != UsdGeom.Tokens.invisible and imageable.ComputePurpose() in (
+            UsdGeom.Tokens.default_,
+            UsdGeom.Tokens.proxy,
+        ):
+            return True
+    return False
+
+
 def _restore_visible_colliders_without_visual_shapes(
     builder: ModelBuilder, stage: Usd.Stage, path_shape_map: dict[str, int] | None
 ) -> None:
@@ -84,14 +101,22 @@ def _restore_visible_colliders_without_visual_shapes(
     bodies_with_visual_shapes = {
         builder.shape_body[index]
         for index, flags in enumerate(builder.shape_flags)
-        if flags & ShapeFlags.VISIBLE and not flags & ShapeFlags.COLLIDE_SHAPES
+        if builder.shape_body[index] >= 0 and flags & ShapeFlags.VISIBLE and not flags & ShapeFlags.COLLIDE_SHAPES
+    }
+    static_parent_paths = {
+        path.rpartition("/")[0] for path, index in path_shape_map.items() if builder.shape_body[index] < 0
+    }
+    static_parents_with_visual_shapes = {
+        path for path in static_parent_paths if _has_visible_non_collision_geometry(stage, path)
     }
     for path, index in path_shape_map.items():
         flags = builder.shape_flags[index]
+        body_index = builder.shape_body[index]
         if (
             not flags & ShapeFlags.COLLIDE_SHAPES
             or builder.shape_type[index] == GeoType.MESH
-            or builder.shape_body[index] in bodies_with_visual_shapes
+            or body_index in bodies_with_visual_shapes
+            or (body_index < 0 and path.rpartition("/")[0] in static_parents_with_visual_shapes)
         ):
             continue
         imageable = UsdGeom.Imageable(stage.GetPrimAtPath(path))

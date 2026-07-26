@@ -27,4 +27,9 @@ class RigidObjectCollectionCfg:
     """Dictionary of rigid object configurations to spawn.
 
     The keys are the names for the objects, which are used as unique identifiers throughout the code.
+
+    .. note::
+
+       With the Newton backend, the configured root prim paths must share a combined prefix-and-suffix
+       pattern that does not match other rigid objects in the same world.
     """
