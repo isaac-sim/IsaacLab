@@ -20,6 +20,8 @@ from pathlib import Path
 import cli
 import pytest
 
+from conftest import version_file_rel, write_version_file
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -36,15 +38,7 @@ def _git(cwd: Path, *args: str) -> str:
     ).stdout
 
 
-def _version_file(name: str) -> str:
-    """Repo-relative path of ``<name>``'s version metadata file on this branch.
-
-    Derived from :attr:`cli.Package.toml_path` rather than spelled out, so
-    assertions keep passing when this file is cherry-picked to a branch with
-    a different layout (``config/extension.toml`` instead of
-    ``pyproject.toml``).
-    """
-    return cli.Package(Path("source") / name).toml_path.as_posix()
+_version_file = version_file_rel
 
 
 def _write_managed_pkg(source_root: Path, name: str, *, starting_version: str = "0.1.0") -> Path:
@@ -52,32 +46,14 @@ def _write_managed_pkg(source_root: Path, name: str, *, starting_version: str = 
 
     A managed package needs a version metadata file and a
     ``docs/CHANGELOG.rst`` with a parseable header. Where the version lives
-    is the branch's business, not the test's: the path comes from
-    :attr:`cli.Package.toml_path`, and the file's shape follows from it —
-    a ``[project]`` table for ``pyproject.toml``, a bare top-level
-    ``version`` for ``config/extension.toml``. That keeps this suite honest
-    on both layouts without a parametrize axis that could drift from what
-    ``cli.py`` on the branch actually reads.
+    is the branch's business, not the test's — see
+    :func:`conftest.write_version_file`.
     """
     root = source_root / name
     (root / "docs").mkdir(parents=True)
     (root / "changelog.d").mkdir(parents=True)
     (root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
-
-    toml_path = cli.Package(root).toml_path
-    toml_path.parent.mkdir(parents=True, exist_ok=True)
-    if toml_path.name == "pyproject.toml":
-        toml_path.write_text(
-            "[build-system]\n"
-            'requires = ["setuptools"]\n'
-            "\n"
-            "[project]\n"
-            f'name = "{name}"\n'
-            f'version = "{starting_version}"\n',
-            encoding="utf-8",
-        )
-    else:
-        toml_path.write_text(f'version = "{starting_version}"\n', encoding="utf-8")
+    write_version_file(root, name, starting_version)
     return root
 
 
@@ -659,7 +635,10 @@ def test_multi_file_version_write_is_staged_and_reported_once(synthetic_repo: Pa
     _drop_fragment(pkg_root, "feat-x")
 
     real_write_version = cli.Package.write_version
-    sidecar = pkg_root / "config" / "extension.toml"
+    # A path that is not ``toml_path`` on any branch — using a real layout's
+    # filename here would collide with the actual version file on whichever
+    # branch uses it, and the test would stop testing a *second* write site.
+    sidecar = pkg_root / "docs" / "VERSION_SIDECAR.txt"
 
     def dual_write(self, new_version, *, dry_run):
         touched = real_write_version(self, new_version, dry_run=dry_run)
@@ -692,7 +671,7 @@ def test_multi_file_version_write_is_staged_and_reported_once(synthetic_repo: Pa
     ).stdout.split()
     # Both files the write site reported must be in the commit.
     assert _version_file("isaaclab") in files
-    assert "source/isaaclab/config/extension.toml" in files
+    assert "source/isaaclab/docs/VERSION_SIDECAR.txt" in files
     # ...but the package is still reported exactly once.
     assert _commit_body(bare).count("- isaaclab:") == 1
 

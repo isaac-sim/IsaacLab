@@ -17,6 +17,8 @@ import cli
 import pytest
 from lockfile import LockFile
 
+from conftest import write_version_file
+
 # A miniature lock exercising every shape the rewriter must distinguish: a
 # member whose version moves, a member already correct, a third-party
 # package that happens to share a version string, the virtual workspace
@@ -71,13 +73,20 @@ def _write_workspace(root, *, lock=LOCK, root_toml=ROOT_TOML, versions=None):
 
     ``versions`` maps a member directory name to the version its own
     manifest declares; it defaults to the lock's own values (in sync).
+
+    Member versions go through :func:`conftest.write_version_file`, so each
+    one lands in whatever file this branch's ``Package`` actually reads.
+    Hardcoding ``pyproject.toml`` here would make every drift assertion pass
+    vacuously on a branch that keeps versions in ``config/extension.toml``:
+    ``declared_version`` would return ``None``, no targets would resolve, and
+    the lock would look permanently "in sync".
     """
     (root / "uv.lock").write_text(lock, encoding="utf-8")
     (root / "pyproject.toml").write_text(root_toml, encoding="utf-8")
     for name, version in (versions or {"isaaclab": "13.0.0", "isaaclab_tasks": "9.1.0"}).items():
         pkg = root / "source" / name
         pkg.mkdir(parents=True, exist_ok=True)
-        (pkg / "pyproject.toml").write_text(f'[project]\nname = "{name}"\nversion = "{version}"\n', encoding="utf-8")
+        write_version_file(pkg, name, version)
     return LockFile(root, cli.Package.declared_version)
 
 
