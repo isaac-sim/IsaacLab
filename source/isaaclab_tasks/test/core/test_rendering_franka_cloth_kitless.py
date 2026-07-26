@@ -18,7 +18,12 @@ from rendering_test_utils import (
     rendering_test_franka_cloth,
 )
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [
+    pytest.mark.isaacsim_ci,
+    # FrankaClothSceneCfg inherits _FrankaSoftSceneCfg, so it spawns the same
+    # SeattleLabTable asset that broke test_rendering_franka_soft_kitless.
+    pytest.mark.skip(reason="The table is missing from the Franka soft asset, so the golden images no longer match."),
+]
 
 _RENDERING_PARAMS = make_xfail_rendering_params(
     KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
