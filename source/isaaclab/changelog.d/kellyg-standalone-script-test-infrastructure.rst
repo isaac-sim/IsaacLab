@@ -11,3 +11,9 @@ Changed
 * **Breaking:** Changed standalone demos that require Isaac Sim PhysX to use
   ``isaacsim_physx`` explicitly. Replace ``--physics physx`` with
   ``--physics isaacsim_physx`` when launching these demos.
+
+Fixed
+^^^^^
+
+* Fixed the Newton bin-packing demo dropping contacts and constraints when its
+  MJWarp buffers overflowed.

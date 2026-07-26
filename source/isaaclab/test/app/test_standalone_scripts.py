@@ -258,11 +258,18 @@ def test_subprocess_supervisor_bounds_startup_time():
 def test_subprocess_supervisor_retains_fatal_state_when_output_is_truncated(monkeypatch):
     """Fatal output must remain detectable after the bounded output tail rolls over."""
     monkeypatch.setattr(script_cases, "MAX_OUTPUT_BYTES", 64)
-    source = "print('Traceback (most recent call last):'); print('x' * 1024); print('READY')"
+    source = (
+        "print('Traceback (most recent call last):'); "
+        "print('Number of Newton contacts (10) exceeded MJWarp limit (2). Increase nconmax.'); "
+        "print('nefc overflow - please increase njmax to 10'); "
+        "print('x' * 1024); print('READY')"
+    )
     result = run_until_ready([sys.executable, "-u", "-c", source], r"READY", startup_timeout=2.0)
     assert result.ready
     assert len(result.output.encode()) <= 64
     assert "Traceback (most recent call last):" in result.fatal_patterns
+    assert "exceeded MJWarp limit" in result.fatal_patterns
+    assert "nefc overflow" in result.fatal_patterns
 
 
 def test_subprocess_supervisor_captures_requested_screenshot(monkeypatch, tmp_path):

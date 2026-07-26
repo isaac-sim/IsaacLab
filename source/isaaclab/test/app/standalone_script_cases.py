@@ -30,6 +30,8 @@ _FATAL_PATTERNS = (
     "Segmentation fault",
     "Fatal Python error:",
     "CUDA error:",
+    "exceeded MJWarp limit",
+    "nefc overflow",
 )
 
 
