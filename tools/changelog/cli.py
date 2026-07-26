@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Manage changelog fragments — single entry point with two subcommands.
+"""Manage changelog fragments — single entry point for the whole lifecycle.
 
 Each PR drops a fragment under ``source/<package>/changelog.d/<slug>.rst``.
 The slug is any short, unique name — the contributor's branch name (with
@@ -22,11 +22,25 @@ package (one ``.major.rst`` anywhere → major).
 
 Subcommands:
 
-  check    PR gate. Verifies every modified package has a valid fragment.
-  compile  Roll accumulated fragments into ``CHANGELOG.rst`` and bump
-           ``extension.toml``. Run by the nightly workflow
-           (``.github/workflows/nightly-changelog.yml``) on a cron and
-           by maintainers manually when cutting a release.
+  check      PR gate. Verifies every modified package has a valid fragment.
+  compile    Roll accumulated fragments into ``CHANGELOG.rst`` and bump each
+             package's version metadata file. Run by maintainers when
+             cutting a release.
+  auto-bump  The whole nightly lifecycle: compile every package, sync
+             ``uv.lock``, stage exactly what was written, commit as the bot,
+             and push to the target branch with retry-on-conflict. Run by
+             ``.github/workflows/nightly-changelog.yml`` on a cron.
+  sync-lock  Re-point ``uv.lock``'s workspace-member versions at their
+             manifests. ``auto-bump`` does this automatically; run it
+             directly to repair a lock by hand or, with ``--check``, as a
+             gate.
+
+Which file holds a package's version is the branch's business, not this
+tool's — :attr:`Package.toml_path` resolves it, so the same ``cli.py`` is
+correct on branches that keep versions in ``pyproject.toml`` and on release
+branches that still keep them in ``config/extension.toml``. That matters
+because the nightly workflow lives only on the default branch and invokes
+whatever ``cli.py`` each target branch carries.
 
 Usage:
 
@@ -50,8 +64,20 @@ Usage:
     cli.py compile --package isaaclab --dry-run \\
         --fragments-dir tools/changelog/test/integration/02_minor_bump/fragments
 
-For big version jumps (e.g. ``2.1`` → ``4.7``) edit
-``source/<pkg>/config/extension.toml`` and prepend a manual entry to
+    # ── auto-bump ─────────────────────────────────────────────────
+    # What the nightly cron runs (the workflow supplies the branch):
+    cli.py auto-bump --branch develop --remote origin \\
+        --event-name schedule
+
+    # ── sync-lock ─────────────────────────────────────────────────
+    # Repair a lock whose member versions drifted from their manifests:
+    cli.py sync-lock
+
+    # Report drift and exit non-zero, without writing:
+    cli.py sync-lock --check
+
+For big version jumps (e.g. ``2.1`` → ``4.7``) edit the package's version
+metadata file directly and prepend a manual entry to
 ``source/<pkg>/docs/CHANGELOG.rst``. The compiler is for fragment-driven
 incremental bumps, not for jumps.
 """
@@ -68,6 +94,8 @@ from datetime import date
 from functools import cached_property
 from pathlib import Path
 from typing import ClassVar
+
+from lockfile import LockFile
 
 # Walk three levels up: tools/changelog/cli.py -> tools/changelog/ -> tools/ -> repo root.
 REPO_ROOT = Path(__file__).parent.parent.parent
@@ -128,7 +156,7 @@ class Version:
 
     # ``X.Y.Z`` with an optional PEP 440 ``.devN`` suffix. The suffix is
     # tolerated on the way *in* (e.g. when reading a stale dev version out
-    # of an existing ``extension.toml``) but :meth:`bumped` always strips
+    # of an existing version metadata file) but :meth:`bumped` always strips
     # it before producing a successor.
     _SEMVER_RE: ClassVar[re.Pattern[str]] = re.compile(r"^\d+\.\d+\.\d+(\.dev\d+)?$")
 
@@ -554,6 +582,28 @@ class Package:
                 if m:
                     return Version(m.group(1))
         raise ValueError(f"{self.name}: no version field found under [project] in {self.toml_path}")
+
+    @classmethod
+    def declared_version(cls, root: Path) -> str | None:
+        """Return the version the package at ``root`` declares, or ``None`` if unreadable.
+
+        The tolerant counterpart to :meth:`current_version`, for callers
+        enumerating directories they do not control — :class:`LockFile`
+        walks every uv workspace member, including ones the changelog
+        compiler does not manage. A missing or malformed version metadata
+        file yields ``None`` instead of raising, so one unmanaged member
+        cannot fail an operation that spans the whole workspace.
+
+        Args:
+            root: The package directory (``source/<pkg>``).
+        """
+        pkg = cls(root)
+        if not pkg.toml_path.is_file():
+            return None
+        try:
+            return str(pkg.current_version())
+        except (OSError, ValueError):
+            return None
 
     def write_changelog_entry(self, entry: str, *, dry_run: bool) -> list[Path]:
         """Prepend ``entry`` to this package's CHANGELOG.rst. Returns the
@@ -1147,6 +1197,7 @@ class AutoBumpRun:
         self.repo_root = repo_root
         self.repo = GitRepo(repo_root)
         self.packages = Package.discover(packages_root=repo_root / "source")
+        self.lock = LockFile(repo_root, Package.declared_version)
         self.touched: list[Path] = []
         self.failures: list[tuple[str, str]] = []
         self.any_compiled = False
@@ -1154,6 +1205,7 @@ class AutoBumpRun:
     def run(self) -> int:
         self._compile_all()
         if self.dry_run:
+            self._sync_lock()
             self._report_dry_run()
             return self._exit_code()
         if not self.touched:
@@ -1162,6 +1214,7 @@ class AutoBumpRun:
             else:
                 print("All compiles ran but produced no on-disk writes (already up to date).")
             return self._exit_code()
+        self._sync_lock()
         self._stage_and_commit()
         self._push_with_retry()
         return self._exit_code()
@@ -1176,6 +1229,28 @@ class AutoBumpRun:
                 continue
             self.any_compiled = self.any_compiled or compiled
             self.touched.extend(touched)
+
+    def _sync_lock(self) -> None:
+        """Re-point ``uv.lock`` at the versions the compile just wrote.
+
+        Runs once, after every package has compiled — ``uv.lock`` is a
+        single repo-level artifact pinning all members at once, so there is
+        nothing per-package about it. The written path joins
+        :attr:`touched`, which is what gets the lock staged through the same
+        manifest as every other compiler output; no separate ``git add``
+        exists to drift.
+
+        A failure is recorded like a failed package compile — non-zero exit,
+        red tile — but deliberately does not block the commit. A lock that
+        needs a full ``uv lock`` was already stale before this run started,
+        and wedging the nightly over it would strand every package's
+        changelog for a problem the auto-commit did not cause.
+        """
+        try:
+            self.touched.extend(self.lock.sync(dry_run=self.dry_run))
+        except LockFile.Error as e:
+            print(f"  ERROR ({LockFile.LOCK_NAME}): {e}", file=sys.stderr)
+            self.failures.append((LockFile.LOCK_NAME, str(e)))
 
     def _report_dry_run(self) -> None:
         if self.any_compiled:
@@ -1286,6 +1361,39 @@ def cmd_auto_bump(args: argparse.Namespace, _parser: argparse.ArgumentParser) ->
     ).run()
 
 
+def cmd_sync_lock(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Sync ``uv.lock`` on its own, outside a nightly run.
+
+    ``auto-bump`` already does this as part of the lifecycle; this
+    subcommand exists for the two cases that sit outside it — a maintainer
+    repairing a lock by hand after a manual version edit, and ``--check``
+    as a gate that fails when the lock has drifted.
+    """
+    lock = LockFile(REPO_ROOT, Package.declared_version)
+    if not lock.exists:
+        print(f"No {LockFile.LOCK_NAME} on this branch — nothing to sync.")
+        return 0
+    try:
+        if not args.check:
+            lock.sync()
+            return 0
+        _, changes = lock.drift()
+    except LockFile.Error as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    if not changes:
+        print(f"{LockFile.LOCK_NAME} is in sync with the workspace versions.")
+        return 0
+    print(f"{LockFile.LOCK_NAME} is out of sync with the workspace versions:")
+    for name, old, new in changes:
+        print(f"  {name}: {old} -> {new}")
+    # Flush before writing to stderr so the summary cannot overtake the list
+    # above when both streams land in the same terminal or CI log.
+    sys.stdout.flush()
+    print("\nRun `cli.py sync-lock` to fix.", file=sys.stderr)
+    return 1
+
+
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
@@ -1299,12 +1407,15 @@ def _build_parser() -> argparse.ArgumentParser:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    sub = parser.add_subparsers(dest="cmd", required=True, metavar="{compile,check,auto-bump}")
+    sub = parser.add_subparsers(dest="cmd", required=True, metavar="{compile,check,auto-bump,sync-lock}")
 
     p_compile = sub.add_parser(
         "compile",
         help="Compile fragments into CHANGELOG.rst (maintainer release-time tool).",
-        description="Compile accumulated fragments into per-package CHANGELOG.rst entries and bump extension.toml.",
+        description=(
+            "Compile accumulated fragments into per-package CHANGELOG.rst entries and bump each "
+            "package's version metadata file."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p_compile.set_defaults(func=cmd_compile)
@@ -1407,6 +1518,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Preview only — compile in dry-run mode and skip commit/push entirely.",
+    )
+
+    p_sync_lock = sub.add_parser(
+        "sync-lock",
+        help="Re-point uv.lock's workspace-member versions at their manifests.",
+        description=(
+            "Rewrite the ``version`` line of each uv workspace member's own ``[[package]]`` block "
+            "in uv.lock so it matches that package's manifest — nothing else is touched. This is "
+            "NOT a resolve: third-party pins, hashes, and markers are left alone, and a lock whose "
+            "membership has changed is refused because only a real `uv lock` can repair it. "
+            "``auto-bump`` runs this automatically; use it directly to repair a lock by hand, or "
+            "with --check as a gate."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_sync_lock.set_defaults(func=cmd_sync_lock)
+    p_sync_lock.add_argument(
+        "--check",
+        action="store_true",
+        help="Report drift and exit non-zero instead of writing uv.lock.",
     )
 
     return parser

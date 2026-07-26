@@ -20,7 +20,6 @@ from pathlib import Path
 import cli
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -358,3 +357,126 @@ def test_auto_bump_with_no_fragments_is_a_noop(synthetic_repo: Path, tmp_path: P
     assert rc == 0
     authors = _author_log(tmp_path / "origin.git")
     assert cli.AutoBumpRun.AUTHOR_NAME not in authors
+
+
+# ---------------------------------------------------------------------------
+# uv.lock: synced from the same touched-paths manifest, no separate git add
+# ---------------------------------------------------------------------------
+
+
+def _write_workspace_lock(work: Path, names: list[str]) -> Path:
+    """Turn the synthetic repo into a uv workspace.
+
+    Writes a root manifest declaring each package as an editable member and
+    a ``uv.lock`` pinning them at whatever version they currently declare —
+    i.e. in sync, so any drift a test observes was produced by the bump.
+    """
+    sources = "\n".join(f'{name} = {{ path = "source/{name}", editable = true }}' for name in names)
+    (work / "pyproject.toml").write_text(
+        f'[project]\nname = "isaaclab-dev"\nversion = "0.0.0"\n\n[tool.uv.sources]\n{sources}\n',
+        encoding="utf-8",
+    )
+    blocks = []
+    for name in names:
+        version = cli.Package.declared_version(work / "source" / name)
+        blocks.append(
+            f'[[package]]\nname = "{name}"\nversion = "{version}"\nsource = {{ editable = "source/{name}" }}\n'
+        )
+    lock = work / "uv.lock"
+    lock.write_text('version = 1\nrequires-python = ">=3.11"\n\n' + "\n".join(blocks), encoding="utf-8")
+    return lock
+
+
+def test_auto_bump_syncs_and_commits_uv_lock(synthetic_repo: Path, tmp_path: Path):
+    """``uv.lock`` sits at the repo root, outside ``source/``, so no
+    ``git add source/...`` glob can ever reach it. Routing the sync's written
+    path through the same ``touched`` manifest as every other compiler output
+    is what gets it staged — there is no second list to keep in step."""
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab", starting_version="1.0.0")
+    _write_workspace_lock(synthetic_repo, ["isaaclab"])
+    _drop_fragment(pkg_root, "feat-x")
+
+    rc = cli.AutoBumpRun(
+        branch="develop",
+        remote="origin",
+        event_name="schedule",
+        repo_root=synthetic_repo,
+    ).run()
+    assert rc == 0
+
+    bare = tmp_path / "origin.git"
+    show = subprocess.run(
+        ["git", "show", "develop", "--name-only", "--format="],
+        cwd=bare,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert "uv.lock" in show.split()
+    # And the committed lock carries the bumped version, not the old pin.
+    locked = subprocess.run(
+        ["git", "show", "develop:uv.lock"],
+        cwd=bare,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert 'version = "1.0.1"' in locked
+
+
+def test_auto_bump_without_a_lock_still_commits(synthetic_repo: Path, tmp_path: Path):
+    """The release-branch shape: changelog tooling present, no uv workspace.
+    The lock sync must be a silent no-op rather than a red tile, because the
+    same cli.py is cherry-picked to those branches."""
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    _drop_fragment(pkg_root, "feat-x")
+
+    rc = cli.AutoBumpRun(
+        branch="release/3.0.0-beta2",
+        remote="origin",
+        event_name="schedule",
+        repo_root=synthetic_repo,
+    ).run()
+
+    assert rc == 0
+    authors = _author_log(tmp_path / "origin.git", branch="release/3.0.0-beta2")
+    assert authors[0] == cli.AutoBumpRun.AUTHOR_NAME
+
+
+def test_auto_bump_reds_the_tile_but_still_ships_when_the_lock_needs_a_full_relock(
+    synthetic_repo: Path, tmp_path: Path
+):
+    """A member added to the workspace without re-locking cannot be repaired
+    by a version rewrite. That is a real problem worth a red tile, but it
+    predates this run — wedging the commit would strand every package's
+    changelog over a lock the auto-bump did not break."""
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    _write_workspace_lock(synthetic_repo, ["isaaclab"])
+    _drop_fragment(pkg_root, "feat-x")
+    # Declare a second member that the lock has never seen.
+    root_toml = synthetic_repo / "pyproject.toml"
+    root_toml.write_text(
+        root_toml.read_text(encoding="utf-8")
+        + 'isaaclab_assets = { path = "source/isaaclab_assets", editable = true }\n',
+        encoding="utf-8",
+    )
+
+    rc = cli.AutoBumpRun(
+        branch="develop",
+        remote="origin",
+        event_name="schedule",
+        repo_root=synthetic_repo,
+    ).run()
+
+    assert rc == 1  # red tile
+    bare = tmp_path / "origin.git"
+    show = subprocess.run(
+        ["git", "show", "develop", "--name-only", "--format="],
+        cwd=bare,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    # The changelog bump still shipped; the un-repairable lock did not.
+    assert _version_file("isaaclab") in show
+    assert "uv.lock" not in show
