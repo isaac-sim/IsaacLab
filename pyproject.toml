@@ -44,7 +44,11 @@ dependencies = [
     "torchaudio>=2.11",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
-    "psutil",
+    # psutil: bounded, not bare. isaacsim-kernel pins psutil==5.9.8 and rl-games caps it
+    # below 6. The installer resolves Isaac Sim and these dependencies in separate pip
+    # invocations, so an unbounded requirement lets the later resolve install psutil 7.x
+    # over the pinned copy.
+    "psutil>=5.9.8,<6",
     "protobuf>=4.25.8,!=5.26.0",
     "hidapi>=0.14.0",
     "gymnasium>=1.2.0",
@@ -125,6 +129,10 @@ rl-games = [
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
     "gym",
     "standard-distutils",
+    # rl-games pulls wandb, and wandb>=0.28 requires click>=8.2, which displaces
+    # isaacsim-kernel's click==8.1.7 pin. Cap click here so the resolver backtracks wandb
+    # instead; this matches the click 8.1.7 uv.lock already resolves for the isaacsim extra.
+    "click==8.1.7",
 ]
 rsl-rl = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"]
 # No ``newton`` extra: the viewer GUI ships in the base install; ``-i newton`` is a no-op.
