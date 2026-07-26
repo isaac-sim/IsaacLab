@@ -128,7 +128,11 @@ def test_declared_member_absent_from_lock_is_rejected(tmp_path):
 
 
 def test_locked_member_no_longer_declared_is_rejected(tmp_path):
-    lock, root = _write_pair(tmp_path, LOCK, ROOT_TOML.replace('isaaclab-tasks = { path = "source/isaaclab_tasks"', 'x = { path = "source/x"'))
+    lock, root = _write_pair(
+        tmp_path,
+        LOCK,
+        ROOT_TOML.replace('isaaclab-tasks = { path = "source/isaaclab_tasks"', 'x = { path = "source/x"'),
+    )
     with pytest.raises(SystemExit, match="no longer declared"):
         sync_uv_lock.assert_lock_is_repairable(lock, root)
 
