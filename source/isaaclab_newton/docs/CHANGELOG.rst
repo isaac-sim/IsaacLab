@@ -1,6 +1,45 @@
 Changelog
 ---------
 
+2.2.0 (2026-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added automatic conversion of height-field-tagged terrain collision meshes into Newton heightfield
+  colliders when building the Newton model. A terrain mesh tagged by
+  :class:`~isaaclab.terrains.TerrainImporter` is rasterized into a :class:`newton.Heightfield` through
+  :meth:`newton.Heightfield.create_from_mesh` at the same horizontal resolution and skipped during USD
+  import, so the MuJoCo solver compiles a heightfield instead of a multi-hundred-thousand-vertex mesh.
+  This cuts solver-initialization time for terrain-based tasks (for ``Isaac-Velocity-Rough-AnymalD``
+  the terrain's MuJoCo compile drops from ``~950 ms`` to ``~5 ms`` and solver initialization from
+  ``~1.9 s`` to ``~0.85 s``).
+
+Changed
+^^^^^^^
+
+* Improved Newton scene cloning to use the batched ``replicate`` fast path for
+  homogeneous environments, including those that register sensor sites (frame
+  transformers, ray casters, IMUs) and per-world env-root sites, instead of
+  building each world in a per-environment loop. This lowers environment-creation
+  time for single-source, all-identical scenes. Scenes with multiple clone
+  sources or MPM/deformable objects are unchanged and continue to use the
+  per-world path.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.NewtonRaycastSensor` missing collision-only geometry. A scene
+  containing a ray-cast sensor now rebuilds the Newton shape BVH from both visible and colliding
+  shapes, so rays hit shapes that carry collision properties but no visual representation. Scenes
+  without a ray-cast sensor keep Newton's visible-only BVH, leaving camera renders unchanged.
+* Fixed environment resets raising ``ValueError: world_mask has shape ...`` under the implicit MPM
+  solver. Newton's :class:`newton.solvers.SolverImplicitMPM` gained a ``reset`` that only accepts a
+  per-world mask when it runs one FEM environment per world, so the MPM manager no longer forwards
+  the reset and leaves particle history untouched, as it did before the solver gained ``reset``.
+
+
 2.1.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 

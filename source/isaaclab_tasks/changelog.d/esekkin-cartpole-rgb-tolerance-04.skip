@@ -1,2 +1,0 @@
-Test-only: raised the Newton-OVRTX Cartpole RGB/RGBA pixel-difference tolerance to cover the OVRTX 0.4
-variation tracked by NVBUG#6152566. No user-facing API change.

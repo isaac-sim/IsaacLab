@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+9.1.1 (2026-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Cartpole, Ant, Humanoid, and Cabinet direct task ``physics=physx``
+  presets to use automatic PhysX-family selection. Use
+  ``physics=isaacsim_physx`` to force Isaac Sim PhysX.
+
+
 9.1.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 
