@@ -577,7 +577,27 @@
     "package": "build-essential",
     "package_type": "OS Packages",
     "license": "GPL-2.0-or-later",
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "comment": "GPL-2.0-or-later meta-package; its toolchain dependency set includes LGPL components"
+  },
+  {
+    "package": "cmake",
+    "package_type": "OS Packages",
+    "license": "BSD-3-Clause",
+    "license_aliases": [
+      "Apache-2.0",
+      "BSD-0-Clause",
+      "BSD-2-Clause",
+      "BSD-4-Clause",
+      "FSFAP",
+      "GPL-2.0-only",
+      "GPL-2+ with Bison exception",
+      "GPL-3.0-only",
+      "GPL-3+ with Bison exception",
+      "ISC",
+      "MIT",
+      "Zlib"
+    ],
+    "comment": "Upstream CMake is BSD-3-Clause; Ubuntu package metadata also reports bundled third-party licenses"
   },
   {
     "package": "cpp-x86-64-linux-gnu",
