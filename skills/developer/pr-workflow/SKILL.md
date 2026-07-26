@@ -21,8 +21,8 @@ Do not use this skill to bypass repository checks or to push to `origin`.
 2. Confirm the branch is focused on one logical change.
 3. Run targeted tests for the touched behavior.
 4. For skill changes, inspect the changed skill's adjacent `evaluations.md` when present, plus directly linked `examples.md` or `reference.md`, and confirm the representative scenarios still match the skill guidance.
-5. If the PR changes documentation, run `./isaaclab.sh -d` and require a successful build with no warnings or errors. The docs target treats Sphinx warnings as errors.
-6. Run formatting and lint checks with `./isaaclab.sh -f`.
+5. If the PR changes documentation, run `uv run isaaclab -d` and require a successful build with no warnings or errors. The docs target treats Sphinx warnings as errors.
+6. Run formatting and lint checks with `uv run isaaclab -f`.
 7. Add package changelog fragments when `source/<package>/` code changes.
 8. Check whether `CONTRIBUTORS.md` needs an update for a new contributor.
 9. Draft a commit message in imperative mood with no AI attribution.
@@ -33,25 +33,25 @@ Do not use this skill to bypass repository checks or to push to `origin`.
 Run the feedback loop until checks pass:
 
 ```bash
-./isaaclab.sh -f
+uv run isaaclab -f
 ```
 
 For targeted tests, use:
 
 ```bash
-./isaaclab.sh -p -m pytest PATH_TO_TEST
+uv run python -m pytest PATH_TO_TEST
 ```
 
 If documentation changed, require a warning-free build:
 
 ```bash
-./isaaclab.sh -d
+uv run isaaclab -d
 ```
 
 If skills changed, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run --no-project python tools/skills/cli.py check
 ```
 
 ## Maintenance

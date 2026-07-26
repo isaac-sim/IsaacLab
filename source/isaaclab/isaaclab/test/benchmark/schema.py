@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.0).
+"""Public schema for Isaac Lab benchmark bundles (v1.2).
 
 Defines the on-disk JSON schema produced by the standalone benchmark scripts
 under ``scripts/benchmarks/`` (``runtime.py``, ``training.py``, ``startup.py``).
@@ -17,15 +17,16 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.0
+Current version: 1.2
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.2"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
@@ -39,8 +40,12 @@ class MeanStd:
     """Scalar aggregate with mean, standard deviation, and optional peak.
 
     Args:
-        mean: Sample mean.
-        std: Sample standard deviation.
+        mean: Central value of the aggregate. For most fields this is the
+            arithmetic sample mean; for effective-throughput fields it is the
+            aggregate rate (total completed work over total wall time).
+        std: Ordinary sample standard deviation of the per-sample values.
+            This remains centered on the sample mean even when ``mean`` is an
+            effective aggregate rate.
         peak: Maximum observed value, or ``None`` where a peak is not
             meaningful (e.g. GPU utilisation, whose ceiling is always 100%).
     """
@@ -50,8 +55,9 @@ class MeanStd:
     peak: float | None = None
 
     def __post_init__(self) -> None:
-        # peak is the max of the same samples the mean is taken over, so it is
-        # always >= mean; a small tolerance absorbs independent rounding.
+        # Peak is the maximum observed sample, so it remains greater than or
+        # equal to either the sample mean or an effective aggregate rate. A
+        # small tolerance absorbs independent rounding.
         if self.peak is not None and self.peak < self.mean - 1e-6:
             raise ValueError(f"peak ({self.peak}) must be >= mean ({self.mean})")
 
@@ -194,6 +200,104 @@ class StartupTime:
 
 
 @dataclass(frozen=True)
+class EnvironmentStepTiming:
+    """Environment-step wall time and optional synchronized simulation breakdown.
+
+    ``host_return`` mode records how long the host spends inside ``env.step()``
+    without forcing device completion. ``serialized_synchronized`` mode drains
+    pending work at every environment and simulation boundary so the measured
+    environment time can be partitioned into time inside and outside nested
+    ``SimulationContext.step()`` calls. The latter mode serializes device work
+    and is an observer-perturbed diagnostic, not production throughput.
+
+    When the serialized mode is active, every timing and throughput aggregate
+    in the enclosing :class:`Runtime` was collected under that instrumented
+    schedule, not only the fields in this breakdown.
+
+    Time outside simulation calls includes required action, actuator, state,
+    manager, reset, wrapper, and synchronization work. It is not an estimate of
+    removable Isaac Lab overhead.
+
+    Args:
+        environment_step_time_s: Per-environment-step wall time [s], interpreted
+            according to :attr:`measurement_mode`.
+        environment_step_fps: Reciprocal environment-step rate [frames/s],
+            interpreted according to :attr:`measurement_mode`.
+        simulation_step_time_s: Synchronized simulation wall time per environment step [s], when measured.
+        outside_simulation_step_time_s: Time outside simulation calls per environment step [s], when measured.
+        outside_simulation_step_fraction: Fraction of synchronized environment-step time outside simulation calls.
+        environment_step_calls: Number of measured environment-step calls.
+        simulation_step_calls: Number of measured simulation-step calls, when measured.
+        measurement_mode: Timing boundary semantics. ``host_return`` does not
+            force device completion. ``serialized_synchronized`` explicitly
+            synchronizes every measured boundary.
+    """
+
+    environment_step_time_s: MeanStd
+    environment_step_fps: MeanStd
+    simulation_step_time_s: MeanStd | None
+    outside_simulation_step_time_s: MeanStd | None
+    outside_simulation_step_fraction: float | None
+    environment_step_calls: int
+    simulation_step_calls: int | None
+    measurement_mode: Literal["host_return", "serialized_synchronized"]
+
+    def __post_init__(self) -> None:
+        """Validate that the timing fields form one consistent measurement mode."""
+        if self.environment_step_calls <= 0:
+            raise ValueError("environment_step_calls must be greater than zero")
+        if not (
+            math.isfinite(self.environment_step_time_s.mean)
+            and self.environment_step_time_s.mean > 0.0
+            and math.isfinite(self.environment_step_fps.mean)
+            and self.environment_step_fps.mean > 0.0
+        ):
+            raise ValueError("environment step time and FPS must be greater than zero")
+
+        breakdown = (
+            self.simulation_step_time_s,
+            self.outside_simulation_step_time_s,
+            self.outside_simulation_step_fraction,
+            self.simulation_step_calls,
+        )
+        if self.measurement_mode == "host_return":
+            if any(value is not None for value in breakdown):
+                raise ValueError("host_return timing cannot contain a synchronized simulation breakdown")
+            return
+        if self.measurement_mode != "serialized_synchronized":
+            raise ValueError(f"Unsupported environment-step measurement mode: {self.measurement_mode}")
+        if any(value is None for value in breakdown):
+            raise ValueError("serialized_synchronized timing requires a complete simulation breakdown")
+
+        assert self.simulation_step_time_s is not None
+        assert self.outside_simulation_step_time_s is not None
+        assert self.outside_simulation_step_fraction is not None
+        assert self.simulation_step_calls is not None
+        if self.simulation_step_calls <= 0:
+            raise ValueError("simulation_step_calls must be greater than zero")
+        if self.environment_step_time_s.mean <= 0.0 or self.simulation_step_time_s.mean <= 0.0:
+            raise ValueError("synchronized environment and simulation step times must be greater than zero")
+        if self.outside_simulation_step_time_s.mean < 0.0:
+            raise ValueError("outside-simulation step time must not be negative")
+        if not 0.0 <= self.outside_simulation_step_fraction <= 1.0:
+            raise ValueError("outside_simulation_step_fraction must be in the range [0, 1]")
+        if not math.isclose(
+            self.environment_step_time_s.mean,
+            self.simulation_step_time_s.mean + self.outside_simulation_step_time_s.mean,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("synchronized environment time must equal simulation plus outside-simulation time")
+        if not math.isclose(
+            self.outside_simulation_step_fraction,
+            self.outside_simulation_step_time_s.mean / self.environment_step_time_s.mean,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("outside_simulation_step_fraction must match the aggregate timing ratio")
+
+
+@dataclass(frozen=True)
 class Runtime:
     """Aggregated runtime metrics for a run.
 
@@ -210,6 +314,9 @@ class Runtime:
             FPS (the scripts' "Total FPS" / "effective FPS"). For pure runtime runs with no
             learning, this equals :attr:`collection_fps`.
         iterations_per_s: Iteration rate [iter/s].
+        environment_step_timing: Environment-step timing and optional synchronized
+            simulation breakdown, when measured. Its measurement mode also
+            describes the schedule used by the enclosing timing and rate fields.
     """
 
     startup_time_s: StartupTime
@@ -220,6 +327,7 @@ class Runtime:
     collection_fps: MeanStd
     total_fps: MeanStd
     iterations_per_s: MeanStd
+    environment_step_timing: EnvironmentStepTiming | None = None
 
 
 @dataclass(frozen=True)

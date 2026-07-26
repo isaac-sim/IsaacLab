@@ -26,7 +26,13 @@ from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 
-from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+from isaaclab_rl.entrypoints.common import (
+    CHECKPOINT_SELECTORS,
+    add_frontend_args,
+    create_isaaclab_env,
+    resolve_checkpoint_selector,
+    resolve_play_task_name,
+)
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
@@ -50,6 +56,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+add_frontend_args(parser)
 parser.add_argument(
     "--agent", type=str, default="rl_games_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
@@ -61,8 +68,15 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument(
+    "--train_env_cfg",
+    action="store_true",
+    default=False,
+    help="Play with the training environment configuration as-is, skipping play-mode overrides.",
+)
 add_launcher_args(parser)
-args_cli, hydra_args = setup_preset_cli(parser)
+args_cli, hydra_args = setup_preset_cli(parser, agent_library="rl_games")
+args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -72,7 +86,7 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 def main():
     """Play with RL-Games agent."""
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
     with launch_simulation(env_cfg, args_cli):
         task_name = args_cli.task.split(":")[-1]
         train_task_name = task_name.replace("-Play", "")
@@ -126,12 +140,12 @@ def main():
         obs_groups = agent_cfg["params"]["env"].get("obs_groups")
         concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
-        env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+        )
 
         if args_cli.video:
             video_kwargs = {

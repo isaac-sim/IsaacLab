@@ -22,7 +22,7 @@ def test_livestream_launch_with_argparser(mocker):
     # add app launcher arguments
     AppLauncher.add_app_launcher_args(parser)
     # check that argparser has the mandatory arguments
-    for name in AppLauncher._APPLAUNCHER_CFG_INFO:
+    for name in AppLauncher._APPLAUNCHER_CFG_INFO.keys() - {"headless", "enable_cameras"}:
         assert parser._option_string_actions[f"--{name}"]
     # parse args
     mock_args = parser.parse_args()
@@ -46,14 +46,14 @@ def test_visualizer_alias_parsing():
     assert args.visualizer_explicit is True
 
 
-def test_headless_deprecated_arg_parsing():
-    """Test that deprecated --headless is still accepted by the parser."""
+@pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras"])
+def test_deprecated_render_flags_are_rejected(deprecated_arg: str):
+    """Test that removed render flags are rejected by the parser."""
     parser = argparse.ArgumentParser()
     AppLauncher.add_app_launcher_args(parser)
 
-    args = parser.parse_args(["--headless"])
-    assert args.headless is True
-    assert args.headless_explicit is True
+    with pytest.raises(SystemExit):
+        parser.parse_args([deprecated_arg])
 
 
 @pytest.mark.parametrize("value", ["none", "None"])

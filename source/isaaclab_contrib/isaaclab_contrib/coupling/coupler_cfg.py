@@ -24,7 +24,8 @@ from ..deformable.newton_manager_cfg import NewtonModelSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
-    from newton import CollisionPipeline, ModelView
+    from newton import CollisionPipeline
+    from newton.solvers.experimental.coupled import ModelView
 
 
 @configclass

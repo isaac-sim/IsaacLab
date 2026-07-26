@@ -43,7 +43,6 @@ def test_startup_writes_startup_bundle(tmp_path):
         "--whitelist_config",
         str(whitelist),
         "presets=newton_mjwarp",
-        "--headless",
     ]
     res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=900)
     if res.returncode != 0:

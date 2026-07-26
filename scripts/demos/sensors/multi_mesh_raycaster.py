@@ -17,14 +17,20 @@
     # with random multiple objects
     python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
 
+    # with Newton (MJWarp) physics
+    python scripts/demos/sensors/multi_mesh_raycaster.py --physics newton_mjwarp
+
 """
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Example on using the multi-mesh raycaster sensor.")
+parser = argparse.ArgumentParser(
+    description="Example on using the multi-mesh raycaster sensor.",
+    conflict_handler="resolve",
+)
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 parser.add_argument(
     "--asset_type",
@@ -33,28 +39,25 @@ parser.add_argument(
     help="Asset type to use.",
     choices=["allegro_hand", "anymal_d", "objects"],
 )
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+add_launcher_args(parser)
 # demos should open Kit visualizer by default
 parser.set_defaults(visualizer=["kit"])
-# parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+if args_cli.physics == "newton_mjwarp":
+    if not getattr(args_cli, "visualizer_explicit", False):
+        args_cli.visualizer = ["newton"]
+    elif "kit" in (args_cli.visualizer or []):
+        parser.error("the Kit visualizer is not supported with Newton physics; select newton, rerun, viser, or none")
 
 import random
 
 import torch
 
-from pxr import Gf, Sdf
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers.config import VisualizationMarkersCfg
+from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -65,6 +68,8 @@ from isaaclab.utils.configclass import configclass
 ##
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
+
+DEBUG_VISUALIZATION_ENABLED = "none" not in (args_cli.visualizer or [])
 
 RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -79,7 +84,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 if args_cli.asset_type == "allegro_hand":
     asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot/palm_link",
         update_period=1 / 60,
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
         mesh_prim_paths=[
@@ -93,7 +98,7 @@ if args_cli.asset_type == "allegro_hand":
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
-        debug_vis=not args_cli.headless,
+        debug_vis=DEBUG_VISUALIZATION_ENABLED,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
 
@@ -113,42 +118,47 @@ elif args_cli.asset_type == "anymal_d":
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
-        debug_vis=not args_cli.headless,
+        debug_vis=DEBUG_VISUALIZATION_ENABLED,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "objects":
+    object_assets_cfg = [
+        sim_utils.CuboidCfg(
+            size=(0.3, 0.3, 0.3),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+        ),
+        sim_utils.SphereCfg(
+            radius=0.3,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
+        ),
+        sim_utils.CylinderCfg(
+            radius=0.2,
+            height=0.5,
+            axis="Y",
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+        ),
+        sim_utils.CapsuleCfg(
+            radius=0.15,
+            height=0.5,
+            axis="Z",
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 0.0), metallic=0.2),
+        ),
+        sim_utils.ConeCfg(
+            radius=0.2,
+            height=0.5,
+            axis="Z",
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 1.0), metallic=0.2),
+        ),
+    ]
+    if args_cli.physics == "newton_mjwarp":
+        # MJWarp requires homogeneous cloned worlds, so use one shape type across all environments.
+        object_assets_cfg = object_assets_cfg[:1]
+
     asset_cfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                sim_utils.CuboidCfg(
-                    size=(0.3, 0.3, 0.3),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                ),
-                sim_utils.SphereCfg(
-                    radius=0.3,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-                ),
-                sim_utils.CylinderCfg(
-                    radius=0.2,
-                    height=0.5,
-                    axis="Y",
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                ),
-                sim_utils.CapsuleCfg(
-                    radius=0.15,
-                    height=0.5,
-                    axis="Z",
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 0.0), metallic=0.2),
-                ),
-                sim_utils.ConeCfg(
-                    radius=0.2,
-                    height=0.5,
-                    axis="Z",
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 1.0), metallic=0.2),
-                ),
-            ],
+            assets_cfg=object_assets_cfg,
             random_choice=True,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 solver_position_iteration_count=4, solver_velocity_iteration_count=0
@@ -168,7 +178,7 @@ elif args_cli.asset_type == "objects":
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
-        debug_vis=not args_cli.headless,
+        debug_vis=DEBUG_VISUALIZATION_ENABLED,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
 else:
@@ -201,6 +211,8 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
 
 def randomize_shape_color(prim_path_expr: str):
     """Randomize the color of the geometry."""
+    # Import pxr only after launch_simulation has started Kit for PhysX runs.
+    from pxr import Gf, Sdf
 
     stage = sim_utils.get_current_stage()
     # resolve prim paths for spawning and cloning
@@ -217,7 +229,8 @@ def randomize_shape_color(prim_path_expr: str):
             # Note: Just need to acquire the right attribute about the property you want to set
             # Here is an example on setting color randomly
             color_spec = prim_spec.GetAttributeAtPath(prim_path + "/geometry/material/Shader.inputs:diffuseColor")
-            color_spec.default = Gf.Vec3f(random.random(), random.random(), random.random())
+            if color_spec is not None:
+                color_spec.default = Gf.Vec3f(random.random(), random.random(), random.random())
 
             # randomize scale
             scale_spec = prim_spec.GetAttributeAtPath(prim_path + ".xformOp:scale")
@@ -232,7 +245,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     count = 0
 
     # Simulate physics
-    while simulation_app.is_running():
+    while sim.is_headless_or_exist_active_visualizer():
         if count % 500 == 0:
             # reset counter
             count = 0
@@ -276,29 +289,27 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
 def main():
     """Main function."""
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # Initialize the simulation context
+        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
+        # design scene
+        scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
+        scene = InteractiveScene(scene_cfg)
 
-    # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
-    # design scene
-    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
-    scene = InteractiveScene(scene_cfg)
+        if args_cli.asset_type == "objects":
+            randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
 
-    if args_cli.asset_type == "objects":
-        randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
-
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

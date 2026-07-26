@@ -173,9 +173,20 @@ The Code Execution
 
 Now that we have gone through the code, let's run the script and see the result:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --enable_cameras --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --viz kit
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --viz kit
 
 
 This command should open a stage with a ground plane, lights, and two quadrupedal robots.
@@ -196,16 +207,35 @@ available in the :mod:`sensors` module. We include minimal examples of using the
 ``scripts/tutorials/04_sensors`` directory. For completeness, these scripts can be run using the
 following commands:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Frame Transformer
-   ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
+   .. tab-item:: uv (Recommended)
 
-   # Ray Caster
-   ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
+      .. code-block:: bash
 
-   # Ray Caster Camera
-   ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
+         # Frame Transformer
+         uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
 
-   # USD Camera
-   ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --enable_cameras --viz kit
+         # Ray Caster
+         uv run python scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
+
+         # Ray Caster Camera
+         uv run python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
+
+         # USD Camera
+         uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz kit
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Frame Transformer
+         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
+
+         # Ray Caster
+         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
+
+         # Ray Caster Camera
+         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
+
+         # USD Camera
+         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --viz kit

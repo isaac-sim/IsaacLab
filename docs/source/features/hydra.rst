@@ -23,30 +23,70 @@ As a result, training with hydra arguments can be run with the following syntax:
     .. tab-item:: rsl_rl
         :sync: rsl_rl
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
-        .. code-block:: shell
+        .. tab-set::
 
-            ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: shell
+
+                  uv run isaaclab train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: shell
+
+                  ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
 The above command will run training with the task ``Isaac-Cartpole`` without selecting a visualizer,
 and set the ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
@@ -221,6 +261,11 @@ override is given:
     # Use Newton physics backend
     python train.py --task=Isaac-Reach-Franka env.physics=newton_mjwarp
 
+For tasks that expose automatic PhysX-family selection, ``physics=physx`` is
+resolved at launch time: Isaac Sim PhysX is used when a Kit renderer or Kit viewer
+is requested, and OvPhysX is used for fully kit-less runs. Use
+``physics=isaacsim_physx`` to force Isaac Sim PhysX.
+
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
 
@@ -255,15 +300,20 @@ Physics backend selection uses the same preset system. A task can define a
 
 .. code-block:: python
 
-    from isaaclab.utils.configclass import configclass
     from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+    from isaaclab_ovphysx.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
+
+    from isaaclab.utils.configclass import configclass
+
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
     class CartpolePhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
         physx: PhysxCfg = PhysxCfg()
+        isaacsim_physx: PhysxCfg = PhysxCfg()
+        ovphysx: OvPhysxCfg = OvPhysxCfg()
+        default = physx
         newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),
             num_substeps=1,
@@ -419,12 +469,29 @@ to make intent explicit on the command line.
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
-for that task, grouped by selector type:
+for that task, grouped by selector type. Reinforcement-learning commands also list
+the registered ``--agent`` values for the selected library. When a task declares
+preset-to-agent compatibility, the compatible presets appear beneath each agent:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Camera-Direct --help
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl \
+               --task Isaac-Cartpole-Camera --help
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl \
+               --task Isaac-Cartpole-Camera --help
+
+Preset and agent selection are otherwise independent. A task may use an alternate
+agent for symmetry, recurrence, or another algorithm without changing its environment
+preset.
 
 .. note::
 
@@ -500,7 +567,7 @@ working together:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py
     :language: python
-    :lines: 21-42
+    :lines: 20-25
 
 A single ``presets=newton_mjwarp`` on the command line resolves every ``PresetCfg``
 and ``preset()`` that defines a ``newton_mjwarp`` field: the physics engine is swapped

@@ -14,11 +14,20 @@ from rendering_test_utils import (
     make_determinism_fixture,
     make_generate_html_report_fixture,
     make_require_ovlibs_install_fixture,
+    make_xfail_rendering_params,
     rendering_test_cartpole,
 )
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
+_OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+_RENDERING_PARAMS = make_xfail_rendering_params(
+    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    {
+        ("ovphysx", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+        for data_type in ("albedo", "simple_shading_diffuse_mdl", "simple_shading_full_mdl")
+    },
+)
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -27,7 +36,7 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
-@pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+@pytest.mark.parametrize("physics_backend,renderer,data_type", _RENDERING_PARAMS)
 def test_rendering_cartpole_kitless(physics_backend, renderer, data_type):
     """Camera output must match golden images (Cartpole camera presets env)."""
     rendering_test_cartpole(physics_backend, renderer, data_type, _COMPARISON_SCORES)

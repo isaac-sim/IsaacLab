@@ -10,6 +10,7 @@ from unittest import mock
 
 import newton
 import torch
+import warp as wp
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner.newton_clone_utils import (
     _BUILTIN_LABEL_TYPES,
@@ -307,6 +308,74 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         builder = _FakeVisualizationModelBuilder()
         builder.add_usd(None, root_path=root_path)
         return builder
+
+    def test_source_local_sites_batched_with_correct_indices(self):
+        source = newton.ModelBuilder()
+        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
+        site_idx = source.add_site(body=0, xform=wp.transform(), label="ee")
+
+        # Non-zero base so site indices are not trivially zero-based.
+        builder = newton.ModelBuilder()
+        builder.add_body(xform=wp.transform())
+        builder.add_shape(body=0, type=newton.GeoType.SPHERE)
+        base_shape = builder.shape_count
+        stride = source.shape_count
+
+        positions = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]])
+        quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+
+        with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
+            local_site_map, _ = replicate_builder_mapping(
+                builder,
+                (_SRC,),
+                torch.ones((1, 3), dtype=torch.bool),
+                positions,
+                quaternions,
+                {_SRC: source},
+                source_site_indices={id(source): {"ee": [site_idx]}},
+            )
+
+        replicate.assert_called_once()
+        self.assertEqual(
+            local_site_map["ee"],
+            [[base_shape + world * stride + site_idx] for world in range(3)],
+        )
+        for world_indices in local_site_map["ee"]:
+            self.assertEqual(builder.shape_label[world_indices[0]], "ee")
+
+    def test_env_root_sites_batched_at_correct_world_positions(self):
+        source = newton.ModelBuilder()
+        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
+
+        builder = newton.ModelBuilder()
+        base_shape = builder.shape_count
+        positions = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]])
+        quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+        env_root_offset = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
+
+        with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
+            local_site_map, _ = replicate_builder_mapping(
+                builder,
+                (_SRC,),
+                torch.ones((1, 3), dtype=torch.bool),
+                positions,
+                quaternions,
+                {_SRC: source},
+                env_root_sites={"origin": env_root_offset},
+            )
+
+        replicate.assert_called_once()
+        stride = source.shape_count
+        self.assertEqual(source.shape_count, 1)
+        self.assertEqual(
+            local_site_map["origin"],
+            [[base_shape + world * stride] for world in range(3)],
+        )
+        for world, world_indices in enumerate(local_site_map["origin"]):
+            site_pos = builder.shape_transform[world_indices[0]].p
+            self.assertAlmostEqual(float(site_pos[0]), float(positions[world][0]) + 0.1, places=5)
+            self.assertAlmostEqual(float(site_pos[1]), 0.0, places=5)
+            self.assertEqual(builder.shape_label[world_indices[0]], "origin")
 
     def test_inactive_source_rows_are_ignored(self):
         sources = ("/Sources/inactive", "/Sources/active")

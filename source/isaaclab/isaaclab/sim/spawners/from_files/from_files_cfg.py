@@ -301,7 +301,7 @@ class GroundPlaneCfg(SpawnerCfg):
         materials.RigidBodyMaterialBaseCfg
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
-    ) = materials.RigidBodyMaterialCfg()
+    ) = materials.RigidBodyMaterialBaseCfg()
     """Physics material properties. Defaults to the default rigid body material.
 
     The ground plane only spawns a collision plane, so this only accepts rigid-body materials: a

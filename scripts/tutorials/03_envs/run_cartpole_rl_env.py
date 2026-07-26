@@ -8,7 +8,7 @@ This script demonstrates how to run the RL environment for the cartpole balancin
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
 
 """
 

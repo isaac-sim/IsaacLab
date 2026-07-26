@@ -60,7 +60,7 @@ def setup_test_environment():
 
     annotated_output_path = os.path.join(DATASETS_DOWNLOAD_DIR, "annotated_dataset.hdf5")
 
-    # Run the annotate_demos script directly (bypassing isaaclab.sh) so that
+    # Run the annotate_demos script through the uv environment so that
     # stdout is properly captured.  When launched through the CLI wrapper the
     # Omniverse/Kit runtime redirects OS-level file descriptors during
     # SimulationApp init, swallowing all print() output.
@@ -74,7 +74,6 @@ def setup_test_environment():
         "--output_file",
         annotated_output_path,
         "--auto",
-        "--headless",
     ]
     print(config_command)
 
@@ -136,7 +135,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         str(num_envs),
         "--generation_num_trials",
         "1",
-        "--headless",
     ]
 
     result = run_script(command, timeout=_SUBPROCESS_TIMEOUT)

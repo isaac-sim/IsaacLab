@@ -283,26 +283,37 @@ Every backend supplies its own :class:`~isaaclab.cloner.UsdReplicateContext` /
 ``PhysxReplicateContext`` / ``NewtonReplicateContext``, a class that hides the
 timing and granularity differences above behind a single uniform interface. A
 shared :data:`~isaaclab.cloner.REPLICATION_QUEUE` then remembers which asset
-belongs to which backend's context until it is time to run. The three
+cfgs participate until it is time to run. The three
 subsections below explain the queue, the contexts, and the function that joins
 them against a plan.
 
 The registration queue
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Asset constructors do not replicate inline. They register their intent with
-:data:`~isaaclab.cloner.REPLICATION_QUEUE` and the framework defers the actual
-work to the drain. The queue ends up holding one entry per ``(asset, backend)``
-pair:
+Assets do not replicate inline. Construction only registers the asset's cfg
+through :func:`~isaaclab.cloner.queue_replication`; the queue records *which*
+cfgs participate:
 
 .. code-block:: text
 
     REPLICATION_QUEUE
-        (cartpole_cfg, PhysxReplicateContext)
-        (cartpole_cfg, UsdReplicateContext)
-        (cube_cfg,     UsdReplicateContext)
-        (light_cfg,    UsdReplicateContext)
+        cartpole_cfg
+        cube_cfg
+        camera_cfg
         ...
+
+*How* each cfg is cloned is resolved by :func:`~isaaclab.cloner.replicate` at
+dispatch. The physics side comes from the cfg's
+:attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when set, otherwise the
+active backend's default physics context, which each backend cloner exports as
+``PHYSICS_CONTEXT`` (PhysX and Newton replicate natively; OvPhysX replays its
+own clones). :class:`~isaaclab.cloner.UsdReplicateContext` is never authored by
+assets — :func:`~isaaclab.cloner.replicate` adds it automatically whenever a cfg
+has a spawner and Kit is available, so USD clones accompany physics replication
+under Kit and are skipped in headless runs. With
+:attr:`~isaaclab.cloner.CloneCfg.replicate_physics` disabled, cloning is
+USD-only: every physics context is dropped and the physics engine parses the
+per-env USD prims directly.
 
 Deferring the work like this buys three things at once:
 
@@ -312,6 +323,11 @@ Deferring the work like this buys three things at once:
   call per asset.
 * Asset code stays free of any branching on which backend is active — it just
   registers and lets the framework take it from there.
+
+:attr:`~isaaclab.scene.InteractiveSceneCfg.replicate_physics` is piped into
+:attr:`~isaaclab.cloner.CloneCfg.replicate_physics` and applied at dispatch;
+an asset whose only cloning mechanism is physics replication is then simply
+not cloned.
 
 Backend contexts
 ~~~~~~~~~~~~~~~~
@@ -326,12 +342,12 @@ runtime:
     PhysxReplicateContext    # replicates PhysX rigid bodies and articulations
     NewtonReplicateContext   # replicates Newton bodies in its parallel pipeline
 
-A single asset can register more than one context — a PhysX articulation
-registers a PhysX context and a USD context so physics and visuals both follow,
-a Newton articulation registers a Newton context plus a USD context only if it
-owns visual prims. This is where backend differences are absorbed: swapping a
-scene from PhysX to Newton swaps which context an asset registers with, while
-the cfgs and the rest of the user code stay unchanged.
+A single asset usually resolves to more than one context — PhysX pairs its
+context with USD so physics and visuals both follow; Newton's default stack
+includes USD only under Kit, so kitless runs skip the authoring cost. This is
+where backend differences are absorbed: swapping a scene from PhysX to Newton
+swaps which default stack resolves at dispatch, while the cfgs and the rest of
+the user code stay unchanged.
 
 Running replication
 ~~~~~~~~~~~~~~~~~~~

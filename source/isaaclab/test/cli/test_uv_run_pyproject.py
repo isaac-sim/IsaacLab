@@ -33,7 +33,7 @@ def _root_pyproject() -> dict:
 def test_uv_run_extra_names_match_documented_workflow():
     """Docs must only reference ``uv run --extra`` names that pyproject defines."""
     repo_root = _repo_root()
-    docs = (repo_root / "docs/source/setup/installation/uv_run.rst").read_text(encoding="utf-8")
+    docs = (repo_root / "docs/source/setup/installation/index.rst").read_text(encoding="utf-8")
     documented_extras = set(re.findall(r"--extra\s+([A-Za-z0-9_-]+)", docs))
     optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
 
@@ -115,9 +115,13 @@ def test_version_single_source_matches_literal_pins():
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in overrides
 
-    # Newton git commit is pinned via a uv override; warp-lang is a core dependency.
+    # Newton is pinned to a git ref (branch/tag/commit) via a uv override; warp-lang is a
+    # core dependency whose table value may be an exact pin ("1.2.3" -> ``==``) or a range
+    # (">=1.2.3" -> mirrored verbatim).
     assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
-    assert f"warp-lang=={versions['warp']}" in dependencies
+    warp_value = versions["warp"]
+    warp_spec = f"warp-lang=={warp_value}" if warp_value[0].isdigit() else f"warp-lang{warp_value}"
+    assert warp_spec in dependencies
 
 
 def test_uv_run_isaacsim_extra_is_conflict_forked():

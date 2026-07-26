@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+2.0.2 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for environment-provided demonstration recorder configurations during Mimic generation.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation path planning to enable the MobilityGen extension before importing
+  its Isaac Sim modules.
+* Fixed ``SceneAsset`` pose queries in the locomanipulation SDG utilities to
+  build their frame view on demand, since static scene assets no longer carry
+  a runtime view in :class:`~isaaclab.scene.InteractiveScene`.
+
+
 2.0.1 (2026-06-14)
 ~~~~~~~~~~~~~~~~~~
 

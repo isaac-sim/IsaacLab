@@ -8,10 +8,10 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/arl_robot_1.py
+    uv run python scripts/demos/arl_robot_1.py
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/arl_robot_1.py --visualizer newton
+    uv run python scripts/demos/arl_robot_1.py --visualizer newton
 
 """
 

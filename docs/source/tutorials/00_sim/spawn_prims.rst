@@ -170,9 +170,19 @@ Executing the Script
 
 Similar to the tutorial before, to run the script, execute the following command:
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run python scripts/tutorials/00_sim/spawn_prims.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py
 
 Once the simulation starts, you should see a window with a ground plane, a light, some cones, and a table.
 The green cone, which has rigid body physics enabled, should fall and collide with the table and the ground

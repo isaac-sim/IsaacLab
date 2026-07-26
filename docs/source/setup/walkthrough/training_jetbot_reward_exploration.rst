@@ -41,9 +41,20 @@ the linear velocity in the world frame.  The alignment term is the inner product
 pointing in the same direction this term will be 1, but in the opposite direction it will be -1.  We add them together to get the combined reward and
 we can finally run training!  Let's see what happens!
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct-v0
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct-v0
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct-v0
 
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/walkthrough_naive_webp.webp

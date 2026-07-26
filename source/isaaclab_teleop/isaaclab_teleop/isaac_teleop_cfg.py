@@ -25,6 +25,15 @@ CLOUDXR_AVP_ENV: str = str(_CLOUDXR_ENV_DIR / "avp-cloudxr.env")
 CLOUDXR_JS_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxrjs-cloudxr.env")
 """Absolute path to the CloudXR JS (Quest/Pico) ``.env`` profile (``auto-webrtc``)."""
 
+CLOUDXR_STANDALONE_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxr-standalone.env")
+"""Absolute path to the standalone (headless, no XR client) CloudXR ``.env`` profile.
+
+Default profile for teleop scripts run without ``--xr``, where IsaacTeleop is a
+pure input/output transport and creates its own OpenXR session. It forces a
+``quest3`` device profile so the CloudXR runtime advertises an OpenXR system with
+no client connected, working around ``XR_ERROR_FORM_FACTOR_UNAVAILABLE`` (``-35``).
+"""
+
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
     from isaacteleop.teleop_session_manager import PluginConfig, RetargetingExecutionConfig

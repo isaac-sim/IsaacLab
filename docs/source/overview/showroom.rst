@@ -8,8 +8,13 @@ interfaces within a code in a minimal way.
 
 A few quick showroom scripts to run and checkout:
 
+.. rst-class:: showroom-demo-list
 
 -  Spawn different arms and apply random joint position commands:
+
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -17,9 +22,19 @@ A few quick showroom scripts to run and checkout:
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/arms.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/arms.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/arms.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -35,15 +50,29 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different biped robots:
 
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/bipeds.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/bipeds.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/bipeds.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -59,15 +88,30 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different deformable objects and let them fall from a height:
 
+   **Physics:** ``physx``, ``newton_vbd``
+
+   **Visualizer:** ``none``, ``kit`` for either physics backend; ``newton``,
+   ``rerun``, and ``viser`` with Newton VBD only
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/deformables.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/deformables.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/deformables.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -76,9 +120,6 @@ A few quick showroom scripts to run and checkout:
 
             isaaclab.bat -p scripts\demos\deformables.py
 
-   Add ``--backend newton`` to run the same demo with the experimental Newton
-   deformable backend.
-
    .. image:: ../_static/demos/deformables.jpg
       :width: 100%
       :alt: Deformable primitive-shaped objects in Isaac Lab
@@ -86,15 +127,31 @@ A few quick showroom scripts to run and checkout:
 
 -  Interactive inference of trained H1 rough terrain locomotion policy:
 
+   **Physics:** ``physx`` only
+
+   **Visualizer:** ``kit`` only
+
+   This demo downloads a policy and requires interactive input.
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/h1_locomotion.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/h1_locomotion.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/h1_locomotion.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -126,15 +183,29 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different hands and command them to open and close:
 
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/hands.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/hands.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/hands.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -150,15 +221,29 @@ A few quick showroom scripts to run and checkout:
 
 -  Define multiple markers that are useful for visualizations:
 
+   **Physics:** ``physx`` only
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/markers.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/markers.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/markers.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -174,15 +259,29 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the interactive scene and spawn varying assets in individual environments:
 
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/multi_asset.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/multi_asset.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/multi_asset.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -196,7 +295,11 @@ A few quick showroom scripts to run and checkout:
       :alt: Multiple assets managed through the same simulation handles
 
 
--  Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:
+-  Compose task scenes into one heterogeneous simulation using clone combinations:
+
+   **Physics:** ``physx`` only
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -206,7 +309,51 @@ A few quick showroom scripts to run and checkout:
 
          .. code:: bash
 
-            ./isaaclab.sh -p scripts/demos/bin_packing.py
+            ./isaaclab.sh -p scripts/demos/heterogeneous_scene.py
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p scripts\demos\heterogeneous_scene.py
+
+   .. image:: ../_static/demos/heterogeneous_scene.jpg
+      :width: 100%
+      :alt: Task scenes composed into one heterogeneous cloned simulation
+
+   The demo resolves a curated selection of PhysX task scenes that share a flat
+   floor at height zero, folds them into a single scene with
+   :func:`~isaaclab.scene.add`, and clones the combined scene so each
+   environment hosts one task's assets. Use ``--num_task`` and ``--num_envs``
+   to run a smaller composition.
+
+
+-  Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:
+
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. tab-set::
+
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/bin_packing.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/bin_packing.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -223,15 +370,32 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the interactive scene and spawn a simple parallel robot for pick and place:
 
+   **Physics:** ``physx`` only
+
+   **Visualizer:** ``kit`` only
+
+   This demo requires interactive input and uses the CPU-only PhysX surface
+   gripper. Newton physics is not supported.
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/pick_and_place.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/pick_and_place.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/pick_and_place.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -257,15 +421,31 @@ A few quick showroom scripts to run and checkout:
 
 -  Teleoperate a Franka Panda robot using Haply haptic device with force feedback:
 
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
+   Haply hardware is required.
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -292,15 +472,29 @@ A few quick showroom scripts to run and checkout:
 
 -  Create and spawn procedurally generated terrains with different configurations:
 
+   **Physics:** ``physx`` only
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/procedural_terrain.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/procedural_terrain.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/procedural_terrain.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -317,15 +511,29 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn a quadcopter in the default environment:
 
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/quadcopter.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/quadcopter.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/quadcopter.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -341,15 +549,29 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different quadrupeds and make robots stand using position commands:
 
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/quadrupeds.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/quadrupeds.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/quadrupeds.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -365,15 +587,30 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn a multi-mesh ray caster that uses Warp kernels for raycasting
 
+   **Physics:** ``physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``newton``, ``rerun``, ``viser`` with either physics
+   backend; ``kit`` with PhysX only
+
    .. tab-set::
       :sync-group: os
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows

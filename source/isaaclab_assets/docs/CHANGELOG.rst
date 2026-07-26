@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+0.5.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the dexterous-hand actuated-joint and fingertip body-name lists
+  (:obj:`~isaaclab_assets.robots.shadow_hand.SHADOW_ACTUATED_JOINT_NAMES`,
+  :obj:`~isaaclab_assets.robots.shadow_hand.SHADOW_FINGERTIP_BODY_NAMES`,
+  :obj:`~isaaclab_assets.robots.allegro.ALLEGRO_ACTUATED_JOINT_NAMES`,
+  :obj:`~isaaclab_assets.robots.allegro.ALLEGRO_FINGERTIP_BODY_NAMES`) to the
+  robot asset modules so tasks can reference them from a single source.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``ISAACLAB_ASSETS_METADATA`` from :mod:`isaaclab_assets`.
+  This constant was populated from the now-deleted ``config/extension.toml`` Kit extension manifest.
+* Updated ``FRANKA_PANDA_CFG`` USD path to the new Nucleus location under
+  ``Robots/FrankaEmika/Legacy/panda_instanceable.usd``.
+* Changed :obj:`~isaaclab_assets.robots.franka.FRANKA_PANDA_CFG` to load the Franka Panda
+  from its new ``Robots/FrankaEmika/Legacy/panda_instanceable.usd`` location, following the
+  asset reorganization on the Nucleus server. The robot model itself is unchanged.
+* Changed the :obj:`~isaaclab_assets.robots.kuka_allegro.KUKA_ALLEGRO_CFG` actuator
+  parameters to identified values: per-joint effort limits, stiffness, damping, and armature
+  derived from the iiwa7 and Allegro hand references (Drake models, Wonik Robotics
+  datasheet), motor velocity limits for MDP checks, and gravity enabled on the rigid bodies.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``.
+
+Fixed
+^^^^^
+
+* Fixed excessive simulation joint velocity limits in the DR Legs asset.
+
+
 0.4.2 (2026-07-07)
 ~~~~~~~~~~~~~~~~~~
 
