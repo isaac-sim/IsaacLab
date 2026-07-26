@@ -11,6 +11,8 @@ from pathlib import Path
 
 import packages
 
+from conftest import write_version_file
+
 FIXTURES = Path(__file__).parent
 
 
@@ -99,7 +101,7 @@ def _make_pkg(root: Path, name: str, *, has_ext: bool = True, has_changelog: boo
     pkg = root / name
     if has_ext:
         pkg.mkdir(parents=True, exist_ok=True)
-        (pkg / "pyproject.toml").write_text('[project]\nversion = "0.0.0"\n', encoding="utf-8")
+        write_version_file(pkg, pkg.name, "0.0.0")
     if has_changelog:
         (pkg / "docs").mkdir(parents=True, exist_ok=True)
         (pkg / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
@@ -119,7 +121,7 @@ def test_package_discover_excludes_packages_missing_changelog(tmp_path):
     assert [p.name for p in packages.Package.discover(tmp_path)] == ["complete"]
 
 
-def test_package_discover_excludes_packages_missing_pyproject_toml(tmp_path):
+def test_package_discover_excludes_packages_missing_version_file(tmp_path):
     _make_pkg(tmp_path, "complete")
     _make_pkg(tmp_path, "no_extension", has_ext=False)
     assert [p.name for p in packages.Package.discover(tmp_path)] == ["complete"]

@@ -20,6 +20,8 @@ from pathlib import Path
 import packages
 import pytest
 
+from conftest import write_version_file
+
 EXAMPLES = Path(__file__).parent / "integration"
 
 # Strip the ``(YYYY-MM-DD)`` suffix from version headings so the fixed example
@@ -49,7 +51,7 @@ def test_demo_compile_matches_changelog_after(tmp_path, demo, expected_version):
     pkg_root = tmp_path / "demo_pkg"
     pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
+    write_version_file(pkg_root, pkg_root.name, "1.2.3")
     shutil.copy(demo_dir / "changelog_before.rst", pkg_root / "docs" / "CHANGELOG.rst")
 
     # Copy fragments into tmp_path so the compile's auto-clean doesn't

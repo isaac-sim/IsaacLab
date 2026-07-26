@@ -13,6 +13,8 @@ import cli
 import packages
 import pytest
 
+from conftest import version_file_for, write_version_file
+
 FIXTURES = Path(__file__).parent
 
 
@@ -90,7 +92,7 @@ def _pkg_under(tmp_path: Path, name: str) -> packages.Package:
     root = tmp_path / "source" / name
     root.mkdir(parents=True)
     (root / "docs").mkdir(parents=True)
-    (root / "pyproject.toml").write_text('[project]\nversion = "0.0.0"\n', encoding="utf-8")
+    write_version_file(root, root.name, "0.0.0")
     (root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
     return packages.Package(root)
 
@@ -256,7 +258,7 @@ def test_compile_raises_on_package_missing_changelog(tmp_path):
     ``compile()`` must raise (not silently warn-and-write a stale toml)."""
     pkg_root = tmp_path / "pkg"
     pkg_root.mkdir(parents=True)
-    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
+    write_version_file(pkg_root, pkg_root.name, "1.2.3")
     # No docs/CHANGELOG.rst — package is not managed.
     pkg = packages.Package(pkg_root)
     assert pkg.is_managed is False
@@ -373,7 +375,7 @@ def test_write_changelog_entry_self_heals_missing_blank_line(tmp_path):
     pkg_root = tmp_path / "pkg"
     pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
+    write_version_file(pkg_root, pkg_root.name, "0.1.0")
     # The exact malformed shape that wedged the nightly.
     (pkg_root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n", encoding="utf-8")
     pkg = packages.Package(pkg_root)
@@ -391,7 +393,7 @@ def test_write_changelog_entry_self_heal_is_noop_on_well_formed(tmp_path):
     pkg_root = tmp_path / "pkg"
     pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
+    write_version_file(pkg_root, pkg_root.name, "0.1.0")
     original = "Changelog\n---------\n\n0.1.0 (2026-05-20)\n~~~~~~~~~~~~~~~~~~\n\nAdded\n^^^^^\n\n* Initial.\n"
     (pkg_root / "docs" / "CHANGELOG.rst").write_text(original, encoding="utf-8")
     pkg = packages.Package(pkg_root)
@@ -419,7 +421,7 @@ def test_compile_failure_preserves_fragments_and_version(tmp_path):
     pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
     (pkg_root / "changelog.d").mkdir()
-    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
+    write_version_file(pkg_root, pkg_root.name, "0.1.0")
     # Unrecoverable shape: no ``Changelog`` header at all — self-heal can't
     # do anything and the strict regex raises ValueError.
     (pkg_root / "docs" / "CHANGELOG.rst").write_text("No header at all\n", encoding="utf-8")
@@ -434,7 +436,7 @@ def test_compile_failure_preserves_fragments_and_version(tmp_path):
     assert fragment.exists(), "fragment must be preserved when compile raises"
     assert fragment.read_text(encoding="utf-8") == "Added\n^^^^^\n\n* Did a thing.\n"
     # Version unchanged.
-    assert 'version = "0.1.0"' in (pkg_root / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'version = "0.1.0"' in version_file_for(pkg_root).read_text(encoding="utf-8")
     # CHANGELOG.rst unchanged (no entry prepended).
     assert (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8") == "No header at all\n"
 
@@ -454,7 +456,7 @@ def test_cmd_compile_continues_after_per_package_failure(tmp_path, monkeypatch, 
         root.mkdir(parents=True)
         (root / "docs").mkdir(parents=True)
         (root / "changelog.d").mkdir()
-        (root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
+        write_version_file(root, root.name, "0.1.0")
         (root / "docs" / "CHANGELOG.rst").write_text(changelog_text, encoding="utf-8")
         (root / "changelog.d" / "test.rst").write_text("Added\n^^^^^\n\n* Did a thing.\n", encoding="utf-8")
 
@@ -503,7 +505,7 @@ def test_compile_rejects_fragments_that_check_would_reject(tmp_path):
     pkg_root = tmp_path / "pkg"
     pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
+    write_version_file(pkg_root, pkg_root.name, "1.2.3")
     (pkg_root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
     pkg = packages.Package(pkg_root)
 
