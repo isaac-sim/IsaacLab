@@ -463,21 +463,30 @@ class FragmentBatch:
 
     # ---- Cleanup -------------------------------------------------------
 
-    def delete_all(self) -> tuple[int, int]:
-        """Delete every consumed fragment + skip file. Returns ``(n_frag, n_skip)``."""
-        n_frag = self.delete_valid()
-        n_skip = self.delete_skips()
-        return n_frag, n_skip
+    # These return the paths they removed, not just counts. A deletion is a
+    # change to the working tree exactly like a write is, and the nightly
+    # auto-commit stages what the compile reports it changed — so a consumed
+    # fragment that vanishes from disk without appearing in that report would
+    # never be staged, survive on the branch, and recompile the next night
+    # into a duplicate entry and a second version bump.
 
-    def delete_valid(self) -> int:
-        for f in self.valid:
-            f.path.unlink()
-        return len(self.valid)
+    def delete_all(self) -> tuple[list[Path], list[Path]]:
+        """Delete every consumed fragment + skip file. Returns ``(fragments, skips)`` deleted."""
+        return self.delete_valid(), self.delete_skips()
 
-    def delete_skips(self) -> int:
-        for p in self.skip_paths:
-            p.unlink()
-        return len(self.skip_paths)
+    def delete_valid(self) -> list[Path]:
+        """Delete the consumed fragments. Returns the paths removed."""
+        deleted = [f.path for f in self.valid]
+        for path in deleted:
+            path.unlink()
+        return deleted
+
+    def delete_skips(self) -> list[Path]:
+        """Delete the ``.skip`` files. Returns the paths removed."""
+        deleted = list(self.skip_paths)
+        for path in deleted:
+            path.unlink()
+        return deleted
 
     # ---- Pure transformations (the data class methods) ----------------
     # Static so callers and tests can exercise them with synthetic
@@ -719,8 +728,11 @@ class Package:
                 if dry_run:
                     print(f"  {self.name}: would clean {n} stale skip file(s).")
                 else:
-                    batch.delete_skips()
+                    # No entry and no bump, but the skip files are still gone
+                    # from the working tree — report them so the deletion is
+                    # staged rather than silently reverted on next checkout.
                     print(f"  {self.name}: cleaned {n} stale skip file(s).")
+                    return False, batch.delete_skips()
             else:
                 print(f"  {self.name}: no fragments, skipping.")
             return False, []
@@ -763,10 +775,15 @@ class Package:
         touched.extend(self.write_version(new_version, dry_run=dry_run))
 
         if not dry_run:
-            n_frag, n_skip = batch.delete_all()
-            msg = f"  {self.name}: deleted {n_frag} fragment(s)"
-            if n_skip:
-                msg += f" and {n_skip} skip file(s)"
+            deleted_frags, deleted_skips = batch.delete_all()
+            # Deletions are part of the change set: they must be staged with
+            # the entry that consumed them, or the fragments come back on the
+            # next checkout and recompile into a duplicate version block.
+            touched.extend(deleted_frags)
+            touched.extend(deleted_skips)
+            msg = f"  {self.name}: deleted {len(deleted_frags)} fragment(s)"
+            if deleted_skips:
+                msg += f" and {len(deleted_skips)} skip file(s)"
             print(msg + ".")
 
         return True, touched
@@ -1114,8 +1131,15 @@ class GitRepo:
         self.cwd = cwd
 
     def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        # ``-c color.ui=false`` because this output is parsed, not displayed.
+        # git suppresses colour for a pipe by default, but a developer or
+        # runner with ``color.ui = always`` configured overrides that, and the
+        # resulting ANSI escapes silently break line-prefix matching: a diff
+        # line arrives as ``\x1b[31m-version = "1.2.3"``, so the version
+        # extraction reports "?" and the non-fast-forward detection stops
+        # recognising a rejected push. Neither failure is loud.
         return subprocess.run(
-            ["git", *args],
+            ["git", "-c", "color.ui=false", *args],
             cwd=self.cwd,
             text=True,
             capture_output=True,
@@ -1126,10 +1150,28 @@ class GitRepo:
         self._run("config", key, value)
 
     def add(self, paths: Iterable[Path | str]) -> None:
+        """Stage ``paths``, including deletions.
+
+        ``git add`` on a path that is gone *and* was never tracked aborts the
+        whole invocation with ``pathspec ... did not match any files``, which
+        would take the entire staging step down over one stray file. Deleted
+        paths are therefore filtered to the ones git actually knows about;
+        a deleted-but-tracked path stages its removal, as intended.
+        """
         path_strs = [str(p) for p in paths]
+        vanished = [p for p in path_strs if not Path(p).exists()]
+        if vanished:
+            known = set(self._tracked(vanished))
+            path_strs = [p for p in path_strs if Path(p).exists() or p in known]
         if not path_strs:
             return
         self._run("add", "--", *path_strs)
+
+    def _tracked(self, paths: Iterable[Path | str]) -> list[str]:
+        """Return the subset of ``paths`` git has under version control."""
+        listed = self._run("ls-files", "--", *[str(p) for p in paths]).stdout.split("\n")
+        # ``ls-files`` reports repo-relative paths; callers hold absolute ones.
+        return [str(self.cwd / line) for line in listed if line]
 
     def has_staged_changes(self) -> bool:
         return self._run("diff", "--staged", "--quiet", check=False).returncode != 0

@@ -87,6 +87,27 @@ def _drop_fragment(pkg_root: Path, slug: str, body: str = "Added\n^^^^^\n\n* Add
     return p
 
 
+def _commit_baseline(work: Path) -> None:
+    """Commit the seeded tree so the run starts from production's state.
+
+    The nightly runs against a fresh checkout where every manifest, changelog
+    and pending fragment is already tracked — its staged diff is therefore
+    made of modifications and deletions, not additions. Leaving the fixture's
+    files untracked would quietly change what is under test: version diffs
+    would have no ``-version`` side to read, and a consumed fragment's
+    deletion would be invisible to git rather than staged.
+
+    The baseline is pushed, not just committed, so the remote holds the
+    package files before the run. Without that, a test asserting "file X is
+    absent from the pushed tree" would pass vacuously whenever the run
+    pushed nothing at all — which is precisely the failure such a test is
+    supposed to catch.
+    """
+    _git(work, "add", "-A")
+    _git(work, "commit", "-m", "baseline source tree")
+    _git(work, "push", "origin", "HEAD")
+
+
 @pytest.fixture
 def synthetic_repo(tmp_path: Path) -> Path:
     """A tempdir with a ``source/`` tree, initialized as a git repo with a
@@ -137,6 +158,7 @@ def test_auto_bump_happy_path_commits_and_pushes(synthetic_repo: Path, tmp_path:
     _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     _drop_fragment(synthetic_repo / "source" / "isaaclab", "feat-x")
 
+    _commit_baseline(synthetic_repo)
     rc = cli.AutoBumpRun(
         branch="develop",
         remote="origin",
@@ -169,6 +191,7 @@ def test_auto_bump_stages_every_file_the_compile_wrote(synthetic_repo: Path, tmp
     pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     _drop_fragment(pkg_root, "feat-x")
 
+    _commit_baseline(synthetic_repo)
     run = cli.AutoBumpRun(
         branch="develop",
         remote="origin",
@@ -205,6 +228,9 @@ def test_auto_bump_rebases_on_non_fast_forward(synthetic_repo: Path, tmp_path: P
     the new tip, replays the auto-commit, and the second push succeeds."""
     _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     _drop_fragment(synthetic_repo / "source" / "isaaclab", "feat-x")
+    # Baseline lands first: it is the shared starting point both the human
+    # and the nightly branch off, so it must precede the racing commit.
+    _commit_baseline(synthetic_repo)
 
     bare = tmp_path / "origin.git"
     # Pre-load a "human" commit on the bare remote's develop branch by
@@ -240,6 +266,8 @@ def test_auto_bump_raises_after_exhausting_retries(synthetic_repo: Path, tmp_pat
     eventually gives up rather than spinning forever."""
     _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     _drop_fragment(synthetic_repo / "source" / "isaaclab", "feat-x")
+    # Baseline lands before the race is staged; see the sibling test.
+    _commit_baseline(synthetic_repo)
 
     bare = tmp_path / "origin.git"
     sidecar = tmp_path / "sidecar"
@@ -292,6 +320,7 @@ def test_auto_bump_ships_healthy_packages_when_one_fails(synthetic_repo: Path, t
     # totally absent header still raises.
     (bad / "docs" / "CHANGELOG.rst").write_text("not a real changelog\n", encoding="utf-8")
 
+    _commit_baseline(synthetic_repo)
     rc = cli.AutoBumpRun(
         branch="develop",
         remote="origin",
@@ -322,6 +351,7 @@ def test_auto_bump_dry_run_does_not_commit(synthetic_repo: Path, tmp_path: Path)
     pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     frag = _drop_fragment(pkg_root, "feat-x")
 
+    _commit_baseline(synthetic_repo)
     rc = cli.AutoBumpRun(
         branch="develop",
         remote="origin",
@@ -347,6 +377,7 @@ def test_auto_bump_with_no_fragments_is_a_noop(synthetic_repo: Path, tmp_path: P
     _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     # No fragment dropped.
 
+    _commit_baseline(synthetic_repo)
     rc = cli.AutoBumpRun(
         branch="develop",
         remote="origin",
@@ -396,6 +427,7 @@ def test_auto_bump_syncs_and_commits_uv_lock(synthetic_repo: Path, tmp_path: Pat
     _write_workspace_lock(synthetic_repo, ["isaaclab"])
     _drop_fragment(pkg_root, "feat-x")
 
+    _commit_baseline(synthetic_repo)
     rc = cli.AutoBumpRun(
         branch="develop",
         remote="origin",
@@ -431,6 +463,7 @@ def test_auto_bump_without_a_lock_still_commits(synthetic_repo: Path, tmp_path: 
     pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     _drop_fragment(pkg_root, "feat-x")
 
+    _commit_baseline(synthetic_repo)
     rc = cli.AutoBumpRun(
         branch="release/3.0.0-beta2",
         remote="origin",
@@ -461,6 +494,7 @@ def test_auto_bump_reds_the_tile_but_still_ships_when_the_lock_needs_a_full_relo
         encoding="utf-8",
     )
 
+    _commit_baseline(synthetic_repo)
     rc = cli.AutoBumpRun(
         branch="develop",
         remote="origin",
@@ -480,3 +514,217 @@ def test_auto_bump_reds_the_tile_but_still_ships_when_the_lock_needs_a_full_relo
     # The changelog bump still shipped; the un-repairable lock did not.
     assert _version_file("isaaclab") in show
     assert "uv.lock" not in show
+
+
+# ---------------------------------------------------------------------------
+# Branch-state compatibility
+#
+# One cli.py is cherry-picked to every branch the nightly targets, and those
+# branches disagree: on some the version lives in ``pyproject.toml``, on
+# others in ``config/extension.toml``; some carry a ``uv.lock``, some do not.
+#
+# These tests are deliberately written against the *contract* rather than
+# against one branch's filenames, so this file keeps testing the truth after
+# a cherry-pick instead of testing a layout it no longer runs on. Where a
+# fixture needs to know the layout it asks the code under test
+# (:attr:`cli.Package.toml_path`) rather than hardcoding an answer.
+# ---------------------------------------------------------------------------
+
+
+def _commit_body(bare: Path, branch: str = "develop") -> str:
+    return subprocess.run(
+        ["git", "log", "-1", "--format=%B", branch],
+        cwd=bare,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+
+
+def test_commit_message_names_the_package_once_per_bump(synthetic_repo: Path, tmp_path: Path):
+    """The body lists one ``- <pkg>: old → new`` line per package, sourced
+    from the branch's own version metadata file. Guards the case that would
+    otherwise regress silently: a filename-keyed lookup that matches nothing
+    on a branch whose layout differs, producing an empty ``Bumped packages:``
+    section that nobody notices because the commit still lands."""
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab", starting_version="2.3.4")
+    _drop_fragment(pkg_root, "feat-x")
+
+    _commit_baseline(synthetic_repo)
+    assert (
+        cli.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+
+    body = _commit_body(tmp_path / "origin.git")
+    assert "Bumped packages:" in body
+    assert "- isaaclab: 2.3.4 → 2.3.5" in body
+
+
+def test_consumed_fragments_are_deleted_in_the_commit(synthetic_repo: Path, tmp_path: Path):
+    """Deleting a fragment on disk is not enough — the deletion must be staged.
+
+    ``compile`` consumes fragments by unlinking them. If those paths are
+    absent from the staged set, the commit carries the changelog entry and
+    the version bump while leaving the fragments untouched on the branch.
+    The next checkout restores them, the next nightly recompiles them, and
+    the package gets a duplicate entry and a second bump — every night.
+
+    The old workflow got this right only by accident, via a blanket
+    ``git add --update -- source/``. With the staging set derived from the
+    compile, the deletions have to be reported explicitly.
+    """
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    frag = _drop_fragment(pkg_root, "feat-x")
+    skip = pkg_root / "changelog.d" / "chore-ci.skip"
+    skip.write_text("", encoding="utf-8")
+
+    _commit_baseline(synthetic_repo)
+    assert (
+        cli.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+
+    # Gone from the working tree...
+    assert not frag.exists()
+    assert not skip.exists()
+    # ...and gone on the branch that was pushed, which is what actually matters.
+    bare = tmp_path / "origin.git"
+    committed = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "develop"],
+        cwd=bare,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    assert "source/isaaclab/docs/CHANGELOG.rst" in committed
+    assert "source/isaaclab/changelog.d/feat-x.rst" not in committed
+    assert "source/isaaclab/changelog.d/chore-ci.skip" not in committed
+
+
+def test_skip_only_cleanup_stages_its_deletions(synthetic_repo: Path, tmp_path: Path):
+    """A package whose only pending files are ``.skip`` entries produces no
+    entry and no bump, but the skip files are still consumed. That deletion
+    has to be staged too, or the same "cleaned" files reappear every night."""
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    skip = pkg_root / "changelog.d" / "chore-ci.skip"
+    skip.write_text("", encoding="utf-8")
+
+    _commit_baseline(synthetic_repo)
+    assert (
+        cli.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+
+    committed = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "develop"],
+        cwd=tmp_path / "origin.git",
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    # Anchor first: the package must be present on the pushed branch at all,
+    # otherwise "the skip file is absent" would hold trivially for a run that
+    # pushed nothing.
+    assert "source/isaaclab/docs/CHANGELOG.rst" in committed
+    assert "source/isaaclab/changelog.d/chore-ci.skip" not in committed
+
+
+def test_multi_file_version_write_is_staged_and_reported_once(synthetic_repo: Path, tmp_path: Path, monkeypatch):
+    """A branch whose ``write_version`` touches more than one file per package.
+
+    ``develop`` and ``release/3.0.0-beta2`` each write a single file today,
+    but between #5785 and #6505 ``develop`` wrote two (``extension.toml`` and
+    ``pyproject.toml``), and a future branch could again. The orchestrator
+    must stage *every* returned path while still reporting the package once
+    in the commit body — the report is keyed on the package's canonical
+    version file, not on "every file that changed".
+    """
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab", starting_version="1.0.0")
+    _drop_fragment(pkg_root, "feat-x")
+
+    real_write_version = cli.Package.write_version
+    sidecar = pkg_root / "config" / "extension.toml"
+
+    def dual_write(self, new_version, *, dry_run):
+        touched = real_write_version(self, new_version, dry_run=dry_run)
+        if dry_run:
+            return touched
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(f'version = "{new_version}"\n', encoding="utf-8")
+        return [*touched, sidecar]
+
+    monkeypatch.setattr(cli.Package, "write_version", dual_write)
+
+    _commit_baseline(synthetic_repo)
+    assert (
+        cli.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+
+    bare = tmp_path / "origin.git"
+    files = subprocess.run(
+        ["git", "show", "develop", "--name-only", "--format="],
+        cwd=bare,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    # Both files the write site reported must be in the commit.
+    assert _version_file("isaaclab") in files
+    assert "source/isaaclab/config/extension.toml" in files
+    # ...but the package is still reported exactly once.
+    assert _commit_body(bare).count("- isaaclab:") == 1
+
+
+def test_lock_present_but_workspace_undeclared_reds_the_tile_without_blocking(synthetic_repo: Path, tmp_path: Path):
+    """A ``uv.lock`` with editable members but a root manifest that declares
+    none of them. Membership cannot be reconciled by a version rewrite, so
+    the run reports a failure — but the changelog bump still ships, matching
+    how a failed package compile is handled."""
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    _write_workspace_lock(synthetic_repo, ["isaaclab"])
+    # Strip the workspace declaration, keeping the lock's member entry.
+    (synthetic_repo / "pyproject.toml").write_text(
+        '[project]\nname = "isaaclab-dev"\nversion = "0.0.0"\n', encoding="utf-8"
+    )
+    _drop_fragment(pkg_root, "feat-x")
+
+    _commit_baseline(synthetic_repo)
+    rc = cli.AutoBumpRun(
+        branch="develop",
+        remote="origin",
+        event_name="schedule",
+        repo_root=synthetic_repo,
+    ).run()
+
+    assert rc == 1
+    files = subprocess.run(
+        ["git", "show", "develop", "--name-only", "--format="],
+        cwd=tmp_path / "origin.git",
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    assert _version_file("isaaclab") in files
+    assert "uv.lock" not in files
