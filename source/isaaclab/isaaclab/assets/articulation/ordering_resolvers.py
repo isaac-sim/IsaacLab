@@ -37,7 +37,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from .ordering import (
     ArticulationOrderingConvention,
@@ -57,11 +57,11 @@ logger = logging.getLogger(__name__)
 class _ArticulationElementKind:
     """Per-kind data for one articulation element axis (joints or bodies).
 
-    Instances are module-private, frozen, and interned as the :data:`_JOINT_KIND`
-    and :data:`_BODY_KIND` singletons, so the kind threaded through ordering
-    resolution carries its own backend attribute, USD relationship, name-override
-    spellings, config field, and spelling-match policy instead of scattering
-    those as per-call ternaries and per-kind lookup tables.
+    Instances are module-private, frozen, and registered by label, enforcing
+    :data:`_JOINT_KIND` and :data:`_BODY_KIND` as singletons. Each kind carries
+    its own backend attribute, USD relationship, name-override spellings,
+    config field, and spelling-match policy instead of scattering those as
+    per-call ternaries and per-kind lookup tables.
 
     Attributes:
         label: Public element-kind alias, either ``"joint"`` or ``"body"``, used
@@ -78,12 +78,35 @@ class _ArticulationElementKind:
             separator differences that need matching.
     """
 
+    _registry: ClassVar[dict[str, _ArticulationElementKind]] = {}
+
     label: Literal["joint", "body"]
     backend_names_attr: str
     relationship_name: str
     name_override_attrs: tuple[str, ...]
     config_field: str
     matches_backend_spelling: bool
+
+    def __post_init__(self) -> None:
+        """Register this kind while rejecting a duplicate label."""
+        if self.label in self._registry:
+            raise ValueError(f"duplicate articulation element kind {self.label!r}")
+        self._registry[self.label] = self
+
+    @classmethod
+    def all(cls) -> tuple[_ArticulationElementKind, ...]:
+        """Return all registered articulation element kinds."""
+        return tuple(cls._registry.values())
+
+    @classmethod
+    def resolve(cls, kind: _ArticulationElementKind | str) -> _ArticulationElementKind:
+        """Resolve a public label or already-resolved kind to its singleton."""
+        if isinstance(kind, cls):
+            return kind
+        resolved = cls._registry.get(kind) if isinstance(kind, str) else None
+        if resolved is not None:
+            return resolved
+        raise ValueError(f"kind must be 'joint' or 'body'; got {kind!r}.")
 
     def get_backend_names(self, articulation: BaseArticulation) -> tuple[str, ...]:
         """Return active backend names from an articulation."""
@@ -126,11 +149,6 @@ _BODY_KIND = _ArticulationElementKind(
     matches_backend_spelling=False,
 )
 
-_ELEMENT_KINDS_BY_LABEL: dict[str, _ArticulationElementKind] = {
-    _JOINT_KIND.label: _JOINT_KIND,
-    _BODY_KIND.label: _BODY_KIND,
-}
-
 
 def _backend_matches_ordering_convention(
     articulation: BaseArticulation | None,
@@ -149,22 +167,6 @@ def _backend_matches_ordering_convention(
     if articulation is None:
         return False
     return convention.value in getattr(articulation, "__backend_native_orderings__", ())
-
-
-def _validate_ordering_kind(kind: _ArticulationElementKind | str) -> _ArticulationElementKind:
-    """Return the :class:`_ArticulationElementKind` for a supported element kind.
-
-    Accepts the public ``"joint"``/``"body"`` label or an already-resolved
-    :class:`_ArticulationElementKind` (idempotent), so this is the single point
-    where the external string boundary is converted into the rich kind consumed
-    by the rest of the module.
-    """
-    if isinstance(kind, _ArticulationElementKind):
-        return kind
-    resolved = _ELEMENT_KINDS_BY_LABEL.get(kind) if isinstance(kind, str) else None
-    if resolved is not None:
-        return resolved
-    raise ValueError(f"kind must be 'joint' or 'body'; got {kind!r}.")
 
 
 def _get_cached_convention_names(
@@ -399,7 +401,7 @@ def _get_complete_convention_names_by_kind(
     by the resolved :class:`_ArticulationElementKind`.
     """
     complete_names: dict[_ArticulationElementKind, tuple[str, ...]] = {}
-    for candidate_kind in (_JOINT_KIND, _BODY_KIND):
+    for candidate_kind in _ArticulationElementKind.all():
         backend_names = candidate_kind.get_backend_names(articulation)
         names = _get_complete_convention_names(
             kind=candidate_kind,
@@ -687,7 +689,7 @@ def _resolve_articulation_convention_name_ordering(
             explicit-name fallback, and a short reason the attempted
             resolution strategy did not apply.
     """
-    kind = _validate_ordering_kind(kind)
+    kind = _ArticulationElementKind.resolve(kind)
     parsed_convention = parse_articulation_ordering_convention(convention)
     if parsed_convention is None:
         return kind.get_backend_names(articulation)
@@ -858,7 +860,7 @@ def _resolve_articulation_ordering_names(
         NotImplementedError: If cross-backend ordering lacks an articulation, or
             all supported convention metadata is absent or incomplete.
     """
-    kind = _validate_ordering_kind(kind)
+    kind = _ArticulationElementKind.resolve(kind)
     backend_names = _validate_articulation_names(backend_names, parameter_name="backend_names")
     if ordering is None:
         return backend_names
