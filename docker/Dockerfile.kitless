@@ -83,7 +83,12 @@ ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
 ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
-ENV HOME=/home/isaaclab
+# Mirrors Dockerfile.base: the runtime home is a build argument so the image and
+# the Compose volume mounts, which derive their paths from DOCKER_USER_HOME in
+# .env.kitless, cannot drift apart.
+ARG DOCKER_USER_HOME_ARG=/home/isaaclab
+ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
+ENV HOME=${DOCKER_USER_HOME}
 ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
 ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -91,16 +96,21 @@ ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
-# libgl1/libgomp1/libvulkan1/libx11-6/libxext6 are the system libraries the
-# ovrtx renderer loads at initialization; the NVIDIA container toolkit injects
-# the Vulkan ICD when the `graphics` driver capability is requested.
+# System libraries the ovrtx renderer loads at initialization. The GLVND split
+# means libgl1 alone is not enough: libGL.so.1 comes from libgl1, but
+# libOpenGL.so.0 and libEGL.so.1 ship in libopengl0 and libegl1 respectively,
+# and the usd_resolver plugin fails to load without them. The NVIDIA container
+# toolkit injects the Vulkan ICD when the `graphics` driver capability is
+# requested.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
       git \
+      libegl1 \
       libgl1 \
       libglib2.0-0 \
       libgomp1 \
+      libopengl0 \
       libpython3.12 \
       libvulkan1 \
       libx11-6 \
@@ -110,7 +120,7 @@ RUN apt-get update \
  && if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
  && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
- && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash isaaclab
+ && useradd --uid 1000 --gid 1000 --home-dir "${HOME}" --create-home --shell /bin/bash isaaclab
 
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx

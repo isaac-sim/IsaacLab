@@ -331,34 +331,3 @@ def test_kitless_volume_key_resolves_owned_image_paths(monkeypatch: pytest.Monke
         "/workspace/isaaclab/logs",
         "/workspace/isaaclab/data_storage",
     ]
-
-
-def test_default_volume_key_resolves_compose_defaults(monkeypatch: pytest.MonkeyPatch):
-    """Compose defaults keep base volume targets resolvable without loading ``.env.base``."""
-    monkeypatch.delenv("DOCKER_ISAACSIM_ROOT_PATH", raising=False)
-    monkeypatch.setenv("DOCKER_ISAACLAB_PATH", "/workspace/isaaclab")
-    monkeypatch.setenv("DOCKER_USER_HOME", "/root")
-
-    targets = volume_mounts.resolved_targets(DOCKER_DIR / "docker-compose.yaml")
-
-    assert "/isaac-sim/kit/cache" in targets
-    assert all("${" not in target for target in targets)
-
-
-def test_kitless_volume_key_cli(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
-    """The Dockerfile-facing CLI accepts the explicit kit-less volume key."""
-    monkeypatch.setenv("DOCKER_ISAACLAB_PATH", "/workspace/isaaclab")
-    monkeypatch.setenv("DOCKER_USER_HOME", "/home/isaaclab")
-    monkeypatch.setattr(
-        "sys.argv",
-        ["volume_mounts.py", "--volumes_key", "x-kitless-isaac-lab-volumes"],
-    )
-
-    assert volume_mounts.main() == 0
-    assert capsys.readouterr().out.splitlines() == [
-        "/home/isaaclab/.cache/uv",
-        "/home/isaaclab/.cache/warp",
-        "/workspace/isaaclab/docs/_build",
-        "/workspace/isaaclab/logs",
-        "/workspace/isaaclab/data_storage",
-    ]

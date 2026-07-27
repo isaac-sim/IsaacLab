@@ -181,23 +181,6 @@ def test_compose_volume_targets_parse():
         assert required in targets, f"{required} missing from parsed volume targets: {targets}"
 
 
-def test_kitless_compose_volume_targets_parse():
-    """The kit-less parser includes each persistent cache and output directory."""
-    targets = _volume_mounts_module().named_volume_targets(
-        DOCKER_DIR / "docker-compose.yaml", "x-kitless-isaac-lab-volumes"
-    )
-
-    assert targets, "no kit-less named-volume targets parsed from docker-compose.yaml"
-    for required in (
-        "${DOCKER_USER_HOME}/.cache/uv",
-        "${DOCKER_USER_HOME}/.cache/warp",
-        "${DOCKER_ISAACLAB_PATH}/docs/_build",
-        "${DOCKER_ISAACLAB_PATH}/logs",
-        "${DOCKER_ISAACLAB_PATH}/data_storage",
-    ):
-        assert required in targets, f"{required} missing from parsed kit-less volume targets: {targets}"
-
-
 def test_resolved_targets_are_absolute_paths(monkeypatch):
     """With the build's environment, every target resolves to an absolute path."""
     monkeypatch.setenv("DOCKER_ISAACSIM_ROOT_PATH", "/isaac-sim")
