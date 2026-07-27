@@ -129,6 +129,10 @@ _SPATIAL_TENDON_OVSTAGE_GAP_REASON = (
     "OVPhysX 0.5.9 segfaults while attaching OVStage scenes containing spatial tendon schemas."
 )
 
+_SPATIAL_TENDON_OVSTAGE_GAP_REASON = (
+    "OVPhysX 0.5.9 segfaults while attaching OVStage scenes containing spatial tendon schemas."
+)
+
 
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX attribute into a torch tensor on *device*.
