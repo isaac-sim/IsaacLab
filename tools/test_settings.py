@@ -67,7 +67,9 @@ PER_TEST_TIMEOUTS = {
     "test_rendering_cartpole_kitless.py": 2000,
     # Budgets ~45s per AOV: one full RTX env is built and torn down per parametrized data type.
     # Bump this when renderer cases are added to _DEFAULT_SENSOR_DATA_TYPES in rendering_test_utils.py.
-    "test_rendering_shadow_hand.py": 1500,
+    "test_rendering_shadow_hand_newton_isaacsim_rtx.py": 1500,
+    "test_rendering_shadow_hand_physx_isaacsim_rtx.py": 1500,
+    "test_rendering_shadow_hand_physx_newton_warp.py": 1500,
     "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.

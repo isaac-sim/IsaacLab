@@ -60,6 +60,19 @@ STARTUP_HANG_RETRIES = 2
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
+TIMEOUT_RETRIES_BY_FILE = {
+    "test_rendering_shadow_hand_newton_isaacsim_rtx.py": 1,
+    "test_rendering_shadow_hand_physx_isaacsim_rtx.py": 1,
+    "test_rendering_shadow_hand_physx_newton_warp.py": 1,
+}
+"""Fresh-process hard-timeout retries for explicitly scoped test files."""
+
+
+def _timeout_retries_for_file(file_name: str) -> int:
+    """Return the hard-timeout retry budget for a test filename."""
+    return TIMEOUT_RETRIES_BY_FILE.get(file_name, TIMEOUT_RETRIES)
+
+
 PROCESS_FAILURE_RETRIES_BY_FILE = {
     "test_visualizer_integration_physx.py": 4,
     "test_visualizer_integration_newton.py": 4,
@@ -627,6 +640,7 @@ def _run_one_pass(
     wall_time, pre_kill_diag = 0.0, ""
     startup_hang_attempts = 0
     timeout_attempts = 0
+    timeout_retries = _timeout_retries_for_file(ctx.file_name)
     while True:
         with contextlib.suppress(FileNotFoundError):
             os.remove(report_file)
@@ -653,11 +667,11 @@ def _run_one_pass(
             logger.info(diag)
             continue
 
-        if kill_reason == "timeout" and not has_report and timeout_attempts < TIMEOUT_RETRIES:
+        if kill_reason == "timeout" and not has_report and timeout_attempts < timeout_retries:
             timeout_attempts += 1
             logger.warning(
                 f"⚠️  {ctx.test_file}{suffix}: timeout detected after {ctx.timeout}s"
-                f" (attempt {timeout_attempts}/{TIMEOUT_RETRIES + 1}), retrying..."
+                f" (attempt {timeout_attempts}/{timeout_retries + 1}), retrying..."
             )
             if stdout_data:
                 logger.info(

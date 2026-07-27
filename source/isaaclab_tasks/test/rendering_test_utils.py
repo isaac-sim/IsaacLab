@@ -5,6 +5,7 @@
 
 """Shared helpers for rendering correctness tests."""
 
+import faulthandler
 import logging
 import os
 import re
@@ -224,13 +225,27 @@ def _make_sensor_data_type_params(
     ]
 
 
+PHYSX_ISAACSIM_RTX_AOV_COMBINATIONS = _make_sensor_data_type_params("physx", "isaacsim_rtx")
+NEWTON_ISAACSIM_RTX_AOV_COMBINATIONS = _make_sensor_data_type_params("newton", "isaacsim_rtx")
+PHYSX_NEWTON_WARP_AOV_COMBINATIONS = _make_sensor_data_type_params(
+    "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+)
+
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
-    *_make_sensor_data_type_params(
-        "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
-    ),
+    *PHYSX_ISAACSIM_RTX_AOV_COMBINATIONS,
+    *NEWTON_ISAACSIM_RTX_AOV_COMBINATIONS,
+    *PHYSX_NEWTON_WARP_AOV_COMBINATIONS,
 ]
+
+
+def arm_timeout_traceback_watchdog(delay_seconds: int = 1200) -> None:
+    """Schedule a Python thread dump before the rendering test hard timeout.
+
+    Args:
+        delay_seconds: Delay before dumping all Python thread stacks [s].
+    """
+    faulthandler.dump_traceback_later(delay_seconds, repeat=False)
+
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
     [

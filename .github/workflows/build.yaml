@@ -700,7 +700,9 @@ jobs:
           test_rendering_franka_cloth.py,
           test_rendering_franka_soft.py,
           test_rendering_registered_tasks.py,
-          test_rendering_shadow_hand.py
+          test_rendering_shadow_hand_newton_isaacsim_rtx.py,
+          test_rendering_shadow_hand_physx_isaacsim_rtx.py,
+          test_rendering_shadow_hand_physx_newton_warp.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         container-name: isaac-lab-rendering-correctness-test
