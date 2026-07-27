@@ -224,7 +224,7 @@ class BenchmarkPlayRequest:
         agent: Optional task agent configuration entry point.
         num_envs: Number of parallel environments.
         num_frames: Number of measured inference steps.
-        warmup_steps: Number of initial environment steps excluded from environment-step timing.
+        warmup_frames: Number of initial environment steps excluded from environment-step timing.
         seed: Environment seed.
         measure_synchronized_step_breakdown: Whether to collect serialized synchronized
             environment/simulation step diagnostics.
@@ -241,7 +241,7 @@ class BenchmarkPlayRequest:
     agent: str | None = None
     num_envs: int | None = None
     num_frames: int = 100
-    warmup_steps: int = 1
+    warmup_frames: int = 1
     seed: int | None = None
     measure_synchronized_step_breakdown: bool = False
     presets: tuple[str, ...] = field(default_factory=tuple)

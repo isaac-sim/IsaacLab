@@ -184,7 +184,7 @@ Load a trained checkpoint and benchmark policy inference (the *play* workflow).
 The same ``--rl_library`` dispatch selects the RL library (``rsl_rl``, ``rl_games``,
 ``skrl``, or ``sb3``).  In addition to the inference throughput, the emitted
 ``PlayBundle`` reports the rolled-out policy's reward, episode length, and success
-rate.  The checkpoints consumed here are produced by ``training.py``.
+rate. The checkpoints consumed here are produced by the matching training workflow.
 
 .. code-block:: bash
 
@@ -419,7 +419,7 @@ Non-RL / Runtime Benchmark Arguments
      - Collect the serialized synchronized diagnostic described above
    * - ``--enable_cameras``
      - ``false``
-     - Collect the serialized synchronized diagnostic described above
+     - Enable camera rendering for tasks that require cameras
 
 RL Training Arguments
 ~~~~~~~~~~~~~~~~~~~~~

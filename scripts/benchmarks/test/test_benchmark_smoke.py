@@ -39,7 +39,7 @@ def _run(command: list[str]) -> None:
 
 
 def _load_adapter(library: str, workflow: str):
-    return importlib.import_module(f"isaaclab.benchmark.entrypoints.backends.{library}.{workflow}")
+    return importlib.import_module(f"isaaclab.benchmark.entrypoints.backends.{library}.benchmark_{workflow}_{library}")
 
 
 @pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])

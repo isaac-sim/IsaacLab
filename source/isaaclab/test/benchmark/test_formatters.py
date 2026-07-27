@@ -7,6 +7,8 @@
 
 import json
 import os
+import re
+from datetime import datetime
 
 import pytest
 
@@ -24,6 +26,21 @@ from isaaclab.benchmark.schema import (
     StartupTime,
     Versions,
 )
+
+
+def test_default_output_filenames_are_unique_with_identical_timestamps(monkeypatch) -> None:
+    class FixedDatetime:
+        @classmethod
+        def now(cls) -> datetime:
+            return datetime(2026, 7, 27, 14, 41, 22, 123456)
+
+    monkeypatch.setattr(formatters, "datetime", FixedDatetime)
+
+    first = formatters.get_default_output_filename("benchmark")
+    second = formatters.get_default_output_filename("benchmark")
+
+    assert first != second
+    assert re.fullmatch(r"benchmark_2026-07-27_14-41-22-123456_[0-9a-f]{8}", first)
 
 
 def _minimal_runtime_bundle() -> RuntimeBundle:

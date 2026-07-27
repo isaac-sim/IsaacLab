@@ -163,7 +163,7 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
         _append_value(argv, "--checkpoint", request.checkpoint)
         _append_value(argv, "--agent", request.agent)
         _append_value(argv, "--num_frames", request.num_frames)
-        _append_value(argv, "--warmup_steps", request.warmup_steps)
+        _append_value(argv, "--warmup_frames", request.warmup_frames)
 
     if getattr(request, "measure_synchronized_step_breakdown", False):
         argv.append("--measure_sync_step")

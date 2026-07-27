@@ -11,6 +11,7 @@ import textwrap
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from isaaclab.benchmark.measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
 
@@ -21,16 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 def get_default_output_filename(prefix: str = "benchmark") -> str:
-    """Generate default output filename with current date and time.
+    """Generate a unique default output filename with the current date and time.
 
     Args:
         prefix: Prefix for the filename (e.g., "articulation_benchmark").
 
     Returns:
-        Filename string with timestamp (without extension).
+        Filename string with a timestamp and unique suffix (without extension).
     """
-    datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    return f"{prefix}_{datetime_str}"
+    datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
+    unique_suffix = uuid4().hex[:8]
+    return f"{prefix}_{datetime_str}_{unique_suffix}"
 
 
 class MetricsFormatterInterface(ABC):
