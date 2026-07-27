@@ -22,6 +22,7 @@ from isaaclab.cli.commands.install import (
     MANUAL_EXTRA_FEATURES,
     OPTIONAL_ISAACLAB_SUBMODULES,
     VALID_EXTRA_FEATURES,
+    _install_ov_extra_dependencies,
     command_install,
     split_install_items,
 )
@@ -146,6 +147,21 @@ class TestInstallConstants:
         core_names = set(CORE_ISAACLAB_SUBMODULES)
         for pkg in _optional_submodule_packages():
             assert pkg not in core_names
+
+
+@pytest.mark.parametrize(
+    ("selector", "expected_extra"),
+    [
+        ("ovphysx", "ovphysx"),
+        ("ovrtx", "ovrtx"),
+    ],
+)
+def test_ov_selector_installs_matching_root_extra(selector, expected_extra):
+    """OV selectors dispatch to root extras with the same discoverable name."""
+    with patch("isaaclab.cli.commands.install._install_root_extra") as install_root_extra:
+        _install_ov_extra_dependencies(selector)
+
+    install_root_extra.assert_called_once_with(expected_extra)
 
 
 # ---------------------------------------------------------------------------

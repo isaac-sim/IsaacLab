@@ -6,8 +6,8 @@
 """OvPhysX Manager for Isaac Lab.
 
 This module manages an ovphysx-based physics simulation lifecycle without Kit dependencies.
-It exports the current USD stage to disk, loads it into ovphysx, and steps the simulation
-using the ovphysx C/Python API.
+It serializes the current USD stage in memory, attaches it to ovphysx through OVStage, and
+steps the simulation using the ovphysx C/Python API.
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ import inspect
 import logging
 import os
 import re
-import tempfile
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
@@ -206,10 +205,9 @@ class OvPhysxManager(PhysicsManager):
 
     _cfg: ClassVar[OvPhysxCfg | None] = None
     _physx: ClassVar[Any] = None  # ovphysx.PhysX (lazy import)
-    _usd_handle: ClassVar[Any] = None
-    _stage_path: ClassVar[str | None] = None
+    _ovstage: ClassVar[Any] = None
+    _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
-    _tmp_dir: ClassVar[tempfile.TemporaryDirectory | None] = None
     # Device the process is locked to once :meth:`_warmup_and_load` constructs the
     # ``ovphysx.PhysX`` instance for the first time.  ``ovphysx<=0.3.7`` enforces
     # a process-global device-mode lock at the C++ layer (see HACK note on
@@ -250,7 +248,7 @@ class OvPhysxManager(PhysicsManager):
         Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
         scene setup, before the PhysX instance exists.  The clone operations
         are executed in :meth:`_warmup_and_load` immediately after
-        ``physx.add_usd()``.
+        attaching the populated OVStage.
 
         Args:
             source: Source prim path (env_0 articulation root).
@@ -318,8 +316,7 @@ class OvPhysxManager(PhysicsManager):
         super().initialize(sim_context)
         cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
-        cls._usd_handle = None
-        cls._stage_path = None
+        cls._stage_usda = None
         cls._pending_clones = []
         # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
         # captures a real instance (not ``None``) when it builds the central
@@ -335,9 +332,9 @@ class OvPhysxManager(PhysicsManager):
         """Reset physics simulation.
 
         On the first (non-soft) reset the method:
-        - Exports the current USD stage to a temp file
+        - Serializes the current USD stage in memory
         - Creates the ovphysx.PhysX instance
-        - Loads the exported USD
+        - Populates and attaches an OVStage
         - Warms up GPU buffers (if on CUDA)
         - Dispatches PHYSICS_READY
         """
@@ -381,18 +378,13 @@ class OvPhysxManager(PhysicsManager):
         """Release ovphysx resources and clean up."""
         cls._release_physx()
 
-        cls._usd_handle = None
-        cls._stage_path = None
+        cls._stage_usda = None
         cls._warmup_done = False
         # Drop the SceneDataBackend singleton: its cached ``TensorBinding`` handles
         # point into the wheel's prior scene which we just cleared.
         # The next :class:`SimulationContext` re-creates the backend in
         # :meth:`initialize`. Matches Newton's lifecycle.
         cls._scene_data_backend = None
-
-        if cls._tmp_dir is not None:
-            cls._tmp_dir.cleanup()
-            cls._tmp_dir = None
 
         super().close()
 
@@ -418,6 +410,35 @@ class OvPhysxManager(PhysicsManager):
         """
         if cls._physx is not None:
             cls._reset_physx_stage(cls._physx)
+        cls._destroy_ovstage()
+
+    @classmethod
+    def _attach_ovstage(cls, stage_usda: str) -> None:
+        """Populate an OVStage from USDA text and attach it to the runtime."""
+        import ovstage  # noqa: PLC0415
+
+        stage = ovstage.Stage("isaaclab")
+        try:
+            ovstage.population.open_usd_from_string(
+                stage,
+                stage_usda,
+                ordinal=1,
+                # FIXME: Use PHYSICS once OVStage includes native-instance collider
+                # dependencies in physics-only population.
+                domains=ovstage.PopulationDomain.ALL,
+            )
+            cls._physx.attach_ovstage(stage, read_ordinal=1)
+        except Exception:
+            stage.destroy()
+            raise
+        cls._ovstage = stage
+
+    @classmethod
+    def _destroy_ovstage(cls) -> None:
+        """Destroy the attached OVStage after PhysX has released its stage."""
+        if cls._ovstage is not None:
+            cls._ovstage.destroy()
+            cls._ovstage = None
 
     @classmethod
     def get_physx_instance(cls) -> Any:
@@ -457,66 +478,24 @@ class OvPhysxManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _export_env0_only_stage(sim_stage: Any, target_file: str) -> None:
-        """Export the simulation stage to ``target_file`` with env_1..N stripped.
+    def _serialize_env0_only_stage(sim_stage: Any) -> str:
+        """Serialize the simulation stage in memory with cloned environments stripped.
 
-        Writes a USD file containing every prim under the live stage **except**
-        ``/World/envs/env_<i>`` for ``i != 0``. Globals (``/physicsScene``,
-        ``/World/ground``, lights, materials, etc.) and ``/World/envs/env_0`` are
-        retained.  ``physx.clone()`` is then expected to repopulate env_1..N at
-        the physics layer with proper clone lineage so that subsequent
-        ``create_tensor_binding`` calls hit the wheel's fast path.
-
-        Implementation: export the full stage to disk, then re-open the result
-        as an :class:`Sdf.Layer` and delete env_1..N prim specs in place.  This
-        avoids mutating the live stage (which other consumers -- sensors,
-        visualizers -- still see in its full N-env form).
-
-        Limitations:
-            * **Homogeneous-env assumption.** Every env is treated as an
-              identical copy of env_0 from the physics runtime's point of view.
-              Anything authored *only* under ``/World/envs/env_<i>`` for
-              ``i != 0`` (per-env mass overrides, per-env friction, per-env
-              collision filters, etc.) is dropped from the file handed to
-              ``physx.add_usd`` and therefore not seen by PhysX. Sensors and
-              visualizers still see those overrides in USD (the live stage is
-              unmodified), so a divergence is possible.  Per-env physics state
-              must instead be written via the runtime APIs
-              (``RigidObject.write_root_state_to_sim_index``, etc.).
-            * **Global path convention.** Any physics-relevant prim that lives
-              under ``/World/envs/env_<i!=0>/`` (e.g. an asset-specific
-              ``PhysicsScene``, a per-env material) gets stripped. Globals must
-              live outside ``/World/envs`` (or under ``/World/envs/env_0``) to
-              survive the export.
-            * **Static topology.** Envs added or removed at runtime after
-              warmup are not supported by ``physx.clone()`` lineage and would
-              require a re-warmup with a re-exported stage.
+        The returned USDA contains every prim from the composed live stage except
+        ``/World/envs/env_<i>`` for ``i != 0``. This keeps global prims and the
+        env-0 clone source without mutating the live stage.
 
         Args:
             sim_stage: Live USD stage held by ``SimulationContext``.
-            target_file: Output ``.usda`` file path.  Overwritten if it exists.
+
+        Returns:
+            Env-0-scoped flattened USDA content.
         """
-        from pxr import Sdf  # noqa: PLC0415
-
-        # Step 1: full flatten-export of the live stage.  We pass the full file
-        # to ``Sdf.Layer.OpenAsAnonymous`` so the edits below don't write back
-        # to the source layer on disk.
-        sim_stage.Export(target_file)
-
-        # Step 2: open the exported file as an editable Sdf layer and delete
-        # ``/World/envs/env_<digits>`` children for digits != 0.  Walking the
-        # ``/World/envs`` ``PrimSpec``'s ``nameChildren`` keeps us scoped to
-        # the env-namespace and leaves the rest of the stage untouched.
-        layer = Sdf.Layer.FindOrOpen(target_file)
-        if layer is None:
-            raise RuntimeError(
-                f"OvPhysxManager: failed to re-open exported USD layer at {target_file!r} for env-scoping."
-            )
+        layer = sim_stage.Flatten()
         envs_spec = layer.GetPrimAtPath("/World/envs")
         if envs_spec is None or not envs_spec:
-            # No /World/envs in the stage (single-env or non-IsaacLab scene); nothing to scope.
-            logger.debug("OvPhysxManager: no /World/envs prim — exported stage as-is.")
-            return
+            logger.debug("OvPhysxManager: no /World/envs prim — serialized stage as-is.")
+            return layer.ExportToString()
 
         env_name_re = re.compile(r"^env_(\d+)$")
         names_to_remove = [
@@ -526,23 +505,22 @@ class OvPhysxManager(PhysicsManager):
         ]
         for child_name in names_to_remove:
             del envs_spec.nameChildren[child_name]
-
         if names_to_remove:
-            layer.Export(target_file)
             logger.info(
-                "OvPhysxManager: stripped %d env_<i!=0> subtrees from exported USD (kept env_0 + globals)",
+                "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
                 len(names_to_remove),
             )
+        return layer.ExportToString()
 
     @classmethod
     def _warmup_and_load(cls) -> None:
-        """Export the USD stage and load it into the ovphysx runtime.
+        """Serialize the USD stage and attach it to the ovphysx runtime.
 
         On the first call per process, constructs the :class:`ovphysx.PhysX`
         instance, registers the ``atexit`` handler, and locks the process to
         the resolved device.  On subsequent calls, reuses the cached instance
-        (see HACK on :meth:`_release_physx`) -- exporting the new USD,
-        re-attaching it via ``add_usd``, replaying pending clones, and (on GPU)
+        (see HACK on :meth:`_release_physx`) -- serializing the new USD,
+        attaching it via OVStage, replaying pending clones, and (on GPU)
         re-running ``warmup_gpu`` so the new stage's bodies are resident.
 
         Raises:
@@ -576,50 +554,48 @@ class OvPhysxManager(PhysicsManager):
         if scene_prim.IsValid():
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
-        # Export the current USD stage to a temporary file so ovphysx can load it.
+        # Flatten the current USD stage to USDA text so OVStage can populate it
+        # without an intermediate file.
         #
         # When ``InteractiveScene`` runs with ``clone_usd=True``, the live USD
         # stage carries env_0..N's full asset subtrees as authored copies.
-        # Handing that stage to ``physx.add_usd`` would make the wheel ingest
+        # Handing that whole stage to OVStage would make the wheel ingest
         # all 4096 envs as independent USD-defined bodies, defeating the
         # ``physx.clone()`` fast path and turning every subsequent
         # ``create_tensor_binding`` call into an O(N) USD enumeration -- the
         # hang you'd see at large env counts.
         #
         # The workaround: strip ``/World/envs/env_<i>`` for i != 0 from the
-        # exported file before handing it to the wheel.  Sensors that read
+        # flattened layer before handing it to the wheel. Sensors that read
         # USD directly (RayCaster, Camera, ContactSensor discovery) still see
         # the full N-env stage; only the wheel-side physics ingestion is
         # scoped to env_0, and ``physx.clone()`` re-populates env_1..N in
         # the physics runtime with proper clone lineage (which is what the
         # binding fast path expects).
-        cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
-        stage_file = os.path.join(cls._tmp_dir.name, "scene.usda")
-        cls._export_env0_only_stage(sim.stage, stage_file)
-        cls._stage_path = stage_file
-        logger.info("OvPhysxManager: exported env_0-scoped USD stage to %s", stage_file)
+        stage_usda = cls._serialize_env0_only_stage(sim.stage)
+        cls._stage_usda = stage_usda
+        logger.info("OvPhysxManager: serialized env_0-scoped USD stage in memory")
 
         if cls._physx is None:
             cls._construct_physx(ovphysx_device, gpu_index)
             cls._locked_device = ovphysx_device
         else:
             # Reuse path: the cached PhysX may still hold the prior stage (the
-            # wheel allows only one loaded USD at a time).  Clearing the stage is
+            # wheel allows only one attached stage at a time). Clearing the stage is
             # idempotent on an already-cleared stage and required when this is
             # a second :meth:`_warmup_and_load` within the same SimulationContext
             # (e.g. when a caller manually clears ``_warmup_done`` to force a
             # re-warmup).
             cls._reset_physx_stage(cls._physx)
+            cls._destroy_ovstage()
 
-        usd_handle, op_idx = cls._physx.add_usd(stage_file)
-        cls._physx.wait_op(op_idx)
-        cls._usd_handle = usd_handle
-        logger.info("OvPhysxManager: loaded USD into ovphysx (device=%s)", ovphysx_device)
+        cls._attach_ovstage(stage_usda)
+        logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         # Replay pending physics clones registered by ovphysx_replicate().
         # The USD stage contains only env_0's physics; env_1..N are empty
         # Xform containers.  physx.clone() creates the remaining environments
-        # in the physics runtime without modifying the USD file.
+        # in the physics runtime without modifying the attached OVStage.
         if cls._pending_clones:
             # The cfg-level OvPhysX replicator registers pending clones for physics
             # regardless of whether USD copies were also queued for rendering. Execute
@@ -640,13 +616,13 @@ class OvPhysxManager(PhysicsManager):
                 cls._physx.wait_op(op_idx)
             cls._pending_clones = []
 
-        # GPU bodies must be re-warmed after every add_usd: the cached PhysX
+        # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
             cls._physx.warmup_gpu()
 
         # Initialize the SceneDataBackend now that the wheel's PhysX is live and
-        # the USD is loaded. The central
+        # the OVStage is attached. The central
         # ``isaaclab.scene.scene_data_provider.SceneDataProvider`` consumes this
         # via :meth:`get_scene_data_backend`.
         if cls._scene_data_backend is None:
