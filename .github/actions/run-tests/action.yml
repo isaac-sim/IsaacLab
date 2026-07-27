@@ -216,7 +216,8 @@ runs:
             -e PYTHONUNBUFFERED=1 \
             -e PYTHONIOENCODING=utf-8 \
             -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
-            -e TEST_RESULT_FILE=$result_file"
+            -e TEST_RESULT_FILE=$result_file \
+            -e ISAACLAB_SESSION_KIT=1"
 
           if [ "$curobo_only" = "true" ]; then
             docker_env_vars="$docker_env_vars -e TEST_CUROBO_ONLY=true"
