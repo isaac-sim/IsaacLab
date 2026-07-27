@@ -152,7 +152,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor] = MISSING
+    func: Callable[..., torch.Tensor | None] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
@@ -335,7 +335,7 @@ class EventTermCfg(ManagerTermBaseCfg):
 class RewardTermCfg(ManagerTermBaseCfg):
     """Configuration for a reward term."""
 
-    func: Callable[..., torch.Tensor] = MISSING
+    func: Callable[..., torch.Tensor | None] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
@@ -363,7 +363,7 @@ class RewardTermCfg(ManagerTermBaseCfg):
 class TerminationTermCfg(ManagerTermBaseCfg):
     """Configuration for a termination term."""
 
-    func: Callable[..., torch.Tensor] = MISSING
+    func: Callable[..., torch.Tensor | None] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters

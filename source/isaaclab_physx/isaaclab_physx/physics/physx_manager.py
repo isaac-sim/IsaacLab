@@ -788,18 +788,16 @@ class PhysxManager(PhysicsManager):
         physx = omni.physx.get_physx_interface()
         physx_sim = omni.physx.get_physx_simulation_interface()
 
-        # The Kit app owns loading the low-level physics extensions, but the
-        # Isaac Sim SimulationManager is no longer guaranteed to be loaded.
-        # Attach the current USD stage here so PhysX tensor views can find the
-        # scene without relying on Isaac Sim's default warm-start callback.
-        physx_sim.attach_stage(stage_id)
+        # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
+        # For CPU, the old SimulationManager never called attach_stage() explicitly.
+        # Calling attach_stage() + force_load_physics_from_usd() together causes a
+        # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
+        # causing objects to fall through surfaces non-deterministically.
+        if is_gpu:
+            physx_sim.attach_stage(stage_id)
 
         # warmup physx
-        # Calling attach_stage() and force_load_physics_from_usd() together on
-        # CPU can corrupt PhysX broadphase state, so only force-load the GPU
-        # pipeline after the stage is attached.
-        if is_gpu:
-            physx.force_load_physics_from_usd()
+        physx.force_load_physics_from_usd()
         physx.start_simulation()
         physx.update_simulation(cls.get_physics_dt(), 0.0)
         physx_sim.fetch_results()

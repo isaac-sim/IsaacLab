@@ -27,15 +27,15 @@ import warp as wp
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.direct_rl_env import DirectRLEnv
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
+from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
-
-# from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
@@ -168,15 +168,10 @@ class DirectRLEnvWarp(DirectRLEnv):
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-        offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-        if has_gui or offscreen_render:
-            # self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-            self.viewport_camera_controller = None
+        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit
+        # (renderer camera); skip in kitless Newton-only runs where no Kit app is running.
+        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
+            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
 
@@ -570,13 +565,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-            # Rendering is possible if we have GUI or offscreen rendering enabled
-            can_render = has_gui or offscreen_render
-
-            if not can_render:
+            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
+            if not (self.sim.has_gui or self.sim.has_offscreen_render):
                 render_mode_name = "NO_GUI_OR_RENDERING"
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode is"

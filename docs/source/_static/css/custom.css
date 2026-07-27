@@ -118,6 +118,15 @@ a {
     width: min(100%, 480px);
 }
 
+/* Keep each showroom demo visually grouped with its options, commands, and image. */
+.showroom-demo-list > li {
+    margin-bottom: 4rem;
+}
+
+.showroom-demo-list > li:last-child {
+    margin-bottom: 0;
+}
+
 .nurec-gif-grid,
 .nurec-gif-grid td {
     border: none;

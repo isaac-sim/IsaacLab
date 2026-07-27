@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import os
@@ -38,6 +39,16 @@ from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _newton_scalar_base_name(name: str) -> str:
+    """Strip a trailing ``[N]`` component index from a scalar name to get the term base name."""
+    if name.endswith("]") and "[" in name:
+        bracket = name.rfind("[")
+        if name[bracket + 1 : -1].isdigit():
+            return name[:bracket]
+    return name
+
 
 _BACKEND_DISPLAY_NAMES = {
     "physx": "PhysX",
@@ -89,17 +100,44 @@ class NewtonViewerGL(ViewerGL):
         self._particle_color_buffer_value: tuple[float, float, float] | None = None
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
+        self._live_plots_callback = None
 
         from isaaclab.utils.backend_utils import FactoryBase
 
         backend = FactoryBase._get_backend()
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
 
+        with contextlib.suppress(AttributeError):
+            self._patch_scalar_plot_width()
+            self._patch_viewer_panel()
+
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
-            self.register_ui_callback(self._render_physics_panel, position="panel")
         except AttributeError:
             self._fallback_draw_controls = True
+
+    def _patch_scalar_plot_width(self) -> None:
+        """Set up ImPlot and suppress Newton's built-in floating Plots window.
+
+        Plots are rendered inline in the left panel by
+        :meth:`~NewtonVisualizer._live_plots_panel_imgui` instead.
+        """
+        gui = self.gui
+
+        # Initialise ImPlot context once.  Newton does not use ImPlot itself, so we create
+        # and own the context here.  set_imgui_context links it to the active imgui context.
+        try:
+            from imgui_bundle import implot as _implot
+
+            self._implot_ctx = _implot.create_context()
+            _implot.set_imgui_context(gui.ui.imgui.get_current_context())
+            self._implot = _implot
+        except Exception:
+            self._implot = None
+            self._implot_ctx = None
+
+        # Replace Newton's floating plots window with a no-op; rendering is in the panel.
+        gui._render_scalar_plots = lambda: None
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
@@ -109,11 +147,172 @@ class NewtonViewerGL(ViewerGL):
         """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
 
-    def _render_training_controls(self, imgui):
-        """Render Isaac Lab-specific control widgets in the Newton viewer UI."""
-        imgui.separator()
-        imgui.text("IsaacLab Controls")
+    def _patch_viewer_panel(self) -> None:
+        """Replace Newton's left panel with an IsaacLab-oriented layout.
 
+        New section order:
+
+        1. **Isaac Lab** (open) — physics backend, model info, training controls.
+        2. **Live Plots** (closed) — injected when :meth:`~NewtonVisualizer.add_live_plots`
+           is called.
+        3. **Visualization Markers** (open) — Newton's debug overlays, renamed.
+        4. **Rendering Options** (open) — VSync and renderer-specific options.
+        5. **Wind** (closed) — only shown when ``viewer.wind`` is set.
+        6. **Controls** (closed) — camera keyboard reference.
+        7. **Selection API** (closed) — Newton's selection panel.
+
+        The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
+        handled by the IsaacLab training controls inside **Isaac Lab**.
+        """
+        import newton as nt
+
+        gui = self.gui
+
+        def _render_left_panel(_g=gui):
+            if not _g.is_available:
+                return
+
+            viewer = _g._viewer
+            imgui = _g.ui.imgui
+            io = _g.ui.io
+            s = _g.ui.dpi_scale
+            nav_highlight_color = _g.ui.get_theme_color(imgui.Col_.nav_cursor, (1.0, 1.0, 1.0, 1.0))
+
+            imgui.set_next_window_pos(imgui.ImVec2(10 * s, 10 * s), imgui.Cond_.first_use_ever)
+            imgui.set_next_window_size(
+                imgui.ImVec2(363 * s, io.display_size[1] - 20 * s),
+                imgui.Cond_.first_use_ever,
+            )
+            panel_h = io.display_size[1] - 20 * s
+            imgui.set_next_window_size_constraints(
+                imgui.ImVec2(160 * s, panel_h),
+                imgui.ImVec2(io.display_size[0], panel_h),
+            )
+
+            if not imgui.begin(f"Newton Viewer v{nt.__version__}"):
+                imgui.end()
+                return
+
+            imgui.separator()
+
+            # Layers panel callback (ViewerGL built-in, only shown with >1 layer).
+            for callback in _g._ui_callbacks.get("panel", []):
+                callback(imgui)
+
+            # --- Isaac Lab --------------------------------------------------
+            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            if imgui.collapsing_header("Isaac Lab"):
+                imgui.separator()
+                imgui.text(f"Physics: {getattr(viewer, '_backend_display', 'Unknown')}")
+                if viewer.model is not None:
+                    axis_names = ["X", "Y", "Z"]
+                    imgui.text(f"Up Axis: {axis_names[viewer.model.up_axis]}")
+                    gravity = viewer.model.gravity.numpy()[0]
+                    imgui.text(f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})")
+                imgui.separator()
+                for callback in _g._ui_callbacks.get("side", []):
+                    callback(imgui)
+
+            # --- Live Plots -------------------------------------------------
+            live_plots_cb = getattr(viewer, "_live_plots_callback", None)
+            if live_plots_cb is not None:
+                live_plots_cb(imgui)
+
+            # --- Visualization Markers --------------------------------------
+            if viewer.model is not None:
+                imgui.set_next_item_open(False, imgui.Cond_.appearing)
+                if imgui.collapsing_header("Visualization Markers"):
+                    imgui.separator()
+                    renderer = getattr(viewer, "renderer", None)
+                    _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
+                    if viewer.show_joints and renderer is not None and hasattr(renderer, "joint_scale"):
+                        _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
+                    _c, viewer.show_contacts = imgui.checkbox("Show Contacts", viewer.show_contacts)
+                    if viewer.show_contacts and renderer is not None:
+                        if hasattr(renderer, "arrow_length_scale"):
+                            _, renderer.arrow_length_scale = imgui.slider_float(
+                                "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
+                            )
+                        if hasattr(renderer, "arrow_scale"):
+                            _, renderer.arrow_scale = imgui.slider_float(
+                                "Contact Width", renderer.arrow_scale, 0.25, 5.0
+                            )
+                    _c, viewer.show_particles = imgui.checkbox("Show Particles", viewer.show_particles)
+                    _c, viewer.show_springs = imgui.checkbox("Show Springs", viewer.show_springs)
+                    _c, viewer.show_com = imgui.checkbox("Show Center of Mass", viewer.show_com)
+                    if viewer.show_com and renderer is not None and hasattr(renderer, "com_scale"):
+                        _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
+                    _c, viewer.show_triangles = imgui.checkbox("Show Cloth", viewer.show_triangles)
+                    _c, viewer.show_collision = imgui.checkbox("Show Collision", viewer.show_collision)
+                    if renderer is not None and hasattr(renderer, "draw_edges"):
+                        _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
+                    sdf_margin_mode = getattr(viewer, "sdf_margin_mode", None)
+                    SDFMarginMode = getattr(type(viewer), "SDFMarginMode", None)
+                    if sdf_margin_mode is not None and SDFMarginMode is not None:
+                        _sdf_labels = ["Off", "Margin", "Margin + Gap"]
+                        _, new_sdf_idx = imgui.combo("Gap + Margin", int(sdf_margin_mode), _sdf_labels)
+                        viewer.sdf_margin_mode = SDFMarginMode(new_sdf_idx)
+                        if viewer.sdf_margin_mode != SDFMarginMode.OFF and renderer is not None:
+                            _, renderer.wireframe_line_width = imgui.slider_float(
+                                "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
+                            )
+                    _c, viewer.show_visual = imgui.checkbox("Show Visual", viewer.show_visual)
+                    _c, viewer.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", viewer.show_inertia_boxes)
+
+            # --- Rendering Options ------------------------------------------
+            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            if imgui.collapsing_header("Rendering Options"):
+                imgui.separator()
+                _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
+                for callback in _g._ui_callbacks.get("rendering", []):
+                    callback(imgui)
+
+            # --- Wind -------------------------------------------------------
+            wind = getattr(viewer, "wind", None)
+            if wind is not None:
+                imgui.set_next_item_open(False, imgui.Cond_.once)
+                if imgui.collapsing_header("Wind"):
+                    imgui.separator()
+                    changed, wind.amplitude = imgui.slider_float("Wind Amplitude", wind.amplitude, -2.0, 2.0, "%.2f")
+                    changed, wind.period = imgui.slider_float("Wind Period", wind.period, 1.0, 30.0, "%.2f")
+                    changed, wind.frequency = imgui.slider_float("Wind Frequency", wind.frequency, 0.1, 5.0, "%.2f")
+                    direction = [wind.direction[0], wind.direction[1], wind.direction[2]]
+                    changed, direction = imgui.slider_float3("Wind Direction", direction, -1.0, 1.0, "%.2f")
+                    if changed:
+                        wind.direction = direction
+
+            # --- Controls ---------------------------------------------------
+            imgui.set_next_item_open(False, imgui.Cond_.appearing)
+            if imgui.collapsing_header("Controls"):
+                imgui.separator()
+                _g._render_camera_info()
+                imgui.separator()
+                imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*nav_highlight_color))
+                imgui.text("Controls:")
+                imgui.pop_style_color()
+                imgui.text("WASD - Move camera")
+                imgui.text("QE - Pan up/down")
+                imgui.text("Left Click - Look around")
+                imgui.text("Right Click - Pick objects")
+                imgui.text("Middle Click - Orbit")
+                imgui.text("Shift + Middle Click - Pan")
+                imgui.text("Ctrl + Middle Click - Dolly")
+                imgui.text("Scroll - Dolly")
+                imgui.text("Ctrl + Scroll - FOV zoom")
+                imgui.text("Space - Pause/Resume")
+                imgui.text(". - Step one frame (when paused)")
+                imgui.text("H - Toggle UI")
+                imgui.text("F - Frame camera around model")
+
+            # --- Selection API ----------------------------------------------
+            _g._render_selection_panel()
+
+            imgui.end()
+
+        gui._render_left_panel = _render_left_panel
+
+    def _render_training_controls(self, imgui):
+        """Render Isaac Lab training control widgets inside the Isaac Lab panel section."""
         pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
@@ -136,13 +335,6 @@ class NewtonViewerGL(ViewerGL):
                 "Controls visualizer update frequency\nlower values -> more responsive visualizer but slower"
                 " training\nhigher values -> less responsive visualizer but faster training"
             )
-
-    def _render_physics_panel(self, imgui):
-        """Render Simulation collapsing section at the top of the Newton viewer panel."""
-        imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if imgui.collapsing_header("Simulation"):
-            imgui.separator()
-            imgui.text(f"Physics: {self._backend_display}")
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
@@ -370,6 +562,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
+        self._live_plots_manager_visible: dict[str, bool] = {}
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -402,6 +595,7 @@ class NewtonVisualizer(BaseVisualizer):
                 " headless via EGL and no window will open. Run from a session with a display (or set"
                 " DISPLAY, e.g. 'export DISPLAY=:0') to see the viewer."
             )
+        self._runtime_headless = runtime_headless
 
         # Use pyglet's EGL headless backend when requested or when no Linux X display is available.
         # This must run before the first ``pyglet.window`` import so ``Window`` resolves to
@@ -517,6 +711,7 @@ class NewtonVisualizer(BaseVisualizer):
                                 self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
                             )
                         self._log_camera_sensor_image()
+                        self._render_live_plots()
                 finally:
                     self._viewer.end_frame()
             else:
@@ -786,8 +981,132 @@ class NewtonVisualizer(BaseVisualizer):
         return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
-        """Newton OpenGL viewer does not provide live-plot panels."""
-        return False
+        """Newton OpenGL viewer supports live plots via :meth:`newton.Viewer.log_scalar`."""
+        return True
+
+    def add_live_plots(
+        self,
+        managers: dict,
+        scalars: dict | None = None,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting and add per-manager sidebar toggles.
+
+        Calls the base implementation to populate :attr:`_live_plot_sources`, then registers
+        one checkbox per manager in the Newton viewer sidebar under a ``Live Plots`` heading.
+        Each manager's plots are shown by default and can be hidden by unchecking the
+        corresponding box.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
+                Each callable must take no arguments and return a numeric value.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
+        if not self._live_plot_sources or self._viewer is None:
+            return
+        self._live_plots_manager_visible = {source.manager_name: True for source in self._live_plot_sources}
+        self._viewer._live_plots_callback = self._live_plots_panel_imgui
+
+    def _live_plots_panel_imgui(self, imgui) -> None:
+        """Render a Live Plots collapsing section at the bottom of the Newton panel.
+
+        The top-level section header starts open; individual per-term plot headers start
+        closed and can be expanded on demand.
+        """
+        if not self._live_plot_sources or self._viewer is None:
+            return
+        viewer = self._viewer
+        scalar_buffers = getattr(viewer, "_scalar_buffers", None)
+        array_buffers = getattr(viewer, "_array_buffers", None)
+        if not scalar_buffers and not array_buffers:
+            return
+
+        _ip = getattr(viewer, "_implot", None)
+        if not hasattr(viewer, "_scalar_arrays"):
+            viewer._scalar_arrays = {}
+        scalar_arrays = viewer._scalar_arrays
+        n = getattr(viewer, "_plot_history_size", 250)
+        s = viewer.gui.ui.dpi_scale
+        plot_h = 180 * s
+
+        # Group scalar names by base term name (strip trailing [N] index).
+        groups: dict[str, list[str]] = {}
+        for name in scalar_buffers or {}:
+            base = _newton_scalar_base_name(name)
+            groups.setdefault(base, []).append(name)
+
+        # Promote episode metrics (mean_reward, episode_length) to the top.
+        episode_keys = [k for k in groups if k.startswith("episode/")]
+        other_keys = [k for k in groups if not k.startswith("episode/")]
+        groups = {k: groups[k] for k in episode_keys + other_keys}
+
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        if not imgui.collapsing_header("Live Plots"):
+            return
+        imgui.separator()
+
+        for base_name, names in groups.items():
+            term_label = base_name.rsplit("/", 1)[-1]
+            if not imgui.collapsing_header(term_label):
+                continue
+            for name in names:
+                buf = scalar_buffers.get(name, [])
+                arr = scalar_arrays.get(name)
+                if arr is None:
+                    arr = np.full(n, np.nan, dtype=np.float32)
+                    arr[n - len(buf) :] = np.array(buf, dtype=np.float32)
+                    scalar_arrays[name] = arr
+            if _ip is not None and _ip.begin_plot(f"##{base_name}", imgui.ImVec2(-1, plot_h)):
+                _auto = _ip.AxisFlags_.auto_fit.value
+                _ip.setup_axes("", "", _auto, _auto)
+                _ip.setup_finish()
+                for name in names:
+                    arr = scalar_arrays.get(name)
+                    if arr is not None:
+                        suffix = name[len(base_name) :]
+                        label = suffix if suffix else term_label
+                        _ip.plot_line(label, arr)
+                _ip.end_plot()
+            else:
+                # Fallback: stacked imgui.plot_lines if ImPlot unavailable.
+                graph_size = imgui.ImVec2(-1, 80 * s)
+                for name in names:
+                    arr = scalar_arrays.get(name)
+                    if arr is not None:
+                        buf = scalar_buffers.get(name, [])
+                        overlay = f"{buf[-1]:.4g}" if buf else ""
+                        imgui.plot_lines(f"##{name}", arr, graph_size=graph_size, overlay_text=overlay)
+
+        render_heatmap = getattr(viewer, "_render_array_heatmap", None)
+        if render_heatmap is not None:
+            panel_width = imgui.get_content_region_avail().x
+            for name, array in (array_buffers or {}).items():
+                if imgui.collapsing_header(name):
+                    render_heatmap(name, array, panel_width - 20.0 * s, dpi_scale=s)
+
+    def _render_live_plots(self) -> None:
+        """Push manager-term scalars to the Newton viewer's built-in plot panel."""
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        # In headless mode the panel is never visible — skip collection entirely.
+        if getattr(self, "_runtime_headless", False):
+            return
+        self._live_plots_step_counter += 1
+        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
+            return
+        for source in self._live_plot_sources:
+            if not self._live_plots_manager_visible.get(source.manager_name, True):
+                continue
+            for term_name, values in source.collect(self._live_plot_env_idx).items():
+                if len(values) == 1:
+                    self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
+                else:
+                    for i, v in enumerate(values):
+                        self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
     def is_training_paused(self) -> bool:
         """Return whether training is paused from viewer controls."""

@@ -93,6 +93,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg.func("/World/Origin1/Table", cfg, translation=(0.55, 0.0, 1.05))
     # -- Robot
     franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_arm_cfg.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
     franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
     franka_panda = franka_arm_cfg.class_type(franka_arm_cfg)
 

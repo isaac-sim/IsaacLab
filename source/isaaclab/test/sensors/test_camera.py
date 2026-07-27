@@ -515,7 +515,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
         "normals",
         "motion_vectors",
         "semantic_segmentation",
-        "instance_segmentation_fast",
+        "instance_segmentation",
         "instance_id_segmentation_fast",
     ]
     camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
@@ -545,7 +545,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     assert output["normals"].shape == hw_3c_shape
     assert output["motion_vectors"].shape == hw_2c_shape
     assert output["semantic_segmentation"].shape == hw_4c_shape
-    assert output["instance_segmentation_fast"].shape == hw_4c_shape
+    assert output["instance_segmentation"].shape == hw_4c_shape
     assert output["instance_id_segmentation_fast"].shape == hw_4c_shape
 
     # access image data and compare dtype
@@ -559,7 +559,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     assert output["normals"].dtype == wp.float32
     assert output["motion_vectors"].dtype == wp.float32
     assert output["semantic_segmentation"].dtype == wp.uint8
-    assert output["instance_segmentation_fast"].dtype == wp.uint8
+    assert output["instance_segmentation"].dtype == wp.uint8
     assert output["instance_id_segmentation_fast"].dtype == wp.uint8
 
 
@@ -577,7 +577,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
         "normals",
         "motion_vectors",
         "semantic_segmentation",
-        "instance_segmentation_fast",
+        "instance_segmentation",
         "instance_id_segmentation_fast",
     ]
     camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
@@ -606,7 +606,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     assert output["normals"].shape == hw_3c_shape
     assert output["motion_vectors"].shape == hw_2c_shape
     assert output["semantic_segmentation"].shape == hw_1c_shape
-    assert output["instance_segmentation_fast"].shape == hw_1c_shape
+    assert output["instance_segmentation"].shape == hw_1c_shape
     assert output["instance_id_segmentation_fast"].shape == hw_1c_shape
 
     # access image data and compare dtype
@@ -620,7 +620,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     assert output["normals"].dtype == wp.float32
     assert output["motion_vectors"].dtype == wp.float32
     assert output["semantic_segmentation"].dtype == wp.int32
-    assert output["instance_segmentation_fast"].dtype == wp.int32
+    assert output["instance_segmentation"].dtype == wp.int32
     assert output["instance_id_segmentation_fast"].dtype == wp.int32
 
 
@@ -638,7 +638,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
         "normals",
         "motion_vectors",
         "semantic_segmentation",
-        "instance_segmentation_fast",
+        "instance_segmentation",
         "instance_id_segmentation_fast",
     ]
     camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
@@ -670,7 +670,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     assert output["normals"].shape == hw_3c_shape
     assert output["motion_vectors"].shape == hw_2c_shape
     assert output["semantic_segmentation"].shape == hw_4c_shape
-    assert output["instance_segmentation_fast"].shape == hw_4c_shape
+    assert output["instance_segmentation"].shape == hw_4c_shape
     assert output["instance_id_segmentation_fast"].shape == hw_4c_shape
 
     # access image data and compare dtype
@@ -684,7 +684,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     assert output["normals"].dtype == wp.float32
     assert output["motion_vectors"].dtype == wp.float32
     assert output["semantic_segmentation"].dtype == wp.uint8
-    assert output["instance_segmentation_fast"].dtype == wp.uint8
+    assert output["instance_segmentation"].dtype == wp.uint8
     assert output["instance_id_segmentation_fast"].dtype == wp.uint8
 
 
@@ -897,7 +897,7 @@ def test_camera_all_annotators(setup_camera_device, device):
         "normals",
         "motion_vectors",
         "semantic_segmentation",
-        "instance_segmentation_fast",
+        "instance_segmentation",
         "instance_id_segmentation_fast",
     ]
 
@@ -925,7 +925,7 @@ def test_camera_all_annotators(setup_camera_device, device):
                 "rgba",
                 "albedo",
                 "semantic_segmentation",
-                "instance_segmentation_fast",
+                "instance_segmentation",
                 "instance_id_segmentation_fast",
             ]:
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 4)
@@ -951,10 +951,10 @@ def test_camera_all_annotators(setup_camera_device, device):
     assert output["normals"].dtype == wp.float32
     assert output["motion_vectors"].dtype == wp.float32
     assert output["semantic_segmentation"].dtype == wp.uint8
-    assert output["instance_segmentation_fast"].dtype == wp.uint8
+    assert output["instance_segmentation"].dtype == wp.uint8
     assert output["instance_id_segmentation_fast"].dtype == wp.uint8
     assert isinstance(info["semantic_segmentation"], dict)
-    assert isinstance(info["instance_segmentation_fast"], dict)
+    assert isinstance(info["instance_segmentation"], dict)
     assert isinstance(info["instance_id_segmentation_fast"], dict)
 
     del camera
@@ -969,7 +969,7 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
         sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation_fast", "instance_id_segmentation_fast"]
+    camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation", "instance_id_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_segmentation = False
@@ -1176,6 +1176,15 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
             Renderer._registry[backend] = original
         else:
             Renderer._registry.pop(backend, None)
+
+
+def test_camera_raises_on_instance_segmentation_fast(setup_sim_camera):
+    """Camera raises ValueError when the renamed data type 'instance_segmentation_fast' is used."""
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = ["instance_segmentation_fast"]
+    with pytest.raises(ValueError, match="instance_segmentation"):
+        Camera(camera_cfg)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

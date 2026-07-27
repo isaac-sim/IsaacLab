@@ -266,26 +266,3 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
         self.commands.base_velocity.rel_standing_envs = 0.1
         self.commands.base_velocity.resampling_time_range = (3.0, 8.0)
-
-
-@configclass
-class DigitRoughEnvCfg_PLAY(DigitRoughEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-
-        # Make a smaller scene for play.
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # Spawn the robot randomly in the grid (instead of their terrain levels).
-        self.scene.terrain.max_init_terrain_level = None
-        # Reduce the number of terrains to save memory.
-        if self.scene.terrain.terrain_generator is not None:
-            self.scene.terrain.terrain_generator.num_rows = 5
-            self.scene.terrain.terrain_generator.num_cols = 5
-            self.scene.terrain.terrain_generator.curriculum = False
-
-        # Disable randomization for play.
-        self.observations.policy.enable_corruption = False
-        # Remove random pushing.
-        self.events.base_external_force_torque = None
-        self.events.push_robot = None

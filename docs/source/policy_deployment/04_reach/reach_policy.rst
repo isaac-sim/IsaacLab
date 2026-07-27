@@ -636,7 +636,10 @@ Replace the log directory path with your actual training log location if differe
 Step 4: Evaluate the Trained Policy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once training completes, evaluate the policy in the play environment:
+Once training completes, evaluate the policy with the play command. The play command
+automatically applies the task's play-mode overrides (``play_mode``), which disable
+observation corruption for cleaner evaluation and cap the number of environments for
+better visualization:
 
 .. tab-set::
 
@@ -649,7 +652,7 @@ Once training completes, evaluate the policy in the play environment:
               .. code-block:: bash
 
                   uv run isaaclab play --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-UR10e-Play \
+                      --task IsaacContrib-Deploy-Reach-UR10e \
                       --num_envs 50 \
                       --visualizer kit
 
@@ -658,7 +661,7 @@ Once training completes, evaluate the policy in the play environment:
               .. code-block:: bash
 
                   ./isaaclab.sh play --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-UR10e-Play \
+                      --task IsaacContrib-Deploy-Reach-UR10e \
                       --num_envs 50 \
                       --visualizer kit
 
@@ -671,7 +674,7 @@ Once training completes, evaluate the policy in the play environment:
               .. code-block:: bash
 
                   uv run isaaclab play --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-Rizon4s-Play \
+                      --task IsaacContrib-Deploy-Reach-Rizon4s \
                       --num_envs 50 \
                       --visualizer kit
 
@@ -680,11 +683,9 @@ Once training completes, evaluate the policy in the play environment:
               .. code-block:: bash
 
                   ./isaaclab.sh play --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-Rizon4s-Play \
+                      --task IsaacContrib-Deploy-Reach-Rizon4s \
                       --num_envs 50 \
                       --visualizer kit
-
-The play environments disable observation corruption for cleaner evaluation and use fewer environments for better visualization.
 
 **Checkpoint Loading:**
 
@@ -702,12 +703,12 @@ To load a specific checkpoint, use these arguments:
 
           # Load from a specific run folder
           uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e-Play \
+              --task IsaacContrib-Deploy-Reach-UR10e \
               --load_run 2025-01-15_14-30-00
 
           # Load a specific checkpoint file
           uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e-Play \
+              --task IsaacContrib-Deploy-Reach-UR10e \
               --checkpoint /path/to/model_1500.pt
 
 
@@ -717,12 +718,12 @@ To load a specific checkpoint, use these arguments:
 
           # Load from a specific run folder
           ./isaaclab.sh play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e-Play \
+              --task IsaacContrib-Deploy-Reach-UR10e \
               --load_run 2025-01-15_14-30-00
 
           # Load a specific checkpoint file
           ./isaaclab.sh play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e-Play \
+              --task IsaacContrib-Deploy-Reach-UR10e \
               --checkpoint /path/to/model_1500.pt
 
 
