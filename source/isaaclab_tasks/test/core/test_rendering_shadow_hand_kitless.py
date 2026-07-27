@@ -17,7 +17,9 @@ from rendering_test_utils import (
     rendering_test_shadow_hand,
 )
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
+# no arm_ci marker: intermittently stalls the arm64 runner mid-file (renderer hang after a few
+# passing cases, killed at the per-file timeout); x86 kitless coverage remains in place
+pytestmark = [pytest.mark.isaacsim_ci]
 
 _COMPARISON_SCORES: list[dict] = []
 

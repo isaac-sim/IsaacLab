@@ -28,17 +28,35 @@ Quick Start
 
 Run benchmarks using the Isaac Lab launcher:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Run Articulation method benchmarks
-   ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
+   .. tab-item:: uv (Recommended)
 
-   # With custom parameters
-   ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
-       --num_iterations 1000 \
-       --num_instances 64 \
-       --num_bodies 5 \
-       --num_joints 4
+      .. code-block:: bash
+
+         # Run Articulation method benchmarks
+         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
+
+         # With custom parameters
+         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+             --num_iterations 1000 \
+             --num_instances 64 \
+             --num_bodies 5 \
+             --num_joints 4
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Run Articulation method benchmarks
+         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
+
+         # With custom parameters
+         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+             --num_iterations 1000 \
+             --num_instances 64 \
+             --num_bodies 5 \
+             --num_joints 4
 
 Available Benchmarks
 --------------------
@@ -347,18 +365,38 @@ Import Errors
 
 Ensure you're running through ``isaaclab.sh``:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py
 
 CUDA Out of Memory
 ~~~~~~~~~~~~~~~~~~
 
 Reduce ``--num_instances``:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --num_instances 1024
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --num_instances 1024
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --num_instances 1024
 
 Slow First Run
 ~~~~~~~~~~~~~~

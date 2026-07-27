@@ -13,7 +13,6 @@ serialised by :func:`~isaaclab.benchmark.serialize.write_bundle_file`.
 from __future__ import annotations
 
 import math
-import statistics
 from collections.abc import Sequence
 from datetime import datetime
 
@@ -119,16 +118,9 @@ def build_run_identity(
     )
 
 
-def _with_effective_mean(stats: MeanStd, samples: Sequence[float], effective_mean: float) -> MeanStd:
-    """Return throughput statistics centered on an effective aggregate mean."""
-    values = list(samples)
-    if not values:
-        return stats
-    return MeanStd(
-        mean=effective_mean,
-        std=statistics.stdev(values, xbar=effective_mean) if len(values) > 1 else 0.0,
-        peak=stats.peak,
-    )
+def _with_effective_mean(stats: MeanStd, effective_mean: float) -> MeanStd:
+    """Return statistics with an effective aggregate mean."""
+    return MeanStd(mean=effective_mean, std=stats.std, peak=stats.peak)
 
 
 def build_runtime(
@@ -155,8 +147,8 @@ def build_runtime(
         steps_per_iteration: Environment steps collected per iteration.
         aggregate_throughput: When ``True``, report throughput means as total
             completed steps divided by total wall time. Standard deviation
-            measures per-iteration dispersion around the effective mean, and
-            peak remains the maximum per-iteration throughput.
+            remains the ordinary sample deviation of the per-iteration rates,
+            and peak remains the maximum per-iteration throughput.
         frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
         environment_step_times_s: Positive per-environment-step wall times [s].
         simulation_step_times_s: Synchronized simulation wall times per environment step [s].
@@ -175,9 +167,14 @@ def build_runtime(
         total_wall_time_s = float(sum(iter_times))
         effective_iterations_per_s = len(iter_times) / total_wall_time_s
         effective_fps = steps_per_iteration * effective_iterations_per_s
-        collection_fps_agg = _with_effective_mean(collection_fps_agg, collection_fps, effective_fps)
-        total_fps_agg = _with_effective_mean(total_fps_agg, total_fps, effective_fps)
-        iterations_per_s_agg = _with_effective_mean(iterations_per_s_agg, iter_per_s, effective_iterations_per_s)
+        collection_fps_agg = _with_effective_mean(collection_fps_agg, effective_fps)
+        total_fps_agg = _with_effective_mean(total_fps_agg, effective_fps)
+        iterations_per_s_agg = _with_effective_mean(iterations_per_s_agg, effective_iterations_per_s)
+    if environment_step_times_s is not None and len(environment_step_times_s) == 0:
+        raise ValueError(
+            "No environment-step timing samples remained after warm-up. The workload may have stopped before "
+            "warm-up completed; reduce the warm-up count or ensure more environment steps execute."
+        )
     if environment_step_times_s is None and (simulation_step_times_s is not None or simulation_step_calls is not None):
         raise ValueError("environment_step_times_s is required with simulation timing")
     environment_step_timing = None
@@ -185,11 +182,6 @@ def build_runtime(
         if frames_per_environment_step is None or frames_per_environment_step <= 0:
             raise ValueError("frames_per_environment_step must be greater than zero")
         environment_samples = list(environment_step_times_s)
-        if not environment_samples:
-            raise ValueError(
-                "environment_step_times_s must contain only positive samples; no samples remained after warm-up, "
-                "so reduce warmup_steps or increase the workload"
-            )
         if any(value <= 0 for value in environment_samples):
             raise ValueError("environment_step_times_s must contain only positive samples")
         total_environment_time_s = sum(environment_samples)
@@ -198,7 +190,6 @@ def build_runtime(
         if total_environment_time_s > 0:
             environment_step_fps = _with_effective_mean(
                 environment_step_fps,
-                environment_fps_samples,
                 frames_per_environment_step * len(environment_samples) / total_environment_time_s,
             )
 

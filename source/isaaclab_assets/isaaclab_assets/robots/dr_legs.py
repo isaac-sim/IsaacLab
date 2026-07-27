@@ -101,6 +101,7 @@ DR_LEGS_IMPLICIT_PD_CFG = ArticulationCfg(
             stiffness=5.0,
             damping=0.2,
             effort_limit_sim=3.1,
+            velocity_limit_sim=100.0,
         ),
         # Linkage DOFs are undriven: explicit zeros so the solver ignores USD drive defaults.
         "passive_joints": ImplicitActuatorCfg(
@@ -110,6 +111,7 @@ DR_LEGS_IMPLICIT_PD_CFG = ArticulationCfg(
             armature=0.0,
             friction=0.0,
             effort_limit_sim=400.0,
+            velocity_limit_sim=100.0,
         ),
     },
 )

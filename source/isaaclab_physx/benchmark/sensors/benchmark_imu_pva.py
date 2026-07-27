@@ -6,9 +6,9 @@
 """Benchmark the PhysX IMU and PVA sensor update paths.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_imu_pva.py \
+    uv run python source/isaaclab_physx/benchmark/sensors/benchmark_imu_pva.py \
         --sensor imu --num_envs 4096
-    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_imu_pva.py \
+    uv run python source/isaaclab_physx/benchmark/sensors/benchmark_imu_pva.py \
         --sensor pva --num_envs 4096
 """
 

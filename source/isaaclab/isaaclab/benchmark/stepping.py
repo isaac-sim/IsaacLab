@@ -274,16 +274,16 @@ def run_runtime_loop(env, num_frames: int, *, reset: bool = True) -> list[float]
 
 
 def run_runtime_warmup(env, num_frames: int) -> list[float]:
-    """Run excluded warmup steps, including at least the first startup step.
+    """Run exactly ``num_frames`` excluded warmup steps.
 
     Args:
         env: A Gym-compatible environment.
         num_frames: Requested number of warmup environment steps.
 
     Returns:
-        Per-step wall times [s] for ``max(num_frames, 1)`` excluded steps.
+        Per-step wall times [s] for the requested excluded steps.
     """
-    return run_runtime_loop(env, max(num_frames, 1))
+    return run_runtime_loop(env, num_frames)
 
 
 def _extract_success(extras) -> float | None:

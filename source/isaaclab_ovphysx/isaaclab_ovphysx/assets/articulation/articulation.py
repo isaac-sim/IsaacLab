@@ -30,7 +30,6 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
-from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
 from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
@@ -86,7 +85,6 @@ class Articulation(BaseArticulation):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        queue_ovphysx_replication(cfg)
         # the binding manager is created in ``_initialize_impl``; it owns all
         # TensorBinding creation, caching, and the CPU/GPU device policy.
         self._root_view: OvPhysxView | None = None

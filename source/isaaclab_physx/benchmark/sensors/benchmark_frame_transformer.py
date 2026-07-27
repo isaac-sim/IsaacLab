@@ -10,7 +10,7 @@ target frames share the target body with distinct offsets, exercising the
 FrameTransformer kernel without adding unnecessary PhysX bodies.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_frame_transformer.py --num_envs 4096
+    uv run python source/isaaclab_physx/benchmark/sensors/benchmark_frame_transformer.py --num_envs 4096
 """
 
 from __future__ import annotations

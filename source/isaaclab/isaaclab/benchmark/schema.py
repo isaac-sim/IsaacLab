@@ -43,10 +43,9 @@ class MeanStd:
         mean: Central value of the aggregate. For most fields this is the
             arithmetic sample mean; for effective-throughput fields it is the
             aggregate rate (total completed work over total wall time).
-        std: Dispersion of the per-sample values. For most fields this is the
-            sample standard deviation about the sample mean; for
-            effective-throughput fields it is their deviation about the
-            effective (aggregate) mean.
+        std: Ordinary sample standard deviation of the per-sample values.
+            This remains centered on the sample mean even when ``mean`` is an
+            effective aggregate rate.
         peak: Maximum observed value, or ``None`` where a peak is not
             meaningful (e.g. GPU utilisation, whose ceiling is always 100%).
     """
@@ -56,8 +55,9 @@ class MeanStd:
     peak: float | None = None
 
     def __post_init__(self) -> None:
-        # peak is the max of the same samples the mean is taken over, so it is
-        # always >= mean; a small tolerance absorbs independent rounding.
+        # Peak is the maximum observed sample, so it remains greater than or
+        # equal to either the sample mean or an effective aggregate rate. A
+        # small tolerance absorbs independent rounding.
         if self.peak is not None and self.peak < self.mean - 1e-6:
             raise ValueError(f"peak ({self.peak}) must be >= mean ({self.mean})")
 

@@ -157,25 +157,8 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* &&
     ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
     rm get-pip.py
 
-# On arm64, temporarily install swig for the nlopt source build, keep it
-# through the Isaac Lab dependency install, then purge it before the layer ends.
-# This lets ./isaaclab.sh --install see nlopt as already satisfied without
-# leaving swig in the final container filesystem.
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-        apt-get update && \
-        apt-get install -y --no-install-recommends swig && \
-        ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install setuptools wheel numpy && \
-        ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation nlopt==2.6.2; \
-    fi && \
-    ${ISAACLAB_PATH}/isaaclab.sh --install && \
-    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-        ${ISAACLAB_PATH}/isaaclab.sh -p -c "import nlopt" && \
-        apt-get purge -y --auto-remove swig && \
-        apt-get clean && \
-        rm -rf /var/lib/apt/lists/* && \
-        if command -v swig >/dev/null 2>&1; then exit 1; fi; \
-    fi
+    ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Uninstall quadprog as it causes issues with some reinforcement learning frameworks
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog

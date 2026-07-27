@@ -8,16 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/arms.py
+    uv run python scripts/demos/arms.py
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/arms.py --visualizer newton
+    uv run python scripts/demos/arms.py --visualizer newton
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/arms.py --physics newton_mjwarp
+    uv run python scripts/demos/arms.py --physics newton_mjwarp
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/arms.py --visualizer newton --physics newton_mjwarp
+    uv run python scripts/demos/arms.py --visualizer newton --physics newton_mjwarp
 
 """
 
@@ -93,6 +93,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg.func("/World/Origin1/Table", cfg, translation=(0.55, 0.0, 1.05))
     # -- Robot
     franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_arm_cfg.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
     franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
     franka_panda = franka_arm_cfg.class_type(franka_arm_cfg)
 

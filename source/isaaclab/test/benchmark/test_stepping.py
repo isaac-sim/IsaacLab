@@ -82,13 +82,15 @@ def test_run_runtime_loop_can_skip_reset():
     assert not env.reset_called and env.steps == 2
 
 
-def test_run_runtime_warmup_keeps_startup_probe_when_zero_requested():
+@pytest.mark.parametrize("num_frames", [0, 1, 50])
+def test_run_runtime_warmup_runs_exact_requested_steps(num_frames: int):
     env = _Env()
 
-    times = run_runtime_warmup(env, num_frames=0)
+    times = run_runtime_warmup(env, num_frames=num_frames)
 
-    assert env.reset_called and env.steps == 1
-    assert len(times) == 1
+    assert env.reset_called
+    assert env.steps == num_frames
+    assert len(times) == num_frames
 
 
 def test_environment_step_timer_measures_env_step_without_simulation_timing():

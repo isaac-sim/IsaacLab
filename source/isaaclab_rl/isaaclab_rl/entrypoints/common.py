@@ -15,6 +15,7 @@ import os
 import re
 import runpy
 import sys
+import warnings
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -203,6 +204,37 @@ def dispatch_library_entrypoint(
     return 0
 
 
+def resolve_play_task_name(task: str | None) -> str | None:
+    """Redirect a retired ``-Play`` task id to its training task id.
+
+    Task ids with a ``-Play`` suffix (before an optional ``-v<N>`` version) were removed in
+    favor of play-mode overrides that play scripts apply to the training configuration (see
+    ``play_mode`` on the environment configuration). When ``task`` carries the suffix,
+    is not itself registered, and the corresponding training task id is registered, the
+    training task id is returned (preserving any namespace prefix) along with a deprecation
+    warning. Externally registered ``-Play`` tasks are returned unchanged.
+
+    Args:
+        task: Gym task id, possibly with a namespace prefix.
+
+    Returns:
+        The task id to use, or None if ``task`` is None.
+    """
+    if not task:
+        return task
+    namespace, _, name = task.rpartition(":")
+    train_name = re.sub(r"-Play(-v\d+)?$", r"\1", name)
+    if train_name == name or name in gym.registry or train_name not in gym.registry:
+        return task
+    warnings.warn(
+        f"Task '{name}' was removed. Playing '{train_name}' with play-mode overrides instead. "
+        "Pass --train_env_cfg to play the training configuration as-is.",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return f"{namespace}:{train_name}" if namespace else train_name
+
+
 def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -> str:
     """Resolve an explicit or published checkpoint for a play workflow.
 
@@ -234,6 +266,30 @@ def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -
     return path
 
 
+def add_frontend_args(parser: argparse.ArgumentParser) -> None:
+    """Add the environment-runtime selector argument.
+
+    The flag is always registered so the CLI surface does not depend on
+    optional packages; the warp runtime itself is imported only when selected
+    (see :func:`create_isaaclab_env`).
+
+    Args:
+        parser: The parser to add the argument to.
+    """
+    parser.add_argument(
+        "--frontend",
+        type=str,
+        choices=["torch", "warp"],
+        default="torch",
+        help=(
+            "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
+            " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
+            " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
+            " and `presets=newton_mjwarp`."
+        ),
+    )
+
+
 def add_common_train_args(
     parser: argparse.ArgumentParser,
     *,
@@ -260,6 +316,7 @@ def add_common_train_args(
     )
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+    add_frontend_args(parser)
     if include_agent:
         parser.add_argument("--agent", type=str, default=agent_default, help=agent_help)
     parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
@@ -410,7 +467,15 @@ def create_isaaclab_env(
     Returns:
         The created Gymnasium environment.
     """
-    env = gym.make(task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+    render_mode = "rgb_array" if args_cli.video else None
+    if args_cli.frontend == "torch":
+        env = gym.make(task, cfg=env_cfg, render_mode=render_mode)
+    else:
+        # Imported lazily: the warp frontend lives in the optional
+        # isaaclab_experimental package, and the torch path must work without it.
+        from isaaclab_experimental.envs.frontend import WarpFrontend
+
+        env = WarpFrontend.build_env(env_cfg, task, render_mode=render_mode)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
         from isaaclab.envs import multi_agent_to_single_agent
 

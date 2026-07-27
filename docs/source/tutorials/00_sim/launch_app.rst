@@ -68,37 +68,75 @@ Understanding the output of --help
 While executing the script, we can pass the ``--help`` argument and see the combined outputs of the
 custom arguments and the non-deprecated options from :class:`~app.AppLauncher`.
 
-.. code-block:: console
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --help
+   .. tab-item:: uv (Recommended)
 
-   [INFO] Using python from: /isaac-sim/python.sh
-   [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
-   [INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.
-   usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--livestream {0,1,2}]
-                        [--enable_cameras] [--visualizer VISUALIZER] [--verbose] [--experience EXPERIENCE]
+      .. code-block:: console
 
-   Tutorial on running IsaacSim via the AppLauncher.
+         uv run python scripts/tutorials/00_sim/launch_app.py --help
 
-   options:
-   -h, --help            show this help message and exit
-   --size SIZE           Side-length of cuboid
-   --width WIDTH         Width of the viewport and generated images. Defaults to 1280
-   --height HEIGHT       Height of the viewport and generated images. Defaults to 720
+         [INFO] Using python from: /isaac-sim/python.sh
+         [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
+         [INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.
+         usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--livestream {0,1,2}]
+                              [] [--visualizer VISUALIZER] [--verbose] [--experience EXPERIENCE]
 
-   app_launcher arguments:
-   --livestream {0,1,2}
-                         Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
-   --enable_cameras      Enable cameras when running without a GUI.
-   --visualizer VISUALIZER, --viz VISUALIZER
-                        Visualizer backends as CSV (e.g., kit,newton,rerun,viser) or none.
-   --verbose             Enable verbose terminal logging from the SimulationApp.
-   --experience EXPERIENCE
-                         The experience file to load when launching the SimulationApp.
+         Tutorial on running IsaacSim via the AppLauncher.
 
-                         * If an empty string is provided, the experience file is determined based on the launch mode.
-                         * If a relative path is provided, it is resolved relative to the `apps` folder in Isaac Sim and
-                           Isaac Lab (in that order).
+         options:
+         -h, --help            show this help message and exit
+         --size SIZE           Side-length of cuboid
+         --width WIDTH         Width of the viewport and generated images. Defaults to 1280
+         --height HEIGHT       Height of the viewport and generated images. Defaults to 720
+
+         app_launcher arguments:
+         --livestream {0,1,2}
+                               Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
+            Enable cameras when running without a GUI.
+         --visualizer VISUALIZER, --viz VISUALIZER
+                              Visualizer backends as CSV (e.g., kit,newton,rerun,viser) or none.
+         --verbose             Enable verbose terminal logging from the SimulationApp.
+         --experience EXPERIENCE
+                               The experience file to load when launching the SimulationApp.
+
+                               * If an empty string is provided, the experience file is determined based on the launch mode.
+                               * If a relative path is provided, it is resolved relative to the `apps` folder in Isaac Sim and
+                                 Isaac Lab (in that order).
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: console
+
+         ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --help
+
+         [INFO] Using python from: /isaac-sim/python.sh
+         [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
+         [INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.
+         usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--livestream {0,1,2}]
+                              [] [--visualizer VISUALIZER] [--verbose] [--experience EXPERIENCE]
+
+         Tutorial on running IsaacSim via the AppLauncher.
+
+         options:
+         -h, --help            show this help message and exit
+         --size SIZE           Side-length of cuboid
+         --width WIDTH         Width of the viewport and generated images. Defaults to 1280
+         --height HEIGHT       Height of the viewport and generated images. Defaults to 720
+
+         app_launcher arguments:
+         --livestream {0,1,2}
+                               Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
+            Enable cameras when running without a GUI.
+         --visualizer VISUALIZER, --viz VISUALIZER
+                              Visualizer backends as CSV (e.g., kit,newton,rerun,viser) or none.
+         --verbose             Enable verbose terminal logging from the SimulationApp.
+         --experience EXPERIENCE
+                               The experience file to load when launching the SimulationApp.
+
+                               * If an empty string is provided, the experience file is determined based on the launch mode.
+                               * If a relative path is provided, it is resolved relative to the `apps` folder in Isaac Sim and
+                                 Isaac Lab (in that order).
 
 This readout details the ``--size``, ``--height``, and ``--width`` arguments defined in the script directly,
 as well as the :class:`~app.AppLauncher` arguments.
@@ -123,11 +161,8 @@ configurations, and can be set in the user's ``${HOME}/.bashrc`` for persistent 
 In the case where these arguments are provided from the CLI, they will override their corresponding envar,
 as we will demonstrate later in this tutorial.
 
-These arguments can be used with any script that starts the simulation using :class:`~app.AppLauncher`,
-with one exception, ``--enable_cameras``. This setting sets the rendering pipeline to use the
-offscreen renderer. However, this setting is only compatible with the :class:`isaaclab.sim.SimulationContext`.
-It will not work with Isaac Sim's legacy ``SimulationContext`` from deprecated Isaac Sim core extensions.
-For more information on this flag, please see the :class:`~app.AppLauncher` API documentation.
+These arguments can be used with any script that starts the simulation using :class:`~app.AppLauncher`.
+Camera and offscreen rendering support is configured automatically.
 
 
 The Code Execution
@@ -135,9 +170,19 @@ The Code Execution
 
 We will now run the example script:
 
-.. code-block:: console
+.. tab-set::
 
-   LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: console
+
+         LIVESTREAM=2 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: console
+
+         LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
 to omitting ``--visualizer`` in this setup because headlessness is implied by our ``LIVESTREAM``
@@ -152,9 +197,19 @@ process can be killed by pressing ``Ctrl+C`` in the launching terminal.
 
 Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 
-.. code-block:: console
+.. tab-set::
 
-   LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: console
+
+         LIVESTREAM=0 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: console
+
+         LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
 This will cause the same behavior as in the previous run, because although we have set ``LIVESTREAM=0``
 in our envars, CLI args such as ``--livestream`` take precedence in determining behavior. The process can
@@ -163,9 +218,19 @@ be killed by pressing ``Ctrl+C`` in the launching terminal.
 Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.SimulationApp` through
 :class:`~app.AppLauncher`:
 
-.. code-block:: console
+.. tab-set::
 
-   LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: console
+
+         LIVESTREAM=2 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: console
+
+         LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
 This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we

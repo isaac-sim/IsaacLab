@@ -1255,7 +1255,7 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
 
 @pytest.mark.isaacsim_ci
 def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: attach_stage() must not be called for CPU in _warmup_and_create_views().
+    """Regression test: CPU warmup must force-load without explicitly attaching the stage.
 
     Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
     ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
@@ -1263,19 +1263,16 @@ def test_warmup_attach_stage_not_called_for_cpu():
     double-initialization that corrupts the CPU MBP broadphase, producing
     non-deterministic collision failures (objects passing through surfaces).
 
-    Fix: guard ``attach_stage()`` with ``if is_gpu:`` — it is only required by the
-    GPU pipeline, which needs explicit stage attachment before the physics load step.
-    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()``.
+    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()`` when
+    the ``omni.physics.physx`` bridge registers the backend.
 
-    This test verifies the guard is in place by monkeypatching ``attach_stage`` on
-    the PhysX simulation interface and asserting it is *not* called during CPU warmup.
-    The simulation test itself (1 cube falling onto a ground plane) is intentionally
-    omitted here because the MBP corruption is non-deterministic and depends on scene
-    complexity (multiple dynamic actors on a mesh collider), making it unreliable as a
-    unit test assertion.
+    This test verifies that the PhysX backend is registered with the unified physics
+    API, ``attach_stage`` is not called, and ``force_load_physics_from_usd`` is called
+    exactly once during CPU warmup.
     """
     from unittest.mock import MagicMock, patch
 
+    import omni.kit.app
     import omni.physx
 
     with build_simulation_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
@@ -1284,16 +1281,22 @@ def test_warmup_attach_stage_not_called_for_cpu():
 
         # PhysxManager no longer caches the simulation interface; it resolves it on each use
         # via ``omni.physx.get_physx_simulation_interface()`` (the accessor memoizes it).
-        # IPhysxSimulation is a C++ binding whose attributes are read-only, so we cannot
-        # assign to ``attach_stage`` directly.  Instead, patch the accessor to return a
-        # MagicMock that wraps the real interface so all other calls still work, and spy on
-        # ``attach_stage``.
-        spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
-        with patch("omni.physx.get_physx_simulation_interface", return_value=spy):
+        # The PhysX interfaces are C++ bindings whose attributes are read-only. Patch
+        # their accessors with wrapping mocks so the real calls still execute.
+        physx_spy = MagicMock(wraps=omni.physx.get_physx_interface())
+        physx_sim_spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
+        with (
+            patch("omni.physx.get_physx_interface", return_value=physx_spy),
+            patch("omni.physx.get_physx_simulation_interface", return_value=physx_sim_spy),
+        ):
             sim.reset()
 
-        assert spy.attach_stage.call_count == 0, (
-            f"attach_stage() was called {spy.attach_stage.call_count} time(s) during CPU warmup. "
-            f"This indicates the CPU MBP broadphase double-initialization regression is present: "
-            f"attach_stage() + force_load_physics_from_usd() must not be combined for CPU."
+        extension_manager = omni.kit.app.get_app().get_extension_manager()
+        assert extension_manager.is_extension_enabled("omni.physics.physx"), (
+            "The omni.physics.physx bridge must register PhysX with the unified physics API."
         )
+        assert physx_sim_spy.attach_stage.call_count == 0, (
+            f"attach_stage() was called {physx_sim_spy.attach_stage.call_count} time(s) during CPU warmup. "
+            "This indicates the CPU MBP broadphase double-initialization regression is present."
+        )
+        physx_spy.force_load_physics_from_usd.assert_called_once_with()

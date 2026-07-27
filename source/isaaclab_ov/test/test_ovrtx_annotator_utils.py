@@ -92,12 +92,12 @@ def test_decode_semantic_id_map_rejects_label_spilling_into_count_field():
 
 
 def test_build_semantic_id_to_labels_non_colorize_keys_by_id():
-    """Non-colorized idToLabels is keyed by decimal semantic ID and always includes the reserved entries."""
+    """Non-colorized idToLabels is keyed by integer semantic ID and always includes the reserved entries."""
     id_to_labels = build_semantic_id_to_labels({2: {"class": "cone"}}, colorize=False, device="cpu")
     assert id_to_labels == {
-        "0": {"class": "BACKGROUND"},
-        "1": {"class": "UNLABELLED"},
-        "2": {"class": "cone"},
+        0: {"class": "BACKGROUND"},
+        1: {"class": "UNLABELLED"},
+        2: {"class": "cone"},
     }
 
 
@@ -174,7 +174,7 @@ def test_decode_stable_id_semantic_id_map_handles_empty_buffer():
 
 
 def test_build_instance_id_to_labels_and_semantics_non_colorize_keys_by_id():
-    """Non-colorized instance maps are keyed by decimal pixel ID with the reserved BACKGROUND/UNLABELLED entries."""
+    """Non-colorized instance maps are keyed by integer pixel ID with the reserved BACKGROUND/UNLABELLED entries."""
     id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
         stable_id_semantic_id_map=[((1, 0, 0, 0), 2)],
         stable_id_to_path={(1, 0, 0, 0): "/World/Cone"},
@@ -182,11 +182,11 @@ def test_build_instance_id_to_labels_and_semantics_non_colorize_keys_by_id():
         colorize=False,
         device="cpu",
     )
-    assert id_to_labels == {"0": "BACKGROUND", "1": "UNLABELLED", "2": "/World/Cone"}
+    assert id_to_labels == {0: "BACKGROUND", 1: "UNLABELLED", 2: "/World/Cone"}
     assert id_to_semantics == {
-        "0": {"class": "BACKGROUND"},
-        "1": {"class": "UNLABELLED"},
-        "2": {"class": "cone"},
+        0: {"class": "BACKGROUND"},
+        1: {"class": "UNLABELLED"},
+        2: {"class": "cone"},
     }
 
 

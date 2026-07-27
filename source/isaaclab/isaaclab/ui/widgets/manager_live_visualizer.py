@@ -14,6 +14,7 @@ import numpy
 
 from isaaclab.managers import ManagerBase
 from isaaclab.sim import SimulationContext
+from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
 from isaaclab.utils.configclass import configclass
 
 from .image_plot import ImagePlot
@@ -71,6 +72,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         self._viewer_env_idx = 0
         self._vis_frame: omni.ui.Frame
         self._vis_window: omni.ui.Window
+        self._live_plots: ManagerLivePlots | None = None
 
         # evaluate chosen terms if no terms provided use all available.
         self.term_names = []
@@ -130,6 +132,14 @@ class ManagerLiveVisualizer(UiVisualizerBase):
     # Setters
     #
 
+    @property
+    def has_content(self) -> bool:
+        """Whether the manager has at least one active term to plot."""
+        terms = self._manager.active_terms
+        if isinstance(terms, dict):
+            return any(len(v) > 0 for v in terms.values())
+        return len(terms) > 0
+
     def set_debug_vis(self, debug_vis: bool):
         """Set the debug visualization external facing function.
 
@@ -168,14 +178,22 @@ class ManagerLiveVisualizer(UiVisualizerBase):
             # Visualizers have not been created yet.
             return
 
-        # get updated data and update visualization
-        for (_, term), vis in zip(
-            self._manager.get_active_iterable_terms(env_idx=self._env_idx), self._term_visualizers
-        ):
+        if self._live_plots is None:
+            return
+
+        # Collect scalar and image data through the shared ManagerLivePlots collector.
+        scalar_data = self._live_plots.collect(env_idx=self._env_idx)
+        image_data = self._live_plots.collect_images(env_idx=self._env_idx)
+        all_data = {**scalar_data, **image_data}
+
+        for vis, term_name in zip(self._term_visualizers, self._term_visualizer_names):
+            values = all_data.get(term_name)
+            if values is None:
+                continue
             if isinstance(vis, LiveLinePlot):
-                vis.add_datapoint(term)
+                vis.add_datapoint(values if not isinstance(values, numpy.ndarray) else values.flatten().tolist())
             elif isinstance(vis, ImagePlot):
-                vis.update_image(numpy.array(term))
+                vis.update_image(numpy.array(values))
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set the debug visualization implementation.
@@ -187,8 +205,17 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         if not hasattr(self, "_vis_frame"):
             raise RuntimeError("No frame set for debug visualization.")
 
+        # Build or rebuild the shared data collector, respecting any term filter.
+        allowed = self.term_names if self.term_names else None
+        self._live_plots = ManagerLivePlots(
+            manager_name=self.cfg.manager_name,
+            manager=self._manager,
+            term_names=allowed,
+        )
+
         # Clear internal visualizers
         self._term_visualizers = []
+        self._term_visualizer_names = []
         self._vis_frame.clear()
 
         if debug_vis:
@@ -227,10 +254,12 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                             if len_term_shape <= 2:
                                 plot = LiveLinePlot(y_data=[[elem] for elem in term], plot_height=150, show_legend=True)
                                 self._term_visualizers.append(plot)
+                                self._term_visualizer_names.append(name)
                             # create an image plot for 2d and greater data (i.e. mono and rgb images)
                             elif len_term_shape == 3:
                                 image = ImagePlot(image=numpy.array(term), label=name)
                                 self._term_visualizers.append(image)
+                                self._term_visualizer_names.append(name)
                             else:
                                 logger.warning(
                                     f"ManagerLiveVisualizer: Term ({name}) is not a supported data type for"
@@ -300,3 +329,94 @@ class EnvLiveVisualizer:
     def manager_visualizers(self) -> dict[str, ManagerLiveVisualizer]:
         """A dictionary of labeled ManagerLiveVisualizers associated manager name as key."""
         return self._manager_visualizers
+
+
+class DirectScalarLiveVisualizer(UiVisualizerBase):
+    """Visualizer for direct scalar groups (e.g. episode metrics) in the Kit omni.ui panel.
+
+    Wraps a :class:`~isaaclab.ui.live_plots.manager_live_plots.DirectScalarLivePlots` source
+    and implements the :class:`UiVisualizerBase` interface so that scalar groups can be
+    registered alongside manager-based visualizers in :attr:`kit_manager_visualizers`.
+    """
+
+    def __init__(self, source: DirectScalarLivePlots):
+        """Initialize the visualizer.
+
+        Args:
+            source: The scalar data source to read from on each frame update.
+        """
+        self._source = source
+        self._debug_vis_handle = None
+        self._term_visualizers: list[LiveLinePlot] = []
+        self._term_visualizer_names: list[str] = []
+
+    @property
+    def has_content(self) -> bool:
+        """Whether the scalar group has at least one metric to plot."""
+        return len(self._source._scalars) > 0
+
+    def set_debug_vis(self, debug_vis: bool):
+        """Toggle the live scalar plots on or off.
+
+        Args:
+            debug_vis: Whether to enable the visualization.
+        """
+        self._set_debug_vis_impl(debug_vis)
+
+    def _set_env_selection_impl(self, env_idx: int):
+        pass  # scalars are env-averaged; env selection has no effect
+
+    def _set_vis_frame_impl(self, frame):
+        self._vis_frame = frame
+
+    def _debug_vis_callback(self, event):
+        """Per-frame callback: collect scalars and push to line plots."""
+        if not SimulationContext.instance().is_playing():
+            return
+        data = self._source.collect(env_idx=0)
+        for vis, name in zip(self._term_visualizers, self._term_visualizer_names):
+            values = data.get(name)
+            if values is not None:
+                vis.add_datapoint(values)
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        """Build or tear down the omni.ui scalar plot widgets."""
+        if not hasattr(self, "_vis_frame"):
+            raise RuntimeError("No frame set for debug visualization.")
+
+        self._term_visualizers = []
+        self._term_visualizer_names = []
+        self._vis_frame.clear()
+
+        if debug_vis:
+            if not hasattr(self, "_debug_vis_handle") or self._debug_vis_handle is None:
+                import omni.kit.app
+
+                app_interface = omni.kit.app.get_app_interface()
+                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                )
+        else:
+            if self._debug_vis_handle is not None:
+                self._debug_vis_handle.unsubscribe()
+                self._debug_vis_handle = None
+            self._vis_frame.visible = False
+            return
+
+        self._vis_frame.visible = True
+
+        initial_data = self._source.collect(env_idx=0)
+        with self._vis_frame:
+            with omni.ui.VStack():
+                for name, values in initial_data.items():
+                    frame = omni.ui.CollapsableFrame(
+                        name,
+                        collapsed=True,
+                        style={"border_color": 0xFF8A8777, "padding": 4},
+                    )
+                    with frame:
+                        plot = LiveLinePlot(y_data=[[v] for v in values], plot_height=150, show_legend=True)
+                        self._term_visualizers.append(plot)
+                        self._term_visualizer_names.append(name)
+
+        self._debug_vis = debug_vis

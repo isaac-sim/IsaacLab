@@ -261,12 +261,25 @@ PhysX Micro-Benchmarks
 
 Measure asset method and property performance using mock interfaces:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Run articulation benchmarks
-   ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
-       --num_iterations 1000 \
-       --num_instances 4096
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         # Run articulation benchmarks
+         uv run python source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+             --num_iterations 1000 \
+             --num_instances 4096
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Run articulation benchmarks
+         ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+             --num_iterations 1000 \
+             --num_instances 4096
 
 For detailed documentation on micro-benchmarks, including available benchmark files,
 input modes, and how to add new benchmarks, see :ref:`testing_micro_benchmarks`.
@@ -400,13 +413,13 @@ Non-RL / Runtime Benchmark Arguments
      - Number of environment steps to measure
    * - ``--warmup_frames``
      - ``50``
-     - Number of additional environment steps to exclude after the always-excluded startup step
+     - Exact number of environment steps to exclude from timing; zero measures the first step
    * - ``--measure_sync_step``
      - ``false``
      - Collect the serialized synchronized diagnostic described above
    * - ``--enable_cameras``
      - ``false``
-     - Enable camera rendering (for RGB/depth tasks)
+     - Collect the serialized synchronized diagnostic described above
 
 RL Training Arguments
 ~~~~~~~~~~~~~~~~~~~~~
@@ -458,10 +471,10 @@ RL Play Arguments
      - Number of parallel environments
    * - ``--num_frames``
      - ``100``
-     - Number of inference steps to roll out
-   * - ``--warmup_steps``
+     - Number of measured inference steps
+   * - ``--warmup_frames``
      - ``1``
-     - Number of initial environment steps to exclude before recording timing
+     - Number of preceding environment steps to exclude from timing and throughput
    * - ``--checkpoint``
      - ``None`` (published Nucleus checkpoint)
      - Local path or Nucleus URI of the checkpoint to roll out
@@ -471,6 +484,16 @@ RL Play Arguments
    * - ``--measure_sync_step``
      - ``false``
      - Collect the serialized synchronized diagnostic described above
+
+Runtime and play execute ``warmup_frames + num_frames`` environment steps. Thus,
+the requested ``num_frames`` is always the exact number of measured steps. Play
+warmup frames are excluded only from timing and throughput; they still contribute
+to reward, episode-length, success-rate, and resource measurements.
+
+Runtime warmup frames are excluded from steady-state timing, throughput, and
+synchronized environment-step measurements. When warmup is nonzero, the first
+warmup frame ordinary wall-clock time is retained separately as the ``first_step`` startup diagnostic.
+With zero warmup, the first measured frame supplies that diagnostic.
 
 Measurement Types
 -----------------
@@ -581,9 +604,19 @@ JSON Formatter
 
 Full output with all phases, measurements, and metadata:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter json --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter json --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter json --output_path ./results
 
 Output structure:
 
@@ -611,9 +644,19 @@ Osmo Formatter
 
 Simplified key-value format for CI/CD integration:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter osmo --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter osmo --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter osmo --output_path ./results
 
 Output structure:
 
@@ -631,9 +674,19 @@ OmniPerf Formatter
 
 Format for database upload and performance tracking:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter omniperf --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter omniperf --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter omniperf --output_path ./results
 
 Output structure:
 
@@ -656,9 +709,19 @@ Writes a schema-v1 bundle attached with
 with a ``RuntimeBundle``, ``TrainingBundle``, or ``StartupBundle`` when a
 typed, stable output contract is required.
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter schema --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter schema --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter schema --output_path ./results
 
 Summary Formatter
 ~~~~~~~~~~~~~~~~~
@@ -670,9 +733,19 @@ any additional phases (e.g., from the startup profiling benchmark) are rendered
 automatically with their ``SingleMeasurement`` and ``StatisticalMeasurement``
 entries. Use when you want a quick readout without opening the JSON:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p ... --benchmark_formatter summary --output_path ./results
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python ... --benchmark_formatter summary --output_path ./results
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p ... --benchmark_formatter summary --output_path ./results
 
 When ``summary`` is selected, frametime recorders are enabled automatically when
 running with Isaac Sim (Kit).
@@ -842,9 +915,19 @@ Import Errors
 
 Ensure you're running through the Isaac Lab launcher:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p your_benchmark.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python your_benchmark.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p your_benchmark.py
 
 Not:
 

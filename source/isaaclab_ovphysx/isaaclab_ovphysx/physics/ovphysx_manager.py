@@ -217,7 +217,7 @@ class OvPhysxManager(PhysicsManager):
     # if a later :class:`~isaaclab.sim.SimulationContext` requests a different device.
     _locked_device: ClassVar[str | None] = None
     # Pending (source, targets, parent_positions) triples queued by
-    # queue_ovphysx_replication() before the PhysX instance exists.  Replayed via
+    # replication is queued before the PhysX instance exists.  Replayed via
     # physx.clone() in _warmup_and_load().
     # parent_positions is a list of (x, y, z) tuples — one per target.
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []

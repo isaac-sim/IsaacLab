@@ -19,9 +19,20 @@ Note that enabling recording is equivalent to enabling rendering during training
 
 Example usage:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
 
 
 The recorded videos will be saved in the same directory as the training checkpoints, under

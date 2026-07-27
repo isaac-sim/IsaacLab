@@ -20,7 +20,7 @@ Use this skill whenever a registered environment is added or renamed, or when it
 3. Run the registry-backed updater:
 
    ```bash
-   ./isaaclab.sh -p tools/update_environments_rst.py
+   uv run python tools/update_environments_rst.py
    ```
 
    This rewrites the comprehensive table from the Gym registry and groups names under ``physics=``, ``renderer=``, and ``presets=``.
@@ -33,13 +33,13 @@ Use this skill whenever a registered environment is added or renamed, or when it
 Run:
 
 ```bash
-./isaaclab.sh -p tools/update_environments_rst.py --check
-./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
-./isaaclab.sh -d
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/update_environments_rst.py --check
+uv run python scripts/environments/list_envs.py --show_presets
+uv run isaaclab -d
+uv run --no-project python tools/skills/cli.py check
 ```
 
-Require ``./isaaclab.sh -d`` to exit successfully with no warnings or errors. Inspect the compiled
+Require ``uv run isaaclab -d`` to exit successfully with no warnings or errors. Inspect the compiled
 environment catalog page in the documentation build output and verify that every new image and
 substitution target renders correctly.
 
