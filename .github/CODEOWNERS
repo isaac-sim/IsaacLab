@@ -39,7 +39,7 @@
 /source/isaaclab_mimic/ @kellyguo11 @peterd-NV
 
 /source/isaaclab_newton/ @AntoineRichard @StafaH @hujc @kellyguo11
-source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
+/source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 
 /source/isaaclab_ov/ @huidongc @rilei-nvidia @pbarejko @kellyguo11
 
