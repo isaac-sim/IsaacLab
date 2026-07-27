@@ -11,42 +11,9 @@ app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 import pytest  # noqa: E402
-from rendering_test_utils import (  # noqa: E402
-    _apply_overrides_to_env_cfg,
-    _physics_preset_name,
-    validate_camera_outputs,
-)
-
-from isaaclab.utils.configclass import configclass  # noqa: E402
-
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import ShadowHandCameraEnv  # noqa: E402
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (  # noqa: E402
-    ShadowHandCameraEnvCfg,
-    ShadowHandTiledCameraCfg,
-    _ShadowHandBaseTiledCameraCfg,
-)
+from rendering_test_utils import rendering_test_shadow_hand_yellow_bg  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
-
-_YELLOW = (1.0, 1.0, 0.0)
-_TEST_NAME = "shadow_hand_yellow_bg"
-
-
-@configclass
-class _YellowBgCameraCfg(_ShadowHandBaseTiledCameraCfg):
-    data_types: list[str] = ["rgb"]
-    background_color: tuple[float, float, float] | None = _YELLOW
-
-
-@configclass
-class _YellowBgTiledCameraCfg(ShadowHandTiledCameraCfg):
-    default: _YellowBgCameraCfg = _YellowBgCameraCfg()
-    rgb: _YellowBgCameraCfg = _YellowBgCameraCfg()
-
-
-@configclass
-class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
-    tiled_camera: _YellowBgTiledCameraCfg = _YellowBgTiledCameraCfg()
 
 
 @pytest.mark.parametrize(
@@ -59,22 +26,4 @@ class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
 )
 def test_rgb_yellow_background(physics_backend, renderer):
     """Golden render test: RGB output with yellow background."""
-    env_cfg = _YellowBgEnvCfg()
-    env_cfg.feature_extractor.enabled = False
-    env_cfg.scene.num_envs = 4
-    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},rgb"])
-
-    env = None
-    try:
-        env = ShadowHandCameraEnv(env_cfg)
-        validate_camera_outputs(
-            _TEST_NAME,
-            physics_backend,
-            renderer,
-            env._tiled_camera.data.output,
-            max_different_pixels_percentage=5.0,
-            comparison_scores=[],
-        )
-    finally:
-        if env is not None:
-            env.close()
+    rendering_test_shadow_hand_yellow_bg(physics_backend, renderer, comparison_scores=[])

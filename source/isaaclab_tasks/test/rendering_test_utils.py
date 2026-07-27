@@ -1243,6 +1243,62 @@ def rendering_test_shadow_hand(
             env = None
 
 
+def rendering_test_shadow_hand_yellow_bg(
+    physics_backend: str,
+    renderer: str,
+    comparison_scores: list[dict],
+) -> None:
+    """Golden render test for the Shadow Hand environment with a yellow camera background (RGB only)."""
+    from isaaclab.utils.configclass import configclass
+
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import ShadowHandCameraEnv
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (
+        ShadowHandCameraEnvCfg,
+        ShadowHandTiledCameraCfg,
+        _ShadowHandBaseTiledCameraCfg,
+    )
+
+    _YELLOW = (1.0, 1.0, 0.0)
+
+    @configclass
+    class _YellowBgCameraCfg(_ShadowHandBaseTiledCameraCfg):
+        data_types: list[str] = ["rgb"]
+        background_color: tuple[float, float, float] | None = _YELLOW
+
+    @configclass
+    class _YellowBgTiledCameraCfg(ShadowHandTiledCameraCfg):
+        default: _YellowBgCameraCfg = _YellowBgCameraCfg()
+        rgb: _YellowBgCameraCfg = _YellowBgCameraCfg()
+
+    @configclass
+    class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
+        tiled_camera: _YellowBgTiledCameraCfg = _YellowBgTiledCameraCfg()
+
+    env_cfg = _YellowBgEnvCfg()
+    env_cfg.feature_extractor.enabled = False
+    env_cfg.scene.num_envs = 4
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},rgb"])
+
+    if renderer == "ovrtx":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    env = None
+    try:
+        env = ShadowHandCameraEnv(env_cfg)
+        validate_camera_outputs(
+            "shadow_hand_yellow_bg",
+            physics_backend,
+            renderer,
+            env._tiled_camera.data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["shadow_hand"],
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+            env = None
+
+
 def rendering_test_cartpole(
     physics_backend: str,
     renderer: str,
