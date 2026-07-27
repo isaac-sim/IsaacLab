@@ -108,9 +108,8 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
     else:  # up_axis == "x"
         pos = torch.stack([z0, x, y], dim=1)
 
-    # identity orientations (x,y,z,w)
-    ori = torch.zeros((N, 4), device=device)
-    ori[:, 3] = 1.0  # w=1 for identity quaternion
+    # identity orientations (x,y,z,w): w=1 is index 3
+    ori = torch.nn.functional.one_hot(torch.full((N,), 3, device=device), num_classes=4).float()
     return pos, ori
 
 
