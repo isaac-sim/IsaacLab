@@ -3156,8 +3156,6 @@ mimic = [
 ]
 ov = [
     { name = "ovphysx" },
-]
-ovstage = [
     { name = "ovstage" },
 ]
 rerun = [
@@ -3189,6 +3187,7 @@ rsl-rl = [
 ]
 rtx = [
     { name = "ovrtx" },
+    { name = "ovstage" },
 ]
 sb3 = [
     { name = "rich" },
@@ -3270,7 +3269,8 @@ requires-dist = [
     { name = "onnxscript", marker = "extra == 'rsl-rl'", specifier = ">=0.5" },
     { name = "ovphysx", marker = "extra == 'ov'", specifier = ">=0.4.13" },
     { name = "ovrtx", marker = "extra == 'rtx'", specifier = ">=0.4.0,<0.5.0" },
-    { name = "ovstage", marker = "extra == 'ovstage'", specifier = ">=0.1.0,<0.2.0" },
+    { name = "ovstage", marker = "extra == 'ov'", specifier = ">=0.1.0,<0.2.0" },
+    { name = "ovstage", marker = "extra == 'rtx'", specifier = ">=0.1.0,<0.2.0" },
     { name = "packaging" },
     { name = "pandas", marker = "extra == 'rlinf'" },
     { name = "peft", marker = "extra == 'rlinf'", specifier = ">=0.17.0" },
@@ -3328,7 +3328,7 @@ requires-dist = [
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
     { name = "warp-lang", specifier = "==1.16.0.dev20260723" },
 ]
-provides-extras = ["test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "rtx", "ovstage", "mimic", "teleop", "rlinf", "all"]
+provides-extras = ["test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "rtx", "mimic", "teleop", "rlinf", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -3390,10 +3390,14 @@ version = "7.0.0"
 source = { editable = "source/isaaclab_ovphysx" }
 dependencies = [
     { name = "isaaclab" },
+    { name = "ovstage" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "ovstage", specifier = ">=0.1.0,<0.2.0" },
+]
 
 [[package]]
 name = "isaaclab-physx"
