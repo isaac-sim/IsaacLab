@@ -38,8 +38,8 @@ def _define_tendon_joint(stage: Usd.Stage, path: str, schema_name: str) -> None:
     joint.GetPrim().SetMetadata("apiSchemas", schemas)
 
 
-def _make_articulation_root_stage(tmp_path) -> str:
-    """Create a stage with one relevant articulation subtree and unrelated joints elsewhere."""
+def _make_articulation_root_stage_usda() -> str:
+    """Serialize one relevant articulation subtree and unrelated joints in memory."""
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World", "Xform")
     stage.DefinePrim("/World/envs", "Xform")
@@ -69,9 +69,7 @@ def _make_articulation_root_stage(tmp_path) -> str:
         "PhysxTendonAttachmentLeafAPI:inst0",
     )
 
-    stage_path = tmp_path / "scene.usda"
-    stage.Export(str(stage_path))
-    return str(stage_path)
+    return stage.Flatten().ExportToString()
 
 
 def _make_articulation_shell() -> Articulation:
@@ -105,16 +103,16 @@ def _make_articulation_shell() -> Articulation:
     return articulation
 
 
-def test_process_tendons_scopes_to_articulation_root(tmp_path):
+def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
-    stage_path = _make_articulation_root_stage(tmp_path)
-    old_stage_path = OvPhysxManager._stage_path
-    OvPhysxManager._stage_path = stage_path
+    stage_usda = _make_articulation_root_stage_usda()
+    old_stage_usda = OvPhysxManager._stage_usda
+    OvPhysxManager._stage_usda = stage_usda
     try:
         articulation._process_tendons()
     finally:
-        OvPhysxManager._stage_path = old_stage_path
+        OvPhysxManager._stage_usda = old_stage_usda
 
     assert articulation.fixed_tendon_names == ["fixed_joint"]
     assert articulation.spatial_tendon_names == ["spatial_joint"]

@@ -327,16 +327,27 @@ def _set_prims_active_on_layer(layer: Sdf.Layer, prim_paths: list[Sdf.Path], act
     logger.info("%s %d prims in total", action_str, len(prim_paths))
 
 
-def export_stage_to_string(stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...]) -> str:
+def export_stage_to_string(
+    stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool = True
+) -> str:
     """Export the USD stage as a USDA string for OVRTX loading.
 
-    When ``num_envs`` is 1, the full stage is exported unchanged. Otherwise the stage is trimmed so OVRTX receives only
-    the prototype geometry it will replicate with ``clone_usd``.
+    When ``num_envs`` is 1, the full stage is exported unchanged. Otherwise the stage is trimmed so OVRTX receives
+    only the prototype geometry it replicates at clone time. Non-source env descendants are temporarily deactivated
+    on the root layer during export and restored afterwards; ``stage.ExportToString`` re-composes the stage, so
+    deactivated prims drop out of the exported text and their paths are absent when the clone path repopulates them.
+
+    When ``keep_env_roots`` is True (the legacy ``renderer.clone_usd`` path) the non-source env root prims stay
+    active so the exported stage retains a slot for every env. The ovstage ``stage.clone`` path passes False, which
+    additionally trims the non-source env roots themselves; ``stage.clone`` recreates them and the RenderProduct's
+    camera relationship is re-authored after clone.
 
     Args:
         stage: USD stage to export.
         num_envs: Number of parallel environments on the stage.
         source_paths: The paths to source prims to keep in the exported stage.
+        keep_env_roots: Whether to keep the non-source env root prims active in the exported stage. Pass False for
+            the ovstage clone path, which repopulates env roots itself.
 
     Returns:
         USDA text of the (possibly trimmed) stage.
@@ -352,12 +363,15 @@ def export_stage_to_string(stage: Usd.Stage, num_envs: int, source_paths: tuple[
     source_path_set = frozenset(map(Sdf.Path, source_paths))
     prim_paths: list[Sdf.Path] = []
 
-    for child in envs_prim.GetChildren():
-        # All env roots will be kept in the stage. If an env root is a source, keep the full subtree and don't walk down
-        # the subtree, otherwise walk down the subtree to collect descendant prims that are not sources to deactivate.
-        child_path = child.GetPath()
-        if child_path not in source_path_set:
-            prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
+    if keep_env_roots:
+        for child in envs_prim.GetChildren():
+            # Legacy code path: keep env roots so we can query their xforms after opening stage
+            child_path = child.GetPath()
+            if child_path not in source_path_set:
+                prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
+    else:
+        # Ovstage code path: strip env roots, their xforms are queried beforehand.
+        prim_paths = _collect_prims_to_deactivate(envs_prim, source_path_set)
 
     root_layer = stage.GetRootLayer()
 

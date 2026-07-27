@@ -19,6 +19,7 @@ requires-python = ">=3.12"
 # Only interpackage dependencies should go here.
 dependencies = [
     "isaaclab",
+    "ovstage>=0.1.0,<0.2.0",
 ]
 
 [tool.uv.sources]
