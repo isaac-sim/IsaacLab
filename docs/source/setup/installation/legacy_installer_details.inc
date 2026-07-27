@@ -98,7 +98,7 @@ The URDF and MJCF converter scripts can run without Isaac Sim when the standalon
 .. code-block:: bash
 
    uv pip install "isaacsim-asset-isolated>=6.0,<6.1" \
-     --find-links <package-index-or-wheel-directory>
+     --extra-index-url <package-index-url>
 
 After installing the wheel, run conversion in the kitless environment. Optionally pass
 ``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a kitless
