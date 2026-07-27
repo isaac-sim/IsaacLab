@@ -176,22 +176,22 @@ strings itself. Three operations cover it:
 
     import isaaclab.cloner as cloner
 
-    # push: where does this prototype land in env 2?
+    # where does this prototype land in env 2?
     cloner.query.path_to_clone(plan, "/World/envs/env_0/Obstacle_1", env_id=2)
     # -> "/World/envs/env_2/Obstacle"
 
-    # fiber: which envs does this prototype reach at all?
+    # which envs does this prototype reach at all?
     cloner.query.path_env_ids(plan, "/World/envs/env_0/Obstacle_1")
     # -> (2, 3)
 
-    # pull: which prototype is env 2's obstacle cloned from?
+    # which prototype is env 2's obstacle cloned from?
     cloner.query.path_to_source(plan, "/World/envs/env_2/Obstacle")
     # -> ResolvedSource("/World/envs/env_0/Obstacle_1", "/World/envs/env_*/Obstacle", "")
 
-Note what the pull had to do there. Two obstacle variants share one destination
+Note what that last call had to do. Two obstacle variants share one destination
 template, so naming the template is not enough to identify a prototype — the
 environment is. A concrete path like ``env_2/Obstacle`` carries that environment in
-the template's clone slot, so the pull reads it back out and lands on the variant
+the template's clone slot, so the query reads it back out and lands on the variant
 env 2 was really cloned from. A wildcard expression like ``env_.*/Obstacle`` names no
 environment and stands for all of them at once; it resolves to one representative
 variant, or to a specific one if you pass ``env_id``. When you need every variant

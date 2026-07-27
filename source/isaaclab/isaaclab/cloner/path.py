@@ -26,14 +26,14 @@ The operations satisfy, for every ``path``, ``root``, ``dst_root`` and ``templat
 
 * **P1 (membership)** ``under(path, root)`` holds exactly when ``relative_to(path, root)``
   is not ``None``.
-* **P2 (factorization)** when ``under(path, root)``,
+* **P2 (rebase swaps only the root)** when ``under(path, root)``,
   ``rebase(path, root, dst_root) == dst_root.rstrip("/") + relative_to(path, root)``; in
   particular ``rebase(path, root, root) == path``.
-* **P3 (totality)** every operation accepts ``"/"`` as a root, and a trailing slash on a
-  root or template is insignificant.
-* **P4 (template split)** when ``match(path, template)`` returns ``(instance, suffix)``,
-  ``path == template.format(instance) + suffix``, and ``relativize(path, template)`` is
-  that ``suffix``.
+* **P3 (no special cases)** every operation accepts ``"/"`` as a root, and a trailing slash
+  on a root or template is insignificant.
+* **P4 (a match reassembles)** when ``match(path, template)`` returns
+  ``(instance, suffix)``, ``path == template.format(instance) + suffix``, and
+  ``relativize(path, template)`` is that ``suffix``.
 """
 
 from __future__ import annotations

@@ -93,8 +93,8 @@ def test_path_law_membership(path, root):
 
 @pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
 @pytest.mark.parametrize("dst_root", ["/World/other", "/World/other/", "/"])
-def test_path_law_factorization(path, root, dst_root):
-    """P2: rebase factors through relative_to, and rebasing onto the same root is identity."""
+def test_path_law_rebase_swaps_only_the_root(path, root, dst_root):
+    """P2: rebase is the destination root plus the tail, and rebasing onto the same root is a no-op."""
     tail = cloner.path.relative_to(path, root)
     rebased = cloner.path.rebase(path, root, dst_root)
     if tail is None:
@@ -105,7 +105,7 @@ def test_path_law_factorization(path, root, dst_root):
 
 
 @pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
-def test_path_law_totality_on_stage_root(path, root):
+def test_path_law_no_special_cases(path, root):
     """P3: "/" is the root of every absolute path, and a trailing slash is insignificant."""
     assert cloner.path.under(path, "/")
     assert cloner.path.relative_to(path, root) == cloner.path.relative_to(path, root.rstrip("/") or "/")
@@ -137,7 +137,7 @@ def test_path_match_captures_the_clone_slot():
     ],
 )
 def test_path_law_template_split(path_expr, template):
-    """P4: a match reassembles into the original path, and projects to relativize."""
+    """P4: a match reassembles into the original path, and its suffix is what relativize returns."""
     matched = cloner.path.match(path_expr, template)
     assert matched is not None
     assert template.format(matched.instance) + matched.suffix == path_expr
@@ -211,7 +211,7 @@ PLANS = {
 
 
 def test_path_env_ids():
-    """path_env_ids returns the env fiber of a source-space path."""
+    """path_env_ids returns the environments a source-space path reaches."""
     assert cloner.query.path_env_ids(_robot_plan(), "/World/envs/env_0/Robot/base") == (0, 1, 2, 3)
     partial = _robot_plan((True, True, False, True))
     assert cloner.query.path_env_ids(partial, "/World/envs/env_0/Robot/base") == (0, 1, 3)
@@ -219,7 +219,7 @@ def test_path_env_ids():
 
 
 def test_path_to_clone():
-    """path_to_clone pushes a source path to one env, or None when unowned / not mapped."""
+    """path_to_clone returns a source path's clone, or None when unowned / not mapped."""
     plan = _robot_plan((True, True, False, True))
     assert cloner.query.path_to_clone(plan, "/World/envs/env_0/Robot/base", 3) == "/World/envs/env_3/Robot/base"
     assert cloner.query.path_to_clone(plan, "/World/envs/env_0/Robot/base", 2) is None
@@ -235,7 +235,7 @@ def test_path_to_clone_heterogeneous_selects_env_owning_row():
 
 
 def test_path_to_clone_nested_prototype_uses_nearest_source():
-    """A path inside a nested prototype is pushed by the nested row, not its ancestor."""
+    """A path inside a nested prototype is cloned by the nested row, not its ancestor."""
     plan = PLANS["nested_prototype"]
     path = "/World/envs/env_0/Robot/wrist/Camera/lens"
     assert cloner.query.path_to_clone(plan, path, 1) == "/World/envs/env_1/Robot/wrist/Camera/lens"
@@ -416,18 +416,18 @@ def _probe_paths(plan: ClonePlan) -> list[str]:
 
 @pytest.mark.parametrize("plan_name", sorted(PLANS))
 def test_query_law_factorization_and_domain(plan_name):
-    """Q1/Q2: the push factors through the row's roots, and is defined exactly on the fiber."""
+    """Q1/Q2: a clone keeps everything below the prototype root, and exists only where the plan says."""
     plan = PLANS[plan_name]
     num_envs = plan.clone_mask.shape[1]
 
     for path in _probe_paths(plan):
-        fiber = cloner.query.path_env_ids(plan, path)
-        assert set(fiber) <= set(range(num_envs))
+        reached = cloner.query.path_env_ids(plan, path)
+        assert set(reached) <= set(range(num_envs))
 
         for env_id in range(num_envs):
             clone = cloner.query.path_to_clone(plan, path, env_id)
-            # Q2: defined exactly on the fiber.
-            assert (clone is not None) == (env_id in fiber)
+            # Q2: a clone exists exactly for the environments the plan reaches.
+            assert (clone is not None) == (env_id in reached)
             if clone is None:
                 continue
             # Q1: the clone is the row's destination with the source-relative tail appended.
@@ -440,9 +440,9 @@ def test_query_law_factorization_and_domain(plan_name):
 
 @pytest.mark.parametrize("plan_name", sorted(PLANS))
 def test_query_law_round_trip(plan_name):
-    """Q3: pulling a pushed path back returns the prototype it came from.
+    """Q3: resolving a clone path returns the prototype it was cloned from.
 
-    A pushed path is concrete, so no env id has to be supplied: the clone slot names it.
+    A clone path is concrete, so no env id has to be supplied: the clone slot names it.
     """
     plan = PLANS[plan_name]
 
@@ -458,7 +458,7 @@ def test_query_law_round_trip(plan_name):
             assert cloner.query.path_to_source(plan, clone, env_id=env_id) == resolved
 
 
-def test_query_pull_distinguishes_concrete_paths_from_wildcards():
+def test_query_resolve_distinguishes_concrete_paths_from_wildcards():
     """A concrete clone path names its env; a wildcard expression stands for all of them.
 
     The clone slot is what separates the two: ``env_2`` selects the variant that populates
@@ -482,8 +482,8 @@ def test_query_pull_distinguishes_concrete_paths_from_wildcards():
     assert resolved.source_path + resolved.asset_suffix == "/World/envs/env_2/Object/base"
 
 
-def test_query_pull_returns_named_fields():
-    """The pull result is self-documenting at the call site, and still unpacks as a tuple."""
+def test_query_resolve_returns_named_fields():
+    """The resolved source is self-documenting at the call site, and still unpacks as a tuple."""
     resolved = cloner.query.path_to_source(_robot_plan(), "/World/envs/env_.*/Robot/base")
 
     assert resolved.source_path == "/World/envs/env_0/Robot"
@@ -553,8 +553,8 @@ def test_query_agrees_across_duplicate_source_rows():
     """An inactive variant may share a fallback source path with an active one.
 
     ``make_clone_plan`` points an unused variant at ``destination.format(i)``, which can
-    collide with another row's source. The fiber and the push must still agree about which
-    envs that path reaches.
+    collide with another row's source. The two source-side queries must still agree about
+    which envs that path reaches.
     """
     plan = _plan(
         # Row 1 is inactive and fell back to the same source path as active row 0.
@@ -564,10 +564,10 @@ def test_query_agrees_across_duplicate_source_rows():
     )
     path = "/World/envs/env_0/Object/base"
 
-    fiber = cloner.query.path_env_ids(plan, path)
-    assert fiber == (0, 2)
+    reached = cloner.query.path_env_ids(plan, path)
+    assert reached == (0, 2)
     for env_id in range(plan.clone_mask.shape[1]):
-        assert (cloner.query.path_to_clone(plan, path, env_id) is not None) == (env_id in fiber)
+        assert (cloner.query.path_to_clone(plan, path, env_id) is not None) == (env_id in reached)
 
 
 ##
@@ -629,12 +629,12 @@ def test_cloner_imports_without_kit():
 
 
 @pytest.mark.parametrize("plan_name", sorted(PLANS))
-def test_query_fan_out_composition(plan_name):
-    """The fiber and the push compose into the fan-out documented on the module."""
+def test_query_every_clone_composition(plan_name):
+    """The two source-side queries compose into "every clone", as documented on the module."""
     plan = PLANS[plan_name]
 
     for path in _probe_paths(plan):
-        fiber = cloner.query.path_env_ids(plan, path)
-        clones = [cloner.query.path_to_clone(plan, path, env_id) for env_id in fiber]
+        reached = cloner.query.path_env_ids(plan, path)
+        clones = [cloner.query.path_to_clone(plan, path, env_id) for env_id in reached]
         assert all(clone is not None for clone in clones)
         assert len(set(clones)) == len(clones), "distinct envs must receive distinct clone paths"

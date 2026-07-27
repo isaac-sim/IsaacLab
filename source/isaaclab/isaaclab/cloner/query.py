@@ -18,14 +18,15 @@ Environment ids are not mask columns. A mask column ``j`` stands for the environ
 incidentally ``j`` for the contiguous plans the built-in constructors emit. Every query
 here takes and returns environment ids, translating through the plan's ``env_ids``.
 
-Three queries generate everything the cloner asks of a plan:
+Three queries generate everything the cloner asks of a plan, and none of them can be
+derived from the other two:
 
-* :func:`path_to_clone` — the *push*: a source path and one env id to that env's clone path.
-* :func:`path_env_ids` — the *fiber*: a source path to the envs it reaches.
-* :func:`path_to_source` — the *pull*: a clone-space expression back to its prototype.
+* :func:`path_to_clone` — a prototype path and one env id to that env's clone path.
+* :func:`path_env_ids` — a prototype path to the environments it reaches.
+* :func:`path_to_source` — a clone path or expression back to the prototype behind it.
 
-:func:`iter_sources` is the pull for callers that must see every variant behind one
-destination template, rather than a single representative.
+:func:`iter_sources` resolves the same direction as :func:`path_to_source`, for callers that
+must see every variant behind one destination template rather than a single one.
 
 Access these through the package::
 
@@ -37,26 +38,30 @@ Access these through the package::
 **Ownership.** A path belongs to the nearest row that contains it: on the source side the
 deepest source root, on the clone side the template leaving the shortest suffix below it.
 Both sides use that same nearest-owner rule. Rows tying at that depth are the variants of
-one asset, and the env picks between them: the push takes the variant populating the env it
-was asked for, and the pull takes the variant populating the env its path names, falling
-back to the first populated variant only when the path names no env at all.
+one asset, and the environment picks between them: :func:`path_to_clone` takes the variant
+populating the environment it was asked for, and :func:`path_to_source` takes the variant
+populating the environment its path names, falling back to the first populated variant only
+when the path names no environment at all.
 
-**Laws.** For a source path ``p`` owned by row ``r``, writing ``tail`` for
-``path.relative_to(p, S[r])``:
+**Guarantees.** These hold for every plan, and are checked over homogeneous, partially
+covered, multi-variant, nested and non-contiguous plans in
+``test/cloner/test_clone_plan_algebra.py``. For a source path ``p`` owned by row ``r``,
+writing ``tail`` for ``path.relative_to(p, S[r])``:
 
-* **Q1 (factorization)** for ``e`` in ``path_env_ids(plan, p)``,
+* **Q1 (the clone keeps the tail)** for ``e`` in ``path_env_ids(plan, p)``,
   ``path_to_clone(plan, p, e) == path.rebase(p, S[r], D[r].format(e))``, which is
-  ``D[r].format(e) + tail``.
-* **Q2 (domain)** ``path_to_clone(plan, p, e) is not None`` exactly when ``e`` is in
-  ``path_env_ids(plan, p)``.
+  ``D[r].format(e) + tail``. Only the prototype root is swapped; nothing below it moves.
+* **Q2 (defined exactly where the plan says)** ``path_to_clone(plan, p, e)`` resolves
+  exactly when ``e`` is in ``path_env_ids(plan, p)``.
 * **Q3 (round trip)** for ``e`` in ``path_env_ids(plan, p)``,
-  ``path_to_source(plan, path_to_clone(plan, p, e))`` yields ``(source, glob, suffix)`` with
-  ``source + suffix == p``. A pushed path is concrete, so the pull reads the env back out of
-  it; pass ``env_id`` explicitly to resolve a wildcard expression against one env.
+  ``path_to_source(plan, path_to_clone(plan, p, e))`` returns a
+  :class:`ResolvedSource` whose ``source_path + asset_suffix == p``. A clone path is
+  concrete, so :func:`path_to_source` reads the environment back out of it; pass ``env_id``
+  to resolve a wildcard expression against one environment instead.
 
-Compositions stay at the call site rather than becoming API. Fan-out over the whole fiber is
-``[path_to_clone(plan, p, e) for e in path_env_ids(plan, p)]``, and membership is
-``e in path_env_ids(plan, p)``.
+Anything built from these stays at the call site rather than becoming API. Every clone of a
+prototype is ``[path_to_clone(plan, p, e) for e in path_env_ids(plan, p)]``, and asking
+whether one environment has it is ``e in path_env_ids(plan, p)``.
 
 The module imports the path primitives aliased as ``pth`` because ``path`` is used here as a
 parameter name.
@@ -189,7 +194,7 @@ def _owning_template(plan: ClonePlan, path_expr: str) -> tuple[str, list[int], p
 
 
 def path_env_ids(plan: ClonePlan, path: str) -> tuple[int, ...]:
-    """Return the env fiber of a source-space ``path``: the envs it is replicated to.
+    """Return the environments a source-space ``path`` is replicated to.
 
     Args:
         plan: Active clone plan.
@@ -206,7 +211,7 @@ def path_env_ids(plan: ClonePlan, path: str) -> tuple[int, ...]:
 
 
 def path_to_clone(plan: ClonePlan, path: str, env_id: int) -> str | None:
-    """Push a source-space ``path`` forward to one environment's clone.
+    """Return the clone of a source-space ``path`` in one environment.
 
     Args:
         plan: Active clone plan.
@@ -228,13 +233,13 @@ def path_to_clone(plan: ClonePlan, path: str, env_id: int) -> str | None:
 
 
 def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -> ResolvedSource | None:
-    """Pull a clone-space expression back to the prototype it was cloned from.
+    """Resolve a clone-space expression to the prototype it was cloned from.
 
     Splits ``path_expr`` at the destination template that owns it, so the asset-relative
     suffix is returned for downstream walks.
 
     A *concrete* clone path names its environment in the template's clone slot, and that
-    environment selects the variant to report — which is what makes this invert
+    environment selects the variant to report — which is what lets this undo
     :func:`path_to_clone` for a heterogeneous asset. A *wildcard* expression
     (``.../env_.*/...``) names no environment and stands for all of them, so it resolves to
     the first populated variant unless ``env_id`` says which one to take.
