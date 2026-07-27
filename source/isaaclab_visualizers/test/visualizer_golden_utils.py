@@ -54,6 +54,11 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     "anymal_d-kit-viewport": 4.5,
     "shadow_hand-kit-tiled": 3.0,
     "shadow_hand-kit-viewport": 2.0,
+    # Newton GL is deterministic on the same GPU but shows ~1–2% cross-GPU variation
+    # (golden images captured on RTX PRO 4500, CI runner uses L40S).  SSIM ≥ 0.97
+    # separately guards against structural regressions (wrong pose → SSIM ~0.85).
+    "shadow_hand-newton-tiled": 2.0,
+    "shadow_hand-newton-viewport": 2.0,
     # 12 prior Newton tests leave RTX GI/specular state shifted; ~16% pixels exceed L2-norm-20.
     # SSIM (0.960) still catches structural regressions (wrong pose → SSIM 0.69).
     "franka_cloth-kit-tiled": 20.0,
@@ -70,6 +75,12 @@ _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     # 0.910 lets attempt 1 pass with a large gap above wrong-pose regressions (~0.69).
     "anymal_d-kit-tiled": 0.910,
     "anymal_d-kit-viewport": 0.960,
+    # Cross-GPU RTX variation; observed SSIM 0.981 on RTX PRO 4500 vs L40S goldens.
+    # Wrong-pose regressions (e.g. submerged robot) drop SSIM below 0.90.
+    "shadow_hand-kit-viewport": 0.975,
+    # Newton GL cross-GPU variation; observed SSIM 0.977–0.985 across GPU models.
+    "shadow_hand-newton-tiled": 0.970,
+    "shadow_hand-newton-viewport": 0.970,
     # Kit RTX TAA accumulates 14 prior test scenes; blurry contaminated blend → SSIM ~0.867.
     # Wrong-pose regressions drop SSIM below 0.80.
     "franka_cloth-kit-viewport": 0.850,
