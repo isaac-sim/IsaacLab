@@ -10,8 +10,9 @@ complex data sets. While this format is widely used in the film and animation
 industry, it is less common in the robotics community.
 
 To this end, NVIDIA has developed various importers that allow you to import
-assets from other file formats into USD. These importers are available as
-extensions to Omniverse Kit:
+assets from other file formats into USD. These importers are available through
+Omniverse Kit workflows, and the URDF/MJCF Python importers can also be used
+from a standalone pip wheel:
 
 * **URDF Importer** - Import assets from URDF files.
 * **MJCF Importer** - Import assets from MJCF files.
@@ -22,6 +23,11 @@ The recommended workflow from NVIDIA is to use the above importers to convert
 the asset into its USD representation. Once the asset is in USD format, you can
 use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes
 these importers by default. They can also be enabled manually in Omniverse Kit.
+
+Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
+Isaac Sim when the full runtime is installed. In kit-less environments, install
+the standalone importer wheel as described in :ref:`installation-standalone-importers`.
+The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
 
 An important note to use assets for large-scale simulation is to ensure that they
@@ -194,10 +200,11 @@ is derived automatically from the robot name in the URDF):
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
 
-The examples above pass ``--viz kit`` to open the GUI and inspect the converted asset.
-To run the script headless and exit after the conversion is complete, omit ``--viz kit``.
+The examples above pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
+requires a full Isaac Sim installation. Without Isaac Sim, pass ``--viz newton`` (or ``rerun`` /
+``viser``) for a kitless preview, or omit ``--viz`` to exit after the conversion completes.
 
-You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
+In Isaac Sim, you can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
 
 
 .. figure:: ../_static/tutorials/tutorial_convert_urdf.jpg
@@ -340,6 +347,10 @@ Executing the above script will create the USD file inside the
    :attr:`~sim.converters.MjcfConverter.usd_path` reflects whichever folder the importer
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
+
+The examples above pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
+requires a full Isaac Sim installation. Without Isaac Sim, pass ``--viz newton`` (or ``rerun`` /
+``viser``) for a kitless preview, or omit ``--viz`` to exit after the conversion completes.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center
