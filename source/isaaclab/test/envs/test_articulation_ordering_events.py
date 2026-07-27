@@ -101,6 +101,7 @@ class _FakeNewtonArticulation:
 class _FakeNewtonManager:
     """Capture Newton material-change notifications."""
 
+    _solver = object()
     notifications = []
 
     @staticmethod
