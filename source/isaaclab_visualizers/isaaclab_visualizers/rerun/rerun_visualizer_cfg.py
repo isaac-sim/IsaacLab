@@ -52,5 +52,11 @@ class RerunVisualizerCfg(VisualizerCfg):
     Rerun viewer rather than only showing the latest value.
     """
 
+    show_particles: bool = True
+    """Whether to show model particles.
+
+    Disable this option to reduce streaming overhead for large particle clouds.
+    """
+
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""

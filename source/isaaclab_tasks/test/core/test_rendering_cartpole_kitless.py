@@ -37,6 +37,6 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", _RENDERING_PARAMS)
-def test_rendering_cartpole_kitless(physics_backend, renderer, data_type):
+def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images (Cartpole camera presets env)."""
     rendering_test_cartpole(physics_backend, renderer, data_type, _COMPARISON_SCORES)

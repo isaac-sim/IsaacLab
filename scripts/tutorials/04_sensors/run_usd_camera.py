@@ -95,7 +95,7 @@ def define_sensor() -> Camera:
             "distance_to_image_plane",
             "normals",
             "semantic_segmentation",
-            "instance_segmentation_fast",
+            "instance_segmentation",
             "instance_id_segmentation_fast",
         ],
         renderer_cfg=IsaacRtxRendererCfg(
@@ -221,8 +221,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             print("Received shape of normals          : ", camera.data.output["normals"].shape)
         if "semantic_segmentation" in camera.data.output.keys():
             print("Received shape of semantic segm.   : ", camera.data.output["semantic_segmentation"].shape)
-        if "instance_segmentation_fast" in camera.data.output.keys():
-            print("Received shape of instance segm.   : ", camera.data.output["instance_segmentation_fast"].shape)
+        if "instance_segmentation" in camera.data.output.keys():
+            print("Received shape of instance segm.   : ", camera.data.output["instance_segmentation"].shape)
         if "instance_id_segmentation_fast" in camera.data.output.keys():
             print("Received shape of instance id segm.: ", camera.data.output["instance_id_segmentation_fast"].shape)
         print("-------------------------------")

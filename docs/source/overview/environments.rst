@@ -89,8 +89,11 @@ Many environments support multiple physics backends, rendering backends, and obs
 modes. The **Presets** column in each table below is divided into three labeled groups:
 
 * **physics=** — physics-backend name passed as ``physics=NAME``
-  (e.g. ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``,
-  ``newton_mjwarp_vbd``)
+  (e.g. ``physx``, ``isaacsim_physx``, ``newton_mjwarp``,
+  ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd``). On tasks that
+  expose automatic PhysX-family selection, ``physx`` uses Isaac Sim PhysX when
+  a Kit renderer or Kit viewer is requested and OvPhysX otherwise; use
+  ``isaacsim_physx`` to force Isaac Sim PhysX.
 * **renderer=** — renderer-backend name passed as ``renderer=NAME``
   (e.g. ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``)
 * **presets=** — environment-specific (domain) preset name passed as
@@ -128,18 +131,21 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +==================+=============================+=========================================================================+==============================+
     | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
-    |                  | |humanoid-direct-link|      |                                                                         | ``newton_mjwarp``,           |
+    |                  | |humanoid-direct-link|      |                                                                         | ``isaacsim_physx`` (direct   |
+    |                  |                             |                                                                         | only), ``newton_mjwarp``,    |
     |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
-    |                  | |ant-direct-link|           |                                                                         | ``newton_mjwarp``,           |
+    |                  | |ant-direct-link|           |                                                                         | ``isaacsim_physx`` (direct   |
+    |                  |                             |                                                                         | only), ``newton_mjwarp``,    |
     |                  |                             |                                                                         | ``newton_kamino``,           |
     |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
-    |                  | |cartpole-direct-link|      |                                                                         | ``newton_mjwarp``,           |
+    |                  | |cartpole-direct-link|      |                                                                         | ``isaacsim_physx`` (direct   |
+    |                  |                             |                                                                         | only), ``newton_mjwarp``,    |
     |                  |                             |                                                                         | ``newton_kamino``,           |
     |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
@@ -148,8 +154,9 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-presets|   | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             | and perceptive inputs. Select data type via ``presets=``.               | ``physx``,                   |
+    |                  |                             |                                                                         | ``isaacsim_physx``,          |
     |                  |                             |                                                                         | ``newton_mjwarp``,           |
-    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
+    |                  |                             |                                                                         | ``ovphysx``                  |
     |                  |                             |                                                                         | **renderer=**                |
     |                  |                             |                                                                         | ``isaacsim_rtx``,            |
     |                  |                             |                                                                         | ``newton_renderer``,         |
@@ -232,7 +239,9 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``physx``,      |
     |                         |                              |                                                                             | ``newton_mjwarp``            |
-    |                         | |franka-direct-link|         |                                                                             |                              |
+    |                         | |franka-direct-link|         |                                                                             | ``isaacsim_physx`` (direct   |
+    |                         |                              |                                                                             | only), ``ovphysx`` (direct   |
+    |                         |                              |                                                                             | only)                        |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``physx``,      |
     |                         |                              |                                                                             | ``newton_mjwarp``,           |
@@ -943,7 +952,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Ant-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
@@ -957,13 +966,13 @@ including disabling runtime perturbations used for training.
     * - Isaac-Cartpole-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo``, ``depth``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Cartpole-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Fourbar-Pole-Swingup
       - Manager Based
       - **rsl_rl** (PPO)
@@ -975,7 +984,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Humanoid-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1011,7 +1020,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Open-Drawer-Franka-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Pendulum-Direct
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
@@ -1043,21 +1052,21 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reorient-Cube-Shadow-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Cube-Shadow-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
       - Direct
-      - **rl_games** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Reorient-Franka
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1141,7 +1150,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Cartpole-Showcase-Direct
       - Direct
       - **skrl** (PPO, BOX_BOX, BOX_DISCRETE, BOX_MULTIDISCRETE, DICT_BOX, DICT_DISCRETE, DICT_MULTIDISCRETE, DISCRETE_BOX, DISCRETE_DISCRETE, DISCRETE_MULTIDISCRETE, MULTIDISCRETE_BOX, MULTIDISCRETE_DISCRETE, MULTIDISCRETE_MULTIDISCRETE, TUPLE_BOX, TUPLE_DISCRETE, TUPLE_MULTIDISCRETE)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **presets=** ``box_box``, ``box_discrete``, ``box_multidiscrete``, ``dict_box``, ``dict_discrete``, ``dict_multidiscrete``, ``discrete_box``, ``discrete_discrete``, ``discrete_multidiscrete``, ``multidiscrete_box``, ``multidiscrete_discrete``, ``multidiscrete_multidiscrete``, ``tuple_box``, ``tuple_discrete``, ``tuple_multidiscrete``
     * - IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav
       - Manager Based
@@ -1391,6 +1400,10 @@ including disabling runtime perturbations used for training.
       -
       - **physics=** ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-SO101-IK-Abs-v0
+      - Manager Based
+      -
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``

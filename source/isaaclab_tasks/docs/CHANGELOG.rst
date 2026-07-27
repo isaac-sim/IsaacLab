@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+9.1.1 (2026-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Cartpole, Ant, Humanoid, and Cabinet direct task ``physics=physx``
+  presets to use automatic PhysX-family selection. Use
+  ``physics=isaacsim_physx`` to force Isaac Sim PhysX.
+
+
+9.1.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated rendering test utilities and task configurations to use the renamed
+  ``"instance_segmentation"`` data type (previously ``"instance_segmentation_fast"``).
+  Renamed ``maybe_validate_instance_segmentation_fast`` to
+  ``maybe_validate_instance_segmentation`` in ``rendering_test_utils``.
+
+
 9.0.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 

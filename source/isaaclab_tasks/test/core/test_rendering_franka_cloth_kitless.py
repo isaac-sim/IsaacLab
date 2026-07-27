@@ -33,6 +33,6 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", _RENDERING_PARAMS)
-def test_rendering_franka_cloth_kitless(physics_backend, renderer, data_type):
+def test_rendering_franka_cloth_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images for the Franka cloth test setup."""
     rendering_test_franka_cloth(physics_backend, renderer, data_type, _COMPARISON_SCORES)
