@@ -1,0 +1,1 @@
+Test-only: added a static guard that prevents core tests and shared fixtures from directly importing ``isaaclab_tasks``.
