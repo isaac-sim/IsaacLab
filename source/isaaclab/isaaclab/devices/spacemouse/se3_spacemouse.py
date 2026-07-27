@@ -41,6 +41,7 @@ class Se3SpaceMouse(DeviceBase):
     Currently tested for following devices:
 
     - SpaceMouse Compact: https://3dconnexion.com/de/product/spacemouse-compact/
+    - SpaceNavigator: https://3dconnexion.com/product/spacemouse-wireless/
 
     .. _HID-API: https://github.com/libusb/hidapi
 
@@ -140,6 +141,7 @@ class Se3SpaceMouse(DeviceBase):
                 if (
                     device["product_string"] == "SpaceMouse Compact"
                     or device["product_string"] == "SpaceMouse Wireless"
+                    or device["product_string"] == "SpaceNavigator for Notebooks"
                     or device["product_string"] == "3Dconnexion Universal Receiver"
                 ):
                     # set found flag
