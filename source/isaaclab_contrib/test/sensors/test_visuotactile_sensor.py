@@ -26,8 +26,6 @@ from isaaclab_physx.sim.schemas import (
     PhysxRigidBodyPropertiesCfg,
 )
 
-import omni.replicator.core as rep
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import CameraCfg
@@ -192,6 +190,8 @@ def setup(sensor_type: str = "cube"):
 
 def teardown(sim):
     """Teardown simulation environment."""
+    import omni.replicator.core as rep
+
     # close all the opened viewport from before.
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
