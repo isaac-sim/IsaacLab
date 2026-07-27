@@ -3854,7 +3854,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     if ordering_mode == "reversed":
-        joint_names = _PANDA_JOINT_NAMES if articulation_type == "panda" else _ANYMAL_C_PHYSX_JOINT_NAMES
+        joint_names = PANDA_JOINT_NAMES if articulation_type == "panda" else ANYMAL_C_PHYSX_JOINT_NAMES
         articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(joint_names)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
