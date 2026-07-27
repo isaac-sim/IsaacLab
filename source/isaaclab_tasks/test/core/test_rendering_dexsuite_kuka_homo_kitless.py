@@ -28,6 +28,6 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def test_rendering_dexsuite_kuka_homo_kitless(physics_backend, renderer, data_type):
+def test_rendering_dexsuite_kuka_homo_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images (Dexsuite KukaAllegro Lift, single camera)."""
     rendering_test_dexsuite_kuka(physics_backend, renderer, data_type, True, _COMPARISON_SCORES)

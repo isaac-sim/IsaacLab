@@ -3831,7 +3831,7 @@ class Articulation(BaseArticulation):
         """Discover tendon counts from binding metadata and names from USD.
 
         Tendon counts come from the ovphysx binding metadata. Tendon names are
-        recovered from the exported USD articulation subtree because ovphysx
+        recovered from the in-memory USD articulation subtree because ovphysx
         exposes joint names/counts, but not the per-joint USD paths that the
         PhysX backend can query directly.
         """
@@ -3842,14 +3842,18 @@ class Articulation(BaseArticulation):
         self._num_spatial_tendons = self._root_view.spatial_tendon_count
 
         if self._num_fixed_tendons > 0 or self._num_spatial_tendons > 0:
-            stage_path = OvPhysxManager._stage_path
-            if stage_path is not None:
+            stage_usda = OvPhysxManager._stage_usda
+            if stage_usda is not None:
                 try:
-                    from pxr import Usd
+                    from pxr import Sdf, Usd
 
                     from isaaclab.sim.utils.queries import get_all_matching_child_prims
 
-                    stage = Usd.Stage.Open(stage_path)
+                    layer = Sdf.Layer.CreateAnonymous("isaaclab_ovphysx.usda")
+                    if not layer.ImportFromString(stage_usda):
+                        raise RuntimeError("Failed to import the serialized OVPhysX stage.")
+                    stage = Usd.Stage.Open(layer)
+
                     articulation_root_path = getattr(self, "_articulation_root_path", None)
                     if articulation_root_path is None:
                         joint_prims = stage.Traverse()
@@ -3880,7 +3884,7 @@ class Articulation(BaseArticulation):
                         ):
                             self._spatial_tendon_names.append(name)
                 except Exception:
-                    logger.debug("Could not parse USD stage for tendon names at %s", stage_path)
+                    logger.debug("Could not parse in-memory USD stage for tendon names", exc_info=True)
 
     def _get_binding(self, tensor_type: int):
         """Return a cached TensorBinding, creating it on first access.
