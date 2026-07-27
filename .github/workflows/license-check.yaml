@@ -414,7 +414,7 @@ jobs:
           set -euo pipefail
           ffmpeg_exe="$(./isaaclab.sh -p -c \
             "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())" \
-            | tail -n 1)"
+            | grep "^/" | tail -n 1)"
           if [[ ! -x "$ffmpeg_exe" ]]; then
             echo "Bundled FFmpeg executable is missing or not executable: $ffmpeg_exe" >&2
             exit 1
