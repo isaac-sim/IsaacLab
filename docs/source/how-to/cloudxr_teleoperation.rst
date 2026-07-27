@@ -215,6 +215,16 @@ The dual-eye stereo render only becomes active once a headset connects and playb
 
 Isaac Lab is now ready to receive connections from a CloudXR client.
 
+.. note::
+
+   **Running headless (no local UI).** The commands above use ``--visualizer kit`` to open the
+   local Kit viewport, where you click **Start XR**. On a server or cloud instance without a
+   display, run headless instead: omit ``--visualizer`` (headless is the default) or pass
+   ``--visualizer none`` / ``--viz none``. In headless XR the AR session starts automatically --
+   there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
+   CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
+   in the environment also forces headless.
+
 
 .. _connect-xr-device:
 

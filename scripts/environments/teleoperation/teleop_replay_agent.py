@@ -361,11 +361,26 @@ parser.add_argument(
     default=False,
     help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
 )
+parser.add_argument(
+    "--disable_external_cameras",
+    action="store_true",
+    default=False,
+    help=(
+        "Disable external camera rendering. External cameras render by default so the replay mimics"
+        " the production teleop env; pass this flag to strip camera sensors for a lighter headless"
+        " replay."
+    ),
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 app_launcher_args = vars(args_cli)
-app_launcher = AppLauncher(app_launcher_args)
+# Enable external camera rendering by default so the replay mimics the production teleop env (perf
+# parity with live camera rendering); ``--disable_external_cameras`` turns it off. The
+# ``--enable_cameras`` CLI flag was removed in Isaac Lab 3.0 (see #6656), so pass the intent to
+# AppLauncher as a kwarg; this selects a camera-rendering experience that provides RTX/DLSS.
+# Everywhere else we read ``args_cli.disable_external_cameras`` directly.
+app_launcher = AppLauncher(app_launcher_args, enable_cameras=not args_cli.disable_external_cameras)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -1001,17 +1016,31 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
 def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
     """Return whether the CLI selects a renderer that actually drives RTX rendering.
 
-    The RTX/DLSS global settings (and the ``omni.replicator`` extension they configure)
-    are only meaningful when something renders through RTX. That happens when the Kit
-    visualizer is enabled (``--viz kit``), when external cameras are rendered
-    (``--enable_cameras``), or in XR mode (``--xr``, which drives the Kit XR pipeline).
-    A pure-headless replay selects none of these and renders nothing.
+    The RTX/DLSS global settings are only meaningful when something renders through RTX.
+    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
+    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
+    A pure-headless replay with none of these renders nothing.
 
-    This intentionally reads the CLI intent rather than any Kit/carb runtime state so the
+    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
     check keeps working as these scripts grow support for other renderers and kitless runs.
     """
     visualizers = getattr(args, "visualizer", None) or []
-    return bool(getattr(args, "enable_cameras", False)) or ("kit" in visualizers) or bool(getattr(args, "xr", False))
+    external_cameras = not getattr(args, "disable_external_cameras", False)
+    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
+
+
+def _ensure_replicator_loaded() -> None:
+    """Enable ``omni.replicator.core`` so RTX/DLSS global settings can be applied.
+
+    :func:`apply_isaac_rtx_global_settings` sets the antialiasing mode through
+    ``omni.replicator.core``, which ships with the SDG/rendering extensions. Some Kit
+    experiences (e.g. the Kit-viewport-only app selected by ``--visualizer kit`` without
+    cameras or XR) do not preload it, so enable it on demand via the extension manager
+    before applying RTX settings. Idempotent when the extension is already enabled.
+    """
+    import omni.kit.app
+
+    omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate("omni.replicator.core", True)
 
 
 def _prepare_env_cfg(
@@ -1077,13 +1106,16 @@ def _prepare_env_cfg(
         )
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
-    env_cfg = remove_camera_configs(env_cfg)
-    # The RTX/DLSS global settings only matter when an RTX render pipeline actually runs,
-    # and applying them pulls in ``omni.replicator`` (part of the SDG/rendering extensions).
-    # A pure-headless replay renders nothing, so skip them -- this both avoids needless RTX
-    # configuration and prevents a ``ModuleNotFoundError`` when the replicator extension was
-    # never loaded (e.g. headless CI).
+    # Keep camera configs when external cameras are enabled (defaulted on) so the replay
+    # renders them for production parity; otherwise strip them for a lighter headless replay.
+    if args_cli.disable_external_cameras:
+        env_cfg = remove_camera_configs(env_cfg)
+    # The RTX/DLSS global settings only matter when an RTX render pipeline actually runs.
+    # ``apply_isaac_rtx_global_settings`` uses ``omni.replicator`` (part of the SDG/rendering
+    # extensions), which some experiences do not preload, so ensure it is loaded first. A
+    # pure-headless replay renders nothing, so skip both.
     if apply_rtx_settings:
+        _ensure_replicator_loaded()
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
         )

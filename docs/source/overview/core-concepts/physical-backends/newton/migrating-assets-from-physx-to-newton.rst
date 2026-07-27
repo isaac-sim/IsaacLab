@@ -61,8 +61,8 @@ solver-specific parameters. Put common
 USD Physics properties in the solver-common classes such as ``RigidBodyBaseCfg`` and
 ``JointDriveBaseCfg``. Put backend-only properties in the matching subclasses:
 
-* Use ``MujocoRigidBodyPropertiesCfg`` and ``MujocoJointDrivePropertiesCfg`` for properties
-  implemented specifically by Newton's MJWarp solver.
+* Use ``MujocoRigidBodyPropertiesCfg``, ``MujocoJointDrivePropertiesCfg``, and
+  ``MujocoCollisionCfg`` for properties implemented specifically by Newton's MJWarp solver.
 * Use the ``Newton*PropertiesCfg`` classes for supported Newton collision, material, articulation,
   and other Newton-native properties.
 * Keep PhysX-only damping, stabilization, solver-iteration, friction-patch, and compliant-contact
@@ -128,28 +128,16 @@ not authored. ``impratio`` and ``cone`` are global MJWarp solver options; ``impr
 
 .. code-block:: python
 
-    from typing import ClassVar, Literal
-
     import isaaclab.sim as sim_utils
-    from isaaclab.utils import configclass
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-
-
-    @configclass
-    class MujocoCondimCfg(sim_utils.CollisionFragment):
-        """Task-local fragment that writes the MuJoCo contact dimension."""
-
-        _usd_namespace: ClassVar[str | None] = "mjc"
-        _usd_applied_schema: ClassVar[str | None] = None
-
-        condim: Literal[1, 3, 4, 6] | None = None
+    from isaaclab_newton.sim.schemas import MujocoCollisionCfg
 
 
     object_spawn_cfg = sim_utils.UsdFileCfg(
         usd_path="path/to/object.usd",
         collision_props=[
             sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
-            MujocoCondimCfg(condim=4),
+            MujocoCollisionCfg(condim=4),
         ],
     )
 
@@ -159,6 +147,35 @@ not authored. ``impratio`` and ``cone`` are global MJWarp solver options; ``impr
             impratio=10.0,
         ),
     )
+
+``MujocoCollisionCfg`` exposes the per-collider custom attributes registered by MJWarp:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 82
+
+   * - Field
+     - Use
+   * - ``condim``
+     - Select the friction-cone dimensions: ``1``, ``3``, ``4``, or ``6``.
+   * - ``priority``
+     - Select which collider's contact parameters take precedence when priorities differ.
+   * - ``solmix``
+     - Weight contact-parameter mixing when priorities are equal.
+   * - ``solref``
+     - Override the two contact reference parameters. Tune only with the corresponding MuJoCo
+       solver-parameter model in mind.
+   * - ``solimp``
+     - Override the five contact impedance parameters. Tune only after collision geometry,
+       margins, material properties, and contact counts are correct.
+   * - ``group``
+     - Set the MuJoCo geometry group used for visualization and inertia-inference selection. This
+       is not an Isaac Lab collision-filter group.
+
+Use :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` for contact margin and gap and
+:class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg` for the convex-hull vertex limit
+instead of duplicating their raw ``mjc:*`` importer attributes. Author explicit mass and inertia
+rather than relying on ``mjc:shellinertia`` during migration.
 
 Assign ``object_spawn_cfg`` to the asset's ``spawn`` field and use ``newton_mjwarp_cfg`` as the
 ``newton_mjwarp`` physics preset. A file spawner applies ``collision_props`` recursively, so do not

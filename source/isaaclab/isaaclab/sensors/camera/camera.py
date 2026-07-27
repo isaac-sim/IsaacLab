@@ -98,7 +98,7 @@ class Camera(SensorBase):
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
-    - ``"instance_segmentation_fast"``: The instance segmentation data.
+    - ``"instance_segmentation"``: The semantic instance segmentation data.
     - ``"instance_id_segmentation_fast"``: The instance id segmentation data.
 
     .. note::
@@ -123,7 +123,6 @@ class Camera(SensorBase):
 
     UNSUPPORTED_TYPES: set[str] = {
         "instance_id_segmentation",
-        "instance_segmentation",
         "bounding_box_2d_tight",
         "bounding_box_2d_loose",
         "bounding_box_3d",
@@ -576,6 +575,12 @@ class Camera(SensorBase):
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
+        if "instance_segmentation_fast" in cfg.data_types:
+            raise ValueError(
+                "The data type 'instance_segmentation_fast' has been renamed to 'instance_segmentation'."
+                " Please update your CameraCfg.data_types and any camera.data.output / camera.data.info key"
+                " lookups to use 'instance_segmentation'."
+            )
         # check if there is any intersection in unsupported types
         # reason: these use np structured data types which are not compatible with the camera buffer contract
         common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
@@ -583,7 +588,7 @@ class Camera(SensorBase):
             # provide alternative fast counterparts
             fast_common_elements = []
             for item in common_elements:
-                if "instance_segmentation" in item or "instance_id_segmentation" in item:
+                if "instance_id_segmentation" in item:
                     fast_common_elements.append(item + "_fast")
             # raise error
             raise ValueError(

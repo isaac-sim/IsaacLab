@@ -256,6 +256,11 @@ class _RandomizeRigidBodyMaterialNewton:
     Samples friction (mu) and restitution continuously from the given ranges.
     Newton uses a single friction coefficient (mu), so ``dynamic_friction_range``
     and ``num_buckets`` are ignored.
+
+    The Kamino solver deduplicates contact materials globally by ``(mu, restitution)`` and
+    shares them across environments, so it cannot accept per-shape or per-env overrides. When
+    Kamino is active, one value is sampled per build-time material group and broadcast to every
+    environment (no per-env variation). All other Newton solvers keep the per-shape sampling.
     """
 
     def __init__(
@@ -263,12 +268,21 @@ class _RandomizeRigidBodyMaterialNewton:
     ):
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
         from isaaclab_newton.assets import Articulation as NewtonArticulation  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
+        from newton.solvers import SolverKamino  # noqa: PLC0415
 
         self.asset = asset
         self.asset_cfg = asset_cfg
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+        self._notify_shape_properties = ModelFlags.SHAPE_PROPERTIES
+        # Kamino deduplicates contact materials globally by (mu, restitution) at build time and
+        # shares them across environments, so its in-place material update rejects per-shape /
+        # per-env overrides. When Kamino is active we instead sample one value per build-time
+        # material group and broadcast it to every environment. The grouping is derived lazily on
+        # the first call, when the shape bindings still hold their build-time values.
+        self._solver_kamino_cls = SolverKamino
+        self._kamino_group_inverse: torch.Tensor | None = None
+        self._kamino_num_groups = 0
 
         # cache friction/restitution ranges for continuous per-shape sampling
         self._static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
@@ -312,21 +326,41 @@ class _RandomizeRigidBodyMaterialNewton:
         num_shapes = len(self._shape_indices)
         shape_idx = self._shape_indices.to(device)
 
-        # sample friction (mu) and restitution continuously per shape
         friction_range = torch.tensor(self._static_friction_range, device=device)
         restitution_range_t = torch.tensor(self._restitution_range, device=device)
-        friction_samples = math_utils.sample_uniform(
-            friction_range[0], friction_range[1], (len(env_ids), num_shapes), device=device
-        )
-        restitution_samples = math_utils.sample_uniform(
-            restitution_range_t[0], restitution_range_t[1], (len(env_ids), num_shapes), device=device
-        )
-
-        # write only the affected env_ids to the warp binding
         friction_view = wp.to_torch(self._friction_binding)
         restitution_view = wp.to_torch(self._restitution_binding)
-        friction_view[env_ids[:, None], shape_idx] = friction_samples
-        restitution_view[env_ids[:, None], shape_idx] = restitution_samples
+
+        if isinstance(self._newton_manager._solver, self._solver_kamino_cls):
+            # Kamino: sample one value per build-time material group and broadcast across every
+            # environment. Per-shape / per-env variation is impossible because Kamino shares each
+            # contact material across all shapes and environments that were built with identical
+            # (mu, restitution).
+            if self._kamino_group_inverse is None:
+                build_keys = torch.stack((friction_view[0, shape_idx], restitution_view[0, shape_idx]), dim=-1)
+                _, inverse = torch.unique(build_keys, dim=0, return_inverse=True)
+                self._kamino_group_inverse = inverse
+                self._kamino_num_groups = int(inverse.max().item()) + 1 if inverse.numel() else 0
+            inverse = self._kamino_group_inverse
+            friction_groups = math_utils.sample_uniform(
+                friction_range[0], friction_range[1], (self._kamino_num_groups,), device=device
+            )
+            restitution_groups = math_utils.sample_uniform(
+                restitution_range_t[0], restitution_range_t[1], (self._kamino_num_groups,), device=device
+            )
+            friction_view[:, shape_idx] = friction_groups[inverse]
+            restitution_view[:, shape_idx] = restitution_groups[inverse]
+        else:
+            # sample friction (mu) and restitution continuously per shape
+            friction_samples = math_utils.sample_uniform(
+                friction_range[0], friction_range[1], (len(env_ids), num_shapes), device=device
+            )
+            restitution_samples = math_utils.sample_uniform(
+                restitution_range_t[0], restitution_range_t[1], (len(env_ids), num_shapes), device=device
+            )
+            # write only the affected env_ids to the warp binding
+            friction_view[env_ids[:, None], shape_idx] = friction_samples
+            restitution_view[env_ids[:, None], shape_idx] = restitution_samples
 
         # notify the physics engine
         self._newton_manager.add_model_change(self._notify_shape_properties)
@@ -426,7 +460,9 @@ class randomize_rigid_body_material(ManagerTermBase):
       tensor API (``root_view.set_material_properties``).
     - **Newton**: Samples friction (mu) and restitution continuously per shape (no bucket
       limitation). Newton uses a single friction coefficient, so ``dynamic_friction_range``
-      and ``num_buckets`` are ignored. Applied directly to Newton's view-level bindings.
+      and ``num_buckets`` are ignored. Applied directly to Newton's view-level bindings. The
+      Kamino solver shares contact materials across shapes and environments, so it instead
+      samples one value per build-time material group and broadcasts it to every environment.
     - **OVPhysX**: Runs the PhysX solver, so the same 3-tuple, bucket-based assignment is used,
       written through the :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-shape
       ``shape_friction_and_restitution`` binding. Randomizes all shapes only -- per-body
@@ -908,11 +944,11 @@ class _RandomizeRigidBodyColliderOffsetsNewton:
 
     def __init__(self, asset: RigidObject | Articulation):
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
 
         self.asset = asset
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+        self._notify_shape_properties = ModelFlags.SHAPE_PROPERTIES
 
         model = self._newton_manager.get_model()
         self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
@@ -1137,10 +1173,10 @@ class randomize_physics_scene_gravity(ManagerTermBase):
     def _init_newton(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Cache Newton manager reference and solver notification flag."""
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
 
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_model_properties = SolverNotifyFlags.MODEL_PROPERTIES
+        self._notify_model_properties = ModelFlags.MODEL_PROPERTIES
 
     def _call_newton(
         self,
