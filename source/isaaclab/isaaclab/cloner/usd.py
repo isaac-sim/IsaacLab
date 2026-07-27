@@ -12,7 +12,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
-from .util.path import split
+from .path import split
 
 
 def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:

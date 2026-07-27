@@ -14,6 +14,7 @@ __all__ = [
     "grid_transforms",
     "make_clone_plan",
     "make_valid_clone_combinations",
+    "num_spawn_variants",
     "path",
     "query",
     "random",
@@ -26,8 +27,16 @@ __all__ = [
     "usd_replicate",
 ]
 
+from . import path, query
 from ._fabric_notices import disabled_fabric_change_notifies
-from .clone_plan import ClonePlan, grid_transforms
+from .clone_plan import (
+    ClonePlan,
+    clone_plan_from_env_0,
+    grid_transforms,
+    make_clone_plan,
+    make_valid_clone_combinations,
+    num_spawn_variants,
+)
 from .cloner_cfg import CloneCfg, InclusionSet, add
 from .cloner_strategies import random, sequential
 from .collision_filter import filter_collisions
@@ -41,5 +50,3 @@ from .usd import (
     UsdReplicateContext,
     usd_replicate,
 )
-from .util import path, query
-from .util.instance import clone_plan_from_env_0, make_clone_plan, make_valid_clone_combinations

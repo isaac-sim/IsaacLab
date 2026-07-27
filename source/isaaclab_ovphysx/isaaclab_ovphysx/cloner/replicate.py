@@ -90,10 +90,9 @@ class OvPhysxReplicateContext:
             active_env_ids = _select_env_ids(env_ids, mapping, i).tolist()
 
             self_env_id: int | None = None
-            pre, suf = cloner.path.split(destinations[i])
-            candidate = src.removeprefix(pre).removesuffix(suf)
-            if candidate.isdigit():
-                self_env_id = int(candidate)
+            matched = cloner.path.match(src, destinations[i])
+            if matched is not None and matched.instance.isdigit():
+                self_env_id = int(matched.instance)
 
             targets: list[str] = []
             parent_positions: list[tuple[float, float, float]] = []

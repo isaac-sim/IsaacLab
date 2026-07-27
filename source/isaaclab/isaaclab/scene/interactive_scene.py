@@ -32,7 +32,6 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab.cloner.util.instance import num_spawn_variants
 from isaaclab.physics.scene_data_requirements import aggregate_requirements, resolve_scene_data_requirements
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
@@ -229,7 +228,7 @@ class InteractiveScene:
                     child.prim_path = child.prim_path.format(ENV_REGEX_NS=self.cloner_cfg.clone_regex)
                     if hasattr(child, "spawn") and child.spawn is not None and self.env_ns in child.prim_path:
                         clone_asset_names.append(asset_name)
-                        variant_counts.append(num_spawn_variants(child.spawn))
+                        variant_counts.append(cloner.num_spawn_variants(child.spawn))
                 cfgs.append(child)
 
         if self.cloner_cfg.clone_combinations and clone_asset_names:

@@ -15,9 +15,9 @@ from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
+from .clone_plan import make_clone_plan
 from .cloner_strategies import sequential
 from .usd import UsdReplicateContext
-from .util.instance import make_clone_plan
 
 if TYPE_CHECKING:
     import torch

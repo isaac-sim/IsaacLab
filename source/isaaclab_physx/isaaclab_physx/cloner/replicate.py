@@ -82,10 +82,9 @@ class PhysxReplicateContext:
         for i, src in enumerate(sources):
             worlds = _select_env_ids(env_ids, mapping, i).tolist()
             if exclude_self_replication:
-                pre, suf = cloner.path.split(destinations[i])
-                self_id = src.removeprefix(pre).removesuffix(suf)
-                if self_id.isdigit():
-                    filtered = [w for w in worlds if w != int(self_id)]
+                matched = cloner.path.match(src, destinations[i])
+                if matched is not None and matched.instance.isdigit():
+                    filtered = [w for w in worlds if w != int(matched.instance)]
                     worlds = filtered if filtered else worlds
             self.queue(src, destinations[i], worlds)
 

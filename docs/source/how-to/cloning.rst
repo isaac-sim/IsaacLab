@@ -157,6 +157,59 @@ envs 0/1, sphere into envs 2/3):
                     [1, 1, 0, 0],
                     [0, 0, 1, 1]]
 
+Querying a plan
+~~~~~~~~~~~~~~~
+
+Read the table above as a relation between two spaces of prim paths. The *source*
+space holds the prototype paths, which exist once on the stage; the *clone* space
+holds the per-env destination paths and the ``env_.*`` globs that stand for them.
+The mask says which pairs are actually related, so the relation is partial in both
+directions: a prototype reaches only the envs its row populates, and an env holds
+only the assets whose rows cover it.
+
+Anything that has to follow an asset across that boundary — a sensor resolving its
+``prim_path`` back to the prototype it should read, a ray caster loading one mesh
+per variant — asks :mod:`isaaclab.cloner.query` rather than manipulating the path
+strings itself. Three operations cover it:
+
+.. code-block:: python
+
+    import isaaclab.cloner as cloner
+
+    # push: where does this prototype land in env 2?
+    cloner.query.path_to_clone(plan, "/World/envs/env_0/Obstacle_1", env_id=2)
+    # -> "/World/envs/env_2/Obstacle"
+
+    # fiber: which envs does this prototype reach at all?
+    cloner.query.path_env_ids(plan, "/World/envs/env_0/Obstacle_1")
+    # -> (2, 3)
+
+    # pull: which prototype is env 2's obstacle cloned from?
+    cloner.query.path_to_source(plan, "/World/envs/env_2/Obstacle")
+    # -> ResolvedSource("/World/envs/env_0/Obstacle_1", "/World/envs/env_*/Obstacle", "")
+
+Note what the pull had to do there. Two obstacle variants share one destination
+template, so naming the template is not enough to identify a prototype — the
+environment is. A concrete path like ``env_2/Obstacle`` carries that environment in
+the template's clone slot, so the pull reads it back out and lands on the variant
+env 2 was really cloned from. A wildcard expression like ``env_.*/Obstacle`` names no
+environment and stands for all of them at once; it resolves to one representative
+variant, or to a specific one if you pass ``env_id``. When you need every variant
+behind a template — one mesh per obstacle type, say — use
+:func:`~isaaclab.cloner.query.iter_sources`, which is the one-to-many form.
+
+Environment ids are not mask columns, either. Column ``j`` of ``clone_mask`` stands
+for environment ``env_ids[j]``, and that is the number the cloner formats into the
+destination template. The queries speak environment ids throughout, so a plan
+targeting a non-contiguous set of envs behaves the same as a contiguous one.
+
+The path arithmetic underneath lives in :mod:`isaaclab.cloner.path`. Prim paths are
+sequences of ``/``-delimited segments, and the stdlib string operations cross those
+boundaries silently — :meth:`str.startswith` happily reports that ``".../Robot"``
+contains ``".../RobotArm"``. Use :func:`~isaaclab.cloner.path.under`,
+:func:`~isaaclab.cloner.path.relative_to` and :func:`~isaaclab.cloner.path.rebase`
+instead of hand-rolling prefix tests.
+
 A plan is the *what*. Putting one together and handing it to the backends is
 the *how*, and Isaac Lab exposes three idiomatic ways to do that. All three end
 in the same ``cloner.replicate(plan, stage=...)`` call, so the choice between
