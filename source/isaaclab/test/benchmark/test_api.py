@@ -263,7 +263,7 @@ def test_backend_entrypoints_register_environment_cleanup_before_wrapping() -> N
     """All RL backend entrypoints compile and register cleanup before wrapping."""
     backends_root = Path(__file__).parents[2] / "isaaclab" / "benchmark" / "entrypoints" / "backends"
     entrypoints = [
-        backends_root / backend / f"{mode}.py"
+        backends_root / backend / f"benchmark_{mode}_{backend}.py"
         for backend in ("rl_games", "rsl_rl", "sb3", "skrl")
         for mode in ("train", "play")
     ]

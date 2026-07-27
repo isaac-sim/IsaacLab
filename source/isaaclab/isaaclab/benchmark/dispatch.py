@@ -21,16 +21,16 @@ _WORKFLOW_MODULES = {
 }
 _RL_WORKFLOW_MODULES = {
     "training": {
-        "rl_games": "isaaclab.benchmark.entrypoints.backends.rl_games.train",
-        "rsl_rl": "isaaclab.benchmark.entrypoints.backends.rsl_rl.train",
-        "sb3": "isaaclab.benchmark.entrypoints.backends.sb3.train",
-        "skrl": "isaaclab.benchmark.entrypoints.backends.skrl.train",
+        "rl_games": "isaaclab.benchmark.entrypoints.backends.rl_games.benchmark_train_rl_games",
+        "rsl_rl": "isaaclab.benchmark.entrypoints.backends.rsl_rl.benchmark_train_rsl_rl",
+        "sb3": "isaaclab.benchmark.entrypoints.backends.sb3.benchmark_train_sb3",
+        "skrl": "isaaclab.benchmark.entrypoints.backends.skrl.benchmark_train_skrl",
     },
     "play": {
-        "rl_games": "isaaclab.benchmark.entrypoints.backends.rl_games.play",
-        "rsl_rl": "isaaclab.benchmark.entrypoints.backends.rsl_rl.play",
-        "sb3": "isaaclab.benchmark.entrypoints.backends.sb3.play",
-        "skrl": "isaaclab.benchmark.entrypoints.backends.skrl.play",
+        "rl_games": "isaaclab.benchmark.entrypoints.backends.rl_games.benchmark_play_rl_games",
+        "rsl_rl": "isaaclab.benchmark.entrypoints.backends.rsl_rl.benchmark_play_rsl_rl",
+        "sb3": "isaaclab.benchmark.entrypoints.backends.sb3.benchmark_play_sb3",
+        "skrl": "isaaclab.benchmark.entrypoints.backends.skrl.benchmark_play_skrl",
     },
 }
 
