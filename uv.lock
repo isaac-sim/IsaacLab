@@ -3009,7 +3009,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "13.2.0"
+version = "13.2.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
