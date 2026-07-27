@@ -71,15 +71,18 @@ def test_multi_agent_to_single_agent_reset_can_use_state():
 
 
 def test_multi_agent_to_single_agent_forwards_episode_lengths():
-    """RSL-RL episode randomization should update the wrapped environment buffer."""
+    """RSL-RL episode randomization should update the wrapped environment buffer in place."""
     source_env = _FakeMultiAgentEnv()
+    wrapped_buffer = source_env.episode_length_buf
     env = multi_agent_to_single_agent(source_env)
     episode_lengths = torch.tensor([3, 4])
 
     env.episode_length_buf = episode_lengths
 
-    assert env.episode_length_buf is episode_lengths
-    assert source_env.episode_length_buf is episode_lengths
+    torch.testing.assert_close(env.episode_length_buf, episode_lengths)
+    torch.testing.assert_close(source_env.episode_length_buf, episode_lengths)
+    # written in place, so references taken before the assignment observe the new values
+    assert source_env.episode_length_buf is wrapped_buffer
 
 
 def test_multi_agent_to_single_agent_exposes_latest_observations():

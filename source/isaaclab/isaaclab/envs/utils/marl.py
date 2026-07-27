@@ -91,7 +91,8 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
 
         @episode_length_buf.setter
         def episode_length_buf(self, value: torch.Tensor) -> None:
-            self.env.episode_length_buf = value
+            # copy in place so holders of the wrapped environment's buffer stay in sync
+            self.env.episode_length_buf.copy_(value)
 
         @property
         def obs_buf(self) -> VecEnvObs:
