@@ -32,16 +32,27 @@ _BANNED_PACKAGES: tuple[str, ...] = ("isaaclab_tasks",)
 _EXEMPT_TOP_LEVEL_DIRS: frozenset[str] = frozenset({"benchmark", "install_ci"})
 
 # Cross-package integration tests awaiting relocation out of the core tree.
-_TEMPORARY_HANDOFF_ALLOWLIST: dict[str, frozenset[str]] = {
-    "isaaclab_tasks": frozenset(
-        {
-            "source/isaaclab/test/controllers/test_pink_ik.py",
-            "source/isaaclab/test/envs/test_action_state_recorder_term_task_integration.py",
-            "source/isaaclab/test/envs/test_manager_based_rl_env_obs_spaces_task_integration.py",
-            "source/isaaclab/test/sensors/test_outdated_sensor.py",
-            "source/isaaclab/test/sensors/test_tiled_camera_env.py",
-        }
-    ),
+_TASK_REGISTRY_IMPORTS = frozenset(
+    {
+        "import isaaclab_tasks",
+        "from isaaclab_tasks.utils.parse_cfg import parse_env_cfg",
+    }
+)
+_TEMPORARY_HANDOFF_ALLOWLIST: dict[str, dict[str, frozenset[str]]] = {
+    "isaaclab_tasks": {
+        "source/isaaclab/test/controllers/test_pink_ik.py": _TASK_REGISTRY_IMPORTS,
+        "source/isaaclab/test/envs/test_action_state_recorder_term_task_integration.py": _TASK_REGISTRY_IMPORTS,
+        "source/isaaclab/test/envs/test_manager_based_rl_env_obs_spaces_task_integration.py": frozenset(
+            {
+                "from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg",
+                "from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import CartpoleCameraEnvCfg",
+                "from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg",
+                "from isaaclab_tasks.utils.hydra import resolve_presets",
+            }
+        ),
+        "source/isaaclab/test/sensors/test_outdated_sensor.py": _TASK_REGISTRY_IMPORTS,
+        "source/isaaclab/test/sensors/test_tiled_camera_env.py": _TASK_REGISTRY_IMPORTS,
+    },
 }
 
 
@@ -105,7 +116,7 @@ def test_core_test_respects_package_boundary(path: Path):
     offenders = [
         (package, statement)
         for package, statement in _iter_banned_imports(path.read_text(encoding="utf-8"), str(path), _BANNED_PACKAGES)
-        if rel_path not in _TEMPORARY_HANDOFF_ALLOWLIST.get(package, frozenset())
+        if statement not in _TEMPORARY_HANDOFF_ALLOWLIST.get(package, {}).get(rel_path, frozenset())
     ]
     if offenders:
         listing = "\n".join(f"  [{package}] {statement}" for package, statement in offenders)
@@ -183,18 +194,24 @@ def test_boundary_generalizes_to_additional_packages_via_config_only():
 
 
 _ALLOWLIST_ITEMS = sorted(
-    (package, rel_path) for package, files in _TEMPORARY_HANDOFF_ALLOWLIST.items() for rel_path in files
+    (package, rel_path, expected_imports)
+    for package, files in _TEMPORARY_HANDOFF_ALLOWLIST.items()
+    for rel_path, expected_imports in files.items()
 )
 
 
 @pytest.mark.parametrize(
-    ("package", "rel_path"),
+    ("package", "rel_path", "expected_imports"),
     _ALLOWLIST_ITEMS,
-    ids=[f"{package}:{rel_path}" for package, rel_path in _ALLOWLIST_ITEMS],
+    ids=[f"{package}:{rel_path}" for package, rel_path, _ in _ALLOWLIST_ITEMS],
 )
-def test_handoff_allowlist_entries_are_current(package: str, rel_path: str):
-    """Each handoff entry must exist and still directly import its package."""
+def test_handoff_allowlist_entries_are_current(package: str, rel_path: str, expected_imports: frozenset[str]):
+    """Each handoff entry must match its expected direct imports."""
     path = _REPO_ROOT / rel_path
     assert path.is_file(), f"Stale handoff allowlist entry (file moved or removed): {rel_path}"
-    offenders = _iter_banned_imports(path.read_text(encoding="utf-8"), str(path), (package,))
-    assert offenders, f"Allowlisted file {rel_path} no longer imports {package}; remove it from the allowlist."
+    actual_imports = {
+        statement for _, statement in _iter_banned_imports(path.read_text(encoding="utf-8"), str(path), (package,))
+    }
+    assert actual_imports == expected_imports, (
+        f"Allowlisted imports changed for {rel_path}; update or remove its entry."
+    )
