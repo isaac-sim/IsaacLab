@@ -542,11 +542,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        # isaaclab_ovphysx requires ovphysx >= 0.5.1, which is only available from the
-        # NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip index
-        # and keep only the ovrtx-based isaaclab_ov coverage.
-        exclude-pattern: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'isaaclab_ovphysx' }}
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} ovphysx', steps.ov_pins.outputs.ovrtx) }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
@@ -729,11 +725,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # ovphysx-backed test params require ovphysx >= 0.5.1, which is only available
-        # from the NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip
-        # index and keep the newton/ovrtx kitless rendering coverage.
-        test-k-expr: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'not ovphysx' }}
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} ovphysx', steps.ov_pins.outputs.ovrtx) }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-

@@ -783,14 +783,14 @@ def _install_ov_extra_dependencies(selector: str) -> None:
         )
     if "all" in selectors:
         selectors.update({"ovrtx", "ovphysx"})
-    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'.
+    # The OV selectors map directly to the matching root extras.
     # ovstage is bundled into both extras and installed automatically.
     if "ovrtx" in selectors:
         print_info("Installing OVRTX optional dependency...")
-        _install_root_extra("rtx")
+        _install_root_extra("ovrtx")
     if "ovphysx" in selectors:
         print_info("Installing OVPhysX optional dependency...")
-        _install_root_extra("ov")
+        _install_root_extra("ovphysx")
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
