@@ -167,8 +167,7 @@ def _quat_rotate(q: np.ndarray, v: np.ndarray) -> np.ndarray:
 
 
 def _compose_world_xforms(world_p: np.ndarray, world_q: np.ndarray, local: Sequence[float]) -> np.ndarray:
-    """``world_xform_w * local`` for every world, as one ``[num_worlds, 7]`` xyzw array.
-    """
+    """``world_xform_w * local`` for every world, as one ``[num_worlds, 7]`` xyzw array."""
     local = np.asarray(local, dtype=np.float32)
     out = np.empty((world_p.shape[0], 7), dtype=np.float32)
     out[:, :3] = world_p + _quat_rotate(world_q, np.broadcast_to(local[:3], world_p.shape))
