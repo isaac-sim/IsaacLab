@@ -35,12 +35,13 @@ Subcommands:
              directly to repair a lock by hand or, with ``--check``, as a
              gate.
 
-Which file holds a package's version is the branch's business, not this
-tool's — :attr:`Package.toml_path` resolves it, so the same ``cli.py`` is
-correct on branches that keep versions in ``pyproject.toml`` and on release
-branches that still keep them in ``config/extension.toml``. That matters
-because the nightly workflow lives only on the default branch and invokes
-whatever ``cli.py`` each target branch carries.
+Which file holds a package's version is the branch's business: this one uses
+``pyproject.toml``, release branches cut before #6505 use
+``config/extension.toml``. That matters because the nightly workflow lives
+only on the default branch and invokes whatever ``cli.py`` each target
+branch carries. The layout lives in three members of :class:`Package` --
+``toml_path``, ``current_version`` and ``write_version`` -- and a
+cherry-pick must port all three.
 
 Usage:
 

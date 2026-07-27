@@ -72,6 +72,16 @@ class GitRepo:
         self._run("add", "--", *self._literal(path_strs))
         return path_strs
 
+    def assert_clean(self) -> None:
+        """Raise unless the working tree and index are clean.
+
+        Raises:
+            GitError: Something is modified or staged.
+        """
+        dirty = self._run("status", "--porcelain").stdout.strip()
+        if dirty:
+            raise GitError("working tree is not clean; auto-bump needs sole ownership of it:\n" + dirty)
+
     def restore(self, paths: Iterable[Path | str]) -> None:
         """Undo working-tree changes to ``paths``, including deletions.
 
@@ -90,14 +100,9 @@ class GitRepo:
             if p not in tracked and Path(p).exists():
                 Path(p).unlink()
 
-    def has_staged_changes(self, paths: Iterable[Path | str]) -> bool:
-        """Whether any of ``paths`` is staged for commit.
-
-        Scoped to the caller's paths for the same reason :meth:`commit` is:
-        an unrelated staged change must not make this look like there is
-        work to commit.
-        """
-        return self._run("diff", "--staged", "--quiet", "--", *self._literal(paths), check=False).returncode != 0
+    def has_staged_changes(self) -> bool:
+        """Whether anything is staged for commit."""
+        return self._run("diff", "--staged", "--quiet", check=False).returncode != 0
 
     def staged_diff(self, path: Path | str) -> str:
         """Return the staged diff for one path.
@@ -109,14 +114,12 @@ class GitRepo:
         """
         return self._run("diff", "--staged", "--no-color", "--", str(path)).stdout
 
-    def commit(self, message: str, paths: Iterable[Path | str], *, author_name: str, author_email: str) -> None:
-        """Commit exactly ``paths`` under a one-off identity.
+    def commit(self, message: str, *, author_name: str, author_email: str) -> None:
+        """Commit the staged changes under a one-off identity.
 
-        The pathspec is load-bearing: ``git commit`` otherwise commits the
-        whole index, so anything already staged in the caller's checkout
-        would ride along under the bot's name. Naming the paths makes
-        "commit what the compile reported, and nothing else" a property of
-        the command rather than a precondition someone has to remember.
+        Commits the index rather than a pathspec, which is exact because
+        :meth:`assert_clean` established that the index holds nothing but
+        what this run staged.
 
         The identity is passed per-invocation with ``-c`` rather than written
         via ``git config``, which would permanently rewrite the identity of
@@ -130,8 +133,6 @@ class GitRepo:
             "commit",
             "-m",
             message,
-            "--",
-            *self._literal(paths),
         )
 
     def fetch(self, remote: str, ref: str) -> None:
@@ -286,7 +287,18 @@ class AutoBumpRun:
     # ---- Public API -----------------------------------------------------
 
     def run(self) -> int:
-        """Execute the whole nightly lifecycle. Returns a process exit code."""
+        """Execute the whole nightly lifecycle. Returns a process exit code.
+
+        Raises:
+            GitError: The working tree was not clean at entry.
+        """
+        # This command owns the working tree for the duration of a run, which
+        # is what the nightly workflow always hands it: a fresh checkout.
+        # Asserting that once is cheaper and clearer than scoping every git
+        # operation to survive a tree it will never see, and it turns local
+        # misuse into one obvious error instead of a subtly wrong commit.
+        if not self.dry_run:
+            self.repo.assert_clean()
         touched, any_compiled = self._compile_all()
         # The lock is reconciled on every run, before the "nothing to do" exit
         # rather than after it. A lock that cannot be repaired is a standing
@@ -376,15 +388,14 @@ class AutoBumpRun:
 
     def _stage_and_commit(self, touched: list[Path]) -> None:
         """Stage exactly ``touched`` and commit it as the bot."""
-        staged = self.repo.add(touched)
-        if not staged or not self.repo.has_staged_changes(staged):
+        self.repo.add(touched)
+        if not self.repo.has_staged_changes():
             print("Nothing actually staged after compile — skipping commit.")
             return
         # Author identity belongs in-process: the workflow YAML stops carrying
         # changelog-tool knowledge, so cli.py-only PRs need no paired YAML edit.
         self.repo.commit(
             self._build_commit_message(touched),
-            staged,
             author_name=self.AUTHOR_NAME,
             author_email=self.AUTHOR_EMAIL,
         )

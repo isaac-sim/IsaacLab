@@ -10,10 +10,14 @@ about what is on disk -- what version a package declares, which fragments
 are pending, what a compiled entry looks like -- and knows nothing about
 git, the nightly job, or the command line.
 
-Which file holds a package's version is a property of the branch, not of
-this module's callers: :attr:`Package.toml_path` resolves it, so the same
-code is correct on branches that keep versions in ``pyproject.toml`` and on
-release branches that still keep them in ``config/extension.toml``.
+Which file holds a package's version is a property of the branch: this one
+keeps it in ``pyproject.toml`` under ``[project]``; release branches cut
+before #6505 keep it in ``config/extension.toml``.
+
+Three members carry that layout: :attr:`toml_path` (where the version
+lives), :meth:`current_version` (how it is read) and :meth:`write_version`
+(how it is written). A cherry-pick to a branch with a different layout must
+port all three -- ``toml_path`` alone is not a seam.
 """
 
 from __future__ import annotations
@@ -849,11 +853,11 @@ class Package:
     def write_version(self, new_version: Version, *, dry_run: bool) -> list[Path]:
         """Set ``version = "<new_version>"`` in this package's version metadata file.
 
-        Which file that is depends on the branch layout — :attr:`toml_path`
-        resolves it (``pyproject.toml`` here, ``config/extension.toml`` on
-        release branches that predate #6505). Returns the list of paths
-        written (empty in dry-run) so :class:`AutoBumpRun` has a single
-        source of truth for what changed on disk.
+        One of the three branch-layout members (with :attr:`toml_path` and
+        :meth:`current_version`); a cherry-pick to another layout must port
+        all three. Returns the list of paths written (empty in dry-run) so
+        :class:`AutoBumpRun` has a single source of truth for what changed
+        on disk.
         """
         text = self.toml_path.read_text(encoding="utf-8")
         in_project = False

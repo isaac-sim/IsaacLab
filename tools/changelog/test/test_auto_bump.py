@@ -323,7 +323,10 @@ def test_auto_bump_dry_run_writes_nothing(synthetic_repo: Path, tmp_path: Path):
     skipping the commit. A drifting lock is seeded so the lock-sync dry-run
     branch is covered in the same run."""
     pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab", starting_version="1.0.0")
-    lock = _write_workspace_lock(synthetic_repo, ["isaaclab"])
+    # Pinned behind the manifest so the sync has real drift to find. Seeded
+    # in sync, it returned at its "nothing to do" guard and never reached the
+    # write-suppression branch this test exists to cover.
+    lock = _write_workspace_lock(synthetic_repo, ["isaaclab"], pinned={"isaaclab": "0.9.0"})
     frag = _drop_fragment(pkg_root, "feat-x")
     _commit_baseline(synthetic_repo)
     lock_before = lock.read_text(encoding="utf-8")
@@ -371,13 +374,19 @@ def test_auto_bump_with_no_fragments_is_a_noop(synthetic_repo: Path, tmp_path: P
 # ---------------------------------------------------------------------------
 
 
-def _write_workspace_lock(work: Path, names: list[str]) -> Path:
+def _write_workspace_lock(work: Path, names: list[str], *, pinned: dict[str, str] | None = None) -> Path:
     """Turn the synthetic repo into a uv workspace.
 
     Writes a root manifest declaring each package as an editable member and
     a ``uv.lock`` pinning them at whatever version they currently declare —
     i.e. in sync, so any drift a test observes was produced by the bump.
+
+    ``pinned`` overrides a member's locked version to seed drift that exists
+    *before* the run. A test that needs the sync to actually do something
+    must use it: with everything in sync, ``LockFile.sync`` returns at its
+    "nothing to do" guard and never reaches the behaviour under test.
     """
+    pinned = pinned or {}
     sources = "\n".join(f'{name} = {{ path = "source/{name}", editable = true }}' for name in names)
     (work / "pyproject.toml").write_text(
         f'[project]\nname = "isaaclab-dev"\nversion = "0.0.0"\n\n[tool.uv.sources]\n{sources}\n',
@@ -385,7 +394,7 @@ def _write_workspace_lock(work: Path, names: list[str]) -> Path:
     )
     blocks = []
     for name in names:
-        version = packages.Package.declared_version(work / "source" / name)
+        version = pinned.get(name) or packages.Package.declared_version(work / "source" / name)
         blocks.append(
             f'[[package]]\nname = "{name}"\nversion = "{version}"\nsource = {{ editable = "source/{name}" }}\n'
         )
@@ -959,34 +968,6 @@ def test_untracked_file_that_vanished_does_not_abort_staging(synthetic_repo: Pat
     assert _version_file("isaaclab") in files
 
 
-def test_dry_run_reports_lock_drift_without_writing(synthetic_repo: Path, tmp_path: Path):
-    """Dry-run must preview the lock sync too, and write nothing.
-
-    The lock is reconciled on every run, so a dry run reaches it — and a
-    dry run that silently rewrote the lock would be the worst kind of
-    surprise.
-    """
-    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab", starting_version="1.0.0")
-    lock = _write_workspace_lock(synthetic_repo, ["isaaclab"])
-    _drop_fragment(pkg_root, "feat-x")
-    _commit_baseline(synthetic_repo)
-    before = lock.read_text(encoding="utf-8")
-
-    assert (
-        autobump.AutoBumpRun(
-            branch="develop",
-            remote="origin",
-            event_name="schedule",
-            dry_run=True,
-            repo_root=synthetic_repo,
-        ).run()
-        == 0
-    )
-
-    assert lock.read_text(encoding="utf-8") == before
-    assert autobump.AutoBumpRun.AUTHOR_NAME not in _author_log(tmp_path / "origin.git")
-
-
 def test_auto_bump_argparse_wiring(synthetic_repo: Path, monkeypatch):
     """The subcommand parses and reaches the orchestrator.
 
@@ -1006,43 +987,35 @@ def test_auto_bump_argparse_wiring(synthetic_repo: Path, monkeypatch):
     assert args.func(args, parser) == 0
 
 
-def test_commit_carries_only_the_reported_paths(synthetic_repo: Path, tmp_path: Path):
-    """An unrelated staged change must not ride along in the bot commit.
+def test_dirty_tree_is_refused_before_anything_is_written(synthetic_repo: Path, tmp_path: Path):
+    """auto-bump owns the working tree, so it refuses to share it.
 
-    ``git commit`` commits the whole index, so a checkout with anything
-    already staged would push it under the bot's name — contradicting the
-    contract that the commit carries exactly what the compile reported.
-    CI checkouts are clean, but the subcommand is documented for local use.
+    The nightly always hands it a fresh checkout. Rather than scope every
+    git operation to survive a tree it will never see, the run asserts the
+    precondition once — which also turns local misuse into one obvious
+    error instead of a commit that quietly carries someone else's work.
     """
     pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
-    _drop_fragment(pkg_root, "feat-x")
+    frag = _drop_fragment(pkg_root, "feat-x")
     unrelated = synthetic_repo / "unrelated.txt"
     unrelated.write_text("original\n", encoding="utf-8")
     _commit_baseline(synthetic_repo)
 
-    # Someone left an unrelated change staged before the run.
+    # Someone left work staged before the run.
     unrelated.write_text("MEDDLED\n", encoding="utf-8")
     _git(synthetic_repo, "add", "unrelated.txt")
 
-    assert (
+    with pytest.raises(autobump.GitError, match="working tree is not clean"):
         autobump.AutoBumpRun(
             branch="develop",
             remote="origin",
             event_name="schedule",
             repo_root=synthetic_repo,
         ).run()
-        == 0
-    )
 
-    files = subprocess.run(
-        ["git", "show", "develop", "--name-only", "--format="],
-        cwd=tmp_path / "origin.git",
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.split()
-    assert _version_file("isaaclab") in files
-    assert "unrelated.txt" not in files, "an unrelated staged change was committed as the bot"
+    # Refused before touching anything: no compile, no commit, no push.
+    assert frag.exists()
+    assert autobump.AutoBumpRun.AUTHOR_NAME not in _author_log(tmp_path / "origin.git")
 
 
 def test_manual_compile_rolls_back_a_half_applied_package(synthetic_repo: Path, monkeypatch):

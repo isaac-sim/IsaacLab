@@ -14,7 +14,9 @@ branches cut before that move.
 Tests must not encode either answer. They ask :attr:`packages.Package.toml_path`
 — the code under test — and write whatever shape that file implies. That is
 what lets the same suite be cherry-picked alongside the code and keep
-testing the truth rather than a layout it no longer runs on.
+testing the truth rather than a layout it no longer runs on. (The code side
+takes three coordinated edits to move layouts, not one; the tests take
+none.)
 
 This lives in ``conftest.py`` rather than being copied into each test module
 on purpose: two copies of a layout rule is the same duplication-drift that
