@@ -158,11 +158,9 @@ def test_training_and_play_write_bundles(
 
     _run(
         [
-            "uv",
-            "run",
-            "isaaclab",
-            "benchmark",
-            "training",
+            str(ROOT / "isaaclab.sh"),
+            "-p",
+            "scripts/benchmarks/training.py",
             *common_args[:6],
             "--max_iterations",
             str(max_iterations),
@@ -198,11 +196,9 @@ def test_training_and_play_write_bundles(
 
     _run(
         [
-            "uv",
-            "run",
-            "isaaclab",
-            "benchmark",
-            "play",
+            str(ROOT / "isaaclab.sh"),
+            "-p",
+            "scripts/benchmarks/play.py",
             *common_args,
             "--num_frames",
             "250",
@@ -231,11 +227,9 @@ def test_training_and_play_write_bundles(
         synchronized_play_output = tmp_path / "play_synchronized"
         _run(
             [
-                "uv",
-                "run",
-                "isaaclab",
-                "benchmark",
-                "play",
+                str(ROOT / "isaaclab.sh"),
+                "-p",
+                "scripts/benchmarks/play.py",
                 *common_args[:6],
                 "--measure_sync_step",
                 *common_args[6:],

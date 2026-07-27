@@ -20,11 +20,9 @@ _TASK = "Isaac-Cartpole-Direct"
 def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool):
     """The runtime entry point writes schema and OmniPerf data in one run."""
     cmd = [
-        "uv",
-        "run",
-        "isaaclab",
-        "benchmark",
-        "runtime",
+        str(ROOT / "isaaclab.sh"),
+        "-p",
+        "scripts/benchmarks/runtime.py",
         "--task",
         _TASK,
         "--num_envs",

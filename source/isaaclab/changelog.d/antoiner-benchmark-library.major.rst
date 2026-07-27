@@ -11,9 +11,10 @@ Changed
 ^^^^^^^
 
 * **Breaking:** Replaced the internal :mod:`isaaclab.test.benchmark` API and
-  standalone runtime, startup, training, and play scripts with
-  :mod:`isaaclab.benchmark`. Import the new module and use ``isaaclab benchmark``
-  or :func:`~isaaclab.benchmark.run_benchmark` instead.
+  removed backend-specific compatibility scripts. Import :mod:`isaaclab.benchmark`
+  and use the supported ``scripts/benchmarks/{runtime,startup,training,play}.py``
+  launchers, ``isaaclab benchmark``, or
+  :func:`~isaaclab.benchmark.run_benchmark` instead.
 * **Breaking:** Standardized benchmark warm-up arguments. Runtime and play use
   ``--warmup_frames``, and :class:`~isaaclab.benchmark.BenchmarkPlayRequest` uses
   ``warmup_frames``. Training continues to use ``--warmup_steps``. Pass the
