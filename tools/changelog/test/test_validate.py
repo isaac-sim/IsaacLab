@@ -318,7 +318,7 @@ def test_changelog_header_re_accepts_minimum_stub():
     without a trailing blank line) leaves no anchor for the prepend and
     must be rejected.
     """
-    assert packages.CHANGELOG_HEADER_RE.search("Changelog\n---------\n\n") is not None
+    assert packages.Changelog.HEADER_RE.search("Changelog\n---------\n\n") is not None
 
 
 def test_changelog_header_re_rejects_unterminated_stub():
@@ -328,7 +328,7 @@ def test_changelog_header_re_rejects_unterminated_stub():
     20-byte shape, wedging the nightly compile job (run
     https://github.com/isaac-sim/IsaacLab/actions/runs/26494922179).
     """
-    assert packages.CHANGELOG_HEADER_RE.search("Changelog\n---------\n") is None
+    assert packages.Changelog.HEADER_RE.search("Changelog\n---------\n") is None
 
 
 def test_every_managed_package_has_parseable_changelog_header():
@@ -342,21 +342,13 @@ def test_every_managed_package_has_parseable_changelog_header():
     malformed (no ``Changelog`` line, no underline, etc.) and would wedge
     the nightly.
     """
-    import re
-
-    self_heal = re.compile(r"^(Changelog\n-+)\n(?!\n)", re.MULTILINE)
-    bad: list[tuple[str, str]] = []
     discovered = packages.Package.discover()
     # Anchor first. If discovery comes back empty — the symptom of a
     # ``toml_path`` that does not match this branch's layout — every
     # assertion below would pass over an empty loop while the nightly
     # quietly compiled nothing.
     assert discovered, "Package.discover() found no managed packages; the layout assumption is wrong for this branch"
-    for pkg in discovered:
-        text = pkg.changelog_path.read_text(encoding="utf-8")
-        text = self_heal.sub(r"\1\n\n", text, count=1)
-        if packages.CHANGELOG_HEADER_RE.search(text) is None:
-            bad.append((pkg.name, str(pkg.changelog_path)))
+    bad = [(pkg.name, str(pkg.changelog.path)) for pkg in discovered if not pkg.changelog.has_valid_header()]
     assert not bad, (
         "Malformed CHANGELOG.rst — each file must contain "
         "'Changelog\\n---------\\n\\n' (header + underline + blank line) "
@@ -516,3 +508,42 @@ def test_compile_rejects_fragments_that_check_would_reject(tmp_path):
 
     with pytest.raises(ValueError, match="failed content validation"):
         pkg.compile(fragments_dir=fragments, dry_run=True)
+
+
+# ---------------------------------------------------------------------------
+# Changelog — the header invariant, stated once
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text,valid",
+    [
+        ("Changelog\n---------\n\n1.0.0\n", True),
+        # The isaaclab_ppisp shape (#5748): header present, trailing blank
+        # line missing. Repaired rather than rejected.
+        ("Changelog\n---------\n1.0.0\n", True),
+        ("No header at all\n", False),
+        ("Changelog\n1.0.0\n", False),  # no underline
+    ],
+)
+def test_changelog_header_validity(tmp_path, text, valid):
+    p = _write(tmp_path / "CHANGELOG.rst", text)
+    assert packages.Changelog(p).has_valid_header() is valid
+
+
+def test_gate_and_compiler_agree_on_a_self_healed_header(tmp_path):
+    """The PR gate and the compiler must accept exactly the same files.
+
+    The self-heal used to be written out separately in each; a file that one
+    repaired and the other did not would either pass the gate and then wedge
+    the nightly, or be rejected at PR time for a shape the compiler handles
+    fine. Asking one object keeps that impossible.
+    """
+    healable = _write(tmp_path / "CHANGELOG.rst", "Changelog\n---------\n1.0.0 (2020-01-01)\n")
+    changelog = packages.Changelog(healable)
+
+    # The gate's question...
+    assert changelog.has_valid_header() is True
+    # ...and the compiler's, on the same file.
+    assert changelog.prepend("2.0.0\n~~~~~\n", dry_run=False) == [healable]
+    assert "2.0.0" in healable.read_text(encoding="utf-8")

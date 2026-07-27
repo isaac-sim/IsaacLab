@@ -68,6 +68,12 @@ class FragmentFilename:
         (".rst", "patch"),
     )
 
+    # Housekeeping files that live in a fragment directory but are not
+    # fragments. Stated once: the directory walker and the PR gate both ask,
+    # and a second sentinel added to one and not the other would make them
+    # disagree about what a directory contains.
+    IGNORED_NAMES: ClassVar[frozenset[str]] = frozenset({".gitkeep"})
+
     # Chars forbidden inside a slug, mirroring ``git check-ref-format``.
     _FORBIDDEN_CHARS: ClassVar[frozenset[str]] = frozenset(" ~^:?*[\\\x7f")
 
@@ -94,6 +100,11 @@ class FragmentFilename:
         if slug.endswith(".lock") or ".." in slug or "@{" in slug:
             return False
         return not any(c in cls._FORBIDDEN_CHARS or ord(c) < 32 or c == "/" for c in slug)
+
+    @property
+    def is_ignorable(self) -> bool:
+        """``True`` for housekeeping files that are not fragments by design."""
+        return self.name in self.IGNORED_NAMES
 
     @property
     def is_valid(self) -> bool:
@@ -162,19 +173,10 @@ class FragmentFilename:
             if t not in by_tier:
                 continue
             verb = "add " if i == 0 else "or  "
-            path = f"source/{package_name}/changelog.d/<slug>{by_tier[t]}"
+            path = f"{Package.fragment_dir_prefix(package_name)}<slug>{by_tier[t]}"
             padding = " " * (suffix_width - len(by_tier[t]))
             lines.append(f"{verb} {path}{padding}   {annotations[t]}")
         return lines
-
-
-# Anchor the compile-time insertion point in ``CHANGELOG.rst``. A managed
-# package's file must contain at minimum ``Changelog\n---+\n\n`` — header,
-# underline, then a blank line — so the bot has a place to prepend the next
-# version block. Imported by both ``Package.write_changelog_entry`` (the
-# producer) and ``test_validate`` (the regression gate) so the two cannot
-# drift on what "valid header" means.
-CHANGELOG_HEADER_RE = re.compile(r"^Changelog\n-+\s*\n\s*\n", re.MULTILINE)
 
 
 def _display_path(p: Path) -> str:
@@ -486,7 +488,7 @@ class FragmentBatch:
         invalid: list[Path] = []
         skips: list[Path] = []
         for p in fragment_dir.iterdir():
-            if p.is_dir() or p.name == ".gitkeep":
+            if p.is_dir() or FragmentFilename(p.name).is_ignorable:
                 continue
             if FragmentFilename(p.name).is_skip:
                 skips.append(p)
@@ -661,6 +663,77 @@ class FragmentBatch:
 
 
 @dataclass(frozen=True)
+class Changelog:
+    """A package's ``CHANGELOG.rst`` — the file the compiler prepends to.
+
+    Owns both halves of the header invariant. :data:`HEADER_RE` is the strict
+    anchor the compiler needs a match for; :data:`_SELF_HEAL_RE` is the one
+    narrow repair applied before checking it. They were separate before, so
+    the compiler and the PR gate each carried their own copy of the repair
+    and could disagree about which files are acceptable — a fragment passing
+    the gate and then wedging the nightly, or the reverse.
+    """
+
+    # ---- Class constants ------------------------------------------------
+
+    # A managed package's file must contain at minimum ``Changelog\n---+\n\n``
+    # — header, underline, then a blank line — so there is a place to prepend
+    # the next version block.
+    HEADER_RE: ClassVar[re.Pattern[str]] = re.compile(r"^Changelog\n-+\s*\n\s*\n", re.MULTILINE)
+
+    # A contributor who ships ``Changelog\n---+\n`` (the isaaclab_ppisp shape
+    # #5748 introduced) is missing only the trailing blank line. Repair that
+    # in memory rather than failing, and write it back so the file ends up
+    # canonical on first compile. No-op when the blank line is already there.
+    _SELF_HEAL_RE: ClassVar[re.Pattern[str]] = re.compile(r"^(Changelog\n-+)\n(?!\n)", re.MULTILINE)
+
+    # ---- Fields ---------------------------------------------------------
+
+    path: Path
+
+    # ---- Properties -----------------------------------------------------
+
+    @property
+    def exists(self) -> bool:
+        """Whether the file is present."""
+        return self.path.is_file()
+
+    # ---- Public API -----------------------------------------------------
+
+    def normalized(self) -> str:
+        """File contents with the missing-blank-line header repaired."""
+        return self._SELF_HEAL_RE.sub(r"\1\n\n", self.path.read_text(encoding="utf-8"), count=1)
+
+    def has_valid_header(self) -> bool:
+        """Whether a compile could find its insertion point in this file.
+
+        Answers the same question for the PR gate and for the compiler, so
+        the two cannot disagree about what "valid" means.
+        """
+        return self.HEADER_RE.search(self.normalized()) is not None
+
+    def prepend(self, entry: str, *, dry_run: bool) -> list[Path]:
+        """Insert ``entry`` directly below the header. Returns paths written.
+
+        Empty in dry-run, so callers get one source of truth for what
+        actually changed on disk.
+        """
+        text = self.normalized()
+        m = self.HEADER_RE.search(text)
+        if not m:
+            raise ValueError(f"Could not locate changelog header in {self.path}")
+        updated = text[: m.end()] + entry + "\n" + text[m.end() :]
+        if dry_run:
+            print(f"\n{'=' * 60}")
+            print(f"DRY RUN — would write to {_display_path(self.path)}")
+            print(f"{'=' * 60}")
+            print(entry)
+            return []
+        self.path.write_text(updated, encoding="utf-8")
+        return [self.path]
+
+
+@dataclass(frozen=True)
 class Package:
     """A source/<pkg>/ directory the changelog tool can manage.
 
@@ -698,20 +771,41 @@ class Package:
         return self.root.name
 
     @property
-    def changelog_path(self) -> Path:
-        return self.root / "docs" / "CHANGELOG.rst"
+    def changelog(self) -> Changelog:
+        """This package's ``CHANGELOG.rst``, as a model rather than a path."""
+        return Changelog(self.root / "docs" / "CHANGELOG.rst")
 
     @property
     def toml_path(self) -> Path:
         return self.root / "pyproject.toml"
 
+    # Name of the per-package fragment directory. Stated once so the model,
+    # the PR gate's path matching, and the contributor-facing help all agree.
+    FRAGMENT_DIR_NAME: ClassVar[str] = "changelog.d"
+
     @property
     def default_fragment_dir(self) -> Path:
-        return self.root / "changelog.d"
+        return self.root / self.FRAGMENT_DIR_NAME
+
+    @classmethod
+    def package_prefix(cls, name: str) -> str:
+        """Repo-relative POSIX prefix of a package directory.
+
+        The string form exists because :class:`PRDiff` matches git-diff
+        output, which is repo-relative text, while the model holds absolute
+        paths. Same location, two representations — derived here rather than
+        spelled out at each use.
+        """
+        return f"{PACKAGES_ROOT.name}/{name}/"
+
+    @classmethod
+    def fragment_dir_prefix(cls, name: str) -> str:
+        """Repo-relative POSIX prefix of a package's fragment directory."""
+        return f"{cls.package_prefix(name)}{cls.FRAGMENT_DIR_NAME}/"
 
     @property
     def is_managed(self) -> bool:
-        return self.toml_path.is_file() and self.changelog_path.is_file()
+        return self.toml_path.is_file() and self.changelog.exists
 
     def current_version(self) -> Version:
         in_project = False
@@ -749,31 +843,8 @@ class Package:
             return None
 
     def write_changelog_entry(self, entry: str, *, dry_run: bool) -> list[Path]:
-        """Prepend ``entry`` to this package's CHANGELOG.rst. Returns the
-        list of paths written (empty in dry-run, so callers like
-        :class:`AutoBumpRun` get a single source of truth for "what just
-        changed on disk")."""
-        text = self.changelog_path.read_text(encoding="utf-8")
-        # Self-heal a header that lacks the trailing blank line. The compile
-        # regex needs ``Changelog\n---+\n\n`` as an anchor; a contributor who
-        # ships ``Changelog\n---+\n`` (the isaaclab_ppisp shape PR #5748
-        # introduced) would otherwise wedge the nightly. Insert the missing
-        # ``\n`` in-memory and write it back so the on-disk file ends up
-        # canonical on first compile. No-op when the blank line is already
-        # there (negative lookahead).
-        text = re.sub(r"^(Changelog\n-+)\n(?!\n)", r"\1\n\n", text, count=1, flags=re.MULTILINE)
-        m = CHANGELOG_HEADER_RE.search(text)
-        if not m:
-            raise ValueError(f"Could not locate changelog header in {self.changelog_path}")
-        updated = text[: m.end()] + entry + "\n" + text[m.end() :]
-        if dry_run:
-            print(f"\n{'=' * 60}")
-            print(f"DRY RUN — would write to {_display_path(self.changelog_path)}")
-            print(f"{'=' * 60}")
-            print(entry)
-            return []
-        self.changelog_path.write_text(updated, encoding="utf-8")
-        return [self.changelog_path]
+        """Prepend ``entry`` to this package's CHANGELOG.rst. Returns paths written."""
+        return self.changelog.prepend(entry, dry_run=dry_run)
 
     def write_version(self, new_version: Version, *, dry_run: bool) -> list[Path]:
         """Set ``version = "<new_version>"`` in this package's version metadata file.
@@ -901,12 +972,12 @@ class Package:
         )
         print(f"  {self.name}: {len(parsed_pairs)} fragment(s) → version {new_version}{bump_label}")
 
-        if not self.changelog_path.exists():
+        if not self.changelog.exists:
             # Should never happen with managed packages discovered via
             # ``Package.discover()`` — defensive check for callers that
             # construct a ``Package`` directly with an unmanaged root.
             raise ValueError(
-                f"{_display_path(self.changelog_path)} does not exist; "
+                f"{_display_path(self.changelog.path)} does not exist; "
                 f"package {self.name!r} is not managed (missing CHANGELOG.rst)."
             )
         # Everything below mutates the working tree, so from the first write
@@ -1064,8 +1135,8 @@ class PRDiff:
         invalid_fragments: list[tuple[str, str]] = []
 
         for pkg in packages:
-            pkg_prefix = f"source/{pkg.name}/"
-            changelog_dir = f"source/{pkg.name}/changelog.d/"
+            pkg_prefix = Package.package_prefix(pkg.name)
+            changelog_dir = Package.fragment_dir_prefix(pkg.name)
             source_changed = [f for f in self.changed if f.startswith(pkg_prefix) and not f.startswith(changelog_dir)]
             fragment_changes = [f for f in self.changed if f.startswith(changelog_dir)]
 
@@ -1090,7 +1161,7 @@ class PRDiff:
 
         for f in fragment_changes:
             path = Path(f)
-            if path.name == ".gitkeep":
+            if FragmentFilename(path.name).is_ignorable:
                 continue
             if (err := self._check_immutability(f)) is not None:
                 problems.append((f, err))
@@ -1169,7 +1240,7 @@ class PRDiff:
         if not directory.is_dir():
             return existing
         for p in directory.iterdir():
-            if p.is_dir() or p.name == ".gitkeep" or p.name in added_basenames:
+            if p.is_dir() or FragmentFilename(p.name).is_ignorable or p.name in added_basenames:
                 continue
             if (slug := Fragment.parse_slug(p.name)) is not None:
                 existing[slug] = p.name

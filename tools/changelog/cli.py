@@ -86,14 +86,13 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
 
 from autobump import AutoBumpRun, GitRepo
 from lockfile import LockFile
-from packages import CHANGELOG_HEADER_RE, REPO_ROOT, FragmentFilename, Package, PRDiff, RootPackage, Version
+from packages import REPO_ROOT, FragmentFilename, Package, PRDiff, RootPackage, Version
 
 # ---------------------------------------------------------------------------
 # Subcommand handlers
@@ -187,13 +186,9 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
     # shape (no ``Changelog`` header, no underline, wrong underline char,
     # leading whitespace, etc.) still raises at compile time and would
     # wedge the next nightly. Block those at PR time with a clear error.
-    malformed_headers: list[str] = []
-    for pkg in packages:
-        text = pkg.changelog_path.read_text(encoding="utf-8")
-        # Apply the same normalization compile would apply, then check.
-        text = re.sub(r"^(Changelog\n-+)\n(?!\n)", r"\1\n\n", text, count=1, flags=re.MULTILINE)
-        if CHANGELOG_HEADER_RE.search(text) is None:
-            malformed_headers.append(str(pkg.changelog_path.relative_to(REPO_ROOT)))
+    malformed_headers = [
+        str(pkg.changelog.path.relative_to(REPO_ROOT)) for pkg in packages if not pkg.changelog.has_valid_header()
+    ]
 
     missing, invalid_fragments = diff.evaluate(packages)
 
