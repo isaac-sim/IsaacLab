@@ -864,3 +864,41 @@ def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch)
     cfg.contact_pairs = []
     solver = NewtonCouplerManager._build_admm_coupled_solver(model, entries, cfg)
     assert list(solver.coupling.contact_pairs) == []
+
+
+def test_install_implicit_mpm_reset_mask_adapter_pads_entry_masks(monkeypatch):
+    """Coupled MPM entry resets pad full masks and skip selective shared-world ones."""
+    import warp as wp
+
+    recorded: list[list[bool] | None] = []
+
+    class _FakeImplicitMPM:
+        def __init__(self):
+            self.model = SimpleNamespace(world_count=4)
+            self._separate_worlds = False
+
+        def reset(self, state, world_mask=None, flags=None):
+            del state, flags
+            recorded.append(None if world_mask is None else world_mask.numpy().tolist())
+
+    monkeypatch.setattr(coupler, "SolverImplicitMPM", _FakeImplicitMPM)
+    mpm_solver = _FakeImplicitMPM()
+
+    class _FakeCoupled:
+        def solver(self, name: str):
+            assert name == "mpm"
+            return mpm_solver
+
+    NewtonCouplerManager._install_implicit_mpm_reset_mask_adapter(_FakeCoupled(), ["mpm"])
+
+    # Shared multi-world selective masks are skipped (no call into original reset).
+    mpm_solver.reset(object(), world_mask=wp.array([True, False, True, False], dtype=wp.bool, device="cpu"))
+    assert recorded == []
+
+    mpm_solver.reset(object(), world_mask=wp.array([True, True, True, True], dtype=wp.bool, device="cpu"))
+    assert recorded == [None]
+
+    # With separate worlds, selective masks are forwarded as (N+1,).
+    mpm_solver._separate_worlds = True
+    mpm_solver.reset(object(), world_mask=wp.array([True, False, True, False], dtype=wp.bool, device="cpu"))
+    assert recorded == [None, [True, False, True, False, False]]

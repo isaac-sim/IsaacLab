@@ -18,9 +18,14 @@ from isaaclab_newton.physics import (
     NewtonCollisionPipelineCfg,
     NewtonSolverCfg,
 )
-from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
+from isaaclab_newton.physics.mpm_manager import (
+    NewtonMPMManager,
+    adapt_world_mask_for_implicit_mpm,
+    should_skip_implicit_mpm_masked_reset,
+)
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
+from newton.solvers import SolverImplicitMPM
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.physics import PhysicsManager
@@ -114,6 +119,54 @@ class NewtonCouplerManager(NewtonVBDManager):
         NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = needs_collision_pipeline
         NewtonManager._supports_rigid_body_force_input = True
+        cls._install_implicit_mpm_reset_mask_adapter(
+            NewtonManager._solver,
+            [entry.config.name for entry in resolved_entries],
+        )
+
+    @classmethod
+    def _install_implicit_mpm_reset_mask_adapter(cls, solver: object, entry_names: list[str]) -> None:
+        """Adapt coupled-reset masks for Implicit MPM's world-mask contract.
+
+        :class:`~newton.solvers.experimental.coupled.SolverCoupled` forwards the
+        parent ``(world_count,)`` mask to every entry. MJWarp expects that shape,
+        while :class:`~newton.solvers.SolverImplicitMPM` expects one extra bit for
+        global world ``-1``. Shared multi-world Implicit MPM
+        (``separate_worlds=False``) also rejects selective masks when clearing
+        grid-backed warm starts; those resets are skipped. Wrapping only MPM
+        entry ``reset`` methods keeps the coupled parent API unchanged.
+        """
+        # SolverCoupled exposes sub-solvers via ``solver(name)`` (not ``entry_solver``).
+        get_entry_solver = getattr(solver, "solver", None)
+        if not callable(get_entry_solver):
+            return
+
+        for entry_name in entry_names:
+            try:
+                entry_solver = get_entry_solver(entry_name)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not isinstance(entry_solver, SolverImplicitMPM):
+                continue
+            original_reset = entry_solver.reset
+
+            def _reset(
+                state,
+                world_mask=None,
+                flags=None,
+                *,
+                _original_reset=original_reset,
+                _entry_solver=entry_solver,
+            ):
+                if should_skip_implicit_mpm_masked_reset(_entry_solver, world_mask):
+                    return None
+                return _original_reset(
+                    state,
+                    world_mask=adapt_world_mask_for_implicit_mpm(_entry_solver, world_mask),
+                    flags=flags,
+                )
+
+            entry_solver.reset = _reset  # type: ignore[method-assign]
 
     @classmethod
     def _validate_config(cls, solver_cfg: CouplerCfg) -> None:

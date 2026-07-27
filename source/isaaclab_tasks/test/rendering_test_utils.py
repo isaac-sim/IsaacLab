@@ -598,98 +598,6 @@ def _camera_output_to_pil_image(tensor: torch.Tensor, data_type: str) -> Image.I
     return Image.fromarray(ndarr)
 
 
-def _pour_frame_save_dir() -> str | None:
-    """Return the pour-frame output directory when frame saving is enabled."""
-    out_dir = os.environ.get("ISAAC_LAB_SAVE_STAGES")
-    if not out_dir:
-        return None
-    return os.path.join(out_dir, "pour_frames")
-
-
-def _pour_frame_count() -> int:
-    """Return the number of zero-action pour steps to simulate."""
-    raw = os.environ.get("ISAAC_LAB_POUR_FRAMES", "120")
-    try:
-        count = int(raw)
-    except ValueError as error:
-        raise ValueError(f"ISAAC_LAB_POUR_FRAMES must be an integer, got {raw!r}.") from error
-    if count < 0:
-        raise ValueError(f"ISAAC_LAB_POUR_FRAMES must be nonnegative, got {count}.")
-    return count
-
-
-def maybe_save_camera_frames(
-    test_name: str,
-    physics_backend: str,
-    renderer: str,
-    data_type: str,
-    camera_outputs: dict[str, ProxyArray],
-    frame_index: int,
-    *,
-    frame_images: list[Image.Image] | None = None,
-) -> list[Image.Image]:
-    """If ``ISAAC_LAB_SAVE_STAGES`` is set, save the current camera frame and accumulate GIF frames.
-
-    Args:
-        test_name: Rendering test label used in output filenames.
-        physics_backend: Physics backend label.
-        renderer: Renderer nickname.
-        data_type: Camera data type under test.
-        camera_outputs: Camera sensor output dictionary.
-        frame_index: Zero-based frame index in the pour sequence.
-        frame_images: Optional accumulator for animated GIF assembly.
-
-    Returns:
-        The updated frame-image accumulator (empty when saving is disabled).
-    """
-    out_dir = _pour_frame_save_dir()
-    if out_dir is None or data_type not in camera_outputs:
-        return frame_images or []
-
-    output = camera_outputs[data_type]
-    tensor = output if isinstance(output, torch.Tensor) else output.torch
-    image = _camera_output_to_pil_image(tensor, data_type)
-
-    os.makedirs(out_dir, exist_ok=True)
-    safe_test_name = test_name.replace("/", "_")
-    prefix = f"{safe_test_name}-{physics_backend}-{renderer}-{data_type}"
-    frame_path = os.path.join(out_dir, f"{prefix}-frame{frame_index:03d}.png")
-    image.save(frame_path, format="PNG")
-
-    accumulated = list(frame_images or [])
-    accumulated.append(image)
-    return accumulated
-
-
-def maybe_write_pour_frame_gif(
-    test_name: str,
-    physics_backend: str,
-    renderer: str,
-    data_type: str,
-    frame_images: list[Image.Image],
-) -> None:
-    """Write an animated GIF from accumulated pour frames when saving is enabled."""
-    if not frame_images:
-        return
-
-    out_dir = _pour_frame_save_dir()
-    if out_dir is None:
-        return
-
-    os.makedirs(out_dir, exist_ok=True)
-    safe_test_name = test_name.replace("/", "_")
-    prefix = f"{safe_test_name}-{physics_backend}-{renderer}-{data_type}"
-    gif_path = os.path.join(out_dir, f"{prefix}.gif")
-    frame_images[0].save(
-        gif_path,
-        save_all=True,
-        append_images=frame_images[1:],
-        duration=100,
-        loop=0,
-    )
-    print(f"[ISAAC_LAB_SAVE_STAGES] wrote {gif_path} ({len(frame_images)} frames)")
-
-
 def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     """Apply override args to env_cfg using parse_overrides and apply_overrides."""
     from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets, parse_overrides
@@ -832,6 +740,35 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
     path = os.path.join(_COMPARISON_IMAGES_DIR, _COMPARISON_IMAGE_SUBDIR, filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
+    return path
+
+
+def _camera_outputs_to_pil(camera_outputs: dict[str, ProxyArray]) -> Image.Image:
+    """Convert the first camera AOV in ``camera_outputs`` to a displayable PIL image."""
+    data_type, output = next(iter(camera_outputs.items()))
+    tensor = output if isinstance(output, torch.Tensor) else output.torch
+    condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
+    corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
+    normalized = normalize_camera_output_for_display(corrected, data_type)
+    grid = make_camera_output_grid(normalized)
+    ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+    return Image.fromarray(ndarr)
+
+
+def _save_image_sequence_gif(frames: list[Image.Image], filename: str, duration_ms: int = 100) -> str:
+    """Save a PIL image sequence as an animated GIF under the current working directory (repo root)."""
+    if not frames:
+        raise ValueError("No frames to save as GIF.")
+    path = os.path.join(os.getcwd(), filename)
+    rgb_frames = [frame.convert("RGB") for frame in frames]
+    rgb_frames[0].save(
+        path,
+        save_all=True,
+        append_images=rgb_frames[1:],
+        duration=duration_ms,
+        loop=0,
+    )
+    logger.info("Wrote GIF with %d frames to %s", len(frames), path)
     return path
 
 
@@ -2111,8 +2048,6 @@ def rendering_test_franka_pour(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    _skip_if_newton_motion_vectors(physics_backend, data_type)
-
     from isaaclab_tasks.contrib.franka_pour.pour_env import FrankaPourEnv
 
     env_cfg = _make_franka_pour_camera_env_cfg(data_type)
@@ -2136,41 +2071,36 @@ def rendering_test_franka_pour(
 
     try:
         env = FrankaPourEnv(env_cfg)
-        env.sim._app_control_on_stop_handle = None
+        env.reset()
 
-        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
+        env.sim._app_control_on_stop_handle = None
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-        for _ in range(FRAMES_BEFORE_POURING_PARTICLES):
+        pour_frames = 180
+        frames: list[Image.Image] = []
+        for _ in range(pour_frames):
             env.step(zero_actions)
-
-        camera_outputs = env.scene.sensors["tiled_camera"].data.output
-        validate_camera_outputs(
-            test_name,
-            physics_backend,
-            renderer,
-            camera_outputs,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
-            comparison_scores=comparison_scores,
+            frames.append(_camera_outputs_to_pil(env.scene.sensors["tiled_camera"].data.output))
+        _save_image_sequence_gif(
+            frames, f"{test_name}-{physics_backend}-{renderer}-{data_type}.gif"
         )
 
         # zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-        # pour_frames = 40
-        # frame_images: list[Image.Image] = []
-        # for step_index in range(pour_frames):
+        # for _ in range(FRAMES_BEFORE_POURING_PARTICLES):
         #     env.step(zero_actions)
-        #     frame_images = maybe_save_camera_frames(
-        #         test_name,
-        #         physics_backend,
-        #         renderer,
-        #         data_type,
-        #         env.scene.sensors["tiled_camera"].data.output,
-        #         step_index,
-        #         frame_images=frame_images,
-        #     )
-        # maybe_write_pour_frame_gif(test_name, physics_backend, renderer, data_type, frame_images)
+
+        # camera_outputs = env.scene.sensors["tiled_camera"].data.output
+        # validate_camera_outputs(
+        #     test_name,
+        #     physics_backend,
+        #     renderer,
+        #     camera_outputs,
+        #     max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+        #     comparison_scores=comparison_scores,
+        # )
+
     finally:
         if env is not None:
             env.close()

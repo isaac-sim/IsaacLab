@@ -632,6 +632,45 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     assert NewtonManager._graph_capture_pending is False
 
 
+def test_adapt_world_mask_for_implicit_mpm_pads_selective_masks():
+    """Isaac Lab (world_count,) masks expand to Implicit MPM's (world_count + 1,) contract."""
+    from isaaclab_newton.physics.mpm_manager import (
+        adapt_world_mask_for_implicit_mpm,
+        should_skip_implicit_mpm_masked_reset,
+    )
+
+    solver = SimpleNamespace(model=SimpleNamespace(world_count=4), _separate_worlds=False)
+    world_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
+
+    assert should_skip_implicit_mpm_masked_reset(solver, world_mask) is True
+    adapted = adapt_world_mask_for_implicit_mpm(solver, world_mask)
+
+    assert adapted is not None
+    assert adapted.numpy().tolist() == [True, False, True, False, False]
+
+    solver._separate_worlds = True
+    assert should_skip_implicit_mpm_masked_reset(solver, world_mask) is False
+
+
+def test_adapt_world_mask_for_implicit_mpm_full_selection_becomes_unmasked():
+    """Selecting every world is equivalent to an unmasked Implicit MPM reset."""
+    from isaaclab_newton.physics.mpm_manager import (
+        adapt_world_mask_for_implicit_mpm,
+        should_skip_implicit_mpm_masked_reset,
+    )
+
+    solver = SimpleNamespace(model=SimpleNamespace(world_count=3), _separate_worlds=False)
+    world_mask = wp.array([True, True, True], dtype=wp.bool, device="cpu")
+
+    assert should_skip_implicit_mpm_masked_reset(solver, world_mask) is False
+    assert adapt_world_mask_for_implicit_mpm(solver, world_mask) is None
+    assert adapt_world_mask_for_implicit_mpm(solver, None) is None
+    assert should_skip_implicit_mpm_masked_reset(solver, None) is False
+
+    empty = wp.array([False, False, False], dtype=wp.bool, device="cpu")
+    assert should_skip_implicit_mpm_masked_reset(solver, empty) is True
+
+
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     """CUDA graph capture should use the simulation device instead of Warp's default device."""
     from isaaclab.physics import PhysicsManager
