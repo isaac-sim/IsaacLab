@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from .camera_render_spec import CameraRenderSpec
@@ -166,6 +167,20 @@ class BaseRenderer(ABC):
                 instance to populate.
         """
         pass
+
+    def reset_tile_history(self, render_data: Any, env_ids: Sequence[int] | None) -> None:
+        """Signal that the specified environments have been reset and temporal render history should be cleared.
+
+        Renderers that accumulate history across frames (e.g. DLSS) should override this to flush
+        per-tile state for the affected environments, preventing ghosting after sudden camera jumps.
+
+        The base implementation is a no-op; only renderers with temporal state need to override it.
+
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+            env_ids: Indices of environments that have been reset. ``None`` means all environments.
+        """
+        return
 
     @abstractmethod
     def cleanup(self, render_data: Any) -> None:

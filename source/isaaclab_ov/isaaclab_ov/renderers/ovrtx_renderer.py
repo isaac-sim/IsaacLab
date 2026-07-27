@@ -23,6 +23,7 @@ import logging
 import math
 import os
 import re
+from collections.abc import Sequence
 from itertools import compress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
@@ -312,6 +313,7 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
+        self._render_history_reset_request_id: int = 0
 
         logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
@@ -750,6 +752,48 @@ class OVRTXRenderer(BaseRenderer):
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
         return OVRTXRenderData(spec, self._device)
+
+    def reset_tile_history(self, render_data: OVRTXRenderData, env_ids: Sequence[int] | None) -> None:
+        """Clear DLSS temporal history for the specified environment tiles.
+
+        Writes ``omni:rtx:viewTile:renderHistoryReset:tileIndices`` and
+        ``omni:rtx:viewTile:renderHistoryReset:requestId`` on the render product so that
+        OVRTX discards accumulated denoiser state for environments that just reset.
+
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.reset_tile_history`.
+        """
+        if not self._render_product_paths or self._renderer is None:
+            return
+
+        # camera rel is authored in env ascending order, so we can treat env_id == tile indices
+
+        if env_ids is None:
+            tile_indices = np.arange(render_data.num_envs, dtype=np.float32)
+        else:
+            # np.asarray requires a CPU array; move off device if needed.
+            # write_array_attribute only accepts CPU/numpy data — the GPU path
+            # requires a pre-allocated binding, which doesn't fit variable-length
+            # reset indices.  The copy is negligible: this runs once per reset,
+            # not per frame, on an array of at most num_envs floats.
+            ids = env_ids.cpu() if isinstance(env_ids, torch.Tensor) else env_ids
+            tile_indices = np.asarray(ids, dtype=np.float32)
+
+        if len(tile_indices) == 0:
+            return
+
+        self._render_history_reset_request_id += 1
+        rp = self._render_product_paths[0]
+
+        self._renderer.write_array_attribute(
+            prim_paths=[rp],
+            attribute_name="omni:rtx:viewTile:renderHistoryReset:tileIndices",
+            tensors=[tile_indices],
+        )
+        self._renderer.write_attribute(
+            prim_paths=[rp],
+            attribute_name="omni:rtx:viewTile:renderHistoryReset:requestId",
+            tensor=np.array([self._render_history_reset_request_id], dtype=np.int32),
+        )
 
     def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
