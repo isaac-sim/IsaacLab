@@ -21,8 +21,10 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
+from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg  # noqa: E402
+from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 
 from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 
@@ -229,6 +231,25 @@ def test_initialization(num_objects: int, material_path: str | None):
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
 @pytest.mark.isaacsim_ci
+def test_absolute_material_sibling_prefix_is_not_expanded():
+    """Keep a shared absolute material exact when its path only textually prefixes the asset path."""
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        material_path = "/World/Table_0/ObjectSiblingMaterial"
+        deformable = _generate_deformable_scene(
+            pre_tetrahedralized_deformable_spawn_cfg(material_path=material_path), num_objects=2
+        )
+        distractor_cfg = PhysxDeformableBodyMaterialCfg()
+        distractor_cfg.func("/World/Table_1/ObjectSiblingMaterial", distractor_cfg)
+
+        sim.reset()
+
+        material_view = deformable.material_physx_view
+        assert material_view is not None
+        assert material_view.count == 1
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
 def test_initialization_surface_deformable():
     """Test surface deformable initialization and unsupported target writes."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -373,7 +394,9 @@ def test_set_kinematic_targets():
         deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2, height=1.0)
         sim.reset()
 
-        nodal_kinematic_targets = wp.to_torch(deformable.root_view.get_simulation_nodal_kinematic_targets()).clone()
+        nodal_kinematic_targets = wp.to_torch(
+            deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_KINEMATIC_TARGET)
+        ).clone()
 
         for _ in range(5):
             deformable.write_nodal_state_to_sim_index(deformable.data.default_nodal_state_w.torch)
@@ -416,6 +439,7 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         assert deformable.max_sim_vertices_per_body == 5
         assert deformable.max_sim_elements_per_body == 2
         assert deformable.max_collision_elements_per_body == 2
+        assert deformable.max_collision_vertices_per_body == 5
 
         nodal_state = deformable.data.nodal_state_w.torch
         nodal_pos = deformable.data.nodal_pos_w.torch
@@ -424,7 +448,7 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         assert deformable.data.default_nodal_state_w.torch.shape == (2, 5, 6)
         assert deformable.data.root_pos_w.torch.shape == (2, 3)
         assert deformable.data.root_vel_w.torch.shape == (2, 3)
-        rest_positions = wp.to_torch(deformable.root_view.get_rest_nodal_positions())
+        rest_positions = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_REST_NODAL_POSITION))
         _assert_rest_positions_match_authored(
             rest_positions,
             torch.tensor(
@@ -442,8 +466,8 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         torch.testing.assert_close(deformable.data.root_pos_w.torch, nodal_pos.mean(dim=1))
         torch.testing.assert_close(deformable.data.root_vel_w.torch, nodal_vel.mean(dim=1))
 
-        element_indices = wp.to_torch(deformable.root_view.get_simulation_element_indices())
-        collision_indices = wp.to_torch(deformable.root_view.get_collision_element_indices())
+        element_indices = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_ELEMENT_INDICES))
+        collision_indices = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_COLLISION_ELEMENT_INDICES))
         assert element_indices.shape == (2, 2, 4)
         assert collision_indices.shape == (2, 2, 4)
         assert element_indices.dtype == torch.int32
@@ -457,14 +481,14 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         updated_pos = nodal_pos[1:2].clone()
         updated_pos[..., 0] += 0.025
         deformable.write_nodal_pos_to_sim_index(updated_pos, env_ids=torch.tensor([1], device=sim.device))
-        readback_pos = wp.to_torch(deformable.root_view.get_simulation_nodal_positions())
+        readback_pos = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_NODAL_POSITION))
         torch.testing.assert_close(readback_pos[0], nodal_pos[0], rtol=1e-5, atol=1e-5)
         torch.testing.assert_close(readback_pos[1], updated_pos[0], rtol=1e-5, atol=1e-5)
 
         updated_vel = nodal_vel[0:1].clone()
         updated_vel[..., 1] = 0.1
         deformable.write_nodal_velocity_to_sim_index(updated_vel, env_ids=torch.tensor([0]))
-        readback_vel = wp.to_torch(deformable.root_view.get_simulation_nodal_velocities())
+        readback_vel = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_NODAL_VELOCITY))
         torch.testing.assert_close(readback_vel[0], updated_vel[0], rtol=1e-5, atol=1e-5)
         torch.testing.assert_close(readback_vel[1], nodal_vel[1], rtol=1e-5, atol=1e-5)
 
@@ -478,21 +502,35 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         deformable.write_nodal_kinematic_target_to_sim_index(
             updated_targets, env_ids=torch.tensor([1], device=sim.device)
         )
-        readback_targets = wp.to_torch(deformable.root_view.get_simulation_nodal_kinematic_targets())
+        readback_targets = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_KINEMATIC_TARGET))
         torch.testing.assert_close(readback_targets[0, :, 3], torch.ones_like(readback_targets[0, :, 3]))
         torch.testing.assert_close(readback_targets[1], updated_targets[0], rtol=1e-5, atol=1e-5)
 
         material_view = deformable.material_physx_view
         assert material_view is not None
         assert material_view.count == 2
-        torch.testing.assert_close(wp.to_torch(material_view.get_dynamic_frictions()), torch.full((2,), 0.5))
-        torch.testing.assert_close(wp.to_torch(material_view.get_youngs_moduli()), torch.full((2,), 1000.0))
-        torch.testing.assert_close(wp.to_torch(material_view.get_poissons_ratios()), torch.full((2,), 0.3))
-        torch.testing.assert_close(wp.to_torch(material_view.get_elasticity_dampings()), torch.full((2,), 0.005))
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_DYNAMIC_FRICTION)), torch.full((2,), 0.5)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS)), torch.full((2,), 1000.0)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_POISSONS_RATIO)), torch.full((2,), 0.3)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_ELASTICITY_DAMPING)), torch.full((2,), 0.005)
+        )
 
-        updated_youngs = torch.tensor([1000.0, 1500.0], device=sim.device)
-        material_view.set_youngs_moduli(updated_youngs, indices=torch.tensor([1], device=sim.device))
-        torch.testing.assert_close(wp.to_torch(material_view.get_youngs_moduli()), updated_youngs.cpu())
+        updated_youngs = torch.tensor([1000.0, 1500.0])
+        material_view.set_attribute(
+            TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS,
+            wp.from_torch(updated_youngs),
+            indices=wp.array([1], dtype=wp.int32),
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS)), updated_youngs.cpu()
+        )
 
         for _ in range(5):
             sim.step()
@@ -518,7 +556,7 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         assert deformable.data.nodal_state_w.torch.shape == (2, 4, 6)
         assert deformable.data.root_pos_w.torch.shape == (2, 3)
         assert deformable.data.root_vel_w.torch.shape == (2, 3)
-        rest_positions = wp.to_torch(deformable.root_view.get_rest_nodal_positions())
+        rest_positions = wp.to_torch(deformable.root_view.get_attribute(TT.SURFACE_DEFORMABLE_REST_POSITION))
         _assert_rest_positions_match_authored(
             rest_positions,
             torch.tensor(
@@ -533,7 +571,7 @@ def test_surface_deformable_reads_writes_materials_and_steps():
             deformable.root_view.prim_paths,
         )
 
-        element_indices = wp.to_torch(deformable.root_view.get_simulation_element_indices())
+        element_indices = wp.to_torch(deformable.root_view.get_attribute(TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES))
         assert element_indices.shape == (2, 2, 3)
         assert element_indices.dtype == torch.int32
         assert torch.all((element_indices >= 0) & (element_indices < 4))
@@ -549,7 +587,7 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         updated_pos = nodal_pos[1:2].clone()
         updated_pos[..., 0] += 0.025
         deformable.write_nodal_pos_to_sim_index(updated_pos, env_ids=torch.tensor([1], device=sim.device))
-        readback_pos = wp.to_torch(deformable.root_view.get_simulation_nodal_positions())
+        readback_pos = wp.to_torch(deformable.root_view.get_attribute(TT.SURFACE_DEFORMABLE_SIM_POSITION))
         torch.testing.assert_close(readback_pos[0], nodal_pos[0], rtol=1e-5, atol=1e-5)
         torch.testing.assert_close(readback_pos[1], updated_pos[0], rtol=1e-5, atol=1e-5)
 
@@ -557,24 +595,45 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         updated_vel = nodal_vel[0:1].clone()
         updated_vel[..., 1] = 0.1
         deformable.write_nodal_velocity_to_sim_index(updated_vel, env_ids=torch.tensor([0]))
-        readback_vel = wp.to_torch(deformable.root_view.get_simulation_nodal_velocities())
+        readback_vel = wp.to_torch(deformable.root_view.get_attribute(TT.SURFACE_DEFORMABLE_SIM_VELOCITY))
         torch.testing.assert_close(readback_vel[0], updated_vel[0], rtol=1e-5, atol=1e-5)
         torch.testing.assert_close(readback_vel[1], nodal_vel[1], rtol=1e-5, atol=1e-5)
 
         material_view = deformable.material_physx_view
         assert material_view is not None
         assert material_view.count == 2
-        torch.testing.assert_close(wp.to_torch(material_view.get_dynamic_frictions()), torch.full((2,), 0.4))
-        torch.testing.assert_close(wp.to_torch(material_view.get_youngs_moduli()), torch.full((2,), 2000.0))
-        torch.testing.assert_close(wp.to_torch(material_view.get_poissons_ratios()), torch.full((2,), 0.25))
-        torch.testing.assert_close(wp.to_torch(material_view.get_elasticity_dampings()), torch.full((2,), 0.03))
-        torch.testing.assert_close(wp.to_torch(material_view.get_bending_stiffnesses()), torch.full((2,), 0.6))
-        torch.testing.assert_close(wp.to_torch(material_view.get_thicknesses()), torch.full((2,), 0.02))
-        torch.testing.assert_close(wp.to_torch(material_view.get_bending_dampings()), torch.full((2,), 0.04))
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_DYNAMIC_FRICTION)), torch.full((2,), 0.4)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS)), torch.full((2,), 2000.0)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_POISSONS_RATIO)), torch.full((2,), 0.25)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_ELASTICITY_DAMPING)), torch.full((2,), 0.03)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_BENDING_STIFFNESS)), torch.full((2,), 0.6)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_THICKNESS)), torch.full((2,), 0.02)
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_BENDING_DAMPING)), torch.full((2,), 0.04)
+        )
 
-        updated_bending_damping = torch.tensor([0.08, 0.04], device=sim.device)
-        material_view.set_bending_dampings(updated_bending_damping, indices=torch.tensor([0], device=sim.device))
-        torch.testing.assert_close(wp.to_torch(material_view.get_bending_dampings()), updated_bending_damping.cpu())
+        updated_bending_damping = torch.tensor([0.08, 0.04])
+        material_view.set_attribute(
+            TT.DEFORMABLE_MATERIAL_BENDING_DAMPING,
+            wp.from_torch(updated_bending_damping),
+            indices=wp.array([0], dtype=wp.int32),
+        )
+        torch.testing.assert_close(
+            wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_BENDING_DAMPING)),
+            updated_bending_damping.cpu(),
+        )
 
         for _ in range(5):
             sim.step()

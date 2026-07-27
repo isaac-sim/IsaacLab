@@ -12,6 +12,7 @@ import ovphysx.types  # noqa: F401
 import pytest
 import torch
 import warp as wp
+from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 
 from isaaclab.sim import SimulationContext  # noqa: E402
@@ -79,7 +80,7 @@ def test_lift_franka_soft_task_reads_and_steps_volume_deformable():
         deformable.write_nodal_kinematic_target_to_sim_index(
             updated_targets, env_ids=torch.tensor([0], device=env.unwrapped.device)
         )
-        readback_targets = wp.to_torch(deformable.root_view.get_simulation_nodal_kinematic_targets())
+        readback_targets = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_KINEMATIC_TARGET))
         torch.testing.assert_close(readback_targets, updated_targets, rtol=1e-5, atol=1e-5)
 
         actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)

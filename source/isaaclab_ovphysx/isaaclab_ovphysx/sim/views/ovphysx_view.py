@@ -21,8 +21,7 @@ itself::
     view.read_into("articulation_root_pose", root_pose_buf)  # zero-copy into a caller buffer
     view.set_attribute("rigid_body_pose", values, mask=env_mask)
 
-Design intent: be usable as the binding-management layer *inside* the OVPhysX asset
-classes (see ``docs/superpowers/specs/2026-06-17-ovphysx-view-design.md`` §6), so it
+This view is the binding-management layer *inside* the OVPhysX asset classes, so it
 exposes a raw :meth:`binding_for` accessor and a zero-copy :meth:`read_into` that
 fills a caller-owned, possibly structured-dtype buffer via a binding-reported scalar
 dtype reinterpret view -- the same mechanism the data containers use today.
@@ -69,7 +68,7 @@ TensorType = import_ovphysx("ovphysx.types").TensorType
 # write-only control tensors -- and exposes no access metadata today. Replace this whole
 # table once the wheel exposes a per-type ``access_mode`` enum (preferred over a boolean
 # ``is_writable`` flag, so write-only control tensors stay distinguishable).
-# TODO(ovphysx): source access mode from a wheel ``access_mode`` query (design doc §7 ask 3).
+# TODO(ovphysx): source access mode from a wheel ``access_mode`` query when available.
 _READ_ONLY_NAMES: frozenset[str] = frozenset(
     {
         "rigid_body_acceleration",
@@ -251,7 +250,7 @@ class OvPhysxView:
             differ, so a caller reasoning from the visible key can get different runtime
             semantics. A public form would instead carry descriptor metadata (requested key,
             source tensor type, shape, native device, access mode); that is deferred to
-            wheel-exposed metadata (design doc §7 ask). Prefer not to rely on it outside the
+            wheel-exposed descriptor metadata. Prefer not to rely on it outside the
             collection adapter.
         tensor_types: Explicit set of :class:`TensorType` members to instantiate eagerly.
             Used only when ``eager`` is set; defaults to every applicable type.

@@ -16,21 +16,12 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
-from isaaclab_ovphysx.assets.deformable_object.deformable_object import (  # noqa: E402
-    _REQUIRED_DEFORMABLE_TENSOR_TYPES,
-    DeformableObject,
-    _detect_deformable_type,
-    _find_deformable_material,
-    _get_api_schemas,
-    _require_deformable_tensor_types,
-    _to_ovphysx_pattern,
-)
+from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
+from isaaclab_ovphysx.assets.deformable_object.deformable_object import DeformableObject  # noqa: E402
 from isaaclab_ovphysx.assets.deformable_object.deformable_object_data import (  # noqa: E402
     DeformableObjectData,
 )
 from isaaclab_ovphysx.assets.deformable_object.kernels import vec6f  # noqa: E402
-
-from pxr import Sdf, Usd  # noqa: E402
 
 from isaaclab.assets.deformable_object import (  # noqa: E402
     BaseDeformableObject,
@@ -42,40 +33,10 @@ from isaaclab.assets.deformable_object import (  # noqa: E402
 
 wp.init()
 wp.set_device("cpu")
-_TEST_STAGES: list[Usd.Stage] = []
-
-
-def _make_prim_with_api_metadata(schemas: list[str]) -> Usd.Prim:
-    stage = Usd.Stage.CreateInMemory()
-    _TEST_STAGES.append(stage)
-    prim = stage.DefinePrim("/Soft", "Xform")
-    _set_api_schemas(prim, schemas)
-    return prim
-
-
-def _set_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
-    """Author API schema metadata on a test prim."""
-    schema_metadata = Sdf.TokenListOp()
-    schema_metadata.prependedItems = schemas
-    prim.SetMetadata("apiSchemas", schema_metadata)
-
-
-def _make_deformable_prims(
-    material_schemas: list[str], child_types: list[str], root_schemas: list[str] | None = None
-) -> tuple[Usd.Prim, Usd.Prim]:
-    stage = Usd.Stage.CreateInMemory()
-    _TEST_STAGES.append(stage)
-    root = stage.DefinePrim("/Soft", "Xform")
-    _set_api_schemas(root, root_schemas or [])
-    for index, child_type in enumerate(child_types):
-        stage.DefinePrim(f"/Soft/Geometry_{index}", child_type)
-    material = stage.DefinePrim("/Material", "Material")
-    _set_api_schemas(material, material_schemas)
-    return root, material
 
 
 class _FakeBodyView:
-    """Minimal PhysX-style deformable body view used by the asset shell."""
+    """Minimal generic OVPhysX view used by the asset shell."""
 
     def __init__(self, num_instances: int, num_vertices: int) -> None:
         self.count = num_instances
@@ -93,60 +54,61 @@ class _FakeBodyView:
         self.target_write_count = 0
         self.last_indices: torch.Tensor | None = None
         self.last_values: wp.array | None = None
-        self.destroyed = False
 
-    def read_simulation_nodal_positions_into(self, values: wp.array(dtype=wp.float32)) -> None:
-        self.position_reads += 1
-        wp.copy(values, self.positions)
+    def binding_for(self, tensor_type):
+        if tensor_type in (TT.DEFORMABLE_SIM_ELEMENT_INDICES, TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES):
+            shape = (self.count, self.max_simulation_elements_per_body, 4)
+        elif tensor_type == TT.DEFORMABLE_COLLISION_ELEMENT_INDICES:
+            shape = (self.count, self.max_collision_elements_per_body, 4)
+        elif tensor_type == TT.DEFORMABLE_SIM_KINEMATIC_TARGET:
+            shape = (self.count, self.max_simulation_nodes_per_body, 4)
+        else:
+            shape = (self.count, self.max_simulation_nodes_per_body, 3)
+        return SimpleNamespace(shape=shape, count=self.count)
 
-    def read_simulation_nodal_velocities_into(self, values: wp.array(dtype=wp.float32)) -> None:
-        self.velocity_reads += 1
-        wp.copy(values, self.velocities)
+    def read_into(self, tensor_type, values: wp.array) -> None:
+        if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
+            self.position_reads += 1
+            wp.copy(values, self.positions)
+        elif tensor_type in (TT.DEFORMABLE_SIM_NODAL_VELOCITY, TT.SURFACE_DEFORMABLE_SIM_VELOCITY):
+            self.velocity_reads += 1
+            wp.copy(values, self.velocities)
+        else:
+            raise AssertionError(f"Unexpected tensor read: {tensor_type}")
 
-    def get_simulation_nodal_positions(self) -> wp.array(dtype=wp.float32):
-        return self.positions
+    def get_attribute(self, tensor_type) -> wp.array:
+        if tensor_type == TT.DEFORMABLE_SIM_KINEMATIC_TARGET:
+            return self.targets
+        if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
+            return self.positions
+        if tensor_type in (TT.DEFORMABLE_SIM_NODAL_VELOCITY, TT.SURFACE_DEFORMABLE_SIM_VELOCITY):
+            return self.velocities
+        binding = self.binding_for(tensor_type)
+        return wp.zeros(binding.shape, dtype=wp.int32, device="cpu")
 
-    def get_simulation_nodal_velocities(self) -> wp.array(dtype=wp.float32):
-        return self.velocities
-
-    def get_simulation_nodal_kinematic_targets(self) -> wp.array(dtype=wp.float32):
-        return self.targets
-
-    def set_simulation_nodal_positions(
-        self, values: wp.array(dtype=wp.float32), indices: wp.array(dtype=wp.int32) | None = None
+    def set_attribute(
+        self,
+        tensor_type,
+        values: wp.array,
+        indices: wp.array(dtype=wp.int32) | None = None,
+        mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
-        self.position_write_count += 1
         self.last_values = values
         self.last_indices = wp.to_torch(indices) if indices is not None else None
-
-    def set_simulation_nodal_velocities(
-        self, values: wp.array(dtype=wp.float32), indices: wp.array(dtype=wp.int32) | None = None
-    ) -> None:
-        self.velocity_write_count += 1
-        self.last_values = values
-        self.last_indices = wp.to_torch(indices) if indices is not None else None
-
-    def set_simulation_nodal_kinematic_targets(
-        self, values: wp.array(dtype=wp.float32), indices: wp.array(dtype=wp.int32) | None = None
-    ) -> None:
-        self.target_write_count += 1
-        self.last_values = values
-        self.last_indices = wp.to_torch(indices) if indices is not None else None
-
-    def destroy(self) -> None:
-        self.destroyed = True
+        if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
+            self.position_write_count += 1
+        elif tensor_type in (TT.DEFORMABLE_SIM_NODAL_VELOCITY, TT.SURFACE_DEFORMABLE_SIM_VELOCITY):
+            self.velocity_write_count += 1
+        elif tensor_type == TT.DEFORMABLE_SIM_KINEMATIC_TARGET:
+            self.target_write_count += 1
+        else:
+            raise AssertionError(f"Unexpected tensor write: {tensor_type}")
 
 
 class _FakeMaterialView:
-    """Minimal optional material view used to verify cleanup."""
+    """Minimal optional plain material view."""
 
     count = 1
-
-    def __init__(self) -> None:
-        self.destroyed = False
-
-    def destroy(self) -> None:
-        self.destroyed = True
 
 
 class _FakeVisualizer:
@@ -171,9 +133,22 @@ def _make_asset_shell(
     asset._check_shapes = True
     asset._DTYPE_TO_TORCH_TRAILING_DIMS = {**asset._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
     asset._deformable_type = deformable_type
+    if deformable_type == "volume":
+        asset._sim_nodal_position_type = TT.DEFORMABLE_SIM_NODAL_POSITION
+        asset._sim_nodal_velocity_type = TT.DEFORMABLE_SIM_NODAL_VELOCITY
+        asset._sim_kinematic_target_type = TT.DEFORMABLE_SIM_KINEMATIC_TARGET
+    else:
+        asset._sim_nodal_position_type = TT.SURFACE_DEFORMABLE_SIM_POSITION
+        asset._sim_nodal_velocity_type = TT.SURFACE_DEFORMABLE_SIM_VELOCITY
+        asset._sim_kinematic_target_type = None
     asset._root_physx_view = _FakeBodyView(num_instances, num_vertices)
     asset._material_physx_view = material_view
-    asset._data = DeformableObjectData(asset._root_physx_view, asset._device)
+    asset._data = DeformableObjectData(
+        asset._root_physx_view,
+        asset._device,
+        position_tensor_type=asset._sim_nodal_position_type,
+        velocity_tensor_type=asset._sim_nodal_velocity_type,
+    )
     asset._ALL_INDICES = wp.array(range(num_instances), dtype=wp.int32, device=asset.device)
     asset._nodal_pos_w_f32 = None
     asset._nodal_vel_w_f32 = None
@@ -185,129 +160,9 @@ def _make_asset_shell(
     return asset
 
 
-def test_get_api_schemas_includes_unregistered_authored_metadata():
-    prim = _make_prim_with_api_metadata(["OmniPhysicsDeformableBodyAPI"])
-    assert "OmniPhysicsDeformableBodyAPI" in _get_api_schemas(prim)
-
-
-@pytest.mark.parametrize(
-    "material_schemas,child_type,expected",
-    [
-        (["PhysxDeformableMaterialAPI"], "TetMesh", "volume"),
-        (["PhysxSurfaceDeformableMaterialAPI"], "Mesh", "surface"),
-        ([], "TetMesh", "volume"),
-        ([], "Mesh", "surface"),
-    ],
-)
-def test_detect_deformable_type_matches_physx_rules(
-    material_schemas: list[str], child_type: str, expected: str
-) -> None:
-    root, material = _make_deformable_prims(material_schemas, [child_type])
-    assert _detect_deformable_type(root, material) == expected
-
-
-@pytest.mark.parametrize(
-    "body_schema,expected",
-    [
-        ("OmniPhysicsVolumeDeformableSimAPI", "volume"),
-        ("OmniPhysicsSurfaceDeformableSimAPI", "surface"),
-    ],
-)
-def test_detect_deformable_type_uses_authored_body_schema(body_schema: str, expected: str) -> None:
-    root, material = _make_deformable_prims([], [], root_schemas=[body_schema])
-    assert _detect_deformable_type(root, material) == expected
-
-
-def test_detect_deformable_type_rejects_conflicting_explicit_body_schemas() -> None:
-    root, material = _make_deformable_prims(
-        [], [], root_schemas=["OmniPhysicsVolumeDeformableSimAPI", "OmniPhysicsSurfaceDeformableSimAPI"]
-    )
-
-    with pytest.raises(RuntimeError, match="Detected deformable types: \\['surface', 'volume'\\]"):
-        _detect_deformable_type(root, material)
-
-
-def test_detect_deformable_type_rejects_missing_evidence() -> None:
-    root, material = _make_deformable_prims([], [])
-
-    with pytest.raises(RuntimeError, match="Detected deformable types: \\[]"):
-        _detect_deformable_type(root, material)
-
-
-def test_detect_deformable_type_normalizes_inherited_generic_surface_material_schema() -> None:
-    root, material = _make_deformable_prims(
-        ["PhysxDeformableMaterialAPI", "PhysxSurfaceDeformableMaterialAPI"], ["Mesh"]
-    )
-    assert _detect_deformable_type(root, material) == "surface"
-
-
-def test_detect_deformable_type_ignores_generic_material_schema_for_surface_mesh() -> None:
-    root, material = _make_deformable_prims(["PhysxDeformableMaterialAPI"], ["Mesh"])
-
-    assert _detect_deformable_type(root, material) == "surface"
-
-
-def test_detect_deformable_type_rejects_surface_material_volume_topology_conflict() -> None:
-    material_schemas = ["PhysxSurfaceDeformableMaterialAPI"]
-    child_type = "TetMesh"
-    root, material = _make_deformable_prims(material_schemas, [child_type])
-
-    with pytest.raises(RuntimeError) as exc_info:
-        _detect_deformable_type(root, material)
-
-    message = str(exc_info.value)
-    assert "Root schemas:" in message
-    assert f"Material schemas: {sorted(material_schemas)}" in message
-    assert f"Hierarchy types: {sorted({'Xform', child_type})}" in message
-    assert "Detected deformable types: ['surface', 'volume']" in message
-
-
-def test_detect_deformable_type_uses_descendant_volume_schema_with_visual_mesh() -> None:
-    stage = Usd.Stage.CreateInMemory()
-    _TEST_STAGES.append(stage)
-    root = stage.DefinePrim("/Soft", "Xform")
-    stage.DefinePrim("/Soft/visual", "Mesh")
-    simulation_tet_mesh = stage.DefinePrim("/Soft/simulation", "TetMesh")
-    _set_api_schemas(simulation_tet_mesh, ["OmniPhysicsVolumeDeformableSimAPI"])
-    material = stage.DefinePrim("/Material", "Material")
-
-    assert _detect_deformable_type(root, material) == "volume"
-
-
-def test_detect_deformable_type_mixed_topology_prefers_tet_mesh_without_schemas() -> None:
-    root, material = _make_deformable_prims([], ["TetMesh", "Mesh"])
-
-    assert _detect_deformable_type(root, material) == "volume"
-
-
-@pytest.mark.parametrize(
-    "path_expr,expected",
-    [
-        ("/World/{ENV_REGEX_NS}/Soft", "/World/*/Soft"),
-        ("/World/envs/env_.*/Soft", "/World/envs/env_*/Soft"),
-        ("/World/Soft", "/World/Soft"),
-    ],
-)
-def test_to_ovphysx_pattern_converts_isaaclab_expressions(path_expr: str, expected: str) -> None:
-    assert _to_ovphysx_pattern(path_expr) == expected
-
-
-def test_required_tensor_check_includes_surface_members():
-    missing_name = "SURFACE_DEFORMABLE_SIM_POSITION"
-    available = SimpleNamespace(
-        **{name: object() for name in _REQUIRED_DEFORMABLE_TENSOR_TYPES if name != missing_name}
-    )
-
-    with pytest.raises(RuntimeError, match=missing_name):
-        _require_deformable_tensor_types(available)
-
-
 def test_unbound_material_is_optional():
-    stage = Usd.Stage.CreateInMemory()
-    root = stage.DefinePrim("/Soft", "Xform")
     asset = _make_asset_shell(deformable_type="volume")
 
-    assert _find_deformable_material(root) is None
     assert asset.material_physx_view is None
 
 
@@ -458,18 +313,6 @@ def test_malformed_state_write_fails_before_mutating_or_writing(trailing_dimensi
     assert asset.root_view.velocity_write_count == 0
 
 
-def test_material_path_expr_does_not_rewrite_sibling_prefix():
-    deformable_object_module = importlib.import_module("isaaclab_ovphysx.assets.deformable_object.deformable_object")
-
-    path_expr = deformable_object_module._resolve_material_path_expr(
-        Sdf.Path("/World/SoftMaterial"),
-        Sdf.Path("/World/Soft"),
-        "/World/envs/env_.*/Soft",
-    )
-
-    assert path_expr == "/World/SoftMaterial"
-
-
 def test_volume_target_initialization_sets_free_flags_and_writes_full_buffer():
     asset = _make_asset_shell(deformable_type="volume")
 
@@ -499,7 +342,12 @@ def test_lazy_root_means_refresh_in_place_after_update():
         [[[0.0, 0.0, 0.0], [2.0, 4.0, 6.0]], [[1.0, 3.0, 5.0], [3.0, 5.0, 7.0]]],
         dtype=wp.float32,
     )
-    data = DeformableObjectData(root_view, "cpu")
+    data = DeformableObjectData(
+        root_view,
+        "cpu",
+        position_tensor_type=TT.DEFORMABLE_SIM_NODAL_POSITION,
+        velocity_tensor_type=TT.DEFORMABLE_SIM_NODAL_VELOCITY,
+    )
 
     root_pos = data.root_pos_w
     torch.testing.assert_close(root_pos.torch, torch.tensor([[1.0, 2.0, 3.0], [2.0, 4.0, 6.0]]))
@@ -525,16 +373,12 @@ def test_surface_debug_visualization_uses_below_ground_sentinel():
     torch.testing.assert_close(asset.target_visualizer.positions, torch.tensor([[0.0, 0.0, -10.0]]))
 
 
-def test_invalidation_destroys_body_and_material_views(monkeypatch: pytest.MonkeyPatch):
-    material_view = _FakeMaterialView()
-    asset = _make_asset_shell(deformable_type="volume", material_view=material_view)
-    root_view = asset.root_view
+def test_invalidation_releases_body_and_material_views(monkeypatch: pytest.MonkeyPatch):
+    asset = _make_asset_shell(deformable_type="volume", material_view=_FakeMaterialView())
     monkeypatch.setattr(BaseDeformableObject, "_invalidate_initialize_callback", lambda self, event: None)
 
     asset._invalidate_initialize_callback(None)
 
-    assert root_view.destroyed
-    assert material_view.destroyed
     assert asset._root_physx_view is None
     assert asset._material_physx_view is None
 

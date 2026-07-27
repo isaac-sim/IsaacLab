@@ -15,6 +15,8 @@ from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDe
 from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.warp import ProxyArray
 
+from isaaclab_ovphysx.tensor_types import TensorType
+
 from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, vec6f
 from .views import OvPhysxDeformableBodyView
 
@@ -30,15 +32,26 @@ class DeformableObjectData(BaseDeformableObjectData):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the deformable object data."""
 
-    def __init__(self, root_view: OvPhysxDeformableBodyView, device: str) -> None:
+    def __init__(
+        self,
+        root_view: OvPhysxDeformableBodyView,
+        device: str,
+        *,
+        position_tensor_type: TensorType,
+        velocity_tensor_type: TensorType,
+    ) -> None:
         """Initialize the deformable object data.
 
         Args:
             root_view: OVPhysX deformable body view used for simulation-state reads.
             device: Device used for simulation state and derived computations.
+            position_tensor_type: Tensor type used for simulation-node positions.
+            velocity_tensor_type: Tensor type used for simulation-node velocities.
         """
         super().__init__(device)
         self._root_view: OvPhysxDeformableBodyView = weakref.proxy(root_view)
+        self._position_tensor_type = position_tensor_type
+        self._velocity_tensor_type = velocity_tensor_type
 
         self._num_instances = root_view.count
         self._max_sim_vertices = root_view.max_simulation_nodes_per_body
@@ -68,8 +81,9 @@ class DeformableObjectData(BaseDeformableObjectData):
         ``wp.vec3f``.
         """
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
-            self._root_view.read_simulation_nodal_positions_into(
-                self._nodal_pos_w.data.view(wp.float32).reshape((self._num_instances, self._max_sim_vertices, 3))
+            self._root_view.read_into(
+                self._position_tensor_type,
+                self._nodal_pos_w.data.view(wp.float32).reshape((self._num_instances, self._max_sim_vertices, 3)),
             )
             self._nodal_pos_w.timestamp = self._sim_timestamp
         if self._nodal_pos_w_proxy is None:
@@ -84,8 +98,9 @@ class DeformableObjectData(BaseDeformableObjectData):
         ``wp.vec3f``.
         """
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
-            self._root_view.read_simulation_nodal_velocities_into(
-                self._nodal_vel_w.data.view(wp.float32).reshape((self._num_instances, self._max_sim_vertices, 3))
+            self._root_view.read_into(
+                self._velocity_tensor_type,
+                self._nodal_vel_w.data.view(wp.float32).reshape((self._num_instances, self._max_sim_vertices, 3)),
             )
             self._nodal_vel_w.timestamp = self._sim_timestamp
         if self._nodal_vel_w_proxy is None:
