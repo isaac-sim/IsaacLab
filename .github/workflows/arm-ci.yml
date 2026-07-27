@@ -183,15 +183,23 @@ jobs:
         result-file: arm-ci-report.xml
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        # ovphysx stays pinned to 0.4.13 here (see the aarch64 note below).
-        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ovphysx==0.4.13"
-        # ovphysx-backed test params require ovphysx >= 0.5.1, which has no aarch64
-        # wheel yet; keep the newton/ovrtx rendering coverage, mirroring the public
-        # pip-index fallback of rendering-correctness-kitless. Running them anyway
-        # exhausts ovrtx SyncScopeIds (>15 renderer creations in one process).
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
         test-k-expr: not ovphysx
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
+
+    - name: Run arm_ci OVPhysX marker tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: tools
+        result-file: arm-ci-ovphysx-report.xml
+        container-name: isaac-lab-arm-ci-ovphysx-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
+        test-k-expr: ovphysx
+        ci-marker: arm_ci
+        volume-mount-source: ${{ github.workspace }}
+
 
     - name: Run shared Cartpole smoke
       uses: ./.github/actions/run-tests
