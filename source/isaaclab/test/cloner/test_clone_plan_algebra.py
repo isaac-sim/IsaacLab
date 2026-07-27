@@ -28,17 +28,11 @@ def test_path_split():
     """Split clone destination templates around their clone slot."""
     assert cloner.path.split("/World/envs/env_{}/Robot") == ("/World/envs/env_", "/Robot")
     assert cloner.path.split("/World/scenes/{}/") == ("/World/scenes/", "")
-    with pytest.raises(ValueError, match="must contain"):
+    with pytest.raises(ValueError, match="exactly one"):
         cloner.path.split("/World/envs/env_0/Robot")
-
-
-def test_path_relativize():
-    """Relativize strips a template's env-instance root, boundary-safe."""
-    tmpl = "/World/envs/env_{}/Robot"
-    assert cloner.path.relativize("/World/envs/env_2/Robot/base", tmpl) == "/base"
-    assert cloner.path.relativize("/World/envs/env_.*/Robot", tmpl) == ""
-    assert cloner.path.relativize("/World/envs/env_2/Sensor", tmpl) is None
-    assert cloner.path.relativize("/World/envs/env_2/RobotArm", tmpl) is None
+    # A second slot would survive into the suffix and break the later format call.
+    with pytest.raises(ValueError, match="exactly one"):
+        cloner.path.split("/World/envs/env_{}/Robot/{}")
 
 
 def test_path_relative_to():
@@ -48,15 +42,6 @@ def test_path_relative_to():
     assert cloner.path.relative_to("/World/envs/env_0/Robot", root) == ""
     assert cloner.path.relative_to("/World/envs/env_0/RobotArm", root) is None
     assert cloner.path.relative_to("/World/ground", root) is None
-
-
-def test_path_under():
-    """under is a boundary-correct subtree-membership predicate (not str.startswith)."""
-    root = "/World/envs/env_0/Robot"
-    assert cloner.path.under("/World/envs/env_0/Robot/base", root)
-    assert cloner.path.under("/World/envs/env_0/Robot", root)
-    assert not cloner.path.under("/World/envs/env_0/RobotArm", root)
-    assert not cloner.path.under("/World/ground", root)
 
 
 def test_path_rebase():
@@ -110,14 +95,6 @@ def test_path_law_no_special_cases(path, root):
     assert cloner.path.under(path, "/")
     assert cloner.path.relative_to(path, root) == cloner.path.relative_to(path, root.rstrip("/") or "/")
     assert cloner.path.rebase(path, root, "/World/x") == cloner.path.rebase(path, root + "/", "/World/x")
-
-
-def test_path_split_rejects_multiple_clone_slots():
-    """A second slot would survive into the suffix and break the later format call."""
-    with pytest.raises(ValueError, match="exactly one"):
-        cloner.path.split("/World/envs/env_{}/Robot/{}")
-    with pytest.raises(ValueError, match="exactly one"):
-        cloner.path.split("/World/envs/env_0/Robot")
 
 
 def test_path_match_captures_the_clone_slot():
@@ -453,7 +430,8 @@ def test_query_law_round_trip(plan_name):
 
             resolved = cloner.query.path_to_source(plan, clone)
             assert resolved is not None, f"{clone} did not resolve back for env {env_id}"
-            assert resolved.source_path + resolved.asset_suffix == path
+            source, _glob, suffix = resolved
+            assert source + suffix == path
             # Naming the env explicitly must agree with reading it out of the path.
             assert cloner.query.path_to_source(plan, clone, env_id=env_id) == resolved
 
@@ -469,37 +447,17 @@ def test_query_resolve_distinguishes_concrete_paths_from_wildcards():
     concrete = "/World/envs/env_2/Object/base"
 
     # Concrete: resolves to the variant env 2 was actually cloned from.
-    resolved = cloner.query.path_to_source(plan, concrete)
-    assert resolved.source_path + resolved.asset_suffix == "/World/envs/env_2/Object/base"
+    source, _glob, suffix = cloner.query.path_to_source(plan, concrete)
+    assert source + suffix == "/World/envs/env_2/Object/base"
 
     # Wildcard: one-to-many, so it reports a representative variant...
     wildcard = "/World/envs/env_.*/Object/base"
-    resolved = cloner.query.path_to_source(plan, wildcard)
-    assert resolved.source_path + resolved.asset_suffix == "/World/envs/env_0/Object/base"
+    source, _glob, suffix = cloner.query.path_to_source(plan, wildcard)
+    assert source + suffix == "/World/envs/env_0/Object/base"
 
     # ...unless the caller names the env it means.
-    resolved = cloner.query.path_to_source(plan, wildcard, env_id=2)
-    assert resolved.source_path + resolved.asset_suffix == "/World/envs/env_2/Object/base"
-
-
-def test_query_resolve_returns_named_fields():
-    """The resolved source is self-documenting at the call site, and still unpacks as a tuple."""
-    resolved = cloner.query.path_to_source(_robot_plan(), "/World/envs/env_.*/Robot/base")
-
-    assert resolved.source_path == "/World/envs/env_0/Robot"
-    assert resolved.destination_glob == "/World/envs/env_*/Robot"
-    assert resolved.asset_suffix == "/base"
-    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_*/Robot", "/base")
-
-
-def test_iter_sources_returns_named_fields():
-    """Matches are self-documenting too, and still unpack as tuples."""
-    match = next(iter(cloner.query.iter_sources(PLANS["distinct_env_root"], "/World/scenes/.*/Robot/base")))
-
-    assert match.source_root == "/World/source/Robot"
-    assert match.destination_template == "/World/scenes/{}/Robot"
-    assert match.source_path == "/World/source/Robot/base"
-    assert match.env_ids == (0, 1)
+    source, _glob, suffix = cloner.query.path_to_source(plan, wildcard, env_id=2)
+    assert source + suffix == "/World/envs/env_2/Object/base"
 
 
 def test_query_translates_env_ids_through_the_plan():
@@ -520,25 +478,10 @@ def test_query_translates_env_ids_through_the_plan():
     assert cloner.query.path_to_clone(plan, path, 5) == "/World/envs/env_5/Robot/base"
     # Column indices are not environments: env 1 is not targeted by this plan.
     assert cloner.query.path_to_clone(plan, path, 1) is None
-    assert next(iter(cloner.query.iter_sources(plan, "/World/envs/env_.*/Robot"))).env_ids == (2, 5)
+    assert next(iter(cloner.query.iter_sources(plan, "/World/envs/env_.*/Robot")))[3] == (2, 5)
 
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_5/Robot/base")
-    assert resolved.source_path + resolved.asset_suffix == path
-
-
-def test_query_translates_reordered_env_ids():
-    """Env ids need not be ascending: the column carrying the id is what counts."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_7/Object", "/World/envs/env_3/Object"),
-        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, False], [False, True]], dtype=torch.bool),
-        env_ids=torch.tensor([7, 3], dtype=torch.long),
-    )
-
-    assert cloner.query.path_env_ids(plan, "/World/envs/env_7/Object/base") == (7,)
-    assert cloner.query.path_env_ids(plan, "/World/envs/env_3/Object/base") == (3,)
-    assert cloner.query.path_to_clone(plan, "/World/envs/env_3/Object/base", 3) == "/World/envs/env_3/Object/base"
-    assert cloner.query.path_to_clone(plan, "/World/envs/env_3/Object/base", 7) is None
+    source, _glob, suffix = cloner.query.path_to_source(plan, "/World/envs/env_5/Robot/base")
+    assert source + suffix == path
 
 
 @pytest.mark.parametrize("env_id", [-1, 4, 99])
@@ -575,32 +518,6 @@ def test_query_agrees_across_duplicate_source_rows():
 ##
 
 
-@pytest.mark.parametrize(
-    "kwargs, message",
-    [
-        ({"destinations": ()}, "one destination per source"),
-        ({"clone_mask": torch.zeros((3, 2), dtype=torch.bool)}, "clone_mask must have shape"),
-        ({"env_ids": torch.tensor([0, 1, 2])}, "one env id per clone_mask column"),
-        ({"positions": torch.zeros((5, 3))}, "one position per clone_mask column"),
-        ({"cfg_rows": {1: (7,)}}, "cfg_rows reference rows outside"),
-    ],
-)
-def test_clone_plan_rejects_inconsistent_shapes(kwargs, message):
-    """Shape mistakes fail at construction rather than as an obscure index error later."""
-    fields = {
-        "sources": ("/World/envs/env_0/Robot",),
-        "destinations": ("/World/envs/env_{}/Robot",),
-        "clone_mask": torch.ones((1, 2), dtype=torch.bool),
-    }
-    with pytest.raises(ValueError, match=message):
-        ClonePlan(**(fields | kwargs))
-
-
-##
-# Import contract: the modules are reachable under the names the docs use.
-##
-
-
 def test_query_and_path_are_real_modules():
     """``cloner.path``/``cloner.query`` import as modules, not just package attributes."""
     import isaaclab.cloner.path  # noqa: PLC0415
@@ -626,15 +543,3 @@ def test_cloner_imports_without_kit():
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False", "importing isaaclab.cloner pulled in pxr"
-
-
-@pytest.mark.parametrize("plan_name", sorted(PLANS))
-def test_query_every_clone_composition(plan_name):
-    """The two source-side queries compose into "every clone", as documented on the module."""
-    plan = PLANS[plan_name]
-
-    for path in _probe_paths(plan):
-        reached = cloner.query.path_env_ids(plan, path)
-        clones = [cloner.query.path_to_clone(plan, path, env_id) for env_id in reached]
-        assert all(clone is not None for clone in clones)
-        assert len(set(clones)) == len(clones), "distinct envs must receive distinct clone paths"

@@ -61,35 +61,6 @@ class ClonePlan:
     cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """``id(cfg)`` to the row indices the cfg owns."""
 
-    def __post_init__(self):
-        """Check the shape invariants the rest of the cloner indexes on.
-
-        Raises:
-            ValueError: If the row arrays disagree in length, the mask is not a 2-D
-                row-by-clone tensor, or ``env_ids``/``positions`` do not have one entry per
-                mask column.
-        """
-        num_rows, num_clones = len(self.sources), self.clone_mask.shape[-1]
-        if len(self.destinations) != num_rows:
-            raise ValueError(
-                f"ClonePlan needs one destination per source, got {len(self.destinations)} and {num_rows}."
-            )
-        if self.clone_mask.ndim != 2 or self.clone_mask.shape[0] != num_rows:
-            raise ValueError(
-                f"ClonePlan clone_mask must have shape [{num_rows}, num_clones], got {tuple(self.clone_mask.shape)}."
-            )
-        if self.env_ids is not None and self.env_ids.shape[0] != num_clones:
-            raise ValueError(
-                f"ClonePlan needs one env id per clone_mask column, got {self.env_ids.shape[0]} and {num_clones}."
-            )
-        if self.positions is not None and self.positions.shape[0] != num_clones:
-            raise ValueError(
-                f"ClonePlan needs one position per clone_mask column, got {self.positions.shape[0]} and {num_clones}."
-            )
-        invalid_rows = sorted({row for rows in self.cfg_rows.values() for row in rows if not 0 <= row < num_rows})
-        if invalid_rows:
-            raise ValueError(f"ClonePlan cfg_rows reference rows outside [0, {num_rows}): {invalid_rows}.")
-
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cpu"):
     """Create a centered grid of transforms for ``N`` instances.

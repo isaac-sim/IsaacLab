@@ -5,35 +5,15 @@
 
 """Segment-boundary-safe prim-path primitives for the cloner.
 
-A prim path is a sequence of ``/``-delimited segments, not a character string. The stdlib
-string operations (:meth:`str.startswith`, :meth:`str.replace`, :meth:`str.removeprefix`,
-slicing) work on characters and silently cross segment boundaries, so this module encodes
-the boundary semantics once.
+A prim path is a sequence of ``/``-delimited segments, not a character string, and the stdlib
+string operations cross those boundaries silently: :meth:`str.startswith` reports that
+``".../Robot"`` contains ``".../RobotArm"``. This module encodes the boundary semantics once.
 
-Two kinds of prefix appear throughout the cloner. A *root* is a concrete prefix path such
-as ``"/World/envs/env_0"``. A *template* is a destination path carrying a single ``"{}"``
-clone slot, such as ``"/World/envs/env_{}/Robot"``, whose slot stands for exactly one path
-segment. :func:`relative_to` strips a root, :func:`relativize` strips a template.
-
-Access these through the package::
-
-    import isaaclab.cloner as cloner
-
-    cloner.path.split("/World/envs/env_{}/Robot")
-    cloner.path.rebase(prim_path, "/World/envs/env_0", "/World/envs/env_5")
-
-The operations satisfy, for every ``path``, ``root``, ``dst_root`` and ``template``:
-
-* **P1 (membership)** ``under(path, root)`` holds exactly when ``relative_to(path, root)``
-  is not ``None``.
-* **P2 (rebase swaps only the root)** when ``under(path, root)``,
-  ``rebase(path, root, dst_root) == dst_root.rstrip("/") + relative_to(path, root)``; in
-  particular ``rebase(path, root, root) == path``.
-* **P3 (no special cases)** every operation accepts ``"/"`` as a root, and a trailing slash
-  on a root or template is insignificant.
-* **P4 (a match reassembles)** when ``match(path, template)`` returns
-  ``(instance, suffix)``, ``path == template.format(instance) + suffix``, and
-  ``relativize(path, template)`` is that ``suffix``.
+Two kinds of prefix appear in the cloner. A *root* is a concrete prefix path
+(``"/World/envs/env_0"``); :func:`relative_to`, :func:`under` and :func:`rebase` work against
+one. A *template* carries a single ``"{}"`` clone slot standing for one segment
+(``"/World/envs/env_{}/Robot"``); :func:`split`, :func:`match` and :func:`relativize` work
+against one. Reach them through the package, as ``cloner.path.rebase(...)``.
 """
 
 from __future__ import annotations
@@ -43,13 +23,10 @@ from typing import NamedTuple
 
 
 class TemplateMatch(NamedTuple):
-    """A destination template matched against one path expression."""
+    """The ``"{}"`` text a template captured (``"3"``, or a wildcard ``".*"``), and the path below it."""
 
     instance: str
-    """The text the template's ``"{}"`` slot captured, e.g. ``"3"`` or the wildcard ``".*"``."""
-
     suffix: str
-    """The part of the path below the template, starting with ``/`` (empty at the template root)."""
 
 
 def split(template: str) -> tuple[str, str]:
@@ -62,13 +39,11 @@ def split(template: str) -> tuple[str, str]:
 
     Returns:
         The ``(prefix, suffix)`` strings around the clone slot. A trailing slash is
-        insignificant, so an instance-root template (``".../env_{}"``) yields an empty
-        suffix.
+        insignificant, so an instance-root template (``".../env_{}"``) yields an empty suffix.
 
     Raises:
-        ValueError: If ``template`` does not contain exactly one clone slot. A second slot
-            would survive into the suffix and silently break the later ``str.format`` call
-            that fills the first.
+        ValueError: If ``template`` does not hold exactly one clone slot. A second slot would
+            survive into the suffix and break the later ``str.format`` that fills the first.
     """
     template = template.rstrip("/") or "/"
     slots = template.count("{}")
@@ -81,10 +56,9 @@ def split(template: str) -> tuple[str, str]:
 def match(path_expr: str, template: str) -> TemplateMatch | None:
     """Match ``path_expr`` against a destination template, capturing the instance slot.
 
-    The template's ``"{}"`` slot matches exactly one path segment's worth of text, whether
-    a concrete id (``3``) or a wildcard (``.*``). This is the primitive behind
-    :func:`relativize`, and the only way to recover *which* instance a concrete clone path
-    belongs to without slicing the string by hand.
+    The ``"{}"`` slot matches one path segment's worth of text, whether a concrete id (``3``)
+    or a wildcard (``.*``). Recovering that text is the only way to tell which instance a
+    concrete clone path belongs to without slicing the string by hand.
 
     Args:
         path_expr: Path or path expression on the clone (destination) side.
@@ -97,10 +71,6 @@ def match(path_expr: str, template: str) -> TemplateMatch | None:
     Example:
         >>> match("/World/envs/env_3/Robot/base", "/World/envs/env_{}/Robot")
         TemplateMatch(instance='3', suffix='/base')
-        >>> match("/World/envs/env_.*/Robot", "/World/envs/env_{}/Robot")
-        TemplateMatch(instance='.*', suffix='')
-        >>> match("/World/envs/env_3/Sensor", "/World/envs/env_{}/Robot") is None
-        True
     """
     prefix, template_suffix = split(template)
     pattern = re.compile(re.escape(prefix) + r"([^/]+)" + re.escape(template_suffix))
@@ -128,13 +98,6 @@ def relative_to(path: str, root: str) -> str | None:
         The suffix below ``root`` (starting with ``/``, or ``""`` when ``path`` equals
         ``root``), or ``None`` when ``path`` is not under ``root``.
 
-    Example:
-        >>> relative_to("/World/envs/env_0/Robot", "/World/envs/env_0")
-        '/Robot'
-        >>> relative_to("/World/envs/env_0", "/World/envs/env_0")
-        ''
-        >>> relative_to("/World/envs/env_0X", "/World/envs/env_0") is None
-        True
     """
     root = root.rstrip("/") or "/"
     if path == root:
@@ -186,8 +149,7 @@ def rebase(path: str, src_root: str, dst_root: str) -> str:
 def relativize(path_expr: str, template: str) -> str | None:
     """Return the part of ``path_expr`` below a template's instance root.
 
-    Template counterpart of :func:`relative_to`, and the suffix projection of
-    :func:`match` for callers that do not need the captured instance.
+    The suffix half of :func:`match`, for callers that do not need the captured instance.
 
     Args:
         path_expr: Path or path expression on the clone (destination) side.
@@ -197,18 +159,6 @@ def relativize(path_expr: str, template: str) -> str | None:
         The asset-relative suffix (starting with ``/``, or ``""`` when ``path_expr`` is
         exactly the template root), or ``None`` when ``path_expr`` is not under the root.
 
-    Example:
-        >>> tmpl = "/World/scenes/{}/Robot"
-        >>> relativize("/World/scenes/env_3/Robot/base", tmpl)
-        '/base'
-        >>> relativize("/World/scenes/.*/Robot/base", tmpl)
-        '/base'
-        >>> relativize("/World/scenes/env_3/Robot", tmpl)
-        ''
-        >>> relativize("/World/scenes/env_3/Sensor", tmpl) is None
-        True
-        >>> relativize("/World/scenes/env_3/RobotArm", tmpl) is None
-        True
     """
     matched = match(path_expr, template)
     return None if matched is None else matched.suffix

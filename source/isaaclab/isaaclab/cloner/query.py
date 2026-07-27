@@ -3,108 +3,36 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Queries over the source/clone relation a :class:`~isaaclab.cloner.ClonePlan` describes.
+"""Queries over the prototype/clone relation a :class:`~isaaclab.cloner.ClonePlan` describes.
 
-A plan relates two prim-path spaces. The *source* space holds prototype paths, which exist
-once on the stage; the *clone* space holds the per-env destination paths and the globs that
-stand for them. Each plan row ``r`` contributes a source root ``S[r]``, a destination
-template ``D[r]``, and the set of envs ``E[r]`` its mask row selects. The plan is the union
-of those rows, so the relation is partial in both directions: a prototype reaches only the
-envs its row populates, and an env holds only the assets whose rows cover it.
+Each plan row pairs a prototype path that exists once on the stage with a destination
+template and the environments it populates, so the relation is partial in both directions: a
+prototype reaches only the environments its row covers, and an environment holds only the
+assets whose rows cover it. :func:`path_to_clone`, :func:`path_env_ids` and
+:func:`path_to_source` are the three ways to walk it; :func:`iter_sources` is
+:func:`path_to_source` for callers that need every variant behind one template.
 
-Environment ids are not mask columns. A mask column ``j`` stands for the environment
-:attr:`~isaaclab.cloner.ClonePlan.env_ids`\\ ``[j]``, which is what
-:func:`~isaaclab.cloner.replicate` formats into the destination template, and which is only
-incidentally ``j`` for the contiguous plans the built-in constructors emit. Every query
-here takes and returns environment ids, translating through the plan's ``env_ids``.
+Environment ids are not mask columns. Column ``j`` stands for
+:attr:`~isaaclab.cloner.ClonePlan.env_ids`\\ ``[j]``, which is the number
+:func:`~isaaclab.cloner.replicate` formats into the template. These functions take and
+return environment ids throughout.
 
-Three queries generate everything the cloner asks of a plan, and none of them can be
-derived from the other two:
+A path belongs to the nearest row containing it: the deepest prototype root, or the template
+leaving the shortest suffix. Rows tying there are one asset's variants, and the environment
+picks between them. ``test/cloner/test_clone_plan_algebra.py`` pins that down.
 
-* :func:`path_to_clone` — a prototype path and one env id to that env's clone path.
-* :func:`path_env_ids` — a prototype path to the environments it reaches.
-* :func:`path_to_source` — a clone path or expression back to the prototype behind it.
-
-:func:`iter_sources` resolves the same direction as :func:`path_to_source`, for callers that
-must see every variant behind one destination template rather than a single one.
-
-Access these through the package::
-
-    import isaaclab.cloner as cloner
-
-    cloner.query.path_to_clone(plan, "/World/envs/env_0/Robot/base", env_id=2)
-    cloner.query.path_to_source(plan, "/World/envs/env_.*/Robot/base")
-
-**Ownership.** A path belongs to the nearest row that contains it: on the source side the
-deepest source root, on the clone side the template leaving the shortest suffix below it.
-Both sides use that same nearest-owner rule. Rows tying at that depth are the variants of
-one asset, and the environment picks between them: :func:`path_to_clone` takes the variant
-populating the environment it was asked for, and :func:`path_to_source` takes the variant
-populating the environment its path names, falling back to the first populated variant only
-when the path names no environment at all.
-
-**Guarantees.** These hold for every plan, and are checked over homogeneous, partially
-covered, multi-variant, nested and non-contiguous plans in
-``test/cloner/test_clone_plan_algebra.py``. For a source path ``p`` owned by row ``r``,
-writing ``tail`` for ``path.relative_to(p, S[r])``:
-
-* **Q1 (the clone keeps the tail)** for ``e`` in ``path_env_ids(plan, p)``,
-  ``path_to_clone(plan, p, e) == path.rebase(p, S[r], D[r].format(e))``, which is
-  ``D[r].format(e) + tail``. Only the prototype root is swapped; nothing below it moves.
-* **Q2 (defined exactly where the plan says)** ``path_to_clone(plan, p, e)`` resolves
-  exactly when ``e`` is in ``path_env_ids(plan, p)``.
-* **Q3 (round trip)** for ``e`` in ``path_env_ids(plan, p)``,
-  ``path_to_source(plan, path_to_clone(plan, p, e))`` returns a
-  :class:`ResolvedSource` whose ``source_path + asset_suffix == p``. A clone path is
-  concrete, so :func:`path_to_source` reads the environment back out of it; pass ``env_id``
-  to resolve a wildcard expression against one environment instead.
-
-Anything built from these stays at the call site rather than becoming API. Every clone of a
-prototype is ``[path_to_clone(plan, p, e) for e in path_env_ids(plan, p)]``, and asking
-whether one environment has it is ``e in path_env_ids(plan, p)``.
-
-The module imports the path primitives aliased as ``pth`` because ``path`` is used here as a
-parameter name.
+The path primitives are aliased ``pth`` because ``path`` is a parameter name here.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 
 from . import path as pth
 
 if TYPE_CHECKING:
     from .clone_plan import ClonePlan
-
-
-class ResolvedSource(NamedTuple):
-    """A clone-space expression resolved back to the prototype it was cloned from."""
-
-    source_path: str
-    """Prototype path on the stage, to be read or walked in place of the clone."""
-
-    destination_glob: str
-    """The owning destination template with its clone slot replaced by ``*``."""
-
-    asset_suffix: str
-    """The part of the queried expression below the owning template (``""`` at its root)."""
-
-
-class SourceMatch(NamedTuple):
-    """One populated plan row behind a destination template."""
-
-    source_root: str
-    """The row's prototype root."""
-
-    destination_template: str
-    """The row's destination template, with ``"{}"`` for the env id."""
-
-    source_path: str
-    """The queried expression rebased onto :attr:`source_root`."""
-
-    env_ids: tuple[int, ...]
-    """Environment ids this row populates, ascending."""
 
 
 def _row_env_ids(plan: ClonePlan, row: int) -> tuple[int, ...]:
@@ -118,23 +46,17 @@ def _row_env_ids(plan: ClonePlan, row: int) -> tuple[int, ...]:
 def _column_for_env_id(plan: ClonePlan, env_id: int) -> int | None:
     """Mask column standing for ``env_id``, or ``None`` when the plan does not target it.
 
-    Guards the mask against out-of-range and negative ids, which plain indexing would either
-    raise on or silently wrap around.
+    Guards against out-of-range and negative ids, which plain indexing would raise on or
+    silently wrap around.
     """
-    num_columns = plan.clone_mask.shape[1]
     if plan.env_ids is None:
-        return env_id if 0 <= env_id < num_columns else None
+        return env_id if 0 <= env_id < plan.clone_mask.shape[1] else None
     columns = (plan.env_ids == env_id).nonzero(as_tuple=False).flatten().tolist()
     return int(columns[0]) if columns else None
 
 
 def _source_rows(plan: ClonePlan, path: str) -> list[int]:
-    """Rows whose source subtree owns ``path``, nearest owner only, in row order.
-
-    Source-side counterpart of :func:`_clone_rows`: when several source roots contain
-    ``path`` (a prototype nested inside another prototype), the deepest one owns it. Rows
-    tying at that depth are the variants of one asset and are all returned.
-    """
+    """Rows whose prototype subtree owns ``path``, nearest owner only, in row order."""
     rows = [
         row for row, source in enumerate(plan.sources) if "{}" in plan.destinations[row] and pth.under(path, source)
     ]
@@ -148,11 +70,11 @@ def _clone_rows(plan: ClonePlan, path_expr: str, *, populated_only: bool) -> lis
     """Collect ``(template, match, row)`` for the nearest destination template owning ``path_expr``.
 
     A shorter suffix below the template means a longer matched prefix, i.e. a nearer owner.
-    The suffix does not depend on how many digits a row's env ids happen to have, so a
-    variant is never ranked out by the width of its env id.
+    The suffix does not depend on how many digits a row's env ids have, so a variant is never
+    ranked out by the width of its env id.
 
     ``populated_only`` is the active-row policy: :func:`iter_sources` ranks only rows that
-    populate an env, so a nearer but empty template does not hide a populated ancestor, while
+    populate an env, so a nearer but empty template cannot hide a populated ancestor, while
     :func:`path_to_source` ranks every row and filters afterwards, so an empty nearest owner
     resolves to ``None`` and its caller falls back to direct stage resolution.
     """
@@ -176,8 +98,8 @@ def _owning_template(plan: ClonePlan, path_expr: str) -> tuple[str, list[int], p
     """Resolve the single destination template owning ``path_expr``.
 
     Returns:
-        ``(template, rows, match)`` where ``rows`` are all rows sharing the winning template
-        (in row order), or ``None`` when no template owns ``path_expr``.
+        ``(template, rows, match)`` where ``rows`` are all rows sharing the winning template,
+        in row order, or ``None`` when no template owns ``path_expr``.
 
     Raises:
         ValueError: When ``path_expr`` is owned by multiple distinct, equally near templates
@@ -194,15 +116,15 @@ def _owning_template(plan: ClonePlan, path_expr: str) -> tuple[str, list[int], p
 
 
 def path_env_ids(plan: ClonePlan, path: str) -> tuple[int, ...]:
-    """Return the environments a source-space ``path`` is replicated to.
+    """Return the environments a prototype ``path`` is replicated to.
 
     Args:
         plan: Active clone plan.
-        path: Source-space prototype path.
+        path: Prototype path.
 
     Returns:
-        The ascending env ids populated from ``path``'s owning rows, or an empty tuple when
-        ``path`` is not owned by the plan.
+        The ascending env ids populated from ``path``'s owning rows, empty when the plan does
+        not own ``path``.
     """
     env_ids: set[int] = set()
     for row in _source_rows(plan, path):
@@ -211,17 +133,19 @@ def path_env_ids(plan: ClonePlan, path: str) -> tuple[int, ...]:
 
 
 def path_to_clone(plan: ClonePlan, path: str, env_id: int) -> str | None:
-    """Return the clone of a source-space ``path`` in one environment.
+    """Return the clone of a prototype ``path`` in one environment.
+
+    Only the prototype root is swapped; everything below it is carried through unchanged.
 
     Args:
         plan: Active clone plan.
-        path: Source-space prototype path.
+        path: Prototype path.
         env_id: Target environment id.
 
     Returns:
         The clone path in ``env_id``, or ``None`` when ``path`` is unowned, ``env_id`` is not
         targeted by the plan, or no owning row populates it. Where several variants share the
-        source subtree, the variant that populates ``env_id`` is used.
+        prototype subtree, the variant populating ``env_id`` is used.
     """
     column = _column_for_env_id(plan, env_id)
     if column is None:
@@ -232,37 +156,34 @@ def path_to_clone(plan: ClonePlan, path: str, env_id: int) -> str | None:
     return None
 
 
-def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -> ResolvedSource | None:
-    """Resolve a clone-space expression to the prototype it was cloned from.
-
-    Splits ``path_expr`` at the destination template that owns it, so the asset-relative
-    suffix is returned for downstream walks.
+def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -> tuple[str, str, str] | None:
+    """Resolve a clone-side expression to the prototype it was cloned from.
 
     A *concrete* clone path names its environment in the template's clone slot, and that
-    environment selects the variant to report — which is what lets this undo
+    environment selects which variant to report — which is what lets this undo
     :func:`path_to_clone` for a heterogeneous asset. A *wildcard* expression
     (``.../env_.*/...``) names no environment and stands for all of them, so it resolves to
     the first populated variant unless ``env_id`` says which one to take.
 
     Args:
         plan: Active clone plan.
-        path_expr: Destination-side path expression (e.g. a sensor's ``prim_path``, with
-            ``.*`` env wildcard) or a concrete clone path.
-        env_id: Environment whose variant to resolve. Defaults to the one named by
-            ``path_expr`` when it is concrete, and to no particular environment otherwise.
+        path_expr: Clone-side path expression (e.g. a sensor's ``prim_path``, with ``.*`` env
+            wildcard) or a concrete clone path.
+        env_id: Environment whose variant to resolve. Defaults to the one ``path_expr`` names
+            when it is concrete, and to no particular environment otherwise.
 
     Returns:
-        A :class:`ResolvedSource`, or ``None`` when ``path_expr`` matches no row, when the
-        plan does not target the requested environment, or when no matching row populates it
-        — letting callers fall back to direct stage resolution.
+        A ``(source_path, destination_glob, asset_suffix)`` tuple, where ``asset_suffix`` is
+        the part of ``path_expr`` below the owning template. ``None`` when ``path_expr``
+        matches no row, or no matching row populates the requested environment, letting
+        callers fall back to direct stage resolution.
 
-        Partial-env coverage is supported: when the matching rows cover only a subset of
-        envs (an asset present in some envs but not others, as in heterogeneous scenes), the
-        returned destination glob resolves to just those envs.
+        Partial-env coverage is supported: when the matching rows cover only a subset of envs
+        (an asset present in some envs but not others, as in heterogeneous scenes), the
+        returned glob resolves to just those envs.
 
     Raises:
-        ValueError: When ``path_expr`` is owned by multiple distinct, equally near
-            destination templates (a genuine ambiguity).
+        ValueError: When ``path_expr`` is owned by multiple distinct, equally near templates.
     """
     owner = _owning_template(plan, path_expr)
     if owner is None:
@@ -270,12 +191,8 @@ def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -
     template, rows, matched = owner
     if env_id is None and matched.instance.isdigit():
         env_id = int(matched.instance)
-    # Partial-env coverage (the union of matching rows misses some envs) is expected for
-    # heterogeneous scenes: an asset present in only a subset of envs (e.g. one robot type
-    # per task group). The destination glob below resolves only to the envs that actually
-    # received the asset, and callers (via the scene Selector) map those to global env ids.
-    # Resolution must still walk a source that exists on stage, so skip rows populating no
-    # env at all.
+    # Resolution must walk a prototype that exists on stage, so rows populating no env at all
+    # are skipped rather than reported.
     if env_id is None:
         rows = [row for row in rows if plan.clone_mask[row].any()]
     else:
@@ -285,35 +202,31 @@ def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -
         rows = [row for row in rows if bool(plan.clone_mask[row][column])]
     if not rows:
         return None
-    return ResolvedSource(plan.sources[rows[0]], template.replace("{}", "*"), matched.suffix)
+    return plan.sources[rows[0]], template.replace("{}", "*"), matched.suffix
 
 
-def iter_sources(plan: ClonePlan, path_expr: str) -> Iterator[SourceMatch]:
+def iter_sources(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, str, tuple[int, ...]]]:
     """Yield every populated plan row whose destination owns a path expression.
 
     Where :func:`path_to_source` names one variant, this yields them all, for callers that
-    must visit each prototype behind a destination template (loading one mesh per variant,
-    say). A wildcard expression is inherently one-to-many, and this is the query that says so.
+    must visit each prototype behind a destination template (loading one mesh per variant).
 
     Example:
-        For a row with source root ``"/World/source/Robot"``, destination template
-        ``"/World/scenes/{}/Robot"``, and populated env ids ``(0, 2)``, querying
+        For a row with prototype root ``"/World/source/Robot"``, destination template
+        ``"/World/scenes/{}/Robot"`` and env ids ``(0, 2)``, querying
         ``"/World/scenes/.*/Robot/base"`` yields ``("/World/source/Robot",
         "/World/scenes/{}/Robot", "/World/source/Robot/base", (0, 2))``.
 
     Args:
         plan: Clone plan to query.
-        path_expr: Destination prim path or path expression, matched against each destination
-            template by treating the template's ``"{}"`` field as the populated environment
-            slot.
+        path_expr: Clone-side prim path or path expression.
 
     Yields:
-        A :class:`SourceMatch` per row of the nearest owning destination template. Variants
-        sharing that template are all yielded, in row order; rows populating no env are
-        skipped.
+        ``(source_root, destination_template, source_path, env_ids)`` per row of the nearest
+        owning template, in row order. Rows populating no env are skipped.
     """
     for template, matched, row in _clone_rows(plan, path_expr, populated_only=True):
         template_norm = template.rstrip("/") or "/"
         source_root = plan.sources[row].rstrip("/") or "/"
         source_path = source_root + matched.suffix if source_root != "/" else matched.suffix or "/"
-        yield SourceMatch(source_root, template_norm, source_path, _row_env_ids(plan, row))
+        yield source_root, template_norm, source_path, _row_env_ids(plan, row)
