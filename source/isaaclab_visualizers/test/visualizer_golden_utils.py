@@ -578,20 +578,19 @@ def run_visualizer_golden_franka_cloth(
         if capture_mode == "tiled":
             return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
-            # Do not pass physics_backend="newton" here: the VBD cloth solver never
-            # sets NewtonManager._newton_fabric_ready (cloth particles bypass the
-            # rigid-body Fabric sync path), so _drain_until_newton_fabric_ready
-            # would run its full 200-iteration loop. Cloth geometry is already in
-            # the USD stage from env.step(), so a short fixed warmup is sufficient.
-            # Cap warmup at _FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES: by this point
-            # in the test suite (~14 prior scenes), RTX takes ~2 min per render call
-            # and never converges within 50 frames anyway; the test's 12%/SSIM-0.85
-            # thresholds do not require convergence.
+            # Do NOT call env.sim.render() here: the VBD cloth solver never sets
+            # NewtonManager._newton_fabric_ready, so env.sim.render() blocks in
+            # the Fabric sync path indefinitely on some GPU/driver combinations
+            # (observed 48+ min hang on RTX PRO 4500 Blackwell).  Instead use
+            # app_updates_only=True which drives RTX TAA via lightweight app.update()
+            # ticks without triggering Newton Fabric sync.  The 12%/SSIM-0.85
+            # thresholds are loose enough to accept the resulting frame quality.
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
                 env,
                 _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION,
                 max_warmup_frames=_viz_utils._FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES,
+                app_updates_only=True,
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)

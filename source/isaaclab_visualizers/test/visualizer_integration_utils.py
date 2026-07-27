@@ -133,9 +133,14 @@ _KIT_APP_DRAIN_SLEEP_SECONDS = 0.01
 _WARMUP_MAX_FRAMES = 50
 """Hard cap on render frames pumped during convergence-based warmup."""
 
-_FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES = 5
-"""Franka cloth VBD + RTX is ~2 min/frame at this point in the test suite (14 prior scenes).
-Use a fixed short count; the test has 12 % / SSIM-0.85 thresholds so convergence is unnecessary."""
+_FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES = 20
+"""Franka cloth kit-viewport warmup uses lightweight ``app.update()`` ticks
+(not ``env.sim.render()``).  Each ``env.sim.render()`` call for the VBD cloth
+scene blocks in the Newton Fabric sync path (the VBD cloth solver never sets
+``NewtonManager._newton_fabric_ready``), causing hangs on some GPU/driver
+combinations.  20 ``app.update()`` ticks drive RTX TAA accumulation without
+triggering the Fabric sync, producing an acceptable frame within the
+loose 12% / SSIM-0.85 thresholds."""
 
 _WARMUP_STABLE_DIFF_PCT = 0.5
 """Fraction of pixels (%) with inter-frame L2 > 1.0 below which two consecutive frames are
@@ -1077,6 +1082,7 @@ def _capture_kit_viewport_with_pose_reapply(
     physics_backend: str = "",
     prior_physics_steps: int = 0,
     max_warmup_frames: int | None = None,
+    app_updates_only: bool = False,
 ) -> np.ndarray:
     """Set the configured eye/lookat, warm RTX, then capture.
 
@@ -1096,6 +1102,9 @@ def _capture_kit_viewport_with_pose_reapply(
         max_warmup_frames: When set, overrides the default convergence cap.  Use a
             small value when per-frame render cost is very high and test thresholds
             are loose enough that convergence is not required (e.g. franka cloth RTX).
+        app_updates_only: When True, uses lightweight ``app.update()`` ticks instead
+            of ``env.sim.render()``.  Required for VBD cloth scenes where
+            ``env.sim.render()`` blocks in the Newton Fabric sync path.
     """
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
@@ -1122,7 +1131,13 @@ def _capture_kit_viewport_with_pose_reapply(
                     break
                 prev = curr
         else:
-            _warm_kit_rtx_render_product(env, annotator, use_convergence=True, max_frames_override=max_warmup_frames)
+            _warm_kit_rtx_render_product(
+                env,
+                annotator,
+                use_convergence=True,
+                max_frames_override=max_warmup_frames,
+                app_updates_only=app_updates_only,
+            )
         return _capture_kit_viewport_rgb(annotator)
     finally:
         with contextlib.suppress(Exception):
@@ -1130,7 +1145,12 @@ def _capture_kit_viewport_with_pose_reapply(
 
 
 def _warm_kit_rtx_render_product(
-    env, annotator, *, use_convergence: bool = False, max_frames_override: int | None = None
+    env,
+    annotator,
+    *,
+    use_convergence: bool = False,
+    max_frames_override: int | None = None,
+    app_updates_only: bool = False,
 ) -> None:
     """Pump Kit/RTX until the annotator produces stable frames.
 
@@ -1140,6 +1160,9 @@ def _warm_kit_rtx_render_product(
     satisfy :func:`_frames_converged` or :data:`_WARMUP_MAX_FRAMES` is reached.
     When ``max_frames_override`` is set, it replaces both caps above — useful when the
     per-frame render cost is high and loose thresholds make convergence unnecessary.
+    When ``app_updates_only`` is True, replaces ``env.sim.render()`` with lightweight
+    ``app.update()`` calls.  Use this for VBD cloth scenes where ``env.sim.render()``
+    blocks in the Newton Fabric sync path (VBD cloth particles never set the ready flag).
     """
     if max_frames_override is not None:
         max_frames = max_frames_override
@@ -1147,7 +1170,8 @@ def _warm_kit_rtx_render_product(
         max_frames = _WARMUP_MAX_FRAMES if use_convergence else _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS
     prev: np.ndarray | None = None
     for i in range(max_frames):
-        env.sim.render()
+        if not app_updates_only:
+            env.sim.render()
         _update_active_simulation_app()
         with contextlib.suppress(Exception):
             annotator.get_data()
