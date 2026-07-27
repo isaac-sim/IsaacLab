@@ -96,6 +96,13 @@ inputs:
     description: 'CI_MARKER value forwarded to the container (read by tools/conftest.py to select test files by pytest marker)'
     default: ''
     required: false
+  session-kit-cameras:
+    description: >-
+      Override for ISAACLAB_SESSION_KIT_CAMERAS inside the container.
+      '1' loads camera extensions (omni.replicator) at session-kit startup;
+      '0' skips them.  Leave empty to use the conftest default ('1').
+    default: ''
+    required: false
   omni-github-test-type:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
@@ -137,6 +144,7 @@ runs:
           local wheelhouse_packages="${19}"
           local test_k_expr="${20}"
           local ci_marker="${21}"
+          local session_kit_cameras="${22}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -289,6 +297,11 @@ runs:
           if [ -n "$ci_marker" ]; then
             docker_env_vars="$docker_env_vars -e CI_MARKER=$ci_marker"
             echo "Setting CI_MARKER=$ci_marker"
+          fi
+
+          if [ -n "$session_kit_cameras" ]; then
+            docker_env_vars="$docker_env_vars -e ISAACLAB_SESSION_KIT_CAMERAS=$session_kit_cameras"
+            echo "Setting ISAACLAB_SESSION_KIT_CAMERAS=$session_kit_cameras"
           fi
 
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
@@ -529,7 +542,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.session-kit-cameras }}"
 
     - name: Kill container on cancellation
       if: cancelled()

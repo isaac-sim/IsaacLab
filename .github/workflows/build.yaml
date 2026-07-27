@@ -412,6 +412,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
         container-name: isaac-lab-contrib-test
+        session-kit-cameras: '0'
 
   test-isaaclab-teleop:
     name: isaaclab_teleop
