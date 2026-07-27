@@ -248,6 +248,14 @@ def _resolve_git_asset_source_path(local_path: str, git_asset_dir: str) -> str:
     return source_path
 
 
+def _mirror_path(url: str, download_dir: str) -> str:
+    """Local path a remote ``url`` mirrors to under ``download_dir``, or ``""`` if not a URL."""
+    parsed = urlparse(url.replace(os.sep, "/"))
+    if not parsed.scheme or not parsed.path:
+        return ""
+    return os.path.join(download_dir, parsed.path.lstrip("/"))
+
+
 def check_file_path(path: str) -> Literal[0, 1, 2]:
     """Checks if a file exists on the Nucleus Server or locally.
 
@@ -263,6 +271,12 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
     """
     if os.path.isfile(path):
         return 1
+
+    # A remote asset already mirrored locally needs no status probe: the mirror path is derived
+    # from the URL, so an existing file means an earlier run fetched it
+    mirrored = _mirror_path(path, tempfile.gettempdir())
+    if mirrored and os.path.isfile(mirrored):
+        return 2
 
     import omni.client  # noqa: PLC0415
 
@@ -334,8 +348,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                         break
                 continue
 
-            cur_rel = urlparse(cur_url).path.lstrip("/")
-            target_path = os.path.join(download_dir, cur_rel)
+            target_path = _mirror_path(cur_url, download_dir)
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
             is_root_asset = local_root is None
@@ -379,10 +392,11 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
-        import omni.client  # noqa: PLC0415
-
-        file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
-        return io.BytesIO(memoryview(file_content).tobytes())
+        # Go through the local mirror rather than re-reading from the server on every call.
+        # Actuator networks and similar payloads are read at every startup, so a direct
+        # remote read re-downloads megabytes that :func:`retrieve_file_path` already caches.
+        with open(retrieve_file_path(path), "rb") as f:
+            return io.BytesIO(f.read())
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
