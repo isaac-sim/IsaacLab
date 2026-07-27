@@ -39,7 +39,6 @@ class Se2SpaceMouse(DeviceBase):
     Currently tested for following devices:
 
     - SpaceMouse Compact: https://3dconnexion.com/de/product/spacemouse-compact/
-    - SpaceNavigator: https://3dconnexion.com/product/spacemouse-wireless/
 
     .. _HID-API: https://github.com/libusb/hidapi
 
