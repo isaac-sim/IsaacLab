@@ -3,29 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Guard core test code against direct ``isaaclab_tasks`` imports.
+"""Guard core tests and shared fixtures against direct ``isaaclab_tasks`` imports.
 
-The core package is a lower-level dependency of task packages, so its test
-suite and the shared fixtures shipped in ``isaaclab.test`` must not borrow task
-implementations. Genuine cross-package integration tests still awaiting
-relocation are listed in a temporary handoff allowlist.
-
-This increment checks only static ``import`` and ``from ... import`` statements
-for ``isaaclab_tasks``, including statements under ``TYPE_CHECKING``. Dynamic
-imports and imports from other sibling packages remain follow-up work.
-
-The guard is data-driven:
-
-* :data:`_BANNED_PACKAGES` lists the package boundary enforced by this
-  increment.
-* :data:`_TEMPORARY_HANDOFF_ALLOWLIST` lists genuine cross-package integration
-  tests that still live in the core tree. Stale entries fail
-  :func:`test_handoff_allowlist_entries_are_current`.
-* :data:`_EXEMPT_TOP_LEVEL_DIRS` lists top-level test areas that intentionally
-  remain out of scope: ``install_ci`` validates full-stack installations,
-  while ``benchmark`` is owned by separate benchmark work.
-
-This test is purely static and requires no simulator.
+The static AST scan includes imports under ``TYPE_CHECKING``. Dynamic imports
+and other sibling packages are out of scope. Temporary cross-package
+integration tests are allowlisted pending relocation.
 """
 
 from __future__ import annotations
@@ -40,27 +22,16 @@ pytestmark = pytest.mark.unit
 # This file lives at ``source/isaaclab/test/dependencies/<file>.py``.
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
-# Scan both the core test suite and the shared fixtures importable from
-# ``isaaclab.test``.
 _SCAN_ROOTS = (
     _REPO_ROOT / "source" / "isaaclab" / "test",
     _REPO_ROOT / "source" / "isaaclab" / "isaaclab" / "test",
 )
 
-# This increment enforces only the direct ``isaaclab_tasks`` boundary.
 _BANNED_PACKAGES: tuple[str, ...] = ("isaaclab_tasks",)
 
-# Top-level directories under either scan root that remain out of scope.
-_EXEMPT_TOP_LEVEL_DIRS: dict[str, str] = {
-    "install_ci": "installs and imports the full stack to validate documented install paths",
-    "benchmark": "benchmark suite and support code are owned by separate benchmark work",
-}
+_EXEMPT_TOP_LEVEL_DIRS: frozenset[str] = frozenset({"benchmark", "install_ci"})
 
-# Genuine cross-package integration tests awaiting relocation out of the core
-# tree. ``test_pink_ik.py``, ``test_outdated_sensor.py``, and
-# ``test_tiled_camera_env.py`` are pre-existing handoffs. The two
-# ``*_task_integration.py`` files preserve task-backed coverage split from the
-# core-only environment tests.
+# Cross-package integration tests awaiting relocation out of the core tree.
 _TEMPORARY_HANDOFF_ALLOWLIST: dict[str, frozenset[str]] = {
     "isaaclab_tasks": frozenset(
         {
@@ -75,11 +46,7 @@ _TEMPORARY_HANDOFF_ALLOWLIST: dict[str, frozenset[str]] = {
 
 
 def _match_banned_package(module: str, banned: tuple[str, ...]) -> str | None:
-    """Return the banned package that contains a module, if any.
-
-    Prefix-sharing top-level packages do not match. For example,
-    ``isaaclab_tasks_experimental`` is not part of ``isaaclab_tasks``.
-    """
+    """Return the banned package containing a module, if any."""
     for package in banned:
         if module == package or module.startswith(f"{package}."):
             return package
@@ -87,12 +54,7 @@ def _match_banned_package(module: str, banned: tuple[str, ...]) -> str | None:
 
 
 def _iter_banned_imports(source: str, filename: str, banned: tuple[str, ...]) -> list[tuple[str, str]]:
-    """Return the banned package and statement for each direct import.
-
-    The complete AST is scanned, so imports under runtime conditionals or
-    ``TYPE_CHECKING`` are source dependencies and are reported. Dynamic import
-    calls and string literals are intentionally ignored.
-    """
+    """Return the banned package and statement for each direct import."""
     offenders: list[tuple[str, str]] = []
     tree = ast.parse(source, filename=filename)
     for node in ast.walk(tree):
