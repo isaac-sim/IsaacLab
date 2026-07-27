@@ -34,3 +34,4 @@ def ovstage_variant(request, monkeypatch):
         # ISAAC_LAB_OVRTX_USE_OVSTAGE=1 would otherwise make both variants exercise the ovstage
         # path, silently dropping legacy coverage while still reporting two passing variants.
         monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    return request.param
