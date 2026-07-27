@@ -1,6 +1,52 @@
 Changelog
 ---------
 
+13.2.0 (2026-07-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``newton:heightfield:resolution`` attribute on generated terrain colliders in
+  :class:`~isaaclab.terrains.TerrainImporter`, recording the terrain's horizontal grid spacing so
+  backends that support heightfield collision can replace the terrain collision mesh with an
+  equivalent heightfield. The attribute is inert for backends that do not consume it.
+* Added :attr:`~isaaclab.terrains.SubTerrainBaseCfg.convert_to_heightfield` to control whether a
+  sub-terrain is converted to a heightfield. Height field sub-terrains
+  (:class:`~isaaclab.terrains.height_field.HfTerrainBaseCfg`) default it to True since the conversion
+  is exact for them, while mesh sub-terrains default it to False since the conversion is lossy. The
+  terrain is only converted when every sub-terrain enables the flag.
+
+Changed
+^^^^^^^
+
+* Changed the ``physx`` launcher selector to resolve to Isaac Sim PhysX when a
+  Kit renderer or Kit viewer is requested and to OvPhysX otherwise. Use
+  ``isaacsim_physx`` to force Isaac Sim PhysX.
+* Changed the mesh sub-terrains in ``ROUGH_TERRAINS_CFG`` to enable
+  :attr:`~isaaclab.terrains.SubTerrainBaseCfg.convert_to_heightfield`, so the rough locomotion terrain
+  is collided against as a heightfield on backends that support it. Set the flag back to False on the
+  ``pyramid_stairs``, ``pyramid_stairs_inv``, or ``boxes`` sub-terrains to collide against the original
+  mesh instead.
+
+Fixed
+^^^^^
+
+* Fixed ``./isaaclab.sh --install`` unnecessarily building ``nlopt==2.6.2`` on
+  ARM Linux (e.g. DGX Spark), where it fails with CMake 4.x. The ARM-only
+  ``nlopt`` pre-install and its temporary ``swig`` install were removed because
+  ``nlopt`` is only pulled in by Linux x86_64 dependencies.
+
+* Fixed unavoidable ARM source builds such as ``egl-probe==1.0.2`` failing when
+  CMake 4.x rejects policy compatibility older than 3.5. The installer now
+  temporarily sets ``CMAKE_POLICY_VERSION_MINIMUM=3.5`` during ARM dependency
+  builds.
+* Fixed :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_material` crashing on the Newton
+  Kamino solver, which shares contact materials across shapes and environments and rejects
+  per-shape overrides. On Kamino it now samples one value per build-time material group and
+  broadcasts it to every environment; all other Newton solvers keep per-shape sampling.
+
+
 13.1.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~~
 
