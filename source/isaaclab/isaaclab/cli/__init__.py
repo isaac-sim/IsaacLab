@@ -66,6 +66,28 @@ def random_agent(args: list[str] | None = None) -> None:
         args = sys.argv[1:]
     run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "random_agent.py", args, check=True)
 
+def teleop(args: list[str] | None = None) -> None:
+    """Run the SE(3) teleoperation agent."""
+    if args is None:
+        args = sys.argv[1:]
+    run_python_command(
+        ISAACLAB_ROOT / "scripts" / "environments" / "teleoperation" / "teleop_se3_agent.py", args, check=True
+    )
+
+
+def record(args: list[str] | None = None) -> None:
+    """Run the demonstration recording script."""
+    if args is None:
+        args = sys.argv[1:]
+    run_python_command(ISAACLAB_ROOT / "scripts" / "tools" / "record_demos.py", args, check=True)
+
+
+def replay(args: list[str] | None = None) -> None:
+    """Run the demonstration replay script."""
+    if args is None:
+        args = sys.argv[1:]
+    run_python_command(ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py", args, check=True)
+
 
 def benchmark(args: list[str] | None = None) -> None:
     """Run a runtime, startup, training, or play benchmark.
@@ -103,6 +125,15 @@ def cli() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         subcommands[sys.argv[1]](sys.argv[2:])
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "teleop":
+        teleop(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "record":
+        record(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "replay":
+        replay(sys.argv[2:])
+        return
 
     executable_name = Path(sys.argv[0]).name
     default_prog = "isaaclab.bat" if is_windows() else "isaaclab.sh"
@@ -119,6 +150,10 @@ def cli() -> None:
             "  play            Run scripts/reinforcement_learning/play.py\n"
             "  zero_agent      Run scripts/environments/zero_agent.py\n"
             "  random_agent    Run scripts/environments/random_agent.py"
+
+            "  teleop          Run scripts/environments/teleoperation/teleop_se3_agent.py\n"
+            "  record          Run scripts/tools/record_demos.py\n"
+            "  replay          Run scripts/tools/replay_demos.py"
         ),
     )
 

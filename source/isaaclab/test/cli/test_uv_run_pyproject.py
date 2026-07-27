@@ -170,8 +170,8 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
     PhysX/Isaac Sim is never a base dependency, but it must be a real
     ``optional-dependencies`` extra so ``uv run --extra isaacsim`` resolves. Its
     exact pins clash with several other extras, which are declared in
-    ``[tool.uv].conflicts``. Viser is co-resolved through a compatible WebSockets
-    override so Isaac Sim demos can request both extras in one command.
+    ``[tool.uv].conflicts``. Viser and teleop are both co-resolved through the WebSockets
+    override, so Isaac Sim demos and the XR teleop workflow can request them in one command.
     """
     pyproject = _root_pyproject()
     project = pyproject["project"]
@@ -187,11 +187,31 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
 
     # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("teleop", "ovphysx", "mimic", "all", "test"):
+    for extra in ("ovphysx", "mimic", "all", "test"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
 
     assert {"isaacsim", "viser"} not in conflict_groups
     assert "websockets==13.1" in pyproject["tool"]["uv"]["override-dependencies"]
+
+
+def test_uv_run_teleop_co_resolves_with_isaacsim():
+    """The XR teleop workflow needs Isaac Sim, so the two extras must co-resolve.
+
+    ``uv run --extra isaacsim --extra teleop`` is the documented teleoperation command.
+    It only resolves because the ``websockets`` override relaxes ``isaacsim-kernel``'s
+    ``==12.0`` pin to the ``>=14.0`` line ``isaacteleop[cloudxr]`` requires. Declaring the
+    pair in ``[tool.uv].conflicts``, or dropping the override, would break the command.
+    """
+    pyproject = _root_pyproject()
+    tool_uv = pyproject["tool"]["uv"]
+
+    conflict_groups = [{entry["extra"] for entry in group} for group in tool_uv["conflicts"]]
+    assert {"isaacsim", "teleop"} not in conflict_groups
+    assert "websockets>=14.0" in tool_uv["override-dependencies"]
+
+    # The lxml split between Isaac Teleop and the imitation-learning stack is real and stays.
+    assert {"teleop", "mimic"} in conflict_groups
+    assert {"teleop", "all"} in conflict_groups
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():

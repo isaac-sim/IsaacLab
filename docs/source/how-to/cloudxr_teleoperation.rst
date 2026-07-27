@@ -22,7 +22,9 @@ teleoperation session. For additional details see the `Isaac Teleop Quick Start
 Prerequisites
 -------------
 
-* **Isaac Lab** installed and working (see :ref:`isaaclab-installation-root`).
+* **Isaac Lab** installed with the ``teleop`` and ``isaacsim`` extras (see
+  :ref:`installation-method-teleop`). That section also covers the system libraries the
+  CloudXR runtime needs.
 
 * **Isaac Lab workstation**
 
@@ -124,7 +126,9 @@ To use the check on its own -- for example to qualify a machine before setting u
 Install Isaac Teleop
 --------------------
 
-#. Install the system libraries required by the CloudXR runtime:
+#. Complete :ref:`installation-method-teleop` first. It installs the ``libvulkan1`` and
+   ``libbsd0`` system libraries and shows how to activate the ``teleop`` and ``isaacsim``
+   extras.
 
    .. code-block:: bash
 
@@ -161,9 +165,11 @@ Install Isaac Teleop
       The :ref:`teleop-workstation-capability-check` reports the governor at session start, so a
       machine that has reverted to ``powersave`` is flagged before you notice the frame rate.
 
-#. ``isaacteleop`` is installed automatically as a dependency of ``isaaclab_teleop``.
-   No separate pip install step is required. For building from source or plugin
-   development, see the `Isaac Teleop GitHub <https://github.com/NVIDIA/IsaacTeleop>`_.
+#. ``isaacteleop`` ships as part of the ``teleop`` extra, so no separate pip install step is
+   required — but note that it comes from the extra rather than from the ``isaaclab_teleop``
+   package metadata, so installing ``isaaclab_teleop`` on its own does **not** pull it in.
+   For building from source or plugin development, see the `Isaac Teleop GitHub
+   <https://github.com/NVIDIA/IsaacTeleop>`_.
 
 #. Configure the firewall to allow CloudXR traffic. The required ports depend on the
    client type.
@@ -205,7 +211,7 @@ Run Isaac Lab with CloudXR
 --------------------------
 
 The CloudXR runtime launches automatically when a teleop script is started. No separate
-terminal or ``source`` step is needed. Launch a teleoperation script directly:
+terminal or ``source`` step is needed. Launch a teleoperation session directly:
 
 .. tab-set::
 
@@ -213,8 +219,8 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
 
       .. code-block:: bash
 
-         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+         uv run --extra isaacsim --extra teleop isaaclab teleop \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
 
@@ -223,7 +229,7 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
 
@@ -251,14 +257,16 @@ hand joints and RGB axes at tracked controller aim poses. See
 
 .. tip::
 
-   The ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` task above uses **hand tracking** as its
-   input mode. Make sure your XR device has hand tracking enabled (optical hand tracking on
-   Quest 3, or the built-in hand tracking on Apple Vision Pro). Different tasks require
-   different input modes (motion controllers vs hand tracking) -- see the
-   :ref:`isaac-teleop-control-schemes` table for the full list.
+   The ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` task above uses **motion
+   controllers** as its input mode: the controller grip poses drive the arms, the trigger and
+   squeeze buttons close the TriHand fingers, and the thumbsticks drive locomotion and hip
+   height. Hold a controller in each hand rather than relying on optical hand tracking. Other
+   tasks expect hand tracking instead -- see the :ref:`isaac-teleop-control-schemes` table for
+   the full list.
 
 To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
-use the ``--cloudxr_env`` flag:
+use the ``--cloudxr_env`` flag. Apple Vision Pro has no motion controllers, so pair it with a
+hand-tracking task such as ``IsaacContrib-PickPlace-G1-InspireFTP-Abs``:
 
 .. tab-set::
 
@@ -266,8 +274,8 @@ use the ``--cloudxr_env`` flag:
 
       .. code-block:: bash
 
-         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+         uv run --extra isaacsim --extra teleop isaaclab teleop \
+             --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
              --visualizer kit \
              --xr \
              --cloudxr_env avp
@@ -277,7 +285,7 @@ use the ``--cloudxr_env`` flag:
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
              --visualizer kit \
              --xr \
              --cloudxr_env avp
@@ -413,8 +421,8 @@ choose the tab that matches your hardware.
 
                .. code-block:: bash
 
-                  uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
-                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                  uv run --extra isaacsim --extra teleop isaaclab teleop \
+                      --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
 
@@ -423,7 +431,7 @@ choose the tab that matches your hardware.
                .. code-block:: bash
 
                   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                      --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
 
@@ -556,11 +564,12 @@ hand tracking from the headset is occluded or when higher-precision finger data 
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            cp $(uv run --extra isaacsim --extra teleop python -c \
+                "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
-            uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
-                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+            uv run --extra isaacsim --extra teleop isaaclab teleop \
+                --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
 
@@ -573,7 +582,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
 
@@ -651,7 +660,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
       .. code-block:: bash
 
-         uv run python scripts/tools/record_demos.py \
+         uv run --extra isaacsim --extra teleop isaaclab record \
            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
            --num_demos 5 \
            --dataset_file ./datasets/dataset.hdf5 \
