@@ -198,11 +198,10 @@ runs:
         # not the actual layers, so this completes in seconds.
         if docker manifest inspect "${DEPS_ECR_IMAGE}" >/dev/null 2>&1; then
           echo "🟢 Deps cache HIT!!! Image exists in ECR: ${DEPS_ECR_IMAGE}"
-          # Create a commit-tagged alias pointing to the same manifest (registry-side,
-          # no layer download). Test jobs will pull this tag normally.
-          echo "🔵 Tagging as commit image ${ECR_IMAGE}..."
-          docker buildx imagetools create -t "${ECR_IMAGE}" "${DEPS_ECR_IMAGE}"
-          echo "🟢 Tagged ${ECR_IMAGE} >> ${DEPS_ECR_IMAGE}"
+          bash "${GITHUB_ACTION_PATH}/materialize_deps_cache_hit.sh" \
+            "${DEPS_ECR_IMAGE}" \
+            "${ECR_IMAGE}" \
+            "${{ inputs.image-tag }}"
           echo "deps-cache-hit=true" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Deps cache MISS 😿😿😿 (${DEPS_HASH}). Will build now. 🐢🐢🐢"

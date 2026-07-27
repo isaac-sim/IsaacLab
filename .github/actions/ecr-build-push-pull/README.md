@@ -22,3 +22,8 @@ ECR is also used as the BuildKit layer cache.
 2. `ECR_CACHE_URL` environment variable on the runner
 3. SSM parameter `/github-runner/<instance-id>/ecr-cache-url`
 4. If none resolve, ECR is skipped and the image is built locally
+
+## Cache-hit behavior
+
+Exact-image and dependency-cache hits pull the commit-tagged image and tag it
+locally as `image-tag` before the action reports success.
