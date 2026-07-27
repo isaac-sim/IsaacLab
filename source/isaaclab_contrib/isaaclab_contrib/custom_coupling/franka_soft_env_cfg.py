@@ -12,6 +12,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftSceneCfg as CoreSceneCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
 
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
@@ -22,6 +23,7 @@ class PhysicsCfg(CorePhysicsCfg):
     """Custom MJWarp and VBD physics preset."""
 
     newton_mjwarp_vbd = CorePhysicsCfg().newton_mjwarp_vbd.replace(
+        # Required: ``NewtonCfg.__post_init__`` rejects a preset class_type and re-derives it.
         class_type=None,
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
@@ -42,10 +44,20 @@ class PhysicsCfg(CorePhysicsCfg):
 
 
 @configclass
+class SceneCfg(CoreSceneCfg):
+    """Multi-world scene preset; the manual coupler keeps reset state per world."""
+
+    newton_mjwarp_vbd = CoreSceneCfg().newton_mjwarp_vbd.replace(num_envs=128)
+
+    default = newton_mjwarp_vbd
+
+
+@configclass
 class FrankaSoftCustomCouplingEnvCfg(FrankaSoftEnvCfg):
     """Franka soft lifting with manual MJWarp and VBD coupling."""
 
+    scene: SceneCfg = SceneCfg()
+
     def __post_init__(self) -> None:
         super().__post_init__()
-        self.scene.num_envs = 128
         self.sim.physics = PhysicsCfg()
