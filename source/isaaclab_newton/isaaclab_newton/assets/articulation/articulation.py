@@ -17,9 +17,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from newton import JointType
+from newton import JointType, ModelFlags
 from newton.selection import ArticulationView
-from newton.solvers import SolverNotifyFlags
 from prettytable import PrettyTable
 
 from pxr import UsdPhysics
@@ -31,7 +30,6 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
@@ -40,7 +38,6 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .articulation_data import ArticulationData
@@ -127,9 +124,6 @@ class Articulation(BaseArticulation):
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         super().__init__(cfg)
-        if has_kit():
-            queue_usd_replication(cfg)
-        queue_newton_physics_replication(cfg)
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
@@ -1422,7 +1416,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def _write_joint_float_property_to_sim_mask(
         self,
@@ -1457,7 +1451,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_stiffness_to_sim_index(
         self,
@@ -1738,7 +1732,7 @@ class Articulation(BaseArticulation):
                 logger.warning(violation_message)
             else:
                 logger.info(violation_message)
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1812,7 +1806,7 @@ class Articulation(BaseArticulation):
                 logger.warning(violation_message)
             else:
                 logger.info(violation_message)
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -2161,7 +2155,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -2200,7 +2194,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -2248,7 +2242,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -2295,7 +2289,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -2338,7 +2332,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -2378,7 +2372,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_joint_position_target_index(
         self,

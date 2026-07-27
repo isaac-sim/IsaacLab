@@ -45,7 +45,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, read_file
 
-from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
+from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
 
 
 def main():
@@ -56,7 +56,8 @@ def main():
     policy = torch.jit.load(file, map_location=args_cli.device)
 
     # setup environment
-    env_cfg = H1RoughEnvCfg_PLAY()
+    env_cfg = H1RoughEnvCfg()
+    env_cfg.play_mode()
     env_cfg.scene.num_envs = 1
     env_cfg.curriculum = None
     env_cfg.scene.terrain = TerrainImporterCfg(

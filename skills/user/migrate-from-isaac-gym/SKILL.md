@@ -18,7 +18,7 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 ## Workflow
 
 1. Identify the Isaac Gym task structure: assets, environment state tensors, observations, rewards, resets, and training runner.
-2. If the user needs a new full-feature Isaac Sim setup, point them to the pip/uv installation docs first. If the user expects execution or training, run a runtime preflight from the Isaac Lab checkout before a long port: verify `uv run python` uses the intended Python environment and checkout, imports `isaacsim` and `omni`, and provides the requested RL library.
+2. If the user needs a new full-feature Isaac Sim setup, point them to the automatic uv installation guide first. If the user expects PhysX or Kit execution, run a runtime preflight from the Isaac Lab checkout before a long port: verify `uv run --extra isaacsim python` uses the intended Python environment and checkout, imports `isaacsim` and `omni`, and provides the requested RL library.
 3. Read the IsaacGymEnvs migration guide and direct workflow docs before proposing edits.
 4. For a scratch or external migration project, start from the Isaac Lab template generator instead of hand-rolling package scaffolding. From the Isaac Lab checkout, use `uv run isaaclab -n`, choose an external project, choose the scratch path, choose the direct single-agent workflow for Isaac Gym style tasks, and select the needed RL library such as `rsl_rl`.
 5. Migrate to a direct workflow first by default. This preserves the single-class structure that most Isaac Gym tasks already use.
@@ -27,7 +27,7 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 8. Map assets to Isaac Lab asset configs and scene entities.
 9. Move action application, observation assembly, reward computation, termination checks, and reset logic into a `DirectRLEnv` or `DirectMARLEnv` implementation.
 10. Port training configuration to the selected Isaac Lab reinforcement learning workflow.
-11. Run a small smoke test before scaling training. Do not use deprecated `` examples; omit `--viz` for headless execution, or use `--viz none` only when a config or command would otherwise enable a visualizer.
+11. Run a small smoke test before scaling training. Omit `--viz` for headless execution, or use `--viz none` only when a config or command would otherwise enable a visualizer.
 12. For locomotion migrations, run the policy-success validation loop in [Reference](reference.md#policy-success-validation-loop). Validate a flat walking policy before rough-terrain curriculum training; rough terrain can start and still be unhealthy if episodes terminate immediately. If the legacy task's command range is broad, use a staged command curriculum or a simpler flat source config such as IsaacGymEnvs `Anymal.yaml` before claiming policy success.
 13. After the direct migration resets, steps, and trains, recommend a manager-based follow-up when the task has reusable observation, reward, command, curriculum, termination, or event logic.
 14. Use the `isaaclab-converting-direct-to-manager` skill for that follow-up instead of mixing manager conversion into the first parity pass.
@@ -48,7 +48,7 @@ For policy validation, follow the policy-success loop in [Reference](reference.m
 Runtime preflight for execution/training requests:
 
 ```bash
-uv run python -c "import importlib.util, sys; print(sys.executable); print(sys.version); print(importlib.util.find_spec('isaacsim')); print(importlib.util.find_spec('omni'))"
+uv run --extra isaacsim python -c "import importlib.util, sys; print(sys.executable); print(sys.version); print(importlib.util.find_spec('isaacsim')); print(importlib.util.find_spec('omni'))"
 ```
 
 For skill changes, run:

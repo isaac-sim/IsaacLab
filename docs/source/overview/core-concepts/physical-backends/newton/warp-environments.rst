@@ -12,6 +12,11 @@ The experimental extensions introduce **warp-first** environment infrastructure 
 support. All environment-side computation (observations, rewards, resets, actions) runs as pure Warp
 kernels, eliminating Python overhead and enabling CUDA graph capture for maximum throughput.
 
+Throughout this page, **stable** refers to the standard Torch-based implementations in the
+``isaaclab`` and ``isaaclab_tasks`` packages (the default runtime, used when ``--frontend warp``
+is not passed). Their Warp counterparts live in the ``isaaclab_experimental`` and
+``isaaclab_tasks_experimental`` packages.
+
 
 Workflows
 ~~~~~~~~~
@@ -31,38 +36,38 @@ Available Environments
 Direct Warp Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``Isaac-Cartpole-Direct-Warp-v0`` — Cartpole balance
-- ``Isaac-Ant-Direct-Warp-v0`` — Ant locomotion
-- ``Isaac-Humanoid-Direct-Warp-v0`` — Humanoid locomotion
-- ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
+Direct tasks share the stable task configuration. ``--frontend warp`` resolves
+the stable ``<task>_direct_env:<Name>Env`` entry point to the mirrored
+``<task>_warp_env:<Name>WarpEnv`` implementation and swaps only the environment
+class. Registrations can use ``warp_entry_point`` as an optional override when
+the implementation cannot follow this convention. Stable tasks with a Warp
+implementation:
+
+- ``Isaac-Cartpole-Direct`` — Cartpole balance
+- ``Isaac-Ant-Direct`` — Ant locomotion
+- ``Isaac-Humanoid-Direct`` — Humanoid locomotion
+- ``Isaac-Reorient-Cube-Allegro-Direct`` — Allegro hand cube reorient
 
 
-Manager-Based Warp Environments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Manager-Based Warp Execution (``--frontend warp``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Classic**
+Manager-based tasks do not need a parallel warp registration: the shared RL
+CLI exposes ``--frontend {torch,warp}``, and ``--frontend warp`` adapts the
+*stable* task configuration onto the warp runtime at build time (swapping each
+MDP term for its warp twin). Select the Newton solver explicitly with
+``presets=newton_mjwarp``. Stable tasks with full twin coverage:
 
-- ``Isaac-Cartpole-Warp-v0``
-- ``Isaac-Ant-Warp-v0``
-- ``Isaac-Humanoid-Warp-v0``
+- ``Isaac-Cartpole``
+- ``Isaac-Ant``
+- ``Isaac-Humanoid``
+- ``Isaac-Reach-Franka``, ``Isaac-Reach-UR10``
+- ``Isaac-Velocity-Flat-AnymalD``, ``-Cassie``, ``-G1``, ``-H1``, ``-UnitreeGo2``
 
-**Locomotion (Flat)**
-
-- ``Isaac-Velocity-Flat-AnymalB-Warp-v0``
-- ``Isaac-Velocity-Flat-AnymalC-Warp-v0``
-- ``Isaac-Velocity-Flat-AnymalD-Warp-v0``
-- ``Isaac-Velocity-Flat-Cassie-Warp-v0``
-- ``Isaac-Velocity-Flat-G1-Warp-v0``
-- ``Isaac-Velocity-Flat-G1-Warp-v1``
-- ``Isaac-Velocity-Flat-H1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeA1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeGo1-Warp-v0``
-- ``Isaac-Velocity-Flat-UnitreeGo2-Warp-v0``
-
-**Manipulation**
-
-- ``Isaac-Reach-Franka-Warp-v0``
-- ``Isaac-Reach-UR10-Warp-v0``
+A missing twin is a hard error listing the affected terms, so a partially
+covered task fails at build time rather than silently changing behavior.
+Rough-terrain velocity tasks remain unsupported until
+:class:`~isaaclab.terrains.TerrainImporter` gains Warp APIs.
 
 
 Quick Start
@@ -74,25 +79,25 @@ Quick Start
 
       .. code-block:: bash
 
-          # Direct workflow
+          # Direct workflow: stable task, warp env implementation
           uv run isaaclab train --rl_library rsl_rl \
-              --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
+              --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
 
-          # Manager-based workflow
+          # Manager-based workflow: stable task on the warp runtime
           uv run isaaclab train --rl_library rsl_rl \
-              --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
+              --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          # Direct workflow
+          # Direct workflow: stable task, warp env implementation
           ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
+              --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
 
-          # Manager-based workflow
+          # Manager-based workflow: stable task on the warp runtime
           ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
+              --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
@@ -159,16 +164,6 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - 11,458
      - 7,813
      - -31.83%
-   * - AnymalB
-     - Manager
-     - 29,188
-     - 21,781
-     - -25.38%
-   * - AnymalC
-     - Manager
-     - 30,938
-     - 22,228
-     - -28.15%
    * - AnymalD
      - Manager
      - 32,294
@@ -189,17 +184,7 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - 22,202
      - 15,864
      - -28.55%
-   * - A1
-     - Manager
-     - 15,257
-     - 9,907
-     - -35.07%
-   * - Go1
-     - Manager
-     - 16,515
-     - 11,869
-     - -28.13%
-   * - Go2
+   * - UnitreeGo2
      - Manager
      - 15,221
      - 9,966
@@ -216,7 +201,7 @@ overhead. Reading the table above:
 - **Manager-based classic RL** (Cartpole, Ant) — biggest gains (-52% to -54%). Many small
   reward / observation terms with low compute per term, so per-launch CPU overhead dominated
   the stable baseline.
-- **Manager-based locomotion** (Anymal, G1, H1, Cassie, Unitree) — consistent -25% to -38%
+- **Manager-based locomotion** (AnymalD, G1, H1, Cassie, UnitreeGo2) — consistent -21% to -38%
   range. The MDP has more terms but the underlying physics step is heavier, so the relative
   Python savings shrink.
 - **Direct workflow** — gains scale with how much the env's step body was Python (Ant -51%,
@@ -244,7 +229,8 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
   ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
   ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
   warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
-  the cfg with a Newton physics block (or ``physics=newton_mjwarp``).
+  the cfg with a Newton physics block (or the typed selector ``physics=newton_mjwarp``,
+  which fails loudly if the task has no Newton physics preset).
 
 **MDP coverage**
 
@@ -282,25 +268,32 @@ to estimate the gain for your own task before committing to a migration.
 
 **Single-task A/B**
 
+Run the same stable task id twice, differing only in ``--frontend``. Pass
+``presets=newton_mjwarp`` to *both* runs so the physics backend is identical and the
+measured difference isolates the frontend (manager pipeline + CUDA graph capture):
+
 .. code-block:: bash
 
-    # Stable variant
+    # Torch frontend (stable managers)
     uv run isaaclab benchmark training \
         --rl_library rsl_rl \
-        --task <Task-Name>-v0 \
+        --task <Task-Name> \
         --num_envs 4096 \
         --max_iterations 500 \
         --benchmark_formatter summary \
-        --output_path benchmarks/stable
+        --output_path benchmarks/torch \
+        presets=newton_mjwarp
 
-    # Warp variant — same task with -Warp- suffix
+    # Warp frontend (warp managers, CUDA-graph captured) — same task id
     uv run isaaclab benchmark training \
         --rl_library rsl_rl \
-        --task <Task-Name>-Warp-v0 \
+        --task <Task-Name> \
+        --frontend warp \
         --num_envs 4096 \
         --max_iterations 500 \
         --benchmark_formatter summary \
-        --output_path benchmarks/warp
+        --output_path benchmarks/warp \
+        presets=newton_mjwarp
 
 The ``summary`` formatter prints step time (min / mean / max) and total throughput. Compare
 "step time" between the two runs to estimate the gain per env step.
@@ -308,7 +301,7 @@ The ``summary`` formatter prints step time (min / mean / max) and total throughp
 **Sweep across all available tasks**
 
 Run ``isaaclab benchmark training`` for each task in the stable set (cartpole, ant, humanoid,
-locomotion, manipulation) and again with the ``-Warp-`` suffixed task ids, then diff the two output
+locomotion, manipulation) and again with ``--frontend warp``, then diff the two output
 directories.
 
 **What to look at in the output**

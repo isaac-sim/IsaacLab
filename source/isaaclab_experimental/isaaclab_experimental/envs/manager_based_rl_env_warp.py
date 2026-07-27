@@ -26,7 +26,6 @@ import warp as wp
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from isaaclab.managers import CommandManager
-from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
@@ -93,6 +92,14 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             render_mode: The render mode for the environment. Defaults to None, which
                 is similar to ``"human"``.
         """
+        # Adapt the cfg for the warp managers (Newton physics check, SceneEntityCfg
+        # promotion, MDP twin swap). Idempotent: a warp-native cfg passes through
+        # unchanged, and a stable-derived cfg (``--frontend=warp`` or a registered
+        # warp task variant subclassing a stable cfg) is adapted in place.
+        from isaaclab_experimental.envs.frontend import WarpFrontend
+
+        WarpFrontend.adapt_cfg(cfg)
+
         # -- counter for curriculum
         self.common_step_counter = 0
 
@@ -185,15 +192,19 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
-
+        """Wire manager terms into live plots for all active visualizer backends."""
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+            "command_manager": self.command_manager,
+            "termination_manager": self.termination_manager,
+            "reward_manager": self.reward_manager,
+            "curriculum_manager": self.curriculum_manager,
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers)
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
-            "command_manager": ManagerLiveVisualizer(manager=self.command_manager),
-            "termination_manager": ManagerLiveVisualizer(manager=self.termination_manager),
-            "reward_manager": ManagerLiveVisualizer(manager=self.reward_manager),
-            "curriculum_manager": ManagerLiveVisualizer(manager=self.curriculum_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """
@@ -408,10 +419,8 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-            if not (has_gui or offscreen_render):
+            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
+            if not (self.sim.has_gui or self.sim.has_offscreen_render):
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode does not support"
                     " rendering. Please set the simulation render mode to 'PARTIAL_RENDERING' or"

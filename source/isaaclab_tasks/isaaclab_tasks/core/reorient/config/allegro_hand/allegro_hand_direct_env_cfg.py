@@ -3,104 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-
-import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
+    GOAL_OBJECT_CFG,
+    OBJECT_CFG,
+    ROBOT_CFG,
+    ObjectCfg,
+    PhysicsCfg,
+)
 
-from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
-
-
-@configclass
-class ObjectCfg(PresetCfg):
-    physx = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
-            scale=(1.2, 1.2, 1.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    newton_mjwarp = ArticulationCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
-            scale=(1.2, 1.2, 1.2),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, -0.17, 0.565), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
-        ),
-        actuators={},
-        articulation_root_prim_path="",
-    )
-    ovphysx = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
-            scale=(1.2, 1.2, 1.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    default = physx
-
-
-@configclass
-class PhysicsCfg(PresetCfg):
-    physx = PhysxCfg(
-        bounce_threshold_velocity=0.2,
-    )
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            solver="newton",
-            integrator="implicitfast",
-            njmax=80,
-            nconmax=70,
-            impratio=10.0,
-            cone="elliptic",
-            update_data_interval=2,
-            iterations=100,
-            # save_to_mjcf="AllegroHand.xml",
-        ),
-        num_substeps=2,
-        debug_mode=False,
-    )
-    ovphysx = OvPhysxCfg()
-    default = physx
+from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass
@@ -113,59 +32,30 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     state_space = 0
     asymmetric_obs = False
     obs_type = "full"
-    # simulation
+
+    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
+        render_interval=4,
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
     )
     # robot
-    robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = ROBOT_CFG
 
-    actuated_joint_names = [
-        "index_joint_0",
-        "middle_joint_0",
-        "ring_joint_0",
-        "thumb_joint_0",
-        "index_joint_1",
-        "index_joint_2",
-        "index_joint_3",
-        "middle_joint_1",
-        "middle_joint_2",
-        "middle_joint_3",
-        "ring_joint_1",
-        "ring_joint_2",
-        "ring_joint_3",
-        "thumb_joint_1",
-        "thumb_joint_2",
-        "thumb_joint_3",
-    ]
-    fingertip_body_names = [
-        "index_link_3",
-        "middle_link_3",
-        "ring_link_3",
-        "thumb_link_3",
-    ]
+    actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
+    fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
 
     # in-hand object
-    object_cfg: ObjectCfg = ObjectCfg()
+    object_cfg: ObjectCfg = OBJECT_CFG
     # goal object
-    goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
-        prim_path="/Visuals/goal_marker",
-        markers={
-            "goal": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(1.2, 1.2, 1.2),
-            )
-        },
-    )
+    goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+        num_envs=8192,
+        env_spacing=0.75,
+        replicate_physics=True,
+        clone_in_fabric=True,
     )
     # reset
     reset_position_noise = 0.01  # range of position at reset
@@ -176,8 +66,8 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     rot_reward_scale = 1.0
     rot_eps = 0.1
     action_penalty_scale = -0.0002
-    reach_goal_bonus = 250
-    fall_penalty = 0
+    reach_goal_bonus = 250.0
+    fall_penalty = 0.0
     fall_dist = 0.24
     vel_obs_scale = 0.2
     success_tolerance = 0.2

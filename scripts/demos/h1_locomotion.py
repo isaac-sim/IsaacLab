@@ -56,7 +56,7 @@ from isaaclab.utils.math import quat_apply
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
-from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
+from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
 
 TASK = "Isaac-Velocity-Rough-H1"
 RL_LIBRARY = "rsl_rl"
@@ -85,7 +85,8 @@ class H1RoughDemo:
         # load the trained jit policy
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK)
         # create envionrment
-        env_cfg = H1RoughEnvCfg_PLAY()
+        env_cfg = H1RoughEnvCfg()
+        env_cfg.play_mode()
         env_cfg.scene.num_envs = 25
         env_cfg.episode_length_s = 1000000
         env_cfg.curriculum = None

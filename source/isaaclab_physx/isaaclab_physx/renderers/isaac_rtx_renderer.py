@@ -180,7 +180,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         seg_specs = (
             (RenderBufferKind.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
-            (RenderBufferKind.INSTANCE_SEGMENTATION_FAST, self.cfg.colorize_instance_segmentation),
+            (RenderBufferKind.INSTANCE_SEGMENTATION, self.cfg.colorize_instance_segmentation),
             (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
         )
         for name, colorize in seg_specs:
@@ -274,7 +274,7 @@ class IsaacRtxRenderer(BaseRenderer):
         # outputs for instanceable assets. Disable instancing as a workaround.
         stage = get_current_stage()
         if isaac_sim_version == version.parse("4.5") and (
-            "semantic_segmentation" in spec.cfg.data_types or "instance_segmentation_fast" in spec.cfg.data_types
+            "semantic_segmentation" in spec.cfg.data_types or "instance_segmentation" in spec.cfg.data_types
         ):
             logger.warning(
                 "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
@@ -368,13 +368,18 @@ class IsaacRtxRenderer(BaseRenderer):
                         "colorize": self.cfg.colorize_semantic_segmentation,
                         "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
                     }
-                elif annotator_type == "instance_segmentation_fast":
+                elif annotator_type == "instance_segmentation":
                     init_params = {"colorize": self.cfg.colorize_instance_segmentation}
                 elif annotator_type == "instance_id_segmentation_fast":
                     init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
+                # Map the user-facing key to the Replicator annotator name when they differ.
+                _REP_ANNOTATOR_NAME = {
+                    "instance_segmentation": "instance_segmentation_fast",
+                }
+                rep_annotator_name = _REP_ANNOTATOR_NAME.get(annotator_type, annotator_type)
                 annotator = rep.AnnotatorRegistry.get_annotator(
-                    annotator_type, init_params, device=spec.device, do_array_copy=False
+                    rep_annotator_name, init_params, device=spec.device, do_array_copy=False
                 )
                 annotators[annotator_type] = annotator
 
@@ -504,7 +509,7 @@ class IsaacRtxRenderer(BaseRenderer):
             #   so we need to convert them to uint8 4 channel images for colorized types
             if (
                 (data_type == "semantic_segmentation" and self.cfg.colorize_semantic_segmentation)
-                or (data_type == "instance_segmentation_fast" and self.cfg.colorize_instance_segmentation)
+                or (data_type == "instance_segmentation" and self.cfg.colorize_instance_segmentation)
                 or (data_type == "instance_id_segmentation_fast" and self.cfg.colorize_instance_id_segmentation)
             ):
                 tiled_data_buffer = wp.array(

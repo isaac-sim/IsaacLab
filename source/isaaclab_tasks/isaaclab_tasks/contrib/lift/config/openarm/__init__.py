@@ -25,14 +25,3 @@ gym.register(
     },
     disable_env_checker=True,
 )
-
-gym.register(
-    id="IsaacContrib-Lift-Cube-OpenArm-Play",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:OpenArmCubeLiftEnvCfg_PLAY",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:OpenArmLiftCubePPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-    },
-    disable_env_checker=True,
-)

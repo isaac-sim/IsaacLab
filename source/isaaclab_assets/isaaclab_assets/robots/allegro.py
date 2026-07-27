@@ -66,3 +66,32 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=1.0,
 )
 """Configuration of Allegro Hand robot."""
+
+
+ALLEGRO_FINGERTIP_BODY_NAMES: list[str] = [
+    "index_link_3",
+    "middle_link_3",
+    "ring_link_3",
+    "thumb_link_3",
+]
+"""Allegro Hand fingertip body names."""
+
+ALLEGRO_ACTUATED_JOINT_NAMES: list[str] = [
+    "index_joint_0",
+    "middle_joint_0",
+    "ring_joint_0",
+    "thumb_joint_0",
+    "index_joint_1",
+    "index_joint_2",
+    "index_joint_3",
+    "middle_joint_1",
+    "middle_joint_2",
+    "middle_joint_3",
+    "ring_joint_1",
+    "ring_joint_2",
+    "ring_joint_3",
+    "thumb_joint_1",
+    "thumb_joint_2",
+    "thumb_joint_3",
+]
+"""Allegro Hand actuated joint names, in the Direct task's actuation order."""

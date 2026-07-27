@@ -15,6 +15,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import resolve_paths
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.ui.widgets.ui_visualizer_base import UiVisualizerBase
 from isaaclab.utils.version import has_kit
 
 if has_kit():
@@ -86,16 +87,19 @@ class BaseEnvWindow:
             # create main stack
             self.ui_window_elements["main_vstack"] = omni.ui.VStack(spacing=5, height=0)
             with self.ui_window_elements["main_vstack"]:
+                # Live Plots — manager data plots, shown first
+                self._build_debug_vis_frame()
+                with self.ui_window_elements["debug_frame"]:
+                    with self.ui_window_elements["debug_vstack"]:
+                        self._visualize_manager(title="Training Metrics", class_name="episode")
+                        self._visualize_manager(title="Actions", class_name="action_manager")
+                        self._visualize_manager(title="Observations", class_name="observation_manager")
+                # Visualization Markers — scene element debug overlays
+                self._build_vis_markers_frame()
                 # create collapsable frame for simulation
                 self._build_sim_frame()
                 # create collapsable frame for viewer
                 self._build_viewer_frame()
-                # create collapsable frame for debug visualization
-                self._build_debug_vis_frame()
-                with self.ui_window_elements["debug_frame"]:
-                    with self.ui_window_elements["debug_vstack"]:
-                        self._visualize_manager(title="Actions", class_name="action_manager")
-                        self._visualize_manager(title="Observations", class_name="observation_manager")
 
     def __del__(self):
         """Destructor for the window."""
@@ -238,16 +242,9 @@ class BaseEnvWindow:
                 )
 
     def _build_debug_vis_frame(self):
-        """Builds the debug visualization frame for various scene elements.
-
-        This function inquires the scene for all elements that have a debug visualization
-        implemented and creates a checkbox to toggle the debug visualization for each element
-        that has it implemented. If the element does not have a debug visualization implemented,
-        a label is created instead.
-        """
-        # create collapsable frame for debug visualization
+        """Builds the Live Plots frame for manager data visualizers."""
         self.ui_window_elements["debug_frame"] = omni.ui.CollapsableFrame(
-            title="Scene Debug Visualization",
+            title="Live Plots",
             width=omni.ui.Fraction(1),
             height=0,
             collapsed=False,
@@ -256,9 +253,26 @@ class BaseEnvWindow:
             vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
         )
         with self.ui_window_elements["debug_frame"]:
-            # create stack for debug visualization
             self.ui_window_elements["debug_vstack"] = omni.ui.VStack(spacing=5, height=0)
-            with self.ui_window_elements["debug_vstack"]:
+
+    def _build_vis_markers_frame(self):
+        """Builds the Visualization Markers frame for scene element debug overlays.
+
+        Creates a checkbox per scene element (terrain, rigid objects, articulations, sensors)
+        that has a debug visualization implemented.
+        """
+        self.ui_window_elements["vis_markers_frame"] = omni.ui.CollapsableFrame(
+            title="Visualization Markers",
+            width=omni.ui.Fraction(1),
+            height=0,
+            collapsed=False,
+            style=isaacsim.gui.components.ui_utils.get_style(),
+            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+        )
+        with self.ui_window_elements["vis_markers_frame"]:
+            vstack = omni.ui.VStack(spacing=5, height=0)
+            with vstack:
                 elements = [
                     self.env.scene.terrain,
                     *self.env.scene.rigid_objects.values(),
@@ -271,7 +285,6 @@ class BaseEnvWindow:
                     *self.env.scene.articulations.keys(),
                     *self.env.scene.sensors.keys(),
                 ]
-                # create one for the terrain
                 for elem, name in zip(elements, names):
                     if elem is not None:
                         self._create_debug_vis_ui_element(name, elem)
@@ -284,8 +297,10 @@ class BaseEnvWindow:
             class_name: The name of the manager to visualize.
         """
 
-        if hasattr(self.env, class_name) and class_name in self.env.manager_visualizers:
+        if hasattr(self.env, "manager_visualizers") and class_name in self.env.manager_visualizers:
             manager = self.env.manager_visualizers[class_name]
+            if hasattr(manager, "has_content") and not manager.has_content:
+                return
             if hasattr(manager, "has_debug_vis_implementation"):
                 self._create_debug_vis_ui_element(title, manager)
             else:
@@ -457,15 +472,14 @@ class BaseEnvWindow:
             )
             isaacsim.gui.components.ui_utils.add_line_rect_flourish()
 
-        # Create a panel for the debug visualization
-        if isinstance(elem, ManagerLiveVisualizer):
-            self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
-            if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
-                print(f"Frame failed to set for ManagerLiveVisualizer: {name}")
-
-        # Add listener for environment selection changes
-        if isinstance(elem, ManagerLiveVisualizer):
-            self._ui_listeners.append(elem)
+        # Create a panel and listener for UiVisualizerBase subclasses (managers and scalar groups).
+        if isinstance(elem, UiVisualizerBase):
+            if elem.has_vis_frame_implementation:
+                self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
+                if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
+                    print(f"Frame failed to set for visualizer: {name}")
+            if elem.has_env_selection_implementation:
+                self._ui_listeners.append(elem)
 
     async def _dock_window(self, window_title: str):
         """Docks the custom UI window to the property window."""

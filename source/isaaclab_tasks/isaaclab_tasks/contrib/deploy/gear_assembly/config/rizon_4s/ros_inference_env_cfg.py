@@ -26,7 +26,42 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
     This configuration:
     - Exposes variables needed for ROS inference
     - Overrides robot and gear initial poses for fixed/deterministic setup
+
+    In play mode, :meth:`play_mode` additionally disables all randomization
+    so the simulation is identical on every reset.  Useful for comparing
+    simulated and real-world policy behavior at a known pose.
+
+    To debug a specific real-world scenario, edit the constants below to match
+    the physical setup, then run::
+
+        ./isaaclab.sh play --rl_library rsl_rl \\
+            --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \\
+            --num_envs 1 --checkpoint <path_to_model.pt>
+
+    Observation overrides (``OBS_SHAFT_POS``, ``OBS_SHAFT_QUAT``) let you
+    inject fixed values into the policy's observation tensor regardless of
+    simulation state.  Set to ``None`` to use the simulated values.
     """
+
+    # ╔══════════════════════════════════════════════════════════════════════╗
+    # ║  PLAY-MODE SCENE SETUP — edit to match your real-world setup        ║
+    # ╚══════════════════════════════════════════════════════════════════════╝
+
+    GEAR_TYPE: str = "gear_large"
+    GEAR_BASE_POS: tuple = (0.481, -0.073, -0.005)
+    GEAR_BASE_ROT: tuple = (0.0, 0.0, -0.70711, 0.70711)
+    GEAR_Z_OFFSET: float = 0.0675
+
+    # ╔══════════════════════════════════════════════════════════════════════╗
+    # ║  PLAY-MODE OBSERVATION OVERRIDES — set to None to use simulated     ║
+    # ║  values                                                              ║
+    # ║                                                                      ║
+    # ║  Obs layout: [joint_pos(7) | joint_vel(7) | shaft_pos(3) |          ║
+    # ║               shaft_quat(4)]                                         ║
+    # ╚══════════════════════════════════════════════════════════════════════╝
+
+    OBS_SHAFT_POS: tuple | None = None  # e.g. (0.481, -0.028, -0.005)
+    OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, -0.70711, 0.70711)
 
     def __post_init__(self):
         # post init of parent
@@ -112,51 +147,12 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
             gear_shaft_pos_noise,
         ]
 
-
-@configclass
-class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
-    """Deterministic play/debug configuration for Flexiv Rizon 4s gear assembly.
-
-    Inherits the full ROS-inference configuration and then disables all
-    randomization so the simulation is identical on every reset.  Useful for
-    comparing simulated and real-world policy behavior at a known pose.
-
-    To debug a specific real-world scenario, edit the constants below to match
-    the physical setup, then run::
-
-        uv run isaaclab play --rl_library rsl_rl \\
-            --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \\
-            --num_envs 1 --checkpoint <path_to_model.pt>
-
-    Observation overrides (``OBS_SHAFT_POS``, ``OBS_SHAFT_QUAT``) let you
-    inject fixed values into the policy's observation tensor regardless of
-    simulation state.  Set to ``None`` to use the simulated values.
-    """
-
-    # ╔══════════════════════════════════════════════════════════════════════╗
-    # ║  SCENE SETUP — edit to match your real-world setup                  ║
-    # ╚══════════════════════════════════════════════════════════════════════╝
-
-    GEAR_TYPE: str = "gear_large"
-    GEAR_BASE_POS: tuple = (0.481, -0.073, -0.005)
-    GEAR_BASE_ROT: tuple = (0.0, 0.0, -0.70711, 0.70711)
-    GEAR_Z_OFFSET: float = 0.0675
-
-    # ╔══════════════════════════════════════════════════════════════════════╗
-    # ║  OBSERVATION OVERRIDES — set to None to use simulated values        ║
-    # ║                                                                      ║
-    # ║  Obs layout: [joint_pos(7) | joint_vel(7) | shaft_pos(3) |          ║
-    # ║               shaft_quat(4)]                                         ║
-    # ╚══════════════════════════════════════════════════════════════════════╝
-
-    OBS_SHAFT_POS: tuple | None = None  # e.g. (0.481, -0.028, -0.005)
-    OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, -0.70711, 0.70711)
-
-    def __post_init__(self):
-        super().__post_init__()
+    def play_mode(self):
+        """Disable all randomization for deterministic play/debug at a known pose."""
+        # play-mode overrides of parent
+        super().play_mode()
 
         self.scene.num_envs = 1
-        self.scene.env_spacing = 2.5
 
         # ── Fix gear type (no random selection) ───────────────────────────
         self.events.randomize_gear_type.params["gear_types"] = [self.GEAR_TYPE]
@@ -186,9 +182,6 @@ class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
             "y": [0.0, 0.0],
             "z": [self.GEAR_Z_OFFSET, self.GEAR_Z_OFFSET],
         }
-
-        # ── Disable observation noise ─────────────────────────────────────
-        self.observations.policy.enable_corruption = False
 
         # ── Observation overrides (replace terms with constant functions) ─
         if self.OBS_SHAFT_POS is not None:

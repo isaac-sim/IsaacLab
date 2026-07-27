@@ -50,8 +50,8 @@ class ClonePlan:
         Auto-populates :attr:`cfg_rows` from
         :data:`~isaaclab.cloner.REPLICATION_QUEUE`, including only cfgs whose
         ``prim_path`` falls under the env-root prefix of ``destination``. Must be
-        called *after* all asset constructors have run, so their replication entries
-        are already in the queue; otherwise those assets will be skipped by the
+        called *after* all asset constructors have run, so their cfgs are already
+        registered in the queue; otherwise those assets will be skipped by the
         subsequent :func:`~isaaclab.cloner.replicate` call.
 
         Args:
@@ -66,7 +66,7 @@ class ClonePlan:
 
         prefix, _ = split_clone_template(destination)
         cfg_rows: dict[int, tuple[int, ...]] = {
-            id(cfg): (0,) for cfg, _ in REPLICATION_QUEUE if cfg.prim_path.startswith(prefix)
+            id(cfg): (0,) for cfg in REPLICATION_QUEUE if cfg.prim_path.startswith(prefix)
         }
         return cls(
             sources=(source,),

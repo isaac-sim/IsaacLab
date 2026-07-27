@@ -16,10 +16,8 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
-from isaaclab.cloner import queue_usd_replication
+from isaaclab.cloner import queue_replication
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
-
-from isaaclab_physx.cloner import queue_physx_replication
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -87,6 +85,8 @@ class SurfaceGripper(AssetBase):
             cfg: A configuration instance.
         """
         # copy the configuration
+        # this class does not run AssetBase.__init__, so it registers its cfg itself
+        queue_replication(cfg)
         self._cfg = cfg.copy()
 
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported
@@ -99,9 +99,6 @@ class SurfaceGripper(AssetBase):
         # flag for whether the sensor is initialized
         self._is_initialized = False
         self._debug_vis_handle = None
-
-        queue_usd_replication(cfg)
-        queue_physx_replication(cfg)
 
         # register various callback functions
         self._register_callbacks()

@@ -27,7 +27,7 @@ from flaky import flaky
 from isaaclab_newton.assets import RigidObject
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton.solvers import SolverNotifyFlags
+from newton import ModelFlags
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -597,7 +597,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         wp.to_torch(friction_binding)[:] = friction
         wp.to_torch(restitution_binding)[:] = restitution
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
         # Simulate physics
         sim.step()
@@ -623,7 +623,7 @@ def _set_newton_material_properties(cube_object, friction_val, restitution_val, 
 
     wp.to_torch(friction_binding)[:] = friction_tensor
     wp.to_torch(restitution_binding)[:] = restitution_tensor
-    SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+    SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
 @pytest.mark.isaacsim_ci
@@ -940,7 +940,7 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
             dtype=torch.float32,
         )
         wp.to_torch(model_gravity_arr).copy_(new_gravity)
-        SimulationManager.add_model_change(SolverNotifyFlags.MODEL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch, new_gravity)
@@ -980,7 +980,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -1094,7 +1094,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -1180,7 +1180,7 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)

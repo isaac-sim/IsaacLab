@@ -1,0 +1,211 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# region help
+# aarch64 build + marker-gated tests on NVIDIA DGX Spark self-hosted runners.
+#
+# Split out of build.yaml (Docker + Tests) so this slow arm64 build+render owns
+# its own workflow run. In build.yaml it shared the run with every test-* job,
+# so the whole run stayed open until arm-ci finished (up to its 60-minute
+# timeout) — and GitHub only exposes "Re-run failed jobs" once the entire run
+# completes, forcing a fast test job that failed early to wait on arm-ci before
+# it could be retried. As its own workflow, arm-ci no longer gates the main
+# workflow's lifecycle, and it can be re-run independently.
+#
+# arm-ci is currently informational (continue-on-error), but it is wired to be
+# promotable to a REQUIRED status check: it triggers on every PR and gates the
+# expensive arm64 build behind the shared `changes` detector + `if:`. An
+# irrelevant PR SKIPS the job (which branch protection reads as green) instead
+# of never creating the check — a workflow-level `paths:` filter is deliberately
+# avoided because a not-triggered required check stays pending forever and
+# blocks the PR. This mirrors the `changes`+`if:` pattern build.yaml already
+# uses for its required test jobs.
+#
+# Trigger parity with the former build.yaml job:
+#   - push to protected branches always runs (post-merge integration);
+#   - pull_request runs only when arm-relevant paths change (via `changes`+`if:`).
+# endregion
+
+name: ARM CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  workflow_dispatch:
+
+# Concurrency control to prevent parallel runs on the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+
+jobs:
+  # Shared change-detection gate. The trigger is unfiltered (see header) so the
+  # arm-ci check is always creatable; this decides whether the expensive jobs
+  # actually run. Lists arm-ci's real inputs — including the root files
+  # Dockerfile.base copies (pyproject.toml, environment.yml, isaaclab.*) that a
+  # path filter would otherwise miss.
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/actions/detect-changes
+        sparse-checkout-cone-mode: false
+    - id: detect
+      uses: ./.github/actions/detect-changes
+      with:
+        triggered-jobs-push: arm-ci
+        triggered-jobs-pr: arm-ci
+        patterns: |
+          ^source/ :: Library source code
+          ^docker/ :: Container build inputs
+          ^tools/ :: Build tooling
+          ^apps/ :: Standalone apps
+          ^scripts/ :: Standalone scripts
+          ^\.dockerignore$ :: Docker build context filter
+          ^pyproject\.toml$ :: Root Python project (OV pins + Docker copy)
+          ^environment\.yml$ :: Conda env (Docker copy)
+          ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
+          ^\.github/workflows/arm-ci\.yml$ :: This workflow file
+          ^\.github/workflows/config\.yaml$ :: Base image config
+          ^\.github/actions/ :: CI actions
+
+  # Loads the Isaac Sim base image name/tag from config.yaml and computes the
+  # per-run CI image tag. Inlined here (rather than shared with build.yaml)
+  # because arm-ci builds its own independent -arm64 image and only needs three
+  # of the values build.yaml's config job produces.
+  config:
+    name: Load Config
+    needs: [changes]
+    if: needs.changes.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+    # NOTE: this ci_image_tag formula is intentionally duplicated in build.yaml's
+    # config job — the two images are independent (-arm64 here vs x86 there), so
+    # they are not shared. Keep the two formulas in sync if either changes.
+    - id: image_tag
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REF_NAME: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          ref_component="pr-${PR_NUMBER}"
+        else
+          ref_component="$REF_NAME"
+        fi
+
+        # Sanitize the ref name for use as a Docker tag suffix.
+        sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
+        echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
+        echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
+
+  # aarch64 build + marker-gated tests on NVIDIA DGX Spark self-hosted runners.
+  # Build and test must share one runner because ECR is not wired for arm64 —
+  # the locally-built image cannot be handed off across machines.
+  arm-ci:
+    name: Build & Test
+    runs-on: [self-hosted, arm64]
+    needs: [changes, config]
+    if: needs.changes.outputs.should_run == 'true'
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build base image (linux/arm64)
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        platform: linux/arm64
+        # The Spark runner is long-lived self-hosted with no ECR, so its local
+        # deps-cache tags accumulate; evict ones older than 14 days each run.
+        evict-stale-cache: "true"
+
+    - name: Resolve OV runtime pins from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
+
+    - name: Run arm_ci marker tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: tools
+        result-file: arm-ci-report.xml
+        container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        # ovphysx stays pinned to 0.4.13 here (see the aarch64 note below).
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ovphysx==0.4.13"
+        # ovphysx-backed test params require ovphysx >= 0.5.1, which has no aarch64
+        # wheel yet; keep the newton/ovrtx rendering coverage, mirroring the public
+        # pip-index fallback of rendering-correctness-kitless. Running them anyway
+        # exhausts ovrtx SyncScopeIds (>15 renderer creations in one process).
+        test-k-expr: not ovphysx
+        ci-marker: arm_ci
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Run shared Cartpole smoke
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
+        result-file: arm-ci-cartpole-smoke-report.xml
+        container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: arm-ci-reports
+        path: reports/
+        retention-days: 7

@@ -15,6 +15,16 @@ import gymnasium as gym
 
 from . import agents
 
+_RAW_CAMERA_PRESETS = (
+    "albedo",
+    "depth",
+    "rgb",
+    "semantic_segmentation",
+    "simple_shading_constant_diffuse",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+)
+
 ##
 # Register Gym environments -- direct workflow.
 ##
@@ -76,5 +86,11 @@ gym.register(
         "rsl_rl_feature_cfg_entry_point": (
             f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraFeaturePPORunnerCfg"
         ),
+        "agent_preset_compatibility": {
+            "rl_games_cfg_entry_point": _RAW_CAMERA_PRESETS,
+            "rl_games_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
+            "rsl_rl_cfg_entry_point": _RAW_CAMERA_PRESETS,
+            "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
+        },
     },
 )

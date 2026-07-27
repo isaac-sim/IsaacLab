@@ -19,9 +19,9 @@ __all__ = [
     "ReplicateSession",
     "REPLICATION_QUEUE",
     "replicate",
+    "queue_replication",
     "resolve_clone_plan_source",
     "split_clone_template",
-    "queue_usd_replication",
     "sequential",
     "UsdReplicateContext",
     "usd_replicate",
@@ -44,10 +44,10 @@ from .cloner_utils import (
 from .replicate_session import (
     REPLICATION_QUEUE,
     ReplicateSession,
+    queue_replication,
     replicate,
 )
 from .usd import (
     UsdReplicateContext,
-    queue_usd_replication,
     usd_replicate,
 )
