@@ -23,19 +23,10 @@ class NoObstacleEnvCfg(TrackPositionNoObstaclesEnvCfg):
         self.scene.robot = ARL_ROBOT_1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["thrusters"].dt = self.sim.dt
 
+    def play_mode(self):
+        # play-mode overrides of parent
+        super().play_mode()
 
-@configclass
-class NoObstacleEnvCfg_PLAY(NoObstacleEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False
         # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None

@@ -16,6 +16,9 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 import pytest
 from isaaclab_physx.physics import PhysxManager
 
+from isaaclab.sim.utils import enable_extension
+
+enable_extension("isaacsim.core.simulation_manager")
 import isaacsim.core.simulation_manager as simulation_manager_module
 
 import isaaclab.sim as sim_utils

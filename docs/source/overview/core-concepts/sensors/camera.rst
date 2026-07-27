@@ -107,7 +107,7 @@ parameters.
     tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
         offset=CameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
-        data_types=["rgb", "depth"],  # only rgb and depth supported with Newton renderer
+        data_types=["rgb", "depth"],  # see the support matrix below for all Newton-supported types
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
@@ -165,12 +165,24 @@ Accessing camera data
 The returned data has shape ``(num_cameras, height, width, num_channels)``, ready to use directly
 as an observation in RL training.
 
-When using the RTX renderer, add ``--enable_cameras`` when launching:
+Camera rendering is enabled automatically when launching an RTX camera task:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rl_games \
-        --task=Isaac-Cartpole-Camera-Direct --enable_cameras
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run isaaclab train --rl_library rl_games \
+              --task=Isaac-Cartpole-Camera-Direct
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh train --rl_library rl_games \
+              --task=Isaac-Cartpole-Camera-Direct
 
 
 Annotators
@@ -188,7 +200,7 @@ backend produces every annotator — see the support matrix below.
 * ``"normals"``: Local surface normal vectors at each pixel.
 * ``"motion_vectors"``: Per-pixel motion vectors in image space.
 * ``"semantic_segmentation"``: Semantic segmentation labels.
-* ``"instance_segmentation_fast"``: Instance segmentation data.
+* ``"instance_segmentation"``: Per-instance segmentation labels for semantically-tagged prims.
 * ``"instance_id_segmentation_fast"``: Instance ID segmentation data.
 
 .. _camera-supported-annotators:
@@ -244,8 +256,8 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
    * - ``semantic_segmentation``
      - ✅
      - ✅
-     - ❌
-   * - ``instance_segmentation_fast``
+     - ✅
+   * - ``instance_segmentation``
      - ✅
      - ✅
      - ✅
@@ -388,10 +400,21 @@ It loads a PPISP-authored USD or USDZ Gaussian scene, creates baseline and
 PPISP camera sensors for the selected camera, and saves baseline, PPISP, and
 absolute-difference images.
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
-       --renderer newton --max_steps 60
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/sensors/ppisp_camera.py \
+             --renderer newton_renderer --max_steps 60
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+             --renderer newton_renderer --max_steps 60
 
 Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
 ``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
@@ -494,10 +517,10 @@ Instance Segmentation
     :figwidth: 100%
     :alt: A scene with instance segmentation
 
-``instance_segmentation_fast`` outputs instance segmentation, traversing down the prim hierarchy
+``instance_segmentation`` outputs instance segmentation, traversing down the prim hierarchy
 to the lowest level with semantic labels (unlike ``instance_id_segmentation_fast``, which always
 goes to the leaf prim).
-An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segmentation_fast']``.
+An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segmentation']``.
 
 - If ``colorize_instance_segmentation=True``: shape ``(B, H, W, 4)``, type ``torch.uint8``.
 - If ``colorize_instance_segmentation=False``: shape ``(B, H, W, 1)``, type ``torch.int32``.

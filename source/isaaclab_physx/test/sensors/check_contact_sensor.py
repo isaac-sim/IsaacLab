@@ -8,7 +8,7 @@ This script demonstrates how to use the contact sensor sensor in Isaac Lab.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p source/isaaclab/test/sensors/test_contact_sensor.py --num_robots 2
+    uv run python source/isaaclab/test/sensors/test_contact_sensor.py --num_robots 2
 """
 
 """Launch Isaac Sim Simulator first."""

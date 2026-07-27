@@ -23,9 +23,19 @@ Testing the Installation
 To verify the PhysX backend is working, run any classic Isaac Lab task with the
 default preset:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 128
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 128
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 128
 
 The ``default`` preset on most tasks resolves to PhysX. You can also pass
 ``physics=physx`` explicitly on tasks that declare multi-backend physics presets.

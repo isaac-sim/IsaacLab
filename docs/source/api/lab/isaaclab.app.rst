@@ -45,18 +45,8 @@ The following details the behavior of the class based on the environment variabl
 
 * **Public IP Address**: When using the environment variable ``LIVESTREAM={1,2}``, set the ``PUBLIC_IP`` envvar to define the public IP address endpoint for livestreaming remotely.
 
-* **Enable cameras**: If the environment variable ``ENABLE_CAMERAS`` is set to 1, then the
-  cameras are enabled. This is useful for running the simulator without a GUI but still rendering the
-  viewport and camera images.
-
-  * ``ENABLE_CAMERAS=1``: Enables the offscreen-render pipeline which allows users to render
-    the scene without launching a GUI.
-
-  .. note::
-
-      The off-screen rendering pipeline only works when used in conjunction with the
-      :class:`isaaclab.sim.SimulationContext` class. This is because the off-screen rendering
-      pipeline enables flags that are internally used by the SimulationContext class.
+Camera and offscreen rendering support is enabled automatically. No environment variable or command-line
+option is required for camera tasks.
 
 
 To set the environment variables, one can use the following command in the terminal:
@@ -64,15 +54,14 @@ To set the environment variables, one can use the following command in the termi
 .. code:: bash
 
    export LIVESTREAM=2
-   export ENABLE_CAMERAS=1
    # run the python script
-   ./isaaclab.sh -p scripts/demos/quadrupeds.py
+   uv run python scripts/demos/quadrupeds.py
 
 Alternatively, one can set the environment variables to the python script directly:
 
 .. code:: bash
 
-   LIVESTREAM=2 ENABLE_CAMERAS=1 ./isaaclab.sh -p scripts/demos/quadrupeds.py
+   LIVESTREAM=2 uv run python scripts/demos/quadrupeds.py
 
 
 Overriding the environment variables

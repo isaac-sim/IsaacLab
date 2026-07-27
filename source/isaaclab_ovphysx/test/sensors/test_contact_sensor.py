@@ -8,7 +8,7 @@
 
 """Real-backend tests for the OVPhysX ContactSensor.
 
-Run via ``./isaaclab.sh -p -m pytest``; the ovphysx wheel is now invocable
+Run via ``uv run python -m pytest``; the ovphysx wheel is now invocable
 through the standard Kit Python entrypoint, so the older kitless
 ``./scripts/run_ovphysx.sh`` wrapper is no longer required.
 

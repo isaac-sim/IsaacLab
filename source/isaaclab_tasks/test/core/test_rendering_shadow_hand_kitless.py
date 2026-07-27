@@ -17,7 +17,9 @@ from rendering_test_utils import (
     rendering_test_shadow_hand,
 )
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
+# no arm_ci marker: intermittently stalls the arm64 runner mid-file (renderer hang after a few
+# passing cases, killed at the per-file timeout); x86 kitless coverage remains in place
+pytestmark = [pytest.mark.isaacsim_ci]
 
 _COMPARISON_SCORES: list[dict] = []
 
@@ -28,6 +30,6 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def test_rendering_shadow_hand_kitless(physics_backend, renderer, data_type):
+def test_rendering_shadow_hand_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Test shadow hand environment rendering correctness."""
     rendering_test_shadow_hand(physics_backend, renderer, data_type, _COMPARISON_SCORES)

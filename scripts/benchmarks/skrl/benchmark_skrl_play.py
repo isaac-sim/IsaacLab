@@ -32,6 +32,7 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
+    from isaaclab.test.benchmark._cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -39,7 +40,9 @@ def _parse_args(argv: list[str]):
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
-    parser.add_argument("--num_frames", type=int, default=100, help="Number of inference steps to benchmark.")
+    parser.add_argument(
+        "--num_frames", type=parse_positive_int, default=100, help="Number of measured inference steps."
+    )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument(
         "--checkpoint",
@@ -71,6 +74,17 @@ def _parse_args(argv: list[str]):
         help="The RL algorithm used for the skrl agent.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
+    parser.add_argument(
+        "--measure_sync_step",
+        action="store_true",
+        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
+    )
+    parser.add_argument(
+        "--warmup_frames",
+        type=parse_non_negative_int,
+        default=1,
+        help="Number of preceding env.step() calls to exclude from timing and throughput.",
+    )
     parser.add_argument(
         "--benchmark_formatter",
         type=str,
@@ -179,6 +193,11 @@ def run(argv: list[str]) -> None:
                     {"name": "num_envs", "data": args_cli.num_envs},
                     {"name": "num_frames", "data": args_cli.num_frames},
                     {"name": "algorithm", "data": args_cli.algorithm},
+                    {
+                        "name": "environment_step_measurement_mode",
+                        "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
+                    },
+                    {"name": "environment_step_warmup_frames", "data": args_cli.warmup_frames},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -190,94 +209,106 @@ def run(argv: list[str]) -> None:
 
         env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
 
-        num_envs = env.unwrapped.num_envs
+        with contextlib.closing(env):
+            num_envs = env.unwrapped.num_envs
 
-        if args_cli.ml_framework.startswith("torch"):
-            from skrl.utils.runner.torch import Runner
-        elif args_cli.ml_framework.startswith("jax"):
-            from skrl.utils.runner.jax import Runner
+            if args_cli.ml_framework.startswith("torch"):
+                from skrl.utils.runner.torch import Runner
+            elif args_cli.ml_framework.startswith("jax"):
+                from skrl.utils.runner.jax import Runner
 
-        # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_skrl does.
-        agent_cfg["trainer"]["close_environment_at_exit"] = False
-        agent_cfg["agent"]["experiment"]["write_interval"] = 0
-        agent_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
-        runner = Runner(env, agent_cfg)
-        runner.agent.load(resume_path)
-        runner.agent.enable_training_mode(False, apply_to_models=True)
+            # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_skrl does.
+            agent_cfg["trainer"]["close_environment_at_exit"] = False
+            agent_cfg["agent"]["experiment"]["write_interval"] = 0
+            agent_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
+            runner = Runner(env, agent_cfg)
+            runner.agent.load(resume_path)
+            runner.agent.enable_training_mode(False, apply_to_models=True)
 
-        def policy(obs):
-            """Map an observation batch to a deterministic action batch via the skrl agent.
+            def policy(obs):
+                """Map an observation batch to a deterministic action batch via the skrl agent.
 
-            Mirrors the inference path in ``isaaclab_rl.entrypoints.backends.play_skrl``:
-            runs the agent's deterministic action, preferring the policy ``mean_actions``
-            over the sampled action returned as the first element.
+                Mirrors the inference path in ``isaaclab_rl.entrypoints.backends.play_skrl``:
+                runs the agent's deterministic action, preferring the policy ``mean_actions``
+                over the sampled action returned as the first element.
 
-            Args:
-                obs: Observation returned by the skrl-wrapped env.
+                Args:
+                    obs: Observation returned by the skrl-wrapped env.
 
-            Returns:
-                The action tensor to feed ``env.step``.
-            """
-            states = env.state()
-            outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
-            return outputs[-1].get("mean_actions", outputs[0])
+                Returns:
+                    The action tensor to feed ``env.step``.
+                """
+                states = env.state()
+                outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
+                return outputs[-1].get("mean_actions", outputs[0])
 
-        with BenchmarkMonitor(benchmark, interval=1.0):
-            step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args_cli.num_frames)
+            environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+                env,
+                measure_synchronized_step_breakdown=args_cli.measure_sync_step,
+                warmup_steps=args_cli.warmup_frames,
+            )
+            total_frames = args_cli.warmup_frames + args_cli.num_frames
+            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
 
-        benchmark.update_manual_recorders()
+            first_step_s = all_step_times[0]
+            step_times = all_step_times[args_cli.warmup_frames :]
 
-        startup = StartupTime(
-            app_launch=(app_t1 - app_t0) / 1e9,
-            env_creation=(env_t1 - env_t0) / 1e9,
-            first_step=(step_times[0] if step_times else 0.0),
-        )
+            benchmark.update_manual_recorders()
 
-        fps = [num_envs / t for t in step_times if t > 0]
-        runtime = builders.build_runtime(
-            startup_time_s=startup,
-            iteration_times_s=step_times,
-            collection_fps=fps,
-            total_fps=fps,
-            steps_per_iteration=num_envs,
-        )
+            startup = StartupTime(
+                app_launch=(app_t1 - app_t0) / 1e9,
+                env_creation=(env_t1 - env_t0) / 1e9,
+                first_step=first_step_s,
+            )
 
-        versions = capture.capture_versions(benchmark)
-        hardware = capture.capture_hardware(benchmark)
-        resources = capture.capture_resources(benchmark)
+            fps = [num_envs / t for t in step_times if t > 0]
+            runtime = builders.build_runtime(
+                startup_time_s=startup,
+                iteration_times_s=step_times,
+                collection_fps=fps,
+                total_fps=fps,
+                steps_per_iteration=num_envs,
+                frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_times_s=environment_step_timer.step_times_s,
+                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
+                simulation_step_calls=environment_step_timer.simulation_step_calls,
+            )
 
-        end_utc = capture.now_utc_iso()
-        stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
-        seed = agent_cfg["seed"] if agent_cfg.get("seed") is not None else 0
+            versions = capture.capture_versions(benchmark)
+            hardware = capture.capture_hardware(benchmark)
+            resources = capture.capture_resources(benchmark)
 
-        run_identity = builders.build_run_identity(
-            run_id=capture.synth_run_id("skrl", cfg.physics_backend, args_cli.task, seed, stamp),
-            framework="skrl",
-            config=cfg,
-            task=args_cli.task,
-            seed=seed,
-            start_utc=start_utc,
-            end_utc=end_utc,
-            num_envs=num_envs,
-        )
+            end_utc = capture.now_utc_iso()
+            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
+            seed = agent_cfg["seed"] if agent_cfg.get("seed") is not None else 0
 
-        bundle = builders.build_play_bundle(
-            run=run_identity,
-            versions=versions,
-            hardware=hardware,
-            runtime=runtime,
-            resources=resources,
-            success_rate=success_rate,
-            reward=reward,
-            ep_length=ep_length,
-            checkpoint_path=resume_path,
-        )
+            run_identity = builders.build_run_identity(
+                run_id=capture.synth_run_id("skrl", cfg.physics_backend, args_cli.task, seed, stamp),
+                framework="skrl",
+                config=cfg,
+                task=args_cli.task,
+                seed=seed,
+                start_utc=start_utc,
+                end_utc=end_utc,
+                num_envs=num_envs,
+            )
 
-        benchmark.attach_bundle(bundle)
+            bundle = builders.build_play_bundle(
+                run=run_identity,
+                versions=versions,
+                hardware=hardware,
+                runtime=runtime,
+                resources=resources,
+                success_rate=success_rate,
+                reward=reward,
+                ep_length=ep_length,
+                checkpoint_path=resume_path,
+            )
 
-        benchmark._finalize_impl()
+            benchmark.attach_bundle(bundle)
 
-        env.close()
+            benchmark._finalize_impl()
 
 
 if __name__ == "__main__":

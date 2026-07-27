@@ -41,9 +41,19 @@ buffers and can be converted to Torch tensors with the ``torch`` property.
 
 The complete demo can be run with:
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/demos/sensors/pva_sensor.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run python scripts/demos/sensors/pva_sensor.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh -p scripts/demos/sensors/pva_sensor.py
 
 .. dropdown:: Code for pva_sensor.py
    :icon: code

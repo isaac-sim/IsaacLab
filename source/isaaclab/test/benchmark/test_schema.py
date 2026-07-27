@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the v1.0 Isaac Lab benchmark schema."""
+"""Tests for the v1.2 Isaac Lab benchmark schema."""
 
 import dataclasses
 import json
@@ -14,6 +14,7 @@ import pytest
 from isaaclab.test.benchmark.schema import (
     SCHEMA_VERSION,
     CProfileFunction,
+    EnvironmentStepTiming,
     GpuDeviceInfo,
     Hardware,
     Learning,
@@ -91,6 +92,16 @@ def _runtime() -> Runtime:
         collection_fps=MeanStd(mean=1_142_000.0, std=9_500.0),
         total_fps=MeanStd(mean=1_071_780.0, std=11_200.0),
         iterations_per_s=MeanStd(mean=0.2618, std=0.0028),
+        environment_step_timing=EnvironmentStepTiming(
+            environment_step_time_s=MeanStd(mean=0.08, std=0.01, peak=0.1),
+            environment_step_fps=MeanStd(mean=200_000.0, std=2_000.0, peak=205_000.0),
+            simulation_step_time_s=MeanStd(mean=0.05, std=0.01, peak=0.07),
+            outside_simulation_step_time_s=MeanStd(mean=0.03, std=0.005, peak=0.04),
+            outside_simulation_step_fraction=0.375,
+            environment_step_calls=12000,
+            simulation_step_calls=48000,
+            measurement_mode="serialized_synchronized",
+        ),
     )
 
 
@@ -137,6 +148,11 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["run"]["config"]["presets"] == []
     assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
+    timing = data["runtime"]["environment_step_timing"]
+    assert timing["outside_simulation_step_fraction"] == pytest.approx(0.375)
+    assert timing["measurement_mode"] == "serialized_synchronized"
+    assert "overhead_step_time_s" not in timing
+    assert "overhead_fraction" not in timing
     # merged MeanStd: util has no peak, memory does
     assert data["resources"]["gpu_util_pct"]["peak"] is None
     assert data["resources"]["ram_gb"]["peak"] == pytest.approx(24.8)
@@ -144,6 +160,47 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["checkpoint_path"].endswith("model_499.pt")
     assert data["video_path"] is None
     assert data["versions"]["sb3"] is None
+
+
+def test_environment_step_timing_rejects_incomplete_measurement_modes():
+    timing = _runtime().environment_step_timing
+    assert timing is not None
+
+    with pytest.raises(ValueError, match="host_return timing cannot contain"):
+        dataclasses.replace(timing, measurement_mode="host_return")
+    with pytest.raises(ValueError, match="requires a complete simulation breakdown"):
+        dataclasses.replace(timing, simulation_step_time_s=None)
+
+
+@pytest.mark.parametrize("field", ["environment_step_time_s", "environment_step_fps"])
+def test_environment_step_timing_rejects_non_positive_environment_metrics(field):
+    timing = EnvironmentStepTiming(
+        environment_step_time_s=MeanStd(mean=0.1, std=0.01),
+        environment_step_fps=MeanStd(mean=100.0, std=1.0),
+        simulation_step_time_s=None,
+        outside_simulation_step_time_s=None,
+        outside_simulation_step_fraction=None,
+        environment_step_calls=1,
+        simulation_step_calls=None,
+        measurement_mode="host_return",
+    )
+
+    with pytest.raises(ValueError, match="environment step time and FPS must be greater than zero"):
+        dataclasses.replace(timing, **{field: MeanStd(mean=-1.0, std=0.0)})
+
+
+def test_environment_step_timing_rejects_inconsistent_partition():
+    timing = _runtime().environment_step_timing
+    assert timing is not None
+
+    with pytest.raises(ValueError, match="must equal simulation plus outside-simulation time"):
+        dataclasses.replace(
+            timing,
+            outside_simulation_step_time_s=MeanStd(mean=0.02, std=0.005, peak=0.04),
+            outside_simulation_step_fraction=0.25,
+        )
+    with pytest.raises(ValueError, match="must match the aggregate timing ratio"):
+        dataclasses.replace(timing, outside_simulation_step_fraction=0.3)
 
 
 def test_runtime_bundle_round_trip(tmp_path):

@@ -83,14 +83,9 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         self.rewards.grasp_handle.params["open_joint_pos"] = 0.04
         self.rewards.grasp_handle.params["asset_cfg"].joint_names = ["panda_finger_.*"]
 
+    def play_mode(self):
+        # play-mode overrides of parent
+        super().play_mode()
 
-@configclass
-class FrankaCabinetEnvCfg_PLAY(FrankaCabinetEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
         # make a smaller scene for play
-        self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False

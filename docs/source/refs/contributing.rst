@@ -705,30 +705,65 @@ Please make sure that you add tests for your changes.
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         # Run all tests
-         ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+         .. tab-item:: uv (Recommended)
 
-         # Run all tests in a particular file
-         ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+            .. code-block:: bash
 
-         # Run a particular test
-         ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               # Run all tests
+               ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+
+               # Run all tests in a particular file
+               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+
+               # Run a particular test
+               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               # Run all tests
+               ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+
+               # Run all tests in a particular file
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+
+               # Run a particular test
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code-block:: bash
+      .. tab-set::
 
-         # Run all tests
-         isaaclab.bat --test  # or "isaaclab.bat -t"
+         .. tab-item:: uv (Recommended)
 
-         # Run all tests in a particular file
-         isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+            .. code-block:: bash
 
-         # Run a particular test
-         isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               # Run all tests
+               isaaclab.bat --test  # or "isaaclab.bat -t"
+
+               # Run all tests in a particular file
+               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+
+               # Run a particular test
+               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               # Run all tests
+               isaaclab.bat --test  # or "isaaclab.bat -t"
+
+               # Run all tests in a particular file
+               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+
+               # Run a particular test
+               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
 
 
 Tools

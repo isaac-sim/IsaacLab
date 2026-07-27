@@ -31,6 +31,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 
 from isaaclab_assets import ANYMAL_C_CFG
 
@@ -248,53 +249,6 @@ def _run_simulation(
     }
 
 
-_ORDERING_TRACE_FIELDS = (
-    "joint_pos",
-    "joint_vel",
-    "computed_torque",
-    "applied_torque",
-    "adapter_computed_effort",
-    "adapter_applied_effort",
-)
-_ORDERING_TRACE_TOLERANCES = {
-    "joint_pos": (2e-3, 1e-3),
-    "joint_vel": (1e-2, 1e-2),
-    "computed_torque": (1e-3, 1e-3),
-    "applied_torque": (1e-3, 1e-3),
-    "adapter_computed_effort": (1e-3, 1e-3),
-    "adapter_applied_effort": (1e-3, 1e-3),
-}
-
-
-def _canonicalize_ordering_result(result: dict, canonical_joint_names: tuple[str, ...]) -> dict:
-    """Gather public and adapter traces into one physical joint-name order."""
-    canonical_result = dict(result)
-    for field_name in _ORDERING_TRACE_FIELDS:
-        source_names = result["adapter_joint_names"] if field_name.startswith("adapter_") else result["joint_names"]
-        source_indices = tuple(source_names.index(name) for name in canonical_joint_names)
-        canonical_result[field_name] = [
-            values.index_select(
-                1,
-                torch.tensor(source_indices, dtype=torch.long, device=values.device),
-            )
-            for values in result[field_name]
-        ]
-
-    public_indices = tuple(result["joint_names"].index(name) for name in canonical_joint_names)
-    for field_name in ("target_pos", "target_vel", "effort_target"):
-        values = result[field_name]
-        if values is not None:
-            canonical_result[field_name] = values.index_select(
-                1,
-                torch.tensor(public_indices, dtype=torch.long, device=values.device),
-            )
-
-    canonical_result["joint_names"] = canonical_joint_names
-    canonical_result["backend_joint_names"] = canonical_joint_names
-    canonical_result["adapter_joint_names"] = canonical_joint_names
-    return canonical_result
-
-
 def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
     """Match PhysX Newton-actuator traces under reversed public joint ordering."""
     identity_result = _run_simulation(
@@ -310,49 +264,7 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
         permutation_sensitive_commands=True,
     )
 
-    assert identity_result["joint_names"] == identity_result["backend_joint_names"]
-    assert reversed_result["joint_names"] == requested_joint_names
-    assert reversed_result["backend_joint_names"] == identity_result["backend_joint_names"]
-
-    installed_ordering = reversed_result["joint_ordering"]
-    assert installed_ordering is not None
-    assert installed_ordering["user_names"] == requested_joint_names
-    assert installed_ordering["backend_names"] == identity_result["backend_joint_names"]
-    expected_user_to_backend = tuple(
-        identity_result["backend_joint_names"].index(name) for name in requested_joint_names
-    )
-    expected_backend_to_user = tuple(
-        requested_joint_names.index(name) for name in identity_result["backend_joint_names"]
-    )
-    assert installed_ordering["user_to_backend_indices"] == expected_user_to_backend
-    assert installed_ordering["backend_to_user_indices"] == expected_backend_to_user
-
-    canonical_joint_names = tuple(identity_result["backend_joint_names"])
-    identity_result = _canonicalize_ordering_result(identity_result, canonical_joint_names)
-    reversed_result = _canonicalize_ordering_result(reversed_result, canonical_joint_names)
-
-    assert identity_result["joint_names"] == reversed_result["joint_names"] == canonical_joint_names
-    for field_name in ("target_pos", "target_vel", "effort_target"):
-        torch.testing.assert_close(
-            identity_result[field_name],
-            reversed_result[field_name],
-            rtol=0.0,
-            atol=0.0,
-            msg=f"{field_name} does not request the same physical command",
-        )
-
-    for field_name in _ORDERING_TRACE_FIELDS:
-        atol, rtol = _ORDERING_TRACE_TOLERANCES[field_name]
-        for step_index, (identity_values, reversed_values) in enumerate(
-            zip(identity_result[field_name], reversed_result[field_name], strict=True)
-        ):
-            torch.testing.assert_close(
-                identity_values,
-                reversed_values,
-                atol=atol,
-                rtol=rtol,
-                msg=f"{field_name} diverged at step {step_index}",
-            )
+    assert_articulation_ordering_trace_matches(identity_result, reversed_result, requested_joint_names)
 
 
 def _assert_newton_actuator_uses_current_joint_state(

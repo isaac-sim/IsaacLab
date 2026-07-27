@@ -11,7 +11,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py
+    uv run python scripts/environments/state_machine/lift_franka_soft.py
 
 """
 
@@ -47,9 +47,9 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 # disable metrics assembler due to scene graph instancing
-from isaacsim.core.experimental.utils.app import enable_extension
+from isaaclab.sim.utils import disable_extension
 
-enable_extension("omni.usd.metrics.assembler.ui", enabled=False)
+disable_extension("omni.usd.metrics.assembler.ui")
 
 """Rest everything else."""
 

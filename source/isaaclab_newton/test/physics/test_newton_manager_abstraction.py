@@ -173,6 +173,72 @@ def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimat
     assert cfg.collision_decimation == collision_decimation
 
 
+def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
+    """BVH refitting raises when a particle BVH exists without an initialized sensor state."""
+    model = SimpleNamespace(shape_count=0, particle_count=1, bvh_particles=object())
+    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
+
+    with pytest.raises(RuntimeError, match="requires an initialized sensor state"):
+        NewtonManager._refit_sensor_bvh()
+
+
+def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
+    """Shape and particle BVHs are built and refit before a render task runs."""
+    from isaaclab.physics import PhysicsManager
+
+    state = object()
+    status = {"shape_refit": False, "particle_refit": False, "rendered": False}
+
+    class FakeModel:
+        shape_count = 1
+        particle_count = 1
+        bvh_shapes = None
+        bvh_particles = None
+
+        def bvh_build_shapes(self, current_state):
+            assert current_state is state
+            self.bvh_shapes = object()
+
+        def bvh_build_particles(self, current_state):
+            assert current_state is state
+            self.bvh_particles = object()
+
+        def bvh_refit_shapes(self, current_state):
+            assert current_state is state
+            status["shape_refit"] = True
+
+        def bvh_refit_particles(self, current_state):
+            assert current_state is state
+            status["particle_refit"] = True
+
+    model = FakeModel()
+
+    def render():
+        assert model.bvh_shapes is not None
+        assert model.bvh_particles is not None
+        assert status["shape_refit"]
+        assert status["particle_refit"]
+        status["rendered"] = True
+
+    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
+    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags_host", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=False), raising=False)
+
+    NewtonManager._register_sensor_task("render", render)
+    NewtonManager._update_sensor_tasks("render")
+
+    assert status["rendered"]
+
+
 def test_newton_shape_cfg_defaults_match_newton_shape_config():
     """``NewtonShapeCfg`` contact defaults mirror Newton's ``ShapeConfig``.
 

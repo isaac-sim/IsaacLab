@@ -53,7 +53,7 @@ PER_TEST_TIMEOUTS = {
     "test_sb3_wrapper.py": 1000,
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
-    "test_manager_based_rl_env_obs_spaces.py": 1000,
+    "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 1500,

@@ -27,7 +27,7 @@ from flaky import flaky
 from isaaclab_newton.assets import RigidObject
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton.solvers import SolverNotifyFlags
+from newton import ModelFlags
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -597,7 +597,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         wp.to_torch(friction_binding)[:] = friction
         wp.to_torch(restitution_binding)[:] = restitution
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
         # Simulate physics
         sim.step()
@@ -623,7 +623,7 @@ def _set_newton_material_properties(cube_object, friction_val, restitution_val, 
 
     wp.to_torch(friction_binding)[:] = friction_tensor
     wp.to_torch(restitution_binding)[:] = restitution_tensor
-    SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+    SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
 @pytest.mark.isaacsim_ci
@@ -940,7 +940,7 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
             dtype=torch.float32,
         )
         wp.to_torch(model_gravity_arr).copy_(new_gravity)
-        SimulationManager.add_model_change(SolverNotifyFlags.MODEL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch, new_gravity)
@@ -980,7 +980,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -1094,7 +1094,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -1180,7 +1180,7 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -1271,55 +1271,6 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             torch.testing.assert_close(root_com_vel_w, cube_object.data.root_com_vel_w.torch)
             torch.testing.assert_close(root_link_pose_w, cube_object.data.root_link_pose_w.torch)
             torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.skip(reason="PhysX-specific warmup test")
-def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: attach_stage() must not be called for CPU in _warmup_and_create_views().
-
-    Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
-    ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
-    These are two alternative initialization patterns; combining them causes
-    double-initialization that corrupts the CPU MBP broadphase, producing
-    non-deterministic collision failures (objects passing through surfaces).
-
-    Fix: guard ``attach_stage()`` with ``if is_gpu:`` — it is only required by the
-    GPU pipeline, which needs explicit stage attachment before the physics load step.
-    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()``.
-
-    This test verifies the guard is in place by monkeypatching ``attach_stage`` on
-    the PhysX simulation interface and asserting it is *not* called during CPU warmup.
-    The simulation test itself (1 cube falling onto a ground plane) is intentionally
-    omitted here because the MBP corruption is non-deterministic and depends on scene
-    complexity (multiple dynamic actors on a mesh collider), making it unreliable as a
-    unit test assertion.
-    """
-    from unittest.mock import MagicMock
-
-    from isaaclab_physx.physics import PhysxManager
-
-    with _newton_sim_context("cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
-
-        # IPhysxSimulation is a C++ binding whose attributes are read-only, so we cannot
-        # assign to _physx_sim.attach_stage directly.  Instead, replace the class-level
-        # reference with a MagicMock that wraps the real object so all other calls still
-        # work, then restore it in the finally block.
-        original_physx_sim = PhysxManager._physx_sim
-        spy = MagicMock(wraps=original_physx_sim)
-        PhysxManager._physx_sim = spy
-        try:
-            sim.reset()
-        finally:
-            PhysxManager._physx_sim = original_physx_sim
-
-        assert spy.attach_stage.call_count == 0, (
-            f"attach_stage() was called {spy.attach_stage.call_count} time(s) during CPU warmup. "
-            f"This indicates the CPU MBP broadphase double-initialization regression is present: "
-            f"attach_stage() + force_load_physics_from_usd() must not be combined for CPU."
-        )
 
 
 @pytest.mark.parametrize("device", test_devices())

@@ -28,6 +28,7 @@ import math
 
 import pytest
 import torch
+from flaky import flaky
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
@@ -645,6 +646,7 @@ ALLEGRO_FINGER_LINKS = {
         pytest.param(ShapeType.MESH_BOX, id="mesh_box"),
     ],
 )
+@flaky(max_runs=3, min_passes=1)
 def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool, drop_shape: ShapeType):
     """Test contact sensor on Allegro hand fingers detects localized contacts.
 

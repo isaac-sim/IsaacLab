@@ -10,6 +10,7 @@ Covers all combinations of:
 - Isaac Sim installation methods: local _isaac_sim symlink, pip-installed isaacsim, none
 """
 
+import os
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
@@ -69,6 +70,44 @@ def _make_site_packages(
         for sub in subs:
             (site_pkgs / pkg / sub).mkdir(parents=True, exist_ok=True)
     return site_pkgs
+
+
+# ---------------------------------------------------------------------------
+# _arm_cmake_policy_compatibility
+# ---------------------------------------------------------------------------
+
+
+class TestArmCmakePolicyCompatibility:
+    """Tests for legacy CMake dependency builds on ARM."""
+
+    def test_sets_policy_minimum_during_arm_install(self):
+        """ARM installs allow nlopt and egl-probe CMake projects to configure."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
+            mock.patch.dict("os.environ", {"PATH": "/bin"}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.5"
+            assert "CMAKE_POLICY_VERSION_MINIMUM" not in os.environ
+
+    def test_restores_existing_policy_minimum_after_arm_install(self):
+        """An existing user setting is restored after the installer finishes."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
+            mock.patch.dict("os.environ", {"CMAKE_POLICY_VERSION_MINIMUM": "3.10"}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.5"
+            assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.10"
+
+    def test_leaves_environment_unchanged_outside_arm(self):
+        """Non-ARM installs do not receive the compatibility setting."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=False),
+            mock.patch.dict("os.environ", {}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert "CMAKE_POLICY_VERSION_MINIMUM" not in os.environ
 
 
 # ---------------------------------------------------------------------------

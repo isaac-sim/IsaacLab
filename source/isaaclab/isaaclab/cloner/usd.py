@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 import torch
 
@@ -14,7 +13,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
 from .cloner_utils import split_clone_template
-from .replicate_session import REPLICATION_QUEUE
 
 
 def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
@@ -165,16 +163,6 @@ class UsdReplicateContext:
                                     ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
                                 )
                                 op_order.default = Vt.TokenArray(op_names)
-
-
-def queue_usd_replication(cfg: Any) -> None:
-    """Register ``cfg`` for USD replication when :func:`~isaaclab.cloner.replicate` next runs.
-
-    Appends ``(cfg, UsdReplicateContext)`` to :data:`~isaaclab.cloner.REPLICATION_QUEUE`.
-    The actual row resolution and dispatch happen inside :func:`~isaaclab.cloner.replicate`,
-    so this helper is safe to call from any asset constructor — no active session is required.
-    """
-    REPLICATION_QUEUE.append((cfg, UsdReplicateContext))
 
 
 def usd_replicate(

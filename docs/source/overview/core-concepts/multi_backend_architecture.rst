@@ -193,16 +193,33 @@ below shows only the physics-related fields:
 
 Users then select a physics backend at the command line:
 
-.. code-block:: bash
+.. tab-set::
 
-    # Default (PhysX)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+   .. tab-item:: uv (Recommended)
 
-    # MJWarp (Newton backend)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+      .. code-block:: bash
 
-    # OvPhysX backend
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+          # Default (PhysX)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # MJWarp (Newton backend)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+          # OvPhysX backend
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Default (PhysX)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # MJWarp (Newton backend)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+          # OvPhysX backend
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
 
 The Physics Manager
 -------------------

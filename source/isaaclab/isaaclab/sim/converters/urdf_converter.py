@@ -9,7 +9,8 @@ import os
 import pathlib
 
 import carb
-import omni.kit.app
+
+from isaaclab.sim.utils import enable_extension
 
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
@@ -57,9 +58,7 @@ class UrdfConverter(AssetConverterBase):
             cfg: The configuration instance for URDF to USD conversion.
         """
         # enable the URDF importer extension
-        manager = omni.kit.app.get_app().get_extension_manager()
-        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
+        enable_extension("isaacsim.asset.importer.urdf")
 
         # set `usd_file_name` to match the importer's output path structure:
         # the importer generates `{usd_path}/{robot_name}/{robot_name}.usda`

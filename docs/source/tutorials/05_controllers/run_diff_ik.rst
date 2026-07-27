@@ -143,9 +143,19 @@ The Code Execution
 
 Now that we have gone through the code, let's run the script and see the result:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
 
 The script will start a simulation with 128 robots. The robots will be controlled using the IK controller.
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches

@@ -86,9 +86,20 @@ When no visualizer is requested, no interactive visualizer window is opened duri
 when training on a remote server or when you do not need live visual feedback, which can add some compute cost.
 Rendering can still be active for sensor/camera data capture when enabled by the workflow.
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
 
 
 Headless execution with off-screen render
@@ -98,9 +109,19 @@ Since the above command does not open an interactive visualizer, it is not possi
 live in a viewport window. To capture visual output during training, enable camera/sensor rendering
 in the workflow and pass ``--video`` to record the agent behavior.
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole/<run-dir>/videos/train`` directory. You can open these videos
 using any video player.
@@ -118,9 +139,19 @@ While the above two methods are useful for training the agent, they don't allow 
 simulation to see what is happening. In this case, run the
 training command as follows:
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
 
 This will open the Kit visualizer window and you can see the agent training in the environment. However, this
 can slow down the training process because interactive visual feedback is enabled. As a workaround, you
@@ -133,20 +164,42 @@ Viewing the logs
 
 On a separate terminal, you can monitor the training progress by executing the following command:
 
-.. code:: bash
+.. tab-set::
 
-   # execute from the root directory of the repository
-   ./isaaclab.sh -p -m tensorboard.main --logdir logs/sb3/Isaac-Cartpole
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+         # execute from the root directory of the repository
+         uv run python -m tensorboard.main --logdir logs/sb3/Isaac-Cartpole
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+         # execute from the root directory of the repository
+         ./isaaclab.sh -p -m tensorboard.main --logdir logs/sb3/Isaac-Cartpole
 
 Playing the trained agent
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Once the training is complete, you can visualize the trained agent by executing the following command:
 
-.. code:: bash
+.. tab-set::
 
-   # execute from the root directory of the repository
-   ./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+         # execute from the root directory of the repository
+         uv run isaaclab play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --viz kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+         # execute from the root directory of the repository
+         ./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --viz kit
 
 The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.

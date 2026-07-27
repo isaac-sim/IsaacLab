@@ -72,9 +72,11 @@ Guidelines for modifications:
 * Cameron Upright
 * Cathy Y. Li
 * Cheng-Rong Lai
+* Chenyu Cao
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
+* David Cao-Mueller
 * David Leon
 * David Yang
 * Daniela Hasenbring
@@ -166,7 +168,7 @@ Guidelines for modifications:
 * Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
-* Rebecca Zhang
+* Rebecca (Rui) Zhang
 * Renaud Poncelet
 * René Zurbrügg
 * Richard Lei

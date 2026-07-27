@@ -24,6 +24,7 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
+        build_render_product_as_string,
         build_render_scope_usd,
         create_scene_partition_attributes,
         export_stage_to_string,
@@ -36,6 +37,7 @@ else:
     Sdf = None
     Usd = None
     UsdGeom = None
+    build_render_product_as_string = None
     build_render_scope_usd = None
     create_scene_partition_attributes = None
     export_stage_to_string = None
@@ -113,9 +115,9 @@ def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")
 
 
-def test_ovrtx_instance_segmentation_fast_uses_non_stable_instance_segmentation_render_var():
-    """Requesting instance_segmentation_fast from OVRTX selects the NonStableInstanceSegmentation render variable."""
-    assert get_render_var_config(["instance_segmentation_fast"]) == (
+def test_ovrtx_instance_segmentation_uses_non_stable_instance_segmentation_render_var():
+    """Requesting instance_segmentation from OVRTX selects the NonStableInstanceSegmentation render var."""
+    assert get_render_var_config(["instance_segmentation"]) == (
         "/Render/Vars/NonStableInstanceSegmentation",
         "NonStableInstanceSegmentation",
         "NonStableInstanceSegmentation",
@@ -134,6 +136,22 @@ def test_ovrtx_motion_vectors_uses_target_motion_render_var():
 def test_ovrtx_motion_vectors_with_rgb_falls_back_to_rgb():
     """OVRTX only supports one main AOV at a time; combining motion vectors with RGB keeps RGB."""
     assert get_render_var_config(["rgb", "motion_vectors"]) == ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
+
+
+def test_render_product_initially_targets_only_the_resolvable_source_camera():
+    """Multi-environment RenderProducts initially target env zero while retaining tiled resolution."""
+    render_product, render_product_path = build_render_product_as_string(
+        width=16,
+        height=8,
+        num_envs=4,
+        data_types=["rgb"],
+        camera_rel_path="Robot/head_cam",
+    )
+
+    assert render_product_path == "/Render/RenderProduct"
+    assert "rel camera = [</World/envs/env_0/Robot/head_cam>]" in render_product
+    assert "/World/envs/env_1/Robot/head_cam" not in render_product
+    assert "uniform int2 resolution = (32, 16)" in render_product
 
 
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():
@@ -188,7 +206,7 @@ def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars():
 
 def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars():
     """Requesting instance segmentation authors the pixel AOV plus the three ID/label map render vars."""
-    render_var_configs = get_render_var_configs(["instance_segmentation_fast"])
+    render_var_configs = get_render_var_configs(["instance_segmentation"])
 
     assert render_var_configs == [
         (
@@ -222,7 +240,7 @@ def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars():
 
 def test_ovrtx_semantic_and_instance_segmentation_share_a_single_semantic_id_map():
     """Requesting both segmentation outputs authors ``SemanticIdMap`` exactly once (it is shared)."""
-    render_var_configs = get_render_var_configs(["semantic_segmentation", "instance_segmentation_fast"])
+    render_var_configs = get_render_var_configs(["semantic_segmentation", "instance_segmentation"])
 
     sources = [source for _, _, source in render_var_configs]
     assert sources.count("SemanticIdMap") == 1
@@ -271,6 +289,29 @@ def test_export_stage_homogeneous_keeps_only_env0_prototype():
 
     _assert_export_contains_env_roots_and_children(exported, [0])
     _assert_export_omits_env_children(exported, range(1, num_envs))
+
+
+def test_export_stage_without_keep_env_roots_trims_non_source_env_roots():
+    """The ovstage clone path also trims the non-source env roots themselves.
+
+    ``ovstage.Stage.clone`` requires every target path to not already exist, so the exported stage
+    must not retain env roots that the clone will recreate. This is the only difference from the
+    legacy ``renderer.clone_usd`` path, which keeps the roots as placeholders.
+    """
+    num_envs = 4
+    stage = _make_multi_env_stage(num_envs)
+
+    exported = export_stage_to_string(
+        stage,
+        num_envs,
+        source_paths=("/World/envs/env_0",),
+        keep_env_roots=False,
+    )
+
+    _assert_export_contains_env_roots_and_children(exported, [0])
+    for env_idx in range(1, num_envs):
+        assert f'def Xform "env_{env_idx}"' not in exported
+        assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
 def test_export_stage_heterogeneous_keeps_multiple_sources():

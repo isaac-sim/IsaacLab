@@ -3,12 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Hold-pose environment for the Disney DR Legs closed-loop biped (Kamino solver).
+"""Hold-pose environment for the Disney DR Legs closed-loop biped.
 
 The robot must keep its pelvis upright at a target height.
 """
 
 from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -76,10 +77,11 @@ def _kamino_newton_cfg() -> NewtonCfg:
 
 @configclass
 class DrLegsPhysicsCfg(PresetCfg):
-    """Physics backend preset (DR Legs runs only under the Kamino solver)."""
+    """Physics backend presets for DR Legs."""
 
     default: NewtonCfg = _kamino_newton_cfg()
     newton_kamino: NewtonCfg = _kamino_newton_cfg()
+    physx: PhysxCfg = PhysxCfg()
 
 
 ##
@@ -116,6 +118,22 @@ class ActionsCfg:
         scale=0.3,
         use_default_offset=True,
     )
+
+
+def _physx_actions_cfg() -> ActionsCfg:
+    """Return the reduced PhysX joint-target action profile."""
+    cfg = ActionsCfg()
+    cfg.joint_pos.scale = 0.1
+    return cfg
+
+
+@configclass
+class DrLegsActionsCfg(PresetCfg):
+    """Backend-specific DR Legs action presets."""
+
+    default: ActionsCfg = ActionsCfg()
+    newton_kamino: ActionsCfg = ActionsCfg()
+    physx: ActionsCfg = _physx_actions_cfg()
 
 
 @configclass
@@ -221,6 +239,23 @@ class EventCfg:
     )
 
 
+def _physx_event_cfg() -> EventCfg:
+    """Return the PhysX reset profile with assembled joint coordinates."""
+    cfg = EventCfg()
+    cfg.reset_robot_joints.params["position_range"] = (0.0, 0.0)
+    cfg.reset_robot_joints.params["velocity_range"] = (0.0, 0.0)
+    return cfg
+
+
+@configclass
+class DrLegsEventCfg(PresetCfg):
+    """Backend-specific DR Legs event presets."""
+
+    default: EventCfg = EventCfg()
+    newton_kamino: EventCfg = EventCfg()
+    physx: EventCfg = _physx_event_cfg()
+
+
 @configclass
 class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=5.0)
@@ -256,12 +291,12 @@ class TerminationsCfg:
 
 @configclass
 class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
-    """DR Legs hold-pose environment (Newton/Kamino backend)."""
+    """DR Legs hold-pose environment."""
 
     scene: HoldPoseSceneCfg = HoldPoseSceneCfg(num_envs=_NUM_ENVS, env_spacing=2.0)
     observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
+    actions: DrLegsActionsCfg = DrLegsActionsCfg()
+    events: DrLegsEventCfg = DrLegsEventCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     sim: SimulationCfg = SimulationCfg(
