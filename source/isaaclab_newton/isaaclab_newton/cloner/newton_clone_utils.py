@@ -198,8 +198,6 @@ def replicate_builder_mapping(
                 [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
-        for hook in post_replicate_hooks:
-            hook(builder)
         return local_site_map, world_xforms
 
     source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1)

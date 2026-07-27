@@ -16,13 +16,11 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
-from isaaclab.cloner import queue_usd_replication
+from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
-from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .cable_object_data import CableObjectData
@@ -53,9 +51,7 @@ class CableObject(BaseCableObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        if has_kit():
-            queue_usd_replication(cfg)
-        queue_newton_physics_replication(cfg)
+        queue_replication(cfg)
 
     @property
     def data(self) -> CableObjectData:
