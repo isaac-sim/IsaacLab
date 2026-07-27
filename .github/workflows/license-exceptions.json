@@ -550,8 +550,12 @@
   },
   {
     "package": "ovphysx",
+    "package_type": "Python",
     "license": "LicenseRef-NVIDIA-Omniverse",
-    "comment": "NVIDIA"
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "NVIDIA component imported into the Isaac Lab Python process"
   },
   {
     "package": "decorator",
@@ -1147,8 +1151,21 @@
     "comment": "imageio-ffmpeg launches this executable as a standalone subprocess and communicates through pipes; the job detects its exact configuration and linkage"
   },
   {
-    "package": "ovrtx",
+    "package": "ovstage",
+    "package_type": "Python",
     "license": "NVIDIA Proprietary Software",
-    "comment": "NVIDIA"
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "NVIDIA component imported into the Isaac Lab Python process"
+  },
+  {
+    "package": "ovrtx",
+    "package_type": "Python",
+    "license": "NVIDIA Proprietary Software",
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "NVIDIA component imported into the Isaac Lab Python process"
   }
 ]
