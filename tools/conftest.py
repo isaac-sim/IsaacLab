@@ -93,19 +93,11 @@ def pytest_configure(config):
         def __init__(self, launcher_args=None, **kwargs):
             if _SessionKitLauncher._session_instance is not None:
                 # Alias the already-running instance — do not start a second Kit.
-                _e = _SessionKitLauncher._session_instance
-                self._python_logging_level = _e._python_logging_level
-                self._headless = _e._headless
-                self._livestream = _e._livestream
-                self._offscreen_render = _e._offscreen_render
-                self._sim_experience_file = _e._sim_experience_file
-                self._video_enabled = _e._video_enabled
-                self.device_id = _e.device_id
-                self.device = _e.device
-                self._deferred_cuda_device_id = _e._deferred_cuda_device_id
-                self.local_rank = _e.local_rank
-                self.global_rank = _e.global_rank
-                self._app = _e._app
+                # Copy whatever instance attributes the owning launcher actually has;
+                # using __dict__.update avoids hard-coding the full attribute list and
+                # handles optional attributes (e.g. local_rank / global_rank are only
+                # set when distributed=True).
+                self.__dict__.update(_SessionKitLauncher._session_instance.__dict__)
                 return
             super().__init__(launcher_args, **kwargs)
             _SessionKitLauncher._session_instance = self
@@ -128,8 +120,10 @@ def pytest_sessionfinish(session, exitstatus):
     global _session_kit_launcher
     if not _SESSION_KIT or _session_kit_launcher is None:
         return
-    logger.info("[session-kit] Closing shared Kit instance")
+    # Kit's logging handlers may already be closed by the time this hook fires;
+    # suppress the resulting ValueError so it doesn't appear as a spurious error.
     with contextlib.suppress(Exception):
+        logger.info("[session-kit] Closing shared Kit instance")
         _session_kit_launcher._app.close()
     _session_kit_launcher = None
 
