@@ -96,6 +96,9 @@ def test_converter_enables_importer_extension(test_setup_teardown):
     resolved from the standalone wheel instead, with no extension manager involved.
     """
     _, mjcf_config = test_setup_teardown
+    # the importer is loaded lazily during conversion, which is skipped when a matching USD
+    # already exists, so force it to run
+    mjcf_config.force_usd_conversion = True
 
     if not _USE_KIT:
         MjcfConverter(mjcf_config)

@@ -601,7 +601,13 @@ def show_stage_in_viewport(usd_path: str) -> None:
     """
     import omni.usd  # noqa: PLC0415
 
-    omni.usd.get_context().open_stage(usd_path)
+    # A failed open leaves the previously loaded stage in the viewport, which would look like a
+    # successful preview of the wrong asset, so surface the failure instead of blocking on it.
+    result = omni.usd.get_context().open_stage(usd_path)
+    opened = result[0] if isinstance(result, tuple) else result
+    if opened is False:
+        raise RuntimeError(f"Failed to open the USD stage in the Kit viewport: {usd_path}")
+
     app = omni.kit.app.get_app_interface()
     with contextlib.suppress(KeyboardInterrupt):
         while app.is_running():

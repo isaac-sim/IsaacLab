@@ -21,16 +21,17 @@ positional arguments:
 
 optional arguments:
   -h, --help                Show this help message and exit
-  --merge-mesh              Merge meshes where possible to optimize the model. (default: False)
-  --collision-from-visuals  Generate collision geometry from visual geometries. (default: False)
-  --collision-type          Type of collision geometry to use. (default: "Convex Hull")
-  --self-collision          Activate self-collisions between links. (default: False)
-  --import-physics-scene    Import the physics scene from the MJCF file. (default: False)
+  --merge_mesh              Merge meshes where possible to optimize the model. (default: False)
+  --collision_from_visuals  Generate collision geometry from visual geometries. (default: False)
+  --collision_type          Type of collision geometry to use. (default: "Convex Hull")
+  --self_collision          Activate self-collisions between links. (default: False)
+  --import_physics_scene    Import the physics scene from the MJCF file. (default: False)
   --viz                     Preview the converted asset (kit, newton, rerun, viser). (default: "none")
 """
 
 import argparse
 import os
+import sys
 import traceback
 
 from isaaclab.sim.converters._converter_cli import ConverterCli
@@ -42,18 +43,21 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument("input", type=str, help="The path to the input MJCF file.")
     parser.add_argument("output", type=str, help="The path to store the USD file.")
     parser.add_argument(
+        "--merge_mesh",
         "--merge-mesh",
         action="store_true",
         default=False,
         help="Merge meshes where possible to optimize the model.",
     )
     parser.add_argument(
+        "--collision_from_visuals",
         "--collision-from-visuals",
         action="store_true",
         default=False,
         help="Generate collision geometry from visual geometries.",
     )
     parser.add_argument(
+        "--collision_type",
         "--collision-type",
         type=str,
         default="Convex Hull",
@@ -61,12 +65,14 @@ def _create_parser() -> argparse.ArgumentParser:
         help='Type of collision geometry to use. Defaults to "Convex Hull".',
     )
     parser.add_argument(
+        "--self_collision",
         "--self-collision",
         action="store_true",
         default=False,
         help="Activate self-collisions between links of the articulation.",
     )
     parser.add_argument(
+        "--import_physics_scene",
         "--import-physics-scene",
         action="store_true",
         default=False,
@@ -133,6 +139,10 @@ if __name__ == "__main__":
     except Exception:
         traceback.print_exc()
         # Kit's shutdown hooks override the interpreter exit status, so force a failure code.
+        # os._exit skips interpreter shutdown, so flush first or the diagnostics printed
+        # above are lost whenever stdout is redirected (the CI case).
+        sys.stdout.flush()
+        sys.stderr.flush()
         os._exit(1)
     # close sim app
     if simulation_app is not None:

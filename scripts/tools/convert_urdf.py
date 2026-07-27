@@ -21,17 +21,18 @@ positional arguments:
 
 optional arguments:
   -h, --help                Show this help message and exit
-  --merge-joints            Consolidate links that are connected by fixed joints. (default: False)
-  --fix-base                Fix the base to where it is imported. (default: False)
-  --joint-stiffness         The stiffness of the joint drive. (default: 100.0)
-  --joint-damping           The damping of the joint drive. (default: 1.0)
-  --joint-target-type       The type of control to use for the joint drive. (default: "position")
+  --merge_joints            Consolidate links that are connected by fixed joints. (default: False)
+  --fix_base                Fix the base to where it is imported. (default: False)
+  --joint_stiffness         The stiffness of the joint drive. (default: 100.0)
+  --joint_damping           The damping of the joint drive. (default: 1.0)
+  --joint_target_type       The type of control to use for the joint drive. (default: "position")
   --viz                     Preview the converted asset (kit, newton, rerun, viser). (default: "none")
 
 """
 
 import argparse
 import os
+import sys
 import traceback
 
 from isaaclab.sim.converters._converter_cli import ConverterCli
@@ -43,25 +44,31 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument("input", type=str, help="The path to the input URDF file.")
     parser.add_argument("output", type=str, help="The path to store the USD file.")
     parser.add_argument(
+        "--merge_joints",
         "--merge-joints",
         action="store_true",
         default=False,
         help="Consolidate links that are connected by fixed joints.",
     )
-    parser.add_argument("--fix-base", action="store_true", default=False, help="Fix the base to where it is imported.")
     parser.add_argument(
+        "--fix_base", "--fix-base", action="store_true", default=False, help="Fix the base to where it is imported."
+    )
+    parser.add_argument(
+        "--joint_stiffness",
         "--joint-stiffness",
         type=float,
         default=100.0,
         help="The stiffness of the joint drive.",
     )
     parser.add_argument(
+        "--joint_damping",
         "--joint-damping",
         type=float,
         default=1.0,
         help="The damping of the joint drive.",
     )
     parser.add_argument(
+        "--joint_target_type",
         "--joint-target-type",
         type=str,
         default="position",
@@ -135,6 +142,10 @@ if __name__ == "__main__":
     except Exception:
         traceback.print_exc()
         # Kit's shutdown hooks override the interpreter exit status, so force a failure code.
+        # os._exit skips interpreter shutdown, so flush first or the diagnostics printed
+        # above are lost whenever stdout is redirected (the CI case).
+        sys.stdout.flush()
+        sys.stderr.flush()
         os._exit(1)
     # close sim app
     if simulation_app is not None:

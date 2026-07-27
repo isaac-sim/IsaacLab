@@ -31,18 +31,29 @@ def _make_fake_app_launcher(recorded: dict, simulation_app: object) -> type:
 
 
 def test_parse_args_launches_headless_kit_when_isaac_sim_available(monkeypatch: pytest.MonkeyPatch):
-    # Isaac Sim present: conversion launches Kit headless for the importer extensions. The launcher
-    # never carries a visualizer -- '--viz' only drives the post-conversion kitless preview.
+    # Isaac Sim present and no preview requested: Kit is launched for the importer extensions only,
+    # so the launcher carries no visualizer.
     recorded = {}
     simulation_app = object()
     monkeypatch.setattr(converter_cli, "AppLauncher", _make_fake_app_launcher(recorded, simulation_app))
-    monkeypatch.setattr(sys, "argv", ["convert_urdf.py", "robot.urdf", "out", "--viz", "newton"])
+    monkeypatch.setattr(sys, "argv", ["convert_urdf.py", "robot.urdf", "out"])
 
     args_cli, selected_app = converter_cli.ConverterCli.parse_args(_make_io_parser(), "urdf")
 
     assert selected_app is simulation_app
     assert recorded["launcher_args"] == {}
-    assert args_cli.viz == "newton"
+    assert args_cli.viz == "none"
+
+
+def test_parse_args_rejects_kitless_viz_with_isaac_sim(monkeypatch: pytest.MonkeyPatch):
+    # a kitless visualizer cannot share the process with Kit, so the combination is rejected before
+    # converting rather than converting and silently skipping the requested preview.
+    recorded = {}
+    monkeypatch.setattr(converter_cli, "AppLauncher", _make_fake_app_launcher(recorded, object()))
+    monkeypatch.setattr(sys, "argv", ["convert_urdf.py", "robot.urdf", "out", "--viz", "newton"])
+
+    with pytest.raises(SystemExit):
+        converter_cli.ConverterCli.parse_args(_make_io_parser(), "urdf")
 
 
 def test_parse_args_uses_standalone_provider_without_isaac_sim(monkeypatch: pytest.MonkeyPatch):
@@ -86,6 +97,8 @@ def test_parse_args_accepts_kit_viz_with_isaac_sim(monkeypatch: pytest.MonkeyPat
 
     assert args_cli.viz == "kit"
     assert selected_app is simulation_app
+    # the Kit viewport only exists when the launcher is told to create it
+    assert recorded["launcher_args"] == {"visualizer": ["kit"]}
 
 
 def test_preview_opens_kit_viewport(monkeypatch: pytest.MonkeyPatch):
@@ -100,33 +113,20 @@ def test_preview_opens_kit_viewport(monkeypatch: pytest.MonkeyPatch):
 
 def test_preview_skips_when_not_requested(monkeypatch: pytest.MonkeyPatch):
     calls: list = []
-    monkeypatch.setattr(converter_cli, "_preview_kitless", lambda *args: calls.append(args))
+    monkeypatch.setattr(converter_cli.ConverterCli, "_preview_kitless", lambda *args: calls.append(args))
 
     converter_cli.ConverterCli.preview(argparse.Namespace(viz="none"), None, "/tmp/robot.usd")
 
     assert calls == []
 
 
-def test_preview_skips_when_conversion_used_isaac_sim(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-):
-    # a running SimulationApp means Kit hosted the conversion; a kitless preview cannot share the
-    # process, so it is skipped with an actionable hint.
-    calls: list = []
-    monkeypatch.setattr(converter_cli, "_preview_kitless", lambda *args: calls.append(args))
-
-    with caplog.at_level("WARNING"):
-        converter_cli.ConverterCli.preview(argparse.Namespace(viz="newton"), object(), "/tmp/robot.usd")
-
-    assert calls == []
-    assert "kitless" in caplog.text
-
-
 def test_preview_opens_kitless_visualizer(monkeypatch: pytest.MonkeyPatch):
     # kitless conversion (no SimulationApp): the requested visualizer opens the converted asset.
     calls: list = []
     monkeypatch.setattr(
-        converter_cli, "_preview_kitless", lambda usd_path, visualizer: calls.append((usd_path, visualizer))
+        converter_cli.ConverterCli,
+        "_preview_kitless",
+        lambda usd_path, visualizer: calls.append((usd_path, visualizer)),
     )
 
     converter_cli.ConverterCli.preview(argparse.Namespace(viz="newton"), None, "/tmp/robot.usd")

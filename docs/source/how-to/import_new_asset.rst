@@ -57,10 +57,10 @@ Articulation and joint structure
 
 * :attr:`~sim.converters.UrdfConverterCfg.fix_base` * - Whether to fix the base of the robot.
   This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
-  ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
+  ``--fix_base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
 * :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints` * - Whether to merge the fixed joints.
   Usually, this should be set to ``True`` to reduce the asset complexity. The command-line flag is
-  ``--merge-joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
+  ``--merge_joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
 * :attr:`~sim.converters.UrdfConverterCfg.joint_drive` - The configuration for the joint drives on the robot.
 
   * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.drive_type` - The drive type for the joints.
@@ -159,10 +159,10 @@ The following shows the steps to clone the repository and run the converter:
          python scripts/tools/convert_urdf.py \
            ../anymal_d_simple_description/urdf/anymal.urdf \
            source/isaaclab_assets/data/Robots/ANYbotics/ \
-           --merge-joints \
-           --joint-stiffness 0.0 \
-           --joint-damping 0.0 \
-           --joint-target-type none \
+           --merge_joints \
+           --joint_stiffness 0.0 \
+           --joint_damping 0.0 \
+           --joint_target_type none \
            --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -179,10 +179,10 @@ The following shows the steps to clone the repository and run the converter:
          python scripts\tools\convert_urdf.py ^
            ..\anymal_d_simple_description\urdf\anymal.urdf ^
            source\isaaclab_assets\data\Robots\ANYbotics\ ^
-           --merge-joints ^
-           --joint-stiffness 0.0 ^
-           --joint-damping 0.0 ^
-           --joint-target-type none ^
+           --merge_joints ^
+           --joint_stiffness 0.0 ^
+           --joint_damping 0.0 ^
+           --joint_target_type none ^
            --viz kit
 
 Executing the above script will create a USD file inside the
@@ -237,14 +237,14 @@ Geometry, collisions, and materials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.MjcfConverterCfg.merge_mesh` * - Whether to merge meshes where possible to
-  optimize the model. The command-line flag is ``--merge-mesh``.
+  optimize the model. The command-line flag is ``--merge_mesh``.
 * :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` * - Whether to generate collision
-  geometry from visual geometries. The command-line flag is ``--collision-from-visuals``.
+  geometry from visual geometries. The command-line flag is ``--collision_from_visuals``.
 * :attr:`~sim.converters.MjcfConverterCfg.collision_type` * - The collision shape simplification to
   apply. One of ``"Convex Hull"`` (default), ``"Convex Decomposition"``, ``"Bounding Sphere"``, or
-  ``"Bounding Cube"``. The command-line flag is ``--collision-type``.
+  ``"Bounding Cube"``. The command-line flag is ``--collision_type``.
 * :attr:`~sim.converters.MjcfConverterCfg.self_collision` * - Whether to activate self-collisions
-  between links of the articulation. The command-line flag is ``--self-collision``.
+  between links of the articulation. The command-line flag is ``--self_collision``.
 
 Articulation and physics
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -255,7 +255,7 @@ Articulation and physics
   ``<inertial>`` properties are missing in the MJCF. ``0.0`` (default) leaves densities unchanged.
 * :attr:`~sim.converters.MjcfConverterCfg.import_physics_scene` * - Import physics scene properties
   (gravity, time step, etc.) from the MJCF file. Defaults to ``False``. The command-line flag is
-  ``--import-physics-scene``.
+  ``--import_physics_scene``.
 
 Actuator overrides
 ~~~~~~~~~~~~~~~~~~
@@ -314,7 +314,7 @@ The following shows the steps to clone the repository and run the converter:
          python scripts/tools/convert_mjcf.py \
            ../mujoco_menagerie/unitree_h1/h1.xml \
            source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --merge-mesh \
+           --merge_mesh \
            --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -331,7 +331,7 @@ The following shows the steps to clone the repository and run the converter:
          python scripts\tools\convert_mjcf.py ^
            ..\mujoco_menagerie\unitree_h1\h1.xml ^
            source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
-           --merge-mesh ^
+           --merge_mesh ^
            --viz kit
 
 Executing the above script will create the USD file inside the

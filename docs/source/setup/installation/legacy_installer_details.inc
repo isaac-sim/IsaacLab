@@ -107,10 +107,10 @@ Isaac Lab visualizer:
 .. code-block:: bash
 
    python scripts/tools/convert_urdf.py \
-     path/to/robot.urdf path/to/output_dir --merge-joints
+     path/to/robot.urdf path/to/output_dir --merge_joints
 
    python scripts/tools/convert_mjcf.py \
-     path/to/model.xml path/to/output.usd --merge-mesh
+     path/to/model.xml path/to/output.usd --merge_mesh
 
 If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim
 importer extensions first. The standalone wheel is used only when the full

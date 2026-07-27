@@ -9,6 +9,7 @@ import types
 
 import pytest
 
+import isaaclab.sim.utils as sim_utils
 from isaaclab.sim.converters import _importer_api as importer_api
 
 
@@ -30,9 +31,7 @@ def test_load_api_enables_extension_when_kit_is_running(monkeypatch: pytest.Monk
     # under a running Kit app, load_api enables the owning extension before importing it.
     calls = []
     monkeypatch.setattr(importer_api, "has_kit", lambda: True)
-    monkeypatch.setattr(
-        importer_api, "enable_extension", lambda extension_name: calls.append(("enable", extension_name))
-    )
+    monkeypatch.setattr(sim_utils, "enable_extension", lambda extension_name: calls.append(("enable", extension_name)))
     monkeypatch.setattr(
         importer_api.importlib,
         "import_module",
@@ -51,7 +50,7 @@ def test_load_api_enables_extension_when_kit_is_running(monkeypatch: pytest.Monk
 
 def test_load_api_imports_standalone_provider_without_kit(monkeypatch: pytest.MonkeyPatch):
     calls = []
-    monkeypatch.delitem(sys.modules, "omni.kit.app", raising=False)
+    monkeypatch.setattr(importer_api, "has_kit", lambda: False)
     monkeypatch.setattr(
         importer_api.importlib,
         "import_module",
@@ -72,7 +71,7 @@ def test_load_api_preserves_importer_class_identity(monkeypatch: pytest.MonkeyPa
     sentinel_module = types.ModuleType(module_name)
     sentinel_module.URDFImporter = _Importer
     sentinel_module.URDFImporterConfig = _ImporterConfig
-    monkeypatch.delitem(sys.modules, "omni.kit.app", raising=False)
+    monkeypatch.setattr(importer_api, "has_kit", lambda: False)
     monkeypatch.setitem(sys.modules, module_name, sentinel_module)
 
     first_importer, first_config = importer_api.ImporterProvider.load_api("urdf")
@@ -85,7 +84,7 @@ def test_load_api_preserves_importer_class_identity(monkeypatch: pytest.MonkeyPa
 
 def test_load_api_preserves_module_search_path(monkeypatch: pytest.MonkeyPatch):
     original_path = list(sys.path)
-    monkeypatch.delitem(sys.modules, "omni.kit.app", raising=False)
+    monkeypatch.setattr(importer_api, "has_kit", lambda: False)
     monkeypatch.setattr(importer_api.importlib, "import_module", lambda module_name: _make_importer_module("urdf"))
 
     importer_api.ImporterProvider.load_api("urdf")
@@ -94,7 +93,7 @@ def test_load_api_preserves_module_search_path(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_load_api_reports_both_provider_options(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delitem(sys.modules, "omni.kit.app", raising=False)
+    monkeypatch.setattr(importer_api, "has_kit", lambda: False)
     monkeypatch.setattr(
         importer_api.importlib,
         "import_module",
@@ -109,7 +108,7 @@ def test_load_api_wraps_kit_extension_errors(monkeypatch: pytest.MonkeyPatch):
     # under a running Kit app the extension enable is attempted; a failure there is wrapped.
     monkeypatch.setattr(importer_api, "has_kit", lambda: True)
     monkeypatch.setattr(
-        importer_api,
+        sim_utils,
         "enable_extension",
         lambda extension_name: (_ for _ in ()).throw(RuntimeError(extension_name)),
     )

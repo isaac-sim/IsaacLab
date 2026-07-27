@@ -13,7 +13,6 @@ import sys
 from importlib import metadata
 from typing import Literal, NamedTuple
 
-from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import has_kit
 
 ImporterKind = Literal["mjcf", "urdf"]
@@ -65,6 +64,12 @@ class ImporterProvider:
         try:
             # Under a running Kit app, enable the owning extension; kitless, resolve from the wheel.
             if has_kit():
+                # Imported here rather than at module scope: the converter scripts import this
+                # module before deciding whether to launch Kit, and ``isaaclab.sim.utils`` binds
+                # its Kit dependencies at import time based on ``has_kit()``. Importing it too
+                # early would leave those bindings unset for the rest of the process.
+                from isaaclab.sim.utils import enable_extension  # noqa: PLC0415
+
                 enable_extension(api.module)
             module = importlib.import_module(api.module)
             return getattr(module, api.importer_class), getattr(module, api.config_class)

@@ -67,9 +67,21 @@ class ConverterCli:
         args_cli = parser.parse_args()
 
         if AppLauncher.is_available():
+            if args_cli.viz not in ("none", "kit"):
+                # Conversion runs through Kit whenever Isaac Sim is installed, and a kitless
+                # visualizer cannot share that process. Reject the combination instead of
+                # converting and then silently skipping the preview that was asked for.
+                parser.error(
+                    f"--viz {args_cli.viz} is a kitless preview and cannot be used with Isaac Sim "
+                    "installed. Use --viz kit, or run the converter in an environment without "
+                    "Isaac Sim to preview with newton, rerun, or viser."
+                )
             # Isaac Sim provides the importer modules through Kit; the launcher stays internal so
-            # the converter CLI is limited to converter arguments.
-            return args_cli, AppLauncher({}).app
+            # the converter CLI is limited to converter arguments. '--viz kit' additionally needs
+            # the Kit visualizer, otherwise the app resolves without a viewport and the preview
+            # would pump an invisible window.
+            launcher_args = {"visualizer": ["kit"]} if args_cli.viz == "kit" else {}
+            return args_cli, AppLauncher(launcher_args).app
 
         if args_cli.viz == "kit":
             # fail before converting: the Kit viewport needs a full Isaac Sim installation
@@ -93,9 +105,8 @@ class ConverterCli:
 
         ``--viz kit`` displays the asset in the viewport of the Kit app that ran the conversion.
         ``--viz newton`` / ``rerun`` / ``viser`` launch a kitless
-        :class:`~isaaclab.sim.SimulationContext` with the requested visualizer, which cannot share
-        a process with Kit -- so those are skipped (with a hint) when conversion ran through Isaac
-        Sim. Blocks in the visualizer render loop until the window is closed.
+        :class:`~isaaclab.sim.SimulationContext` with the requested visualizer. Blocks in the
+        visualizer render loop until the window is closed.
 
         Args:
             args_cli: Parsed converter arguments.
@@ -111,67 +122,61 @@ class ConverterCli:
 
             show_stage_in_viewport(usd_path)
             return
-        if simulation_app is not None:
-            logger.warning(
-                "Preview with the '%s' visualizer is only available for kitless conversion. Run the "
-                "converter without Isaac Sim (standalone importer wheel) to preview, or use "
-                "'--viz kit' to inspect the converted asset in the Isaac Sim viewport.",
-                visualizer,
-            )
-            return
-        _preview_kitless(usd_path, visualizer)
+        # ``parse_args`` rejects the kitless visualizers when Isaac Sim is installed, so no Kit app
+        # is running here.
+        cls._preview_kitless(usd_path, visualizer)
 
+    @classmethod
+    def _preview_kitless(cls, usd_path: str, visualizer: str) -> None:
+        """Open a converted USD asset in a kitless Isaac Lab visualizer.
 
-def _preview_kitless(usd_path: str, visualizer: str) -> None:
-    """Open a converted USD asset in a kitless Isaac Lab visualizer.
+        Reuses :func:`~isaaclab.app.launch_simulation` and
+        :class:`~isaaclab.sim.SimulationContext`, so the asset renders through whichever kitless
+        visualizer backend is requested with no backend-specific code: the Newton physics backend
+        ingests the USD stage and every visualizer reads the shared scene data. Physics is not
+        stepped -- the asset is shown in its imported pose until the visualizer window is closed.
 
-    Reuses :func:`~isaaclab.app.launch_simulation` and :class:`~isaaclab.sim.SimulationContext`,
-    so the asset renders through whichever kitless visualizer backend is requested with no
-    backend-specific code: the Newton physics backend ingests the USD stage and every visualizer
-    reads the shared scene data. Physics is not stepped -- the asset is shown in its imported
-    pose until the visualizer window is closed.
+        Args:
+            usd_path: Path of the converted USD file to display.
+            visualizer: Kitless visualizer backend to open the asset in, e.g. ``"newton"``.
+        """
+        import torch  # noqa: PLC0415
 
-    Args:
-        usd_path: Path of the converted USD file to display.
-        visualizer: Kitless visualizer backend to open the asset in, e.g. ``"newton"``.
-    """
-    import isaaclab.sim as sim_utils  # noqa: PLC0415
-    from isaaclab.app import add_launcher_args, launch_simulation  # noqa: PLC0415
-    from isaaclab.physics import PhysicsCfg  # noqa: PLC0415
+        import isaaclab.sim as sim_utils  # noqa: PLC0415
+        from isaaclab.app import launch_simulation  # noqa: PLC0415
+        from isaaclab.physics import PhysicsCfg  # noqa: PLC0415
 
-    # Assemble a full launcher namespace (defaults for every flag) that requests the chosen
-    # kitless visualizer on the Newton backend. ``launch_simulation`` then resolves the runtime
-    # and persists the visualizer selection without launching Kit.
-    preview_parser = argparse.ArgumentParser()
-    preview_parser.add_argument("--physics", default="newton_mjwarp")
-    add_launcher_args(preview_parser)
-    launcher_args = preview_parser.parse_args(["--visualizer", visualizer])
+        # Request the chosen kitless visualizer on the Newton backend; ``launch_simulation`` reads
+        # the keys it needs and falls back to the launcher defaults for the rest. The default
+        # device is 'cuda:0', so pick the CPU on hosts without a CUDA device.
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        launcher_args = {"physics": "newton_mjwarp", "visualizer": [visualizer], "device": device}
 
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args) as physics_cfg:
-        sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=launcher_args.device, physics=physics_cfg))
+        with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args) as physics_cfg:
+            sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=device, physics=physics_cfg))
 
-        # add a light so the asset is visible, then reference the converted USD at the origin
-        light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
-        asset_cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
-        asset_cfg.func("/World/ConvertedAsset", asset_cfg)
+            # add a light so the asset is visible, then reference the converted USD at the origin
+            light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+            light_cfg.func("/World/Light", light_cfg)
+            asset_cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
+            asset_cfg.func("/World/ConvertedAsset", asset_cfg)
 
-        sim.reset()
+            sim.reset()
 
-        # nothing to display if no visualizer backend was created (e.g. package not installed)
-        if not sim.visualizers:
-            logger.warning(
-                "No '%s' visualizer available for preview (is 'isaaclab_visualizers[%s]' installed?)."
-                " Skipping viewport preview.",
-                visualizer,
-                visualizer,
-            )
-            return
+            # nothing to display if no visualizer backend was created (e.g. package not installed)
+            if not sim.visualizers:
+                logger.warning(
+                    "No '%s' visualizer available for preview (is 'isaaclab_visualizers[%s]' installed?)."
+                    " Skipping viewport preview.",
+                    visualizer,
+                    visualizer,
+                )
+                return
 
-        # Render the imported pose (without stepping physics) until the visualizer window closes.
-        # Checked per visualizer rather than through
-        # :meth:`~isaaclab.sim.SimulationContext.is_headless_or_exist_active_visualizer`: that
-        # predicate also reports ``True`` for an empty visualizer list (headless stepping), and
-        # ``render`` drops visualizers once they close or fail, so the preview would never exit.
-        while any(viz.is_running() and not viz.is_closed for viz in sim.visualizers):
-            sim.render()
+            # Render the imported pose (without stepping physics) until the visualizer window closes.
+            # Checked per visualizer rather than through
+            # :meth:`~isaaclab.sim.SimulationContext.is_headless_or_exist_active_visualizer`: that
+            # predicate also reports ``True`` for an empty visualizer list (headless stepping), and
+            # ``render`` drops visualizers once they close or fail, so the preview would never exit.
+            while any(viz.is_running() and not viz.is_closed for viz in sim.visualizers):
+                sim.render()
