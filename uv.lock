@@ -3009,7 +3009,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "13.0.0"
+version = "13.2.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -3029,7 +3029,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "0.5.0"
+version = "0.5.1"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -3156,6 +3156,7 @@ mimic = [
 ]
 ov = [
     { name = "ovphysx" },
+    { name = "ovstage" },
 ]
 rerun = [
     { name = "pyarrow" },
@@ -3186,6 +3187,7 @@ rsl-rl = [
 ]
 rtx = [
     { name = "ovrtx" },
+    { name = "ovstage" },
 ]
 sb3 = [
     { name = "rich" },
@@ -3267,6 +3269,8 @@ requires-dist = [
     { name = "onnxscript", marker = "extra == 'rsl-rl'", specifier = ">=0.5" },
     { name = "ovphysx", marker = "extra == 'ov'", specifier = ">=0.4.13" },
     { name = "ovrtx", marker = "extra == 'rtx'", specifier = ">=0.4.0,<0.5.0" },
+    { name = "ovstage", marker = "extra == 'ov'", specifier = ">=0.1.0,<0.2.0" },
+    { name = "ovstage", marker = "extra == 'rtx'", specifier = ">=0.1.0,<0.2.0" },
     { name = "packaging" },
     { name = "pandas", marker = "extra == 'rlinf'" },
     { name = "peft", marker = "extra == 'rlinf'", specifier = ">=0.17.0" },
@@ -3328,7 +3332,7 @@ provides-extras = ["test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"
 
 [[package]]
 name = "isaaclab-experimental"
-version = "0.1.3"
+version = "0.1.4"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -3356,7 +3360,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "2.0.0"
+version = "2.2.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -3367,14 +3371,18 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "0.8.0"
+version = "0.9.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
+    { name = "ovstage" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "ovstage", specifier = ">=0.1.0,<0.2.0" },
+]
 
 [[package]]
 name = "isaaclab-ovphysx"
@@ -3382,14 +3390,18 @@ version = "7.0.0"
 source = { editable = "source/isaaclab_ovphysx" }
 dependencies = [
     { name = "isaaclab" },
+    { name = "ovstage" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "ovstage", specifier = ">=0.1.0,<0.2.0" },
+]
 
 [[package]]
 name = "isaaclab-physx"
-version = "3.0.0"
+version = "3.1.0"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -3411,7 +3423,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "0.8.0"
+version = "0.9.0"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -3428,7 +3440,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "9.0.0"
+version = "9.1.1"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -3469,7 +3481,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.2.0"
+version = "1.2.1"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -5749,6 +5761,16 @@ wheels = [
     { url = "https://pypi.nvidia.com/ovrtx/ovrtx-0.4.0.346409-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:81d680e6592ffc72ccd87bf30b7ff49d2cb40b32f8fe5f05e597a22c80d8c68b" },
     { url = "https://pypi.nvidia.com/ovrtx/ovrtx-0.4.0.346409-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:8d79eaa13fbee4eae14911047974e659585ec50327103de41cd37aedec369777" },
     { url = "https://pypi.nvidia.com/ovrtx/ovrtx-0.4.0.346409-py3-none-win_amd64.whl", hash = "sha256:a2e6d9d05ca1b1e79dfa373d26605a6162c512ff1b84365ac4f2c9a39f25b5cc" },
+]
+
+[[package]]
+name = "ovstage"
+version = "0.1.0.346039"
+source = { registry = "https://pypi.nvidia.com/" }
+wheels = [
+    { url = "https://pypi.nvidia.com/ovstage/ovstage-0.1.0.346039-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:7c327bbb6c908d625f6740a06e963ec8e3749d57d4d3eddfb359f12c9d1a3d96" },
+    { url = "https://pypi.nvidia.com/ovstage/ovstage-0.1.0.346039-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:6e96453f48f1e3177b28ac554f39728d22f3143958ad687986235cb5eb87f919" },
+    { url = "https://pypi.nvidia.com/ovstage/ovstage-0.1.0.346039-py3-none-win_amd64.whl", hash = "sha256:aa394890f48a3ad35159d43fc680643c6743f135749ba827ce24ad3afc078f25" },
 ]
 
 [[package]]
