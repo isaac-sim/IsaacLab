@@ -23,6 +23,8 @@ from isaaclab.test.physics.parameter_validation.fixtures import (
     make_single_dof_cfg,
 )
 from isaaclab.test.physics.parameter_validation.oracles import (
+    MJWARP_DRY_FRICTION_SLIDING_SPEED_MIN,
+    MJWARP_DRY_FRICTION_STATIC_SPEED_LIMIT,
     PROFILE_DOF_DT,
     PhysicalCase,
     assert_physical_close,
@@ -77,6 +79,10 @@ _FRICTION_CASES = [
         id="kamino",
         marks=pytest.mark.xfail(strict=True, reason=_KAMINO_FRICTION_REASON),
     ),
+    pytest.param("mjwarp", "revolute", id="mjwarp-revolute"),
+    pytest.param("mjwarp", "prismatic", id="mjwarp-prismatic"),
+]
+_FRICTION_BREAKAWAY_CASES = [
     pytest.param("mjwarp", "revolute", id="mjwarp-revolute"),
     pytest.param("mjwarp", "prismatic", id="mjwarp-prismatic"),
 ]
@@ -412,7 +418,7 @@ def test_joint_09_dry_friction_decelerates_unforced_motion(parameter_adapter, jo
 @pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
 @pytest.mark.parametrize(("parameter_adapter", "joint_type"), _FRICTION_CASES, indirect=["parameter_adapter"])
 def test_joint_09_dry_friction_holds_at_rest_below_breakaway_effort(parameter_adapter, joint_type, authoring):
-    """JOINT-09/FIX-PASSIVE: Newton dry friction cancels a sub-threshold effort at rest."""
+    """JOINT-09/FIX-PASSIVE: Newton dry friction bounds sub-threshold creep at rest."""
     effort = 0.5
     friction = 1.0
     result = parameter_adapter.run_single_dof_step(
@@ -426,16 +432,42 @@ def test_joint_09_dry_friction_holds_at_rest_below_breakaway_effort(parameter_ad
         friction=friction,
         dof_authoring="usd",
     )
-    friction_effort = predict_dry_friction_effort(0.0, effort, friction)
-    velocity, position = parameter_adapter.predict_dof_step(
+    case = _case(parameter_adapter, "JOINT-09", authoring)
+    assert_physical_close(result["position_before"], 0.0, case)
+    assert_physical_close(result["velocity_before"], 0.0, case)
+    static_speed_limit = MJWARP_DRY_FRICTION_STATIC_SPEED_LIMIT[joint_type]
+    assert result["velocity_after"] <= static_speed_limit, case.message(
+        result["velocity_after"], f"sub-threshold speed <= {static_speed_limit}"
+    )
+
+
+@pytest.mark.parametrize("authoring", ["usd", "cfg", "runtime"])
+@pytest.mark.parametrize(("parameter_adapter", "joint_type"), _FRICTION_BREAKAWAY_CASES, indirect=["parameter_adapter"])
+def test_joint_09_dry_friction_breaks_away_above_threshold_effort(parameter_adapter, joint_type, authoring):
+    """JOINT-09/FIX-PASSIVE: Newton dry friction permits motion above its breakaway effort."""
+    effort = 1.5
+    friction = 1.0
+    result = parameter_adapter.run_single_dof_step(
+        joint_type,
+        authoring,
         stiffness=0.0,
-        drive_damping=0.0,
+        damping=0.0,
         armature=0.0,
         position_target=0.0,
-        body_inertia=result["body_inertia"],
-        effort=friction_effort,
+        effort=effort,
+        friction=friction,
+        dof_authoring="usd",
     )
-    _assert_step(parameter_adapter, "JOINT-09", authoring, result, velocity, position)
+    case = _case(parameter_adapter, "JOINT-09", authoring)
+    assert_physical_close(result["position_before"], 0.0, case)
+    assert_physical_close(result["velocity_before"], 0.0, case)
+    sliding_speed_min = MJWARP_DRY_FRICTION_SLIDING_SPEED_MIN[joint_type]
+    assert result["velocity_after"] >= sliding_speed_min, case.message(
+        result["velocity_after"], f"speed after breakaway >= {sliding_speed_min}"
+    )
+    assert result["position_after"] >= sliding_speed_min * PROFILE_DOF_DT, case.message(
+        result["position_after"], f"position after breakaway >= {sliding_speed_min * PROFILE_DOF_DT}"
+    )
 
 
 @pytest.mark.parametrize("joint_type", ["revolute", "prismatic"])

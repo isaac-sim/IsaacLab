@@ -354,7 +354,7 @@ an otherwise identical control case.
 | Velocity limit | Sustained drive beyond the configured maximum velocity |
 | Effort limit | Acceleration under a commanded effort above the configured maximum |
 | Passive joint damping | Deceleration from a known initial velocity with the drive disabled |
-| Joint friction coefficient | Zero-velocity static hold under a sub-threshold applied effort and deceleration from a known initial velocity, with the drive disabled |
+| Joint friction coefficient | Bounded sub-threshold creep, breakaway motion above the dry-friction threshold, and deceleration from a known initial velocity, with the drive disabled |
 | Explicit actuator stiffness integration | Controller effort and single-step position-target response from rest |
 | Explicit actuator damping integration | Controller effort and single-step velocity-target response from rest |
 | Feed-forward joint effort target | Single-step acceleration from rest, with and without implicit drive dynamics |
@@ -423,7 +423,7 @@ contract into multiple pytest cases, but it must preserve the listed controlled 
 | FIX-LIMIT-POS | JOINT-04 | Maximum and settled joint position for active and inactive limits | Same drive and initial state; lower and upper limits tested separately; Kamino runtime requires USD limits present before the write |
 | FIX-LIMIT-VEL | JOINT-05 | Sustained maximum speed and braking response after starting above the limit | Effort high enough that velocity, not effort, is limiting |
 | FIX-LIMIT-EFFORT | JOINT-06 | Initial acceleration under sub-limit and over-limit commands | Known effective inertia; drive terms disabled or included in oracle |
-| FIX-PASSIVE | JOINT-08, JOINT-09 | Velocity decay or zero-velocity static hold under a sub-threshold effort using the backend-specific damping/friction law | Drive disabled; zero-loss paired control |
+| FIX-PASSIVE | JOINT-08, JOINT-09 | Velocity decay, bounded creep below breakaway, or breakaway motion above the dry-friction threshold using the backend-specific damping/friction law | Drive disabled; zero-loss paired control |
 | FIX-ACTUATOR | ACT-01, ACT-02 | Controller effort and resulting trajectory after gain update | Explicit actuator path with implicit solver drive disabled; run against each solver as an end-to-end compatibility check |
 | FIX-FRICTION-STATIC | MAT-01 (PhysX), MAT-03 (Newton) | Rest/sliding classification on both sides of the critical incline angle | Static ground collider; identical material values on both shapes unless combination is under test; Newton uses one `mu` for \(\mu_s\) |
 | FIX-FRICTION-DYNAMIC | MAT-02 (PhysX), MAT-03 (Newton) | Stopping distance and velocity decay under the backend's contact law | Static level-ground collider, zero restitution, known initial speed; Newton uses one `mu` for \(\mu_d\) |

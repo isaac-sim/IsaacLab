@@ -13,6 +13,8 @@ import torch
 PROFILE_DOF_DT = 1.0 / 120.0
 PROFILE_FREE_DT = 1.0 / 120.0
 PROFILE_CONTACT_DT = 1.0 / 120.0
+MJWARP_DRY_FRICTION_STATIC_SPEED_LIMIT = {"revolute": 1.0e-2, "prismatic": 3.0e-4}
+MJWARP_DRY_FRICTION_SLIDING_SPEED_MIN = {"revolute": 2.0e-2, "prismatic": 5.0e-4}
 
 
 @dataclass(frozen=True)
