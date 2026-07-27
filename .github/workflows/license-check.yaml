@@ -410,7 +410,7 @@ jobs:
         set -euo pipefail
 
         image_tag="${{ steps.config.outputs.image_tag }}"
-        docker run --rm "$image_tag" bash -lc '
+        docker run --rm --entrypoint bash "$image_tag" -lc '
           set -euo pipefail
           ffmpeg_exe="$(./isaaclab.sh -p -c \
             "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())" \
