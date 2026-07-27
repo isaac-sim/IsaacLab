@@ -27,11 +27,11 @@ from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: sk
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "0").lower() not in ("0", "false")
+_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "1").lower() not in ("0", "false")
 """When ``True``, a single Kit/SimulationApp instance is started once for the entire pytest session.
 
-Disabled by default.  Set ``ISAACLAB_SESSION_KIT=1`` to enable.  When disabled, the default
-subprocess-per-file mode is used.
+Enabled by default.  Set ``ISAACLAB_SESSION_KIT=0`` to disable and fall back to the
+subprocess-per-file mode.
 
 When the pytest invocation only specifies a directory (e.g. ``pytest tools``), session-kit mode
 runs the same :func:`_collect_test_files` discovery as subprocess mode and injects the discovered
@@ -48,8 +48,11 @@ When explicit test file paths are passed on the command line, those are used as-
 """
 
 _session_kit_launcher = None
-"""The :class:`~isaaclab.app.AppLauncher` instance started by :func:`pytest_configure` in
-session-kit mode.  ``None`` when session-kit is disabled (the default)."""
+"""The :class:`~isaaclab.app.AppLauncher` instance for the shared Kit session.
+
+Set the first time any test module calls :class:`~isaaclab.app.AppLauncher` after
+``pytest_configure`` has monkey-patched it.  ``None`` until then, and ``None`` when
+session-kit mode is disabled."""
 
 _session_kit_test_files: set[str] | None = None
 """Normalised absolute paths of test files discovered for this session-kit run.
@@ -61,23 +64,27 @@ session-kit mode is disabled.  Read by :func:`pytest_ignore_collect` to gate col
 
 
 def pytest_configure(config):
-    """Start a shared Kit instance early when ``ISAACLAB_SESSION_KIT=1`` is set.
+    """Patch :class:`~isaaclab.app.AppLauncher` for session-kit mode.
 
     This hook runs before pytest collects any test modules.  We subclass
-    :class:`~isaaclab.app.AppLauncher` here and monkey-patch it into
-    ``isaaclab.app`` so that subsequent ``from isaaclab.app import AppLauncher``
-    statements (executed at test-file import time during collection) receive
-    the session-aware subclass.  The subclass short-circuits ``__init__`` when
-    a Kit instance is already running, making every subsequent construction an
-    inexpensive alias of the first.
+    :class:`~isaaclab.app.AppLauncher` and monkey-patch it into ``isaaclab.app``
+    so that every ``from isaaclab.app import AppLauncher`` statement executed at
+    test-file import time during collection receives the session-aware subclass.
+
+    Kit is **not** started here.  The first test module that calls
+    ``AppLauncher(...)`` at module level starts Kit with whatever arguments
+    *that file* specifies (e.g. ``enable_cameras=True``).  Every subsequent
+    ``AppLauncher(...)`` call in the same session copies the already-running
+    instance's attributes and returns immediately, reusing the single Kit
+    process.  This preserves each file's intended configuration while
+    eliminating redundant Kit boots.
     """
-    global _session_kit_launcher
     if not _SESSION_KIT:
         return
 
-    # Files that fail to import at collection time (e.g. missing optional deps like
-    # omni.replicator in non-camera images) would abort the entire session by default.
-    # Treat them as skipped rather than fatal so the remaining tests still run.
+    # Files that fail to import at collection time (e.g. missing optional deps)
+    # would abort the entire session by default.  Continue so that the
+    # remaining tests still run.
     config.option.continue_on_collection_errors = True
 
     import isaaclab.app
@@ -87,15 +94,17 @@ def pytest_configure(config):
     class _SessionKitLauncher(_Base):
         """AppLauncher subclass that reuses a single Kit instance for the whole pytest session.
 
-        The first construction behaves identically to :class:`~isaaclab.app.AppLauncher`.
-        Every subsequent construction in the same process copies the running instance's
-        attributes and returns immediately without launching a new SimulationApp.
+        The first construction behaves identically to :class:`~isaaclab.app.AppLauncher`
+        and records itself as the session owner.  Every subsequent construction
+        copies the owner's attributes and returns immediately without launching a
+        new SimulationApp.
         """
 
         # Class-level slot; holds the launcher that owns the running Kit process.
         _session_instance = None
 
         def __init__(self, launcher_args=None, **kwargs):
+            global _session_kit_launcher
             if _SessionKitLauncher._session_instance is not None:
                 # Alias the already-running instance — do not start a second Kit.
                 # Copy whatever instance attributes the owning launcher actually has;
@@ -106,18 +115,15 @@ def pytest_configure(config):
                 return
             super().__init__(launcher_args, **kwargs)
             _SessionKitLauncher._session_instance = self
+            # Record for pytest_sessionfinish cleanup.
+            _session_kit_launcher = self
 
     # Replace AppLauncher in both the package namespace and the module so that
     # `from isaaclab.app import AppLauncher` and
     # `from isaaclab.app.app_launcher import AppLauncher` both resolve to our subclass.
     isaaclab.app.AppLauncher = _SessionKitLauncher
     isaaclab.app.app_launcher.AppLauncher = _SessionKitLauncher
-
-    headless = os.environ.get("ISAACLAB_SESSION_KIT_HEADLESS", "1") != "0"
-    enable_cameras = os.environ.get("ISAACLAB_SESSION_KIT_CAMERAS", "0").lower() in ("1", "true")
-    logger.info("[session-kit] Starting shared Kit instance (headless=%s, cameras=%s)", headless, enable_cameras)
-    _session_kit_launcher = _SessionKitLauncher(headless=headless, enable_cameras=enable_cameras)
-    logger.info("[session-kit] Kit ready — all test files in this session will share this instance")
+    logger.info("[session-kit] AppLauncher patched — Kit starts on the first AppLauncher() call")
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -125,6 +131,7 @@ def pytest_sessionfinish(session, exitstatus):
     global _session_kit_launcher
     if not _SESSION_KIT or _session_kit_launcher is None:
         return
+    logger.info("[session-kit] Closing shared Kit instance")
     with contextlib.suppress(Exception):
         _session_kit_launcher._app.close()
     _session_kit_launcher = None

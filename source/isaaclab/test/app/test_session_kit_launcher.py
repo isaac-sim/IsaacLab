@@ -47,8 +47,10 @@ class _MockAppLauncher:
 def _make_session_kit_launcher_cls(base_cls):
     """Return a fresh _SessionKitLauncher subclass of *base_cls*.
 
-    This mirrors the class definition inside ``tools/conftest.py::pytest_configure``
-    exactly, allowing the logic to be tested with a mock base.
+    This mirrors the singleton logic inside ``tools/conftest.py::pytest_configure``,
+    allowing the logic to be tested with a mock base.  The conftest version also
+    sets a module-level ``_session_kit_launcher`` global on first construction;
+    that side-effect is omitted here because it requires conftest-level state.
     """
 
     class _SessionKitLauncher(base_cls):
