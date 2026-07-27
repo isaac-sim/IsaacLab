@@ -59,7 +59,7 @@ source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-muel
 
 # Standalone scripts
 /scripts/ @StafaH @kellyguo11 @ooctipus
-/scripts/benchmarks/ @AntoineRichard @StafaH @kellyguo11 @r-schmitt
+/scripts/benchmarks/ @AntoineRichard @StafaH @kellyguo11 @r-schmitt @fanes
 /scripts/imitation_learning/ @peterd-NV @rwiltz @kellyguo11
 /scripts/imitation_learning/locomanipulation_sdg/ @jaybdub @peterd-NV @kellyguo11
 /scripts/reinforcement_learning/leapp/ @frlai @StafaH @kellyguo11
