@@ -61,6 +61,30 @@ class ClonePlan:
     cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """``id(cfg)`` to the row indices the cfg owns."""
 
+    def env_root_transforms(self) -> torch.Tensor:
+        """Per-env root poses as homogeneous transforms.
+
+        Rotations are identity: the plan carries env-root translations only, matching the
+        ``xformOp:translate`` the cloner authors on each env root. When :attr:`positions` is unset,
+        every env root is the identity transform, i.e. all envs sit at the world origin.
+
+        Returns:
+            Float tensor ``[num_clones, 4, 4]`` in column-vector convention (translation in the last
+            column), on the same device as :attr:`positions` (or :attr:`clone_mask` without them).
+
+        Raises:
+            ValueError: If :attr:`positions` does not hold one entry per clone.
+        """
+        from isaaclab.utils.math import make_pose  # noqa: PLC0415
+
+        num_clones = self.clone_mask.shape[1]
+        if self.positions is None:
+            return torch.eye(4, device=self.clone_mask.device).expand(num_clones, 4, 4)
+        if self.positions.shape[0] != num_clones:
+            raise ValueError(f"Expected {num_clones} env positions, got {self.positions.shape[0]}.")
+        rotations = torch.eye(3, dtype=self.positions.dtype, device=self.positions.device).expand(num_clones, 3, 3)
+        return make_pose(self.positions, rotations)
+
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cpu"):
     """Create a centered grid of transforms for ``N`` instances.

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib.util
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -190,6 +191,8 @@ def test_resolve_clone_plan_filters_inactive_rows(monkeypatch: pytest.MonkeyPatc
             ],
             dtype=torch.bool,
         ),
+        env_ids=torch.arange(4),
+        positions=torch.arange(12, dtype=torch.float32).reshape(4, 3),
     )
     _patch_simulation_context(monkeypatch, published)
 
@@ -198,6 +201,9 @@ def test_resolve_clone_plan_filters_inactive_rows(monkeypatch: pytest.MonkeyPatc
     assert resolved.sources == (published.sources[0], published.sources[2])
     assert resolved.destinations == (published.destinations[0], published.destinations[2])
     assert torch.equal(resolved.clone_mask, published.clone_mask[[0, 2]])
+    # Row filtering must not drop the env-level fields; OVRTX authors env-root xforms from positions.
+    assert torch.equal(resolved.env_ids, published.env_ids)
+    assert torch.equal(resolved.positions, published.positions)
 
 
 def test_resolve_clone_plan_returns_published_plan_when_all_active(monkeypatch: pytest.MonkeyPatch):
@@ -317,22 +323,19 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
         renderer._clone_sources_in_ovrtx()
 
 
-def test_clone_sources_in_ovrtx_restores_env_root_transforms():
-    """Pre-clone omni:xform snapshots are written back after cloning."""
+def test_clone_sources_in_ovrtx_authors_env_root_transforms_from_positions():
+    """Env-root omni:xform is authored after cloning from the clone plan's env positions."""
     import numpy as np
 
     renderer = _make_ovrtx_renderer_without_backend()
     num_envs = 4
-    renderer._clone_plan = _create_homogeneous_clone_plan(num_envs)
-    captured_transforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-    captured_transforms[:, 3, :3] = np.array([[i * 2.0, 0.0, 0.0] for i in range(num_envs)])
+    positions = torch.tensor([[i * 2.0, i * 3.0, 0.0] for i in range(num_envs)])
+    renderer._clone_plan = replace(_create_homogeneous_clone_plan(num_envs), positions=positions)
+
+    expected_transforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
+    expected_transforms[:, 3, :3] = positions.numpy()
 
     call_order: list[str] = []
-
-    def _read_attribute(attribute_name: str, prim_paths: list[str], **kwargs):
-        call_order.append("read")
-        assert attribute_name == "omni:xform"
-        kwargs["dest"][:] = captured_transforms[: len(prim_paths)]
 
     def _clone_usd(source: str, target_paths: list[str]) -> None:
         call_order.append("clone")
@@ -343,16 +346,23 @@ def test_clone_sources_in_ovrtx_restores_env_root_transforms():
         call_order.append("write")
         write_calls.append(kwargs)
 
-    renderer._renderer.read_attribute = _read_attribute
     renderer._renderer.clone_usd = _clone_usd
     renderer._renderer.write_attribute = _write_attribute
 
     renderer._clone_sources_in_ovrtx()
 
-    assert call_order == ["read", "clone", "write"]
+    assert call_order == ["clone", "write"]
     assert len(write_calls) == 1
     assert write_calls[0]["attribute_name"] == "omni:xform"
-    np.testing.assert_array_equal(write_calls[0]["tensor"], captured_transforms)
+    assert write_calls[0]["prim_paths"] == [f"/World/envs/env_{i}" for i in range(num_envs)]
+    np.testing.assert_array_equal(write_calls[0]["tensor"], expected_transforms)
+
+    # OVRTX only supports OVRTX_DATA_ACCESS_SYNC for host buffers, so the transforms must be staged
+    # as a contiguous float64 numpy array rather than a device tensor.
+    written = write_calls[0]["tensor"]
+    assert isinstance(written, np.ndarray)
+    assert written.dtype == np.float64
+    assert written.flags["C_CONTIGUOUS"]
 
 
 def test_write_file_creates_parent_directory_and_writes_utf8(tmp_path: Path):

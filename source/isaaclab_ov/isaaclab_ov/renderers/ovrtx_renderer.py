@@ -257,6 +257,20 @@ def _create_homogeneous_clone_plan(num_envs: int) -> ClonePlan:
     )
 
 
+def _usd_xform_tensor(transforms: torch.Tensor) -> torch.Tensor:
+    """Convert homogeneous transforms to the layout and dtype ``omni:xform`` expects.
+
+    Args:
+        transforms: Transforms ``[N, 4, 4]`` in column-vector convention (translation in the last
+            column), as returned by :meth:`~isaaclab.cloner.ClonePlan.env_root_transforms`.
+
+    Returns:
+        Contiguous ``[N, 4, 4]`` float64 tensor on the input's device, transposed to the row-vector
+        convention of USD's ``GfMatrix4d`` (translation in the last row).
+    """
+    return transforms.detach().to(dtype=torch.float64).mT.contiguous()
+
+
 def _resolve_clone_plan(num_envs: int) -> ClonePlan:
     """Resolve clone plan for local use.
 
@@ -285,6 +299,8 @@ def _resolve_clone_plan(num_envs: int) -> ClonePlan:
             sources=tuple(compress(published_clone_plan.sources, active)),
             destinations=tuple(compress(published_clone_plan.destinations, active)),
             clone_mask=published_clone_plan.clone_mask[active_rows],
+            env_ids=published_clone_plan.env_ids,
+            positions=published_clone_plan.positions,
         )
 
     # If all rows are active, return the published clone plan (shallow copy).
@@ -449,15 +465,10 @@ class OVRTXRenderer(BaseRenderer):
         if self._clone_plan is None:
             raise RuntimeError("Clone plan is required when preparing OVRTX stage")
 
-        # The ovstage path cannot read env-root transforms back after load (see
-        # _clone_sources_ovstage), so snapshot them here while the full USD stage is still live.
-        if self._use_ovstage:
-            self._capture_env_root_xforms_ovstage(stage, num_envs)
-
         # keep_env_roots is False on the ovstage path: ovstage's ``Stage.clone`` requires each target
         # path to not already exist, so the non-source env roots must be trimmed from the exported
-        # stage for it to recreate them. Their xforms were captured just above, since trimming them
-        # is what makes them unreadable afterwards.
+        # stage for it to recreate them. Both paths re-author the env-root xforms after cloning from
+        # the clone plan's env origins (see _clone_sources_in_ovrtx).
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
@@ -570,29 +581,6 @@ class OVRTXRenderer(BaseRenderer):
 
         num_envs = clone_plan.clone_mask.shape[1]
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        xform_attr_name = "omni:xform"
-
-        # Snapshot per-env root transforms before clone_usd overwrites them with the source env root.
-        #
-        # We only create xform bindings for prims in the body_label list, so their transforms are
-        # driven each frame from simulation data. Prims not in that list (e.g. static rigid objects
-        # such as tables) get no binding, and we never reset their xform stack. Their world placement
-        # therefore relies on every ancestor holding a correct xform in the ovrtx data. In
-        # particular, if an env root has no valid xform, these prims collapse toward env_0 frame
-        # (e.g. tables ending up at env_0 and missing from the other tiles).
-        #
-        # Snapshotting the env-root xforms here and restoring them after clone (see below) keeps those
-        # hierarchy-positioned prims correctly placed per env. This is a cheap one-off operation,
-        # preferable to forcing every static object into the body_label list just to bind its xform.
-        #
-        env_root_xforms = np.empty((num_envs, 4, 4), dtype=np.float64)
-        self._renderer.read_attribute(
-            xform_attr_name,
-            env_prim_paths,
-            prim_mode=PrimMode.MUST_EXIST,
-            dest=env_root_xforms,
-        )
-        logger.info("Captured per-env root transforms before cloning")
 
         logger.info("Cloning sources in OVRTX...")
         env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
@@ -620,15 +608,29 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
-        # Restore the pre-clone xforms.
+        # Cloning copies the source env root — including its transform — onto every target env, so
+        # the env roots are re-authored here from the clone plan's env origins.
+        #
+        # This matters because we only create xform bindings for prims in the body_label list, whose
+        # transforms are driven each frame from simulation data. Prims not in that list (e.g. static
+        # rigid objects such as tables) get no binding, and we never reset their xform stack. Their
+        # world placement therefore relies on every ancestor holding a correct xform in the renderer
+        # data. In particular, if an env root has no valid xform, these prims collapse toward the
+        # env_0 frame (e.g. tables ending up at env_0 and missing from the other tiles). Authoring
+        # the env-root xforms is a cheap one-off operation, preferable to forcing every static
+        # object into the body_label list just to bind its xform.
+        #
+        # The transforms are staged on the host: OVRTX's attribute writer only supports
+        # OVRTX_DATA_ACCESS_SYNC for host buffers, so passing a device tensor here fails to enqueue.
+        env_root_xforms = _usd_xform_tensor(clone_plan.env_root_transforms()).cpu().numpy()
         self._renderer.write_attribute(
             prim_paths=env_prim_paths,
-            attribute_name=xform_attr_name,
+            attribute_name="omni:xform",
             tensor=env_root_xforms,
             semantic=Semantic.XFORM_MAT4x4,
             prim_mode=PrimMode.MUST_EXIST,
         )
-        logger.info("Restored per-env root transforms after cloning")
+        logger.info("Authored per-env root transforms after cloning")
 
     def _update_scene_partitions_after_clone(self, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
@@ -1554,7 +1556,6 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_paths_list = None
         self._particle_points_query = None
         self._particle_paths_list = None
-        self._env_root_xforms: np.ndarray | None = None
 
     def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec) -> None:
         """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
@@ -1665,23 +1666,6 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("OVRTX loaded USD from string successfully via ovstage")
         self._current_ordinal += 1
 
-    def _capture_env_root_xforms_ovstage(self, stage: Any, num_envs: int) -> None:
-        """Capture per-env root transforms from the live USD stage before export.
-
-        Must be called before :func:`export_stage_to_string`, which trims non-source
-        env geometry so those transforms cannot be read back reliably from ovstage after load.
-        The captured array is consumed by :meth:`_clone_sources_ovstage` and cleared after use.
-        """
-        from pxr import UsdGeom
-
-        xform_cache = UsdGeom.XformCache()
-        self._env_root_xforms = np.empty((num_envs, 4, 4), dtype=np.float64)
-        for i in range(num_envs):
-            prim = stage.GetPrimAtPath(f"/World/envs/env_{i}")
-            self._env_root_xforms[i] = np.array(xform_cache.GetLocalToWorldTransform(prim), dtype=np.float64).reshape(
-                4, 4
-            )
-
     def _clone_sources_ovstage(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan` (ovstage path)."""
         clone_plan = self._clone_plan
@@ -1690,29 +1674,6 @@ class OVRTXRenderer(BaseRenderer):
 
         num_envs = clone_plan.clone_mask.shape[1]
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-
-        env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
-        env_query = self._stage.query_from_path_list(env_paths_list)
-
-        # Snapshot per-env root transforms before clone overwrites them with the source env root.
-        #
-        # We only create xform queries for prims in the body_label list, so their transforms are
-        # driven each frame from simulation data. Prims not in that list (e.g. static rigid objects
-        # such as tables) get no query, and we never reset their xform stack. Their world placement
-        # therefore relies on every ancestor holding a correct xform in the ovstage data. In
-        # particular, if an env root has no valid xform, these prims collapse toward env_0 frame
-        # (e.g. tables ending up at env_0 and missing from the other tiles).
-        #
-        # Snapshotting the env-root xforms here and restoring them after clone (see below) keeps those
-        # hierarchy-positioned prims correctly placed per env. This is a cheap one-off operation,
-        # preferable to forcing every static object into the body_label list just to bind its xform.
-        #
-        # Transforms were captured from the live USD stage in prepare_stage before export
-        # stripped non-source envs — they are not readable from ovstage at this point.
-        env_root_xforms = self._env_root_xforms
-        if env_root_xforms is None:
-            raise RuntimeError("env_root_xforms not captured; ensure prepare_stage was called first")
-        logger.info("Using pre-captured per-env root transforms for post-clone restore")
 
         logger.info("Cloning sources in OVRTX...")
         env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
@@ -1739,7 +1700,13 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
-        # Restore the pre-clone xforms.
+        # Re-author the env roots from the clone plan's env origins; see _clone_sources_in_ovrtx for
+        # why prims placed purely by hierarchy depend on this. Unlike that path, the transforms are
+        # staged on the host: ovstage 0.1.0 rejects device DLPack for the lanes=16 ``omni:xform``
+        # column (see the section header above), so make_dltensor needs a host buffer.
+        env_root_xforms = _usd_xform_tensor(clone_plan.env_root_transforms()).cpu().numpy()
+        env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
+        env_query = self._stage.query_from_path_list(env_paths_list)
         self._stage.write_attribute(
             env_query,
             "omni:xform",
@@ -1748,8 +1715,7 @@ class OVRTXRenderer(BaseRenderer):
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
-        self._env_root_xforms = None
-        logger.info("Restored per-env root transforms after cloning")
+        logger.info("Authored per-env root transforms after cloning")
 
         self._stage.release_query(env_query).wait()
         self._stage_paths.destroy_path_list(env_paths_list)
@@ -2203,7 +2169,6 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []
         self._particle_visual_counts = []
-        self._env_root_xforms = None
 
         # Detach before closing ExitStack: the renderer holds a live reference into the stage,
         # so detaching first avoids a use-after-free when ExitStack destroys Stage and PathDictionary.

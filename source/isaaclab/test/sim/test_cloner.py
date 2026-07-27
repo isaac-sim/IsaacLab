@@ -426,6 +426,50 @@ def test_clone_plan_from_env_0_populates_cfg_rows(sim):
     assert torch.equal(plan.env_ids, torch.arange(4, dtype=torch.long, device=sim.cfg.device))
 
 
+def test_clone_plan_env_root_transforms_from_positions(sim):
+    """env_root_transforms builds identity-rotation poses from the plan's env positions."""
+    positions = grid_transforms(4, 2.0, device=sim.cfg.device)[0]
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, 4), dtype=torch.bool, device=sim.cfg.device),
+        positions=positions,
+    )
+
+    transforms = plan.env_root_transforms()
+
+    assert transforms.shape == (4, 4, 4)
+    assert torch.equal(transforms[:, :3, 3], positions)
+    assert torch.equal(transforms[:, :3, :3], torch.eye(3, device=positions.device).expand(4, 3, 3))
+    assert torch.equal(transforms[:, 3, :], torch.tensor([0.0, 0.0, 0.0, 1.0], device=positions.device).expand(4, 4))
+
+
+def test_clone_plan_env_root_transforms_without_positions(sim):
+    """env_root_transforms falls back to identity when the plan carries no env positions."""
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, 4), dtype=torch.bool, device=sim.cfg.device),
+    )
+
+    transforms = plan.env_root_transforms()
+
+    assert torch.equal(transforms, torch.eye(4, device=plan.clone_mask.device).expand(4, 4, 4))
+
+
+def test_clone_plan_env_root_transforms_rejects_length_mismatch(sim):
+    """env_root_transforms rejects a positions tensor that does not cover every clone."""
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, 4), dtype=torch.bool, device=sim.cfg.device),
+        positions=torch.zeros((3, 3), device=sim.cfg.device),
+    )
+
+    with pytest.raises(ValueError, match="Expected 4 env positions, got 3"):
+        plan.env_root_transforms()
+
+
 def test_replicate_physics_false_keeps_usd_only(sim):
     """replicate(replicate_physics=False) drops every context except UsdReplicateContext."""
 
