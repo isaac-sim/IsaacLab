@@ -200,7 +200,7 @@ backend produces every annotator — see the support matrix below.
 * ``"normals"``: Local surface normal vectors at each pixel.
 * ``"motion_vectors"``: Per-pixel motion vectors in image space.
 * ``"semantic_segmentation"``: Semantic segmentation labels.
-* ``"instance_segmentation_fast"``: Instance segmentation data.
+* ``"instance_segmentation"``: Per-instance segmentation labels for semantically-tagged prims.
 * ``"instance_id_segmentation_fast"``: Instance ID segmentation data.
 
 .. _camera-supported-annotators:
@@ -257,7 +257,7 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ✅
      - ✅
      - ✅
-   * - ``instance_segmentation_fast``
+   * - ``instance_segmentation``
      - ✅
      - ✅
      - ✅
@@ -517,10 +517,10 @@ Instance Segmentation
     :figwidth: 100%
     :alt: A scene with instance segmentation
 
-``instance_segmentation_fast`` outputs instance segmentation, traversing down the prim hierarchy
+``instance_segmentation`` outputs instance segmentation, traversing down the prim hierarchy
 to the lowest level with semantic labels (unlike ``instance_id_segmentation_fast``, which always
 goes to the leaf prim).
-An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segmentation_fast']``.
+An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segmentation']``.
 
 - If ``colorize_instance_segmentation=True``: shape ``(B, H, W, 4)``, type ``torch.uint8``.
 - If ``colorize_instance_segmentation=False``: shape ``(B, H, W, 1)``, type ``torch.int32``.

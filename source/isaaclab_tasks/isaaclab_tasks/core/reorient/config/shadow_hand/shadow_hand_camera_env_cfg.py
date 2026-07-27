@@ -143,7 +143,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
             "distance_to_image_plane",
             "normals",
             "semantic_segmentation",
-            "instance_segmentation_fast",
+            "instance_segmentation",
         }
         if renderer_type == "newton_warp":
             unsupported = set(self.tiled_camera.data_types) - warp_supported
