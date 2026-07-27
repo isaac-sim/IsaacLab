@@ -273,6 +273,72 @@ Uses Divyansh's transformed H1 asset which exposes a ``CollisionModel`` variant 
 by ~9% and improving step throughput by ~5% vs the ``full`` variant (Divyansh, 2026-07-22).
 """
 
+# Effort limits from the Menagerie MJCF motor ctrlrange (Divyansh Mishra, 2026-07-22).
+# Used with IdealPDActuatorCfg for Newton, which applies explicit PD torques and bypasses
+# the conflicting MjcActuator direct-torque semantics in the Menagerie USD.
+_H1_MENAGERIE_EFFORT_LIMITS = {
+    "legs": {
+        ".*_hip_yaw": 200.0,
+        ".*_hip_roll": 200.0,
+        ".*_hip_pitch": 200.0,
+        ".*_knee": 300.0,
+        "torso_1": 200.0,
+    },
+    "feet": {".*_ankle": 40.0},
+    "arms": {
+        ".*_shoulder_pitch": 40.0,
+        ".*_shoulder_roll": 40.0,
+        ".*_shoulder_yaw": 18.0,
+        ".*_elbow": 18.0,
+    },
+}
+
+H1_NEWTON_MINIMAL_CFG = H1_MINIMAL_CFG.copy()
+H1_NEWTON_MINIMAL_CFG.actuators = {
+    "legs": IdealPDActuatorCfg(
+        joint_names_expr=[".*_hip_yaw", ".*_hip_roll", ".*_hip_pitch", ".*_knee", "torso_1"],
+        effort_limit=_H1_MENAGERIE_EFFORT_LIMITS["legs"],
+        stiffness={
+            ".*_hip_yaw": 150.0,
+            ".*_hip_roll": 150.0,
+            ".*_hip_pitch": 200.0,
+            ".*_knee": 200.0,
+            "torso_1": 200.0,
+        },
+        damping={
+            ".*_hip_yaw": 5.0,
+            ".*_hip_roll": 5.0,
+            ".*_hip_pitch": 5.0,
+            ".*_knee": 5.0,
+            "torso_1": 5.0,
+        },
+    ),
+    "feet": IdealPDActuatorCfg(
+        joint_names_expr=[".*_ankle"],
+        effort_limit=_H1_MENAGERIE_EFFORT_LIMITS["feet"],
+        stiffness={".*_ankle": 20.0},
+        damping={".*_ankle": 4.0},
+    ),
+    "arms": IdealPDActuatorCfg(
+        joint_names_expr=[".*_shoulder_pitch", ".*_shoulder_roll", ".*_shoulder_yaw", ".*_elbow"],
+        effort_limit=_H1_MENAGERIE_EFFORT_LIMITS["arms"],
+        stiffness={
+            ".*_shoulder_pitch": 40.0,
+            ".*_shoulder_roll": 40.0,
+            ".*_shoulder_yaw": 40.0,
+            ".*_elbow": 40.0,
+        },
+        damping={
+            ".*_shoulder_pitch": 10.0,
+            ".*_shoulder_roll": 10.0,
+            ".*_shoulder_yaw": 10.0,
+            ".*_elbow": 10.0,
+        },
+    ),
+}
+"""H1 config for Newton: IdealPDActuatorCfg bypasses Menagerie's MjcActuator direct-torque
+semantics so the PD controller drives joints correctly via explicit torque application."""
+
 
 G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(

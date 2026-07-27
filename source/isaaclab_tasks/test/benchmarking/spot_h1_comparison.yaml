@@ -1,0 +1,15 @@
+benchmark_local:
+  rsl_rl:Isaac-Velocity-Flat-Spot:
+    max_iterations: 500
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-H1:
+    max_iterations: 500
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999

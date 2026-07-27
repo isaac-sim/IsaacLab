@@ -17,7 +17,7 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import H1_MINIMAL_CFG  # isort: skip
+from isaaclab_assets import H1_MINIMAL_CFG, H1_NEWTON_MINIMAL_CFG  # isort: skip
 
 
 @configclass
@@ -86,7 +86,13 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # threshold to 0.8 rad/s (defaults work for quadrupeds).
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # Scene
-        self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # Newton needs IdealPDActuator to bypass Menagerie's direct-torque MjcActuator semantics.
+        # Detect active backend from argv since preset() returns an unresolved PresetCfg at this point.
+        import sys
+
+        _is_newton = any("newton" in a.lower() for a in sys.argv if a.startswith("presets="))
+        robot_cfg = H1_NEWTON_MINIMAL_CFG if _is_newton else H1_MINIMAL_CFG
+        self.scene.robot = robot_cfg.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if self.scene.height_scanner:
             self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
 

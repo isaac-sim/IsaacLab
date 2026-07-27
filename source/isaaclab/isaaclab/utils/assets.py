@@ -313,7 +313,7 @@ def infer_menagerie_physics_variant_from_argv(argv: list[str] | None = None) -> 
         if arg.startswith("presets="):
             _, val = arg.split("=", 1)
             global_presets.extend(p.strip() for p in val.split(",") if p.strip())
-    if "newton" in global_presets:
+    if any("newton" in p for p in global_presets):
         return MUJOCO_MENAGERIE_PHYSICS_VARIANT_MUJOCO
     return MUJOCO_MENAGERIE_PHYSICS_VARIANT_PHYSX
 

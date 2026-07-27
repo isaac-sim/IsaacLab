@@ -6,7 +6,6 @@
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
@@ -19,7 +18,6 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import
     ObjectCfg,
     PhysicsCfg,
 )
-
 
 
 @configclass
