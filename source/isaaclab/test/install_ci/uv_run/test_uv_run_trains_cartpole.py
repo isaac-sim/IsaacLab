@@ -26,10 +26,9 @@ class Test_Uv_Run_Trains_Cartpole:
     """``uv run`` from the committed lockfile trains Cartpole on Newton MJWarp.
 
     ``--frozen`` uses the committed ``uv.lock`` exactly as-is (no re-resolution), so
-    this validates the lockfile users actually get. Lockfile freshness itself is
-    checked separately and cheaply by ``misc/test_uv_lock_check_smoke.py``. The
-    environment is created in a temporary directory via ``UV_PROJECT_ENVIRONMENT``
-    so the repository checkout stays clean.
+    this validates the lockfile users actually get. The environment is created in a
+    temporary directory via ``UV_PROJECT_ENVIRONMENT`` so the repository checkout
+    stays clean.
     """
 
     @classmethod
