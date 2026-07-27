@@ -54,8 +54,8 @@ def test_uv_run_exposes_centralized_feature_extras():
         "rsl-rl",
         "viser",
         "rerun",
-        "ov",
-        "rtx",
+        "ovphysx",
+        "ovrtx",
         "mimic",
         "teleop",
         "rlinf",
@@ -65,12 +65,14 @@ def test_uv_run_exposes_centralized_feature_extras():
 
     # The Newton viewer GUI is part of the base install, so there is no ``newton`` extra.
     assert "newton" not in optional_dependencies
+    assert "ov" not in optional_dependencies
+    assert "rtx" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
     # OVPhysX and OVRTX are separate extras, selectable via ``ov[ovphysx]`` / ``ov[ovrtx]``.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
-    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
-    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["rtx"])
+    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ovphysx"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ovrtx"])
 
 
 def test_version_single_source_matches_literal_pins():
@@ -98,10 +100,10 @@ def test_version_single_source_matches_literal_pins():
         value = versions[package]
         return f"{package}=={value}" if value[0].isdigit() else f"{package}{value}"
 
-    assert spec("ovphysx") in optional["ov"]
-    assert spec("ovrtx") in optional["rtx"]
-    assert spec("ovstage") in optional["ov"]
-    assert spec("ovstage") in optional["rtx"]
+    assert spec("ovphysx") in optional["ovphysx"]
+    assert spec("ovrtx") in optional["ovrtx"]
+    assert spec("ovstage") in optional["ovphysx"]
+    assert spec("ovstage") in optional["ovrtx"]
 
     # CI installs OVRTX through a generic pip-package input (a bare ``pip install
     # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:
@@ -167,7 +169,7 @@ def test_uv_run_isaacsim_extra_is_conflict_forked():
 
     # isaacsim is forked away from every extra whose pins clash with it.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("teleop", "ov", "viser", "mimic", "all", "test"):
+    for extra in ("teleop", "ovphysx", "viser", "mimic", "all", "test"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
 
 
