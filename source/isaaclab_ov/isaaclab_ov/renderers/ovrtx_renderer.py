@@ -42,14 +42,6 @@ import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 _OVSTAGE_AVAILABLE = False
 try:
     import ovstage
-    from ovstage import (
-        AttributeSemantic,
-        DLDataType,
-        DLDataTypeCode,
-        PopulationDomain,
-        make_dltensor,
-        population,
-    )
 
     _OVSTAGE_AVAILABLE = True
 except ModuleNotFoundError:
@@ -136,7 +128,7 @@ _USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
 if _OVSTAGE_AVAILABLE:
     # DLDataType for a 4×4 double matrix (omni:xform column). ovstage stores omni:xform
     # as one 16-lane float64 element per prim; wp.mat44d maps to the same layout via __dlpack__.
-    _OVSTAGE_XFORM_DTYPE = DLDataType(code=DLDataTypeCode.kDLFloat, bits=64, lanes=16)
+    _OVSTAGE_XFORM_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=64, lanes=16)
 
     def _xform_tensor_from_numpy(xforms: np.ndarray) -> Any:
         """Wrap a ``(N, 4, 4)`` float64 array as a 16-lane DLTensor for ``omni:xform`` writes.
@@ -148,12 +140,12 @@ if _OVSTAGE_AVAILABLE:
             A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=16``.
         """
         flat = np.ascontiguousarray(xforms, dtype=np.float64).reshape(-1)
-        return make_dltensor(flat, dtype=_OVSTAGE_XFORM_DTYPE, shape=[xforms.shape[0]])
+        return ovstage.make_dltensor(flat, dtype=_OVSTAGE_XFORM_DTYPE, shape=[xforms.shape[0]])
 
     # DLDataType for a float32 3-vector (``points`` column). ovstage stores ``point3f[] points``
     # as one 3-lane float32 element per vertex; a warp ``vec3f`` array exports as ``(N, 3)`` lanes=1
     # via DLPack, so a lanes=3 override on a host numpy array is required to match the column.
-    _OVSTAGE_POINT_DTYPE = DLDataType(code=DLDataTypeCode.kDLFloat, bits=32, lanes=3)
+    _OVSTAGE_POINT_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=3)
 
     def _points_tensor_from_numpy(points: np.ndarray) -> Any:
         """Wrap an ``(N, 3)`` float32 array as a 3-lane DLTensor for ``points`` writes.
@@ -165,7 +157,7 @@ if _OVSTAGE_AVAILABLE:
             A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=3``.
         """
         flat = np.ascontiguousarray(points, dtype=np.float32).reshape(-1)
-        return make_dltensor(flat, dtype=_OVSTAGE_POINT_DTYPE, shape=[points.shape[0]])
+        return ovstage.make_dltensor(flat, dtype=_OVSTAGE_POINT_DTYPE, shape=[points.shape[0]])
 
 
 def ovrtx_use_ovstage_enabled() -> bool:
@@ -1610,11 +1602,11 @@ class OVRTXRenderer(BaseRenderer):
         self._stage_paths = self._ovstage_exit_stack.enter_context(ovstage.PathDictionary(self._stage))
         # Ordinal 0 is the empty/unwritten state in ovstage; the first write must use >= 1.
         self._current_ordinal += 1
-        population.open_usd_from_string(
+        ovstage.population.open_usd_from_string(
             self._stage,
             combined_usd_string,
             ordinal=self._current_ordinal,
-            domains=PopulationDomain.RENDERING,
+            domains=ovstage.PopulationDomain.RENDERING,
         )
 
         if num_envs > 1:
@@ -1640,7 +1632,7 @@ class OVRTXRenderer(BaseRenderer):
                 ordinal=self._current_ordinal,
                 tensors=camera_target_ids,
                 is_array=True,
-                semantic=AttributeSemantic.RELATIONSHIP_PATH_ID,
+                semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
             ).wait()
         self._stage_paths.destroy_path_list(render_product_paths)
 
@@ -1753,7 +1745,7 @@ class OVRTXRenderer(BaseRenderer):
             ordinal=self._current_ordinal,
             tensors=_xform_tensor_from_numpy(env_root_xforms),
             is_array=False,
-            semantic=AttributeSemantic.MATRIX,
+            semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
         self._env_root_xforms = None
         logger.info("Restored per-env root transforms after cloning")
@@ -1778,7 +1770,7 @@ class OVRTXRenderer(BaseRenderer):
             ordinal=self._current_ordinal,
             tensors=token_ids,
             is_array=False,
-            semantic=AttributeSemantic.TOKEN_ID,
+            semantic=ovstage.AttributeSemantic.TOKEN_ID,
         ).wait()
         self._stage.release_query(env_query).wait()
         self._stage_paths.destroy_path_list(env_paths_list)
@@ -1792,7 +1784,7 @@ class OVRTXRenderer(BaseRenderer):
             ordinal=self._current_ordinal,
             tensors=token_ids,
             is_array=False,
-            semantic=AttributeSemantic.TOKEN_ID,
+            semantic=ovstage.AttributeSemantic.TOKEN_ID,
         ).wait()
         self._stage.release_query(cam_query).wait()
         self._stage_paths.destroy_path_list(cam_paths_list)
@@ -1926,7 +1918,7 @@ class OVRTXRenderer(BaseRenderer):
             ordinal=self._current_ordinal,
             tensors=_xform_tensor_from_numpy(identity_xforms),
             is_array=False,
-            semantic=AttributeSemantic.MATRIX,
+            semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
 
         if self._deformable_points_query is None:
@@ -1982,7 +1974,7 @@ class OVRTXRenderer(BaseRenderer):
             ordinal=self._current_ordinal,
             tensors=_xform_tensor_from_numpy(identity_xforms),
             is_array=False,
-            semantic=AttributeSemantic.MATRIX,
+            semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
 
         if self._particle_points_query is None:
@@ -2028,7 +2020,7 @@ class OVRTXRenderer(BaseRenderer):
             ordinal=self._current_ordinal,
             tensors=_xform_tensor_from_numpy(object_transforms.numpy().reshape(-1, 4, 4)),
             is_array=False,
-            semantic=AttributeSemantic.MATRIX,
+            semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
 
     def _update_geometries_ovstage(self) -> None:
@@ -2101,7 +2093,7 @@ class OVRTXRenderer(BaseRenderer):
             ordinal=self._current_ordinal,
             tensors=particle_slices,
             is_array=True,
-            semantic=AttributeSemantic.POINT,
+            semantic=ovstage.AttributeSemantic.POINT,
         ).wait()
 
     def _update_camera_ovstage(
@@ -2136,7 +2128,7 @@ class OVRTXRenderer(BaseRenderer):
                 ordinal=self._current_ordinal,
                 tensors=_xform_tensor_from_numpy(camera_transforms.numpy().reshape(-1, 4, 4)),
                 is_array=False,
-                semantic=AttributeSemantic.MATRIX,
+                semantic=ovstage.AttributeSemantic.MATRIX,
             ).wait()
 
     def _render_ovstage(self, render_data: OVRTXRenderData) -> None:
