@@ -1,6 +1,6 @@
-Added
-^^^^^
+Changed
+^^^^^^^
 
-* Added an ``ovstage`` selector to the ``ov`` install extra, so ``./isaaclab.sh -i 'ov[ovstage]'``
-  installs the ovstage runtime wheel. The ``ov[all]`` selector now installs it alongside ``ovrtx``
-  and ``ovphysx``.
+* Bundled ``ovstage`` into the ``ovrtx`` and ``ovphysx`` install extras so it is installed
+  automatically alongside either OV runtime. The standalone ``ov[ovstage]`` selector has been
+  removed; use ``ov[ovrtx]`` or ``ov[ovphysx]`` (or ``ov[all]``) instead.
