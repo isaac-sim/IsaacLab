@@ -316,3 +316,20 @@ def test_sync_lock_reports_clean_and_exits_zero(tmp_path, monkeypatch, capsys):
 
     assert rc == 0
     assert "is in sync" in capsys.readouterr().out
+
+
+def test_sync_lock_writes_the_lock_and_exits_zero(tmp_path, monkeypatch):
+    """The default (no ``--check``) invocation must reach the write.
+
+    This is the command AGENTS.md tells contributors to run after setting a
+    version by hand, and only ``--check`` was covered at the CLI level — a
+    handler or parser regression turning the write into a no-op would have
+    gone unnoticed.
+    """
+    _write_workspace(tmp_path, versions={"isaaclab": "13.1.0", "isaaclab_tasks": "9.1.0"})
+    monkeypatch.setattr(cli, "REPO_ROOT", tmp_path)
+
+    rc = cli.cmd_sync_lock(argparse.Namespace(check=False), argparse.ArgumentParser())
+
+    assert rc == 0
+    assert 'version = "13.1.0"' in (tmp_path / "uv.lock").read_text(encoding="utf-8")

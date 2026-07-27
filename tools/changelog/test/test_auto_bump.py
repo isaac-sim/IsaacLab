@@ -14,6 +14,7 @@ sequence with no GitHub interaction, so the PR gate catches drift between
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -315,11 +316,18 @@ def test_auto_bump_ships_healthy_packages_when_one_fails(synthetic_repo: Path, t
 # ---------------------------------------------------------------------------
 
 
-def test_auto_bump_dry_run_does_not_commit(synthetic_repo: Path, tmp_path: Path):
-    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+def test_auto_bump_dry_run_writes_nothing(synthetic_repo: Path, tmp_path: Path):
+    """``--dry-run`` is documented as "compile without writing", so assert the
+    writing half too. Checking only that no commit was pushed would pass a
+    regression that bumped the version and prepended the entry before
+    skipping the commit. A drifting lock is seeded so the lock-sync dry-run
+    branch is covered in the same run."""
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab", starting_version="1.0.0")
+    lock = _write_workspace_lock(synthetic_repo, ["isaaclab"])
     frag = _drop_fragment(pkg_root, "feat-x")
-
     _commit_baseline(synthetic_repo)
+    lock_before = lock.read_text(encoding="utf-8")
+
     rc = autobump.AutoBumpRun(
         branch="develop",
         remote="origin",
@@ -329,10 +337,10 @@ def test_auto_bump_dry_run_does_not_commit(synthetic_repo: Path, tmp_path: Path)
     ).run()
     assert rc == 0
 
-    bare = tmp_path / "origin.git"
-    authors = _author_log(bare)
-    assert autobump.AutoBumpRun.AUTHOR_NAME not in authors
-    # Fragment must still be on disk — dry-run is a preview, not a commit.
+    assert autobump.AutoBumpRun.AUTHOR_NAME not in _author_log(tmp_path / "origin.git")
+    # Nothing reached disk: no bump, no entry, no lock rewrite, no deletion.
+    assert _git(synthetic_repo, "status", "--porcelain").strip() == ""
+    assert lock.read_text(encoding="utf-8") == lock_before
     assert frag.exists()
 
 
@@ -996,3 +1004,68 @@ def test_auto_bump_argparse_wiring(synthetic_repo: Path, monkeypatch):
     assert args.dry_run is True
     assert args.remote == "origin"
     assert args.func(args, parser) == 0
+
+
+def test_commit_carries_only_the_reported_paths(synthetic_repo: Path, tmp_path: Path):
+    """An unrelated staged change must not ride along in the bot commit.
+
+    ``git commit`` commits the whole index, so a checkout with anything
+    already staged would push it under the bot's name — contradicting the
+    contract that the commit carries exactly what the compile reported.
+    CI checkouts are clean, but the subcommand is documented for local use.
+    """
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    _drop_fragment(pkg_root, "feat-x")
+    unrelated = synthetic_repo / "unrelated.txt"
+    unrelated.write_text("original\n", encoding="utf-8")
+    _commit_baseline(synthetic_repo)
+
+    # Someone left an unrelated change staged before the run.
+    unrelated.write_text("MEDDLED\n", encoding="utf-8")
+    _git(synthetic_repo, "add", "unrelated.txt")
+
+    assert (
+        autobump.AutoBumpRun(
+            branch="develop",
+            remote="origin",
+            event_name="schedule",
+            repo_root=synthetic_repo,
+        ).run()
+        == 0
+    )
+
+    files = subprocess.run(
+        ["git", "show", "develop", "--name-only", "--format="],
+        cwd=tmp_path / "origin.git",
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.split()
+    assert _version_file("isaaclab") in files
+    assert "unrelated.txt" not in files, "an unrelated staged change was committed as the bot"
+
+
+def test_manual_compile_rolls_back_a_half_applied_package(synthetic_repo: Path, monkeypatch):
+    """``cli.py compile`` must undo a compile that failed after writing.
+
+    Same hazard as the nightly path, reached manually: an entry written over
+    a fragment that was never consumed means a re-run compiles it a second
+    time. Only the auto-bump path used to roll this back.
+    """
+    pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
+    frag = _drop_fragment(pkg_root, "feat-x")
+    _commit_baseline(synthetic_repo)
+    monkeypatch.setattr(cli, "REPO_ROOT", synthetic_repo)
+    monkeypatch.setattr(packages.Package, "discover", classmethod(lambda cls, **kw: [packages.Package(pkg_root)]))
+    monkeypatch.setattr(
+        packages.Package,
+        "write_version",
+        lambda self, v, *, dry_run: (_ for _ in ()).throw(ValueError("boom")),
+    )
+
+    args = argparse.Namespace(package=None, all=True, fragments_dir=None, version=None, dry_run=False)
+    assert cli.cmd_compile(args, argparse.ArgumentParser()) == 1
+
+    assert frag.exists(), "fragment must survive a failed compile"
+    assert "0.1.1" not in (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")
+    assert _git(synthetic_repo, "status", "--porcelain").strip() == ""

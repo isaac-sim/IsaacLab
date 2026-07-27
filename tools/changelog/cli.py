@@ -91,7 +91,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from autobump import AutoBumpRun
+from autobump import AutoBumpRun, GitRepo
 from lockfile import LockFile
 from packages import CHANGELOG_HEADER_RE, REPO_ROOT, FragmentFilename, Package, PRDiff, RootPackage, Version
 
@@ -144,10 +144,17 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
                 explicit_version=explicit_version,
                 dry_run=args.dry_run,
             )
-        # ``CompileFailed`` wraps a failure that happened after the compile had
-        # already written; this command has nothing to stage, so it is reported
-        # exactly like a failure that happened before the first write.
-        except (Package.CompileFailed, OSError, ValueError) as e:
+        except Package.CompileFailed as e:
+            # Failed after writing, so the package is left announcing a
+            # version that never landed over a fragment that was never
+            # consumed — and a re-run would compile that fragment into a
+            # duplicate entry. ``auto-bump`` rolls this back; the manual
+            # path has to as well.
+            print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
+            failures.append((pkg.name, str(e)))
+            GitRepo(REPO_ROOT).restore(e.written)
+            continue
+        except (OSError, ValueError) as e:
             print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
             failures.append((pkg.name, str(e)))
             continue

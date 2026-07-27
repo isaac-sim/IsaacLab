@@ -49,8 +49,12 @@ class GitRepo:
 
     # ---- Public API -----------------------------------------------------
 
-    def add(self, paths: Iterable[Path | str]) -> None:
-        """Stage ``paths``, including deletions.
+    def add(self, paths: Iterable[Path | str]) -> list[str]:
+        """Stage ``paths``, including deletions. Returns the ones staged.
+
+        The return value is what :meth:`commit` should be given: a path that
+        was filtered out here has nothing to commit, and naming it in a
+        pathspec would abort the commit.
 
         ``git add`` on a path that is gone *and* was never tracked aborts the
         whole invocation with ``pathspec ... did not match any files``, which
@@ -64,8 +68,9 @@ class GitRepo:
             known = set(self._tracked(vanished))
             path_strs = [p for p in path_strs if Path(p).exists() or p in known]
         if not path_strs:
-            return
+            return []
         self._run("add", "--", *self._literal(path_strs))
+        return path_strs
 
     def restore(self, paths: Iterable[Path | str]) -> None:
         """Undo working-tree changes to ``paths``, including deletions.
@@ -85,9 +90,14 @@ class GitRepo:
             if p not in tracked and Path(p).exists():
                 Path(p).unlink()
 
-    def has_staged_changes(self) -> bool:
-        """Whether anything is currently staged for commit."""
-        return self._run("diff", "--staged", "--quiet", check=False).returncode != 0
+    def has_staged_changes(self, paths: Iterable[Path | str]) -> bool:
+        """Whether any of ``paths`` is staged for commit.
+
+        Scoped to the caller's paths for the same reason :meth:`commit` is:
+        an unrelated staged change must not make this look like there is
+        work to commit.
+        """
+        return self._run("diff", "--staged", "--quiet", "--", *self._literal(paths), check=False).returncode != 0
 
     def staged_diff(self, path: Path | str) -> str:
         """Return the staged diff for one path.
@@ -99,13 +109,18 @@ class GitRepo:
         """
         return self._run("diff", "--staged", "--no-color", "--", str(path)).stdout
 
-    def commit(self, message: str, *, author_name: str, author_email: str) -> None:
-        """Commit the staged changes under a one-off identity.
+    def commit(self, message: str, paths: Iterable[Path | str], *, author_name: str, author_email: str) -> None:
+        """Commit exactly ``paths`` under a one-off identity.
+
+        The pathspec is load-bearing: ``git commit`` otherwise commits the
+        whole index, so anything already staged in the caller's checkout
+        would ride along under the bot's name. Naming the paths makes
+        "commit what the compile reported, and nothing else" a property of
+        the command rather than a precondition someone has to remember.
 
         The identity is passed per-invocation with ``-c`` rather than written
         via ``git config``, which would permanently rewrite the identity of
-        whatever clone this ran in — including a maintainer's own, if they
-        run the command locally.
+        whatever clone this ran in — including a maintainer's own.
         """
         self._run(
             "-c",
@@ -115,6 +130,8 @@ class GitRepo:
             "commit",
             "-m",
             message,
+            "--",
+            *self._literal(paths),
         )
 
     def fetch(self, remote: str, ref: str) -> None:
@@ -359,14 +376,15 @@ class AutoBumpRun:
 
     def _stage_and_commit(self, touched: list[Path]) -> None:
         """Stage exactly ``touched`` and commit it as the bot."""
-        self.repo.add(touched)
-        if not self.repo.has_staged_changes():
+        staged = self.repo.add(touched)
+        if not staged or not self.repo.has_staged_changes(staged):
             print("Nothing actually staged after compile — skipping commit.")
             return
         # Author identity belongs in-process: the workflow YAML stops carrying
         # changelog-tool knowledge, so cli.py-only PRs need no paired YAML edit.
         self.repo.commit(
             self._build_commit_message(touched),
+            staged,
             author_name=self.AUTHOR_NAME,
             author_email=self.AUTHOR_EMAIL,
         )
