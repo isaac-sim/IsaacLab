@@ -9,6 +9,10 @@ import argparse
 import shutil
 from pathlib import Path
 
+# __package__ is empty when this file runs as a script (./docker/container.py), where
+# docker/ is itself on sys.path, and "docker" when the tests import it as docker.container.
+# The relative form keeps docker.utils.* a single module object, so patches applied by the
+# tests affect the same modules this CLI uses.
 if __package__:
     from .utils import ContainerInterface, x11_utils
 else:

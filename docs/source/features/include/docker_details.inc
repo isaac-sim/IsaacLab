@@ -283,6 +283,26 @@ The passed profile argument will build the image defined in ``Dockerfile.${profi
 with the corresponding `profile`_ in ``docker-compose.yaml``. Isaac Sim-based extensions load ``.env.base``
 and their profile-specific environment file, if any. The standalone ``kitless`` profile loads only ``.env.kitless``.
 
+.. rubric:: Published Kit-less Image
+
+Building the kit-less image locally is not required. It is published to its own registry repository,
+``nvcr.io/nvidian/isaac-lab-kitless``, under the same branch tagging scheme as the Isaac Lab base image:
+a moving tag per branch (``latest`` for ``main``, ``v<version>`` for a tagged release, ``latest-develop``,
+``latest-release-<branch>``) alongside an immutable per-commit tag that appends the full commit hash.
+Pin the immutable tag for reproducible runs and use the moving tag to follow a branch.
+
+.. code:: bash
+
+    docker pull nvcr.io/nvidian/isaac-lab-kitless:latest-develop
+
+    docker run --rm --gpus all --network host \
+        nvcr.io/nvidian/isaac-lab-kitless:latest-develop \
+        isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
+        --num_envs 16 presets=newton_mjwarp --max_iterations 5
+
+Only ``linux/amd64`` images are published. The Dockerfile itself is architecture-agnostic, but the
+published manifest is limited to the architecture that is validated in CI.
+
 .. rubric:: ROS2 Image Extension
 
 In ``Dockerfile.ros2``, the container installs ROS2 Humble via an `apt package`_, and it is sourced in the ``.bashrc``.
