@@ -613,6 +613,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f"<td>{entry['test']}</td>"
             f"<td>{entry['backend']}</td>"
             f"<td>{entry['renderer']}</td>"
+            f"<td>{entry.get('ovstage_variant', 'No')}</td>"
             f"<td>{entry['aov']}</td>"
             f"<td>{entry['diff_pct']:.2f}</td>"
             f"<td>{entry['threshold']:.1f}</td>"
@@ -680,6 +681,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>Test</th>"
         "<th>Backend</th>"
         "<th>Renderer</th>"
+        "<th>OVStage</th>"
         "<th>AOV</th>"
         "<th>PixelDiff&nbsp;%</th>"
         "<th>PixelDiff Threshold&nbsp;%</th>"
@@ -963,6 +965,7 @@ def validate_camera_outputs(
             "test": test_name,
             "backend": physics_backend,
             "renderer": renderer,
+            "ovstage_variant": "Yes" if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE") == "1" else "No",
             "aov": data_type,
             "diff_pct": diff_pct,
             "ssim": ssim_score,
