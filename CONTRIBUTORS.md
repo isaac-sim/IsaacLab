@@ -208,6 +208,7 @@ Guidelines for modifications:
 * Xu Li
 * Yang Jin
 * Yanzi Zhu
+* Yichao Gan
 * Yijie Guo
 * Yize Wang
 * Yohan Choi
