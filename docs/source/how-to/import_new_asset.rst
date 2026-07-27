@@ -26,7 +26,8 @@ these importers by default. They can also be enabled manually in Omniverse Kit.
 
 Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
 Isaac Sim when the full runtime is installed. In kit-less environments, install
-the standalone importer wheel as described in :ref:`installation-standalone-importers`.
+the standalone importer wheel as described in
+:ref:`Standalone URDF/MJCF importers <installation-standalone-importers>`.
 The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
 
