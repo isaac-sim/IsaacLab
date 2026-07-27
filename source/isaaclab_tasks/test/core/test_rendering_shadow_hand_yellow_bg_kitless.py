@@ -11,6 +11,13 @@ import os
 os.environ.setdefault("DISPLAY", ":0")
 
 import pytest  # noqa: E402
+from rendering_test_utils import (  # noqa: E402
+    _apply_overrides_to_env_cfg,
+    _physics_preset_name,
+    _redirect_ovrtx_renderer_log_to_stdout,
+    make_require_ovlibs_install_fixture,
+    validate_camera_outputs,
+)
 
 from isaaclab.utils.configclass import configclass  # noqa: E402
 
@@ -19,13 +26,6 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg 
     ShadowHandCameraEnvCfg,
     ShadowHandTiledCameraCfg,
     _ShadowHandBaseTiledCameraCfg,
-)
-from rendering_test_utils import (  # noqa: E402
-    _apply_overrides_to_env_cfg,
-    _physics_preset_name,
-    _redirect_ovrtx_renderer_log_to_stdout,
-    make_require_ovlibs_install_fixture,
-    validate_camera_outputs,
 )
 
 pytestmark = [pytest.mark.isaacsim_ci]
