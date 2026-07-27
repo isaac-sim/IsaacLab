@@ -291,13 +291,17 @@
   },
   {
       "package": "qpsolvers",
+      "package_type": "Python",
       "license": "GNU Lesser General Public License v3 (LGPLv3)",
-      "comment": "OSRB",
       "license_aliases": [
         "LGPL-3.0",
         "LGPL-3.0-only",
         "LGPL-3.0-or-later"
-      ]
+      ],
+      "usage": "runtime_dependency",
+      "interaction": "same_process_dynamic",
+      "linkage": "dynamic",
+      "comment": "OSRB; imported Python package, with no static linkage into Isaac Lab"
   },
   {
     "package": "Markdown",
@@ -336,8 +340,12 @@
   },
   {
     "package": "usd-core",
+    "package_type": "Python",
     "license": "LicenseRef-TOST-1.0",
-    "comment": "TOST / OSRB"
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "TOST / OSRB; imported into the Isaac Lab Python process"
   },
   {
     "package": "urllib3",
@@ -447,11 +455,14 @@
   },
   {
     "package": "aiohappyeyeballs",
+    "package_type": "Python",
     "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB",
     "license_aliases": [
       "PSF-2.0"
-    ]
+    ],
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "comment": "PSFL / OSRB; imported into the Isaac Lab Python process"
   },
   {
     "package": "cffi",
@@ -490,19 +501,25 @@
   },
   {
     "package": "typing_extensions",
+    "package_type": "Python",
     "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB",
     "license_aliases": [
       "PSF-2.0"
-    ]
+    ],
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "comment": "PSFL / OSRB; imported into the Isaac Lab Python process"
   },
   {
     "package": "standard-distutils",
+    "package_type": "Python",
     "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB",
     "license_aliases": [
       "PSF-2.0"
-    ]
+    ],
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "comment": "PSFL / OSRB; imported into the Isaac Lab Python process"
   },
   {
     "package": "vhacdx",
@@ -521,11 +538,15 @@
   },
   {
     "package": "omniverseclient",
+    "package_type": "Python",
     "license": "NVIDIA Proprietary Software, https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/",
-    "comment": "NVIDIA",
     "license_aliases": [
       "CUSTOM License: NVIDIA Proprietary Software,..."
-    ]
+    ],
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "NVIDIA component imported into the Isaac Lab Python process"
   },
   {
     "package": "ovphysx",
@@ -539,11 +560,15 @@
   },
   {
     "package": "pytetwild",
+    "package_type": "Python",
     "license": "Mozilla Public License 2.0 (MPL 2.0)",
-    "comment": "MPL-2.0 / OSRB",
     "license_aliases": [
       "MPL-2.0"
-    ]
+    ],
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "MPL-2.0 / OSRB; imported into the Isaac Lab Python process"
   },
   {
     "package": "distlib",
@@ -561,7 +586,9 @@
       "GPL-2.0-or-later",
       "LGPL-2.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool",
+    "interaction": "standalone_process",
+    "comment": "Binutils executables run as standalone build processes, separate from Isaac Lab and NVIDIA code"
   },
   {
     "package": "binutils-common",
@@ -571,13 +598,17 @@
       "GPL-2.0-or-later",
       "LGPL-2.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "comment": "Data and libraries used by standalone Binutils processes, not by the Isaac Lab process"
   },
   {
     "package": "build-essential",
     "package_type": "OS Packages",
     "license": "GPL-2.0-or-later",
-    "comment": "GPL-2.0-or-later meta-package; its toolchain dependency set includes LGPL components"
+    "usage": "metadata_only",
+    "interaction": "not_loaded",
+    "comment": "GPL-2.0-or-later meta-package; it is not executable or loaded, and its toolchain dependency set includes LGPL components"
   },
   {
     "package": "cmake",
@@ -597,13 +628,17 @@
       "MIT",
       "Zlib"
     ],
-    "comment": "Upstream CMake is BSD-3-Clause; Ubuntu package metadata also reports bundled third-party licenses"
+    "usage": "build_tool",
+    "interaction": "standalone_process",
+    "comment": "Upstream CMake is BSD-3-Clause; the executable runs as a standalone build process, and Ubuntu metadata also reports bundled third-party licenses"
   },
   {
     "package": "cpp-x86-64-linux-gnu",
     "package_type": "OS Packages",
     "license": "GPL-2.0-only",
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool",
+    "interaction": "standalone_process",
+    "comment": "The compiler preprocessor runs as a standalone build process, separate from Isaac Lab and NVIDIA code"
   },
   {
     "package": "dpkg-dev",
@@ -613,7 +648,9 @@
       "GPL-2.0-or-later",
       "public-domain-s-s-d"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool",
+    "interaction": "standalone_process",
+    "comment": "dpkg-dev tools run as standalone build processes, separate from Isaac Lab and NVIDIA code"
   },
   {
     "package": "gcc-13-base",
@@ -626,7 +663,9 @@
       "GPL-3.0-only",
       "LGPL-2.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "metadata_only",
+    "interaction": "not_loaded",
+    "comment": "GCC base metadata package; compiler executables and runtime libraries are packaged and reviewed separately"
   },
   {
     "package": "libc-dev-bin",
@@ -636,7 +675,9 @@
       "GPL-2.0-only",
       "LGPL-2.1-only"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool",
+    "interaction": "standalone_process",
+    "comment": "glibc development helper executables run as standalone build processes"
   },
   {
     "package": "libc6-dev",
@@ -646,7 +687,9 @@
       "GPL-2.0-only",
       "LGPL-2.1-only"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "build_input",
+    "comment": "Headers and startup objects are build inputs; this package is not loaded as a runtime component"
   },
   {
     "package": "libctf-nobfd0",
@@ -656,7 +699,10 @@
       "GPL-2.0-or-later",
       "LGPL-2.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Loaded by standalone Binutils tools, not by the Isaac Lab process"
   },
   {
     "package": "libdpkg-perl",
@@ -666,7 +712,9 @@
       "GPL-2.0-or-later",
       "public-domain-s-s-d"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "comment": "Perl modules used by standalone dpkg-dev tools, not by the Isaac Lab process"
   },
   {
     "package": "libgdbm-compat4t64",
@@ -678,7 +726,10 @@
       "GPL-3.0-only",
       "GPL-3.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Loaded by standalone Perl and dpkg tools, not by the Isaac Lab process"
   },
   {
     "package": "libgdbm6t64",
@@ -690,19 +741,28 @@
       "GPL-3.0-only",
       "GPL-3.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Loaded by standalone Perl and dpkg tools, not by the Isaac Lab process"
   },
   {
     "package": "libmpc3",
     "package_type": "OS Packages",
     "license": "LGPL-3.0-only",
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Dynamically loaded by standalone GCC processes, not by the Isaac Lab process"
   },
   {
     "package": "libmpfr6",
     "package_type": "OS Packages",
     "license": "LGPL-3.0-only",
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Dynamically loaded by standalone GCC processes, not by the Isaac Lab process"
   },
   {
     "package": "libsframe1",
@@ -712,13 +772,18 @@
       "GPL-2.0-or-later",
       "LGPL-2.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Dynamically loaded by standalone Binutils tools, not by the Isaac Lab process"
   },
   {
     "package": "linux-libc-dev",
     "package_type": "OS Packages",
     "license": "GPL-2.0-only",
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool_dependency",
+    "interaction": "build_input",
+    "comment": "Linux userspace headers are build inputs and are not executable or loaded at runtime"
   },
   {
     "package": "lto-disabled-list",
@@ -727,7 +792,9 @@
     "license_aliases": [
       "GPL-2.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "metadata_only",
+    "interaction": "not_loaded",
+    "comment": "Compiler configuration data; it is not executable or loaded into the Isaac Lab process"
   },
   {
     "package": "make",
@@ -736,13 +803,17 @@
     "license_aliases": [
       "GPL-3.0-or-later"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool",
+    "interaction": "standalone_process",
+    "comment": "GNU Make runs as a standalone build process, separate from Isaac Lab and NVIDIA code"
   },
   {
     "package": "patch",
     "package_type": "OS Packages",
     "license": "GPL-2.0-or-later",
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "build_tool",
+    "interaction": "standalone_process",
+    "comment": "GNU patch runs as a standalone build process, separate from Isaac Lab and NVIDIA code"
   },
   {
     "package": "wget",
@@ -751,7 +822,9 @@
     "license_aliases": [
       "GPL-3.0-only"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "runtime_tool",
+    "interaction": "standalone_process",
+    "comment": "GNU Wget runs as a standalone executable, separate from Isaac Lab and NVIDIA code"
   },
   {
     "package": "xz-utils",
@@ -773,7 +846,305 @@
       "permissive-nowarranty",
       "probably-PD"
     ],
-    "comment": "Existing Dockerfile.base build/runtime dependency"
+    "usage": "runtime_tool",
+    "interaction": "standalone_process",
+    "comment": "XZ command-line tools run as standalone executables; core XZ code is public domain and package metadata also reports ancillary GPL/LGPL files"
+  },
+  {
+    "package": "dpkg",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "license_aliases": [
+      "GPL-2.0-or-later",
+      "public-domain-s-s-d"
+    ],
+    "usage": "runtime_tool",
+    "interaction": "standalone_process",
+    "comment": "dpkg runs as a standalone package-management process, separate from Isaac Lab and NVIDIA code"
+  },
+  {
+    "package": "libarchive13t64",
+    "package_type": "OS Packages",
+    "license": "CC0-1.0",
+    "license_aliases": [
+      "OpenSSL+SSLeay",
+      "PD"
+    ],
+    "selected_license": "BSD-2-Clause",
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "libarchive is BSD-2-Clause and is dynamically loaded by standalone build tools such as CMake"
+  },
+  {
+    "package": "ncurses-term",
+    "package_type": "OS Packages",
+    "license": "X11",
+    "usage": "terminal_data",
+    "interaction": "not_loaded",
+    "comment": "Terminal capability database files are data and are not executable or loaded into the Isaac Lab process"
+  },
+  {
+    "package": "bzip2",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "usage": "runtime_tool",
+    "interaction": "standalone_process",
+    "comment": "The bzip2 command-line tools run as standalone executables; the compression library is packaged separately"
+  },
+  {
+    "package": "cmake-data",
+    "package_type": "OS Packages",
+    "license": "FSFAP",
+    "license_aliases": [
+      "GPL-2.0-only",
+      "GPL-2+ with Bison exception",
+      "GPL-3.0-only",
+      "GPL-3+ with Bison exception"
+    ],
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "comment": "Modules and data consumed by the standalone CMake process, not by the Isaac Lab process"
+  },
+  {
+    "package": "git",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "license_aliases": [
+      "Artistic-1",
+      "Artistic-2.0",
+      "BSL-1.0",
+      "dlmalloc",
+      "GPL-1.0-or-later",
+      "GPL-2.0-or-later",
+      "LGPL-2.0-only",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "mingw-runtime"
+    ],
+    "usage": "runtime_tool",
+    "interaction": "standalone_process",
+    "comment": "Git runs as a standalone executable, separate from Isaac Lab and NVIDIA code"
+  },
+  {
+    "package": "git-man",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "license_aliases": [
+      "Artistic-1",
+      "Artistic-2.0",
+      "BSL-1.0",
+      "dlmalloc",
+      "GPL-1.0-or-later",
+      "GPL-2.0-or-later",
+      "LGPL-2.0-only",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "mingw-runtime"
+    ],
+    "usage": "documentation",
+    "interaction": "not_loaded",
+    "comment": "Git manual pages are documentation and are not executable or loaded into the Isaac Lab process"
+  },
+  {
+    "package": "libcurl3t64-gnutls",
+    "package_type": "OS Packages",
+    "license": "curl",
+    "license_aliases": [
+      "FSFULLR",
+      "GPL-2.0-only",
+      "GPL-2+ with Autoconf-data exception",
+      "GPL-2+ with Libtool exception",
+      "GPL-3+ with Autoconf-data exception",
+      "OLDAP-2.8",
+      "X11"
+    ],
+    "usage": "runtime_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Dynamically loaded by standalone command-line tools such as Git, not by the Isaac Lab process"
+  },
+  {
+    "package": "liberror-perl",
+    "package_type": "OS Packages",
+    "license": "Artistic-2.0",
+    "license_aliases": [
+      "GPL-1.0-only",
+      "GPL-1.0-or-later"
+    ],
+    "usage": "runtime_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "comment": "Perl module used by standalone Git tooling, not by the Isaac Lab process"
+  },
+  {
+    "package": "libisl23",
+    "package_type": "OS Packages",
+    "license": "LGPL-2.0-only",
+    "license_aliases": [
+      "LGPL-2.1-or-later"
+    ],
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Dynamically loaded by standalone GCC processes, not by the Isaac Lab process"
+  },
+  {
+    "package": "libjsoncpp25",
+    "package_type": "OS Packages",
+    "license": "DualExpatPD",
+    "license_aliases": [
+      "GPL-3.0-only",
+      "GPL-3.0-or-later",
+      "PublicDomain"
+    ],
+    "selected_license": "MIT",
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "JsonCpp is MIT-licensed and is dynamically loaded by the standalone CMake process"
+  },
+  {
+    "package": "libperl5.38t64",
+    "package_type": "OS Packages",
+    "license": "Artistic-2",
+    "license_aliases": [
+      "Artistic-2.0",
+      "Artistic-dist",
+      "BZIP",
+      "CC0-1.0",
+      "DONT-CHANGE-THE-GPL",
+      "FSFAP",
+      "GPL-1.0-only",
+      "GPL-1.0-or-later",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-2.0-with-bison-exception+",
+      "LGPL-2.1-only",
+      "REGCOMP",
+      "SDBM-PUBLIC-DOMAIN",
+      "TEXT-TABS",
+      "Unicode"
+    ],
+    "usage": "runtime_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "Perl runtime library loaded by standalone Perl-based tools, not by the Isaac Lab process"
+  },
+  {
+    "package": "libuv1t64",
+    "package_type": "OS Packages",
+    "license": "CC-BY-4.0",
+    "license_aliases": [
+      "GPL3+ with autoconf exception"
+    ],
+    "selected_license": "MIT",
+    "usage": "build_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "linkage": "dynamic",
+    "comment": "libuv is MIT-licensed and is dynamically loaded by the standalone CMake process"
+  },
+  {
+    "package": "perl",
+    "package_type": "OS Packages",
+    "license": "Artistic-2",
+    "license_aliases": [
+      "Artistic-2.0",
+      "Artistic-dist",
+      "BZIP",
+      "CC0-1.0",
+      "DONT-CHANGE-THE-GPL",
+      "FSFAP",
+      "GPL-1.0-only",
+      "GPL-1.0-or-later",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-2.0-with-bison-exception+",
+      "LGPL-2.1-only",
+      "REGCOMP",
+      "SDBM-PUBLIC-DOMAIN",
+      "TEXT-TABS",
+      "Unicode"
+    ],
+    "usage": "runtime_tool",
+    "interaction": "standalone_process",
+    "comment": "Perl runs as a standalone interpreter process, separate from Isaac Lab and NVIDIA code"
+  },
+  {
+    "package": "perl-modules-5.38",
+    "package_type": "OS Packages",
+    "license": "Artistic-2",
+    "license_aliases": [
+      "Artistic-2.0",
+      "Artistic-dist",
+      "BZIP",
+      "CC0-1.0",
+      "DONT-CHANGE-THE-GPL",
+      "FSFAP",
+      "GPL-1.0-only",
+      "GPL-1.0-or-later",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-2.0-with-bison-exception+",
+      "LGPL-2.1-only",
+      "REGCOMP",
+      "SDBM-PUBLIC-DOMAIN",
+      "TEXT-TABS",
+      "Unicode"
+    ],
+    "usage": "runtime_tool_dependency",
+    "interaction": "standalone_process_dependency",
+    "comment": "Modules loaded by standalone Perl-based tools, not by the Isaac Lab process"
+  },
+  {
+    "package": "rpcsvc-proto",
+    "package_type": "OS Packages",
+    "license": "GPL-2.0-only",
+    "license_aliases": [
+      "GPL-2+-autoconf-exception",
+      "GPL-3.0-only",
+      "GPL-3+-autoconf-exception",
+      "permissive-autoconf-m4",
+      "permissive-autoconf-m4-no-warranty",
+      "permissive-configure",
+      "permissive-fsf",
+      "permissive-makefile-in"
+    ],
+    "usage": "build_tool_and_headers",
+    "interaction": "standalone_process",
+    "comment": "rpcgen runs as a standalone build process and the remaining installed interfaces are build inputs"
+  },
+  {
+    "package": "hidapi",
+    "package_type": "Python",
+    "license": "GPL-3.0-only",
+    "selected_license": "BSD-3-Clause",
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "Dual-licensed BSD-3-Clause OR GPL-3.0; Isaac Lab selects the BSD-3-Clause alternative"
+  },
+  {
+    "package": "tqdm",
+    "package_type": "Python",
+    "license": "MPL-2.0",
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "comment": "MPL-2.0 / OSRB; imported into the Isaac Lab Python process"
+  },
+  {
+    "package": "ffmpeg",
+    "package_type": "Bundled Binary",
+    "license": "GPL-2.0-or-later",
+    "license_aliases": [
+      "GPL-3.0-or-later",
+      "LGPL-2.1-or-later",
+      "LGPL-3.0-or-later"
+    ],
+    "usage": "runtime_tool",
+    "interaction": "standalone_process",
+    "comment": "imageio-ffmpeg launches this executable as a standalone subprocess and communicates through pipes; the job detects its exact configuration and linkage"
   },
   {
     "package": "ovrtx",
