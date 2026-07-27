@@ -54,7 +54,7 @@ class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
 
 
 @pytest.mark.parametrize("physics_backend,renderer", [("newton", "ovrtx")])
-def test_rgb_yellow_background_ovrtx(ovstage_variant, physics_backend, renderer):
+def test_rgb_yellow_background_ovrtx(physics_backend, renderer):
     """Kit-less golden render test: RGB output with yellow background via OVRTX."""
     env_cfg = _YellowBgEnvCfg()
     env_cfg.feature_extractor.enabled = False
