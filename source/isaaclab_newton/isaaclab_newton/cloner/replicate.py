@@ -60,9 +60,12 @@ def _build_newton_builder_from_mapping(
     manager_cls = PhysicsManager._sim.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
+    # Swap height-field-tagged terrain colliders for Newton heightfields before the
+    # mesh import, and skip those prims in add_usd so the terrain is not imported twice.
+    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder)
     stage_info = builder.add_usd(
         stage,
-        ignore_paths=["/World/envs", *sources],
+        ignore_paths=["/World/envs", *sources, *hf_ignore_paths],
         schema_resolvers=schema_resolvers,
     )
     replace_newton_builder_shape_colors(builder, stage)
