@@ -21,9 +21,9 @@ The guard is data-driven:
 * :data:`_TEMPORARY_HANDOFF_ALLOWLIST` lists genuine cross-package integration
   tests that still live in the core tree. Stale entries fail
   :func:`test_handoff_allowlist_entries_are_current`.
-* :data:`_EXEMPT_SEGMENTS` lists test areas that intentionally remain out of
-  scope: ``install_ci`` validates full-stack installations, while ``benchmark``
-  is owned by separate benchmark work.
+* :data:`_EXEMPT_TOP_LEVEL_DIRS` lists top-level test areas that intentionally
+  remain out of scope: ``install_ci`` validates full-stack installations,
+  while ``benchmark`` is owned by separate benchmark work.
 
 This test is purely static and requires no simulator.
 """
@@ -50,15 +50,17 @@ _SCAN_ROOTS = (
 # This increment enforces only the direct ``isaaclab_tasks`` boundary.
 _BANNED_PACKAGES: tuple[str, ...] = ("isaaclab_tasks",)
 
-# Path segments excluded from the guard, with the reason each is out of scope.
-_EXEMPT_SEGMENTS: dict[str, str] = {
+# Top-level directories under either scan root that remain out of scope.
+_EXEMPT_TOP_LEVEL_DIRS: dict[str, str] = {
     "install_ci": "installs and imports the full stack to validate documented install paths",
     "benchmark": "benchmark suite and support code are owned by separate benchmark work",
 }
 
 # Genuine cross-package integration tests awaiting relocation out of the core
-# tree. The first three are pre-existing handoffs; the final two preserve
-# task-backed coverage split from the core-only environment tests.
+# tree. ``test_pink_ik.py``, ``test_outdated_sensor.py``, and
+# ``test_tiled_camera_env.py`` are pre-existing handoffs. The two
+# ``*_task_integration.py`` files preserve task-backed coverage split from the
+# core-only environment tests.
 _TEMPORARY_HANDOFF_ALLOWLIST: dict[str, frozenset[str]] = {
     "isaaclab_tasks": frozenset(
         {
@@ -113,15 +115,19 @@ def _repo_rel(path: Path) -> str:
 
 
 def _is_exempt(path: Path) -> bool:
-    """Return whether a path belongs to an out-of-scope test area."""
-    parts = set(path.relative_to(_REPO_ROOT).parts)
-    return any(segment in parts for segment in _EXEMPT_SEGMENTS)
+    """Return whether a path belongs to an exempt top-level test area."""
+    for root in _SCAN_ROOTS:
+        if path.is_relative_to(root):
+            relative_parts = path.relative_to(root).parts
+            return len(relative_parts) > 1 and relative_parts[0] in _EXEMPT_TOP_LEVEL_DIRS
+    return False
 
 
 def _iter_core_test_files() -> list[Path]:
     """Return all Python files in the core test roots."""
     files: set[Path] = set()
     for root in _SCAN_ROOTS:
+        assert root.is_dir(), f"Boundary-guard scan root is missing: {root}"
         files.update(path for path in root.rglob("*.py") if "__pycache__" not in path.parts)
     return sorted(files)
 
@@ -130,7 +136,7 @@ _GUARDED_FILES = [path for path in _iter_core_test_files() if not _is_exempt(pat
 _GUARDED_IDS = [_repo_rel(path) for path in _GUARDED_FILES]
 
 
-@pytest.mark.parametrize("path", _GUARDED_FILES, ids=_GUARDED_IDS or ["no-files-discovered"])
+@pytest.mark.parametrize("path", _GUARDED_FILES, ids=_GUARDED_IDS)
 def test_core_test_respects_package_boundary(path: Path):
     """Core test code must not directly import a banned package."""
     rel_path = _repo_rel(path)
@@ -152,11 +158,21 @@ def test_core_test_respects_package_boundary(path: Path):
 def test_boundary_guard_covers_shared_fixtures_and_tests():
     """The guard must scan both the test suite and shared in-package fixtures."""
     scanned = set(_iter_core_test_files())
+    for root in _SCAN_ROOTS:
+        assert any(path.is_relative_to(root) for path in scanned), f"Discovery found no Python files under {root}."
     assert Path(__file__).resolve() in scanned, "Discovery did not include the test-suite scan root."
 
     env_cfgs = _REPO_ROOT / "source" / "isaaclab" / "isaaclab" / "test" / "env_cfgs.py"
     assert env_cfgs in scanned, "Shared fixture env_cfgs.py is not covered by the boundary guard."
     assert env_cfgs in set(_GUARDED_FILES), "Shared fixture env_cfgs.py must not be exempt from the guard."
+
+
+def test_exemptions_apply_only_to_top_level_test_areas():
+    """The exemptions must not apply to same-named nested directories."""
+    for root in _SCAN_ROOTS:
+        for exempt_dir in _EXEMPT_TOP_LEVEL_DIRS:
+            assert _is_exempt(root / exempt_dir / "test_example.py")
+            assert not _is_exempt(root / "nested" / exempt_dir / "test_example.py")
 
 
 def test_import_detector_flags_representative_task_imports():
@@ -212,7 +228,7 @@ _ALLOWLIST_ITEMS = sorted(
 @pytest.mark.parametrize(
     ("package", "rel_path"),
     _ALLOWLIST_ITEMS,
-    ids=[f"{package}:{rel_path}" for package, rel_path in _ALLOWLIST_ITEMS] or ["empty-allowlist"],
+    ids=[f"{package}:{rel_path}" for package, rel_path in _ALLOWLIST_ITEMS],
 )
 def test_handoff_allowlist_entries_are_current(package: str, rel_path: str):
     """Each handoff entry must exist and still directly import its package."""
