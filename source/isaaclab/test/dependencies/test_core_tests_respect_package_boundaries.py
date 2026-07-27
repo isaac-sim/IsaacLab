@@ -136,9 +136,7 @@ def test_core_test_respects_package_boundary(path: Path):
     rel_path = _repo_rel(path)
     offenders = [
         (package, statement)
-        for package, statement in _iter_banned_imports(
-            path.read_text(encoding="utf-8"), str(path), _BANNED_PACKAGES
-        )
+        for package, statement in _iter_banned_imports(path.read_text(encoding="utf-8"), str(path), _BANNED_PACKAGES)
         if rel_path not in _TEMPORARY_HANDOFF_ALLOWLIST.get(package, frozenset())
     ]
     if offenders:
