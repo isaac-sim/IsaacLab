@@ -29,6 +29,7 @@ isaaclab_newton.sim.schemas
 
   .. autosummary::
 
+    MujocoCollisionCfg
     MujocoRigidBodyPropertiesCfg
     MujocoJointDrivePropertiesCfg
 
@@ -73,6 +74,11 @@ Joint Drive
 
 Collision
 ---------
+
+.. autoclass:: MujocoCollisionCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
 
 .. autoclass:: NewtonCollisionPropertiesCfg
     :members:

@@ -42,7 +42,6 @@ The external prototype migration skill called out useful search terms. Before us
 - `get_published_pretrained_checkpoint`
 - `noise_std_type`
 - `--viz`
-- ``
 - `-v0`
 
 ## Documentation Gaps

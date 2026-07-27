@@ -16,8 +16,9 @@ The Tutorial Code
 
 For this tutorial, we use the trained policy's checkpoint exported as jit (which is an offline version of the policy).
 
-The ``H1RoughEnvCfg_PLAY`` cfg encapsulates the configuration values of the inference environment, including the assets to
-be instantiated.
+The ``H1RoughEnvCfg`` cfg encapsulates the configuration values of the environment, including the assets to
+be instantiated. Calling its ``play_mode`` method applies the play/inference overrides
+(such as a reduced number of environments and disabled observation noise) on top of the training configuration.
 
 In order to use a prebuilt USD environment instead of the terrain generator specified, we make the
 following changes to the config before passing it to the ``ManagerBasedRLEnv``.

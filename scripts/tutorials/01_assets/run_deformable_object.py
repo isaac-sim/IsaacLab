@@ -22,7 +22,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on interacting with a deformable object.")
-parser.add_argument("--backend", type=str, default="physx", choices=["physx", "newton"], help="Physics backend.")
+parser.add_argument("--backend", type=str, default="physx", choices=["physx", "newton_vbd"], help="Physics backend.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
@@ -65,7 +65,7 @@ def design_scene():
     youngs_modulus = 1e5
     poissons_ratio = 0.4
     density = 500.0
-    if args_cli.backend == "newton":
+    if args_cli.backend == "newton_vbd":
         from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
         from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
@@ -175,7 +175,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
 def main():
     """Main function."""
     # Load kit helper
-    if args_cli.backend == "newton":
+    if args_cli.backend == "newton_vbd":
         from isaaclab_newton.physics import NewtonCfg
 
         from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg

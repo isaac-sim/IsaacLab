@@ -215,6 +215,16 @@ The dual-eye stereo render only becomes active once a headset connects and playb
 
 Isaac Lab is now ready to receive connections from a CloudXR client.
 
+.. note::
+
+   **Running headless (no local UI).** The commands above use ``--visualizer kit`` to open the
+   local Kit viewport, where you click **Start XR**. On a server or cloud instance without a
+   display, run headless instead: omit ``--visualizer`` (headless is the default) or pass
+   ``--visualizer none`` / ``--viz none``. In headless XR the AR session starts automatically --
+   there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
+   CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
+   in the environment also forces headless.
+
 
 .. _connect-xr-device:
 
@@ -245,12 +255,12 @@ choose the tab that matches your hardware.
          start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`_.
+         `<https://nvidia.github.io/IsaacTeleop/client/release-1.4.x>`_.
 
          .. note::
 
-            The web client URL is versioned. The ``release-1.3.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in the
+            The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
+            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.4.0`` in the
             ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
             Teleop pin, update this link to the matching client release.
 

@@ -25,8 +25,6 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
-# Newton visualizer not supported for markers
-parser.add_argument("--visualizer", default="kit", choices=["kit"], help="Visualizer backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()

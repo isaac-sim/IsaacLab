@@ -421,3 +421,65 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 
     for phrase in expected_phrases:
         assert phrase in flat, f"Missing phrase: {phrase!r}"
+
+
+def test_agent_help_lists_cartpole_camera_preset_pairings(monkeypatch, capsys):
+    """Task help lists registered agents beside their compatible presets."""
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole-Camera", "--help"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = argparse.ArgumentParser(prog="train.py")
+    parser.add_argument("--task")
+    parser.add_argument("--agent", default="rl_games_cfg_entry_point")
+    with pytest.raises(SystemExit):
+        setup_preset_cli(parser, agent_library="rl_games")
+
+    output = capsys.readouterr().out
+    assert "rl_games_cfg_entry_point (default)" in output
+    assert "compatible presets: albedo, depth, rgb" in output
+    assert "rl_games_feature_cfg_entry_point" in output
+    assert "compatible presets: resnet18, theia_tiny" in output
+
+
+def test_agent_help_lists_agents_without_preset_constraints(monkeypatch, capsys):
+    """Alternate agents remain discoverable when presets do not constrain them."""
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole", "--help"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = argparse.ArgumentParser(prog="train.py")
+    parser.add_argument("--task")
+    parser.add_argument("--agent", default="rsl_rl_cfg_entry_point")
+    with pytest.raises(SystemExit):
+        setup_preset_cli(parser, agent_library="rsl_rl")
+
+    output = capsys.readouterr().out
+    assert "rsl_rl_cfg_entry_point (default)" in output
+    assert "rsl_rl_with_symmetry_cfg_entry_point" in output
+    assert "Preset selection does not constrain --agent for this task." in output
+
+
+@pytest.mark.parametrize(
+    "task_name,agent_library",
+    [
+        ("Isaac-Cartpole-Camera", "rl_games"),
+        ("Isaac-Cartpole-Camera", "rsl_rl"),
+        ("IsaacContrib-Cartpole-Showcase-Direct", "skrl"),
+        ("IsaacContrib-Cartpole-Camera-Showcase-Direct", "skrl"),
+    ],
+)
+def test_agent_preset_pairings_reference_registered_agents_and_presets(task_name, agent_library):
+    """Task-owned help metadata stays aligned with live agent and preset registrations."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.preset_cli import _enumerate_agents, _enumerate_variants
+    from isaaclab_tasks.utils.preset_target import PresetTarget
+
+    agents, compatibility = _enumerate_agents(task_name, agent_library)
+    domain_presets = _enumerate_variants(task_name)[PresetTarget.DOMAIN]
+
+    assert compatibility
+    assert set(compatibility) <= set(agents)
+    assert {preset for presets in compatibility.values() for preset in presets} <= domain_presets
