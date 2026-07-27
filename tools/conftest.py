@@ -27,22 +27,28 @@ from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: sk
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "1").lower() not in ("0", "false")
+_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "").lower() in ("1", "true")
 """When ``True``, a single Kit/SimulationApp instance is started once for the entire pytest session.
 
-Enabled by default.  Set ``ISAACLAB_SESSION_KIT=0`` to disable and fall back to the
-subprocess-per-file mode.  Pytest handles collection and execution normally; each test file's
-module-level ``AppLauncher()`` call returns an alias of the already-running instance instead of
-launching a new Kit process.
+Set ``ISAACLAB_SESSION_KIT=1`` to enable.  Pytest handles collection and execution normally; each
+test file's module-level ``AppLauncher()`` call returns an alias of the already-running instance
+instead of launching a new Kit process.
 
 In this mode the subprocess-per-file orchestration in :func:`pytest_sessionstart` is skipped.
 Use standard pytest flags (``--junitxml``, ``-k``, ``-m``) for filtering and reporting.
 
 .. warning::
+    This mode requires test file paths to be passed explicitly to pytest (e.g.
+    ``pytest tools source/isaaclab/test/...``).  The CI default of passing only ``tools``
+    relies on :func:`pytest_sessionstart` to discover tests under ``source/`` and ``scripts/``,
+    which session-kit mode bypasses.  Enabling this mode in CI requires updating the pytest
+    invocation to include the actual test paths.
+
+.. warning::
     ``device_split`` test files (those that mix CPU and GPU parametrizations) must be run in
     separate processes when using this mode — pass ``-k "cpu or not cuda"`` or ``-k cuda``
     explicitly.  The automatic two-pass split in :func:`run_individual_tests` is only available
-    in the subprocess-per-file mode (``ISAACLAB_SESSION_KIT=0``).
+    in the default subprocess-per-file mode.
 """
 
 _session_kit_launcher = None
@@ -51,7 +57,7 @@ session-kit mode.  ``None`` in the default subprocess-per-file mode."""
 
 
 def pytest_configure(config):
-    """Start a shared Kit instance early unless ``ISAACLAB_SESSION_KIT=0`` is set.
+    """Start a shared Kit instance early when ``ISAACLAB_SESSION_KIT=1`` is set.
 
     This hook runs before pytest collects any test modules.  We subclass
     :class:`~isaaclab.app.AppLauncher` here and monkey-patch it into
