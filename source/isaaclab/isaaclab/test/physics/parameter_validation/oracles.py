@@ -85,11 +85,15 @@ def predict_implicit_joint_step(
     position: float = 0.0,
     velocity: float = 0.0,
     passive_damping: float = 0.0,
+    effort_limit: float = float("inf"),
     dt: float = PROFILE_DOF_DT,
 ) -> tuple[float, float]:
     """Predict one implicit semi-Euler step for a fixed-base single-DOF joint."""
     effective_inertia = body_inertia + armature + dt * (drive_damping + passive_damping) + dt * dt * stiffness
-    drive_effort = effort + stiffness * (position_target - position) + drive_damping * velocity_target
+    drive_effort = clamp_joint_effort(
+        effort + stiffness * (position_target - position) + drive_damping * velocity_target,
+        effort_limit,
+    )
     velocity_next = ((body_inertia + armature) * velocity + dt * drive_effort) / effective_inertia
     return velocity_next, position + dt * velocity_next
 
@@ -106,13 +110,43 @@ def predict_implicitfast_joint_step(
     position: float = 0.0,
     velocity: float = 0.0,
     passive_damping: float = 0.0,
+    effort_limit: float = float("inf"),
     dt: float = PROFILE_DOF_DT,
 ) -> tuple[float, float]:
     """Predict one MJWarp implicitFast step for a fixed-base single-DOF joint."""
     effective_inertia = body_inertia + armature + dt * (drive_damping + passive_damping)
-    drive_effort = effort + stiffness * (position_target - position) + drive_damping * velocity_target
+    drive_effort = clamp_joint_effort(
+        effort + stiffness * (position_target - position) + drive_damping * velocity_target,
+        effort_limit,
+    )
     velocity_next = ((body_inertia + armature) * velocity + dt * drive_effort) / effective_inertia
     return velocity_next, position + dt * velocity_next
+
+
+def clamp_joint_effort(effort: float, effort_limit: float) -> float:
+    """Clamp a joint effort to a symmetric solver limit [N or N·m, depending on joint type]."""
+    return max(-effort_limit, min(effort, effort_limit))
+
+
+def predict_dry_friction_effort(
+    velocity: float,
+    commanded_effort: float,
+    friction: float,
+) -> float:
+    """Predict net effort under Newton absolute dry friction [N or N·m, depending on joint type].
+
+    At rest, dry friction cancels a sub-threshold command. During motion, it opposes velocity with
+    constant magnitude.
+    """
+    if friction < 0.0:
+        raise ValueError("Joint dry friction must be non-negative.")
+    if velocity > 0.0:
+        return commanded_effort - friction
+    if velocity < 0.0:
+        return commanded_effort + friction
+    if abs(commanded_effort) <= friction:
+        return 0.0
+    return commanded_effort - math.copysign(friction, commanded_effort)
 
 
 def predict_semi_implicit_motion(

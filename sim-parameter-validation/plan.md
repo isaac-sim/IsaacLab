@@ -192,15 +192,15 @@ storage-only tests remain `T`.
 | MAT-03 | Combined contact friction `mu` | N / N / N | I / I / I | I / I / I |
 | MAT-04 | Restitution | T / T / T | X / X / X | X / X / X |
 | CONTACT-01 | Rest/contact offset mapped to margin/gap | T / T / T | X / X / X | I / I / I |
-| JOINT-01 | Parent and child joint frames | T / T / N | T / T / N | T / T / N |
+| JOINT-01 | Parent and child joint frames | T / T / N | I / N / N | I / N / N |
 | JOINT-02 | Reset/live joint position | N / T / T | N / I / I | N / I / I |
 | JOINT-03 | Reset/live joint velocity | N / T / T | N / I / I | N / I / I |
 | JOINT-04 | Lower and upper position limits | T / N / T | I / N / I | I / N / I |
 | JOINT-05 | Velocity limit | T / T / T | X / X / X | X / X / X |
-| JOINT-06 | Effort limit | T / T / T | T / T / T | X / X / X |
+| JOINT-06 | Effort limit | T / T / T | I / I / I | X / X / X |
 | JOINT-07 | Armature | T / T / T | I / I / I | I / I / I |
 | JOINT-08 | Passive joint damping | T / T / T | I / T / T | I / T / T |
-| JOINT-09 | Joint dry-friction force/torque | T / T / T | T / T / T | X / X / X |
+| JOINT-09 | Joint dry-friction force/torque | T / T / T | I / I / I | X / X / X |
 | DRIVE-01 | Implicit drive stiffness | T / T / T | I / I / I | I / I / I |
 | DRIVE-02 | Implicit drive damping | T / T / T | I / I / I | I / I / I |
 | CMD-01 | Feed-forward joint effort | N / N / T | N / N / I | N / N / I |
@@ -242,6 +242,10 @@ support is implemented.
 `write_actuator_stiffness_to_sim` and `write_actuator_damping_to_sim` update the active controller today, while
 the planned physical test must still verify the resulting effort and trajectory. They do not require a Newton
 model-change notification because the gains are not solver-owned properties.
+
+`JOINT-01` Python override is `N` on both Newton backends because Isaac Lab exposes no joint-frame field in
+`ArticulationCfg` or its actuator configurations. A Python call that directly authors `LocalPos0/1` or
+`LocalRot0/1` on the USD stage is the USD authoring path, not an independent configuration override.
 
 #### `X`-cell issue register
 
@@ -350,7 +354,7 @@ an otherwise identical control case.
 | Velocity limit | Sustained drive beyond the configured maximum velocity |
 | Effort limit | Acceleration under a commanded effort above the configured maximum |
 | Passive joint damping | Deceleration from a known initial velocity with the drive disabled |
-| Joint friction coefficient | Breakaway or deceleration response with the drive disabled |
+| Joint friction coefficient | Zero-velocity static hold under a sub-threshold applied effort and deceleration from a known initial velocity, with the drive disabled |
 | Explicit actuator stiffness integration | Controller effort and single-step position-target response from rest |
 | Explicit actuator damping integration | Controller effort and single-step velocity-target response from rest |
 | Feed-forward joint effort target | Single-step acceleration from rest, with and without implicit drive dynamics |
@@ -419,7 +423,7 @@ contract into multiple pytest cases, but it must preserve the listed controlled 
 | FIX-LIMIT-POS | JOINT-04 | Maximum and settled joint position for active and inactive limits | Same drive and initial state; lower and upper limits tested separately; Kamino runtime requires USD limits present before the write |
 | FIX-LIMIT-VEL | JOINT-05 | Sustained maximum speed and braking response after starting above the limit | Effort high enough that velocity, not effort, is limiting |
 | FIX-LIMIT-EFFORT | JOINT-06 | Initial acceleration under sub-limit and over-limit commands | Known effective inertia; drive terms disabled or included in oracle |
-| FIX-PASSIVE | JOINT-08, JOINT-09 | Velocity decay or breakaway threshold using backend-specific damping/friction law | Drive disabled; zero-loss paired control |
+| FIX-PASSIVE | JOINT-08, JOINT-09 | Velocity decay or zero-velocity static hold under a sub-threshold effort using the backend-specific damping/friction law | Drive disabled; zero-loss paired control |
 | FIX-ACTUATOR | ACT-01, ACT-02 | Controller effort and resulting trajectory after gain update | Explicit actuator path with implicit solver drive disabled; run against each solver as an end-to-end compatibility check |
 | FIX-FRICTION-STATIC | MAT-01 (PhysX), MAT-03 (Newton) | Rest/sliding classification on both sides of the critical incline angle | Static ground collider; identical material values on both shapes unless combination is under test; Newton uses one `mu` for \(\mu_s\) |
 | FIX-FRICTION-DYNAMIC | MAT-02 (PhysX), MAT-03 (Newton) | Stopping distance and velocity decay under the backend's contact law | Static level-ground collider, zero restitution, known initial speed; Newton uses one `mu` for \(\mu_d\) |
@@ -651,8 +655,10 @@ disposition before Phase 5 begins.
    and offset fixtures are implemented for Newton-MJWarp and Newton-Kamino. Strict expected failures remain for
    Kamino restitution ([vastsoun/newton#375](https://github.com/vastsoun/newton/issues/375)), MJWarp
    restitution, and contact margins on MJWarp.
-4. **Phase 3 — limits, frames, and passive effects (Newton only):** add position/velocity/effort limits, joint
-   frames, passive damping, and backend-specific joint friction for Newton-MJWarp and Newton-Kamino.
+4. **Phase 3 — limits, frames, and passive effects (Newton only, complete except blocked passive-damping
+   paths):** position/velocity/effort limits, joint frames, passive damping, and backend-specific joint friction
+   are covered for Newton-MJWarp and Newton-Kamino. `JOINT-08` Python override and runtime coverage remains
+   blocked by [IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517).
 5. **Phase 4 — blocked Newton runtime contracts:** convert Newton-MJWarp and Newton-Kamino `X` cells to `E` or
    `T` as backend defects are resolved. Deferred constraints, tendons, and OVPhysX require a separate design
    revision.
@@ -712,6 +718,17 @@ strict expected failure because positive-gap contacts combine stabilization and 
 separated ([vastsoun/newton#375](https://github.com/vastsoun/newton/issues/375)); the fixture's default
 `contact_offset = 0.01` m places the sphere-drop case in that regime. The remaining failures are recorded as
 `X`, not as supported coverage.
+
+Phase 3 is implemented in `test_joint_dynamics.py`. `FIX-JOINT-FRAME` covers parent/child frame rotations and
+translations through world-space link motion on both Newton backends; no independent Python override exists.
+The existing `FIX-LIMIT-POS` coverage remains unchanged. `FIX-LIMIT-VEL` now detects every USD/config/runtime
+`JOINT-05` gap with strict expected failures. `FIX-LIMIT-EFFORT` implements all three MJWarp paths and detects
+the Kamino gap tracked by [vastsoun/newton#398](https://github.com/vastsoun/newton/issues/398).
+`FIX-PASSIVE` implements all three MJWarp dry-friction paths using Newton's absolute force/torque semantics and
+detects the Kamino revolute-joint gap tracked by
+[vastsoun/newton#383](https://github.com/vastsoun/newton/issues/383). USD passive damping remains implemented
+on both backends; its Python and runtime paths remain blocked by
+[IsaacLab#6517](https://github.com/isaac-sim/IsaacLab/issues/6517).
 
 The appropriate CI selection, gating policy, and scheduling are intentionally left to the implementation
 change. Contact tests are likely to be less reliable in CI because their thresholds depend on integrator,

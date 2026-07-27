@@ -77,16 +77,23 @@ class _SingleDofParameterAdapter:
         position: float = 0.0,
         velocity: float = 0.0,
         passive_damping: float = 0.0,
+        effort_limit: float | None = None,
+        velocity_limit: float | None = None,
+        friction: float | None = None,
+        dof_authoring: str | None = None,
     ) -> dict[str, float]:
         """Author a parameter, run one backend DOF step, and return observed state."""
         spec = self._dof_authoring_spec(
-            authoring,
+            dof_authoring or authoring,
             stiffness=stiffness,
             damping=damping,
             armature=armature,
         )
         usd_stiffness, usd_damping, usd_armature = spec["usd"]
         cfg_stiffness, cfg_damping, cfg_armature = spec["cfg"]
+        effort_limit_spec = self._scalar_authoring_spec(authoring, effort_limit, 1.0e9)
+        velocity_limit_spec = self._scalar_authoring_spec(authoring, velocity_limit, None)
+        friction_spec = self._scalar_authoring_spec(authoring, friction, 0.0)
 
         with build_simulation_context(device=DEVICE, sim_cfg=self.profile_dof_cfg()) as sim:
             sim._app_control_on_stop_handle = None
@@ -96,17 +103,47 @@ class _SingleDofParameterAdapter:
                 usd_drive_damping=usd_damping,
                 usd_armature=usd_armature,
                 usd_passive_damping=passive_damping,
+                usd_effort_limit=effort_limit_spec["usd"],
+                usd_velocity_limit=velocity_limit_spec["usd"],
+                usd_friction=friction_spec["usd"],
             )
-            articulation = Articulation(make_single_dof_cfg(cfg_stiffness, cfg_damping, cfg_armature))
+            articulation = Articulation(
+                make_single_dof_cfg(
+                    cfg_stiffness,
+                    cfg_damping,
+                    cfg_armature,
+                    effort_limit_sim=effort_limit_spec["cfg"],
+                    velocity_limit_sim=velocity_limit_spec["cfg"],
+                    friction=friction_spec["cfg"],
+                )
+            )
             sim.reset()
             articulation.update(0.0)
             body_inertia = float(articulation.data.mass_matrix.torch[0, 0, 0])
+
+            has_property_runtime = any(
+                property_spec["runtime"] is not None
+                for property_spec in (effort_limit_spec, velocity_limit_spec, friction_spec)
+            )
+            if has_property_runtime:
+                sim.step()
+                articulation.update(PROFILE_DOF_DT)
+                articulation.write_joint_position_to_sim_index(position=articulation.data.default_joint_pos.torch)
+                articulation.write_joint_velocity_to_sim_index(velocity=articulation.data.default_joint_vel.torch)
 
             if spec["runtime"] is not None:
                 runtime_stiffness, runtime_damping, runtime_armature = spec["runtime"]
                 articulation.write_joint_stiffness_to_sim_index(stiffness=runtime_stiffness)
                 articulation.write_joint_damping_to_sim_index(damping=runtime_damping)
                 articulation.write_joint_armature_to_sim_index(armature=runtime_armature)
+            if effort_limit_spec["runtime"] is not None:
+                articulation.write_joint_effort_limit_to_sim_index(limits=effort_limit_spec["runtime"])
+            if velocity_limit_spec["runtime"] is not None:
+                articulation.write_joint_velocity_limit_to_sim_index(limits=velocity_limit_spec["runtime"])
+            if friction_spec["runtime"] is not None:
+                articulation.write_joint_friction_coefficient_to_sim_index(
+                    joint_friction_coeff=friction_spec["runtime"]
+                )
 
             articulation.write_joint_position_to_sim_index(position=torch.full((1, 1), position, device=DEVICE))
             articulation.write_joint_velocity_to_sim_index(velocity=torch.full((1, 1), velocity, device=DEVICE))
@@ -126,6 +163,91 @@ class _SingleDofParameterAdapter:
                 "velocity_before": velocity_before,
                 "position_after": float(articulation.data.joint_pos.torch[0, 0]),
                 "velocity_after": float(articulation.data.joint_vel.torch[0, 0]),
+            }
+
+    def run_joint_frame_probe(
+        self,
+        joint_type: str,
+        *,
+        parent_frame_position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        parent_frame_orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+        child_frame_position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        child_frame_orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+    ) -> dict[str, torch.Tensor]:
+        """Apply a known effort and return the moving link's world-space motion."""
+        with build_simulation_context(device=DEVICE, sim_cfg=self.profile_dof_cfg()) as sim:
+            sim._app_control_on_stop_handle = None
+            build_single_dof(
+                joint_type,
+                usd_stiffness=0.0,
+                parent_frame_position=parent_frame_position,
+                parent_frame_orientation=parent_frame_orientation,
+                child_frame_position=child_frame_position,
+                child_frame_orientation=child_frame_orientation,
+            )
+            articulation = Articulation(make_single_dof_cfg(0.0, 0.0, 0.0))
+            sim.reset()
+            articulation.update(0.0)
+            position_before = articulation.data.body_link_pos_w.torch[0, 1].clone()
+            orientation_before = articulation.data.body_link_quat_w.torch[0, 1].clone()
+            articulation.set_joint_effort_target_index(target=torch.ones((1, 1), device=DEVICE))
+            articulation.write_data_to_sim()
+            sim.step()
+            articulation.update(PROFILE_DOF_DT)
+            return {
+                "position_before": position_before,
+                "orientation_before": orientation_before,
+                "position_after": articulation.data.body_link_pos_w.torch[0, 1].clone(),
+                "linear_velocity": articulation.data.body_link_lin_vel_w.torch[0, 1].clone(),
+                "angular_velocity": articulation.data.body_link_ang_vel_w.torch[0, 1].clone(),
+            }
+
+    def run_velocity_limit_probe(
+        self,
+        joint_type: str,
+        authoring: str,
+        *,
+        velocity_limit: float,
+        initial_velocity: float = 0.0,
+        driven: bool = True,
+    ) -> dict[str, float]:
+        """Drive a joint past a velocity limit and observe its sustained response."""
+        velocity_limit_spec = self._scalar_authoring_spec(authoring, velocity_limit, None)
+        with build_simulation_context(device=DEVICE, sim_cfg=self.profile_dof_cfg()) as sim:
+            sim._app_control_on_stop_handle = None
+            build_single_dof(
+                joint_type,
+                usd_stiffness=100.0 if driven else 0.0,
+                usd_drive_damping=10.0 if driven else 0.0,
+                usd_velocity_limit=velocity_limit_spec["usd"],
+            )
+            articulation = Articulation(
+                make_single_dof_cfg(
+                    None,
+                    None,
+                    None,
+                    velocity_limit_sim=velocity_limit_spec["cfg"],
+                )
+            )
+            sim.reset()
+            if velocity_limit_spec["runtime"] is not None:
+                sim.step()
+                articulation.update(PROFILE_DOF_DT)
+                articulation.write_joint_position_to_sim_index(position=articulation.data.default_joint_pos.torch)
+                articulation.write_joint_velocity_to_sim_index(velocity=articulation.data.default_joint_vel.torch)
+                articulation.write_joint_velocity_limit_to_sim_index(limits=velocity_limit_spec["runtime"])
+            articulation.write_joint_velocity_to_sim_index(velocity=torch.full((1, 1), initial_velocity, device=DEVICE))
+            if driven:
+                articulation.set_joint_position_target_index(target=torch.full((1, 1), 10.0, device=DEVICE))
+            maximum_velocity = 0.0
+            for _ in range(120):
+                articulation.write_data_to_sim()
+                sim.step()
+                articulation.update(PROFILE_DOF_DT)
+                maximum_velocity = max(maximum_velocity, abs(float(articulation.data.joint_vel.torch[0, 0])))
+            return {
+                "maximum_velocity": maximum_velocity,
+                "final_velocity": abs(float(articulation.data.joint_vel.torch[0, 0])),
             }
 
     @staticmethod
@@ -331,6 +453,19 @@ class _SingleDofParameterAdapter:
                 "cfg": (None, None, None),
                 "runtime": (stiffness, damping, armature),
             }
+        raise ValueError(f"Unknown authoring path: {authoring}")
+
+    @staticmethod
+    def _scalar_authoring_spec(authoring: str, value: float | None, usd_default: float | None) -> dict:
+        """Resolve one scalar joint property across USD, config, and runtime paths."""
+        if value is None:
+            return {"usd": usd_default, "cfg": None, "runtime": None}
+        if authoring == "usd":
+            return {"usd": value, "cfg": None, "runtime": None}
+        if authoring == "cfg":
+            return {"usd": usd_default, "cfg": value, "runtime": None}
+        if authoring in {"runtime", "runtime-error"}:
+            return {"usd": usd_default, "cfg": None, "runtime": value}
         raise ValueError(f"Unknown authoring path: {authoring}")
 
     @staticmethod

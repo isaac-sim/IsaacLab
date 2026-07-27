@@ -338,8 +338,15 @@ def build_single_dof(
     usd_drive_damping: float = 0.0,
     usd_armature: float = 0.0,
     usd_passive_damping: float = 0.0,
+    usd_friction: float = 0.0,
+    usd_velocity_limit: float | None = None,
+    usd_effort_limit: float = 1.0e9,
     usd_lower: float | None = None,
     usd_upper: float | None = None,
+    parent_frame_position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    parent_frame_orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+    child_frame_position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    child_frame_orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
     center_of_mass: tuple[float, float, float] = (0.0, 0.0, 0.0),
 ) -> None:
     """Author a fixed-base single-DOF articulation on the current stage."""
@@ -382,6 +389,10 @@ def build_single_dof(
     joint.CreateBody0Rel().SetTargets([base_path])
     joint.CreateBody1Rel().SetTargets([link_path])
     joint.CreateAxisAttr().Set(axis)
+    joint.CreateLocalPos0Attr().Set(Gf.Vec3f(*parent_frame_position))
+    joint.CreateLocalRot0Attr().Set(Gf.Quatf(parent_frame_orientation[0], Gf.Vec3f(*parent_frame_orientation[1:])))
+    joint.CreateLocalPos1Attr().Set(Gf.Vec3f(*child_frame_position))
+    joint.CreateLocalRot1Attr().Set(Gf.Quatf(child_frame_orientation[0], Gf.Vec3f(*child_frame_orientation[1:])))
     if usd_lower is not None and usd_upper is not None:
         joint.CreateLowerLimitAttr().Set(float(usd_lower * limit_conversion))
         joint.CreateUpperLimitAttr().Set(float(usd_upper * limit_conversion))
@@ -390,12 +401,15 @@ def build_single_dof(
     joint.GetPrim().CreateAttribute("newton:damping", Sdf.ValueTypeNames.Float).Set(
         float(usd_passive_damping * damping_conversion)
     )
+    joint.GetPrim().CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(float(usd_friction))
+    if usd_velocity_limit is not None:
+        joint.GetPrim().CreateAttribute("newton:velocityLimit", Sdf.ValueTypeNames.Float).Set(float(usd_velocity_limit))
     apply_drive(
         UsdPhysicsDriveCfg(
             drive_type="force",
             stiffness=float(usd_stiffness),
             damping=float(usd_drive_damping),
-            max_force=1.0e9,
+            max_force=float(usd_effort_limit),
         ),
         joint_path,
         stage,
@@ -407,6 +421,9 @@ def make_single_dof_cfg(
     damping: float | None,
     armature: float | None,
     *,
+    effort_limit_sim: float | None = None,
+    velocity_limit_sim: float | None = None,
+    friction: float | None = None,
     joint_position: float = 0.0,
     joint_velocity: float = 0.0,
 ) -> ArticulationCfg:
@@ -424,6 +441,9 @@ def make_single_dof_cfg(
                 stiffness=stiffness,
                 damping=damping,
                 armature=armature,
+                effort_limit_sim=effort_limit_sim,
+                velocity_limit_sim=velocity_limit_sim,
+                friction=friction,
             )
         },
     )
