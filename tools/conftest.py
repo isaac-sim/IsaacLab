@@ -75,6 +75,11 @@ def pytest_configure(config):
     if not _SESSION_KIT:
         return
 
+    # Files that fail to import at collection time (e.g. missing optional deps like
+    # omni.replicator in non-camera images) would abort the entire session by default.
+    # Treat them as skipped rather than fatal so the remaining tests still run.
+    config.option.continue_on_collection_errors = True
+
     import isaaclab.app
     import isaaclab.app.app_launcher
     from isaaclab.app import AppLauncher as _Base
@@ -120,10 +125,7 @@ def pytest_sessionfinish(session, exitstatus):
     global _session_kit_launcher
     if not _SESSION_KIT or _session_kit_launcher is None:
         return
-    # Kit's logging handlers may already be closed by the time this hook fires;
-    # suppress the resulting ValueError so it doesn't appear as a spurious error.
     with contextlib.suppress(Exception):
-        logger.info("[session-kit] Closing shared Kit instance")
         _session_kit_launcher._app.close()
     _session_kit_launcher = None
 
