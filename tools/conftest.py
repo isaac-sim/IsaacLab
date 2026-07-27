@@ -27,37 +27,41 @@ from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: sk
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "").lower() in ("1", "true")
+_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "1").lower() not in ("0", "false")
 """When ``True``, a single Kit/SimulationApp instance is started once for the entire pytest session.
 
-Set ``ISAACLAB_SESSION_KIT=1`` to enable.  Pytest handles collection and execution normally; each
-test file's module-level ``AppLauncher()`` call returns an alias of the already-running instance
-instead of launching a new Kit process.
+Enabled by default.  Set ``ISAACLAB_SESSION_KIT=0`` to disable and fall back to the
+subprocess-per-file mode.
 
-In this mode the subprocess-per-file orchestration in :func:`pytest_sessionstart` is skipped.
-Use standard pytest flags (``--junitxml``, ``-k``, ``-m``) for filtering and reporting.
+When the pytest invocation only specifies a directory (e.g. ``pytest tools``), session-kit mode
+runs the same :func:`_collect_test_files` discovery as subprocess mode and injects the discovered
+paths into pytest's collection before collection begins.  All environment-variable filters
+(``TEST_FILTER_PATTERN``, ``TEST_EXCLUDE_PATTERN``, ``TEST_SHARD_INDEX``, etc.) are honoured.
 
-.. warning::
-    This mode requires test file paths to be passed explicitly to pytest (e.g.
-    ``pytest tools source/isaaclab/test/...``).  The CI default of passing only ``tools``
-    relies on :func:`pytest_sessionstart` to discover tests under ``source/`` and ``scripts/``,
-    which session-kit mode bypasses.  Enabling this mode in CI requires updating the pytest
-    invocation to include the actual test paths.
+When explicit test file paths are passed on the command line, those are used as-is.
 
 .. warning::
     ``device_split`` test files (those that mix CPU and GPU parametrizations) must be run in
     separate processes when using this mode — pass ``-k "cpu or not cuda"`` or ``-k cuda``
     explicitly.  The automatic two-pass split in :func:`run_individual_tests` is only available
-    in the default subprocess-per-file mode.
+    in the subprocess-per-file mode (``ISAACLAB_SESSION_KIT=0``).
 """
 
 _session_kit_launcher = None
 """The :class:`~isaaclab.app.AppLauncher` instance started by :func:`pytest_configure` in
 session-kit mode.  ``None`` in the default subprocess-per-file mode."""
 
+_session_kit_test_files: set[str] | None = None
+"""Normalised absolute paths of test files discovered for this session-kit run.
+
+Populated by :func:`pytest_sessionstart` when session-kit mode auto-discovers files from
+``source/`` / ``scripts/``.  ``None`` when the caller supplied explicit file paths or when
+session-kit mode is disabled.  Read by :func:`pytest_ignore_collect` to gate collection.
+"""
+
 
 def pytest_configure(config):
-    """Start a shared Kit instance early when ``ISAACLAB_SESSION_KIT=1`` is set.
+    """Start a shared Kit instance early unless ``ISAACLAB_SESSION_KIT=0`` is set.
 
     This hook runs before pytest collects any test modules.  We subclass
     :class:`~isaaclab.app.AppLauncher` here and monkey-patch it into
@@ -132,9 +136,15 @@ def pytest_sessionfinish(session, exitstatus):
 
 def pytest_ignore_collect(collection_path, config):
     if _SESSION_KIT:
-        # Let pytest collect test files normally; _SessionKitLauncher handles the shared Kit instance.
+        if _session_kit_test_files is not None:
+            # Auto-discovery ran: allow only the discovered test files.
+            path = str(collection_path)
+            if os.path.isdir(path):
+                return None  # always allow directory traversal
+            return os.path.normpath(path) not in _session_kit_test_files
+        # Explicit file paths were supplied by the caller — collect normally.
         return None
-    # Default: skip collection and run each test script individually as a subprocess.
+    # Default subprocess-per-file mode: block all collection.
     return True
 
 
@@ -1211,11 +1221,60 @@ def _write_empty_report():
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order.
 
-    In session-kit mode (``ISAACLAB_SESSION_KIT=1``) this hook is a no-op: pytest handles
-    collection and execution normally with the shared Kit instance started in
-    :func:`pytest_configure`.
+    In session-kit mode this hook discovers test files from ``source/`` and ``scripts/``
+    (respecting all env-var filters and sharding) and injects their paths into
+    ``session.config.args`` before pytest begins collection.  This mirrors what
+    :func:`run_individual_tests` does in subprocess mode, ensuring the CI invocation
+    (``pytest tools``) collects the same test files regardless of mode.
+
+    If the caller already supplied explicit test file paths (i.e. every entry in
+    ``session.config.args`` is a file, not a directory), auto-discovery is skipped and
+    those paths are used as-is.
     """
+    global _session_kit_test_files
+
     if _SESSION_KIT:
+        # Only auto-discover when pytest was pointed at a directory (the CI case: ``tools``).
+        # When the user supplies explicit test file paths, honour those directly.
+        if all(os.path.isdir(arg) for arg in session.config.args):
+            workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            source_dirs = [
+                os.path.join(workspace_root, "scripts"),
+                os.path.join(workspace_root, "source"),
+            ]
+
+            filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
+            exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
+            include_files_str = os.environ.get("TEST_INCLUDE_FILES", "")
+            quarantined_only = os.environ.get("TEST_QUARANTINED_ONLY", "false") == "true"
+            curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
+
+            include_files = set()
+            if include_files_str:
+                for f in include_files_str.split(","):
+                    f = f.strip()
+                    if f:
+                        include_files.add(os.path.basename(f))
+
+            test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
+            include_files.update(os.path.basename(path) for path in test_node_ids_by_file)
+
+            test_files = _collect_test_files(
+                source_dirs,
+                filter_pattern,
+                exclude_pattern,
+                include_files,
+                quarantined_only,
+                curobo_only,
+            )
+
+            if not test_files:
+                logger.info("[session-kit] No test files discovered — nothing to run")
+                return
+
+            logger.info(f"[session-kit] Discovered {len(test_files)} test files — injecting into pytest collection")
+            _session_kit_test_files = {os.path.normpath(f) for f in test_files}
+            session.config.args = list(test_files)
         return
 
     # Get the workspace root directory (one level up from tools)
