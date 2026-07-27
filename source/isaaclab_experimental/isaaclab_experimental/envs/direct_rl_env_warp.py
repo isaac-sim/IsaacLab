@@ -27,7 +27,6 @@ import warp as wp
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.direct_rl_env import DirectRLEnv
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
-from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
@@ -35,7 +34,6 @@ from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache

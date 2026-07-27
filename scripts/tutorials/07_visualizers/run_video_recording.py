@@ -1,0 +1,239 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tutorial: recording video from visualizers and scene sensors.
+
+This script demonstrates three progressively richer recording configurations.
+Select the active example by setting ``_EXAMPLE`` to 1, 2, or 3 at the top of
+the file, then run the corresponding command below.
+
+Example 1 — Kit viewport + tiled-camera grid (AnymalD, Kit visualizer)
+    Two simultaneous clips: the main Kit viewport and the Kit tiled-camera grid.
+
+    .. code-block:: bash
+
+        uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
+            --example 1 --num_envs 256
+
+Example 2 — scene sensor only, headless (Shadow Hand, no visualizer)
+    One clip captured directly from the scene's tiled-camera sensor.
+    No visualizer window opens; the sensor renders offline.
+
+    .. code-block:: bash
+
+        uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
+            --example 2 --num_envs 16
+
+Example 3 — Kit viewport + Newton viewport + scene sensor (Shadow Hand)
+    Three independent clip streams recorded simultaneously.
+
+    .. code-block:: bash
+
+        uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
+            --example 3 --num_envs 16
+
+Clips are written to ``videos/recording_tutorial/example_<N>/`` in the working directory.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import os
+import sys
+
+import gymnasium as gym
+import torch
+
+import isaaclab_tasks  # noqa: F401
+
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
+
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab_tasks.utils import setup_preset_cli
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_VIDEO_LENGTH = 100  # env steps per clip
+_NUM_STEPS = 115  # slightly more than _VIDEO_LENGTH so the clip flushes cleanly
+
+_TASK_ANYMAL = "Isaac-Velocity-Rough-AnymalD"
+_TASK_SHADOW = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
+
+
+def _output_dir(example: int) -> str:
+    return os.path.join("videos", "recording_tutorial", f"example_{example}")
+
+
+# ---------------------------------------------------------------------------
+# Per-example environment config builders
+# ---------------------------------------------------------------------------
+
+
+def _build_env_cfg_example_1(num_envs: int):
+    """AnymalD + Kit visualizer: viewport clip and tiled-camera grid clip."""
+    from isaaclab_tasks.core.velocity.config.anymal_d.rough_env_cfg import AnymalDRoughEnvCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+
+    env_cfg = AnymalDRoughEnvCfg()
+    env_cfg.scene.num_envs = num_envs
+    # Resolve the physics PresetCfg to the default (PhysxCfg) so the launch validator
+    # does not see OvPhysxCfg entries that would block a Kit visualizer.
+    env_cfg.sim.physics = env_cfg.sim.physics.default
+
+    kit_cfg = KitVisualizerCfg()
+    kit_cfg.tiled_cam_view = True
+    kit_cfg.tiled_cam_num = min(36, num_envs)
+    env_cfg.sim.visualizer_cfgs = [kit_cfg]
+
+    out = _output_dir(1)
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(
+            source="visualizer:kit",
+            output_dir=out,
+            output_filename_prefix="viewport",
+            video_length=_VIDEO_LENGTH,
+            fps=30,
+        ),
+        VideoRecorderCfg(
+            source="visualizer:kit:tiled",
+            output_dir=out,
+            output_filename_prefix="tiled",
+            video_length=_VIDEO_LENGTH,
+            fps=30,
+        ),
+    ]
+    return env_cfg, _TASK_ANYMAL
+
+
+def _build_env_cfg_example_2(num_envs: int):
+    """Shadow Hand + headless: scene tiled-camera sensor clip only."""
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
+
+    env_cfg = ShadowHandCameraEnvCfg()
+    env_cfg.tiled_camera = env_cfg.tiled_camera.rgb  # rgb-only preset
+    # Resolve the renderer PresetCfg to IsaacRtxRendererCfg so the launch validator
+    # does not see the OvRTX entry that would block Kit-based PhysX physics.
+    env_cfg.tiled_camera.renderer_cfg = env_cfg.tiled_camera.renderer_cfg.default
+    env_cfg.tiled_camera.height = 256
+    env_cfg.tiled_camera.width = 256
+    env_cfg.scene.num_envs = num_envs
+    env_cfg.sim.visualizer_cfgs = []  # no interactive visualizer
+
+    out = _output_dir(2)
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(
+            source="sensor:tiled_camera",
+            output_dir=out,
+            output_filename_prefix="sensor",
+            video_length=_VIDEO_LENGTH,
+            fps=30,
+        ),
+    ]
+    return env_cfg, _TASK_SHADOW
+
+
+def _build_env_cfg_example_3(num_envs: int):
+    """Shadow Hand + Kit + Newton + sensor: three simultaneous streams."""
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    env_cfg = ShadowHandCameraEnvCfg()
+    env_cfg.tiled_camera = env_cfg.tiled_camera.rgb  # rgb-only preset
+    env_cfg.tiled_camera.renderer_cfg = env_cfg.tiled_camera.renderer_cfg.default
+    env_cfg.tiled_camera.height = 256
+    env_cfg.tiled_camera.width = 256
+    env_cfg.sim.physics = env_cfg.sim.physics.default
+    env_cfg.scene.num_envs = num_envs
+
+    kit_cfg = KitVisualizerCfg()
+    kit_cfg.tiled_cam_view = True
+    kit_cfg.tiled_cam_num = min(16, num_envs)
+    newton_cfg = NewtonVisualizerCfg()
+    env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
+
+    out = _output_dir(3)
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(
+            source="visualizer:kit",
+            output_dir=out,
+            output_filename_prefix="kit_viewport",
+            video_length=_VIDEO_LENGTH,
+            fps=30,
+        ),
+        VideoRecorderCfg(
+            source="visualizer:newton",
+            output_dir=out,
+            output_filename_prefix="newton_viewport",
+            video_length=_VIDEO_LENGTH,
+            fps=30,
+        ),
+        VideoRecorderCfg(
+            source="sensor:tiled_camera",
+            output_dir=out,
+            output_filename_prefix="sensor",
+            video_length=_VIDEO_LENGTH,
+            fps=30,
+        ),
+    ]
+    return env_cfg, _TASK_SHADOW
+
+
+_BUILDERS = {
+    1: _build_env_cfg_example_1,
+    2: _build_env_cfg_example_2,
+    3: _build_env_cfg_example_3,
+}
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+parser = argparse.ArgumentParser(description="Video recording tutorial for Isaac Lab environments.")
+parser.add_argument(
+    "--example", type=int, default=1, choices=[1, 2, 3], help="Which recording example to run (1, 2, or 3)."
+)
+parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+add_launcher_args(parser)
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
+
+
+def main():
+    """Run the selected video recording example."""
+    num_envs = args_cli.num_envs if args_cli.num_envs is not None else {1: 256, 2: 16, 3: 16}[args_cli.example]
+    env_cfg, task = _BUILDERS[args_cli.example](num_envs)
+    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+
+    # Examples 1 and 3 record from the Kit viewport via omni.replicator, which requires
+    # camera rendering support.  The auto-enable in launch_simulation only triggers for
+    # scenes that contain Kit camera sensors; force it here for visualizer-only recording.
+    if args_cli.example in (1, 3):
+        args_cli.enable_cameras = True
+
+    with launch_simulation(env_cfg, args_cli):
+        env = gym.make(task, cfg=env_cfg)
+
+        out = _output_dir(args_cli.example)
+        print(f"[INFO]: Running Example {args_cli.example} — clips → {out}/")
+        print(f"[INFO]: Gym observation space: {env.observation_space}")
+        print(f"[INFO]: Gym action space: {env.action_space}")
+
+        env.reset()
+        for _ in range(_NUM_STEPS):
+            with torch.inference_mode():
+                actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                env.step(actions)
+
+        env.close()
+        print(f"[INFO]: Done. Clips written to {out}/")
+
+
+if __name__ == "__main__":
+    main()
