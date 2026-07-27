@@ -70,12 +70,13 @@ def _resolve_asset_root() -> str:
     asset-root precedence. The kit file remains the fallback for kitless use.
 
     Returns:
-        Value of ``ISAACSIM_ASSET_ROOT`` without its trailing slash, or the value
+        Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
         configured in ``isaaclab.python.kit``.
     """
-    asset_root = os.getenv("ISAACSIM_ASSET_ROOT")
+    # both separators are stripped because the variable is also documented for Windows
+    asset_root = os.getenv("ISAACSIM_ASSET_ROOT", "").strip()
     if asset_root:
-        return asset_root.rstrip("/")
+        return asset_root.rstrip("/\\")
     return _parse_kit_asset_root()
 
 

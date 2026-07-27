@@ -32,6 +32,28 @@ def test_asset_root_falls_back_to_kit_file(monkeypatch):
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
+def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
+    """Test the documented Windows form of the environment override."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "C:\\assets\\Assets\\Isaac\\6.0\\")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "C:\\assets\\Assets\\Isaac\\6.0"
+
+
+def test_asset_root_ignores_blank_environment_override(monkeypatch):
+    """Test a whitespace-only override falls back instead of blanking the asset root."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "   ")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+
+def test_kit_experience_path_resolves_to_the_shipped_experience():
+    """Test the unpatched experience-file path so a broken relative walk fails here."""
+    assert Path(assets_utils._KIT_EXPERIENCE_PATH).is_file()
+    assert assets_utils._parse_kit_asset_root()
+
+
 def test_kit_asset_root_prefers_default_setting(tmp_path, monkeypatch):
     """Test the experience-file fallback reads the setting that Isaac Sim resolves."""
     kit_file = tmp_path / "isaaclab.python.kit"
