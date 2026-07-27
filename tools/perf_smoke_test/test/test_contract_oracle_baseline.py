@@ -124,6 +124,26 @@ def test_seed_sample_index_prevents_identical_fps_deduplication(monkeypatch) -> 
     assert first["sample_id"] != second["sample_id"]
 
 
+def test_sample_metadata_records_runner_allocation_identity(monkeypatch) -> None:
+    """Stability evidence identifies both the matrix allocation and physical runner."""
+    monkeypatch.setenv("PERF_SMOKE_RUN_LABEL", "runner-allocation-3")
+    monkeypatch.setenv("PERF_SMOKE_RUNNER_NAME", "l40s-runner-03")
+
+    metadata = make_sample_metadata(
+        gpu_model="l40s",
+        task_id="Isaac-Cartpole-Direct",
+        backend="physx",
+        fps=100.0,
+        bench_result=_bench_result(fps=100.0).to_dict(),
+        target_branch="develop",
+        commit_sha="abc123",
+        sample_index=0,
+    )
+
+    assert metadata["ci_run_label"] == "runner-allocation-3"
+    assert metadata["ci_runner_name"] == "l40s-runner-03"
+
+
 def test_oracle_pass_warn_and_block_from_typed_result() -> None:
     """The post-migration oracle still scores typed BenchResult objects correctly."""
     baseline = Baseline(median_fps=100.0, mad_fps=2.0, sample_count=5)

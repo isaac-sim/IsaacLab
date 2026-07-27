@@ -1,0 +1,104 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# One-time staging qualification for the L40S runner pool. A merge into the
+# staging branch fans the same commit out to five independent runner allocations.
+# Each allocation collects three FPS samples for every configured bucket without
+# publishing baselines. The final CPU job combines all evidence and fails unless
+# the pool meets the predeclared stability policy in runner_stability.py.
+
+name: Performance Smoke - L40S Runner Stability
+
+on:
+  push:
+    branches: ['perf-smoke/develop-staging']
+
+permissions:
+  # The reusable seeder declares write permission for its normal publication
+  # path. These calls are hard-coded dry runs and never invoke that path.
+  contents: write
+
+concurrency:
+  group: perf-smoke-runner-stability-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  stability_sample:
+    name: Runner allocation ${{ matrix.allocation }}
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        allocation: [1, 2, 3, 4, 5]
+    uses: ./.github/workflows/perf-smoke-seed-baselines.yaml
+    secrets: inherit
+    with:
+      branches: "${{ github.sha }}:perf-smoke/develop-staging"
+      commit_branch: perf-smoke/develop-staging
+      commit_count: "1"
+      samples_per_commit: "3"
+      tasks: "__ALL_TASKS__"
+      target_branch: perf-smoke/develop-staging
+      strict_ancestry: true
+      dry_run: true
+      run_label: "runner-allocation-${{ matrix.allocation }}"
+      artifact_suffix: "-stability-${{ matrix.allocation }}"
+      concurrency_group: "perf-smoke-stability-${{ github.run_id }}-${{ matrix.allocation }}"
+
+  qualify:
+    name: Qualify FPS stability
+    needs: [stability_sample]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Download runner evidence
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        pattern: seed-baselines-${{ github.run_id }}-stability-*
+        path: runner-stability-artifacts
+
+    - name: Build qualification report
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        RECORD_FILES=(runner-stability-artifacts/*/seed_records.json)
+        if [ "${#RECORD_FILES[@]}" -eq 0 ]; then
+          mkdir -p runner-stability-artifacts/no-evidence
+          printf '[]\n' > runner-stability-artifacts/no-evidence/seed_records.json
+          RECORD_FILES=(runner-stability-artifacts/no-evidence/seed_records.json)
+        fi
+        RECORD_ARGS=()
+        for record_file in "${RECORD_FILES[@]}"; do
+          RECORD_ARGS+=(--records "${record_file}")
+        done
+        python3 tools/perf_smoke_test/runner_stability.py \
+          "${RECORD_ARGS[@]}" \
+          --gpu_model l40s \
+          --expected_target_branch perf-smoke/develop-staging \
+          --expected_commit "${GITHUB_SHA}" \
+          --expected_allocations 5 \
+          --samples_per_allocation 3 \
+          --json_output runner-stability-report.json \
+          --markdown_output runner-stability-report.md \
+          --github_step_summary "${GITHUB_STEP_SUMMARY}" \
+          --require_ready
+
+    - name: Upload qualification report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: runner-stability-report-${{ github.run_id }}
+        path: |
+          runner-stability-report.json
+          runner-stability-report.md
+        retention-days: 30
+        if-no-files-found: warn

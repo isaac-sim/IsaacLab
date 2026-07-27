@@ -133,10 +133,27 @@ on:
         type: boolean
         required: false
         default: true
+      run_label:
+        description: "Optional label identifying an independent benchmark allocation."
+        required: false
+        default: ""
+        type: string
+      artifact_suffix:
+        description: "Optional suffix making artifacts unique across reusable-workflow matrix jobs."
+        required: false
+        default: ""
+        type: string
+      concurrency_group:
+        description: "Optional concurrency group override for independent dry-run allocations."
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   # Serialize seeding so concurrent pushes can't race the append-only baseline branch.
-  group: perf-smoke-seed
+  # Dry-run stability probes supply unique groups so their runner allocations can
+  # execute concurrently without weakening serialization for baseline writers.
+  group: ${{ inputs.concurrency_group || 'perf-smoke-seed' }}
   cancel-in-progress: false
 
 permissions:
@@ -166,7 +183,7 @@ jobs:
         echo "isaaclab_image_ref=${ISAACLAB_IMAGE_NAME}:latest-develop" >> "$GITHUB_OUTPUT"
 
   seed:
-    name: Seed baselines (${{ github.event_name == 'push' && github.ref_name || inputs.commit_branch || 'develop' }} x${{ github.event_name == 'push' && '1' || inputs.commit_count || '1' }})
+    name: Seed baselines (${{ inputs.commit_branch || github.ref_name || 'develop' }} x${{ inputs.commit_count || '1' }})
     runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
     needs: [config]
     timeout-minutes: 600
@@ -184,8 +201,8 @@ jobs:
     # explicitly; the clone the orchestrator makes draws its objects from here.
     - name: Fetch seed + baseline refs
       env:
-        SEED_BRANCHES: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging:perf-smoke/develop-staging' || inputs.branches || 'develop' }}
-        SEED_COMMIT_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging' || inputs.commit_branch || 'develop' }}
+        SEED_BRANCHES: ${{ inputs.branches || github.event_name == 'push' && 'perf-smoke/develop-staging:perf-smoke/develop-staging' || 'develop' }}
+        SEED_COMMIT_BRANCH: ${{ inputs.commit_branch || github.event_name == 'push' && 'perf-smoke/develop-staging' || 'develop' }}
       run: |
         set -euo pipefail
         # Collect every branch we might seed from: the multi-branch list (stripping
@@ -277,16 +294,18 @@ jobs:
         # publish one commit x MIN_BASELINE_SAMPLES for the full tasks.json matrix
         # so the merge immediately starts pre-seeding and verifies perf-baselines
         # writes across the gate's intended coverage.
-        SEED_BRANCHES: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging:perf-smoke/develop-staging' || inputs.branches || 'develop' }}
+        SEED_BRANCHES: ${{ inputs.branches || github.event_name == 'push' && 'perf-smoke/develop-staging:perf-smoke/develop-staging' || 'develop' }}
         SEED_COMMITS: ${{ inputs.commits || '' }}
-        SEED_COMMIT_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging' || inputs.commit_branch || 'develop' }}
-        SEED_COMMIT_COUNT: ${{ github.event_name == 'push' && '1' || inputs.commit_count || '1' }}
-        SEED_SAMPLES_PER_COMMIT: ${{ github.event_name == 'push' && '5' || inputs.samples_per_commit || '3' }}
-        SEED_TASKS: ${{ github.event_name == 'push' && '__ALL_TASKS__' || inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_COMMIT_BRANCH: ${{ inputs.commit_branch || github.event_name == 'push' && 'perf-smoke/develop-staging' || 'develop' }}
+        SEED_COMMIT_COUNT: ${{ inputs.commit_count || github.event_name == 'push' && '1' || '1' }}
+        SEED_SAMPLES_PER_COMMIT: ${{ inputs.samples_per_commit || github.event_name == 'push' && '5' || '3' }}
+        SEED_TASKS: ${{ inputs.tasks || github.event_name == 'push' && '__ALL_TASKS__' || 'Isaac-Cartpole-Direct' }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
-        SEED_TARGET_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging' || inputs.target_branch || 'develop' }}
-        SEED_STRICT_ANCESTRY: ${{ github.event_name == 'push' && 'true' || inputs.strict_ancestry == true && 'true' || 'false' }}
-        SEED_DRY_RUN: ${{ github.event_name == 'push' && 'false' || inputs.dry_run == false && 'false' || 'true' }}
+        SEED_TARGET_BRANCH: ${{ inputs.target_branch || github.event_name == 'push' && 'perf-smoke/develop-staging' || 'develop' }}
+        SEED_STRICT_ANCESTRY: ${{ inputs.strict_ancestry == true && 'true' || github.event_name == 'push' && 'true' || 'false' }}
+        SEED_DRY_RUN: ${{ inputs.dry_run == true && 'true' || 'false' }}
+        PERF_SMOKE_RUN_LABEL: ${{ inputs.run_label || '' }}
+        PERF_SMOKE_RUNNER_NAME: ${{ runner.name }}
       run: |
         set -euo pipefail
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
@@ -310,16 +329,34 @@ jobs:
           --source_mount true \
           --dry_run "${SEED_DRY_RUN}"
 
+    # Quantify runner noise from the independent repetitions without enforcing a
+    # stability threshold yet. Grouping includes commit + full gate fingerprint,
+    # so code or environment changes cannot be mistaken for run-to-run variance.
+    - name: Report run-to-run variance
+      if: always()
+      run: |
+        set -euo pipefail
+        RECORDS="seed-artifacts/seed_records.json"
+        if [ ! -s "${RECORDS}" ]; then
+          echo "::notice::No successful seed records were available for variance analysis"
+          exit 0
+        fi
+        python3 tools/perf_smoke_test/analyze_seed_variance.py \
+          --records "${RECORDS}" \
+          --json_output seed-artifacts/variance_report.json \
+          --markdown_output seed-artifacts/variance_report.md \
+          --github_step_summary "${GITHUB_STEP_SUMMARY}"
+
     # Prove the just-pushed samples will actually be used by the gate: replay the
     # gate's per-bucket match logic (fingerprint + commit ancestry) against the
     # target branch tip and require MIN_BASELINE_SAMPLES usable samples per bucket.
     # Only meaningful on a real publish (dry-run pushes nothing to verify).
     - name: Verify seeded baselines are gate-usable
-      if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+      if: ${{ inputs.dry_run != true }}
       env:
-        SEED_TASKS: ${{ github.event_name == 'push' && '__ALL_TASKS__' || inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_TASKS: ${{ inputs.tasks || github.event_name == 'push' && '__ALL_TASKS__' || 'Isaac-Cartpole-Direct' }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
-        SEED_TARGET_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/develop-staging' || inputs.target_branch || 'develop' }}
+        SEED_TARGET_BRANCH: ${{ inputs.target_branch || github.event_name == 'push' && 'perf-smoke/develop-staging' || 'develop' }}
       run: |
         set -euo pipefail
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
@@ -338,7 +375,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v7
       with:
-        name: seed-baselines-${{ github.run_id }}
+        name: seed-baselines-${{ github.run_id }}${{ inputs.artifact_suffix }}
         path: seed-artifacts/
         retention-days: 7
         if-no-files-found: warn

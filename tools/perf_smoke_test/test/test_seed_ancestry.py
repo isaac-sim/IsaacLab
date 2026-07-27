@@ -150,8 +150,12 @@ def test_only_failing_camera_backends_use_container_local_jit_cache() -> None:
     """Only camera backends that failed on the host mount bypass cache reuse."""
     camera_task = "Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct"
 
-    assert seed_baselines._uses_container_local_jit_cache(SimpleNamespace(task_id=camera_task, backend_key="physx"))
-    assert seed_baselines._uses_container_local_jit_cache(SimpleNamespace(task_id=camera_task, backend_key="newton"))
+    assert seed_baselines._uses_container_local_jit_cache(
+        SimpleNamespace(task_id=camera_task, backend_key="physx_rtx_renderer")
+    )
+    assert seed_baselines._uses_container_local_jit_cache(
+        SimpleNamespace(task_id=camera_task, backend_key="newton_rtx_renderer")
+    )
     assert not seed_baselines._uses_container_local_jit_cache(
         SimpleNamespace(task_id=camera_task, backend_key="physx_newton_renderer")
     )

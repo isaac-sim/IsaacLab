@@ -49,20 +49,20 @@
       "timeout_minutes": 20,
       "tags": ["camera"],
       "backends": [
-        {"physics": "physx"},
+        {"physics": "physx", "render": "rtx_renderer"},
         {"physics": "physx", "render": "newton_renderer"},
-        {"physics": "newton"},
+        {"physics": "newton", "render": "rtx_renderer"},
         {"physics": "newton", "render": "newton_renderer"}
       ],
       "fps_mean_thresholds": {
         "l40s": {
-          "physx": [
+          "physx_rtx_renderer": [
             {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 20.0}
           ],
           "physx_newton_renderer": [
             {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
           ],
-          "newton": [
+          "newton_rtx_renderer": [
             {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
           ],
           "newton_newton_renderer": [

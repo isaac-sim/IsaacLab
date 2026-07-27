@@ -32,6 +32,9 @@ LAUNCH_CONFIG_SCHEMA_VERSION = 1
 BENCHMARK_CONTRACT_VERSION = 1
 DEFAULT_BASELINE_EPOCH = 1
 LAUNCH_CONFIG_FILENAME = "launch_config.json"
+_HYDRA_RENDER_PRESETS = {
+    "rtx_renderer": "isaacsim_rtx",
+}
 
 
 def workload_contract(config: dict[str, Any]) -> dict[str, Any]:
@@ -59,7 +62,7 @@ def hydra_args_for_task(task: TaskConfig) -> list[str]:
     if task.physics_backend == "newton":
         presets.append("newton_mjwarp")
     if task.render_backend:
-        presets.append(task.render_backend)
+        presets.append(_HYDRA_RENDER_PRESETS.get(task.render_backend, task.render_backend))
         if task.render_backend == "newton_renderer":
             presets.append("rgb")
     return [f"presets={','.join(presets)}"] if presets else []
