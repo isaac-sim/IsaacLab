@@ -27,11 +27,11 @@ from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: sk
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "1").lower() not in ("0", "false")
+_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "0").lower() not in ("0", "false")
 """When ``True``, a single Kit/SimulationApp instance is started once for the entire pytest session.
 
-Enabled by default.  Set ``ISAACLAB_SESSION_KIT=0`` to disable and fall back to the
-subprocess-per-file mode.
+Disabled by default.  Set ``ISAACLAB_SESSION_KIT=1`` to enable.  When disabled, the default
+subprocess-per-file mode is used.
 
 When the pytest invocation only specifies a directory (e.g. ``pytest tools``), session-kit mode
 runs the same :func:`_collect_test_files` discovery as subprocess mode and injects the discovered
@@ -49,7 +49,7 @@ When explicit test file paths are passed on the command line, those are used as-
 
 _session_kit_launcher = None
 """The :class:`~isaaclab.app.AppLauncher` instance started by :func:`pytest_configure` in
-session-kit mode.  ``None`` in the default subprocess-per-file mode."""
+session-kit mode.  ``None`` when session-kit is disabled (the default)."""
 
 _session_kit_test_files: set[str] | None = None
 """Normalised absolute paths of test files discovered for this session-kit run.
@@ -61,7 +61,7 @@ session-kit mode is disabled.  Read by :func:`pytest_ignore_collect` to gate col
 
 
 def pytest_configure(config):
-    """Start a shared Kit instance early unless ``ISAACLAB_SESSION_KIT=0`` is set.
+    """Start a shared Kit instance early when ``ISAACLAB_SESSION_KIT=1`` is set.
 
     This hook runs before pytest collects any test modules.  We subclass
     :class:`~isaaclab.app.AppLauncher` here and monkey-patch it into
