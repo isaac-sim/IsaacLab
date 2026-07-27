@@ -459,6 +459,8 @@ class Camera(SensorBase):
         else:
             env_ids_wp = self._resolve_env_ids_wp(env_ids)
             self._update_poses(env_ids_wp, frame_op=2)
+        # clear temporal denoiser state (e.g. DLSS) for environments that teleported
+        self._renderer.reset_tile_history(self._render_data, env_ids)
 
     """
     Implementation.

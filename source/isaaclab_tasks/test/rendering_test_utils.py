@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from PIL import Image, ImageChops
 
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -45,6 +46,9 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
     "cartpole": 1.5,
+    "cartpole_render_history_pre_reset": 2.0,
+    # Post-reset frame with camera pointing at empty space — expect to be pitch black
+    "cartpole_render_history_post_reset": 0.0,
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
@@ -899,6 +903,7 @@ def validate_camera_outputs(
     camera_outputs: dict[str, ProxyArray],
     max_different_pixels_percentage: float,
     comparison_scores: list[dict],
+    allow_non_zero: bool = False,
 ) -> None:
     """Validate correctness and consistency of camera outputs."""
     assert len(camera_outputs) > 0, f"[{test_name}] No camera outputs produced by {physics_backend} + {renderer}."
@@ -914,7 +919,7 @@ def validate_camera_outputs(
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
         max_val = corrected.abs().max()
-        if max_val <= 0:
+        if max_val <= 0 and not allow_non_zero:
             failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
             continue
 
@@ -1780,4 +1785,133 @@ def rendering_test_franka_soft(
 
             # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
             # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+# ---------------------------------------------------------------------------
+# Render history reset — Cartpole + OVRTX
+# ---------------------------------------------------------------------------
+
+# Env steps used to build up DLSS temporal history before the reset.
+_RENDER_HISTORY_WARMUP_STEPS = 30
+
+def rendering_test_cartpole_render_history_reset(
+    physics_backend: str,
+    renderer: str,
+    comparison_scores: list[dict],
+) -> None:
+    """Verify that ``env.reset()`` clears DLSS tile history for the OVRTX Cartpole env.
+
+    Sequence:
+
+    1. Create the Cartpole camera env with the OVRTX renderer (black background, no sky).
+    2. Step for ``_RENDER_HISTORY_WARMUP_STEPS`` frames so DLSS accumulates temporal
+       history with the pole in motion.
+    3. Call ``env.reset()`` and verify ``reset_tile_history`` was invoked (plumbing check).
+    4. Drive the renderer directly: teleport the camera 100 m above the scene (no geometry
+       in view) and render.
+    5. Validate the post-reset frame against a golden image with
+       :func:`validate_camera_outputs`.  The expected golden is near-black (only GPU
+       rounding artefacts); any DLSS ghosting from the warm-up frames shows as bright
+       pixels and causes the comparison to fail.
+    """
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
+
+    env_cfg = CartpoleCameraEnvCfg()
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},rgb"]
+    )
+    env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    env = None
+    camera_renderer = None
+    original_reset_tile_history = None
+
+    try:
+        env = CartpoleCameraEnv(env_cfg)
+
+        # Instrument reset_tile_history on the instance so we can assert it was called
+        # by env.reset() without touching the class (avoids side-effects on other tests).
+        camera_renderer = env._tiled_camera._renderer
+        original_reset_tile_history = camera_renderer.reset_tile_history
+        reset_tile_history_calls: list = []
+
+        def _tracking_reset(render_data, env_ids):
+            reset_tile_history_calls.append(env_ids)
+            return original_reset_tile_history(render_data, env_ids)
+
+        camera_renderer.reset_tile_history = _tracking_reset
+
+        # Step the scene (without physics) to build DLSS temporal history with the
+        # pole visible.  scene.update() drives the camera sensor and OVRTX render
+        # without advancing the physics sim, keeping the warm-up deterministic.
+        for _ in range(_RENDER_HISTORY_WARMUP_STEPS):
+            env.sim.render()
+            env.scene.update(dt=env.physics_dt)
+
+        # Golden-image gate for the pre-reset frame: the cartpole must be visible and
+        # match the reference.  This confirms the warm-up actually produced a meaningful
+        # frame before we test what happens after the reset.
+        validate_camera_outputs(
+            "cartpole_render_history_pre_reset",
+            physics_backend,
+            renderer,
+            env._tiled_camera.data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[
+                "cartpole_render_history_pre_reset"
+            ],
+            comparison_scores=comparison_scores,
+        )
+
+        # Reset: Camera.reset() calls reset_tile_history() which signals OVRTX to
+        # discard per-tile DLSS denoiser state for the affected environments.
+        reset_tile_history_calls.clear()
+        env.reset()
+
+        assert len(reset_tile_history_calls) >= 1, (
+            "env.reset() did not invoke reset_tile_history on the renderer; "
+            "the Camera.reset() → renderer.reset_tile_history() wiring may be broken."
+        )
+
+        # Drive the renderer directly, bypassing SimulationContext.render_into_camera(),
+        # so we control the exact camera pose for the post-reset frame.
+        # Position (1000, 0, 1000): far from the scene in both X and Z so no geometry
+        # is inside the frustum.  Identity quaternion in world convention = looking along
+        # +X.  Background is pitch black (no sky, no ground plane in the cartpole scene),
+        # so any DLSS ghosting from the warm-up frames shows up as non-zero pixels.
+        n = env.num_envs
+        positions = ProxyArray(wp.array([[1000.0, 1000.0, 1000.0]] * n, dtype=wp.vec3f, device=env.device))
+        orientations = ProxyArray(wp.array([[0.0, 0.0, 0.0, 1.0]] * n, dtype=wp.quatf, device=env.device))
+        intrinsics = ProxyArray(wp.zeros(n, dtype=wp.mat33f, device=env.device))
+        camera_renderer.update_camera(env._tiled_camera._render_data, positions, orientations, intrinsics)
+
+        # Explicit call to reset tile history for debugging purposes.
+        camera_renderer.reset_tile_history(env._tiled_camera._render_data, [-1.0])
+
+        # Perform rendering
+        camera_renderer.render(env._tiled_camera._render_data)
+        camera_renderer.read_output(env._tiled_camera._render_data, env._tiled_camera.data)
+
+        # Golden-image gate for the post-reset frame: expected to be black.
+        validate_camera_outputs(
+            "cartpole_render_history_post_reset",
+            physics_backend,
+            renderer,
+            env._tiled_camera.data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[
+                "cartpole_render_history_post_reset"
+            ],
+            comparison_scores=comparison_scores,
+            allow_non_zero=True,
+        )
+
+    finally:
+        if camera_renderer is not None and original_reset_tile_history is not None:
+            camera_renderer.reset_tile_history = original_reset_tile_history
+        if env is not None:
+            env.close()
             env = None

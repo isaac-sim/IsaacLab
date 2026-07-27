@@ -148,7 +148,7 @@ def build_render_scope_usd(
 def Scope "Render"
 {{
     def RenderProduct "{render_product_name}" (
-        prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+        prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxPostDebugSettingsAPI_1"]
     ) {{
         rel camera = [{camera_rel_list}]
         token omni:rtx:background:source:type = "domeLight"
@@ -157,6 +157,8 @@ def Scope "Render"
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = [{ordered_vars}]
         uniform int2 resolution = ({tiled_width}, {tiled_height})
+        int omni:rtx:viewTile:renderHistoryReset:requestId = 0
+        float[] omni:rtx:viewTile:renderHistoryReset:tileIndices = [-2]
     }}
 
     def "Vars"
