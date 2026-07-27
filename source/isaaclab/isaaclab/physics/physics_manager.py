@@ -119,13 +119,14 @@ class PhysicsManager(ABC):
         Raises:
             NotImplementedError: If a new joint is needed and the root is not a rigid body.
         """
-        # Keep this import local to avoid the SimulationContext -> PhysicsManager ->
-        # sim.utils.queries -> SimulationContext import cycle.
-        # Keep pxr local as well: this module is imported while environment configs load (via the
-        # manager classes), and config loading must not pull USD/omni modules before the simulation
-        # app starts.
-        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
+        # Keep these imports local. Hoisting the isaaclab.sim ones closes a real import cycle:
+        # isaaclab.physics -> sim.schemas.schemas -> sim.utils.prims -> sim.utils.queries ->
+        # sim.simulation_context -> isaaclab.physics (partially initialized). Keeping pxr local
+        # also keeps USD out of the config-definition path, which env configs import through
+        # managers.manager_base before the simulation app starts.
+        from pxr import UsdPhysics  # noqa: PLC0415
 
+        from isaaclab.sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
         from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
 
         if stage is None:
@@ -138,17 +139,7 @@ class PhysicsManager(ABC):
         if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
             raise NotImplementedError(f"Cannot fix non-rigid articulation root '{root_path}'.")
 
-        joint_path = f"{root_path}/FixedJoint"
-        index = 0
-        while stage.GetPrimAtPath(joint_path).IsValid():
-            index += 1
-            joint_path = f"{root_path}/FixedJoint{index}"
-
-        world_xform = UsdGeom.XformCache().GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
-        joint = UsdPhysics.FixedJoint.Define(stage, joint_path)
-        joint.CreateBody1Rel().SetTargets([articulation_prim.GetPath()])
-        joint.CreateLocalPos0Attr().Set(Gf.Vec3f(world_xform.ExtractTranslation()))
-        joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_xform.ExtractRotationQuat()))
+        create_world_fixed_joint(articulation_prim, stage)
         return articulation_prim
 
     @staticmethod
