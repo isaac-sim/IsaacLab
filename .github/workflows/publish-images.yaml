@@ -29,7 +29,6 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
-      isaaclab_kitless_image_name: ${{ steps.load.outputs.isaaclab_kitless_image_name }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -43,7 +42,6 @@ jobs:
         echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
-        echo "isaaclab_kitless_image_name=$(yq -r .isaaclab_kitless_image_name "$f")" >> "$GITHUB_OUTPUT"
 
   build-and-push-images:
     name: Build and Push (${{ matrix.key }})
@@ -58,6 +56,7 @@ jobs:
         include:
         - key: base
           image_name: ${{ needs.config.outputs.isaaclab_image_name }}
+          tag_suffix: ""
           dockerfile: docker/Dockerfile.base
           # Empty: follow whatever the Isaac Sim base image supports.
           platforms: ""
@@ -68,7 +67,10 @@ jobs:
             --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab
             --build-arg DOCKER_USER_HOME_ARG=/root
         - key: kitless
-          image_name: ${{ needs.config.outputs.isaaclab_kitless_image_name }}
+          # Shares the Isaac Lab repository and distinguishes itself with a tag
+          # suffix, so publishing needs no additional registry provisioning.
+          image_name: ${{ needs.config.outputs.isaaclab_image_name }}
+          tag_suffix: "-kitless"
           dockerfile: docker/Dockerfile.kitless
           # ubuntu:24.04 is multiarch and ovrtx ships an aarch64 wheel, but no
           # arm64 GPU runner exists to validate the result and the arm64 leg
@@ -126,6 +128,7 @@ jobs:
         SHA="${{ github.sha }}"
         IMAGE="${{ matrix.image_name }}"
         DOCKERFILE="${{ matrix.dockerfile }}"
+        SUFFIX="${{ matrix.tag_suffix }}"
 
         # Not every publishable branch carries every Dockerfile. A branch cut
         # before an image was introduced skips it instead of failing the run.
@@ -153,19 +156,22 @@ jobs:
         #                         $IMAGE:latest-release-X-<full-sha>             (immutable per-commit)
         #   - Push to main:       $IMAGE:latest                                  (moves to newest main build)
         #                         $IMAGE:v<VERSION>                              (from the VERSION file, e.g. v3.0.0)
+        #
+        # $SUFFIX distinguishes images sharing one repository (empty for the base
+        # image, "-kitless" for the kit-less one) and is appended to every tag.
         CANDIDATE_TAG=""
         MOVING_TAG=""
 
         case "$BRANCH_NAME" in
           develop)
-            MOVING_TAG="$IMAGE:latest-develop"
-            CANDIDATE_TAG="$IMAGE:latest-develop-$SHA"
+            MOVING_TAG="$IMAGE:latest-develop$SUFFIX"
+            CANDIDATE_TAG="$IMAGE:latest-develop-$SHA$SUFFIX"
             ;;
           main)
-            MOVING_TAG="$IMAGE:latest"
+            MOVING_TAG="$IMAGE:latest$SUFFIX"
             VERSION="$(tr -d '[:space:]' < VERSION)"
             if [ -n "$VERSION" ]; then
-              CANDIDATE_TAG="$IMAGE:v$VERSION"
+              CANDIDATE_TAG="$IMAGE:v$VERSION$SUFFIX"
             else
               echo "🛑 ERROR: VERSION file is empty or missing. Cannot tag build with version tag."
               exit 1
@@ -174,8 +180,8 @@ jobs:
           release/*)
             # Sanitize the part after release/ for use as a Docker tag suffix.
             RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
-            MOVING_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX"
-            CANDIDATE_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX-$SHA"
+            MOVING_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX$SUFFIX"
+            CANDIDATE_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX-$SHA$SUFFIX"
             ;;
           *)
             echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."

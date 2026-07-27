@@ -43,6 +43,11 @@ inputs:
       the image in later steps of the same job: the ECR login lives in a
       temporary docker config that is removed when this action ends, so
       steps after the action cannot pull.
+
+      Opt-in, unlike the exact-tag hit in step 4b which always pulls: a
+      deps-cache hit is common on dependency-stable branches, so pulling
+      unconditionally would download a multi-gigabyte image for the callers
+      that only need the tag pushed.
     required: false
     default: 'false'
 runs:

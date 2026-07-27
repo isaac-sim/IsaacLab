@@ -8,8 +8,4 @@
 isaacsim_image_name: nvcr.io/nvidian/isaac-sim
 isaacsim_image_tag: latest-develop
 isaaclab_image_name: nvcr.io/nvidian/isaac-lab
-# The kit-less image is published to its own repository rather than as a tag
-# variant of isaaclab_image_name: it ships a different runtime contract (no
-# Isaac Sim, no Kit) and carries its own catalog description and access policy.
-isaaclab_kitless_image_name: nvcr.io/nvidian/isaac-lab-kitless
 ovphysx_wheelhouse_resource: "nvidian/ovphysx-wheelhouse:trunk-gf62c22207cfd"
