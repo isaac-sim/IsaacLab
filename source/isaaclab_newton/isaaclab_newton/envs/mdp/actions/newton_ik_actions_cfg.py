@@ -26,7 +26,8 @@ class NewtonInverseKinematicsActionCfg(ActionTermCfg):
     (:class:`~isaaclab_newton.ik.NewtonIKPoseObjectiveCfg`) are command-driven
     and contribute action dimensions -- one drives a single-body solve, several
     drive a multi-body solve. Constraint objectives such as
-    :class:`~isaaclab_newton.ik.NewtonIKJointLimitObjectiveCfg` add residuals
+    :class:`~isaaclab_newton.ik.NewtonIKJointLimitObjectiveCfg` and
+    :class:`~isaaclab_newton.ik.NewtonIKJointPostureObjectiveCfg` add residuals
     but no action dimensions. The action vector is the concatenation of every
     pose objective's slice, in list order.
 

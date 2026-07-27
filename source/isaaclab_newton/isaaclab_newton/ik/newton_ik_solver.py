@@ -33,6 +33,8 @@ class NewtonIKSolver:
     action term lives in the action, not here. ``link_resolver`` maps an
     objective's body name to a Newton link index; the caller owns it because the
     name-to-index mapping depends on the model layout (e.g. cloned env prefixes).
+    ``joint_resolver`` similarly maps scalar joint names to coordinate and DoF
+    indices for joint-space objectives.
     """
 
     cfg: NewtonIKSolverCfg
@@ -46,12 +48,19 @@ class NewtonIKSolver:
         device: str,
         objectives: Sequence[NewtonIKObjectiveCfg],
         link_resolver: Callable[[str], int],
+        joint_resolver: Callable[[str], tuple[int, int]] | None = None,
     ):
         if not objectives:
             raise ValueError("NewtonIKSolver requires at least one objective cfg.")
 
         self.cfg = cfg
-        ctx = NewtonIKBuildContext(model=model, num_envs=num_envs, device=device, resolve_link=link_resolver)
+        ctx = NewtonIKBuildContext(
+            model=model,
+            num_envs=num_envs,
+            device=device,
+            resolve_link=link_resolver,
+            resolve_joint=joint_resolver,
+        )
 
         self.objectives: list[NewtonIKObjective] = []
         self.objectives_by_name: dict[str, NewtonIKObjective] = {}

@@ -23,17 +23,63 @@ and populating :attr:`NewtonIKObjective.solver_objectives`.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import newton.ik as ik
+import numpy as np
 import warp as wp
 
-from .newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
+from .newton_ik_objectives_cfg import (
+    NewtonIKJointLimitObjectiveCfg,
+    NewtonIKJointPostureObjectiveCfg,
+    NewtonIKPoseObjectiveCfg,
+)
 
 # Numeric command codes consumed by the action's Warp kernel.
 COMMAND_POSITION = 0
 COMMAND_POSE = 1
+
+
+@wp.kernel
+def _joint_posture_residuals(
+    joint_q: wp.array2d(dtype=wp.float32),
+    coordinate_indices: wp.array(dtype=wp.int32),
+    target_positions: wp.array(dtype=wp.float32),
+    weights: wp.array(dtype=wp.float32),
+    start_idx: int,
+    residuals: wp.array2d(dtype=wp.float32),
+):
+    row, posture_idx = wp.tid()
+    coordinate_idx = coordinate_indices[posture_idx]
+    residuals[row, start_idx + posture_idx] = weights[posture_idx] * (
+        joint_q[row, coordinate_idx] - target_positions[posture_idx]
+    )
+
+
+@wp.kernel
+def _joint_posture_jacobian_from_autodiff(
+    q_grad: wp.array2d(dtype=wp.float32),
+    dof_indices: wp.array(dtype=wp.int32),
+    start_idx: int,
+    jacobian: wp.array3d(dtype=wp.float32),
+):
+    row, posture_idx = wp.tid()
+    dof_idx = dof_indices[posture_idx]
+    jacobian[row, start_idx + posture_idx, dof_idx] = q_grad[row, dof_idx]
+
+
+@wp.kernel
+def _joint_posture_jacobian_analytic(
+    dof_indices: wp.array(dtype=wp.int32),
+    weights: wp.array(dtype=wp.float32),
+    start_idx: int,
+    jacobian: wp.array3d(dtype=wp.float32),
+):
+    row, posture_idx = wp.tid()
+    dof_idx = dof_indices[posture_idx]
+    jacobian[row, start_idx + posture_idx, dof_idx] = weights[posture_idx]
 
 
 @dataclass(frozen=True)
@@ -51,6 +97,9 @@ class NewtonIKBuildContext:
 
     resolve_link: Callable[[str], int]
     """Maps a body name to its Newton link index in the prototype model."""
+
+    resolve_joint: Callable[[str], tuple[int, int]] | None = None
+    """Maps a scalar joint name to its Newton ``(coordinate, DoF)`` indices."""
 
 
 class NewtonIKObjective:
@@ -132,6 +181,117 @@ class NewtonIKJointLimitObjective(NewtonIKObjective):
             joint_limit_lower=ctx.model.joint_limit_lower,
             joint_limit_upper=ctx.model.joint_limit_upper,
             weight=cfg.weight,
+        )
+        self.solver_objectives = [self.objective]
+
+
+class _IKObjectiveJointPosture(ik.IKObjective):
+    """Newton objective penalizing selected scalar joint-coordinate errors."""
+
+    def __init__(
+        self,
+        coordinate_indices: wp.array,
+        dof_indices: wp.array,
+        target_positions: wp.array,
+        weights: wp.array,
+    ) -> None:
+        super().__init__()
+        self.coordinate_indices = coordinate_indices
+        self.dof_indices = dof_indices
+        self.target_positions = target_positions
+        self.weights = weights
+        self.num_joints = len(coordinate_indices)
+        self.e_array = None
+
+    def residual_dim(self) -> int:
+        return self.num_joints
+
+    def init_buffers(self, model, jacobian_mode) -> None:
+        self._require_batch_layout()
+        if jacobian_mode == ik.IKJacobianType.AUTODIFF:
+            e = np.zeros((self.n_batch, self.total_residuals), dtype=np.float32)
+            e[:, self.residual_offset : self.residual_offset + self.num_joints] = 1.0
+            self.e_array = wp.array(e.flatten(), dtype=wp.float32, device=self.device)
+
+    def supports_analytic(self) -> bool:
+        return True
+
+    def compute_residuals(self, body_q, joint_q, model, residuals, start_idx, problem_idx) -> None:
+        wp.launch(
+            _joint_posture_residuals,
+            dim=(joint_q.shape[0], self.num_joints),
+            inputs=[joint_q, self.coordinate_indices, self.target_positions, self.weights, start_idx],
+            outputs=[residuals],
+            device=self.device,
+        )
+
+    def compute_jacobian_autodiff(self, tape, model, jacobian, start_idx, dq_dof) -> None:
+        self._require_batch_layout()
+        tape.backward(grads={tape.outputs[0]: self.e_array})
+        wp.launch(
+            _joint_posture_jacobian_from_autodiff,
+            dim=(self.n_batch, self.num_joints),
+            inputs=[tape.gradients[dq_dof], self.dof_indices, start_idx],
+            outputs=[jacobian],
+            device=self.device,
+        )
+
+    def compute_jacobian_analytic(self, body_q, joint_q, model, jacobian, joint_S_s, start_idx) -> None:
+        wp.launch(
+            _joint_posture_jacobian_analytic,
+            dim=(joint_q.shape[0], self.num_joints),
+            inputs=[self.dof_indices, self.weights, start_idx],
+            outputs=[jacobian],
+            device=self.device,
+        )
+
+
+class NewtonIKJointPostureObjective(NewtonIKObjective):
+    """Soft reference-posture objective over explicitly named scalar joints."""
+
+    def __init__(self, cfg: NewtonIKJointPostureObjectiveCfg, ctx: NewtonIKBuildContext):
+        if ctx.resolve_joint is None:
+            raise ValueError("Newton IK joint-posture objectives require a scalar-joint resolver.")
+        if not cfg.joint_names:
+            raise ValueError("Newton IK joint-posture objectives require at least one joint name.")
+        if len(set(cfg.joint_names)) != len(cfg.joint_names):
+            raise ValueError("Newton IK joint-posture objective joint names must be unique.")
+
+        resolved = [ctx.resolve_joint(name) for name in cfg.joint_names]
+        coordinate_indices = [int(indices[0]) for indices in resolved]
+        dof_indices = [int(indices[1]) for indices in resolved]
+
+        if cfg.target_positions is None:
+            model_joint_q = ctx.model.joint_q.numpy()
+            target_positions = [float(model_joint_q[index]) for index in coordinate_indices]
+        else:
+            target_positions = [float(value) for value in cfg.target_positions]
+            if len(target_positions) != len(cfg.joint_names):
+                raise ValueError(
+                    "Newton IK joint-posture target_positions must contain one value per joint: "
+                    f"got {len(target_positions)} values for {len(cfg.joint_names)} joints."
+                )
+
+        weight_values = (
+            [float(cfg.weight)] * len(cfg.joint_names)
+            if _is_scalar(cfg.weight)
+            else [float(value) for value in cfg.weight]
+        )
+        if len(weight_values) != len(cfg.joint_names):
+            raise ValueError(
+                "Newton IK joint-posture weight must be a float or contain one value per joint: "
+                f"got {len(weight_values)} values for {len(cfg.joint_names)} joints."
+            )
+        if any(not math.isfinite(value) for value in target_positions):
+            raise ValueError("Newton IK joint-posture target positions must be finite.")
+        if any(not math.isfinite(value) or value < 0.0 for value in weight_values):
+            raise ValueError("Newton IK joint-posture weights must be finite and non-negative.")
+
+        self.objective = _IKObjectiveJointPosture(
+            coordinate_indices=wp.array(coordinate_indices, dtype=wp.int32, device=ctx.device),
+            dof_indices=wp.array(dof_indices, dtype=wp.int32, device=ctx.device),
+            target_positions=wp.array(target_positions, dtype=wp.float32, device=ctx.device),
+            weights=wp.array(weight_values, dtype=wp.float32, device=ctx.device),
         )
         self.solver_objectives = [self.objective]
 
