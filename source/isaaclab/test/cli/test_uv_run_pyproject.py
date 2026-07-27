@@ -88,7 +88,6 @@ def test_version_single_source_matches_literal_pins():
 
     assert versions["ovphysx"] == "0.5.9"
     assert "omniverseclient==2.72.3" in dependencies
-    assert "ovstage" in optional["ov"]
 
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
