@@ -97,6 +97,8 @@ def test_version_single_source_matches_literal_pins():
 
     assert spec("ovphysx") in optional["ov"]
     assert spec("ovrtx") in optional["rtx"]
+    assert spec("ovstage") in optional["ov"]
+    assert spec("ovstage") in optional["rtx"]
 
     # CI installs OVRTX through a generic pip-package input (a bare ``pip install
     # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:

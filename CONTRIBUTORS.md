@@ -76,6 +76,7 @@ Guidelines for modifications:
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
+* David Cao-Mueller
 * David Leon
 * David Yang
 * Daniela Hasenbring
