@@ -10,6 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 
+import newton
+import numpy as np
+import warp as wp
 from isaaclab_newton.physics import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
@@ -19,12 +22,21 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
+from newton import (
+    CollisionPipeline,
+    Contacts,
+    Control,
+    Model,
+    ModelBuilder,
+    ShapeFlags,
+    State,
+)
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
+from ..deformable.newton_manager_cfg import VBDSolverCfg
 from ..deformable.vbd_manager import NewtonVBDManager
 from .coupler_cfg import (
     CouplerAdmmCfg,
@@ -79,6 +91,15 @@ class NewtonCouplerManager(NewtonVBDManager):
 
         cls._validate_config(solver_cfg)
         resolved_entries = [cls._resolve_entry(model, entry) for entry in solver_cfg.entries]
+        vbd_entries = [entry for entry in resolved_entries if isinstance(entry.config.solver_cfg, VBDSolverCfg)]
+        if vbd_entries:
+            coupled_ik_mask = cls._make_coupled_ik_articulation_mask(
+                model,
+                vbd_entries,
+            )
+            cls._ik_articulation_mask = coupled_ik_mask if bool(np.any(coupled_ik_mask.numpy())) else None
+        else:
+            cls._ik_articulation_mask = None
         proxies: list[CouplerProxyMappingCfg] = []
         active_proxy_destinations: set[str] = set()
         if isinstance(solver_cfg, CouplerProxyCfg):
@@ -112,6 +133,57 @@ class NewtonCouplerManager(NewtonVBDManager):
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = needs_collision_pipeline
+
+    @classmethod
+    def _step_solver(
+        cls,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        substep_dt: float,
+    ) -> None:
+        """Advance all entries and publish VBD-owned generalized coordinates."""
+        cls._solver.step(state_in, state_out, control, contacts, substep_dt)
+        if cls._ik_articulation_mask is not None:
+            newton.eval_ik(
+                cls._model,
+                state_out,
+                state_out.joint_q,
+                state_out.joint_qd,
+                mask=cls._ik_articulation_mask,
+            )
+
+    @classmethod
+    def _make_coupled_ik_articulation_mask(
+        cls,
+        model: Model,
+        entries: list[_ResolvedEntry],
+    ) -> wp.array:
+        """Select non-cable articulations owned by nested VBD managers."""
+        vbd_owned_joints: set[int] = set()
+        for entry in entries:
+            if isinstance(entry.config.solver_cfg, VBDSolverCfg):
+                vbd_owned_joints.update(entry.joints)
+
+        mask = NewtonVBDManager._make_ik_articulation_mask(model).numpy()
+        articulation_starts = np.asarray(
+            model.articulation_start.numpy(),
+            dtype=np.int32,
+        )
+        articulation_ends = np.asarray(
+            model.articulation_end.numpy(),
+            dtype=np.int32,
+        )
+        for articulation_index, (start, end) in enumerate(
+            zip(
+                articulation_starts[: model.articulation_count],
+                articulation_ends,
+                strict=True,
+            )
+        ):
+            mask[articulation_index] &= any(joint in vbd_owned_joints for joint in range(int(start), int(end)))
+        return wp.array(mask, dtype=wp.bool, device=model.device)
 
     @classmethod
     def _validate_config(cls, solver_cfg: CouplerCfg) -> None:
@@ -197,8 +269,9 @@ class NewtonCouplerManager(NewtonVBDManager):
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
         """Normalize kinematic colliders when a coupled entry uses implicit MPM."""
-        super()._prepare_builder_for_finalize(builder)
         solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        if any(isinstance(entry.solver_cfg, VBDSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
+            NewtonVBDManager._prepare_builder_for_finalize(builder)
         if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
             NewtonMPMManager._prepare_builder_for_finalize(builder)
 

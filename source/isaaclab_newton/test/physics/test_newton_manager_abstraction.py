@@ -742,6 +742,21 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
             sim.reset()
 
 
+def test_collision_cfg_forwards_contact_matching_controls():
+    """Collision history users can request Newton's native matching buffers."""
+    cfg = NewtonCollisionPipelineCfg(
+        contact_matching="latest",
+        contact_matching_pos_threshold=0.002,
+        contact_matching_normal_dot_threshold=0.98,
+    )
+
+    pipeline_args = cfg.to_pipeline_args()
+
+    assert pipeline_args["contact_matching"] == "latest"
+    assert pipeline_args["contact_matching_pos_threshold"] == pytest.approx(0.002)
+    assert pipeline_args["contact_matching_normal_dot_threshold"] == pytest.approx(0.98)
+
+
 @pytest.mark.parametrize(
     "num_substeps, collision_decimation, expected_mid_loop_collides",
     [

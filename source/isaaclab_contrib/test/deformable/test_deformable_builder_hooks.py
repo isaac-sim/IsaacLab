@@ -7,11 +7,13 @@ import math
 import sys
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
+from newton import JointType
 
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
 from isaaclab_contrib.deformable.deformable_object import (
@@ -19,6 +21,7 @@ from isaaclab_contrib.deformable.deformable_object import (
     add_deformable_entry_to_builder,
     setup_registered_deformable_fabric_sync,
 )
+from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 class _FakeBuilder:
@@ -29,6 +32,14 @@ class _FakeBuilder:
     def add_cloth_mesh(self, **kwargs) -> None:
         self.cloth_meshes.append(kwargs)
         self.particle_count += len(kwargs["vertices"])
+
+
+class _ColoringBuilder:
+    def __init__(self):
+        self.color_calls = 0
+
+    def color(self) -> None:
+        self.color_calls += 1
 
 
 class _FakePath:
@@ -143,6 +154,123 @@ def test_newton_physics_context_is_replicate_context():
     from isaaclab_newton.cloner import PHYSICS_CONTEXT
 
     assert PHYSICS_CONTEXT is NewtonReplicateContext
+
+
+def test_vbd_manager_colors_replicated_builder_before_finalize():
+    """VBD prepares builders created by the physics replication path."""
+    builder = _ColoringBuilder()
+
+    NewtonVBDManager._prepare_builder_for_finalize(builder)
+
+    assert builder.color_calls == 1
+
+
+def test_vbd_cfg_exposes_rigid_contact_stability_controls():
+    """Coupled rigid scenes can configure the public SolverVBD stability knobs."""
+    cfg = VBDSolverCfg(
+        rigid_contact_hard=False,
+        rigid_contact_history=True,
+        rigid_avbd_contact_alpha=0.0,
+        rigid_avbd_beta=100.0,
+        rigid_body_contact_buffer_size=256,
+    )
+
+    assert cfg.rigid_contact_hard is False
+    assert cfg.rigid_contact_history is True
+    assert cfg.rigid_avbd_contact_alpha == pytest.approx(0.0)
+    assert cfg.rigid_avbd_beta == pytest.approx(100.0)
+    assert cfg.rigid_body_contact_buffer_size == 256
+
+
+def test_vbd_manager_reconstructs_joint_state_after_maximal_solver_step(monkeypatch):
+    """VBD keeps generalized articulation state synchronized with body poses."""
+    calls = []
+    state_in = SimpleNamespace()
+    state_out = SimpleNamespace(joint_q=object(), joint_qd=object())
+    model = object()
+    control = object()
+    contacts = object()
+    articulation_mask = object()
+
+    class _Solver:
+        def step(self, *args):
+            calls.append(("step", args))
+
+    monkeypatch.setattr(NewtonManager, "_solver", _Solver())
+    monkeypatch.setattr(NewtonManager, "_model", model)
+    monkeypatch.setattr(
+        NewtonVBDManager,
+        "_ik_articulation_mask",
+        articulation_mask,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "newton.eval_ik",
+        lambda *args, **kwargs: calls.append(("eval_ik", args, kwargs)),
+    )
+
+    NewtonVBDManager._step_solver(
+        state_in,
+        state_out,
+        control,
+        contacts,
+        0.001,
+    )
+
+    assert [call[0] for call in calls] == ["step", "eval_ik"]
+    assert calls[1][1] == (model, state_out, state_out.joint_q, state_out.joint_qd)
+    assert calls[1][2] == {"mask": articulation_mask}
+
+
+def test_vbd_manager_skips_joint_reconstruction_without_supported_articulation(
+    monkeypatch,
+):
+    """Pure deformable or cable models do not run generalized IK."""
+    calls = []
+
+    class _Solver:
+        def step(self, *args):
+            calls.append(("step", args))
+
+    monkeypatch.setattr(NewtonManager, "_solver", _Solver())
+    monkeypatch.setattr(NewtonVBDManager, "_ik_articulation_mask", None)
+    monkeypatch.setattr(
+        "newton.eval_ik",
+        lambda *args, **kwargs: calls.append(("eval_ik", args, kwargs)),
+    )
+
+    NewtonVBDManager._step_solver(
+        SimpleNamespace(),
+        SimpleNamespace(joint_q=object(), joint_qd=object()),
+        object(),
+        object(),
+        0.001,
+    )
+
+    assert [call[0] for call in calls] == ["step"]
+
+
+def test_vbd_joint_state_sync_excludes_native_cable_articulations():
+    """Generic IK must not rewrite cable constraint coordinates."""
+
+    class _Array:
+        def __init__(self, values):
+            self._values = np.asarray(values)
+
+        def numpy(self):
+            return self._values
+
+    model = SimpleNamespace(
+        joint_type=_Array((JointType.REVOLUTE, JointType.CABLE, JointType.FREE)),
+        articulation_start=_Array((0, 1, 2, 3)),
+        articulation_end=_Array((1, 2, 3)),
+        articulation_count=3,
+        device="cpu",
+    )
+
+    mask = NewtonVBDManager._make_ik_articulation_mask(model)
+
+    assert mask.numpy().tolist() == [True, False, True]
 
 
 def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):

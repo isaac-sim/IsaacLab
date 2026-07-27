@@ -117,6 +117,30 @@ class VBDSolverCfg(NewtonModelSolverCfg):
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for all rigid body contacts [N/m]."""
 
+    rigid_contact_hard: bool = True
+    """Whether rigid contacts use the augmented-Lagrangian hard-contact model.
+
+    Disable this for compliant penalty contacts, such as moving kinematic
+    proxies grasping a light rigid object.
+    """
+
+    rigid_contact_history: bool = False
+    """Whether rigid contacts warm-start penalties, duals, and stick anchors."""
+
+    rigid_avbd_contact_alpha: float | None = None
+    """Body-contact C0 stabilization strength in ``[0, 1]``.
+
+    ``None`` uses SolverVBD's shared ``rigid_avbd_alpha`` default. Lower values
+    correct more current penetration and strengthen contacts when history is
+    disabled or the iteration count is modest.
+    """
+
+    rigid_avbd_beta: float = 0.0
+    """Penalty ramp rate per rigid-body AVBD iteration; zero disables ramping."""
+
+    rigid_body_contact_buffer_size: int = 64
+    """Maximum rigid contacts stored per body during one VBD solve."""
+
 
 @configclass
 class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):

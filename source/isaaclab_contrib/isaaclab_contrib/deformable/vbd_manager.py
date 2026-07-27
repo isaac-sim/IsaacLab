@@ -10,9 +10,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import newton
+import numpy as np
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model
+from newton import Model, ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -56,6 +58,8 @@ class NewtonVBDManager(NewtonManager):
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
     """
 
+    _ik_articulation_mask: wp.array | None = None
+
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the manager with simulation context.
@@ -78,6 +82,7 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _solver_specific_clear(cls):
         """Clear VBD-specific state."""
+        cls._ik_articulation_mask = None
         clear_deformable_builder_hooks()
 
     @classmethod
@@ -228,11 +233,12 @@ class NewtonVBDManager(NewtonManager):
             }
             NewtonManager._num_envs = len(env_paths)
 
-        # Coloring is required by the VBD solver for particles and VBD-integrated bodies.
-        # Safe without particles: color() skips particle coloring when particle_count == 0.
-        builder.color()
-
         cls.set_builder(builder)
+
+    @classmethod
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Build the vertex and rigid-body coloring required by VBD."""
+        builder.color()
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
@@ -249,6 +255,53 @@ class NewtonVBDManager(NewtonManager):
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
+        articulation_mask = cls._make_ik_articulation_mask(model)
+        cls._ik_articulation_mask = articulation_mask if bool(np.any(articulation_mask.numpy())) else None
+
+    @staticmethod
+    def _make_ik_articulation_mask(model: Model) -> wp.array:
+        """Select articulations whose generalized coordinates support eval_ik."""
+        joint_types = np.asarray(model.joint_type.numpy(), dtype=np.int32)
+        articulation_starts = np.asarray(model.articulation_start.numpy(), dtype=np.int32)
+        articulation_ends = np.asarray(model.articulation_end.numpy(), dtype=np.int32)
+        mask = np.ones((model.articulation_count,), dtype=bool)
+        for articulation_index, (start, end) in enumerate(
+            zip(
+                articulation_starts[: model.articulation_count],
+                articulation_ends,
+                strict=True,
+            )
+        ):
+            articulation_joint_types = joint_types[int(start) : int(end)]
+            has_cable = np.any(articulation_joint_types == int(newton.JointType.CABLE))
+            has_generalized_joint = np.any(
+                np.isin(
+                    articulation_joint_types,
+                    (
+                        int(newton.JointType.REVOLUTE),
+                        int(newton.JointType.PRISMATIC),
+                        int(newton.JointType.BALL),
+                        int(newton.JointType.FREE),
+                        int(newton.JointType.DISTANCE),
+                        int(newton.JointType.D6),
+                    ),
+                )
+            )
+            mask[articulation_index] = has_generalized_joint and not has_cable
+        return wp.array(mask, dtype=wp.bool, device=model.device)
+
+    @classmethod
+    def _step_solver(cls, state_in, state_out, control, contacts, substep_dt: float) -> None:
+        """Advance VBD and synchronize generalized articulation coordinates."""
+        cls._solver.step(state_in, state_out, control, contacts, substep_dt)
+        if cls._ik_articulation_mask is not None:
+            newton.eval_ik(
+                cls._model,
+                state_out,
+                state_out.joint_q,
+                state_out.joint_qd,
+                mask=cls._ik_articulation_mask,
+            )
 
     @classmethod
     def _simulate_physics_only(cls) -> None:

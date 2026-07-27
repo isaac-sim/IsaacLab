@@ -28,7 +28,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import ShapeFlags
+from newton import JointType, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab_contrib.coupling import (
@@ -67,6 +67,86 @@ def test_public_coupling_exports_are_importable():
 
     for name in coupling.__all__:
         assert getattr(coupling, name) is not None
+
+
+def test_coupler_step_reconstructs_selected_vbd_joint_state(monkeypatch):
+    """Coupled VBD bodies publish coherent generalized root coordinates."""
+    calls = []
+    model = object()
+    articulation_mask = object()
+    state_out = SimpleNamespace(joint_q=object(), joint_qd=object())
+
+    class _Solver:
+        def step(self, *args):
+            calls.append(("step", args))
+
+    monkeypatch.setattr(NewtonManager, "_solver", _Solver())
+    monkeypatch.setattr(NewtonManager, "_model", model)
+    monkeypatch.setattr(
+        NewtonCouplerManager,
+        "_ik_articulation_mask",
+        articulation_mask,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "newton.eval_ik",
+        lambda *args, **kwargs: calls.append(("eval_ik", args, kwargs)),
+    )
+
+    state_in = object()
+    control = object()
+    contacts = object()
+    NewtonCouplerManager._step_solver(
+        state_in,
+        state_out,
+        control,
+        contacts,
+        0.001,
+    )
+
+    assert [call[0] for call in calls] == ["step", "eval_ik"]
+    assert calls[1][1] == (model, state_out, state_out.joint_q, state_out.joint_qd)
+    assert calls[1][2] == {"mask": articulation_mask}
+
+
+def test_coupler_selects_only_vbd_owned_non_cable_articulations():
+    """MJWarp state and native cable coordinates stay outside VBD IK sync."""
+
+    model = SimpleNamespace(
+        joint_type=_FakeArray(
+            np.asarray(
+                (JointType.REVOLUTE, JointType.CABLE, JointType.FREE),
+                dtype=np.int32,
+            )
+        ),
+        articulation_start=_FakeArray(np.asarray((0, 1, 2, 3), dtype=np.int32)),
+        articulation_end=_FakeArray(np.asarray((1, 2, 3), dtype=np.int32)),
+        articulation_count=3,
+        device="cpu",
+    )
+    entries = [
+        NewtonCouplerManager._ResolvedEntry(
+            config=CouplerEntryCfg(name="robot", solver_cfg=MJWarpSolverCfg()),
+            bodies=[],
+            particles=[],
+            joints=[0],
+            shapes=[],
+        ),
+        NewtonCouplerManager._ResolvedEntry(
+            config=CouplerEntryCfg(name="cable", solver_cfg=VBDSolverCfg()),
+            bodies=[],
+            particles=[],
+            joints=[1, 2],
+            shapes=[],
+        ),
+    ]
+
+    mask = NewtonCouplerManager._make_coupled_ik_articulation_mask(
+        model,
+        entries,
+    )
+
+    assert mask.numpy().tolist() == [False, False, True]
 
 
 @dataclass
