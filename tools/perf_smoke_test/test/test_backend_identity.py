@@ -57,3 +57,8 @@ def test_rtx_camera_tasks_use_the_supported_isaac_sim_preset() -> None:
         ("presets=isaacsim_rtx",),
         ("presets=newton_mjwarp,isaacsim_rtx",),
     }
+    for task in rtx_tasks:
+        preset_value = hydra_args_for_task(task)[0].split("=", 1)[1]
+        identity = identity_from_presets(preset_value)
+        assert identity is not None
+        assert identity.backend_key == task.backend_key

@@ -7,8 +7,8 @@
 
 This report combines samples from independent runner allocations at one commit.
 It ties the stability verdict to the perf-smoke oracle: a pool qualifies only
-when complete, homogeneous evidence shows that a 10% FPS regression remains
-outside the effective four-MAD BLOCK band.
+when complete, homogeneous evidence shows that FPS regressions greater than 10%
+remain outside the effective four-MAD BLOCK band.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ INCONCLUSIVE = "INCONCLUSIVE_DO_NOT_GATE"
 UNSTABLE = "UNSTABLE_DO_NOT_GATE"
 
 DEFAULT_EXPECTED_ALLOCATIONS = 5
+DEFAULT_MINIMUM_DISTINCT_RUNNERS = 3
 DEFAULT_SAMPLES_PER_ALLOCATION = 3
 MAX_EFFECTIVE_BLOCK_PCT = 10.0
 MAX_POOLED_CV_PCT = 5.0
@@ -71,6 +72,7 @@ class StabilityBucket:
     effective_warn_regression_pct: float | None
     effective_block_regression_pct: float | None
     allocation_medians_fps: dict[str, float]
+    runner_medians_fps: dict[str, float]
 
 
 def _percent(numerator: float, denominator: float) -> float:
@@ -106,6 +108,7 @@ def _valid_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             isinstance(fps, (int, float))
             and not isinstance(fps, bool)
             and math.isfinite(float(fps))
+            and float(fps) > 0.0
             and record.get("task_id")
             and _backend(record)
         ):
@@ -131,18 +134,102 @@ def configured_scope(
     return expected, noise_floors
 
 
+def _sample_coverage_reasons(
+    bucket_records: list[dict[str, Any]],
+    by_allocation: dict[str, list[dict[str, Any]]],
+    by_runner: dict[str, list[dict[str, Any]]],
+    *,
+    expected_allocations: int,
+    minimum_distinct_runners: int,
+    samples_per_allocation: int,
+) -> list[str]:
+    """Return fail-closed sample, allocation, and runner coverage reasons."""
+    reasons: list[str] = []
+    if len(by_allocation) != expected_allocations:
+        reasons.append(f"expected {expected_allocations} allocations, observed {len(by_allocation)}")
+    if len(by_runner) < minimum_distinct_runners:
+        reasons.append(f"expected at least {minimum_distinct_runners} distinct runner names, observed {len(by_runner)}")
+
+    samples_without_runner = sum(1 for record in bucket_records if not str(record.get("ci_runner_name") or "").strip())
+    if samples_without_runner:
+        reasons.append(f"{samples_without_runner} samples are missing runner identity")
+
+    required_samples = expected_allocations * samples_per_allocation
+    if len(bucket_records) != required_samples:
+        reasons.append(f"expected {required_samples} samples, observed {len(bucket_records)}")
+    sample_ids = [str(record.get("sample_id") or "").strip() for record in bucket_records]
+    samples_without_id = sum(not sample_id for sample_id in sample_ids)
+    if samples_without_id:
+        reasons.append(f"{samples_without_id} samples are missing sample identity")
+    present_sample_ids = [sample_id for sample_id in sample_ids if sample_id]
+    duplicate_sample_count = len(present_sample_ids) - len(set(present_sample_ids))
+    if duplicate_sample_count:
+        reasons.append(f"observed {duplicate_sample_count} duplicate sample identities")
+
+    incomplete_allocations = sorted(
+        allocation
+        for allocation, allocation_records in by_allocation.items()
+        if len(allocation_records) != samples_per_allocation
+    )
+    if incomplete_allocations:
+        reasons.append(
+            f"allocations without exactly {samples_per_allocation} samples: " + ", ".join(incomplete_allocations)
+        )
+    expected_sample_indexes = set(range(samples_per_allocation))
+    allocations_with_wrong_sample_indexes = sorted(
+        allocation
+        for allocation, allocation_records in by_allocation.items()
+        if {
+            record.get("sample_index")
+            for record in allocation_records
+            if isinstance(record.get("sample_index"), int) and not isinstance(record.get("sample_index"), bool)
+        }
+        != expected_sample_indexes
+    )
+    if allocations_with_wrong_sample_indexes:
+        reasons.append(
+            f"allocations without sample indexes 0..{samples_per_allocation - 1}: "
+            + ", ".join(allocations_with_wrong_sample_indexes)
+        )
+    allocations_without_one_runner = sorted(
+        allocation
+        for allocation, allocation_records in by_allocation.items()
+        if len(
+            {
+                str(record.get("ci_runner_name") or "").strip()
+                for record in allocation_records
+                if str(record.get("ci_runner_name") or "").strip()
+            }
+        )
+        != 1
+    )
+    if allocations_without_one_runner:
+        reasons.append("allocations without exactly one runner identity: " + ", ".join(allocations_without_one_runner))
+    return reasons
+
+
 def evaluate_stability(
     records: list[dict[str, Any]],
     *,
     expected_buckets: set[tuple[str, str]],
     noise_floors: dict[tuple[str, str], float] | None = None,
     expected_allocations: int = DEFAULT_EXPECTED_ALLOCATIONS,
+    minimum_distinct_runners: int = DEFAULT_MINIMUM_DISTINCT_RUNNERS,
     samples_per_allocation: int = DEFAULT_SAMPLES_PER_ALLOCATION,
     expected_gpu_model: str | None = None,
     expected_target_branch: str | None = None,
     expected_commit: str | None = None,
 ) -> tuple[str, list[StabilityBucket]]:
     """Evaluate complete runner-pool evidence against the qualification policy."""
+    if not expected_buckets:
+        return INCONCLUSIVE, []
+    if expected_allocations <= 0:
+        raise ValueError("expected_allocations must be positive")
+    if samples_per_allocation <= 0:
+        raise ValueError("samples_per_allocation must be positive")
+    if minimum_distinct_runners <= 0 or minimum_distinct_runners > expected_allocations:
+        raise ValueError("minimum_distinct_runners must be between 1 and expected_allocations")
+
     valid = _valid_records(records)
     noise_floors = noise_floors or {}
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
@@ -154,16 +241,14 @@ def evaluate_stability(
         bucket_records = grouped.get((task_id, backend), [])
         fingerprints = {_fingerprint(record) for record in bucket_records}
         by_allocation: dict[str, list[dict[str, Any]]] = {}
+        by_runner: dict[str, list[dict[str, Any]]] = {}
         for record in bucket_records:
             by_allocation.setdefault(_execution_id(record), []).append(record)
-        runner_names = {
-            str(record.get("ci_runner_name")).strip()
-            for record in bucket_records
-            if str(record.get("ci_runner_name") or "").strip()
-        }
+            runner_name = str(record.get("ci_runner_name") or "").strip()
+            if runner_name:
+                by_runner.setdefault(runner_name, []).append(record)
 
         coverage_reasons: list[str] = []
-        required_samples = expected_allocations * samples_per_allocation
         observed_gpu_models = {canonical_gpu_model(record.get("gpu_model")) for record in bucket_records}
         if expected_gpu_model and observed_gpu_models != {canonical_gpu_model(expected_gpu_model)}:
             coverage_reasons.append(
@@ -181,25 +266,25 @@ def evaluate_stability(
             coverage_reasons.append(
                 f"expected commit {expected_commit}, observed " + (", ".join(sorted(observed_commits)) or "none")
             )
+        missing_fingerprint_fields = sorted(
+            field
+            for field in _FINGERPRINT_FIELDS
+            if any(record.get(field) is None or record.get(field) == "" for record in bucket_records)
+        )
+        if missing_fingerprint_fields:
+            coverage_reasons.append("missing runtime fingerprint fields: " + ", ".join(missing_fingerprint_fields))
         if len(fingerprints) != 1:
             coverage_reasons.append(f"expected one runtime fingerprint, observed {len(fingerprints)}")
-        if len(by_allocation) != expected_allocations:
-            coverage_reasons.append(f"expected {expected_allocations} allocations, observed {len(by_allocation)}")
-        if len(runner_names) != expected_allocations:
-            coverage_reasons.append(
-                f"expected {expected_allocations} distinct runner names, observed {len(runner_names)}"
+        coverage_reasons.extend(
+            _sample_coverage_reasons(
+                bucket_records,
+                by_allocation,
+                by_runner,
+                expected_allocations=expected_allocations,
+                minimum_distinct_runners=minimum_distinct_runners,
+                samples_per_allocation=samples_per_allocation,
             )
-        if len(bucket_records) != required_samples:
-            coverage_reasons.append(f"expected {required_samples} samples, observed {len(bucket_records)}")
-        incomplete_allocations = sorted(
-            allocation
-            for allocation, allocation_records in by_allocation.items()
-            if len(allocation_records) != samples_per_allocation
         )
-        if incomplete_allocations:
-            coverage_reasons.append(
-                f"allocations without exactly {samples_per_allocation} samples: " + ", ".join(incomplete_allocations)
-            )
 
         values = [float(record["fps"]) for record in bucket_records]
         median_fps: float | None = None
@@ -212,6 +297,7 @@ def evaluate_stability(
         effective_warn_pct: float | None = None
         effective_block_pct: float | None = None
         allocation_medians: dict[str, float] = {}
+        runner_medians: dict[str, float] = {}
         metric_reasons: list[str] = []
         noise_floor = float(noise_floors.get((task_id, backend), 0.0))
 
@@ -228,10 +314,13 @@ def evaluate_stability(
                 allocation: statistics.median(float(record["fps"]) for record in allocation_records)
                 for allocation, allocation_records in sorted(by_allocation.items())
             }
-            if allocation_medians:
+            runner_medians = {
+                runner: statistics.median(float(record["fps"]) for record in runner_records)
+                for runner, runner_records in sorted(by_runner.items())
+            }
+            if runner_medians:
                 max_runner_deviation_pct = max(
-                    abs(_percent(allocation_median - median_fps, median_fps))
-                    for allocation_median in allocation_medians.values()
+                    abs(_percent(runner_median - median_fps, median_fps)) for runner_median in runner_medians.values()
                 )
             effective_noise_pct = max(mad_pct, noise_floor)
             effective_warn_pct = DEFAULT_K_WARN * effective_noise_pct
@@ -280,7 +369,7 @@ def evaluate_stability(
                     )
                 ),
                 allocation_count=len(by_allocation),
-                runner_count=len(runner_names),
+                runner_count=len(by_runner),
                 sample_count=len(bucket_records),
                 median_fps=median_fps,
                 mad_pct=mad_pct,
@@ -293,6 +382,7 @@ def evaluate_stability(
                 effective_warn_regression_pct=effective_warn_pct,
                 effective_block_regression_pct=effective_block_pct,
                 allocation_medians_fps=allocation_medians,
+                runner_medians_fps=runner_medians,
             )
         )
 
@@ -315,6 +405,7 @@ def build_markdown(
     *,
     records: list[dict[str, Any]],
     expected_allocations: int,
+    minimum_distinct_runners: int,
     samples_per_allocation: int,
     expected_gpu_model: str | None,
     expected_target_branch: str | None,
@@ -343,8 +434,9 @@ def build_markdown(
         "### Qualification policy fixed before measurement",
         "",
         (
-            f"- Coverage: {expected_allocations} distinct runner allocations × "
-            f"{samples_per_allocation} FPS samples for every configured task/backend bucket."
+            f"- Coverage: {expected_allocations} independent allocations × {samples_per_allocation} FPS samples "
+            f"for every configured task/backend bucket, spanning at least "
+            f"{minimum_distinct_runners} distinct runner registrations."
         ),
         "- Environment: exactly one commit/runtime fingerprint per bucket.",
         (
@@ -360,7 +452,7 @@ def build_markdown(
         "",
         (
             "A passing result qualifies this pool for detecting substantial smoke-test regressions "
-            "(10% or larger); it does not claim microbenchmark-level sensitivity."
+            "(greater than 10%); it does not claim microbenchmark-level sensitivity."
         ),
         "",
         "### Per-bucket FPS evidence",
@@ -391,6 +483,8 @@ def build_markdown(
         for bucket in failed:
             reason = "; ".join(bucket.reasons) or "unknown reason"
             lines.append(f"- `{bucket.task_id}/{bucket.backend}`: {reason}.")
+    elif not buckets:
+        lines.extend(["", "### Why the pool did not qualify", "", "- No task/backend buckets were configured."])
 
     allocation_rows: dict[str, dict[str, Any]] = {}
     for record in _valid_records(records):
@@ -427,6 +521,7 @@ def build_report(
     expected_buckets: set[tuple[str, str]],
     noise_floors: dict[tuple[str, str], float] | None = None,
     expected_allocations: int = DEFAULT_EXPECTED_ALLOCATIONS,
+    minimum_distinct_runners: int = DEFAULT_MINIMUM_DISTINCT_RUNNERS,
     samples_per_allocation: int = DEFAULT_SAMPLES_PER_ALLOCATION,
     expected_gpu_model: str | None = None,
     expected_target_branch: str | None = None,
@@ -438,6 +533,7 @@ def build_report(
         expected_buckets=expected_buckets,
         noise_floors=noise_floors,
         expected_allocations=expected_allocations,
+        minimum_distinct_runners=minimum_distinct_runners,
         samples_per_allocation=samples_per_allocation,
         expected_gpu_model=expected_gpu_model,
         expected_target_branch=expected_target_branch,
@@ -448,6 +544,7 @@ def build_report(
         "overall_verdict": overall,
         "policy": {
             "expected_allocations": expected_allocations,
+            "minimum_distinct_runners": minimum_distinct_runners,
             "samples_per_allocation": samples_per_allocation,
             "max_effective_block_pct": MAX_EFFECTIVE_BLOCK_PCT,
             "max_pooled_cv_pct": MAX_POOLED_CV_PCT,
@@ -469,6 +566,7 @@ def build_report(
         buckets,
         records=records,
         expected_allocations=expected_allocations,
+        minimum_distinct_runners=minimum_distinct_runners,
         samples_per_allocation=samples_per_allocation,
         expected_gpu_model=expected_gpu_model,
         expected_target_branch=expected_target_branch,
@@ -495,6 +593,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--expected_target_branch")
     parser.add_argument("--expected_commit")
     parser.add_argument("--expected_allocations", type=int, default=DEFAULT_EXPECTED_ALLOCATIONS)
+    parser.add_argument("--minimum_distinct_runners", type=int, default=DEFAULT_MINIMUM_DISTINCT_RUNNERS)
     parser.add_argument("--samples_per_allocation", type=int, default=DEFAULT_SAMPLES_PER_ALLOCATION)
     parser.add_argument("--json_output", type=Path)
     parser.add_argument("--markdown_output", type=Path)
@@ -513,6 +612,7 @@ def main() -> int:
         expected_buckets=expected,
         noise_floors=noise_floors,
         expected_allocations=args.expected_allocations,
+        minimum_distinct_runners=args.minimum_distinct_runners,
         samples_per_allocation=args.samples_per_allocation,
         expected_gpu_model=args.gpu_model,
         expected_target_branch=args.expected_target_branch,

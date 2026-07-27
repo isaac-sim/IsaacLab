@@ -112,6 +112,7 @@ def analyze_records(records: list[dict[str, Any]]) -> tuple[list[VarianceBucket]
             not isinstance(fps, (int, float))
             or isinstance(fps, bool)
             or not math.isfinite(float(fps))
+            or float(fps) <= 0.0
             or not task_id
             or not backend
         ):
@@ -197,7 +198,7 @@ def build_markdown(buckets: list[VarianceBucket], *, valid_samples: int, skipped
         ]
     )
     if skipped_samples:
-        lines.extend(["", f"Skipped {skipped_samples} malformed or non-finite record(s)."])
+        lines.extend(["", f"Skipped {skipped_samples} malformed, non-finite, or non-positive record(s)."])
     return "\n".join(lines) + "\n"
 
 

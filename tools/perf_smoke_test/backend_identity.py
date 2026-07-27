@@ -18,14 +18,13 @@ _PHYSICS_PRESET_TO_BACKEND = {
     "newton": "newton",
     "newton_mjwarp": "newton",
 }
-_RENDER_PRESET_TOKENS = frozenset(
-    {
-        "newton_renderer",
-        "ovrtx_renderer",
-        "warp_renderer",
-        "rtx_renderer",
-    }
-)
+_RENDER_PRESET_TO_BACKEND = {
+    "isaacsim_rtx": "rtx_renderer",
+    "newton_renderer": "newton_renderer",
+    "ovrtx_renderer": "ovrtx_renderer",
+    "rtx_renderer": "rtx_renderer",
+    "warp_renderer": "warp_renderer",
+}
 _KNOWN_PHYSICS_BACKENDS = ("physx", "newton")
 
 
@@ -124,7 +123,10 @@ def identity_from_presets(presets: Any) -> BackendIdentity | None:
         (_PHYSICS_PRESET_TO_BACKEND[token] for token in sorted(tokens) if token in _PHYSICS_PRESET_TO_BACKEND),
         _DEFAULT_PHYSICS_BACKEND,
     )
-    render = next((token for token in sorted(tokens) if token in _RENDER_PRESET_TOKENS), None)
+    render = next(
+        (_RENDER_PRESET_TO_BACKEND[token] for token in sorted(tokens) if token in _RENDER_PRESET_TO_BACKEND),
+        None,
+    )
     return BackendIdentity(physics, render)
 
 

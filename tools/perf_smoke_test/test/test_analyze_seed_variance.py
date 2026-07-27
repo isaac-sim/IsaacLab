@@ -120,12 +120,14 @@ def test_build_report_skips_invalid_records_and_explains_metrics() -> None:
         [
             _record(100.0, 0),
             {"task_id": "task-a", "backend": "newton", "fps": float("nan")},
+            _record(0.0, 1),
+            _record(-1.0, 2),
             {"task_id": "task-a", "fps": 100.0},
         ]
     )
 
     assert report["valid_sample_count"] == 1
-    assert report["skipped_sample_count"] == 2
+    assert report["skipped_sample_count"] == 4
     assert "This report is advisory and does not fail CI." in markdown
     assert "**MAD / median**" in markdown
-    assert "Skipped 2 malformed or non-finite record(s)." in markdown
+    assert "Skipped 4 malformed, non-finite, or non-positive record(s)." in markdown

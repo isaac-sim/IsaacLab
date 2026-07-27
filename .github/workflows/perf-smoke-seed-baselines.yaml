@@ -78,9 +78,9 @@ on:
         required: false
         default: true
   # Reusable: the era-roll orchestrator calls this to fill a new era's baselines.
-  # Caller must pass `secrets: inherit` (NGC_API_KEY). Only the inputs the
-  # orchestrator sets are declared; the run steps default the rest. The booleans
-  # are declared explicitly so a missing value can never coerce to "publish".
+  # Callers provide the NGC credential explicitly or via `secrets: inherit`.
+  # The booleans are declared explicitly so a missing value can never coerce to
+  # "publish".
   workflow_call:
     inputs:
       branches:
@@ -148,6 +148,10 @@ on:
         required: false
         default: ""
         type: string
+    secrets:
+      NGC_API_KEY:
+        description: "Optional credential for pulling private NGC images."
+        required: false
 
 concurrency:
   # Serialize seeding so concurrent pushes can't race the append-only baseline branch.
@@ -303,7 +307,9 @@ jobs:
         SEED_BACKENDS: ${{ inputs.backends || '' }}
         SEED_TARGET_BRANCH: ${{ inputs.target_branch || github.event_name == 'push' && 'perf-smoke/develop-staging' || 'develop' }}
         SEED_STRICT_ANCESTRY: ${{ inputs.strict_ancestry == true && 'true' || github.event_name == 'push' && 'true' || 'false' }}
-        SEED_DRY_RUN: ${{ inputs.dry_run == true && 'true' || 'false' }}
+        # Explicit reusable/manual dry-run wins even when the caller was triggered
+        # by push. A direct staging push has no true input and still publishes.
+        SEED_DRY_RUN: ${{ inputs.dry_run == true && 'true' || github.event_name == 'push' && 'false' || inputs.dry_run == false && 'false' || 'true' }}
         PERF_SMOKE_RUN_LABEL: ${{ inputs.run_label || '' }}
         PERF_SMOKE_RUNNER_NAME: ${{ runner.name }}
       run: |
@@ -329,11 +335,11 @@ jobs:
           --source_mount true \
           --dry_run "${SEED_DRY_RUN}"
 
-    # Quantify runner noise from the independent repetitions without enforcing a
-    # stability threshold yet. Grouping includes commit + full gate fingerprint,
-    # so code or environment changes cannot be mistaken for run-to-run variance.
+    # Quantify ordinary seeder repetitions without enforcing a threshold.
+    # Stability allocations carry run_label and skip this three-sample local view;
+    # their authoritative report combines all 15 samples in the caller workflow.
     - name: Report run-to-run variance
-      if: always()
+      if: ${{ always() && inputs.run_label == '' }}
       run: |
         set -euo pipefail
         RECORDS="seed-artifacts/seed_records.json"
