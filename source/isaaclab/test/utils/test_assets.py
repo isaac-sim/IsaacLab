@@ -40,9 +40,9 @@ def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
     assert assets_utils._resolve_asset_root() == "C:\\assets\\Assets\\Isaac\\6.0"
 
 
-def test_asset_root_ignores_blank_environment_override(monkeypatch):
-    """Test a whitespace-only override falls back instead of blanking the asset root."""
-    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "   ")
+def test_asset_root_ignores_empty_environment_override(monkeypatch):
+    """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"

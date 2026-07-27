@@ -73,8 +73,10 @@ def _resolve_asset_root() -> str:
         Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
         configured in ``isaaclab.python.kit``.
     """
-    # both separators are stripped because the variable is also documented for Windows
-    asset_root = os.getenv("ISAACSIM_ASSET_ROOT", "").strip()
+    # the value is used exactly as ``isaacsim.storage.native`` uses it, so both sides resolve
+    # the same root; only the trailing separator is dropped, for ``/`` and for the documented
+    # Windows ``\``
+    asset_root = os.getenv("ISAACSIM_ASSET_ROOT")
     if asset_root:
         return asset_root.rstrip("/\\")
     return _parse_kit_asset_root()

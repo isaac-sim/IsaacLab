@@ -75,10 +75,11 @@ root resolves to the same value when you use one of the provided Isaac Lab exper
 load ``isaacsim.storage.native``. A custom experience that does not build on one of them may leave the
 Isaac Sim asset root pointing at the cloud.
 
-The environment variable is the only supported way to redirect the Isaac Lab asset paths. Isaac Lab
+The environment variable is the only supported runtime override for the Isaac Lab asset paths. Isaac Lab
 resolves them once, when :mod:`isaaclab.utils.assets` is imported, so setting
 ``persistent.isaac.asset_root.default`` on the command line or changing it at runtime does not move them,
-even though Isaac Sim itself honors those forms.
+even though Isaac Sim itself honors those forms. Editing ``persistent.isaac.asset_root.default`` in the
+experience file does work, because that is the value Isaac Lab reads when the variable is unset.
 
 .. note::
    If you previously redirected Isaac Lab assets by editing ``persistent.isaac.asset_root.cloud`` in an
