@@ -60,11 +60,20 @@ def test_assert_articulation_ordering_trace_matches_canonicalizes_public_and_ada
 def test_shared_articulation_ordering_fixtures_are_consistent() -> None:
     helper = importlib.import_module("isaaclab.test.utils.articulation_ordering")
 
-    assert (
-        helper.PANDA_BODY_NAMES[0],
-        *reversed(helper.PANDA_BODY_NAMES[1:]),
-    ) == helper.PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES
-    assert set(helper.ANYMAL_C_PHYSX_JOINT_NAMES) == {
+    assert helper.PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES == (
+        "panda_link0",
+        "panda_rightfinger",
+        "panda_leftfinger",
+        "panda_hand",
+        "panda_link7",
+        "panda_link6",
+        "panda_link5",
+        "panda_link4",
+        "panda_link3",
+        "panda_link2",
+        "panda_link1",
+    )
+    assert helper.ANYMAL_C_PHYSX_JOINT_NAMES == (
         "LF_HAA",
         "LH_HAA",
         "RF_HAA",
@@ -77,9 +86,33 @@ def test_shared_articulation_ordering_fixtures_are_consistent() -> None:
         "LH_KFE",
         "RF_KFE",
         "RH_KFE",
-    }
-    assert set(helper.BRANCHING_PHYSX_JOINT_NAMES) == set(helper.BRANCHING_MJWARP_JOINT_NAMES)
-    assert set(helper.BRANCHING_PHYSX_BODY_NAMES) == set(helper.BRANCHING_MJWARP_BODY_NAMES)
+    )
+    assert helper.BRANCHING_PHYSX_JOINT_NAMES == (
+        "left_shoulder",
+        "right_shoulder",
+        "left_elbow",
+        "right_elbow",
+    )
+    assert helper.BRANCHING_MJWARP_JOINT_NAMES == (
+        "left_shoulder",
+        "left_elbow",
+        "right_shoulder",
+        "right_elbow",
+    )
+    assert helper.BRANCHING_PHYSX_BODY_NAMES == (
+        "base",
+        "left_upper",
+        "right_upper",
+        "left_tip",
+        "right_tip",
+    )
+    assert helper.BRANCHING_MJWARP_BODY_NAMES == (
+        "base",
+        "left_upper",
+        "left_tip",
+        "right_upper",
+        "right_tip",
+    )
     fixture_path = helper.articulation_ordering_branching_fixture_path()
     assert fixture_path.name == "articulation_ordering_branching.usda"
     assert fixture_path.is_file()

@@ -8,7 +8,10 @@
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_ovphysx.test.mock_interfaces import MockTensorBinding
+
+pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
+from isaaclab_ovphysx.test.mock_interfaces import MockTensorBinding  # noqa: E402
 
 
 def _make_binding(data: np.ndarray) -> MockTensorBinding:
