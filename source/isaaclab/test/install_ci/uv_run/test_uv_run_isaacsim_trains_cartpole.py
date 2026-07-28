@@ -42,9 +42,9 @@ _ISAACSIM_PHYSX_TRAIN_CMD = [
 class Test_Uv_Run_Isaacsim_Trains_Cartpole:
     """``uv run --extra isaacsim`` from the committed lockfile trains Cartpole on Isaac Sim PhysX.
 
-    ``--frozen`` uses the committed ``uv.lock`` as-is; freshness is checked cheaply by
-    ``misc/test_uv_lock_check_smoke.py``. The environment goes to a temporary directory
-    via ``UV_PROJECT_ENVIRONMENT`` so the repository checkout stays clean.
+    ``--frozen`` uses the committed ``uv.lock`` as-is. The environment goes to a
+    temporary directory via ``UV_PROJECT_ENVIRONMENT`` so the repository checkout
+    stays clean.
     """
 
     @classmethod

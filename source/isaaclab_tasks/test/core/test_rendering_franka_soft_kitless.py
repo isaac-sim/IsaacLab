@@ -17,7 +17,10 @@ from rendering_test_utils import (
     rendering_test_franka_soft,
 )
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [
+    pytest.mark.isaacsim_ci,
+    pytest.mark.skip(reason="The table is missing from the Franka soft asset, so the golden images no longer match."),
+]
 
 _COMPARISON_SCORES: list[dict] = []
 
@@ -28,6 +31,6 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def test_rendering_franka_soft_kitless(physics_backend, renderer, data_type):
+def test_rendering_franka_soft_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images for the Franka soft test setup."""
     rendering_test_franka_soft(physics_backend, renderer, data_type, _COMPARISON_SCORES)
