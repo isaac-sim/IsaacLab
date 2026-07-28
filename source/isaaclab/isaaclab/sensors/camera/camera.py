@@ -809,6 +809,10 @@ class Camera(SensorBase):
         """Invalidates the scene elements."""
         if self._renderer is not None and self._render_data is not None:
             self._renderer.cleanup(self._render_data)
+            # Tell the context this handle is gone, or close() would release it a second time.
+            sim_ctx = sim_utils.SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.render_context.release_render_data(self._render_data)
         self._render_data = None
         self._renderer = None
         # call parent

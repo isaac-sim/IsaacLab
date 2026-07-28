@@ -309,3 +309,24 @@ def test_close_drops_registered_backends():
     ctx.close()
 
     assert ctx._renderer_entries == []  # noqa: SLF001
+
+
+def test_close_does_not_release_render_data_already_released_by_its_owner():
+    """A handle the camera released on its own is not released a second time by close.
+
+    A camera releases its render data when physics stops
+    (``Camera._invalidate_initialize_callback``) and reports it via
+    :meth:`RenderContext.release_render_data`. Without that, the context would still hold the
+    handle and hand it to ``cleanup`` again at teardown -- releasing it twice.
+    """
+    ctx = RenderContext()
+    cleaned: list[Any] = []
+    backend = _FakeBackend(cleanup_log=cleaned)
+    _set_entries(ctx, (IsaacRtxRendererCfg(), backend))
+    owned = ctx.create_render_data(backend, cast(Any, object()))
+    still_held = ctx.create_render_data(backend, cast(Any, object()))
+
+    ctx.release_render_data(owned)  # the camera released this one itself
+    ctx.close()
+
+    assert cleaned == [still_held]

@@ -108,6 +108,15 @@ class RenderContext:
         self._render_data_entries.append((renderer, render_data))
         return render_data
 
+    def release_render_data(self, render_data: Any) -> None:
+        """Drop a handle already released by its owner, so :meth:`close` does not release it again.
+
+        A camera releases its own render data when physics stops
+        (``Camera._invalidate_initialize_callback``). Without this the context would still hold
+        that handle and hand it to ``cleanup`` a second time at teardown.
+        """
+        self._render_data_entries = [e for e in self._render_data_entries if e[1] is not render_data]
+
     def close(self) -> None:
         """Release all render data and drop the registered renderer backends.
 
