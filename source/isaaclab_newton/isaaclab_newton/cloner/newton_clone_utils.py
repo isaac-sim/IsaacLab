@@ -15,7 +15,7 @@ from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.cloner.cloner_utils import replace_path_prefix
+from isaaclab import cloner
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 # USD ``physics:approximation`` token (lower case) -> Newton remeshing method.
@@ -267,7 +267,7 @@ def rename_builder_labels(
                     continue
                 world_root = world_roots.get(int(world))
                 if isinstance(value, str) and world_root is not None:
-                    renamed_value = replace_path_prefix(value, source_root, world_root)
+                    renamed_value = cloner.path.rebase(value, source_root, world_root)
                     if renamed_value != value:
                         values[index] = renamed_value
                         if collect_body_bindings:
