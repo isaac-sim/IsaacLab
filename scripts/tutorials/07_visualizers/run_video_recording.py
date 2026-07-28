@@ -173,6 +173,11 @@ def _build_env_cfg_example_3(num_envs: int):
         lookat=_SHADOW_LOOKAT,
         window_width=1280,
         window_height=720,
+        # focal_length=18 matches Kit's effective vertical FOV (~46°).
+        # Kit uses focal_length=12 on a horizontal-aperture USD camera (h_ap=20.955mm),
+        # giving h_FOV=82.3° → v_FOV≈46° at 16:9.  Newton applies focal_length directly
+        # to the vertical aperture (15.29mm), so focal_length=12 gives v_FOV=65° (too wide).
+        focal_length=18.0,
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 
