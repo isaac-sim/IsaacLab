@@ -163,7 +163,7 @@ class FrankaClothScenePresetCfg(PresetCfg):
 
     newton_mjwarp_vbd: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
 
-    ovphysx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    ovphysx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
 
     default = newton_mjwarp_vbd
 
