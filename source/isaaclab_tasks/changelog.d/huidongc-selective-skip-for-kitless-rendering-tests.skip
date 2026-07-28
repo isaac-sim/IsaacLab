@@ -1,0 +1,2 @@
+Test-only: re-enable kit-less Franka soft and cloth rendering tests
+with selective skips for known broken cases. No user-facing change.
