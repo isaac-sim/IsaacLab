@@ -33,12 +33,11 @@ def _configure_deformable_lift_ovphysx_smoke(
     cfg.scene.num_envs = 1
 
     # Keep these smokes focused on the stock task deformable and shared MDP data
-    # path while avoiding unrelated external props and articulation Jacobians.
+    # path while avoiding unrelated external props.
     cfg.scene.table = None
     cfg.scene.sky_light = None
     cfg.scene.ground = None
     cfg.commands.deformable_pose.debug_vis = False
-    cfg.actions.arm_action = None
     cfg.ui_window_class_type = None
     return cfg
 
@@ -81,7 +80,11 @@ def test_lift_franka_soft_task_reads_and_steps_volume_deformable():
         readback_targets = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_KINEMATIC_TARGET))
         torch.testing.assert_close(readback_targets, updated_targets, rtol=1e-5, atol=1e-5)
 
+        arm_action = env.unwrapped.action_manager.get_term("arm_action")
+        ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
         actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
+        actions[:, :3] = ee_pos_curr
+        actions[:, 3:7] = ee_quat_curr
         for _ in range(3):
             obs, reward, terminated, time_out, _ = env.step(actions)
             assert torch.isfinite(obs["policy"]).all()
