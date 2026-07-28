@@ -249,11 +249,17 @@ def _resolve_git_asset_source_path(local_path: str, git_asset_dir: str) -> str:
 
 
 def _mirror_path(url: str, download_dir: str) -> str:
-    """Local path a remote ``url`` mirrors to under ``download_dir``, or ``""`` if not a URL."""
+    """Local path a remote ``url`` mirrors to under ``download_dir``, or ``""`` if not a URL.
+
+    The scheme and host are part of the mirror layout so that two servers exposing the same
+    path (for instance a cloud and an on-prem Nucleus) do not share a cache entry.
+    """
     parsed = urlparse(url.replace(os.sep, "/"))
     if not parsed.scheme or not parsed.path:
         return ""
-    return os.path.join(download_dir, parsed.path.lstrip("/"))
+    # ':' (port separator) is not a valid path character on Windows
+    netloc = parsed.netloc.replace(":", "_")
+    return os.path.join(download_dir, parsed.scheme, netloc, *parsed.path.lstrip("/").split("/"))
 
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
@@ -392,11 +398,18 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
-        # Go through the local mirror rather than re-reading from the server on every call.
-        # Actuator networks and similar payloads are read at every startup, so a direct
-        # remote read re-downloads megabytes that :func:`retrieve_file_path` already caches.
-        with open(retrieve_file_path(path), "rb") as f:
-            return io.BytesIO(f.read())
+        # Read from the local mirror when a previous run already fetched the file. Actuator
+        # networks and similar payloads are read at every startup, so a remote read re-downloads
+        # megabytes that :func:`retrieve_file_path` already cached.
+        mirrored = _mirror_path(path, tempfile.gettempdir())
+        if mirrored and os.path.isfile(mirrored):
+            with open(mirrored, "rb") as f:
+                return io.BytesIO(f.read())
+
+        import omni.client  # noqa: PLC0415
+
+        file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
+        return io.BytesIO(memoryview(file_content).tobytes())
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 

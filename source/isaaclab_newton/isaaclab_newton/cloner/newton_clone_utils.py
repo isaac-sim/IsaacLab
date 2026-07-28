@@ -76,6 +76,7 @@ def build_source_builders(
     *,
     ignore_paths: Sequence[str] | None = None,
     simplify_meshes: bool = True,
+    load_visual_shapes: bool = True,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
@@ -84,11 +85,22 @@ def build_source_builders(
     honored modes leave multiple sources with differing shape-type sequences (e.g.
     heterogeneous asset variants), every mesh falls back to the uniform convex-hull
     treatment, because :class:`SolverMuJoCo` requires homogeneous worlds.
+
+    Args:
+        stage: USD stage containing the source prims.
+        sources: Source prim paths to build a builder for.
+        create_builder: Factory returning a fresh :class:`ModelBuilder`.
+        schema_resolvers: Schema resolvers forwarded to Newton's USD importer.
+        ignore_paths: Prim paths skipped during import.
+        simplify_meshes: Whether to run convex-hull mesh approximation.
+        load_visual_shapes: Whether to import visual-only geometry. Importing it costs
+            USD parse time and memory that only pays off when the shapes are rendered
+            or ray cast.
     """
     authored = _authored_collision_approximations(stage)
     builders = {
         source: _build_source_builder(
-            stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, authored
+            stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, authored, load_visual_shapes
         )
         for source in sources
     }
@@ -105,7 +117,14 @@ def build_source_builders(
             )
             builders = {
                 source: _build_source_builder(
-                    stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, {}
+                    stage,
+                    source,
+                    create_builder,
+                    schema_resolvers,
+                    ignore_paths,
+                    simplify_meshes,
+                    {},
+                    load_visual_shapes,
                 )
                 for source in sources
             }
@@ -120,6 +139,7 @@ def _build_source_builder(
     ignore_paths: Sequence[str] | None,
     simplify_meshes: bool,
     authored: dict[str, str],
+    load_visual_shapes: bool = True,
 ) -> ModelBuilder:
     """Build one source builder; an empty ``authored`` map restores hull-everything."""
     builder = create_builder()
@@ -128,7 +148,7 @@ def _build_source_builder(
     import_result = builder.add_usd(
         stage,
         root_path=source,
-        load_visual_shapes=True,
+        load_visual_shapes=load_visual_shapes,
         skip_mesh_approximation=True,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
@@ -246,20 +266,28 @@ def replicate_builder_mapping(
 
     source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1).tolist()
 
-    # Per-world placements for every source and every env-root site, composed up front so the
-    # per-world loop below only indexes rows.
+    # Per-world placements for every env-root site, composed up front so the per-world loop
+    # below only indexes rows.
     root_site_xforms = {
         label: _compose_world_xforms(positions_np, quaternions_np, xform) for label, xform in env_root_sites.items()
     }
-    source_xforms = [
-        _compose_world_xforms(
-            positions_np,
-            quaternions_np,
+    # Same for the source placements, but only for the occupied ``(row, col)`` pairs of the
+    # mapping: composing a dense ``num_rows x num_worlds`` table would blow up on heterogeneous
+    # plans where each row is present in a handful of worlds.
+    rows_per_world = [torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist() for col in range(num_worlds)]
+    worlds_per_row: dict[int, list[int]] = {}
+    for col, rows in enumerate(rows_per_world):
+        for row in rows:
+            worlds_per_row.setdefault(row, []).append(col)
+    source_xforms: dict[tuple[int, int], np.ndarray] = {}
+    for row, cols in worlds_per_row.items():
+        source_col = source_world_indices[row]
+        row_xforms = _compose_world_xforms(
+            positions_np[cols],
+            quaternions_np[cols],
             _invert_xform(positions_rows[source_col] + quaternions_rows[source_col]),
         )
-        for source_col in source_world_indices
-    ]
-    rows_per_world = [torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist() for col in range(num_worlds)]
+        source_xforms.update(((row, col), row_xforms[index]) for index, col in enumerate(cols))
 
     for col in range(num_worlds):
         builder.begin_world()
@@ -271,7 +299,7 @@ def replicate_builder_mapping(
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
             offset = builder.shape_count
-            builder.add_builder(source_builder, xform=source_xforms[row][col])
+            builder.add_builder(source_builder, xform=source_xforms[row, col])
 
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]

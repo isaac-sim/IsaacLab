@@ -48,12 +48,13 @@ def _paused_gc():
     deferred, and a collection runs immediately after the capture window,
     where freeing graph-scoped allocations is handled correctly.
 
-    Only generation 0 is collected afterwards. Nothing was promoted while the
-    collector was off, so everything allocated inside the window is still in
-    gen 0 -- exactly the deferred graph-scoped garbage. A full collection would
-    instead walk the entire live heap (hundreds of milliseconds once the
-    replicated model exists) to reach older objects the periodic collector
-    handles anyway.
+    Only generation 0 is collected afterwards: objects allocated inside the
+    window are still in gen 0, so this reclaims the graph-scoped garbage the
+    pause deferred, without the full-heap walk a ``gc.collect()`` would do
+    (hundreds of milliseconds once the replicated model exists). Cycles that
+    were already in an older generation before the window and became
+    unreachable during it -- a previous ``wp.Graph``/``State`` released on a
+    hard reset, for instance -- are left to the periodic collector.
     """
     was_enabled = gc.isenabled()
     gc.disable()
