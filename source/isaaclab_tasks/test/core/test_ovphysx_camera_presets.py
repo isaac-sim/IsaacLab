@@ -62,7 +62,7 @@ def test_kuka_ovphysx_preset_uses_supported_task_configuration(task_name: str):
     object_asset_cfg = env_cfg.events.object_physics_material.params["asset_cfg"]
 
     assert isinstance(env_cfg.scene.object.spawn, CuboidCfg)
-    assert robot_asset_cfg.body_names is None
-    assert object_asset_cfg.body_names is None
+    assert robot_asset_cfg.body_names == ".*"
+    assert object_asset_cfg.body_names == ".*"
     assert env_cfg.events.variable_gravity is None
     assert env_cfg.curriculum.gravity_adr is None

@@ -366,6 +366,13 @@ class _RandomizeRigidBodyMaterialNewton:
         self._newton_manager.add_model_change(self._notify_shape_properties)
 
 
+def _is_all_body_selection(body_ids: list[int] | slice, num_bodies: int) -> bool:
+    """Return whether a body selector covers the entire asset."""
+    if body_ids == slice(None):
+        return True
+    return sorted(body_ids) == list(range(num_bodies))
+
+
 class _RandomizeRigidBodyMaterialOvPhysx:
     """OVPhysX backend implementation for material randomization.
 
@@ -389,7 +396,7 @@ class _RandomizeRigidBodyMaterialOvPhysx:
 
         # OVPhysX cannot map body ids to shape ranges (no per-body shape counts), so a
         # per-body subset cannot be indexed -- fail loud rather than silently randomize all.
-        if asset_cfg.body_ids != slice(None):
+        if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
             raise NotImplementedError(
                 "randomize_rigid_body_material on the OVPhysX backend randomizes all shapes only; "
                 "per-body selection via 'asset_cfg.body_ids' is not supported because the ovphysx "
