@@ -606,6 +606,49 @@ def test_ovphysx_manager_registers_schemas_during_pre_stage_setup(monkeypatch):
     assert calls == [OvPhysxManager]
 
 
+def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkeypatch):
+    """Automatic kitless PhysX selection prepares OvPhysX before creating the USD stage."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    import isaaclab.sim.simulation_context as simulation_context_module
+    from isaaclab.app.sim_launcher import make_physics_cfg
+    from isaaclab.sim import SimulationCfg, SimulationContext
+
+    class StageCreationReached(Exception):
+        """Signal that initialization reached stage creation."""
+
+    class StubPhysxManager:
+        """Stand in for the Kit-only manager while recording its pre-stage hook."""
+
+        @classmethod
+        def _prepare_stage_creation(cls):
+            events.append("physx")
+
+    events = []
+    monkeypatch.setattr(simulation_context_module, "has_kit", lambda: False)
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_prepare_stage_creation",
+        classmethod(lambda cls: events.append("ovphysx")),
+    )
+
+    def _stop_at_stage_creation():
+        events.append("stage")
+        raise StageCreationReached
+
+    monkeypatch.setattr(simulation_context_module, "create_new_stage", _stop_at_stage_creation)
+    cfg = SimulationCfg(create_stage_in_memory=True)
+    physics_cfg = make_physics_cfg("physx")
+    physics_cfg.class_type = StubPhysxManager
+    cfg.physics = physics_cfg
+
+    with pytest.raises(StageCreationReached):
+        SimulationContext(cfg)
+
+    assert events == ["ovphysx", "stage"]
+    assert SimulationContext.instance() is None
+
+
 def _make_stub_binding(prim_paths: list[str]) -> SimpleNamespace:
     """Stub an ovphysx ``TensorBinding`` exposing ``shape``, ``count``, ``prim_paths``, and ``read(dst)``."""
     n = len(prim_paths)

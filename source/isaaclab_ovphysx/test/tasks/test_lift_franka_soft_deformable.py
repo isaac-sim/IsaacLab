@@ -23,14 +23,16 @@ from isaaclab_tasks.utils.hydra import resolve_presets  # noqa: E402
 
 wp.init()
 
+_NUM_ENVS = 2
+
 
 def _configure_deformable_lift_ovphysx_smoke(
     cfg_cls: type[FrankaSoftEnvCfg],
 ) -> FrankaSoftEnvCfg:
-    """Build a minimal one-environment OvPhysX deformable-lift task."""
+    """Build a minimal multi-environment OvPhysX deformable-lift task."""
     cfg = resolve_presets(cfg_cls(), ("ovphysx",))
     cfg.sim.device = "cuda:0"
-    cfg.scene.num_envs = 1
+    cfg.scene.num_envs = _NUM_ENVS
 
     # Keep these smokes focused on the stock task deformable and shared MDP data
     # path while avoiding unrelated external props.
@@ -54,12 +56,12 @@ def test_lift_franka_soft_task_reads_and_steps_volume_deformable():
 
         obs, _ = env.reset()
         policy_obs = obs["policy"]
-        assert policy_obs.shape[0] == 1
+        assert policy_obs.shape[0] == _NUM_ENVS
         assert torch.isfinite(policy_obs).all()
 
         deformable = env.unwrapped.scene["deformable"]
         assert deformable.is_initialized
-        assert deformable.num_instances == 1
+        assert deformable.num_instances == _NUM_ENVS
         assert deformable.max_sim_vertices_per_body > 0
         assert torch.isfinite(deformable.data.nodal_state_w.torch).all()
 
@@ -68,17 +70,19 @@ def test_lift_franka_soft_task_reads_and_steps_volume_deformable():
 
         targets = deformable.data.nodal_kinematic_target
         assert targets is not None
-        updated_targets = targets.torch.clone()
+        expected_targets = targets.torch.clone()
+        updated_targets = expected_targets[:1].clone()
         updated_targets[..., 3] = 1.0
-        updated_targets[0, :, :3] = deformable.data.nodal_pos_w.torch[0] + torch.tensor(
+        updated_targets[:, :, :3] = deformable.data.nodal_pos_w.torch[:1] + torch.tensor(
             [0.0, 0.0, 0.03], device=env.unwrapped.device
         )
-        updated_targets[0, :, 3] = 0.0
+        updated_targets[:, :, 3] = 0.0
         deformable.write_nodal_kinematic_target_to_sim_index(
             updated_targets, env_ids=torch.tensor([0], device=env.unwrapped.device)
         )
+        expected_targets[0] = updated_targets[0]
         readback_targets = wp.to_torch(deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_KINEMATIC_TARGET))
-        torch.testing.assert_close(readback_targets, updated_targets, rtol=1e-5, atol=1e-5)
+        torch.testing.assert_close(readback_targets, expected_targets, rtol=1e-5, atol=1e-5)
 
         arm_action = env.unwrapped.action_manager.get_term("arm_action")
         ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
@@ -113,12 +117,12 @@ def test_lift_franka_cloth_task_reads_and_steps_surface_deformable():
         env.unwrapped.sim._app_control_on_stop_handle = None
 
         obs, _ = env.reset()
-        assert obs["policy"].shape[0] == 1
+        assert obs["policy"].shape[0] == _NUM_ENVS
         assert torch.isfinite(obs["policy"]).all()
 
         deformable = env.unwrapped.scene["deformable"]
         assert deformable.is_initialized
-        assert deformable.num_instances == 1
+        assert deformable.num_instances == _NUM_ENVS
         assert deformable.max_sim_vertices_per_body > 0
         assert deformable.data.nodal_kinematic_target is None
         assert torch.isfinite(deformable.data.nodal_state_w.torch).all()
