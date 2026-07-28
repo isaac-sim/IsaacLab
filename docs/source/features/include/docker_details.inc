@@ -71,8 +71,8 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
       for the ``_build`` subdirectory where build artifacts are stored.
 
 
-The script ``container.py`` parallels basic ``docker compose`` commands. Each can accept a
-`profile argument <#isaac-lab-image-extensions>`_, or else it defaults to the ``base`` profile. These commands are:
+The script ``container.py`` parallels basic ``docker compose`` commands. Each can accept an `image extension argument <#isaac-lab-image-extensions>`_,
+or else they will default to the ``base`` image extension. These commands are:
 
 * **build**: This builds the image for the given profile. It does not bring up the container.
 * **start**: This builds the image and brings up the container in detached mode (i.e. in the background).
@@ -81,8 +81,7 @@ The script ``container.py`` parallels basic ``docker compose`` commands. Each ca
 * **config**: This outputs the compose.yaml which would be result from the inputs given to ``container.py start``. This command is useful
   for debugging a compose configuration.
 * **copy**: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
-  volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker container
-  instances and are shared between profiles.
+  volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker container instances and are shared between image extensions.
 * **stop**: This brings down the container and removes it.
 
 The following shows how to launch the container in a detached state and enter it:
@@ -149,9 +148,8 @@ volumes for CloudXR Runtime and base. The environment variables required for Clo
 
 .. rubric:: X11 forwarding
 
-All profiles support X11 forwarding, which allows the user to run GUI applications from the container and
-display them on the host machine. The kit-less profile has no Kit, but it ships Newton's interactive viewer,
-so ``--visualizer newton`` needs a display there as well.
+The container supports X11 forwarding, which allows the user to run GUI applications from the container
+and display them on the host machine.
 
 The first time a container is started with ``./docker/container.py start``, the script prompts
 the user whether to activate X11 forwarding. This will create a file at ``docker/.container.cfg``
