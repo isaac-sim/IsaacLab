@@ -14,6 +14,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
+from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -22,6 +23,30 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     rename_builder_labels,
     replicate_builder_mapping,
 )
+from isaaclab_newton.physics.visualization_deformables import (
+    add_shadow_deformables_to_builder,
+)
+
+
+def _deformable_ignore_paths(stage: Usd.Stage, sources: Sequence[str]) -> list[str]:
+    """Collect deformable prim paths under clone sources for ``add_usd`` ignore lists.
+
+    Shadow deformables are added explicitly by :func:`add_shadow_deformables_to_builder`.
+    Ignoring them during source USD import prevents double-allocating particles in the
+    shadow ``particle_q`` buffer (which breaks geometry mapping offsets).
+    """
+    source_prefixes = tuple(f"{source.rstrip('/')}/" for source in sources)
+    ignore_paths: list[str] = []
+    for entry in discover_deformables_on_stage(stage):
+        for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path):
+            under_source = any(
+                path == source.rstrip("/") or path.startswith(prefix)
+                for source, prefix in zip(sources, source_prefixes, strict=True)
+            )
+            if under_source:
+                ignore_paths.append(path)
+    # Preserve order while dropping duplicates.
+    return list(dict.fromkeys(ignore_paths))
 
 
 def build_visualization_builder_from_stage_envs(
@@ -30,18 +55,24 @@ def build_visualization_builder_from_stage_envs(
     clone_plan: Any | None,
     *,
     up_axis: str = "Z",
-) -> ModelBuilder:
+) -> tuple[ModelBuilder, tuple[list, list]]:
     """Build a Newton shadow visualization builder from a USD stage.
 
     Cloned scenes use the clone plan to preserve per-environment world layout and
     labels. Standalone scenes without a clone plan are imported as one world.
+
+    Returns:
+        A tuple of the populated :class:`~newton.ModelBuilder` and shadow-deformable
+        metadata ``(shadow_entities, registry_groups)``. Standalone imports return
+        empty shadow metadata.
     """
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = ModelBuilder(up_axis=up_axis)
+    empty_shadow_metadata: tuple[list, list] = ([], [])
     if clone_plan is None:
         import_result = builder.add_usd(stage, schema_resolvers=schema_resolvers)
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-        return builder
+        return builder, empty_shadow_metadata
     if not env_paths:
         raise ValueError("clone plan requires at least one environment path")
 
@@ -57,13 +88,16 @@ def build_visualization_builder_from_stage_envs(
     quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
     import_result = builder.add_usd(stage, ignore_paths=["/World/envs", *sources], schema_resolvers=schema_resolvers)
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+    deformable_ignore_paths = _deformable_ignore_paths(stage, sources)
     source_builders = build_source_builders(
         stage,
         sources,
         lambda: ModelBuilder(up_axis=up_axis),
         schema_resolvers,
+        ignore_paths=deformable_ignore_paths or None,
         simplify_meshes=False,
     )
     replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
     rename_builder_labels(builder, sources, destinations, env_ids, mapping)
-    return builder
+    shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths)
+    return builder, (shadow_entities, registry_groups)

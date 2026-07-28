@@ -1864,6 +1864,19 @@ def rendering_test_franka_soft(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
 
+    # Drive motion_vectors with a relative joint delta on all backends. DiffIK needs
+    # body_link_jacobian_w, which OVPhysX does not implement; keep the same path elsewhere
+    # so golden images and motion stimulus stay consistent across physics backends.
+    if data_type == "motion_vectors":
+        from isaaclab.envs.mdp.actions.actions_cfg import RelativeJointPositionActionCfg
+
+        env_cfg.actions.arm_action = RelativeJointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            scale=1.0,
+            use_zero_offset=True,
+        )
+
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
@@ -1876,15 +1889,9 @@ def rendering_test_franka_soft(
         env = ManagerBasedRLEnv(env_cfg)
 
         if data_type == "motion_vectors":
-            # Command a valid absolute IK pose with a small displacement (0.05m) so the renderer sees arm motion.
-            arm_action = env.action_manager.get_term("arm_action")
-            ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
-            ee_pos_curr[0] += 0.05
-
+            # Nudge the first arm joint (~0.05 rad) so the renderer sees non-zero motion vectors.
             actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-            actions[:, 0:3] = ee_pos_curr
-            actions[:, 3:7] = ee_quat_curr
-
+            actions[:, 0] = 0.05
             env.step(actions)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
