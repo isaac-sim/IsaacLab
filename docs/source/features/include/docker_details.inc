@@ -42,7 +42,7 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
 
 * **Dockerfile.base**: Defines the base Isaac Lab image by overlaying its dependencies onto the Isaac Sim Docker image.
   Dockerfiles which end with something else, (i.e. ``Dockerfile.ros2``) build an `image extension <#isaac-lab-image-extensions>`_.
-* **Dockerfile.kitless**: Defines a kit-less image for headless Newton training without Isaac Sim or Kit.
+* **Dockerfile.kitless**: Defines a kit-less image for Newton training without Isaac Sim or Kit.
 * **docker-compose.yaml**: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
   the container. It also creates several named volumes such as ``isaac-cache-kit`` to
   store frequently reused resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
@@ -149,11 +149,11 @@ volumes for CloudXR Runtime and base. The environment variables required for Clo
 
 .. rubric:: X11 forwarding
 
-The Isaac Sim-based profiles support X11 forwarding, which allows the user to run GUI applications from
-the container and display them on the host machine. The headless kit-less profile does not configure X11
-forwarding and skips the X11 prompt.
+All profiles support X11 forwarding, which allows the user to run GUI applications from the container and
+display them on the host machine. The kit-less profile has no Kit, but it ships Newton's interactive viewer,
+so ``--visualizer newton`` needs a display there as well.
 
-The first time an Isaac Sim-based container is started with ``./docker/container.py start``, the script prompts
+The first time a container is started with ``./docker/container.py start``, the script prompts
 the user whether to activate X11 forwarding. This will create a file at ``docker/.container.cfg``
 to store the user's choice for future runs.
 

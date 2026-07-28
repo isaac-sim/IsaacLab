@@ -96,11 +96,6 @@ class ContainerInterface:
         """Whether the selected profile extends the Isaac Sim-based base image."""
         return self.profile not in {"base", "kitless"}
 
-    @property
-    def supports_x11(self) -> bool:
-        """Whether the selected profile supports the X11 Compose overlay."""
-        return self.profile != "kitless"
-
     def print_info(self):
         """Print the container interface information."""
         print("=" * 60)
@@ -221,7 +216,7 @@ class ContainerInterface:
             print(f"[INFO] Entering the existing '{self.container_name}' container in a bash session...\n")
             cmd = (
                 ["docker", "exec", "--interactive", "--tty"]
-                + (["-e", f"DISPLAY={os.environ['DISPLAY']}"] if self.supports_x11 and "DISPLAY" in os.environ else [])
+                + (["-e", f"DISPLAY={os.environ['DISPLAY']}"] if "DISPLAY" in os.environ else [])
                 + [self.container_name, "bash"]
             )
             subprocess.run(cmd)

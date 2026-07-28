@@ -133,23 +133,29 @@ def main(args: argparse.Namespace):
         return
 
     print(f"[INFO] Using container profile: {ci.profile}")
-
-    # The kit-less image is a headless training image and intentionally has no
-    # X11 service overlay. Preserve the existing X11 behavior for other profiles.
-    if args.command in {"build", "start"} and ci.supports_x11:
+    if args.command == "build":
+        # check if x11 forwarding is enabled
         x11_outputs = x11_utils.x11_check(ci.statefile)
+        # if x11 forwarding is enabled, add the x11 yaml and environment variables
         if x11_outputs is not None:
             (x11_yaml, x11_envar) = x11_outputs
             ci.add_yamls += x11_yaml
             ci.environ.update(x11_envar)
-
-    if args.command == "build":
+        # build the image
         ci.build()
     elif args.command == "start":
+        # check if x11 forwarding is enabled
+        x11_outputs = x11_utils.x11_check(ci.statefile)
+        # if x11 forwarding is enabled, add the x11 yaml and environment variables
+        if x11_outputs is not None:
+            (x11_yaml, x11_envar) = x11_outputs
+            ci.add_yamls += x11_yaml
+            ci.environ.update(x11_envar)
+        # start the container
         ci.start()
     elif args.command == "enter":
-        if ci.supports_x11:
-            x11_utils.x11_refresh(ci.statefile)
+        # refresh the x11 forwarding
+        x11_utils.x11_refresh(ci.statefile)
         # enter the container
         ci.enter()
     elif args.command == "config":
@@ -159,8 +165,8 @@ def main(args: argparse.Namespace):
     elif args.command == "stop":
         # stop the container
         ci.stop()
-        if ci.supports_x11:
-            x11_utils.x11_cleanup(ci.statefile)
+        # cleanup the x11 forwarding
+        x11_utils.x11_cleanup(ci.statefile)
     else:
         raise RuntimeError(f"Invalid command provided: {args.command}. Please check the help message.")
 

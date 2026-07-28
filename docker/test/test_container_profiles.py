@@ -78,17 +78,10 @@ def test_profile_environment_inheritance(
 
 
 def test_profile_capabilities(make_interface: Callable[[str], ContainerInterface]):
-    """The kit-less profile is standalone and headless while existing profiles retain their behavior."""
-    base = make_interface("base")
-    ros2 = make_interface("ros2")
-    kitless = make_interface("kitless")
-
-    assert not base.requires_base_image
-    assert base.supports_x11
-    assert ros2.requires_base_image
-    assert ros2.supports_x11
-    assert not kitless.requires_base_image
-    assert not kitless.supports_x11
+    """Only profiles derived from the Isaac Sim base image require it to be built first."""
+    assert not make_interface("base").requires_base_image
+    assert make_interface("ros2").requires_base_image
+    assert not make_interface("kitless").requires_base_image
 
 
 @pytest.mark.parametrize(
@@ -206,7 +199,7 @@ def test_kitless_start_does_not_build_base(
 def test_kitless_enter_and_stop_target_profile_container(
     make_interface: Callable[[str], ContainerInterface], monkeypatch: pytest.MonkeyPatch
 ):
-    """Enter and stop use the kit-less service name and environment."""
+    """Enter and stop use the kit-less service name, environment, and display."""
     interface = make_interface("kitless")
     run = MagicMock()
     monkeypatch.setenv("DISPLAY", ":99")
@@ -217,7 +210,7 @@ def test_kitless_enter_and_stop_target_profile_container(
     interface.stop()
 
     assert [call.args[0] for call in run.call_args_list] == [
-        ["docker", "exec", "--interactive", "--tty", "isaac-lab-kitless", "bash"],
+        ["docker", "exec", "--interactive", "--tty", "-e", "DISPLAY=:99", "isaac-lab-kitless", "bash"],
         [
             "docker",
             "compose",
@@ -233,45 +226,20 @@ def test_kitless_enter_and_stop_target_profile_container(
     ]
 
 
-@pytest.mark.parametrize("command", ("build", "start", "enter", "stop"))
-def test_kitless_cli_skips_x11(monkeypatch: pytest.MonkeyPatch, command: str):
-    """Kit-less CLI commands do not inspect or mutate the shared X11 state."""
-    interface = MagicMock()
-    interface.profile = "kitless"
-    interface.supports_x11 = False
-    interface.add_yamls = ["--file", "docker-compose.yaml"]
-    interface.environ = {}
-    interface_factory = MagicMock(return_value=interface)
-    monkeypatch.setattr(container_cli, "ContainerInterface", interface_factory)
-    monkeypatch.setattr(container_cli.shutil, "which", MagicMock(return_value="/usr/bin/docker"))
-    x11_check = MagicMock()
-    x11_refresh = MagicMock()
-    x11_cleanup = MagicMock()
-    monkeypatch.setattr(container_cli.x11_utils, "x11_check", x11_check)
-    monkeypatch.setattr(container_cli.x11_utils, "x11_refresh", x11_refresh)
-    monkeypatch.setattr(container_cli.x11_utils, "x11_cleanup", x11_cleanup)
-    args = Namespace(
-        command=command,
-        profile="kitless",
-        files=None,
-        env_files=None,
-        suffix=None,
-        info=False,
-    )
+def test_x11_overlay_covers_every_profile():
+    """Compose merges the X11 override by service name, so each profile needs an entry."""
+    overlay = yaml.safe_load((DOCKER_DIR / "x11.yaml").read_text(encoding="utf-8"))
 
-    container_cli.main(args)
-
-    getattr(interface, command).assert_called_once_with()
-    x11_check.assert_not_called()
-    x11_refresh.assert_not_called()
-    x11_cleanup.assert_not_called()
+    assert set(overlay["services"]) == {"isaac-lab-base", "isaac-lab-ros2", "isaac-lab-kitless"}
+    for name, service in overlay["services"].items():
+        assert "DISPLAY" in service["environment"], name
+        assert any("X11-unix" in mount["source"] for mount in service["volumes"]), name
 
 
-def test_existing_profile_cli_keeps_x11(monkeypatch: pytest.MonkeyPatch):
-    """Existing profiles still merge the X11 overlay before starting."""
+def test_cli_merges_x11_overlay_before_start(monkeypatch: pytest.MonkeyPatch):
+    """The CLI merges the X11 overlay before starting a container."""
     interface = MagicMock()
     interface.profile = "base"
-    interface.supports_x11 = True
     interface.add_yamls = ["--file", "docker-compose.yaml"]
     interface.environ = {}
     monkeypatch.setattr(container_cli, "ContainerInterface", MagicMock(return_value=interface))

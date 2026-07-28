@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Kit-less image for GPU-accelerated headless training without Isaac Sim or Kit:
+# Kit-less image for GPU-accelerated training without Isaac Sim or Kit:
 # Newton physics, OVRTX rendering, and every core RL framework.
 ARG BASE_IMAGE_ARG=ubuntu:24.04
 
