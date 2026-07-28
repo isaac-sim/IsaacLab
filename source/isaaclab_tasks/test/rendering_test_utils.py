@@ -1703,6 +1703,12 @@ def rendering_test_franka_cloth(
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
+    if renderer == "newton_renderer":
+        pytest.skip("Missing table in Newton Warp renderer (OMPE-103086)")
+
+    if renderer == "ovrtx_renderer" and data_type == "motion_vectors":
+        pytest.skip("Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754).")
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
@@ -1828,6 +1834,9 @@ def rendering_test_franka_soft(
 
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
+
+    if renderer == "newton_renderer":
+        pytest.skip("Missing table in Newton Warp renderer (OMPE-103086)")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
