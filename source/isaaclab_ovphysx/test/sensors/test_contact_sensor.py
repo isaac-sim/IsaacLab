@@ -50,6 +50,7 @@ from flaky import flaky
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx.assets import RigidObject  # noqa: E402
+from isaaclab_ovphysx.cloner import ovphysx_replicate  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ovphysx.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 
@@ -57,6 +58,7 @@ from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.sim.schemas as schemas  # noqa: E402
+from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
@@ -560,15 +562,35 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
     under other bodies, so the contact binding bound only the first-level links and
     initialization failed on URDF-importer-style assets.
 
-    The chains are authored directly under each environment prim (no scene/cloner):
-    the sensor path under test only depends on the prims existing on the stage.
+    The source chain is authored under ``env_0`` and replicated through the OVPhysX
+    clone path so the test covers both nested body resolution and multi-environment
+    contact binding behavior.
     """
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         stage = get_current_stage()
-        for env_id in range(num_envs):
-            env_xform = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
-            env_xform.AddTranslateOp().Set(Gf.Vec3d(3.0 * env_id, 0.0, 0.0))
-            _author_nested_chain(f"/World/envs/env_{env_id}/Robot")
+        env_positions, _ = cloner.grid_transforms(num_envs, spacing=3.0, device=device)
+        env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+        env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
+        _author_nested_chain("/World/envs/env_0/Robot")
+
+        clone_plan = cloner.ClonePlan.from_env_0(
+            source="/World/envs/env_0",
+            destination="/World/envs/env_{}",
+            num_clones=num_envs,
+            device=device,
+            positions=env_positions,
+        )
+        assert clone_plan.env_ids is not None
+        ovphysx_replicate(
+            stage,
+            clone_plan.sources,
+            clone_plan.destinations,
+            clone_plan.env_ids,
+            clone_plan.clone_mask,
+            positions=clone_plan.positions,
+        )
+        sim.set_clone_plan(clone_plan)
+
         contact_sensor = ContactSensor(
             ContactSensorCfg(
                 prim_path="/World/envs/env_.*/Robot/.*",
