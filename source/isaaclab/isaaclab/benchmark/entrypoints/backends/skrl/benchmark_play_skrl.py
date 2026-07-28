@@ -122,7 +122,6 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
-    from isaaclab.benchmark.entrypoints.backends._state import scoped_attribute
     from isaaclab.benchmark.schema import StartupTime
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
@@ -158,9 +157,8 @@ def run(argv: list[str]) -> BenchmarkResult:
             if args_cli.ml_framework.startswith("jax"):
                 import skrl
 
-                cleanup.enter_context(
-                    scoped_attribute(skrl.config.jax, "backend", "jax" if args_cli.ml_framework == "jax" else "numpy")
-                )
+                cleanup.enter_context(_common.preserve_attribute(skrl.config.jax, "backend"))
+                skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
             if args_cli.num_envs is not None:
                 env_cfg.scene.num_envs = args_cli.num_envs

@@ -127,14 +127,12 @@ def run(argv: list[str]) -> BenchmarkResult:
     import random
     from datetime import datetime
 
-    import torch
     from rl_games.common import env_configurations, vecenv
     from rl_games.common.algo_observer import IsaacAlgoObserver
     from rl_games.torch_runner import Runner
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
-    from isaaclab.benchmark.entrypoints.backends._state import scoped_torch_backend_flags
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -168,7 +166,14 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     with launch_simulation(env_cfg, args_cli):
         with contextlib.ExitStack() as cleanup:
-            cleanup.enter_context(scoped_torch_backend_flags(torch))
+            cleanup.enter_context(
+                _common.scoped_torch_backend_flags(
+                    cuda_matmul_allow_tf32=True,
+                    cudnn_allow_tf32=True,
+                    cudnn_deterministic=False,
+                    cudnn_benchmark=False,
+                )
+            )
             app_t1 = time.perf_counter_ns()
 
             apply_env_overrides(args_cli, env_cfg)

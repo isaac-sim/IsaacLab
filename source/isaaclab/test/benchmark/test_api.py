@@ -329,7 +329,7 @@ def test_scoped_backend_state_restores_values_after_exception() -> None:
     """Backend-global settings are restored when an in-process benchmark fails."""
     import torch
 
-    from isaaclab.benchmark.entrypoints.backends._state import scoped_attribute, scoped_torch_backend_flags
+    from isaaclab_rl.entrypoints.common import preserve_attribute, scoped_torch_backend_flags
 
     original = (
         torch.backends.cuda.matmul.allow_tf32,
@@ -340,7 +340,16 @@ def test_scoped_backend_state_restores_values_after_exception() -> None:
     holder = SimpleNamespace(value="original")
 
     with pytest.raises(RuntimeError, match="failed"):
-        with scoped_torch_backend_flags(torch), scoped_attribute(holder, "value", "temporary"):
+        with (
+            scoped_torch_backend_flags(
+                cuda_matmul_allow_tf32=True,
+                cudnn_allow_tf32=True,
+                cudnn_deterministic=False,
+                cudnn_benchmark=False,
+            ),
+            preserve_attribute(holder, "value"),
+        ):
+            holder.value = "temporary"
             assert torch.backends.cuda.matmul.allow_tf32 is True
             assert torch.backends.cudnn.allow_tf32 is True
             assert torch.backends.cudnn.deterministic is False
