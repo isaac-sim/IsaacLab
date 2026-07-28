@@ -464,7 +464,9 @@ Isolate One Method Or Sensor
 :class:`~isaaclab.benchmark.MethodBenchmarkRunner` builds on the base class to
 repeat one method or property across input modes, warm-up steps, and instance
 counts. It is the common bridge used by the asset micro-benchmarks. Sensor
-benchmarks use live scenes and their own correctness and timing boundaries.
+benchmarks use live scenes, :func:`~isaaclab.benchmark.measure_latency` for
+paired timing boundaries, and
+:class:`~isaaclab.benchmark.LatencyBenchmarkRunner` for structured output.
 
 Do not infer end-to-end environment or training throughput from either kind of
 isolated result. The command matrix, backend prerequisites, mock-versus-live

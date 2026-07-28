@@ -17,6 +17,11 @@ predict end-to-end environment or training throughput. Use
 :ref:`testing_benchmarks` when the question includes environment logic, policy
 inference, learning, or application startup.
 
+.. seealso::
+
+   For the typed Python API, formatter and recorder internals, or custom
+   producers, see :ref:`testing_benchmark_framework`.
+
 Choosing a Benchmark
 --------------------
 
