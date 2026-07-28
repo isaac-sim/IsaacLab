@@ -78,6 +78,38 @@ def _assert_export_omits_env_children(exported: str, env_indices: range | list[i
         assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
+def test_build_render_scope_usd_default_background_is_dome_light():
+    """Default background (background_color=None) uses domeLight source type."""
+    render_scope = build_render_scope_usd(
+        camera_paths=["/World/envs/env_0/Camera"],
+        render_product_name="RenderProduct",
+        render_var_path="/Render/Vars/LdrColor",
+        render_var_name="LdrColor",
+        source_name="LdrColor",
+        tiled_width=16,
+        tiled_height=8,
+    )
+    assert 'token omni:rtx:background:source:type = "domeLight"' in render_scope
+    assert "omni:rtx:background:source:color" not in render_scope
+
+
+def test_build_render_scope_usd_solid_background_color():
+    """Providing background_color emits color source type and the color attribute."""
+    render_scope = build_render_scope_usd(
+        camera_paths=["/World/envs/env_0/Camera"],
+        render_product_name="RenderProduct",
+        render_var_path="/Render/Vars/LdrColor",
+        render_var_name="LdrColor",
+        source_name="LdrColor",
+        tiled_width=16,
+        tiled_height=8,
+        background_color=(1.0, 0.0, 0.5),
+    )
+    assert 'token omni:rtx:background:source:type = "color"' in render_scope
+    assert "color3f omni:rtx:background:source:color = (1.0, 0.0, 0.5)" in render_scope
+    assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
+
+
 def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")

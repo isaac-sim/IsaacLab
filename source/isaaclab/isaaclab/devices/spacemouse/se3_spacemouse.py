@@ -140,6 +140,7 @@ class Se3SpaceMouse(DeviceBase):
                 if (
                     device["product_string"] == "SpaceMouse Compact"
                     or device["product_string"] == "SpaceMouse Wireless"
+                    or device["product_string"] == "SpaceNavigator for Notebooks"
                     or device["product_string"] == "3Dconnexion Universal Receiver"
                 ):
                     # set found flag
