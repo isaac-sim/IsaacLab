@@ -263,7 +263,9 @@ hand joints and RGB axes at tracked controller aim poses. See
    the full list.
 
 To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
-use the ``--cloudxr_env`` flag:
+use the ``--cloudxr_env`` flag. Apple Vision Pro tracks hands rather than motion controllers,
+so pair it with a hand-tracking task such as
+``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``:
 
 .. tab-set::
 
@@ -272,7 +274,7 @@ use the ``--cloudxr_env`` flag:
       .. code-block:: bash
 
          uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit \
              --xr \
              --cloudxr_env avp
@@ -282,7 +284,7 @@ use the ``--cloudxr_env`` flag:
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit \
              --xr \
              --cloudxr_env avp
@@ -419,7 +421,7 @@ choose the tab that matches your hardware.
                .. code-block:: bash
 
                   uv run --extra teleop isaaclab teleop run \
-                      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
 
@@ -428,7 +430,7 @@ choose the tab that matches your hardware.
                .. code-block:: bash
 
                   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
 
@@ -545,7 +547,9 @@ Manus Gloves
 ------------
 
 Manus gloves provide high-fidelity finger tracking via the Manus SDK. This is useful when optical
-hand tracking from the headset is occluded or when higher-precision finger data is needed.
+hand tracking from the headset is occluded or when higher-precision finger data is needed. Because
+the gloves feed the hand-tracking pipeline, pair them with a hand-tracking task such as
+``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` rather than a controller-driven one.
 
 .. important::
 
@@ -566,7 +570,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             uv run --extra teleop isaaclab teleop run \
-                --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
 
@@ -579,7 +583,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
 
