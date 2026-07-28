@@ -156,7 +156,9 @@ def test_compare_golden_stage_canonicalizes_replicator_and_uuid_render_products(
     result.write_text(_usda_with_hydra_render_product("rp_fc992bfc10fd420fa593cd00a09f2ad6"), encoding="utf-8")
     assert compare_golden_stage(str(golden), str(result)) == []
 
-    result.write_text(_usda_with_hydra_render_product("rp_fc992bfc10fd420fa593cd00a09f2ad6", extra_prim=True), encoding="utf-8")
+    result.write_text(
+        _usda_with_hydra_render_product("rp_fc992bfc10fd420fa593cd00a09f2ad6", extra_prim=True), encoding="utf-8"
+    )
     problems = compare_golden_stage(str(golden), str(result))
     assert any("added prim" in problem and "/Render/Extra" in problem for problem in problems)
 
