@@ -12,6 +12,7 @@ import ovphysx.types  # noqa: F401
 import pytest
 import torch
 import warp as wp
+from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 
 from isaaclab.sim import SimulationContext  # noqa: E402
 
