@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -133,8 +134,14 @@ class VisuoTactileSensor(SensorBase):
         super().close()
 
     def __del__(self):
-        """Unsubscribes from callbacks and detach from the replicator registry."""
-        self.close()
+        """Unsubscribes from callbacks and detach from the replicator registry.
+
+        Releasing is skipped during interpreter finalization, when the renderer's plugins may
+        already be torn down -- the same guard :meth:`Camera.__del__` applies, which calling
+        :meth:`close` directly would otherwise bypass.
+        """
+        if not sys.is_finalizing():
+            self.close()
         # unsubscribe from callbacks
         super().__del__()
 
