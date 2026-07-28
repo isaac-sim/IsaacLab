@@ -94,6 +94,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
+from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
@@ -205,6 +206,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._scene_data = SceneDataFormat.Transform()
+        self._scene_data_points = SceneDataFormat.Points()
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
@@ -223,6 +225,38 @@ class NewtonSceneDataBackend(SceneDataBackend):
         if self.model.body_label is not None:
             return list(self.model.body_label)
         return []
+
+    @property
+    def points(self) -> SceneDataFormat.Points:
+        """Return live Newton particle positions when simulating with Newton."""
+        self._scene_data_points = SceneDataFormat.Points()
+        state = self.state
+        if state is not None and state.particle_q is not None:
+            self._scene_data_points.points = state.particle_q
+        else:
+            self._scene_data_points.points = None
+        return self._scene_data_points
+
+    @property
+    def point_count(self) -> int:
+        state = self.state
+        if state is None or state.particle_q is None:
+            return 0
+        return int(state.particle_q.shape[0])
+
+    @property
+    def geometry_paths(self) -> list[str]:
+        entities = NewtonManager._shadow_deformable_entities
+        if entities is None:
+            return []
+        return [entity.root_path for entity in entities]
+
+    @property
+    def geometry_counts(self) -> list[int]:
+        entities = NewtonManager._shadow_deformable_entities
+        if entities is None:
+            return []
+        return [entity.particle_count for entity in entities]
 
     @property
     def model(self) -> Model:
@@ -382,6 +416,9 @@ class NewtonManager(PhysicsManager):
     # frame in :meth:`update_visualization_state`.
     _scene_data: SceneDataFormat.Transform | None = None
     _scene_data_mapping: wp.array | None = None
+    _scene_data_points: SceneDataFormat.Points | None = None
+    _scene_data_geometry_mapping: wp.array | None = None
+    _shadow_deformable_entities: list | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -939,6 +976,9 @@ class NewtonManager(PhysicsManager):
         NewtonManager._up_axis = "Z"
         NewtonManager._scene_data = None
         NewtonManager._scene_data_mapping = None
+        NewtonManager._scene_data_points = None
+        NewtonManager._scene_data_geometry_mapping = None
+        NewtonManager._shadow_deformable_entities = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -2329,9 +2369,27 @@ class NewtonManager(PhysicsManager):
             )
             return
         NewtonManager._num_envs = len(env_paths) if clone_plan is not None else 1
-        builder = build_visualization_builder_from_stage_envs(stage, env_paths, clone_plan, up_axis=up_axis)
+        builder, (shadow_entities, registry_groups) = build_visualization_builder_from_stage_envs(
+            stage, env_paths, clone_plan, up_axis=up_axis
+        )
+        NewtonManager._shadow_deformable_entities = shadow_entities
 
-        if builder.body_count == 0:
+        particle_count = getattr(builder, "particle_count", 0)
+        if builder.body_count == 0 and particle_count == 0:
+            if clone_plan is not None or env_paths:
+                logger.error(
+                    "[NewtonManager] USD stage walk produced no Newton bodies or particles; the shadow "
+                    "Newton model for visualization will be empty. Common causes: the cloned "
+                    "envs are not yet on the stage, or PhysX schemas could not be parsed by "
+                    "Newton's add_usd. Check that /World/envs/env_<id> prims exist when the "
+                    "renderer is initialized."
+                )
+                return
+            logger.info(
+                "[NewtonManager] USD stage walk produced no Newton bodies or particles; "
+                "finalizing an empty visualization model."
+            )
+        elif builder.body_count == 0:
             log = logger.warning if clone_plan is not None or env_paths else logger.info
             log("[NewtonManager] USD stage walk produced no Newton bodies; finalizing an empty visualization model.")
 
@@ -2340,6 +2398,8 @@ class NewtonManager(PhysicsManager):
             NewtonManager._model = builder.finalize(device=device)
             NewtonManager._state_0 = cls._model.state()
             cls._model.num_envs = cls._num_envs
+            NewtonManager._deformable_registry = []
+            populate_shadow_deformable_registry(cls, registry_groups)
 
         except Exception:
             logger.exception(
@@ -2363,11 +2423,17 @@ class NewtonManager(PhysicsManager):
         Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
         already advanced by :meth:`step` / forward kinematics.
 
-        PhysX sim backend: pull rigid-body transforms from the
-        :class:`~isaaclab.scene_data.SceneDataProvider` and write
-        them into the shadow ``_state_0.body_q`` so Newton-native consumers
-        (Newton renderer, Newton/Rerun/Viser visualizers, OVRTX renderer, Newton
-        GL video) see fresh poses.
+        PhysX / OVPhysX sim backend: pull rigid-body transforms and deformable
+        nodal positions from the :class:`~isaaclab.scene_data.SceneDataProvider`
+        and write them into the shadow ``_state_0.body_q`` / ``particle_q`` so
+        Newton-native consumers (Newton renderer, Newton/Rerun/Viser visualizers,
+        OVRTX renderer, Newton GL video) see fresh poses and mesh points.
+
+        Calls use ``allow_passthrough=False`` so identity mappings still copy into
+        the pre-bound shadow buffers. Passthrough would rebind the temporary
+        :class:`~isaaclab.scene_data.SceneDataFormat` fields away from
+        ``_state_0``, leaving OVRTX and other ``get_state()`` consumers on stale
+        rest-pose particle / body state.
 
         Invoked lazily from :meth:`get_state` so consumers do not need to
         coordinate the sync explicitly.
@@ -2391,7 +2457,26 @@ class NewtonManager(PhysicsManager):
             cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
 
         cls._scene_data.transforms = cls._state_0.body_q
-        scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
+        scene_data_provider.get_transforms(
+            cls._scene_data, mapping=cls._scene_data_mapping, allow_passthrough=False
+        )
+
+        if cls._state_0.particle_q is not None and scene_data_provider.point_count > 0:
+            if cls._scene_data_points is None:
+                cls._scene_data_points = SceneDataFormat.Points()
+            if cls._scene_data_geometry_mapping is None and cls._shadow_deformable_entities:
+                geometry_paths = [entity.root_path for entity in cls._shadow_deformable_entities]
+                geometry_offsets = [entity.particle_offset for entity in cls._shadow_deformable_entities]
+                cls._scene_data_geometry_mapping = scene_data_provider.create_geometry_mapping(
+                    geometry_paths, geometry_offsets
+                )
+            cls._scene_data_points.points = cls._state_0.particle_q
+            scene_data_provider.get_points(
+                cls._scene_data_points,
+                mapping=cls._scene_data_geometry_mapping,
+                allow_passthrough=False,
+            )
+
         cls._mark_sensor_state_dirty()
 
     @staticmethod
