@@ -1,3 +1,9 @@
+Added
+^^^^^
+
+* Added OvPhysX articulation Jacobians, mass matrices, and gravity compensation
+  through the backend-agnostic articulation data API.
+
 Fixed
 ^^^^^
 

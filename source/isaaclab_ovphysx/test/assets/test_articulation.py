@@ -737,6 +737,151 @@ def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
     assert articulation.body_ordering is not None
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_articulation_dynamics_fixed_base_match_raw_ovphysx_bindings(sim, device):
+    """Expose fixed-base computed dynamics through the backend-agnostic data API."""
+    articulation, _ = generate_articulation(generate_articulation_cfg("panda"), 1, device=device)
+    sim.reset()
+
+    num_generalized_dofs = articulation.num_joints
+    num_jacobian_bodies = articulation.num_bodies - 1
+    raw_jacobian = _read_binding_to_torch(articulation, TT.JACOBIAN, device).reshape(
+        1, num_jacobian_bodies, 6, num_generalized_dofs
+    )
+    raw_mass_matrix = _read_binding_to_torch(articulation, TT.MASS_MATRIX, device)
+    raw_gravity = _read_binding_to_torch(articulation, TT.GRAVITY_FORCE, device)
+
+    body_com_jacobian = articulation.data.body_com_jacobian_w
+    mass_matrix = articulation.data.mass_matrix
+    gravity = articulation.data.gravity_compensation_forces
+    assert body_com_jacobian is articulation.data.body_com_jacobian_w
+    assert mass_matrix is articulation.data.mass_matrix
+    assert gravity is articulation.data.gravity_compensation_forces
+
+    torch.testing.assert_close(body_com_jacobian.torch, raw_jacobian)
+    torch.testing.assert_close(mass_matrix.torch, raw_mass_matrix)
+    torch.testing.assert_close(gravity.torch, raw_gravity)
+    assert articulation.data.body_link_jacobian_w.torch.shape == raw_jacobian.shape
+    assert torch.isfinite(articulation.data.body_link_jacobian_w.torch).all()
+    torch.testing.assert_close(mass_matrix.torch, mass_matrix.torch.transpose(-1, -2), rtol=1e-5, atol=1e-5)
+
+    joint_position = articulation.data.joint_pos.torch.clone()
+    joint_position[:, 1] += 0.2
+    articulation.write_joint_position_to_sim_index(position=joint_position)
+    updated_raw_jacobian = _read_binding_to_torch(articulation, TT.JACOBIAN, device).reshape(
+        1, num_jacobian_bodies, 6, num_generalized_dofs
+    )
+    updated_raw_mass_matrix = _read_binding_to_torch(articulation, TT.MASS_MATRIX, device)
+    updated_raw_gravity = _read_binding_to_torch(articulation, TT.GRAVITY_FORCE, device)
+    assert not torch.allclose(updated_raw_jacobian, raw_jacobian)
+    assert not torch.allclose(updated_raw_mass_matrix, raw_mass_matrix)
+    torch.testing.assert_close(articulation.data.body_com_jacobian_w.torch, updated_raw_jacobian)
+    torch.testing.assert_close(articulation.data.mass_matrix.torch, updated_raw_mass_matrix)
+    torch.testing.assert_close(articulation.data.gravity_compensation_forces.torch, updated_raw_gravity)
+
+    joint_velocity = torch.linspace(-0.2, 0.2, articulation.num_joints, dtype=torch.float32, device=device).unsqueeze(0)
+    articulation.write_joint_velocity_to_sim_index(velocity=joint_velocity)
+    expected_com_velocity = torch.einsum("nbij,nj->nbi", articulation.data.body_com_jacobian_w.torch, joint_velocity)
+    expected_link_velocity = torch.einsum("nbij,nj->nbi", articulation.data.body_link_jacobian_w.torch, joint_velocity)
+    torch.testing.assert_close(
+        expected_com_velocity, articulation.data.body_com_vel_w.torch[:, 1:], atol=1e-5, rtol=1e-4
+    )
+    torch.testing.assert_close(
+        expected_link_velocity, articulation.data.body_link_vel_w.torch[:, 1:], atol=1e-5, rtol=1e-4
+    )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_articulation_dynamics_reorder_body_rows_and_joint_axes(sim, device):
+    """Gather computed dynamics into MJWarp body and joint order."""
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(_branching_fixture_path())),
+            actuators={},
+            joint_ordering="mjwarp",
+            body_ordering="mjwarp",
+        )
+    )
+    sim.reset()
+
+    joint_ordering = articulation.joint_ordering
+    body_ordering = articulation.body_ordering
+    assert joint_ordering is not None
+    assert body_ordering is not None
+    joint_user_to_backend = torch.as_tensor(joint_ordering.user_to_backend_indices, dtype=torch.long, device=device)
+    body_offset = 1 if articulation.is_fixed_base else 0
+    body_user_to_backend = torch.as_tensor(
+        [
+            backend_body_id - body_offset
+            for backend_body_id in body_ordering.user_to_backend_indices
+            if not body_offset or backend_body_id != 0
+        ],
+        dtype=torch.long,
+        device=device,
+    )
+    generalized_user_to_backend = torch.cat(
+        (
+            torch.arange(articulation.num_base_dofs, device=device),
+            articulation.num_base_dofs + joint_user_to_backend,
+        )
+    )
+
+    raw_jacobian = _read_binding_to_torch(articulation, TT.JACOBIAN, device).reshape(
+        1,
+        articulation.num_bodies - body_offset,
+        6,
+        articulation.num_joints + articulation.num_base_dofs,
+    )
+    raw_mass_matrix = _read_binding_to_torch(articulation, TT.MASS_MATRIX, device)
+    raw_gravity = _read_binding_to_torch(articulation, TT.GRAVITY_FORCE, device)
+
+    expected_jacobian = raw_jacobian[:, body_user_to_backend, :, :][:, :, :, generalized_user_to_backend]
+    expected_mass_matrix = raw_mass_matrix[:, generalized_user_to_backend, :][:, :, generalized_user_to_backend]
+    expected_gravity = raw_gravity[:, generalized_user_to_backend]
+    torch.testing.assert_close(articulation.data.body_com_jacobian_w.torch, expected_jacobian)
+    torch.testing.assert_close(articulation.data.mass_matrix.torch, expected_mass_matrix)
+    torch.testing.assert_close(articulation.data.gravity_compensation_forces.torch, expected_gravity)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_articulation_dynamics_preserve_floating_base_columns_during_joint_reordering(sim, device):
+    """Keep floating-base columns leading while gathering actuated-joint axes."""
+    articulation_cfg = generate_articulation_cfg("anymal").replace(
+        joint_ordering=tuple(reversed(_ANYMAL_PHYSX_JOINT_NAMES))
+    )
+    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
+    sim.reset()
+
+    joint_ordering = articulation.joint_ordering
+    assert joint_ordering is not None
+    joint_user_to_backend = torch.as_tensor(joint_ordering.user_to_backend_indices, dtype=torch.long, device=device)
+    generalized_user_to_backend = torch.cat(
+        (
+            torch.arange(6, device=device),
+            6 + joint_user_to_backend,
+        )
+    )
+    raw_jacobian = _read_binding_to_torch(articulation, TT.JACOBIAN, device).reshape(
+        1, articulation.num_bodies, 6, articulation.num_joints + 6
+    )
+    raw_mass_matrix = _read_binding_to_torch(articulation, TT.MASS_MATRIX, device)
+    raw_gravity = _read_binding_to_torch(articulation, TT.GRAVITY_FORCE, device)
+
+    torch.testing.assert_close(
+        articulation.data.body_com_jacobian_w.torch,
+        raw_jacobian[:, :, :, generalized_user_to_backend],
+    )
+    torch.testing.assert_close(
+        articulation.data.mass_matrix.torch,
+        raw_mass_matrix[:, generalized_user_to_backend, :][:, :, generalized_user_to_backend],
+    )
+    torch.testing.assert_close(
+        articulation.data.gravity_compensation_forces.torch,
+        raw_gravity[:, generalized_user_to_backend],
+    )
+
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
