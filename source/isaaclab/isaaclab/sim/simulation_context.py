@@ -844,6 +844,10 @@ class SimulationContext:
             service_errors: list[Exception] = []
             cls._instance._services.close_all(caught_exceptions=service_errors)
 
+            # Release renderer resources (camera render data, renderer backends) while the
+            # simulation app is still alive and before the stage goes away.
+            cls._instance._render_context.close()
+
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
             stage_utils.close_stage()
