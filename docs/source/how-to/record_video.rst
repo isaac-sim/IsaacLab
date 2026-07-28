@@ -51,16 +51,16 @@ Run with:
 .. code-block:: bash
 
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-       --example 1 --num_envs 16
+       --example 1 --num_envs 4
 
-One clip is written to ``videos/recording_tutorial/example_1/viewport_0000.mp4`` — the
-main Kit interactive viewport camera, pointed at env 0's hand.
+One clip is written to ``videos/recording_tutorial/example_1/kit_viewport_0000.mp4`` —
+the Kit interactive viewport showing 4 parallel environments via RTX rendering.
 
-.. figure:: ../_static/how-to/record_video/example_viewport.gif
+.. figure:: ../_static/how-to/record_video/example_kit_viewport.gif
    :width: 100%
-   :alt: Kit viewport recording — Shadow Hand cube reorientation
+   :alt: Kit viewport recording — 4 Shadow Hand environments
 
-   Kit viewport recording: ``viewport_0000.mp4``
+   Kit viewport recording: ``kit_viewport_0000.mp4``
 
 
 Example 2: Scene sensor, headless
@@ -97,36 +97,36 @@ Run with:
 .. code-block:: bash
 
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-       --example 3 --num_envs 16
+       --example 3 --num_envs 4
 
 Four clips are written to ``videos/recording_tutorial/example_3/``:
 
 * ``kit_viewport_0000.mp4`` — Kit interactive viewport (RTX renderer).
-* ``tiled_0000.mp4`` — Kit tiled-camera grid of per-env views.
+* ``tiled_kit_viewport_0000.mp4`` — Kit tiled-camera grid reusing the scene sensor cameras.
 * ``newton_viewport_0000.mp4`` — Newton GL viewer framebuffer.
 * ``sensor_0000.mp4`` — scene tiled-camera sensor (offline render).
 
 .. figure:: ../_static/how-to/record_video/example_kit_viewport.gif
    :width: 100%
-   :alt: Kit viewport recording (Example 3)
+   :alt: Kit viewport recording — 4 Shadow Hand environments (RTX)
 
-   Kit viewport: ``kit_viewport_0000.mp4``
+   Kit viewport (RTX): ``kit_viewport_0000.mp4``
 
-.. figure:: ../_static/how-to/record_video/example_tiled.gif
+.. figure:: ../_static/how-to/record_video/example_tiled_kit_viewport.gif
    :width: 100%
-   :alt: Kit tiled-camera grid recording (Example 3)
+   :alt: Kit tiled-camera grid — per-environment views
 
-   Kit tiled-camera grid: ``tiled_0000.mp4``
+   Kit tiled-camera grid: ``tiled_kit_viewport_0000.mp4``
 
 .. figure:: ../_static/how-to/record_video/example_newton_viewport.gif
    :width: 100%
-   :alt: Newton viewport recording (Example 3)
+   :alt: Newton GL viewport recording — 4 Shadow Hand environments
 
    Newton viewport: ``newton_viewport_0000.mp4``
 
 .. figure:: ../_static/how-to/record_video/example_sensor.gif
    :width: 100%
-   :alt: Sensor recording (Example 3)
+   :alt: Sensor recording — scene tiled-camera
 
    Scene sensor: ``sensor_0000.mp4``
 

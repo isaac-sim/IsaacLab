@@ -10,12 +10,12 @@ all using the Shadow Hand cube-reorientation task
 (``Isaac-Reorient-Cube-Shadow-Camera-Direct``).
 
 Example 1 — Kit viewport (simplest)
-    One clip from the Kit interactive viewport.
+    One clip from the Kit interactive viewport, showing 4 parallel environments.
 
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 1 --num_envs 16
+            --example 1 --num_envs 4
 
 Example 2 — scene sensor only, headless
     One clip captured directly from the scene's tiled-camera sensor.
@@ -26,13 +26,13 @@ Example 2 — scene sensor only, headless
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
             --example 2 --num_envs 16
 
-Example 3 — Kit viewport + tiled-camera grid + Newton viewport + scene sensor
+Example 3 — Kit viewport + Kit tiled grid + Newton viewport + scene sensor
     Four independent clip streams recorded simultaneously.
 
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 3 --num_envs 16
+            --example 3 --num_envs 4
 
 Clips are written to ``videos/recording_tutorial/example_<N>/`` in the working directory.
 Examples 1 and 2 each demonstrate one recording source; Example 3 combines all of them.
@@ -67,20 +67,25 @@ _NUM_STEPS = 115  # slightly more than _VIDEO_LENGTH so the clip flushes cleanly
 
 _TASK_SHADOW = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
 
-# Viewport camera for Shadow Hand: zoomed in on the hand and cube.
-# The hand base is near world origin; the cube spawns at roughly (0, -0.39, 0.6).
-_SHADOW_EYE = (0.5, -0.8, 0.8)
-_SHADOW_LOOKAT = (0.0, -0.35, 0.5)
+# Kit viewport camera: positioned to show a 2×2 grid of Shadow Hand environments.
+# env_spacing=1.0 with 4 envs → envs centered at ±0.5 in x and y.
+# Cube spawns at ~(0, -0.39, 0.6) per env; wrist cylinder is the landmark at the top.
+_SHADOW_EYE = (0.0, -2.2, 1.8)
+_SHADOW_LOOKAT = (0.0, -0.1, 0.2)
+_SHADOW_ENV_SPACING = 1.0
 
 # Tiled camera eye offset from each robot root for generated per-env cameras.
 _SHADOW_TILED_EYE = (0.0, 0.35, 0.8)
+
+# Skip the first few steps so the RTX renderer has warmed up before recording starts.
+_KIT_STEP_OFFSET = 5
 
 
 def _output_dir(example: int) -> str:
     return os.path.join("videos", "recording_tutorial", f"example_{example}")
 
 
-def _shadow_env_cfg(num_envs: int):
+def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
 
@@ -90,6 +95,7 @@ def _shadow_env_cfg(num_envs: int):
     env_cfg.tiled_camera.height = 256
     env_cfg.tiled_camera.width = 256
     env_cfg.scene.num_envs = num_envs
+    env_cfg.scene.env_spacing = env_spacing
     return env_cfg
 
 
@@ -112,9 +118,10 @@ def _build_env_cfg_example_1(num_envs: int):
         VideoRecorderCfg(
             source="visualizer:kit",
             output_dir=out,
-            output_filename_prefix="viewport",
+            output_filename_prefix="kit_viewport",
             video_length=_VIDEO_LENGTH,
             fps=30,
+            step_offset=_KIT_STEP_OFFSET,
         ),
     ]
     return env_cfg, _TASK_SHADOW
@@ -122,7 +129,7 @@ def _build_env_cfg_example_1(num_envs: int):
 
 def _build_env_cfg_example_2(num_envs: int):
     """Shadow Hand + headless: scene tiled-camera sensor clip only."""
-    env_cfg = _shadow_env_cfg(num_envs)
+    env_cfg = _shadow_env_cfg(num_envs, env_spacing=2.0)
     env_cfg.sim.visualizer_cfgs = []  # no interactive visualizer
 
     out = _output_dir(2)
@@ -139,7 +146,13 @@ def _build_env_cfg_example_2(num_envs: int):
 
 
 def _build_env_cfg_example_3(num_envs: int):
-    """Shadow Hand + Kit viewport + tiled-camera grid + Newton viewport + sensor: four simultaneous streams."""
+    """Shadow Hand + Kit viewport + Kit tiled grid + Newton viewport + sensor: four simultaneous streams.
+
+    Note: ``source='visualizer:newton'`` captures the full Newton GL window. When
+    ``tiled_cam_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`,
+    the GL window displays the tiled per-environment camera panel, so this effectively records
+    a Newton tiled view without a separate ``render_tiled_rgb_array()`` call.
+    """
     from isaaclab_visualizers.kit import KitVisualizerCfg
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
@@ -150,11 +163,15 @@ def _build_env_cfg_example_3(num_envs: int):
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
         tiled_cam_view=True,
-        tiled_cam_num=min(16, num_envs),
-        tiled_cam_eye=_SHADOW_TILED_EYE,
-        tiled_cam_target_prim_path="/World/envs/*/Robot",
+        tiled_cam_num=min(num_envs, 16),
+        # Reuse the existing scene camera sensor so the tiled panel shows
+        # the same RTX-rendered views as source="sensor:tiled_camera".
+        tiled_cam_prim_path="/World/envs/env_.*/Camera",
     )
-    newton_cfg = NewtonVisualizerCfg()
+    newton_cfg = NewtonVisualizerCfg(
+        eye=_SHADOW_EYE,
+        lookat=_SHADOW_LOOKAT,
+    )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 
     out = _output_dir(3)
@@ -165,13 +182,15 @@ def _build_env_cfg_example_3(num_envs: int):
             output_filename_prefix="kit_viewport",
             video_length=_VIDEO_LENGTH,
             fps=30,
+            step_offset=_KIT_STEP_OFFSET,
         ),
         VideoRecorderCfg(
             source="visualizer:kit:tiled",
             output_dir=out,
-            output_filename_prefix="tiled",
+            output_filename_prefix="tiled_kit_viewport",
             video_length=_VIDEO_LENGTH,
             fps=30,
+            step_offset=_KIT_STEP_OFFSET,
         ),
         VideoRecorderCfg(
             source="visualizer:newton",
@@ -212,7 +231,8 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 def main():
     """Run the selected video recording example."""
-    num_envs = args_cli.num_envs if args_cli.num_envs is not None else 16
+    defaults = {1: 4, 2: 16, 3: 4}
+    num_envs = args_cli.num_envs if args_cli.num_envs is not None else defaults[args_cli.example]
     env_cfg, task = _BUILDERS[args_cli.example](num_envs)
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
