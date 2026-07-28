@@ -27,7 +27,7 @@ def _without_physics(cfg):
     ("presets", "physics_type"),
     [
         ((), "NewtonCfg"),
-        (("physx",), "PhysxCfg"),
+        (("isaacsim_physx",), "PhysxCfg"),
         (("newton_mjwarp",), "NewtonCfg"),
     ],
 )
@@ -44,14 +44,14 @@ def test_reach_ur10_physics_presets_resolve(presets, physics_type):
 
 
 def test_reach_ur10_physics_presets_change_only_physics():
-    physx = _load_env_cfg("physx")
+    physx = _load_env_cfg("isaacsim_physx")
     newton = _load_env_cfg("newton_mjwarp")
 
     assert _without_physics(physx) == _without_physics(newton)
 
 
 def test_reach_ur10_uses_shared_mdp_and_arm_motion_penalty():
-    cfg = _load_env_cfg("physx")
+    cfg = _load_env_cfg("isaacsim_physx")
 
     assert cfg.actions.arm_action.joint_names == [".*"]
     assert cfg.actions.arm_action.scale == pytest.approx(0.5)

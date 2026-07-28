@@ -2,8 +2,9 @@ Added
 ^^^^^
 
 * Added ``joint_pos``, ``diffik``, and ``newton_ik`` action presets to ``Isaac-Reach-Franka``, with ``joint_pos`` as
-  the default. Select the action independently from the ``physx``, ``ovphysx``, or ``newton_mjwarp`` physics
-  preset; ``diffik`` uses the same action configuration across backends, while ``newton_ik`` requires Newton.
+  the default. Select the action independently from the ``isaacsim_physx``, ``ovphysx``, or ``newton_mjwarp``
+  physics preset; ``diffik`` uses the same action configuration across backends, while ``newton_ik`` requires
+  Newton.
 
 Changed
 ^^^^^^^
@@ -14,7 +15,7 @@ Changed
   ``Isaac-Reach-Franka-Newton-IK-Rel-v0``. Use
   ``Isaac-Reach-Franka presets=newton_mjwarp,newton_ik`` instead.
 * **Breaking:** Removed ``IsaacContrib-Reach-Franka-IK-Rel``. Use
-  ``Isaac-Reach-Franka presets=physx,diffik`` instead.
+  ``Isaac-Reach-Franka physics=isaacsim_physx presets=diffik`` instead.
 * Changed Reach to use one linear position term, one orientation term, a combined pose-success termination,
   and shared action-rate, action-magnitude, and arm-velocity penalties. To retain the previous MDP, restore
   ``end_effector_position_tracking_fine_grained`` and remove the success reward, success termination, and

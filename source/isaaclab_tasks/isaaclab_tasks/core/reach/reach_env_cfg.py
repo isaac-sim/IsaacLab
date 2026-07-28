@@ -34,7 +34,7 @@ from isaaclab_tasks.utils import PresetCfg
 
 @configclass
 class ReachPhysicsCfg(PresetCfg):
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(

@@ -46,11 +46,11 @@ def test_reach_uses_controller_neutral_franka_config_module():
     ("presets", "action_type", "physics_type"),
     [
         ((), "JointPositionActionCfg", "NewtonCfg"),
-        (("physx",), "JointPositionActionCfg", "PhysxCfg"),
+        (("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
         (("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
         (("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
         (("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
-        (("diffik", "physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
+        (("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
         (("diffik", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
         (("newton_ik", "newton_mjwarp"), "NewtonInverseKinematicsActionCfg", "NewtonCfg"),
     ],
@@ -68,8 +68,8 @@ def test_reach_action_and_physics_presets_resolve_supported_combinations(presets
 
 
 def test_reach_action_presets_change_only_the_action_configuration():
-    joint_pos_physx = _load_env_cfg("joint_pos", "physx")
-    diffik_physx = _load_env_cfg("diffik", "physx")
+    joint_pos_physx = _load_env_cfg("joint_pos", "isaacsim_physx")
+    diffik_physx = _load_env_cfg("diffik", "isaacsim_physx")
     joint_pos_newton = _load_env_cfg("joint_pos", "newton_mjwarp")
     diffik_newton = _load_env_cfg("diffik", "newton_mjwarp")
     newton_ik = _load_env_cfg("newton_ik", "newton_mjwarp")
@@ -226,7 +226,7 @@ def test_reach_diffik_action_configuration():
 
 
 def test_reach_diffik_action_configuration_is_identical_across_backends():
-    physx_action = _load_env_cfg("diffik", "physx").actions.arm_action
+    physx_action = _load_env_cfg("diffik", "isaacsim_physx").actions.arm_action
     newton_action = _load_env_cfg("diffik", "newton_mjwarp").actions.arm_action
 
     assert physx_action.to_dict() == newton_action.to_dict()
@@ -257,7 +257,7 @@ def test_reach_newton_ik_action_configuration():
 
 
 def test_reach_newton_ik_rejects_physx():
-    cfg = _load_env_cfg("newton_ik", "physx")
+    cfg = _load_env_cfg("newton_ik", "isaacsim_physx")
 
     with pytest.raises(ValueError, match="requires a Newton physics preset"):
         cfg.validate()
