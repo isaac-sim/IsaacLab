@@ -108,7 +108,10 @@ RUN apt-get update \
  && if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
  && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
- && useradd --uid 1000 --gid 1000 --home-dir "${HOME}" --create-home --shell /bin/bash isaaclab
+ && useradd --uid 1000 --gid 1000 --home-dir "${HOME}" --create-home --shell /bin/bash isaaclab \
+ && mkdir -p "${HOME}" \
+ && chown -R isaaclab:isaaclab "${HOME}" \
+ && chmod 750 "${HOME}"
 
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
