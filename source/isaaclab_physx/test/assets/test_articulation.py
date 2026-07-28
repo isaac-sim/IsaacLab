@@ -18,7 +18,6 @@ from isaaclab.test.utils.articulation_ordering import (
     PANDA_BODY_NAMES,
     PANDA_JOINT_NAMES,
     PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
-    articulation_ordering_branching_fixture_path,
 )
 
 HEADLESS = True
@@ -29,6 +28,7 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 """Rest everything follows."""
 
 import sys
+from pathlib import Path
 
 import pytest
 import torch
@@ -555,7 +555,7 @@ def test_live_direct_view_mass_inertia_writes_become_visible(sim, device, gravit
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_enabled):
     """Resolve concrete breadth-first PhysX and depth-first MJWarp name orders."""
-    fixture_path = articulation_ordering_branching_fixture_path()
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
@@ -583,7 +583,7 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
 @pytest.mark.parametrize("ordering_axis", ["joint", "body"])
 def test_unused_jacobian_ordering_map_is_none(sim, device, gravity_enabled, ordering_axis):
     """Keep the inactive Jacobian-axis map unset under single-axis ordering."""
-    fixture_path = articulation_ordering_branching_fixture_path()
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",

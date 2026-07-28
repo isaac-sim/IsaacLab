@@ -5,7 +5,6 @@
 
 """Assertions for comparing articulation traces across joint orderings."""
 
-from pathlib import Path
 from typing import Any
 
 import torch
@@ -56,18 +55,6 @@ BRANCHING_PHYSX_JOINT_NAMES = ("left_shoulder", "right_shoulder", "left_elbow", 
 BRANCHING_MJWARP_JOINT_NAMES = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
 BRANCHING_PHYSX_BODY_NAMES = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
 BRANCHING_MJWARP_BODY_NAMES = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
-
-
-def articulation_ordering_branching_fixture_path() -> Path:
-    """Return the repository path to the shared branching articulation fixture."""
-    return (
-        Path(__file__).resolve().parents[4]
-        / "isaaclab_physx"
-        / "test"
-        / "assets"
-        / "data"
-        / "articulation_ordering_branching.usda"
-    )
 
 
 _ORDERING_TRACE_FIELDS = (

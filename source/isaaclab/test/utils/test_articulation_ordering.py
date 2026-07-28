@@ -57,7 +57,7 @@ def test_assert_articulation_ordering_trace_matches_canonicalizes_public_and_ada
     helper.assert_articulation_ordering_trace_matches(identity_trace, reordered_trace, ("knee", "hip"))
 
 
-def test_shared_articulation_ordering_fixtures_are_consistent() -> None:
+def test_shared_articulation_ordering_constants_are_consistent() -> None:
     helper = importlib.import_module("isaaclab.test.utils.articulation_ordering")
 
     assert helper.PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES == (
@@ -113,6 +113,3 @@ def test_shared_articulation_ordering_fixtures_are_consistent() -> None:
         "right_upper",
         "right_tip",
     )
-    fixture_path = helper.articulation_ordering_branching_fixture_path()
-    assert fixture_path.name == "articulation_ordering_branching.usda"
-    assert fixture_path.is_file()

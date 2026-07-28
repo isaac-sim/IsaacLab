@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _articulation_iface_test_utils import BACKENDS, get_articulation
+from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 from _pytest.mark.structures import ParameterSet
 
 from isaaclab.utils.buffers import TimestampedBufferWarp
@@ -82,6 +82,8 @@ def _joint_ordering_for_mode(mode: str, num_joints: int) -> tuple[str, ...] | No
         return backend_names
     if mode == "reversed":
         return tuple(reversed(backend_names))
+    if mode == "cyclic":
+        return (backend_names[-1], *backend_names[:-1])
     raise ValueError(f"Unsupported joint ordering mode: {mode}")
 
 
@@ -111,6 +113,16 @@ def _ordering_user_to_backend(ordering, item_count: int) -> np.ndarray:
     if ordering is None:
         return np.arange(item_count, dtype=np.int64)
     return np.asarray(ordering.user_to_backend_indices, dtype=np.int64)
+
+
+def _expected_backend_to_user(
+    public_names: tuple[str, ...] | None,
+    backend_names: tuple[str, ...],
+) -> np.ndarray:
+    """Derive backend-to-public indices independently from the ordering map."""
+    if public_names is None:
+        return np.arange(len(backend_names), dtype=np.int64)
+    return np.asarray([public_names.index(name) for name in backend_names], dtype=np.int64)
 
 
 def _make_backend_com_poses(num_instances: int, num_bodies: int) -> np.ndarray:
@@ -872,13 +884,22 @@ def _get_backend_body_property_tensors(backend: str, art, raw_backend) -> dict[s
 def _backend_param(backend: str, *values, **kwargs) -> ParameterSet:
     """Build a backend parameter that skips unavailable plugins at collection time."""
     marks = list(kwargs.pop("marks", ()))
-    marks.append(pytest.mark.skipif(backend not in BACKENDS, reason=f"{backend} backend is not available"))
+    marks.append(pytest.mark.skipif(backend not in BACKENDS, reason=_backend_unavailable_reason(backend)))
     return pytest.param(backend, *values, marks=marks, **kwargs)
 
 
-_requires_physx = pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend is not available")
-_requires_ovphysx = pytest.mark.skipif("ovphysx" not in BACKENDS, reason="OVPhysX backend is not available")
-_requires_newton = pytest.mark.skipif("newton" not in BACKENDS, reason="Newton backend is not available")
+def _backend_unavailable_reason(backend: str) -> str:
+    """Describe why an optional articulation backend could not be imported."""
+    label = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton"}.get(backend, backend)
+    reason = f"{label} backend is not available"
+    if detail := BACKEND_UNAVAILABLE_REASONS.get(backend):
+        reason = f"{reason}: {detail}"
+    return reason
+
+
+_requires_physx = pytest.mark.skipif("physx" not in BACKENDS, reason=_backend_unavailable_reason("physx"))
+_requires_ovphysx = pytest.mark.skipif("ovphysx" not in BACKENDS, reason=_backend_unavailable_reason("ovphysx"))
+_requires_newton = pytest.mark.skipif("newton" not in BACKENDS, reason=_backend_unavailable_reason("newton"))
 _all_backends = pytest.mark.parametrize(
     "backend", [_backend_param(backend) for backend in ("physx", "ovphysx", "newton")], indirect=False
 )
@@ -1584,6 +1605,7 @@ class TestArticulationOrderingRootWriteParity:
         num_instances = 2
         num_bodies = 4
         backend_body_names = tuple(f"body_{index}" for index in range(num_bodies))
+        ordered_body_names = _body_ordering_for_mode("cyclic", num_bodies)
         identity_art, identity_raw = get_articulation(
             backend,
             num_instances=num_instances,
@@ -1600,12 +1622,16 @@ class TestArticulationOrderingRootWriteParity:
             num_bodies=num_bodies,
             device="cpu",
             is_fixed_base=False,
-            body_ordering=tuple(reversed(backend_body_names)),
+            body_ordering=ordered_body_names,
         )
         # The identity-configured reference normalizes to ``None`` at install time.
         assert identity_art.body_ordering is None
         assert ordered_art.body_ordering is not None
-        assert ordered_art.body_ordering.backend_to_user_indices[0] != 0
+        assert tuple(ordered_art.body_names) == ordered_body_names
+        np.testing.assert_array_equal(
+            ordered_art.body_ordering.backend_to_user_indices,
+            _expected_backend_to_user(ordered_body_names, backend_body_names),
+        )
         if backend == "physx":
             identity_raw._noop_setters = False
             ordered_raw._noop_setters = False
@@ -1924,21 +1950,22 @@ class TestArticulationOperations:
     """Test cross-cutting articulation operations."""
 
     @_non_mock_backends
-    @pytest.mark.parametrize("with_body_ordering", [False, True], ids=["none", "ordered"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed", "cyclic"])
     @pytest.mark.parametrize("is_fixed_base", [False, True], ids=["floating", "fixed"])
     @pytest.mark.parametrize("device", ["cpu"])
-    def test_external_wrenches_are_written_in_backend_body_order(
-        self, backend, with_body_ordering, is_fixed_base, device
-    ):
+    def test_external_wrenches_are_written_in_backend_body_order(self, backend, ordering_mode, is_fixed_base, device):
         """Write public-order body wrenches to each backend in backend body order."""
         num_instances, num_joints, num_bodies = 2, 1, 4
         backend_body_names = tuple(f"body_{index}" for index in range(num_bodies))
-        body_ordering = None
-        if with_body_ordering:
-            if is_fixed_base:
+        if ordering_mode == "none":
+            body_ordering = None
+        elif is_fixed_base:
+            if ordering_mode == "reversed":
                 body_ordering = (backend_body_names[0], *reversed(backend_body_names[1:]))
             else:
-                body_ordering = tuple(reversed(backend_body_names))
+                body_ordering = (backend_body_names[0], backend_body_names[-1], *backend_body_names[1:-1])
+        else:
+            body_ordering = _body_ordering_for_mode(ordering_mode, num_bodies)
         art, raw_backend = get_articulation(
             backend,
             num_instances,
@@ -1969,11 +1996,7 @@ class TestArticulationOperations:
 
         art.write_data_to_sim()
 
-        backend_to_user = (
-            np.arange(num_bodies, dtype=np.int64)
-            if art.body_ordering is None
-            else np.asarray(art.body_ordering.backend_to_user_indices, dtype=np.int64)
-        )
+        backend_to_user = _expected_backend_to_user(body_ordering, backend_body_names)
         backend_force, backend_torque = _read_backend_wrench(backend, art, raw_backend, captured)
         np.testing.assert_allclose(backend_force, forces[:, backend_to_user])
         np.testing.assert_allclose(backend_torque, torques[:, backend_to_user])
@@ -2000,17 +2023,20 @@ class TestArticulationOperations:
         np.testing.assert_array_equal(art.data.default_joint_pos.warp.numpy(), expected)
 
     @_requires_ovphysx
-    def test_ovphysx_implicit_targets_are_written_in_backend_order(self) -> None:
+    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
+    def test_ovphysx_implicit_targets_are_written_in_backend_order(self, ordering_mode: str) -> None:
         """Write implicit position and velocity targets under their matching backend joint names."""
         from isaaclab_ovphysx import tensor_types as TT
 
         num_instances, num_joints = 2, 3
+        backend_joint_names = tuple(f"joint_{index}" for index in range(num_joints))
+        joint_ordering = _joint_ordering_for_mode(ordering_mode, num_joints)
         art, raw_backend = get_articulation(
             "ovphysx",
             num_instances=num_instances,
             num_joints=num_joints,
             device="cpu",
-            joint_ordering=_joint_ordering_for_mode("reversed", num_joints),
+            joint_ordering=joint_ordering,
         )
         position = np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
         velocity = position + 100.0
@@ -2020,7 +2046,7 @@ class TestArticulationOperations:
 
         art.write_data_to_sim()
 
-        backend_to_user = np.asarray(art.joint_ordering.backend_to_user_indices, dtype=np.int64)
+        backend_to_user = _expected_backend_to_user(joint_ordering, backend_joint_names)
         np.testing.assert_array_equal(
             raw_backend.bindings[TT.DOF_POSITION_TARGET]._data,
             position[:, backend_to_user],
@@ -2031,13 +2057,22 @@ class TestArticulationOperations:
         )
 
     @_requires_physx
-    def test_physx_newton_actuator_forces_are_written_in_backend_order(self):
+    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
+    def test_physx_newton_actuator_forces_are_written_in_backend_order(self, ordering_mode: str):
         """Write Newton-actuator PhysX forces in backend joint order."""
         num_instances = 2
         num_joints = 4
         num_bodies = 2
-        art, raw_backend = get_articulation("physx", num_instances, num_joints, num_bodies, device="cpu")
-        _install_reversed_joint_ordering(art)
+        backend_joint_names = tuple(f"joint_{index}" for index in range(num_joints))
+        joint_ordering = _joint_ordering_for_mode(ordering_mode, num_joints)
+        art, raw_backend = get_articulation(
+            "physx",
+            num_instances,
+            num_joints,
+            num_bodies,
+            device="cpu",
+            joint_ordering=joint_ordering,
+        )
         user_forces_np = np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
         user_forces = wp.array(user_forces_np, dtype=wp.float32, device=art.device)
         object.__setattr__(art, "_joint_effort_target_backend", wp.zeros_like(art.data.joint_effort_target.warp))
@@ -2057,7 +2092,7 @@ class TestArticulationOperations:
 
         art.write_data_to_sim()
 
-        backend_to_user = np.asarray(art.joint_ordering.backend_to_user_indices, dtype=np.int64)
+        backend_to_user = _expected_backend_to_user(joint_ordering, backend_joint_names)
         np.testing.assert_allclose(captured["forces"], user_forces_np[:, backend_to_user])
 
     @pytest.mark.parametrize(

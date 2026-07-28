@@ -51,6 +51,7 @@ device state, this is the supported pattern.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 import torch
@@ -66,7 +67,6 @@ from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_PHYSX_BODY_NAMES,
     BRANCHING_PHYSX_JOINT_NAMES,
     PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
-    articulation_ordering_branching_fixture_path,
 )
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
@@ -676,7 +676,9 @@ def test_branching_fixture_physx_ordering_is_identity_on_ovphysx(sim, device):
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
-            spawn=sim_utils.UsdFileCfg(usd_path=str(articulation_ordering_branching_fixture_path())),
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
             actuators={},
             joint_ordering="physx",
             body_ordering="physx",
@@ -684,8 +686,6 @@ def test_branching_fixture_physx_ordering_is_identity_on_ovphysx(sim, device):
     )
     sim.reset()
     assert articulation.is_initialized
-
-    # Ground truth pinned by isaaclab_physx's test_branching_fixture_resolves_distinct_conventions.
 
     # OVPhysX exposes the native breadth-first PhysX order on the backend axis.
     assert tuple(articulation.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
@@ -713,7 +713,9 @@ def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
-            spawn=sim_utils.UsdFileCfg(usd_path=str(articulation_ordering_branching_fixture_path())),
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
             actuators={},
             joint_ordering="mjwarp",
             body_ordering="mjwarp",
@@ -721,9 +723,6 @@ def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
     )
     sim.reset()
     assert articulation.is_initialized
-
-    # Ground truth shared with isaaclab_physx's test_branching_fixture_resolves_distinct_conventions
-    # and isaaclab_newton's test_mjwarp_ordering_resolver_matches_newton_backend_names.
 
     # OVPhysX exposes the native breadth-first PhysX order on the backend axis.
     assert tuple(articulation.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES

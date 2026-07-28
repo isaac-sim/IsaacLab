@@ -633,8 +633,6 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     sim.reset()
     assert articulation.is_initialized
 
-    # Ground truth pinned by isaaclab_physx's test_branching_fixture_resolves_distinct_conventions.
-
     # Newton's native traversal is depth-first, so the live backend view already reflects MJWarp order.
     assert tuple(articulation.backend_joint_names) == BRANCHING_MJWARP_JOINT_NAMES
     assert tuple(articulation.backend_body_names) == BRANCHING_MJWARP_BODY_NAMES
