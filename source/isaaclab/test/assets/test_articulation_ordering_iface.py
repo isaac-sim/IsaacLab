@@ -175,24 +175,6 @@ def _seed_backend_joint_state(
         raw_backend._noop_setters = False
         raw_backend._dof_positions = wp.array(position, dtype=wp.float32, device=art.device)
         raw_backend._dof_velocities = wp.array(velocity, dtype=wp.float32, device=art.device)
-
-        def set_backend_rows(storage: wp.array, values: wp.array, indices: wp.array | None) -> None:
-            if indices is None:
-                storage.assign(values)
-                return
-            env_ids = indices.numpy()
-            # PhysX writers pass global staging rows; the generic mock setter expects compact rows.
-            source_ids = env_ids if values.shape[0] == art.num_instances else np.arange(indices.shape[0])
-            storage.numpy()[env_ids] = values.numpy()[source_ids]
-
-        def set_dof_positions(values: wp.array, indices: wp.array | None = None) -> None:
-            set_backend_rows(raw_backend._dof_positions, values, indices)
-
-        def set_dof_velocities(values: wp.array, indices: wp.array | None = None) -> None:
-            set_backend_rows(raw_backend._dof_velocities, values, indices)
-
-        raw_backend.set_dof_positions = set_dof_positions
-        raw_backend.set_dof_velocities = set_dof_velocities
         art.data._joint_pos.timestamp = -1.0
         art.data._joint_vel.timestamp = -1.0
         return

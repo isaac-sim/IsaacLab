@@ -403,7 +403,8 @@ class MockArticulationView:
         if self._dof_positions is None:
             self._dof_positions = torch.zeros(self._count, self._num_dofs, device=self._device)
         if indices is not None:
-            self._dof_positions[indices] = positions
+            source = positions[indices] if positions.shape[0] == self._count else positions
+            self._dof_positions[indices] = source
         else:
             self._dof_positions = positions
 
@@ -424,7 +425,8 @@ class MockArticulationView:
         if self._dof_velocities is None:
             self._dof_velocities = torch.zeros(self._count, self._num_dofs, device=self._device)
         if indices is not None:
-            self._dof_velocities[indices] = velocities
+            source = velocities[indices] if velocities.shape[0] == self._count else velocities
+            self._dof_velocities[indices] = source
         else:
             self._dof_velocities = velocities
 

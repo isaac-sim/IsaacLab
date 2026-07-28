@@ -14,6 +14,7 @@ from ..utils.kernels_mock import (
     init_identity_transforms_1d_flat,
     init_identity_transforms_2d_flat,
     scatter_floats_2d,
+    scatter_floats_2d_global_rows,
 )
 from ..utils.mock_shared_metatype import MockSharedMetatype
 
@@ -533,7 +534,7 @@ class MockArticulationViewWarp:
             self._dof_positions = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device=self._device)
         if indices is not None:
             wp.launch(
-                scatter_floats_2d,
+                scatter_floats_2d_global_rows if positions.shape[0] == self._count else scatter_floats_2d,
                 dim=(indices.shape[0], self._num_dofs),
                 inputs=[positions, indices, self._dof_positions],
                 device=self._device,
@@ -558,7 +559,7 @@ class MockArticulationViewWarp:
             self._dof_velocities = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device=self._device)
         if indices is not None:
             wp.launch(
-                scatter_floats_2d,
+                scatter_floats_2d_global_rows if velocities.shape[0] == self._count else scatter_floats_2d,
                 dim=(indices.shape[0], self._num_dofs),
                 inputs=[velocities, indices, self._dof_velocities],
                 device=self._device,
