@@ -37,11 +37,12 @@ jobs:
     # The build job skips via `if:` and reports green to branch protection,
     # which is why there is no workflow-level `paths:` filter (a not-triggered
     # required check would block the PR forever).
+    # Full checkout, not the sparse one arm-ci uses for its detect-only job:
+    # the validation steps below need the working tree, and actions/checkout
+    # leaves core.sparseCheckout set, so a later full checkout stays sparse.
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-        sparse-checkout: .github/actions/detect-changes
-        sparse-checkout-cone-mode: false
     - id: detect
       uses: ./.github/actions/detect-changes
       with:
@@ -70,12 +71,6 @@ jobs:
           ^\.github/actions/docker-build/ :: Docker build action
           ^\.github/actions/ecr-build-push-pull/ :: ECR build-cache action
           ^\.github/actions/validate-kitless-image/ :: Kit-less image validation action
-
-    - name: Checkout Code
-      if: steps.detect.outputs.should_run == 'true'
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
 
     - name: Set up uv
       if: steps.detect.outputs.should_run == 'true'
