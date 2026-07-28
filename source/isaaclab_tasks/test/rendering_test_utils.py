@@ -259,6 +259,67 @@ _STAGE_TRANSFORM_ATOL = 1e-5
 # Cap on the number of reported stage differences so a large regression stays readable.
 _MAX_STAGE_DIFF_LINES = 80
 
+_HYDRA_TEXTURES_PATH_PREFIX = "/Render/OmniverseKit/HydraTextures/"
+_VOLATILE_RENDER_PRODUCT_SEGMENT_RE = re.compile(r"^(?:Replicator|rp_[0-9a-f]{32})$")
+
+
+def _is_volatile_render_product_segment(segment: str) -> bool:
+    """Return True when *segment* is a legacy or UUID Isaac RTX tiled render-product name."""
+    return _VOLATILE_RENDER_PRODUCT_SEGMENT_RE.match(segment) is not None
+
+
+def _collect_volatile_render_product_segments(paths: set[str] | dict[str, Any]) -> set[str]:
+    """Collect direct HydraTextures child names that denote volatile render products."""
+    volatile_segments: set[str] = set()
+    for path in paths:
+        if _HYDRA_TEXTURES_PATH_PREFIX not in path:
+            continue
+        parts = path.split("/")
+        try:
+            hydra_idx = parts.index("HydraTextures")
+        except ValueError:
+            continue
+        if hydra_idx + 1 >= len(parts):
+            continue
+        segment = parts[hydra_idx + 1]
+        if _is_volatile_render_product_segment(segment):
+            volatile_segments.add(segment)
+    return volatile_segments
+
+
+def _canonicalize_volatile_render_product_paths(
+    structure: dict[str, str],
+    transforms: dict[str, np.ndarray],
+) -> tuple[dict[str, str], dict[str, np.ndarray]]:
+    """Rewrite legacy ``Replicator`` and UUID ``rp_<hex>`` render-product paths to stable tokens.
+
+    Isaac RTX tiled render products are named ``rp_{uuid4.hex}`` at runtime, while older golden
+    stages still use the fixed ``Replicator`` prim. Canonicalizing both to ``rp_canonical_N`` keeps
+    golden stage comparison stable without reverting production UUID naming.
+    """
+    volatile_segments = _collect_volatile_render_product_segments(set(structure))
+    canonical_map = {segment: f"rp_canonical_{index}" for index, segment in enumerate(sorted(volatile_segments))}
+    if not canonical_map:
+        return structure, transforms
+
+    def _rewrite_path(path: str) -> str:
+        parts = path.split("/")
+        try:
+            hydra_idx = parts.index("HydraTextures")
+        except ValueError:
+            return path
+        if hydra_idx + 1 >= len(parts):
+            return path
+        segment = parts[hydra_idx + 1]
+        if segment in canonical_map:
+            parts[hydra_idx + 1] = canonical_map[segment]
+            return "/".join(parts)
+        return path
+
+    canonical_structure = {_rewrite_path(path): type_name for path, type_name in structure.items()}
+    canonical_transforms = {_rewrite_path(path): matrix for path, matrix in transforms.items()}
+    return canonical_structure, canonical_transforms
+
 
 def extract_stage_structure_and_transforms(usd_path: str) -> tuple[dict[str, str], dict[str, np.ndarray]]:
     """Open a USD stage and return its prim structure and per-prim world transforms.
@@ -299,6 +360,12 @@ def compare_golden_stage(golden_path: str, result_path: str) -> list[str]:
     """
     golden_structure, golden_transforms = extract_stage_structure_and_transforms(golden_path)
     result_structure, result_transforms = extract_stage_structure_and_transforms(result_path)
+    golden_structure, golden_transforms = _canonicalize_volatile_render_product_paths(
+        golden_structure, golden_transforms
+    )
+    result_structure, result_transforms = _canonicalize_volatile_render_product_paths(
+        result_structure, result_transforms
+    )
 
     problems: list[str] = []
     golden_paths, result_paths = set(golden_structure), set(result_structure)
@@ -485,25 +552,6 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
 
     env_cfg.sim.physics.enable_enhanced_determinism = True
     env_cfg.sim.physics.enable_external_forces_every_iteration = True
-
-
-def _maybe_disable_instancing_for_current_stage(physics_backend: str, renderer: str, data_type: str) -> None:
-    """Disable USD instancing for the current stage to work around NVBUG#6418121.
-
-    HDC_TODO: Remove this temporary workaround once NVBUG#6418121 is fixed.
-    """
-    disable_instancing = False
-
-    if renderer == "isaacsim_rtx_renderer":
-        disable_instancing = True
-
-    if disable_instancing:
-        from isaaclab.sim.utils.prims import get_current_stage, make_uninstanceable
-
-        stage = get_current_stage()
-        make_uninstanceable("/World/envs", stage)
-
-        print("[rendering_test_utils] Disabled USD instancing for the current stage to work around NVBUG#6418121.")
 
 
 def _skip_if_newton_motion_vectors(physics_backend: str, data_type: str) -> None:
@@ -1675,8 +1723,6 @@ def rendering_test_franka_cloth(
     try:
         env = ManagerBasedRLEnv(env_cfg)
 
-        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
-
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
         # We step only once to let the cloth fall uniformly on the gravity but not collide with the cube on the table.
@@ -1783,9 +1829,6 @@ def rendering_test_franka_soft(
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
 
-    if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
-        pytest.skip("The test cases will be enabled after NVBUG#6418121 is fixed.")
-
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
@@ -1819,9 +1862,6 @@ def rendering_test_franka_soft(
             actions[:, 3:7] = ee_quat_curr
 
             env.step(actions)
-
-        # This workaround invalidates the physx data views and would lead to issues if it was done before stepping.
-        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
