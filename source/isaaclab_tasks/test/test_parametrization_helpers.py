@@ -14,6 +14,7 @@ from rendering_test_utils import (
 
 
 def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:
+    """OVStage variants should be emitted only for the OVRTX renderer."""
     params = [
         pytest.param("newton", "ovrtx_renderer", "rgb", id="newton-ovrtx-rgb"),
         pytest.param("newton", "newton_renderer", "rgb", id="newton-newton_warp-rgb"),
@@ -33,7 +34,8 @@ def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:
     ]
 
 
-def test_make_xfail_rendering_params_removes_flaky_mark() -> None:
+def test_make_xfail_rendering_params_replaces_flaky_and_xfail_marks() -> None:
+    """Expected failures should run once with one current reason."""
     params = [
         pytest.param(
             "ovstage",
@@ -41,7 +43,10 @@ def test_make_xfail_rendering_params_removes_flaky_mark() -> None:
             "ovrtx_renderer",
             "albedo",
             id="ovstage-newton-ovrtx-albedo",
-            marks=pytest.mark.flaky(max_runs=3, min_passes=1),
+            marks=[
+                pytest.mark.flaky(max_runs=3, min_passes=1),
+                pytest.mark.xfail(reason="Obsolete rendering regression.", strict=False),
+            ],
         )
     ]
 
@@ -57,6 +62,7 @@ def test_make_xfail_rendering_params_removes_flaky_mark() -> None:
 
 
 def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
+    """Native-crash skips should override inherited retry and xfail marks."""
     params = [
         pytest.param(
             "legacy",

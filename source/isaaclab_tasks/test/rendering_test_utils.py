@@ -178,8 +178,8 @@ def make_xfail_rendering_params(
         if reason is None:
             marked_params.append(param)
             continue
-        # Expected failures should run once instead of consuming the RTX flaky-retry budget.
-        marks = [mark for mark in param.marks if mark.name != "flaky"]
+        # Expected failures should run once and carry one unambiguous reason.
+        marks = [mark for mark in param.marks if mark.name not in ("flaky", "xfail")]
         marked_params.append(
             pytest.param(
                 *param.values,

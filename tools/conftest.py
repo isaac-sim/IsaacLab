@@ -541,6 +541,7 @@ _RESULT_PRIORITY = {
     "TIMEOUT": 3,
     "FAILED": 2,
     "passed (shutdown hanged)": 1,
+    "passed (no tests selected)": 0,
     "passed": 0,
 }
 
@@ -578,6 +579,7 @@ def _make_failed_pass_result(
     wall_time: float,
     report: JUnitXml | None = None,
     tests: int = 0,
+    skipped: int = 0,
 ) -> tuple[JUnitXml, dict, bool]:
     """Append and persist a synthetic failure without discarding existing results."""
     details = message + "\n\n"
@@ -596,7 +598,7 @@ def _make_failed_pass_result(
         {
             "errors": 1,
             "failures": 0,
-            "skipped": 0,
+            "skipped": skipped,
             "tests": tests + 1,
             "result": "FAILED",
             "time_elapsed": time_elapsed,
@@ -849,6 +851,7 @@ def _run_one_pass(
             wall_time,
             report=report,
             tests=tests,
+            skipped=skipped,
         )
 
     (
@@ -888,6 +891,23 @@ def _run_one_pass(
     )
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
+    deselected_to_zero = returncode == pytest.ExitCode.NO_TESTS_COLLECTED and (k_expr is not None or ctx.ci_marker)
+    if deselected_to_zero:
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: no tests selected by filters, nothing ran")
+        return (
+            report,
+            {
+                "errors": errors,
+                "failures": failures,
+                "skipped": skipped,
+                "tests": tests,
+                "result": "passed (no tests selected)",
+                "time_elapsed": time_elapsed,
+                "wall_time": wall_time,
+            },
+            False,
+        )
+
     if returncode != 0 and not shutdown_hanged and not has_test_failures:
         msg = f"pytest exited with code {returncode} without reporting a test failure"
         logger.error(f"{ctx.test_file}{suffix}: {msg}")
@@ -902,6 +922,7 @@ def _run_one_pass(
             wall_time,
             report=report,
             tests=tests,
+            skipped=skipped,
         )
 
     was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)

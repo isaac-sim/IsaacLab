@@ -39,14 +39,16 @@ def _write_empty_junit_report(report_file: str) -> None:
     )
 
 
-def _write_passing_junit_report(report_file: str) -> None:
-    """Write a valid JUnit report containing one passing test case."""
+def _write_partial_junit_report(report_file: str) -> None:
+    """Write a valid JUnit report containing passing and skipped test cases."""
     path = Path(report_file)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         (
             '<?xml version="1.0" encoding="utf-8"?><testsuites>'
-            '<testsuite tests="1"><testcase classname="test_sample" name="test_present"/>'
+            '<testsuite tests="2" skipped="1"><testcase classname="test_sample" name="test_present"/>'
+            '<testcase classname="test_sample" name="test_skipped">'
+            '<skipped message="Known unsupported case."/></testcase>'
             "</testsuite></testsuites>"
         ),
         encoding="utf-8",
@@ -99,7 +101,7 @@ def test_nonzero_pytest_exit_preserves_reported_tests(monkeypatch, tmp_path: Pat
 
     def _capture(*_args, report_file: str, **_kwargs):
         report_paths.append(Path(report_file))
-        _write_passing_junit_report(report_file)
+        _write_partial_junit_report(report_file)
         return 2, b"interrupted after test completion", b"", "", 0.1, ""
 
     monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
@@ -121,8 +123,43 @@ def test_nonzero_pytest_exit_preserves_reported_tests(monkeypatch, tmp_path: Pat
     assert report is not None
     assert status["result"] == "FAILED"
     assert status["errors"] == 1
-    assert status["tests"] == 2
+    assert status["skipped"] == 1
+    assert status["tests"] == 3
     assert was_failure
     xml = report_paths[0].read_text(encoding="utf-8")
     assert "test_present" in xml
+    assert "test_skipped" in xml
     assert "pytest exited with code 2" in xml
+
+
+def test_filter_deselecting_all_tests_is_not_a_failure(monkeypatch, tmp_path: Path) -> None:
+    """A global filter selecting nothing should be a visible non-failing outcome."""
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+
+    def _capture(*_args, report_file: str, **_kwargs):
+        _write_empty_junit_report(report_file)
+        return 5, b"no tests ran", b"", "", 0.1, ""
+
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    report, status, was_failure = orchestrator._run_one_pass(context, k_expr="ovphysx", suffix="")
+
+    assert report is not None
+    assert status["result"] == "passed (no tests selected)"
+    assert status["errors"] == 0
+    assert status["tests"] == 0
+    assert not was_failure
