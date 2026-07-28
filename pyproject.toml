@@ -165,6 +165,10 @@ teleop = [
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
+# One-flag shorthand for the XR teleoperation workflow, which needs the Kit XR runtime on
+# top of Isaac Teleop. Kept as an aggregate rather than folding isaacsim into ``teleop`` so
+# ``teleop`` stays lean and does not inherit isaacsim's conflicts (notably with ``test``).
+xr = ["isaaclab-dev[isaacsim,teleop]"]
 
 rlinf = [
     "ray[default]>=2.47.0",
@@ -409,6 +413,12 @@ conflicts = [
     [{ extra = "isaacsim" }, { extra = "mimic" }],
     [{ extra = "isaacsim" }, { extra = "all" }],
     [{ extra = "isaacsim" }, { extra = "test" }],
+    # ``xr`` aggregates isaacsim and teleop, so it inherits both of their conflicts.
+    [{ extra = "xr" }, { extra = "ov" }],
+    [{ extra = "xr" }, { extra = "viser" }],
+    [{ extra = "xr" }, { extra = "mimic" }],
+    [{ extra = "xr" }, { extra = "all" }],
+    [{ extra = "xr" }, { extra = "test" }],
 ]
 python-preference = "only-managed"
 package = false

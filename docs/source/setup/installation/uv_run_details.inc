@@ -30,16 +30,17 @@ Clone the repo and start training immediately — no virtual environment setup r
    uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct presets=physx
 
-   # XR teleoperation: Isaac Teleop and CloudXR alongside Isaac Sim
-   uv run --extra isaacsim --extra teleop isaaclab teleop \
+   # XR teleoperation: the xr extra aggregates isaacsim and teleop
+   uv run --extra xr isaaclab teleop run \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --visualizer kit --xr
 
 ``uv`` resolves and manages the environment automatically on each invocation. Supported
 libraries for ``--rl_library`` are: ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``, and ``rlinf``.
 
-Extras compose freely except for two pairs that cannot co-resolve: ``teleop`` with ``mimic``
-and ``teleop`` with ``all`` (Isaac Teleop needs ``lxml>=5.2.2``, the imitation-learning stack
-needs ``lxml<5.0.0``). ``uv`` reports an error rather than installing a broken environment.
+Extras compose freely except where their pins genuinely clash. ``teleop`` cannot combine with
+``mimic`` or ``all`` (Isaac Teleop needs ``lxml>=5.2.2``, the imitation-learning stack needs
+``lxml<5.0.0``), and ``xr`` inherits that plus Isaac Sim's own conflicts with ``ov``,
+``viser``, and ``test``. ``uv`` reports an error rather than installing a broken environment.
 See :ref:`installation-method-teleop` for the teleoperation prerequisites.
 
 

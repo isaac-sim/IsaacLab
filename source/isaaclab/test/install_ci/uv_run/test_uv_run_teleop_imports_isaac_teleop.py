@@ -7,10 +7,9 @@
 Setup:
     - (none: uv run creates the environment from the committed uv.lock on first invocation)
 Tests:
-    - uv run --frozen --extra isaacsim --extra teleop python -c
-        "import isaacsim, isaaclab_teleop, isaacteleop"
-        -> verify the documented XR teleoperation extras co-resolve and import together
-    - uv run --frozen --extra isaacsim --extra teleop isaaclab teleop --help
+    - uv run --frozen --extra xr python -c "import isaacsim, isaaclab_teleop, isaacteleop"
+        -> verify the aggregated XR extra co-resolves and imports Isaac Sim and Isaac Teleop
+    - uv run --frozen --extra xr isaaclab teleop run --help
         -> verify the isaaclab teleop entry point runs from that environment
 """
 
@@ -22,15 +21,15 @@ import shutil
 import pytest
 from utils import aarch64_isaacsim_env, run_cmd
 
-# The documented XR teleoperation extras. ``isaacsim`` supplies the Kit XR runtime and
-# ``teleop`` supplies Isaac Teleop plus CloudXR. They only co-resolve because the
+# The documented XR teleoperation extra: an aggregate of ``isaacsim`` (Kit XR runtime) and
+# ``teleop`` (Isaac Teleop plus CloudXR). The two only co-resolve because the
 # ``websockets>=14.0`` override in the root pyproject relaxes isaacsim-kernel's ==12.0 pin.
-_TELEOP_EXTRAS = ["--extra", "isaacsim", "--extra", "teleop"]
+_XR_EXTRA = ["--extra", "xr"]
 
 
 @pytest.mark.install_path_uv_run
 class Test_Uv_Run_Teleop_Imports_Isaac_Teleop:
-    """``uv run --extra isaacsim --extra teleop`` resolves and imports the XR teleop stack.
+    """``uv run --extra xr`` resolves and imports the XR teleop stack.
 
     This is the positive counterpart to
     ``cli/test_cli_install_core_in_uvenv_correctness.py``, which only asserts that
@@ -50,14 +49,14 @@ class Test_Uv_Run_Teleop_Imports_Isaac_Teleop:
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_uv_run_teleop_extras_import_the_xr_stack(self, isaaclab_root, tmp_path):
-        """Verify the teleop and isaacsim extras install together and import."""
+    def test_uv_run_xr_extra_imports_the_teleop_stack(self, isaaclab_root, tmp_path):
+        """Verify the xr extra installs Isaac Sim and Isaac Teleop together."""
         result = run_cmd(
             [
                 "uv",
                 "run",
                 "--frozen",
-                *_TELEOP_EXTRAS,
+                *_XR_EXTRA,
                 "python",
                 "-c",
                 "import isaacsim, isaaclab_teleop, isaacteleop",
@@ -78,7 +77,7 @@ class Test_Uv_Run_Teleop_Imports_Isaac_Teleop:
     def test_uv_run_teleop_exposes_the_teleop_entry_point(self, isaaclab_root, tmp_path):
         """Verify ``isaaclab teleop`` runs from the teleop environment."""
         result = run_cmd(
-            ["uv", "run", "--frozen", *_TELEOP_EXTRAS, "isaaclab", "teleop", "--help"],
+            ["uv", "run", "--frozen", *_XR_EXTRA, "isaaclab", "teleop", "run", "--help"],
             cwd=isaaclab_root,
             env={
                 "UV_PROJECT_ENVIRONMENT": str(tmp_path / "venv"),

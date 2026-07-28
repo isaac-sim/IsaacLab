@@ -1108,7 +1108,7 @@ for the headless profile, or pass a full file path for a custom profile:
       .. code-block:: bash
 
          # Use the AVP profile
-         uv run --extra isaacsim --extra teleop isaaclab teleop \
+         uv run --extra xr isaaclab teleop run \
              --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
              --visualizer kit --xr \
              --cloudxr_env avp
@@ -1131,7 +1131,7 @@ Copy a shipped profile and edit it:
 .. code-block:: bash
 
    # Start from the Quest/Pico profile
-   cp $(uv run --extra isaacsim --extra teleop python -c \
+   cp $(uv run --extra xr python -c \
        "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/my-cloudxr.env
 
 Edit ``~/my-cloudxr.env`` to change any values (e.g. ``NV_CXR_ENABLE_PUSH_DEVICES=1`` for
@@ -1154,13 +1154,13 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
       .. code-block:: bash
 
          # Disable via CLI flag
-         uv run --extra isaacsim --extra teleop isaaclab teleop \
+         uv run --extra xr isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit --xr \
              --no-auto_launch_cloudxr
 
          # Or disable via environment variable
-         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 uv run --extra isaacsim --extra teleop isaaclab teleop \
+         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 uv run --extra xr isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit --xr
 
@@ -1370,7 +1370,7 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
 
       .. code-block:: bash
 
-         uv run --extra isaacsim --extra teleop isaaclab record \
+         uv run --extra xr isaaclab teleop record \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
@@ -1394,7 +1394,7 @@ the input device:
 
       .. code-block:: bash
 
-         uv run --extra isaacsim --extra teleop isaaclab record \
+         uv run --extra xr isaaclab teleop record \
              --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
              --visualizer kit \
              --teleop_device keyboard
@@ -1632,7 +1632,7 @@ Optimize XR Performance
 
    .. code-block:: bash
 
-      uv run --extra isaacsim --extra teleop isaaclab teleop \
+      uv run --extra xr isaaclab teleop run \
           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
           --visualizer kit --xr \
           --disable_external_cameras
@@ -1651,7 +1651,7 @@ Optimize XR Performance
 
    .. code-block:: bash
 
-      uv run --extra isaacsim --extra teleop isaaclab teleop \
+      uv run --extra xr isaaclab teleop run \
           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
           --viz none --xr
 

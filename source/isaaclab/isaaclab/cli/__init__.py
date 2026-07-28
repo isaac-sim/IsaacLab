@@ -67,26 +67,24 @@ def random_agent(args: list[str] | None = None) -> None:
     run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "random_agent.py", args, check=True)
 
 def teleop(args: list[str] | None = None) -> None:
-    """Run the SE(3) teleoperation agent."""
+    """Run a live teleoperation, demonstration recording, or demonstration replay workflow.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    workflow_scripts = {
+        "run": ISAACLAB_ROOT / "scripts" / "environments" / "teleoperation" / "teleop_se3_agent.py",
+        "record": ISAACLAB_ROOT / "scripts" / "tools" / "record_demos.py",
+        "replay": ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py",
+    }
+    parser = argparse.ArgumentParser(description="Run an Isaac Lab teleoperation workflow.")
+    parser.add_argument("command", choices=tuple(workflow_scripts), help="Teleoperation workflow to run.")
     if args is None:
         args = sys.argv[1:]
-    run_python_command(
-        ISAACLAB_ROOT / "scripts" / "environments" / "teleoperation" / "teleop_se3_agent.py", args, check=True
-    )
-
-
-def record(args: list[str] | None = None) -> None:
-    """Run the demonstration recording script."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "tools" / "record_demos.py", args, check=True)
-
-
-def replay(args: list[str] | None = None) -> None:
-    """Run the demonstration replay script."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py", args, check=True)
+    if not args or args[0] in ("-h", "--help"):
+        parser.parse_args(args)
+    parsed_args = parser.parse_args(args[:1])
+    run_python_command(workflow_scripts[parsed_args.command], args[1:], check=True)
 
 
 def benchmark(args: list[str] | None = None) -> None:
@@ -128,12 +126,6 @@ def cli() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "teleop":
         teleop(sys.argv[2:])
         return
-    if len(sys.argv) > 1 and sys.argv[1] == "record":
-        record(sys.argv[2:])
-        return
-    if len(sys.argv) > 1 and sys.argv[1] == "replay":
-        replay(sys.argv[2:])
-        return
 
     executable_name = Path(sys.argv[0]).name
     default_prog = "isaaclab.bat" if is_windows() else "isaaclab.sh"
@@ -149,11 +141,8 @@ def cli() -> None:
             "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
             "  play            Run scripts/reinforcement_learning/play.py\n"
             "  zero_agent      Run scripts/environments/zero_agent.py\n"
-            "  random_agent    Run scripts/environments/random_agent.py"
-
-            "  teleop          Run scripts/environments/teleoperation/teleop_se3_agent.py\n"
-            "  record          Run scripts/tools/record_demos.py\n"
-            "  replay          Run scripts/tools/replay_demos.py"
+            "  random_agent    Run scripts/environments/random_agent.py\n"
+            "  teleop          Run a live teleoperation, demo recording, or demo replay workflow"
         ),
     )
 

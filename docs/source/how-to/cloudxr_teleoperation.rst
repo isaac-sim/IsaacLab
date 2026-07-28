@@ -22,9 +22,8 @@ teleoperation session. For additional details see the `Isaac Teleop Quick Start
 Prerequisites
 -------------
 
-* **Isaac Lab** installed with the ``teleop`` and ``isaacsim`` extras (see
-  :ref:`installation-method-teleop`). That section also covers the system libraries the
-  CloudXR runtime needs.
+* **Isaac Lab** installed with the ``xr`` extra (see :ref:`installation-method-teleop`).
+  That section also covers the system libraries the CloudXR runtime needs.
 
 * **Isaac Lab workstation**
 
@@ -127,8 +126,7 @@ Install Isaac Teleop
 --------------------
 
 #. Complete :ref:`installation-method-teleop` first. It installs the ``libvulkan1`` and
-   ``libbsd0`` system libraries and shows how to activate the ``teleop`` and ``isaacsim``
-   extras.
+   ``libbsd0`` system libraries and shows how to activate the ``xr`` extra.
 
    .. code-block:: bash
 
@@ -219,7 +217,7 @@ terminal or ``source`` step is needed. Launch a teleoperation session directly:
 
       .. code-block:: bash
 
-         uv run --extra isaacsim --extra teleop isaaclab teleop \
+         uv run --extra xr isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
@@ -274,7 +272,7 @@ hand-tracking task such as ``IsaacContrib-PickPlace-G1-InspireFTP-Abs``:
 
       .. code-block:: bash
 
-         uv run --extra isaacsim --extra teleop isaaclab teleop \
+         uv run --extra xr isaaclab teleop run \
              --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
              --visualizer kit \
              --xr \
@@ -421,7 +419,7 @@ choose the tab that matches your hardware.
 
                .. code-block:: bash
 
-                  uv run --extra isaacsim --extra teleop isaaclab teleop \
+                  uv run --extra xr isaaclab teleop run \
                       --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
@@ -564,11 +562,11 @@ hand tracking from the headset is occluded or when higher-precision finger data 
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(uv run --extra isaacsim --extra teleop python -c \
+            cp $(uv run --extra xr python -c \
                 "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
-            uv run --extra isaacsim --extra teleop isaaclab teleop \
+            uv run --extra xr isaaclab teleop run \
                 --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
@@ -660,7 +658,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
       .. code-block:: bash
 
-         uv run --extra isaacsim --extra teleop isaaclab record \
+         uv run --extra xr isaaclab teleop record \
            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
            --num_demos 5 \
            --dataset_file ./datasets/dataset.hdf5 \

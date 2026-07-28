@@ -36,13 +36,6 @@ Choose an installation path
       Run from the Isaac Lab checkout while ``uv`` creates and manages the environment.
       **Recommended for most users.**
 
-   .. grid-item-card:: **XR teleoperation**
-      :link: installation-method-teleop
-      :link-type: ref
-
-      Add Isaac Teleop and CloudXR streaming on top of the ``uv`` setup for XR
-      teleoperation and demonstration recording.
-
    .. grid-item-card:: **isaaclab.sh installer (legacy)**
       :link: installation-legacy-installer
       :link-type: ref
@@ -158,6 +151,10 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # XR teleoperation (see the section below for prerequisites)
+         uv run --extra xr isaaclab teleop run \
+            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --visualizer kit --xr
+
+         # XR teleoperation (see the section below for prerequisites)
          uv run --extra isaacsim,teleop isaaclab teleop \
             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --visualizer kit --xr
 
@@ -246,9 +243,10 @@ XR teleoperation
 ----------------
 
 Use this path to teleoperate robots from an XR headset and to record demonstrations for
-imitation learning. It builds on the ``uv`` setup above and adds two extras: ``teleop`` for
-`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`__ and its CloudXR streaming runtime, and
-``isaacsim`` for the Kit XR runtime that renders the stereo view.
+imitation learning. It builds on the ``uv`` setup above and adds the ``xr`` extra, which
+aggregates ``teleop`` for `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`__ and its
+CloudXR streaming runtime, and ``isaacsim`` for the Kit XR runtime that renders the stereo
+view. Use ``--extra teleop`` on its own when you need the Isaac Teleop stack without Kit.
 
 XR teleoperation is supported on **Linux x86_64 only**. The ``teleop`` extra gates
 ``isaacteleop`` and ``dex-retargeting`` behind platform markers, so on Windows or aarch64 the
@@ -266,29 +264,32 @@ Then run a teleoperation session from the repository root:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim --extra teleop isaaclab teleop \
+   uv run --extra xr isaaclab teleop run \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
       --visualizer kit \
       --xr
 
-The same two extras cover demonstration recording and replay:
+``isaaclab teleop`` groups the three workflow scripts: ``run`` for a live session, ``record``
+to capture demonstrations, and ``replay`` to play a dataset back.
 
 .. code-block:: bash
 
-   uv run --extra isaacsim --extra teleop isaaclab record \
+   uv run --extra xr isaaclab teleop record \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
       --num_demos 5 --dataset_file ./datasets/dataset.hdf5 \
       --visualizer kit --xr
 
-   uv run --extra isaacsim --extra teleop isaaclab replay \
+   uv run --extra xr isaaclab teleop replay \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
       --dataset_file ./datasets/dataset.hdf5 --visualizer kit
 
 .. note::
 
-   ``teleop`` cannot be combined with ``mimic`` or ``all`` in a single ``uv run``: Isaac Teleop
-   requires ``lxml>=5.2.2`` while the imitation-learning stack requires ``lxml<5.0.0``. Run the
-   teleoperation and Mimic steps of an imitation-learning workflow as separate commands.
+   ``xr`` cannot be combined with ``mimic``, ``all``, ``ov``, ``viser``, or ``test`` in a
+   single ``uv run``. Isaac Teleop requires ``lxml>=5.2.2`` while the imitation-learning stack
+   requires ``lxml<5.0.0``, and Isaac Sim pins ``coverage==7.4.4`` against the test extra's
+   ``coverage>=7.6.1``. Run the teleoperation and Mimic steps of an imitation-learning
+   workflow as separate commands.
 
 The commands above start the CloudXR runtime and open the Kit viewport, but a headset still
 needs firewall rules and a client app. Continue with :ref:`cloudxr-teleoperation` to configure

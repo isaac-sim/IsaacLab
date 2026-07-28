@@ -59,6 +59,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "ovrtx",
         "mimic",
         "teleop",
+        "xr",
         "rlinf",
         "tetrahedralization",
         "all",
@@ -212,6 +213,26 @@ def test_uv_run_teleop_co_resolves_with_isaacsim():
     # The lxml split between Isaac Teleop and the imitation-learning stack is real and stays.
     assert {"teleop", "mimic"} in conflict_groups
     assert {"teleop", "all"} in conflict_groups
+
+
+def test_uv_run_xr_extra_aggregates_isaacsim_and_teleop():
+    """``xr`` is the one-flag shorthand for the XR teleoperation workflow.
+
+    It aggregates ``isaacsim`` and ``teleop`` rather than folding Isaac Sim into
+    ``teleop``, so ``teleop`` stays lean and keeps working alongside ``test``. Because the
+    aggregate pulls Isaac Sim in, it must inherit every conflict both halves declare --
+    uv fails to resolve the lockfile otherwise.
+    """
+    pyproject = _root_pyproject()
+    optional_dependencies = pyproject["project"]["optional-dependencies"]
+
+    assert optional_dependencies["xr"] == ["isaaclab-dev[isaacsim,teleop]"]
+    # Isaac Sim must not leak into the plain teleop extra.
+    assert not any(dep.startswith("isaacsim") for dep in optional_dependencies["teleop"])
+
+    conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
+    for extra in ("ov", "viser", "mimic", "all", "test"):
+        assert {"xr", extra} in conflict_groups, f"xr must inherit the conflict with '{extra}'"
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():

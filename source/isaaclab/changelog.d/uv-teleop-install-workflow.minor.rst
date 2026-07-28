@@ -1,12 +1,18 @@
 Added
 ^^^^^
 
-* Added the ``isaaclab teleop``, ``isaaclab record``, and ``isaaclab replay`` CLI commands,
-  which run ``scripts/environments/teleoperation/teleop_se3_agent.py``,
-  ``scripts/tools/record_demos.py``, and ``scripts/tools/replay_demos.py`` respectively. These
-  mirror the existing ``isaaclab train`` and ``isaaclab play`` entry points, so teleoperation
-  and imitation-learning workflows follow the same ``uv run`` paradigm as reinforcement
-  learning.
+* Added the ``isaaclab teleop`` CLI command, which groups the teleoperation workflows as
+  subcommands: ``isaaclab teleop run`` for a live session
+  (``scripts/environments/teleoperation/teleop_se3_agent.py``), ``isaaclab teleop record``
+  for demonstration capture (``scripts/tools/record_demos.py``), and
+  ``isaaclab teleop replay`` for playback (``scripts/tools/replay_demos.py``). This mirrors
+  the existing ``isaaclab benchmark`` subcommand grouping, so teleoperation and
+  imitation-learning workflows follow the same paradigm as reinforcement learning.
+* Added the ``xr`` install extra, a one-flag aggregate of the ``isaacsim`` and ``teleop``
+  extras for the XR teleoperation workflow: ``uv run --extra xr isaaclab teleop run``. Use
+  ``--extra teleop`` on its own for the Isaac Teleop stack without the Kit XR runtime. ``xr``
+  conflicts with ``ov``, ``viser``, ``mimic``, ``all``, and ``test``, inheriting the
+  conflicts of both halves.
 
 Fixed
 ^^^^^
