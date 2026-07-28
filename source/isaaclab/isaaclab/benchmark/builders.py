@@ -132,6 +132,7 @@ def build_runtime(
     steps_per_iteration: int,
     aggregate_throughput: bool = False,
     frames_per_environment_step: int | None = None,
+    environment_step_warmup_steps: int = 0,
     environment_step_times_s: Sequence[float] | None = None,
     simulation_step_times_s: Sequence[float] | None = None,
     simulation_step_calls: int | None = None,
@@ -150,6 +151,7 @@ def build_runtime(
             remains the ordinary sample deviation of the per-iteration rates,
             and peak remains the maximum per-iteration throughput.
         frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
+        environment_step_warmup_steps: Number of initial environment-step calls excluded from timing.
         environment_step_times_s: Positive per-environment-step wall times [s].
         simulation_step_times_s: Synchronized simulation wall times per environment step [s].
         simulation_step_calls: Number of measured simulation-step calls.
@@ -230,6 +232,7 @@ def build_runtime(
             environment_step_calls=len(environment_samples),
             simulation_step_calls=simulation_step_calls,
             measurement_mode=("serialized_synchronized" if simulation_step_times_s is not None else "host_return"),
+            warmup_steps=environment_step_warmup_steps,
         )
 
     return Runtime(

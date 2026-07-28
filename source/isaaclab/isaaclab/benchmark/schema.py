@@ -231,6 +231,7 @@ class EnvironmentStepTiming:
         measurement_mode: Timing boundary semantics. ``host_return`` does not
             force device completion. ``serialized_synchronized`` explicitly
             synchronizes every measured boundary.
+        warmup_steps: Number of initial environment-step calls excluded from timing.
     """
 
     environment_step_time_s: MeanStd
@@ -241,9 +242,12 @@ class EnvironmentStepTiming:
     environment_step_calls: int
     simulation_step_calls: int | None
     measurement_mode: Literal["host_return", "serialized_synchronized"]
+    warmup_steps: int = 0
 
     def __post_init__(self) -> None:
         """Validate that the timing fields form one consistent measurement mode."""
+        if self.warmup_steps < 0:
+            raise ValueError("warmup_steps must be non-negative")
         if self.environment_step_calls <= 0:
             raise ValueError("environment_step_calls must be greater than zero")
         if not (

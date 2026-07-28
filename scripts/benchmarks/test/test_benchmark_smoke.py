@@ -62,7 +62,7 @@ def test_adapters_reject_non_positive_workloads(library: str, workflow: str, arg
 def test_adapters_reject_negative_warmup_steps(library: str, workflow: str, monkeypatch, capsys):
     """Benchmark adapters reject negative warm-up counts."""
     module = _load_adapter(library, workflow)
-    warmup_argument = "--warmup_frames" if workflow == "play" else "--warmup_steps"
+    warmup_argument = "--warmup_steps"
     argv = ["--task", _TASK, warmup_argument, "-1", "--headless"]
     monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
 
@@ -83,7 +83,7 @@ def test_adapters_default_to_one_warmup_step(library: str, workflow: str, monkey
 
     args = module._parse_args(argv)[0]
 
-    warmup_count = args.warmup_frames if workflow == "play" else args.warmup_steps
+    warmup_count = args.warmup_steps
     assert warmup_count == 1
 
 
@@ -104,13 +104,13 @@ def test_adapters_accept_short_synchronized_step_flag(library: str, workflow: st
 def test_play_adapters_accept_warmup_larger_than_measured_workload(library: str, monkeypatch):
     """Play warm-up adds calls without consuming the measured workload."""
     module = _load_adapter(library, "play")
-    argv = ["--task", _TASK, "--num_frames", "2", "--warmup_frames", "3", "--headless"]
+    argv = ["--task", _TASK, "--num_frames", "2", "--warmup_steps", "3", "--headless"]
     monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
 
     args = module._parse_args(argv)[0]
 
     assert args.num_frames == 2
-    assert args.warmup_frames == 3
+    assert args.warmup_steps == 3
 
 
 @pytest.mark.parametrize(
@@ -177,6 +177,7 @@ def test_training_and_play_write_bundles(
     assert training_data["runtime"]["total_fps"]["mean"] > 0
     training_timing = training_data["runtime"]["environment_step_timing"]
     assert training_timing["environment_step_calls"] > 0
+    assert training_timing["warmup_steps"] == 1
     assert training_timing["environment_step_fps"]["mean"] > 0
     assert training_timing["simulation_step_calls"] is None
     assert training_timing["simulation_step_time_s"] is None
@@ -214,6 +215,7 @@ def test_training_and_play_write_bundles(
     assert play_data["runtime"]["total_fps"]["mean"] > 0
     play_timing = play_data["runtime"]["environment_step_timing"]
     assert play_timing["environment_step_calls"] == 250
+    assert play_timing["warmup_steps"] == 1
     assert play_timing["environment_step_fps"]["mean"] > 0
     assert play_timing["simulation_step_calls"] is None
     assert play_timing["simulation_step_time_s"] is None
@@ -245,6 +247,7 @@ def test_training_and_play_write_bundles(
         synchronized_play_data = _load_play_bundle(synchronized_play_output)
         synchronized_timing = synchronized_play_data["runtime"]["environment_step_timing"]
         assert synchronized_timing["environment_step_calls"] == 10
+        assert synchronized_timing["warmup_steps"] == 1
         assert synchronized_timing["simulation_step_calls"] > 0
         assert synchronized_timing["simulation_step_time_s"]["mean"] > 0.0
         assert synchronized_timing["outside_simulation_step_time_s"]["mean"] >= 0.0
@@ -260,6 +263,8 @@ def test_training_and_play_write_bundles(
         assert play_omniperf["runtime"]["Mean Total FPS"] == pytest.approx(play_data["runtime"]["total_fps"]["mean"])
         assert training_omniperf["benchmark_info"]["environment_step_measurement_mode"] == "host_return"
         assert play_omniperf["benchmark_info"]["environment_step_measurement_mode"] == "host_return"
+        assert training_omniperf["benchmark_info"]["environment_step_warmup_steps"] == 1
+        assert play_omniperf["benchmark_info"]["environment_step_warmup_steps"] == 1
         if library == "rsl_rl":
             synchronized_omniperf = json.loads(next(synchronized_play_output.glob("*_omniperf.json")).read_text())
             assert (

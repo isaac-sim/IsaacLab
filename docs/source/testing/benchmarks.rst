@@ -63,7 +63,7 @@ From a source installation, run:
    ./isaaclab.sh benchmark runtime \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
-       --warmup_frames 50 \
+       --warmup_steps 50 \
        --num_frames 1000 \
        --seed 42 \
        --visualizer none \
@@ -79,9 +79,9 @@ comparison. With multiple formatters, their filenames include ``_summary`` and
 Warm-Up
 ~~~~~~~
 
-``--warmup_frames`` runs excluded environment steps before the measured window.
+``--warmup_steps`` runs excluded environment steps before the measured window.
 The first step is always treated as a startup diagnostic, so at least one step
-is excluded even when ``--warmup_frames 0`` is requested. The subsequent
+is excluded even when ``--warmup_steps 0`` is requested. The subsequent
 ``--num_frames`` steps form the throughput window. Startup is recorded
 separately and is not included in runtime throughput.
 
@@ -173,7 +173,7 @@ same random-action stepping workload.
 Capture provenance: Intel(R) Core(TM) i9-14900K CPU, NVIDIA GeForce RTX 5090
 GPU, Ubuntu 24.04.3, revision
 f02ca894a91f9db3a9ab0d42fcf23a5bc5eae22d. Both runs used PhysX, seed 42,
-50 warm-up frames, and a 1000-frame measured window. The headless run used
+50 warm-up steps, and a 1000-frame measured window. The headless run used
 Isaac-Cartpole-Direct with 4096 environments; the rendered run used
 Isaac-Cartpole-Camera-Direct with 1024 environments, RTX rendering, and the RGB
 preset. The approved balanced power profile used intel_pstate with powersave
@@ -537,7 +537,7 @@ and sensor preset explicitly:
    ./isaaclab.sh benchmark runtime \
        --task Isaac-Cartpole-Camera-Direct \
        --num_envs 1024 \
-       --warmup_frames 50 \
+       --warmup_steps 50 \
        --num_frames 1000 \
        --seed 42 \
        --enable_cameras \
@@ -656,8 +656,7 @@ Incomplete play episodes
 
 Invalid counts
    ``--num_frames`` and an explicitly supplied ``--max_iterations`` must be
-   greater than zero. ``--warmup_frames`` and ``--warmup_steps`` must be
-   non-negative.
+   greater than zero. ``--warmup_steps`` must be non-negative.
 
 Missing resource or frame-time metrics
    Very short runs may finish before the periodic resource monitor samples

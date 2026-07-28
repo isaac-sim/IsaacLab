@@ -282,6 +282,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 total_fps=total_fps_series,
                 steps_per_iteration=env.unwrapped.num_envs * agent_cfg.num_steps_per_env,
                 frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_warmup_steps=args_cli.warmup_steps,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
