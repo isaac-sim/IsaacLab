@@ -161,6 +161,10 @@ mimic = [
 
 teleop = [
     "isaaclab-teleop",
+    # ``isaaclab teleop record`` imports isaaclab_mimic.envs for the mimic env registrations
+    # and its subtask instruction UI. Only the source package is needed; robomimic stays in
+    # the ``mimic`` extra because its lxml<5.0.0 pin is what clashes with dex-retargeting.
+    "isaaclab-mimic",
     # IsaacTeleop is Linux x86_64 only
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",

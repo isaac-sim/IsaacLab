@@ -22,3 +22,8 @@ Fixed
   requires ``websockets>=14.0``; a ``websockets>=14.0`` override now lets the two extras
   co-resolve, so XR teleoperation can be installed from the documented ``uv`` workflow. The
   ``teleop``/``mimic`` and ``teleop``/``all`` conflicts remain because of the ``lxml`` split.
+* Fixed ``ModuleNotFoundError: No module named 'isaaclab_mimic'`` when recording
+  demonstrations from a teleop-only environment. ``scripts/tools/record_demos.py`` imports
+  ``isaaclab_mimic`` at module level, so the ``teleop`` extra now installs the
+  ``isaaclab-mimic`` package. ``robomimic`` stays in the ``mimic`` extra, since its
+  ``lxml<5.0.0`` pin is what clashes with ``dex-retargeting``.

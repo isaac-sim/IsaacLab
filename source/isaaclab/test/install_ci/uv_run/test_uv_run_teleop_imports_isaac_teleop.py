@@ -7,8 +7,10 @@
 Setup:
     - (none: uv run creates the environment from the committed uv.lock on first invocation)
 Tests:
-    - uv run --frozen --extra xr python -c "import isaacsim, isaaclab_teleop, isaacteleop"
-        -> verify the aggregated XR extra co-resolves and imports Isaac Sim and Isaac Teleop
+    - uv run --frozen --extra xr python -c "import isaacsim, isaaclab_teleop, isaacteleop,
+        isaaclab_mimic.envs"
+        -> verify the aggregated XR extra co-resolves and imports every module the teleop
+           workflow scripts need
     - uv run --frozen --extra xr isaaclab teleop run --help
         -> verify the isaaclab teleop entry point runs from that environment
 """
@@ -59,7 +61,10 @@ class Test_Uv_Run_Teleop_Imports_Isaac_Teleop:
                 *_XR_EXTRA,
                 "python",
                 "-c",
-                "import isaacsim, isaaclab_teleop, isaacteleop",
+                # isaaclab_mimic.envs and the subtask instruction UI are imported at module
+                # level by record_demos.py, so ``isaaclab teleop record`` needs them present.
+                "import isaacsim, isaaclab_teleop, isaacteleop, isaaclab_mimic.envs;"
+                " from isaaclab_mimic.ui.instruction_display import InstructionDisplay",
             ],
             cwd=isaaclab_root,
             env={

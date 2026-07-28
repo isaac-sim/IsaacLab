@@ -5,10 +5,13 @@
 
 """Tests for the unified teleoperation console entry point."""
 
+import re
 import sys
+from pathlib import Path
 from unittest import mock
 
 import pytest
+import tomllib
 
 import isaaclab.cli as cli
 
@@ -38,6 +41,38 @@ def test_teleop_dispatches_to_requested_script(command, script_parts):
 def test_teleop_workflow_script_exists(script_parts):
     """The dispatched scripts must exist so the documented commands are runnable."""
     assert cli.ISAACLAB_ROOT.joinpath(*script_parts).is_file()
+
+
+def _requirement_names(requirements: list[str]) -> set[str]:
+    """Return the importable module names for a list of requirement strings."""
+    names = set()
+    for requirement in requirements:
+        name = re.split(r"[\s<>=!~\[;@]", requirement, maxsplit=1)[0]
+        if name.startswith("isaaclab"):
+            names.add(name.replace("-", "_"))
+    return names
+
+
+@pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
+def test_teleop_workflow_isaaclab_imports_are_covered_by_the_extras(command, script_parts):
+    """Every ``isaaclab_*`` package a teleop script imports must ship with the extras.
+
+    ``record_demos.py`` imports ``isaaclab_mimic`` at module level, so an environment built
+    from ``--extra xr`` alone used to die with ``ModuleNotFoundError`` only after Isaac Sim
+    had finished booting. This catches that class of gap without needing an install.
+    """
+    with (cli.ISAACLAB_ROOT / "pyproject.toml").open("rb") as f:
+        pyproject = tomllib.load(f)
+    project = pyproject["project"]
+
+    available = _requirement_names(project["dependencies"])
+    available |= _requirement_names(project["optional-dependencies"]["teleop"])
+
+    source = Path(cli.ISAACLAB_ROOT).joinpath(*script_parts).read_text(encoding="utf-8")
+    imported = set(re.findall(r"^\s*(?:import|from)\s+(isaaclab_\w+)", source, re.MULTILINE))
+
+    missing = imported - available
+    assert not missing, f"'isaaclab teleop {command}' imports {sorted(missing)}, absent from the teleop extra"
 
 
 def test_teleop_rejects_unknown_workflow():
