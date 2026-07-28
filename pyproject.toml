@@ -135,7 +135,11 @@ rerun = [
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
-isaacsim-local = ["isaacsim[all,extscache]>=6.0.1.0"]
+# Isaac Sim built from source (``isaaclab --isaacsim_source``). Committed unpinned: source builds
+# carry pre-release local versions (``6.0.1rc7+develop.<hash>.local``) that sort *below* the
+# published release, so any bound derived from it would exclude them. ``--isaacsim_source``
+# rewrites this line to pin the exact build; that edit is local-only, do not commit it.
+isaacsim-local = ["isaacsim[all,extscache]==6.0.1rc7+develop.0.98701505.local"]
 # Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
 ov = ["ovphysx>=0.4.13", "ovstage>=0.1.0,<0.2.0"]
 rtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]

@@ -71,6 +71,11 @@ uv run python scripts/tutorials/00_sim/create_empty.py --viz kit
 UV_FIND_LINKS=_isaac_sim_wheels uv run --extra isaacsim-local python scripts/tutorials/00_sim/create_empty.py --viz kit
 ```
 
+  This only uses the local build when the `isaacsim-local` extra in `pyproject.toml` pins the exact
+  version from `_isaac_sim_wheels/isaacsim-*.whl`; `uv run isaaclab --isaacsim_source <path>` writes
+  that pin. Without it, uv resolves the published wheels from `pypi.nvidia.com` instead, because
+  source builds carry pre-release local versions that sort below the release.
+
 - Downloaded Isaac Sim package (`installation-method-binary`) uses the bundled-Python verification documented in the section (launch via `${ISAACSIM_PATH}/isaac-sim.sh`, then run the tutorial script from the checkout).
 - Docker (`installation-method-container`) runs the same tutorial verification inside the container as documented in `docs/source/features/docker_cloud.rst`.
 

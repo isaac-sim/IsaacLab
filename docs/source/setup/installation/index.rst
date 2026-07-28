@@ -491,14 +491,19 @@ From an Isaac Lab checkout, one command runs the whole build-and-wire-up sequenc
    uv run isaaclab --isaacsim_source ./IsaacSim
 
 It builds Isaac Sim (skipped when the checkout is already built), packages the build as wheels,
-links them into Isaac Lab as ``_isaac_sim_wheels``, and re-resolves Isaac Sim from those wheels.
-When it finishes, run Isaac Lab against your build:
+links them into Isaac Lab as ``_isaac_sim_wheels``, pins the ``isaacsim-local`` extra to the
+version it just built, and re-resolves Isaac Sim from those wheels. When it finishes, run Isaac Lab
+against your build:
 
 .. code-block:: bash
 
    export UV_FIND_LINKS=_isaac_sim_wheels
    uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct presets=physx
+      --task Isaac-Cartpole-Direct presets=isaacsim_physx
+
+The pin lands in the tracked ``pyproject.toml`` and the re-resolve rewrites the tracked
+``uv.lock``. Both edits describe your machine only — leave them uncommitted, and drop them with
+``git checkout pyproject.toml uv.lock`` when you go back to the published Isaac Sim.
 
 The four steps below are the same sequence performed by hand. Follow them when you want to run the
 build outside the Isaac Lab checkout or need to debug a failing step. On Windows, creating
@@ -612,9 +617,18 @@ git-ignored, and it gives ``uv`` a stable path that survives shell restarts:
 
 .. rubric:: Step 4 — Run Isaac Lab against your build
 
-``UV_FIND_LINKS`` tells ``uv`` where your wheels are, and the ``isaacsim-local`` extra requests
-Isaac Sim without the published version pin. Re-resolve Isaac Sim once so the lock file picks your
-wheels over the released package, then run as usual:
+``UV_FIND_LINKS`` tells ``uv`` where your wheels are, and the ``isaacsim-local`` extra selects
+Isaac Sim from them. Pin that extra to the version you built, re-resolve once, then run as usual.
+
+The pin is required. Source builds carry a pre-release local version such as
+``6.0.1rc7+develop.0.98701505.local``, which sorts *below* the published release, so an unpinned
+extra always resolves back to ``pypi.nvidia.com`` instead of your wheels. Read the version off the
+wheel filename (``ls _isaac_sim_wheels/isaacsim-*.whl``) and edit the ``isaacsim-local`` entry under
+``[project.optional-dependencies]`` in ``pyproject.toml``:
+
+.. code-block:: toml
+
+   isaacsim-local = ["isaacsim[all,extscache]==6.0.1rc7+develop.0.98701505.local"]
 
 .. tab-set::
    :sync-group: os
@@ -634,7 +648,7 @@ wheels over the released package, then run as usual:
 
          # train
          uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct presets=physx
+            --task Isaac-Cartpole-Direct presets=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -651,7 +665,7 @@ wheels over the released package, then run as usual:
 
          :: train
          uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl ^
-            --task Isaac-Cartpole-Direct presets=physx
+            --task Isaac-Cartpole-Direct presets=isaacsim_physx
 
 The first launch can take over ten minutes while Isaac Sim downloads extensions. Add
 ``export UV_FIND_LINKS=_isaac_sim_wheels`` to your shell profile so every later ``uv`` command keeps
@@ -669,14 +683,16 @@ After rebuilding Isaac Sim, repeat step 2 and then:
 
 .. note::
 
-   ``uv`` selects the highest Isaac Sim version it can see across your wheels and
-   ``pypi.nvidia.com``, with a floor at the Isaac Sim release Isaac Lab supports. A build from
-   Isaac Sim ``main`` is normally newer than the published release, so your wheels win. If your
-   build's version is *not* newer, request it explicitly with the version from the wheel filename:
+   ``pyproject.toml`` and ``uv.lock`` are both tracked files, and the steps above rewrite each to
+   describe your machine. Leave those edits uncommitted, and drop them with
+   ``git checkout pyproject.toml uv.lock`` when you switch back to the published Isaac Sim.
 
-   .. code-block:: bash
+.. note::
 
-      uv run --extra isaacsim-local --with "isaacsim==<version>" isaaclab train ...
+   If Isaac Sim starts with ``Unable to bootstrap inner kit kernel: No module named 'carb._carb'``,
+   the ``_build`` tree is stale: it was produced by an older Kit built against a different Python
+   than the checkout now targets, and ``repo.sh python_package`` tagged the wheels from the
+   checkout rather than from those binaries. Delete ``IsaacSim/_build`` and rebuild from step 1.
 
 .. rubric:: Using the legacy ``isaaclab.sh`` installer instead
 

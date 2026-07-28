@@ -6,7 +6,9 @@
 """Misc commands"""
 
 import os
+import re
 import shutil
+import zipfile
 from pathlib import Path
 
 from ..utils import (
@@ -122,8 +124,13 @@ def command_build_isaacsim(source_path: str) -> None:
 
     Builds the Isaac Sim checkout when it has no build output yet, packages that build into
     Python wheels, links the wheels into the Isaac Lab repository as ``_isaac_sim_wheels``,
-    and re-resolves Isaac Sim from those wheels. Afterwards, run Isaac Lab against the build
-    with ``uv run --extra isaacsim-local``.
+    pins the ``isaacsim-local`` extra to the version that was built, and re-resolves Isaac Sim
+    from those wheels. Afterwards, run Isaac Lab against the build with
+    ``UV_FIND_LINKS=_isaac_sim_wheels uv run --extra isaacsim-local``.
+
+    The pin is required: source builds produce pre-release local versions that sort below the
+    published release, so an unpinned extra resolves back to the registry wheels instead. It
+    edits ``pyproject.toml``, which (like ``uv.lock``) must not be committed.
 
     Args:
         source_path: Path to an Isaac Sim source checkout.
@@ -156,6 +163,9 @@ def command_build_isaacsim(source_path: str) -> None:
         raise SystemExit(1)
     print_info(f"Built {len(wheels)} wheel(s) in {wheel_dir}.")
 
+    local_version = _extract_local_isaacsim_version(wheel_dir)
+    _check_kernel_abi(wheel_dir, build_script)
+
     # A stable, git-ignored path inside the repository keeps ``UV_FIND_LINKS`` short and
     # valid across shells, the same way ``_isaac_sim`` does for the Kit build.
     link_path = ISAACLAB_ROOT / "_isaac_sim_wheels"
@@ -174,10 +184,19 @@ def command_build_isaacsim(source_path: str) -> None:
         find_links = str(wheel_dir)
         print_warning(f"Could not create {link_path} ({error}). Using the absolute wheel path instead.")
 
+    # Source builds carry a pre-release local version (``6.0.1rc7+develop.<hash>.local``) that
+    # sorts *below* the published release, so an unpinned ``isaacsim-local`` extra always resolves
+    # back to the registry. uv only honors a version this specific per conflicting-extra fork when
+    # it is written into the requirement itself, so pin the extra to the version just built.
+    _pin_isaacsim_local_extra(local_version)
+
     # Re-resolve Isaac Sim so the lock file picks the local wheels over the published release.
     if shutil.which("uv") is not None:
         print_info("Re-resolving Isaac Sim from the local wheels...")
-        run_command(["uv", "lock", "--upgrade-package", "isaacsim"], env={**os.environ, "UV_FIND_LINKS": find_links})
+        run_command(
+            ["uv", "lock", "--upgrade-package", "isaacsim"],
+            env={**os.environ, "UV_FIND_LINKS": find_links},
+        )
     else:
         print_warning("uv was not found on PATH. Run 'uv lock --upgrade-package isaacsim' once uv is available.")
 
@@ -185,8 +204,86 @@ def command_build_isaacsim(source_path: str) -> None:
     print_info("Isaac Sim is ready. Run Isaac Lab against it with:")
     print_info(f"  {export_cmd}")
     print_info(
-        "  uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct presets=physx"
+        "  uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct"
+        " presets=isaacsim_physx"
     )
+    print_warning(
+        f"pyproject.toml now pins the 'isaacsim-local' extra to your build ({local_version}) and uv.lock resolves it"
+        " from _isaac_sim_wheels. Both are local-only; revert with 'git checkout pyproject.toml uv.lock' before"
+        " committing."
+    )
+
+
+def _extract_local_isaacsim_version(wheel_dir: Path) -> str:
+    """Read the version of the locally built ``isaacsim`` wheel.
+
+    Args:
+        wheel_dir: Directory holding the wheels produced by the Isaac Sim source build.
+
+    Returns:
+        The version of the top-level ``isaacsim`` wheel, e.g. ``6.0.1rc7+develop.0.98701505.local``.
+    """
+    # Wheel filenames are ``<name>-<version>-<python tag>-...``; the sibling extension wheels
+    # normalize to ``isaacsim_<component>``, so only the top-level distribution matches here.
+    candidates = sorted(wheel_dir.glob("isaacsim-*.whl"))
+    if not candidates:
+        print_error(f"No top-level 'isaacsim' wheel found in {wheel_dir}.")
+        raise SystemExit(1)
+    return candidates[-1].name.split("-")[1]
+
+
+def _check_kernel_abi(wheel_dir: Path, build_script: Path) -> None:
+    """Verify the packaged Kit kernel matches the Python ABI its wheel is tagged for.
+
+    ``repo.sh python_package`` tags the wheels from ``repo.toml`` rather than from the binaries it
+    packages, so a build tree left over from an older Kit (a different Python) is repackaged under
+    the wrong tag. ``uv`` then installs it happily and Isaac Sim only fails much later with
+    ``No module named 'carb._carb'``.
+
+    Args:
+        wheel_dir: Directory holding the wheels produced by the Isaac Sim source build.
+        build_script: Path to the Isaac Sim ``build.sh``/``build.bat``, quoted in the error message.
+    """
+    kernels = sorted(wheel_dir.glob("isaacsim_kernel-*.whl"))
+    if not kernels:
+        # Older Isaac Sim layouts may not split the kernel out; nothing to check against.
+        return
+    kernel = kernels[-1]
+    # ``<name>-<version>-<python tag>-<abi tag>-<platform tag>.whl``
+    wheel_tag = kernel.stem.split("-")[2]
+
+    with zipfile.ZipFile(kernel) as archive:
+        # ``carb._carb`` is the module Kit bootstraps first, and it ships as a single ABI build.
+        found = [re.search(r"/carb/_carb\.(cp\d+)", name.replace("cpython-", "cp")) for name in archive.namelist()]
+    built_tags = {match.group(1) for match in found if match}
+    if not built_tags or wheel_tag in built_tags:
+        return
+
+    print_error(
+        f"{kernel.name} is tagged '{wheel_tag}' but its carb kernel was built for"
+        f" {'/'.join(sorted(built_tags))}. The build tree is stale: it predates the Python version"
+        " the checkout now targets."
+    )
+    print_info(f"Remove '{wheel_dir.parents[1]}' and rebuild with: {build_script}")
+    raise SystemExit(1)
+
+
+def _pin_isaacsim_local_extra(version: str) -> None:
+    """Pin the ``isaacsim-local`` extra in ``pyproject.toml`` to a locally built Isaac Sim.
+
+    Args:
+        version: Version of the locally built ``isaacsim`` wheel.
+    """
+    pyproject = ISAACLAB_ROOT / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+    pinned = f'isaacsim-local = ["isaacsim[all,extscache]=={version}"]'
+    updated, count = re.subn(r"^isaacsim-local = \[.*\]$", pinned, text, count=1, flags=re.MULTILINE)
+    if count == 0:
+        print_error(f"Could not find the 'isaacsim-local' extra in {pyproject}.")
+        raise SystemExit(1)
+    if updated != text:
+        pyproject.write_text(updated, encoding="utf-8")
+    print_info(f"Pinned the 'isaacsim-local' extra to isaacsim=={version}.")
 
 
 def command_run_docker(args: list[str]) -> None:
