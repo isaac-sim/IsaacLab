@@ -408,9 +408,19 @@ jobs:
         image_tag="${{ steps.config.outputs.image_tag }}"
         docker run --rm --entrypoint bash "$image_tag" -lc '
           set -euo pipefail
-          ffmpeg_exe="$(./isaaclab.sh -p -c \
+          python_output=""
+          if ! python_output="$(./isaaclab.sh -p -c \
             "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())" \
-            | grep "^/" | tail -n 1)"
+            2>&1)"; then
+            printf "%s\n" "$python_output" >&2
+            echo "Could not resolve the bundled FFmpeg executable" >&2
+            exit 1
+          fi
+          printf "%s\n" "$python_output"
+          ffmpeg_exe="$(
+            printf "%s\n" "$python_output" \
+              | grep "^/" | tail -n 1 || true
+          )"
           if [[ ! -x "$ffmpeg_exe" ]]; then
             echo "Bundled FFmpeg executable is missing or not executable: $ffmpeg_exe" >&2
             exit 1
@@ -476,7 +486,29 @@ jobs:
         CURRENT_REPORT=trivy-isaaclab-licenses.json
         BASE_REPORT=trivy-isaacsim-licenses.json
         EXCEPTIONS_FILE=.github/workflows/license-exceptions.json
-        ALLOWED_LICENSES="mit apache bsd isc zlib"
+        FINDINGS_DELIMITER=$'\x1f'
+        ALLOWED_LICENSES=(
+          "0bsd"
+          "apache-2.0"
+          "apache-2.0 and cnri-python"
+          "apache-2.0 with llvm-exception"
+          "bsd-0-clause"
+          "bsd-1-clause"
+          "bsd-2-clause"
+          "bsd-2-clause and apache-2.0 with llvm-exception"
+          "bsd-2-clause-netbsd"
+          "bsd-3-clause"
+          "bsd-3-clause and 0bsd and mit and zlib and cc0-1.0"
+          "bsd-4-clause"
+          "bsd-4-clause-uc"
+          "cc0-1.0"
+          "isc"
+          "mit"
+          "mit or apache-2.0"
+          "mit/x11"
+          "x11"
+          "zlib"
+        )
 
         for report in "$CURRENT_REPORT" "$BASE_REPORT"; do
           if ! jq empty "$report"; then
@@ -541,20 +573,26 @@ jobs:
                 .Severity,
                 ""
               ]
-            | @tsv
+            | map(tostring)
+            | join("\u001f")
           ' "$1" | sort -u
         }
 
         extract_findings "$CURRENT_REPORT" > current-findings.tsv
-        cat bundled-components.tsv >> current-findings.tsv
-        sort -u -o current-findings.tsv current-findings.tsv
-        extract_findings "$BASE_REPORT" > base-findings.tsv
-        cut -f1-4 base-findings.tsv | tr '[:upper:]' '[:lower:]' > base-identities.tsv
-
         if [ ! -s current-findings.tsv ]; then
           echo "::error::Trivy found no package licenses in the Isaac Lab image"
           exit 1
         fi
+        extract_findings "$BASE_REPORT" > base-findings.tsv
+        if [ ! -s base-findings.tsv ]; then
+          echo "::error::Trivy found no package licenses in the Isaac Sim base image"
+          exit 1
+        fi
+
+        tr '\t' '\037' < bundled-components.tsv >> current-findings.tsv
+        sort -u -o current-findings.tsv current-findings.tsv
+        cut -d "$FINDINGS_DELIMITER" -f1-4 base-findings.tsv \
+          | tr '[:upper:]' '[:lower:]' > base-identities.tsv
 
         TOTAL_FINDINGS=$(wc -l < current-findings.tsv)
         INHERITED_FINDINGS=0
@@ -573,14 +611,14 @@ jobs:
             "$severity" "$reason" >> license-violations.md
         }
 
-        while IFS=$'\t' read -r \
+        while IFS="$FINDINGS_DELIMITER" read -r \
           package_type package version license category severity detected_linkage; do
           if [[ -z "$version" ]]; then
             record_violation "Package is missing from Trivy's version inventory"
             continue
           fi
 
-          identity=$(printf '%s\t%s\t%s\t%s' \
+          identity=$(printf '%s\x1f%s\x1f%s\x1f%s' \
             "$package_type" "$package" "$version" "$license" \
             | tr '[:upper:]' '[:lower:]')
 
@@ -595,8 +633,8 @@ jobs:
           fi
 
           license_is_allowed=false
-          for allowed_license in $ALLOWED_LICENSES; do
-            if [[ "${license,,}" == *"$allowed_license"* ]]; then
+          for allowed_license in "${ALLOWED_LICENSES[@]}"; do
+            if [[ "${license,,}" == "$allowed_license" ]]; then
               license_is_allowed=true
               break
             fi
@@ -615,7 +653,10 @@ jobs:
                 .[]
                 | select(
                     (.package | ascii_downcase) == ($package | ascii_downcase)
-                    and ((.package_type == null) or (.package_type == $package_type))
+                    and (
+                      (.package_type == $package_type)
+                      or ($package_type == "Python" and .package_type == null)
+                    )
                     and (
                       (.license == null)
                       or ((.license | ascii_downcase) == ($license | ascii_downcase))
@@ -741,10 +782,18 @@ jobs:
         if-no-files-found: warn
         retention-days: 14
 
-    - name: Clean up Docker credentials
+    - name: Clean up Docker resources
       if: always()
       shell: bash
       run: |
+        image_tag="${{ steps.config.outputs.image_tag }}"
+        docker image rm -f "$image_tag" >/dev/null 2>&1 || true
+        if [ -n "${ECR_IMAGE:-}" ] && [ "$ECR_IMAGE" != "$image_tag" ]; then
+          docker image rm -f "$ECR_IMAGE" >/dev/null 2>&1 || true
+        fi
+
         if [ -n "${DOCKER_CONFIG:-}" ] && [ -d "${DOCKER_CONFIG}" ]; then
           rm -rf "${DOCKER_CONFIG}"
+        else
+          echo "::warning::Temporary DOCKER_CONFIG directory was not available for cleanup"
         fi

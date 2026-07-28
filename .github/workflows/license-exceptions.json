@@ -871,6 +871,10 @@
     "package_type": "OS Packages",
     "license": "CC0-1.0",
     "license_aliases": [
+      "BSD-124-clause-UCB",
+      "BSD-1-clause-UCB",
+      "BSD-3-clause-UCB",
+      "BSD-4-clause-UCB",
       "OpenSSL+SSLeay",
       "PD"
     ],
@@ -1016,6 +1020,9 @@
     "license_aliases": [
       "Artistic-2.0",
       "Artistic-dist",
+      "BSD-3-clause-GENERIC",
+      "BSD-3-clause-with-weird-numbering",
+      "BSD-4-clause-POWERDOG",
       "BZIP",
       "CC0-1.0",
       "DONT-CHANGE-THE-GPL",
@@ -1056,6 +1063,9 @@
     "license_aliases": [
       "Artistic-2.0",
       "Artistic-dist",
+      "BSD-3-clause-GENERIC",
+      "BSD-3-clause-with-weird-numbering",
+      "BSD-4-clause-POWERDOG",
       "BZIP",
       "CC0-1.0",
       "DONT-CHANGE-THE-GPL",
@@ -1082,6 +1092,9 @@
     "license_aliases": [
       "Artistic-2.0",
       "Artistic-dist",
+      "BSD-3-clause-GENERIC",
+      "BSD-3-clause-with-weird-numbering",
+      "BSD-4-clause-POWERDOG",
       "BZIP",
       "CC0-1.0",
       "DONT-CHANGE-THE-GPL",
@@ -1130,9 +1143,21 @@
     "comment": "Dual-licensed BSD-3-Clause OR GPL-3.0; Isaac Lab selects the BSD-3-Clause alternative"
   },
   {
+    "package": "orjson",
+    "package_type": "Python",
+    "license": "MPL-2.0 AND (Apache-2.0 OR MIT)",
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "MPL-2.0 / OSRB; imported into the Isaac Lab Python process"
+  },
+  {
     "package": "tqdm",
     "package_type": "Python",
     "license": "MPL-2.0",
+    "license_aliases": [
+      "MPL-2.0 AND MIT"
+    ],
     "usage": "runtime_dependency",
     "interaction": "same_process_dynamic",
     "comment": "MPL-2.0 / OSRB; imported into the Isaac Lab Python process"
