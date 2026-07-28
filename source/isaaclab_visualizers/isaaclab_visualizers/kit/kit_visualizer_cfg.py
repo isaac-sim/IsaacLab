@@ -46,25 +46,25 @@ class KitVisualizerCfg(VisualizerCfg):
     Options:
 
     * ``"world"``: global origin.
-    * ``"env"``: origin of the environment at :attr:`env_index`.
-    * ``"asset_root"``: root of the asset named :attr:`asset_name` in environment :attr:`env_index`.
-    * ``"asset_body"``: specific body of the asset (requires :attr:`asset_name` and :attr:`body_name`).
+    * ``"env"``: origin of the environment at :attr:`origin_env_index`.
+    * ``"asset_root"``: root of the asset :attr:`origin_asset` in environment :attr:`origin_env_index`.
+    * ``"asset_body"``: body :attr:`origin_body` on asset :attr:`origin_asset` (requires both).
     """
 
-    env_index: int = 0
-    """Index of the environment used as the camera origin.
+    origin_env_index: int = 0
+    """Index of the environment used as the viewport camera origin.
 
     Only meaningful when :attr:`origin_type` is ``"env"``, ``"asset_root"``, or ``"asset_body"``.
     """
 
-    asset_name: str | None = None
-    """Name of the asset in the interactive scene used as the camera tracking target.
+    origin_asset: str | None = None
+    """Scene asset key used as the viewport camera tracking target.
 
     Required when :attr:`origin_type` is ``"asset_root"`` or ``"asset_body"``.
     """
 
-    body_name: str | None = None
-    """Name of the body within :attr:`asset_name` used as the camera tracking target.
+    origin_body: str | None = None
+    """Body name within :attr:`origin_asset` used as the viewport camera tracking target.
 
     Required when :attr:`origin_type` is ``"asset_body"``.
     """

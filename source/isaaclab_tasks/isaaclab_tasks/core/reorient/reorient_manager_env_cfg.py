@@ -345,5 +345,5 @@ class ReorientObjectEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
-        # change viewer settings
+        # visualizer camera settings
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.0, 2.0, 2.0))

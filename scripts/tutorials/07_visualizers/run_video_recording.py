@@ -5,19 +5,19 @@
 
 """Tutorial: recording video from visualizers and scene sensors.
 
-This script demonstrates three progressively richer recording configurations.
-Select the active example by setting ``_EXAMPLE`` to 1, 2, or 3 at the top of
-the file, then run the corresponding command below.
+This script demonstrates three progressively richer recording configurations,
+all using the Shadow Hand cube-reorientation task
+(``Isaac-Reorient-Cube-Shadow-Camera-Direct``).
 
-Example 1 — Kit viewport + tiled-camera grid (AnymalD, Kit visualizer)
-    Two simultaneous clips: the main Kit viewport and the Kit tiled-camera grid.
+Example 1 — Kit viewport (simplest)
+    One clip from the Kit interactive viewport.
 
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 1 --num_envs 256
+            --example 1 --num_envs 16
 
-Example 2 — scene sensor only, headless (Shadow Hand, no visualizer)
+Example 2 — scene sensor only, headless
     One clip captured directly from the scene's tiled-camera sensor.
     No visualizer window opens; the sensor renders offline.
 
@@ -26,8 +26,8 @@ Example 2 — scene sensor only, headless (Shadow Hand, no visualizer)
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
             --example 2 --num_envs 16
 
-Example 3 — Kit viewport + Newton viewport + scene sensor (Shadow Hand)
-    Three independent clip streams recorded simultaneously.
+Example 3 — Kit viewport + tiled-camera grid + Newton viewport + scene sensor
+    Four independent clip streams recorded simultaneously.
 
     .. code-block:: bash
 
@@ -35,6 +35,7 @@ Example 3 — Kit viewport + Newton viewport + scene sensor (Shadow Hand)
             --example 3 --num_envs 16
 
 Clips are written to ``videos/recording_tutorial/example_<N>/`` in the working directory.
+Examples 1 and 2 each demonstrate one recording source; Example 3 combines all of them.
 """
 
 from __future__ import annotations
@@ -64,12 +65,32 @@ from isaaclab_tasks.utils import setup_preset_cli
 _VIDEO_LENGTH = 100  # env steps per clip
 _NUM_STEPS = 115  # slightly more than _VIDEO_LENGTH so the clip flushes cleanly
 
-_TASK_ANYMAL = "Isaac-Velocity-Rough-AnymalD"
 _TASK_SHADOW = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
+
+# Viewport camera for Shadow Hand: zoomed in on the hand and cube.
+# The hand base is near world origin; the cube spawns at roughly (0, -0.39, 0.6).
+_SHADOW_EYE = (0.5, -0.8, 0.8)
+_SHADOW_LOOKAT = (0.0, -0.35, 0.5)
+
+# Tiled camera eye offset from each robot root for generated per-env cameras.
+_SHADOW_TILED_EYE = (0.0, 0.35, 0.8)
 
 
 def _output_dir(example: int) -> str:
     return os.path.join("videos", "recording_tutorial", f"example_{example}")
+
+
+def _shadow_env_cfg(num_envs: int):
+    """Build a base Shadow Hand camera env cfg shared by all examples."""
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
+
+    env_cfg = ShadowHandCameraEnvCfg()
+    env_cfg.tiled_camera = env_cfg.tiled_camera.rgb
+    env_cfg.tiled_camera.renderer_cfg = env_cfg.tiled_camera.renderer_cfg.default
+    env_cfg.tiled_camera.height = 256
+    env_cfg.tiled_camera.width = 256
+    env_cfg.scene.num_envs = num_envs
+    return env_cfg
 
 
 # ---------------------------------------------------------------------------
@@ -78,21 +99,13 @@ def _output_dir(example: int) -> str:
 
 
 def _build_env_cfg_example_1(num_envs: int):
-    """AnymalD + Kit visualizer: viewport clip and tiled-camera grid clip."""
+    """Shadow Hand + Kit viewport: one clip from the interactive viewport."""
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
-    from isaaclab_tasks.core.velocity.config.anymal_d.rough_env_cfg import AnymalDRoughEnvCfg
-
-    env_cfg = AnymalDRoughEnvCfg()
-    env_cfg.scene.num_envs = num_envs
-    # Resolve the physics PresetCfg to the default (PhysxCfg) so the launch validator
-    # does not see OvPhysxCfg entries that would block a Kit visualizer.
+    env_cfg = _shadow_env_cfg(num_envs)
     env_cfg.sim.physics = env_cfg.sim.physics.default
 
-    kit_cfg = KitVisualizerCfg()
-    kit_cfg.tiled_cam_view = True
-    kit_cfg.tiled_cam_num = min(36, num_envs)
-    env_cfg.sim.visualizer_cfgs = [kit_cfg]
+    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT)]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [
@@ -103,29 +116,13 @@ def _build_env_cfg_example_1(num_envs: int):
             video_length=_VIDEO_LENGTH,
             fps=30,
         ),
-        VideoRecorderCfg(
-            source="visualizer:kit:tiled",
-            output_dir=out,
-            output_filename_prefix="tiled",
-            video_length=_VIDEO_LENGTH,
-            fps=30,
-        ),
     ]
-    return env_cfg, _TASK_ANYMAL
+    return env_cfg, _TASK_SHADOW
 
 
 def _build_env_cfg_example_2(num_envs: int):
     """Shadow Hand + headless: scene tiled-camera sensor clip only."""
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
-
-    env_cfg = ShadowHandCameraEnvCfg()
-    env_cfg.tiled_camera = env_cfg.tiled_camera.rgb  # rgb-only preset
-    # Resolve the renderer PresetCfg to IsaacRtxRendererCfg so the launch validator
-    # does not see the OvRTX entry that would block Kit-based PhysX physics.
-    env_cfg.tiled_camera.renderer_cfg = env_cfg.tiled_camera.renderer_cfg.default
-    env_cfg.tiled_camera.height = 256
-    env_cfg.tiled_camera.width = 256
-    env_cfg.scene.num_envs = num_envs
+    env_cfg = _shadow_env_cfg(num_envs)
     env_cfg.sim.visualizer_cfgs = []  # no interactive visualizer
 
     out = _output_dir(2)
@@ -142,23 +139,21 @@ def _build_env_cfg_example_2(num_envs: int):
 
 
 def _build_env_cfg_example_3(num_envs: int):
-    """Shadow Hand + Kit + Newton + sensor: three simultaneous streams."""
+    """Shadow Hand + Kit viewport + tiled-camera grid + Newton viewport + sensor: four simultaneous streams."""
     from isaaclab_visualizers.kit import KitVisualizerCfg
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
-
-    env_cfg = ShadowHandCameraEnvCfg()
-    env_cfg.tiled_camera = env_cfg.tiled_camera.rgb  # rgb-only preset
-    env_cfg.tiled_camera.renderer_cfg = env_cfg.tiled_camera.renderer_cfg.default
-    env_cfg.tiled_camera.height = 256
-    env_cfg.tiled_camera.width = 256
+    env_cfg = _shadow_env_cfg(num_envs)
     env_cfg.sim.physics = env_cfg.sim.physics.default
-    env_cfg.scene.num_envs = num_envs
 
-    kit_cfg = KitVisualizerCfg()
-    kit_cfg.tiled_cam_view = True
-    kit_cfg.tiled_cam_num = min(16, num_envs)
+    kit_cfg = KitVisualizerCfg(
+        eye=_SHADOW_EYE,
+        lookat=_SHADOW_LOOKAT,
+        tiled_cam_view=True,
+        tiled_cam_num=min(16, num_envs),
+        tiled_cam_eye=_SHADOW_TILED_EYE,
+        tiled_cam_target_prim_path="/World/envs/*/Robot",
+    )
     newton_cfg = NewtonVisualizerCfg()
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 
@@ -168,6 +163,13 @@ def _build_env_cfg_example_3(num_envs: int):
             source="visualizer:kit",
             output_dir=out,
             output_filename_prefix="kit_viewport",
+            video_length=_VIDEO_LENGTH,
+            fps=30,
+        ),
+        VideoRecorderCfg(
+            source="visualizer:kit:tiled",
+            output_dir=out,
+            output_filename_prefix="tiled",
             video_length=_VIDEO_LENGTH,
             fps=30,
         ),
@@ -210,13 +212,12 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 def main():
     """Run the selected video recording example."""
-    num_envs = args_cli.num_envs if args_cli.num_envs is not None else {1: 256, 2: 16, 3: 16}[args_cli.example]
+    num_envs = args_cli.num_envs if args_cli.num_envs is not None else 16
     env_cfg, task = _BUILDERS[args_cli.example](num_envs)
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # Examples 1 and 3 record from the Kit viewport via omni.replicator, which requires
-    # camera rendering support.  The auto-enable in launch_simulation only triggers for
-    # scenes that contain Kit camera sensors; force it here for visualizer-only recording.
+    # camera rendering support.  Force it here for visualizer-only recording.
     if args_cli.example in (1, 3):
         args_cli.enable_cameras = True
 

@@ -212,7 +212,7 @@ class BaseEnvWindow:
                 viewport_origin_cfg = {
                     "label": "Environment Index",
                     "type": "button",
-                    "default_val": (_viz.cfg.env_index if _viz is not None else 0) + 1,
+                    "default_val": (_viz.cfg.origin_env_index if _viz is not None else 0) + 1,
                     "min": 1,
                     "max": self.env.num_envs,
                     "tooltip": "The environment index to follow. Only effective if follow mode is not 'World'.",
@@ -429,7 +429,7 @@ class BaseEnvWindow:
             fancy_names = [name.replace("_", " ").title() for name in self._viewer_assets_options]
             viewer_asset_name = self._viewer_assets_options[fancy_names.index(value)]
             viz.cfg.origin_type = "asset_root"
-            viz.cfg.asset_name = viewer_asset_name
+            viz.cfg.origin_asset = viewer_asset_name
 
         # Reposition the viewport camera immediately so the new origin is reflected
         # without waiting for the next env.step() call.
@@ -461,7 +461,7 @@ class BaseEnvWindow:
         viz = self._get_kit_visualizer()
         env_index = model.as_int - 1
         if viz is not None:
-            viz.cfg.env_index = env_index
+            viz.cfg.origin_env_index = env_index
             # For "env" origin the camera must be repositioned immediately; for asset-tracking
             # origins reapply_origin() defers the update to the next step() call (asset state
             # is needed to compute the new position).

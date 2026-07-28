@@ -271,9 +271,9 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.dt = 1 / 60.0
         self.sim.render_interval = self.decimation
 
-        # viewer settings
+        # visualizer camera settings
         self.sim.visualizer_cfgs = [
-            KitVisualizerCfg(origin_type="asset_root", asset_name="robot", env_index=0, eye=(1.25, -1.5, 0.6))
+            KitVisualizerCfg(origin_type="asset_root", origin_asset="robot", origin_env_index=0, eye=(1.25, -1.5, 0.6))
         ]
         self.sim.physics = PhysicsCfg()
 

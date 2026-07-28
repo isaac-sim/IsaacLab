@@ -17,7 +17,6 @@ import random
 import sys
 import time
 
-import gymnasium as gym
 import skrl
 import torch
 from packaging import version
@@ -97,6 +96,7 @@ parser.add_argument(
     help="Play with the training environment configuration as-is, skipping play-mode overrides.",
 )
 add_launcher_args(parser)
+add_frontend_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser, agent_library="skrl")
 args_cli.task = resolve_play_task_name(args_cli.task)
 
@@ -194,12 +194,12 @@ def _main():
         env_cfg.log_dir = log_dir
         apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
-        env = gym.make(args_cli.task, cfg=env_cfg)
-
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and algorithm in ["ppo"]:
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
+        )
 
         try:
             dt = env.step_dt

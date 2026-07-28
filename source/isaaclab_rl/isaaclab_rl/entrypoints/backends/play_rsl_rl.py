@@ -12,7 +12,6 @@ import os
 import sys
 import time
 
-import gymnasium as gym
 import torch
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
@@ -26,7 +25,9 @@ from isaaclab.utils.string import list_intersection, string_to_callable
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
+    add_frontend_args,
     apply_video_recording,
+    create_isaaclab_env,
     resolve_checkpoint_selector,
     resolve_play_task_name,
 )
@@ -78,6 +79,7 @@ parser.add_argument(
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
+add_frontend_args(parser)
 args_cli, remaining_args = setup_preset_cli(parser, agent_library="rsl_rl")
 args_cli.task = resolve_play_task_name(args_cli.task)
 
@@ -142,12 +144,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.log_dir = log_dir
         apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
-        env = gym.make(args_cli.task, cfg=env_cfg)
-
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+        )
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 

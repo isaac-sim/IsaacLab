@@ -13,7 +13,6 @@ import sys
 import time
 from pathlib import Path
 
-import gymnasium as gym
 import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
@@ -24,7 +23,9 @@ from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
+    add_frontend_args,
     apply_video_recording,
+    create_isaaclab_env,
     resolve_checkpoint_selector,
     resolve_play_task_name,
 )
@@ -75,6 +76,7 @@ parser.add_argument(
     help="Play with the training environment configuration as-is, skipping play-mode overrides.",
 )
 add_launcher_args(parser)
+add_frontend_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser, agent_library="sb3")
 args_cli.task = resolve_play_task_name(args_cli.task)
 
@@ -128,14 +130,14 @@ def main():
         env_cfg.log_dir = log_dir
         apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
-        env = gym.make(args_cli.task, cfg=env_cfg)
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+        )
 
         agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
-
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
 
         env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 

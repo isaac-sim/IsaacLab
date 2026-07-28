@@ -174,7 +174,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
             # remove ground as it obstructs the camera
             self.scene.ground = None
             self.events.reset_pole_position.params["position_range"] = (-0.125 * math.pi, 0.125 * math.pi)
-            # viewer settings
+            # visualizer camera settings
             self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0), lookat=(0.0, 0.0, 0.0))
 
     rgb = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("rgb"))

@@ -14,7 +14,6 @@ import re
 import sys
 import time
 
-import gymnasium as gym
 import torch
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
@@ -27,7 +26,9 @@ from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
+    add_frontend_args,
     apply_video_recording,
+    create_isaaclab_env,
     resolve_checkpoint_selector,
     resolve_play_task_name,
 )
@@ -72,6 +73,7 @@ parser.add_argument(
     help="Play with the training environment configuration as-is, skipping play-mode overrides.",
 )
 add_launcher_args(parser)
+add_frontend_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser, agent_library="rl_games")
 args_cli.task = resolve_play_task_name(args_cli.task)
 
@@ -138,12 +140,12 @@ def main():
         obs_groups = agent_cfg["params"]["env"].get("obs_groups")
         concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
-        env = gym.make(args_cli.task, cfg=env_cfg)
-
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            from isaaclab.envs import multi_agent_to_single_agent
-
-            env = multi_agent_to_single_agent(env)
+        env = create_isaaclab_env(
+            args_cli.task,
+            env_cfg,
+            args_cli,
+            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+        )
 
         env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
 

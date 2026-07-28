@@ -380,8 +380,8 @@ class KitVisualizer(BaseVisualizer):
         """Recompute the camera position from the current :attr:`~KitVisualizerCfg.origin_type` and push it to
         the viewport.
 
-        Call this after mutating :attr:`cfg.origin_type`, :attr:`cfg.env_index`, or
-        :attr:`cfg.asset_name` so the viewport reflects the new origin immediately rather than
+        Call this after mutating :attr:`cfg.origin_type`, :attr:`cfg.origin_env_index`, or
+        :attr:`cfg.origin_asset` so the viewport reflects the new origin immediately rather than
         waiting for the next :meth:`step` call.
 
         For ``"asset_root"`` and ``"asset_body"`` origins the camera update is deferred to the
@@ -1042,17 +1042,19 @@ class KitVisualizer(BaseVisualizer):
                 self._viewer_origin = torch.zeros(3)
             else:
                 num_envs = scene.num_envs
-                if not (0 <= self.cfg.env_index < num_envs):
+                if not (0 <= self.cfg.origin_env_index < num_envs):
                     raise ValueError(
-                        f"[KitVisualizer] env_index {self.cfg.env_index} is out of range "
+                        f"[KitVisualizer] origin_env_index {self.cfg.origin_env_index} is out of range "
                         f"[0, {num_envs - 1}] for origin_type='env'."
                     )
-                self._viewer_origin = scene.env_origins[self.cfg.env_index]
+                self._viewer_origin = scene.env_origins[self.cfg.origin_env_index]
         elif self.cfg.origin_type in ("asset_root", "asset_body"):
-            if self.cfg.asset_name is None:
-                raise ValueError(f"[KitVisualizer] origin_type='{self.cfg.origin_type}' requires asset_name to be set.")
-            if self.cfg.origin_type == "asset_body" and self.cfg.body_name is None:
-                raise ValueError("[KitVisualizer] origin_type='asset_body' requires body_name to be set.")
+            if self.cfg.origin_asset is None:
+                raise ValueError(
+                    f"[KitVisualizer] origin_type='{self.cfg.origin_type}' requires origin_asset to be set."
+                )
+            if self.cfg.origin_type == "asset_body" and self.cfg.origin_body is None:
+                raise ValueError("[KitVisualizer] origin_type='asset_body' requires origin_body to be set.")
             # Asset data is not available until after sim.reset(); defer to step().
             return
         else:
@@ -1068,17 +1070,17 @@ class KitVisualizer(BaseVisualizer):
         ``"asset_root"`` or ``"asset_body"``.
         """
         scene = self._interactive_scene
-        if scene is None or self.cfg.asset_name is None:
+        if scene is None or self.cfg.origin_asset is None:
             return
         try:
-            asset = scene[self.cfg.asset_name]
+            asset = scene[self.cfg.origin_asset]
         except KeyError:
             return
         if self.cfg.origin_type == "asset_root":
-            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.env_index]
-        elif self.cfg.origin_type == "asset_body" and self.cfg.body_name is not None:
-            body_ids, _ = asset.find_bodies(self.cfg.body_name)
-            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.env_index, body_ids[0]]
+            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.origin_env_index]
+        elif self.cfg.origin_type == "asset_body" and self.cfg.origin_body is not None:
+            body_ids, _ = asset.find_bodies(self.cfg.origin_body)
+            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.origin_env_index, body_ids[0]]
         self._apply_viewer_origin_to_camera()
 
     def _apply_viewer_origin_to_camera(self) -> None:

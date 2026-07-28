@@ -39,41 +39,28 @@ Tutorial examples
 
 All three examples use the Shadow Hand cube-reorientation task
 (``Isaac-Reorient-Cube-Shadow-Camera-Direct``), which ships with a built-in tiled camera
-sensor.  Each example adds one more recording source, so you can run them in order to
-build intuition progressively.
+sensor.  Example 1 and Example 2 each demonstrate one recording source; Example 3
+combines all of them simultaneously.
 
 
-Example 1: Kit viewport and tiled-camera grid
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Example 1: Kit viewport
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Run with:
 
 .. code-block:: bash
 
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-       --example 1 --num_envs 256
+       --example 1 --num_envs 16
 
-Two clips are written to ``videos/recording_tutorial/example_1/``:
+One clip is written to ``videos/recording_tutorial/example_1/viewport_0000.mp4`` — the
+main Kit interactive viewport camera, pointed at env 0's hand.
 
-* ``viewport_0000.mp4`` — the main Kit interactive viewport camera.
-* ``tiled_0000.mp4`` — the tiled-camera grid of 36 environment views.
-
-.. figure:: ../_static/how-to/record_video/example1_viewport.gif
+.. figure:: ../_static/how-to/record_video/example_viewport.gif
    :width: 100%
    :alt: Kit viewport recording — Shadow Hand cube reorientation
 
    Kit viewport recording: ``viewport_0000.mp4``
-
-.. figure:: ../_static/how-to/record_video/example1_tiled.gif
-   :width: 100%
-   :alt: Kit tiled-camera grid recording — all 16 environments
-
-   Kit tiled-camera grid recording: ``tiled_0000.mp4``
-
-The script sets ``KitVisualizerCfg(tiled_cam_view=True, tiled_cam_num=16)`` to open the
-tiled panel alongside the main viewport, then points two independent recorders at
-``"visualizer:kit"`` and ``"visualizer:kit:tiled"``.  The ``output_filename_prefix``
-field distinguishes the two output files in the same directory.
 
 
 Example 2: Scene sensor, headless
@@ -90,7 +77,7 @@ No visualizer window opens.  The recorder reads frames directly from the
 ``tiled_camera`` sensor in the Shadow Hand scene, writing one clip to
 ``videos/recording_tutorial/example_2/sensor_0000.mp4``.
 
-.. figure:: ../_static/how-to/record_video/example2_sensor.gif
+.. figure:: ../_static/how-to/record_video/example_sensor.gif
    :width: 100%
    :alt: Sensor recording — tiled camera grid headless
 
@@ -102,8 +89,8 @@ other channels can be recorded by appending the channel name (e.g.
 ``"sensor:tiled_camera:depth"``).
 
 
-Example 3: Kit viewport, Newton viewport, and sensor simultaneously
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Example 3: All sources simultaneously
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Run with:
 
@@ -112,25 +99,32 @@ Run with:
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
        --example 3 --num_envs 16
 
-Three clips are written to ``videos/recording_tutorial/example_3/``:
+Four clips are written to ``videos/recording_tutorial/example_3/``:
 
 * ``kit_viewport_0000.mp4`` — Kit interactive viewport (RTX renderer).
+* ``tiled_0000.mp4`` — Kit tiled-camera grid of per-env views.
 * ``newton_viewport_0000.mp4`` — Newton GL viewer framebuffer.
 * ``sensor_0000.mp4`` — scene tiled-camera sensor (offline render).
 
-.. figure:: ../_static/how-to/record_video/example3_kit_viewport.gif
+.. figure:: ../_static/how-to/record_video/example_kit_viewport.gif
    :width: 100%
    :alt: Kit viewport recording (Example 3)
 
    Kit viewport: ``kit_viewport_0000.mp4``
 
-.. figure:: ../_static/how-to/record_video/example3_newton_viewport.gif
+.. figure:: ../_static/how-to/record_video/example_tiled.gif
+   :width: 100%
+   :alt: Kit tiled-camera grid recording (Example 3)
+
+   Kit tiled-camera grid: ``tiled_0000.mp4``
+
+.. figure:: ../_static/how-to/record_video/example_newton_viewport.gif
    :width: 100%
    :alt: Newton viewport recording (Example 3)
 
    Newton viewport: ``newton_viewport_0000.mp4``
 
-.. figure:: ../_static/how-to/record_video/example3_sensor.gif
+.. figure:: ../_static/how-to/record_video/example_sensor.gif
    :width: 100%
    :alt: Sensor recording (Example 3)
 

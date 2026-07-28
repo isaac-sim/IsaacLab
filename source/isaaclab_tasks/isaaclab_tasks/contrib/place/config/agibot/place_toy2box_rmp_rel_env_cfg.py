@@ -262,7 +262,7 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.physics = PhysicsCfg()
 
-        # set viewer to see the whole scene
+        # visualizer camera settings
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, -1.0, 1.5), lookat=(0.5, 0.0, 0.0))
 
     def validate_config(self):

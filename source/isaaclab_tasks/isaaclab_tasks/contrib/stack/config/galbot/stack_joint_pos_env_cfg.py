@@ -246,7 +246,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         super().__post_init__()
         # MDP settings
 
-        # set viewer to see the robot and objects on the table
+        # visualizer camera settings
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, 0.0, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set events
