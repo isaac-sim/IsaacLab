@@ -10,7 +10,7 @@ import torch
 from collections.abc import Sequence
 
 import isaaclab.sim as sim_utils
-import isaaclab.cloner as cloner
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane

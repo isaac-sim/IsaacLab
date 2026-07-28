@@ -167,7 +167,7 @@ manipulating path strings itself:
 
 .. code-block:: python
 
-    import isaaclab.cloner as cloner
+    from isaaclab import cloner
 
     # where does this prototype land in env 2?
     cloner.query.path_to_clone(plan, "/World/envs/env_0/Obstacle_1", env_id=2)
