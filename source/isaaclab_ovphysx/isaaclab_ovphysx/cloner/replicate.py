@@ -112,6 +112,8 @@ class OvPhysxReplicateContext:
             positions: Optional per-environment world positions [m].
             quaternions: Optional per-environment orientations in xyzw order.
         """
+        positions_list = positions.detach().cpu().tolist() if positions is not None else None
+        quaternions_list = quaternions.detach().cpu().tolist() if quaternions is not None else None
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
         for i, src in enumerate(sources):
@@ -142,11 +144,11 @@ class OvPhysxReplicateContext:
                 targets.append(destinations[i].format(env_id))
 
                 target_env_world = Gf.Matrix4d(1.0)
-                if positions is not None and env_id < len(positions):
-                    pos = positions[env_id]
+                if positions_list is not None and env_id < len(positions_list):
+                    pos = positions_list[env_id]
                     target_env_world.SetTranslateOnly(Gf.Vec3d(float(pos[0]), float(pos[1]), float(pos[2])))
-                if quaternions is not None and env_id < len(quaternions):
-                    quat = quaternions[env_id]
+                if quaternions_list is not None and env_id < len(quaternions_list):
+                    quat = quaternions_list[env_id]
                     target_env_world.SetRotateOnly(
                         Gf.Quatd(
                             float(quat[3]),

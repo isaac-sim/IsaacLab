@@ -10,6 +10,7 @@ import math
 import pytest
 import torch
 from isaaclab_ovphysx.cloner import OvPhysxReplicateContext
+from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxManager
 
 from pxr import Gf, Usd, UsdGeom
 
@@ -22,15 +23,22 @@ def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, 
     return matrix
 
 
-def test_nested_clone_uses_final_target_pose():
+def test_nested_clone_uses_final_target_pose(monkeypatch):
     """Nested clone rows keep their source-local pose under the target environment."""
+    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
     half_sqrt_two = math.sqrt(0.5)
+    source_half_angle_sin = 0.5
+    source_half_angle_cos = math.sqrt(0.75)
+    target_half_angle_sin = math.sin(math.pi / 8.0)
+    target_half_angle_cos = math.cos(math.pi / 8.0)
     stage = Usd.Stage.CreateInMemory()
 
     source_env = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
     source_env.AddTransformOp().Set(_pose_matrix((4.0, 5.0, 6.0), (0.0, half_sqrt_two, 0.0, half_sqrt_two)))
     source_row = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    source_row.AddTransformOp().Set(_pose_matrix((0.0, 1.0, 2.0), (half_sqrt_two, 0.0, 0.0, half_sqrt_two)))
+    source_row.AddTransformOp().Set(
+        _pose_matrix((0.0, 1.0, 2.0), (source_half_angle_sin, 0.0, 0.0, source_half_angle_cos))
+    )
 
     context = OvPhysxReplicateContext(stage)
     context.queue_mapping(
@@ -39,7 +47,7 @@ def test_nested_clone_uses_final_target_pose():
         env_ids=torch.tensor([0, 1]),
         mapping=torch.tensor([[True, True], [False, False]]),
         positions=torch.tensor([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]]),
-        quaternions=torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, half_sqrt_two, half_sqrt_two]]),
+        quaternions=torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, target_half_angle_sin, target_half_angle_cos]]),
     )
 
     assert len(context._queue) == 1
@@ -47,7 +55,34 @@ def test_nested_clone_uses_final_target_pose():
     assert source == "/World/envs/env_0/Robot"
     assert targets == ["/World/envs/env_1/Robot"]
     assert len(target_transforms) == 1
-    assert target_transforms[0][:3] == pytest.approx((9.0, 20.0, 32.0))
+    assert target_transforms[0][:3] == pytest.approx((10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0))
     orientation = torch.tensor(target_transforms[0][3:])
-    expected_orientation = torch.full((4,), 0.5)
-    assert torch.abs(torch.dot(orientation, expected_orientation)).item() == pytest.approx(1.0)
+    expected_orientation = torch.tensor(
+        [
+            target_half_angle_cos * source_half_angle_sin,
+            target_half_angle_sin * source_half_angle_sin,
+            target_half_angle_sin * source_half_angle_cos,
+            target_half_angle_cos * source_half_angle_cos,
+        ]
+    )
+    if torch.dot(orientation, expected_orientation) < 0.0:
+        orientation = -orientation
+    assert orientation.tolist() == pytest.approx(expected_orientation.tolist())
+
+    context.replicate()
+
+    assert context._queue == []
+    assert len(OvPhysxManager._pending_clones) == 1
+    pending_source, pending_targets, pending_transforms = OvPhysxManager._pending_clones[0]
+    assert pending_source == source
+    assert pending_targets == targets
+    assert pending_transforms[0] == pytest.approx(target_transforms[0])
+
+
+def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
+    """Legacy positions become target-root poses with identity rotations."""
+    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
+
+    OvPhysxManager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
+
+    assert OvPhysxManager._pending_clones == [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]

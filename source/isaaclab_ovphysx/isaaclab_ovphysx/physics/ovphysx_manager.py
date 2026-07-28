@@ -37,6 +37,8 @@ __all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
 
 logger = logging.getLogger(__name__)
 
+_CloneTransform = tuple[float, float, float, float, float, float, float]
+
 
 class OvPhysxSceneDataBackend(SceneDataBackend):
     """Scene-data backend for the OVPhysX physics manager.
@@ -217,7 +219,7 @@ class OvPhysxManager(PhysicsManager):
     # Pending (source, targets, target_transforms) triples queued before the
     # PhysX instance exists. Replayed via physx.clone() in _warmup_and_load().
     # target_transforms is a list of (x, y, z, qx, qy, qz, qw) tuples, one per target.
-    _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, ...]]]]] = []
+    _pending_clones: ClassVar[list[tuple[str, list[str], list[_CloneTransform]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
 
@@ -244,10 +246,10 @@ class OvPhysxManager(PhysicsManager):
     ) -> None:
         """Register translation-only whole-environment clones for replay via ``physx.clone()``.
 
-        Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
-        scene setup, before the PhysX instance exists.  The clone operations
-        are executed in :meth:`_warmup_and_load` immediately after
-        attaching the populated OVStage.
+        This compatibility entry point accepts positions only. The full-pose
+        cloner uses :meth:`_register_clone_transforms`; both paths queue clone
+        operations before the PhysX instance exists, for execution in
+        :meth:`_warmup_and_load` after attaching the populated OVStage.
 
         Args:
             source: Source prim path (env_0 articulation root).
@@ -260,7 +262,7 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _register_clone_transforms(
-        cls, source: str, targets: list[str], target_transforms: list[tuple[float, ...]]
+        cls, source: str, targets: list[str], target_transforms: list[_CloneTransform]
     ) -> None:
         """Register final target-root world poses for replay via ``physx.clone()``."""
         cls._pending_clones.append((source, targets, target_transforms))
