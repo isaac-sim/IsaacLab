@@ -16,6 +16,87 @@ import isaaclab.utils.assets as assets_utils
 pytestmark = pytest.mark.unit
 
 
+def test_asset_root_environment_override_takes_precedence(monkeypatch):
+    """Test the documented Isaac Sim asset-root environment override."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/6.0/")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "/tmp/isaacsim_assets/Assets/Isaac/6.0"
+
+
+def test_asset_root_falls_back_to_kit_file(monkeypatch):
+    """Test kitless asset-root resolution when the environment override is absent."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+
+def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
+    """Test the documented Windows form of the environment override."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "C:\\assets\\Assets\\Isaac\\6.0\\")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "C:\\assets\\Assets\\Isaac\\6.0"
+
+
+def test_asset_root_ignores_empty_environment_override(monkeypatch):
+    """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+
+def test_kit_experience_path_resolves_to_the_shipped_experience():
+    """Test the unpatched experience-file path so a broken relative walk fails here."""
+    assert Path(assets_utils._KIT_EXPERIENCE_PATH).is_file()
+    assert assets_utils._parse_kit_asset_root()
+
+
+def test_kit_asset_root_prefers_default_setting(tmp_path, monkeypatch):
+    """Test the experience-file fallback reads the setting that Isaac Sim resolves."""
+    kit_file = tmp_path / "isaaclab.python.kit"
+    kit_file.write_text(
+        "[settings]\n"
+        'persistent.isaac.asset_root.default = "https://example.com/default-assets"\n'
+        'persistent.isaac.asset_root.cloud = "https://example.com/cloud-assets"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(assets_utils, "_KIT_EXPERIENCE_PATH", str(kit_file))
+
+    assert assets_utils._parse_kit_asset_root() == "https://example.com/default-assets"
+
+
+def test_kit_asset_root_falls_back_to_cloud_setting(tmp_path, monkeypatch):
+    """Test the experience-file fallback still reads legacy files without a default setting."""
+    kit_file = tmp_path / "isaaclab.python.kit"
+    kit_file.write_text(
+        '[settings]\npersistent.isaac.asset_root.cloud = "https://example.com/cloud-assets"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(assets_utils, "_KIT_EXPERIENCE_PATH", str(kit_file))
+
+    assert assets_utils._parse_kit_asset_root() == "https://example.com/cloud-assets"
+
+
+def test_exported_asset_root_constants_follow_environment_override(monkeypatch):
+    """Test the exported constants, not just the resolver, honor the environment override."""
+    try:
+        # patch in a nested context so leaving it cannot revert patches owned by other fixtures
+        with monkeypatch.context() as patched_env:
+            patched_env.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/6.0")
+            module = importlib.reload(assets_utils)
+
+            assert module.NUCLEUS_ASSET_ROOT_DIR == "/tmp/isaacsim_assets/Assets/Isaac/6.0"
+            assert module.ISAAC_NUCLEUS_DIR == "/tmp/isaacsim_assets/Assets/Isaac/6.0/Isaac"
+            assert module.ISAACLAB_NUCLEUS_DIR == "/tmp/isaacsim_assets/Assets/Isaac/6.0/Isaac/IsaacLab"
+    finally:
+        # the context restored the caller's environment, so a suite run with a real
+        # ISAACSIM_ASSET_ROOT keeps resolving to it
+        importlib.reload(assets_utils)
+
+
 def test_nucleus_connection():
     """Test checking the Nucleus connection."""
     # check nucleus connection
