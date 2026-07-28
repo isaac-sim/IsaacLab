@@ -25,6 +25,11 @@ from pxr import UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
+from isaaclab.scene_data.deformable_discovery import (
+    build_deformable_vertex_count_lookup,
+    discover_deformables_on_stage,
+    resolve_deformable_vertex_count,
+)
 
 from isaaclab_ovphysx._runtime import import_ovphysx
 
@@ -74,6 +79,11 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._rigid_bindings: list[dict[str, Any]] = []
         self._merged_transforms: wp.array | None = None
         self._scene_data = SceneDataFormat.Transform()
+        self._points_data = SceneDataFormat.Points()
+        self._deformable_bindings: list[dict[str, Any]] = []
+        self._geometry_paths: list[str] = []
+        self._geometry_counts: list[int] = []
+        self._merged_points: wp.array | None = None
 
     @property
     def transform_count(self) -> int:
@@ -102,6 +112,10 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._physx = physx
         self._rigid_bindings = []
         self._merged_transforms = None
+        self._deformable_bindings = []
+        self._geometry_paths = []
+        self._geometry_counts = []
+        self._merged_points = None
 
         if stage is None:
             return
@@ -154,6 +168,121 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         if total_count > 0:
             self._merged_transforms = wp.zeros((total_count,), dtype=wp.transformf, device=device)
+
+        self._setup_deformable_bindings(physx, stage, device)
+
+    def _setup_deformable_bindings(self, physx, stage, device: str) -> None:
+        """Discover deformable prims and wire OVPhysX nodal-position bindings."""
+        from isaaclab_ovphysx.assets.deformable_object.views import OvPhysxDeformableBodyView
+
+        entries = discover_deformables_on_stage(stage)
+        if not entries:
+            return
+
+        path_to_count = build_deformable_vertex_count_lookup(entries)
+        path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
+        all_paths = list(path_to_type.keys())
+        non_rigid_names: set[str] = set()
+        for path in all_paths:
+            if re.search(r"/World/envs/env_\d+/", path):
+                non_rigid_names.add(path.rsplit("/", 1)[-1])
+
+        typed_patterns: dict[str, set[str]] = {"volume": set(), "surface": set()}
+        typed_exact: dict[str, list[str]] = {"volume": [], "surface": []}
+        for path in all_paths:
+            body_name = path.rsplit("/", 1)[-1]
+            wildcard = re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", path)
+            deformable_type = path_to_type[path]
+            if body_name in non_rigid_names and wildcard != path:
+                typed_patterns[deformable_type].add(wildcard)
+            else:
+                typed_exact[deformable_type].append(path)
+
+        self._geometry_paths = []
+        self._geometry_counts = []
+        entity_offset = 0
+        for deformable_type in ("volume", "surface"):
+            patterns = [*sorted(typed_patterns[deformable_type]), *typed_exact[deformable_type]]
+            for pattern in patterns:
+                try:
+                    view = OvPhysxDeformableBodyView(physx, pattern=pattern, device=device, deformable_type=deformable_type)
+                except Exception as exc:
+                    logger.warning("Failed to create %s deformable binding for %s: %s", deformable_type, pattern, exc)
+                    continue
+                if view.count == 0:
+                    continue
+                max_nodes = view.max_simulation_nodes_per_body
+                position_buf = wp.zeros((view.count, max_nodes, 3), dtype=wp.float32, device=device)
+                self._deformable_bindings.append(
+                    {
+                        "pattern": pattern,
+                        "deformable_type": deformable_type,
+                        "view": view,
+                        "position_buf": position_buf,
+                        "entity_offset": entity_offset,
+                        "entity_count": view.count,
+                    }
+                )
+                for path in view.prim_paths:
+                    # Prefer USD-discovered unpadded counts over padded max_nodes so
+                    # SceneData ↔ shadow particle_q slices stay size-aligned.
+                    resolved = resolve_deformable_vertex_count(path, path_to_count, fallback=-1)
+                    if resolved < 0:
+                        logger.warning(
+                            "No USD vertex count for deformable path '%s'; using padded "
+                            "max_simulation_nodes_per_body=%d.",
+                            path,
+                            max_nodes,
+                        )
+                        count = int(max_nodes)
+                    else:
+                        count = min(int(resolved), int(max_nodes))
+                    self._geometry_paths.append(path)
+                    self._geometry_counts.append(count)
+                entity_offset += view.count
+
+        total_points = sum(self._geometry_counts)
+        if total_points > 0:
+            self._merged_points = wp.zeros(total_points, dtype=wp.vec3f, device=device)
+
+    @property
+    def points(self) -> SceneDataFormat.Points:
+        """Return flattened OVPhysX deformable nodal positions."""
+        if self._merged_points is None or not self._deformable_bindings:
+            self._points_data.points = None
+            return self._points_data
+
+        write_offset = 0
+        path_index = 0
+        for entry in self._deformable_bindings:
+            view = entry["view"]
+            view.read_simulation_nodal_positions_into(entry["position_buf"])
+            nodal = entry["position_buf"].view(wp.vec3f).reshape((view.count, -1))
+            for body_idx in range(view.count):
+                count = self._geometry_counts[path_index]
+                wp.copy(
+                    self._merged_points,
+                    nodal[body_idx, :count],
+                    dest_offset=write_offset,
+                    src_offset=0,
+                    count=count,
+                )
+                write_offset += count
+                path_index += 1
+        self._points_data.points = self._merged_points
+        return self._points_data
+
+    @property
+    def point_count(self) -> int:
+        return sum(self._geometry_counts)
+
+    @property
+    def geometry_paths(self) -> list[str]:
+        return self._geometry_paths
+
+    @property
+    def geometry_counts(self) -> list[int]:
+        return self._geometry_counts
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
@@ -217,11 +346,12 @@ class OvPhysxManager(PhysicsManager):
     _locked_device: ClassVar[str | None] = None
     # Active (source, targets, parent_positions) replication recipes for the
     # current SimulationContext. They survive the consumable pending queue so a
-    # forced re-warmup can rebuild serialized-stage or runtime-only clones.
+    # forced re-warmup can rebuild serialized or runtime-only clones.
     # parent_positions is a list of (x, y, z) tuples — one per target.
     _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
     # Consumable snapshot of the active recipes. Full-stage warmup materializes
-    # these into serialized USDA; env-0-only warmup replays them with physx.clone().
+    # these into the temporary export; env_0-only warmup replays them with
+    # physx.clone().
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
@@ -256,9 +386,10 @@ class OvPhysxManager(PhysicsManager):
 
         Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
         scene setup, before the PhysX instance exists. Full-stage warmups
-        materialize the recipe in serialized USDA before attaching OVStage;
-        env-0-only warmups replay it through ``physx.clone()`` after loading.
-        Recipes are retained so forced re-warmups rebuild the same topology.
+        materialize the recipe in the serialized USD stage before attaching
+        OVStage; env_0-only warmups replay it through
+        ``physx.clone()`` after loading. Recipes are retained so forced
+        re-warmups rebuild the same physics topology.
 
         Args:
             source: Source prim path (env_0 articulation root).
@@ -365,14 +496,9 @@ class OvPhysxManager(PhysicsManager):
         - Populates and attaches an OVStage
         - Warms up GPU buffers (if on CUDA)
         - Dispatches PHYSICS_READY
-
-        A forced re-warm dispatches :attr:`~isaaclab.physics.PhysicsEvent.STOP`
-        before replacing the attached stage so listeners discard stale bindings.
         """
         if not soft:
             if not cls._warmup_done:
-                if cls._ovstage is not None:
-                    cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
 
@@ -513,78 +639,41 @@ class OvPhysxManager(PhysicsManager):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _serialize_env0_only_stage(sim_stage: Any) -> str:
-        """Serialize the simulation stage in memory with cloned environments stripped.
-
-        The returned USDA contains every prim from the composed live stage except
-        ``/World/envs/env_<i>`` for ``i != 0``. This keeps global prims and the
-        env-0 clone source without mutating the live stage.
-
-        Args:
-            sim_stage: Live USD stage held by ``SimulationContext``.
-
-        Returns:
-            Env-0-scoped flattened USDA content.
-        """
-        layer = sim_stage.Flatten()
-        envs_spec = layer.GetPrimAtPath("/World/envs")
-        if envs_spec is None or not envs_spec:
-            logger.debug("OvPhysxManager: no /World/envs prim — serialized stage as-is.")
-            return layer.ExportToString()
-
-        env_name_re = re.compile(r"^env_(\d+)$")
-        names_to_remove = [
-            child_name
-            for child_name in list(envs_spec.nameChildren.keys())
-            if (match := env_name_re.match(child_name)) and match.group(1) != "0"
-        ]
-        for child_name in names_to_remove:
-            del envs_spec.nameChildren[child_name]
-        if names_to_remove:
-            logger.info(
-                "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
-                len(names_to_remove),
-            )
-        return layer.ExportToString()
-
     @classmethod
-    def _serialize_selected_stage(cls, sim_stage: Any) -> str:
-        """Serialize either the complete stage or the env-0 clone source."""
+    def _export_selected_stage(cls, sim_stage: Any, target_file: str) -> None:
+        """Export either the full stage or its env-0-only representation."""
         if cls._requires_full_stage:
-            return sim_stage.Flatten().ExportToString()
-        return cls._serialize_env0_only_stage(sim_stage)
+            sim_stage.Export(target_file)
+        else:
+            cls._export_env0_only_stage(sim_stage, target_file)
 
     @classmethod
-    def _materialize_pending_clones(cls, stage_usda: str) -> str:
-        """Materialize queued clone targets into serialized full-stage USDA.
+    def _materialize_pending_clones_in_layer(cls, layer: Any) -> int:
+        """Materialize queued clone targets into a flattened stage layer.
 
         OVPhysX runtime cloning is unsafe after a heterogeneous full-stage load:
         cloning one leaf can disturb tensor discovery for already loaded sibling
-        assets. Missing targets are copied into the serialized stage. When another
+        assets. Missing targets are copied into the flattened layer. When another
         clone has already created a target ancestor, an internal reference overlays
         the source physics without replacing authored descendants. The live USD
         stage remains unchanged.
 
         Args:
-            stage_usda: Flattened full-stage USDA content to augment.
+            layer: Flattened stage layer to augment.
 
         Returns:
-            Full-stage USDA content containing every materialized clone target.
+            Number of clone targets materialized in the layer.
         """
         from pxr import Sdf, Usd  # noqa: PLC0415
 
         pending_clones = list(cls._pending_clones)
         cls._pending_clones.clear()
         if not pending_clones:
-            return stage_usda
+            return 0
 
-        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
-        if not layer.ImportFromString(stage_usda):
-            raise RuntimeError("OvPhysxManager: failed to import serialized full stage.")
         exported_stage = Usd.Stage.Open(layer)
         if exported_stage is None:
-            raise RuntimeError("OvPhysxManager: failed to open serialized full stage.")
+            raise RuntimeError("OvPhysxManager: failed to open the flattened full-stage layer.")
 
         envs_path = Sdf.Path("/World/envs")
         operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
@@ -592,7 +681,7 @@ class OvPhysxManager(PhysicsManager):
         for source, targets, _ in pending_clones:
             source_path = Sdf.Path(source)
             if layer.GetPrimAtPath(source_path) is None:
-                raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from serialized full stage.")
+                raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from the full stage.")
             for target in targets:
                 target_path = Sdf.Path(target)
                 if target_path in processed_targets:
@@ -636,12 +725,95 @@ class OvPhysxManager(PhysicsManager):
                 raise RuntimeError(f"OvPhysxManager: failed to materialize clone target {str(target_path)!r}.")
 
         if operations:
-            logger.info("OvPhysxManager: materialized %d clone targets in full-stage USDA", len(operations))
+            logger.info("OvPhysxManager: materialized %d clone targets in the full-stage layer", len(operations))
+        return len(operations)
+
+    @classmethod
+    def _materialize_pending_clones(cls, sim_stage: Any, target_file: str) -> None:
+        """Materialize queued clones in a file export used by focused tests and tools."""
+        from pxr import Sdf  # noqa: PLC0415
+
+        del sim_stage
+        layer = Sdf.Layer.FindOrOpen(target_file)
+        if layer is None:
+            raise RuntimeError(f"OvPhysxManager: failed to open full-stage export {target_file!r}.")
+        operation_count = cls._materialize_pending_clones_in_layer(layer)
+        if operation_count and not layer.Save():
+            raise RuntimeError(f"OvPhysxManager: failed to save materialized full-stage export {target_file!r}.")
+
+    @staticmethod
+    def _strip_nonzero_environments(layer: Any) -> int:
+        """Strip authored ``env_<i>`` prims other than ``env_0`` from a stage layer."""
+        envs_spec = layer.GetPrimAtPath("/World/envs")
+        if envs_spec is None or not envs_spec:
+            return 0
+
+        env_name_re = re.compile(r"^env_(\d+)$")
+        names_to_remove = [
+            child_name
+            for child_name in list(envs_spec.nameChildren.keys())
+            if (match := env_name_re.match(child_name)) and match.group(1) != "0"
+        ]
+        for child_name in names_to_remove:
+            del envs_spec.nameChildren[child_name]
+        return len(names_to_remove)
+
+    @classmethod
+    def _serialize_selected_stage(cls, sim_stage: Any) -> str:
+        """Serialize the selected stage representation for OVStage population."""
+        layer = sim_stage.Flatten()
+        if cls._requires_full_stage:
+            cls._materialize_pending_clones_in_layer(layer)
+            logger.info("OvPhysxManager: serialized the full USD stage in memory")
+        else:
+            removed_count = cls._strip_nonzero_environments(layer)
+            if removed_count:
+                logger.info(
+                    "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
+                    removed_count,
+                )
+            else:
+                logger.debug("OvPhysxManager: no cloned environments to strip — serialized stage as-is.")
         return layer.ExportToString()
 
     @classmethod
+    def _serialize_env0_only_stage(cls, sim_stage: Any) -> str:
+        """Serialize the simulation stage in memory with cloned environments stripped.
+
+        The returned USDA contains every prim from the composed live stage except
+        ``/World/envs/env_<i>`` for ``i != 0``. This keeps global prims and the
+        env-0 clone source without mutating the live stage.
+
+        Args:
+            sim_stage: Live USD stage held by ``SimulationContext``.
+
+        Returns:
+            Env-0-scoped flattened USDA content.
+        """
+        layer = sim_stage.Flatten()
+        removed_count = cls._strip_nonzero_environments(layer)
+        if removed_count == 0:
+            logger.debug("OvPhysxManager: no /World/envs prim — serialized stage as-is.")
+        else:
+            logger.info(
+                "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
+                removed_count,
+            )
+        return layer.ExportToString()
+
+    @classmethod
+    def _export_env0_only_stage(cls, sim_stage: Any, target_file: str) -> None:
+        """Export the env-0-only stage representation to a USDA file."""
+        from pxr import Sdf  # noqa: PLC0415
+
+        layer = Sdf.Layer.CreateAnonymous("env0-only.usda")
+        if not layer.ImportFromString(cls._serialize_env0_only_stage(sim_stage)):
+            raise RuntimeError("OvPhysxManager: failed to import the serialized env-0-only stage.")
+        if not layer.Export(target_file):
+            raise RuntimeError(f"OvPhysxManager: failed to export the env-0-only stage to {target_file!r}.")
+
+    @classmethod
     def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:
-        """Replay runtime clones unless the serialized stage already contains them."""
         pending_clones = list(cls._pending_clones)
         cls._pending_clones.clear()
 
@@ -673,7 +845,7 @@ class OvPhysxManager(PhysicsManager):
         instance, registers the ``atexit`` handler, and locks the process to
         the resolved device.  On subsequent calls, reuses the cached instance
         (see HACK on :meth:`_release_physx`) -- serializing the new USD,
-        re-attaching it via OVStage, rebuilding active clone recipes through
+        attaching it via OVStage, rebuilding active clone recipes through
         full-stage materialization or runtime replay, and (on GPU) re-running
         ``warmup_gpu`` so the new stage's bodies are resident.
 
@@ -719,16 +891,18 @@ class OvPhysxManager(PhysicsManager):
         # ``create_tensor_binding`` call into an O(N) USD enumeration -- the
         # hang you'd see at large env counts.
         #
-        # By default the serialized stage keeps only env_0 and runtime cloning
-        # re-populates env_1..N. Features that need distinct authored physics in
-        # every environment request the full stage. Missing heterogeneous clone
-        # targets are copied into the serialized stage before it is attached.
+        # By default, strip ``/World/envs/env_<i>`` for i != 0 from the
+        # flattened layer before handing it to the wheel. Sensors that read
+        # USD directly (RayCaster, Camera, ContactSensor discovery) still see
+        # the full N-env stage; only the wheel-side physics ingestion is
+        # scoped to env_0, and ``physx.clone()`` re-populates env_1..N in
+        # the physics runtime with proper clone lineage (which is what the
+        # binding fast path expects). Features that need distinct authored
+        # physics in every environment request the full stage; missing
+        # heterogeneous clone targets are materialized in its flattened layer.
         cls._rearm_pending_clones()
         stage_usda = cls._serialize_selected_stage(sim.stage)
-        if cls._requires_full_stage:
-            stage_usda = cls._materialize_pending_clones(stage_usda)
         cls._stage_usda = stage_usda
-        logger.info("OvPhysxManager: serialized selected USD stage in memory")
 
         if cls._physx is None:
             cls._construct_physx(ovphysx_device, gpu_index)
