@@ -136,6 +136,9 @@ class IsaacRtxRenderer(BaseRenderer):
         ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
         RTX's physical-camera exposure model does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
+
+        :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is applied
+        per-render-product in :meth:`create_render_data` via USD attributes.
         """
         if spec.cfg.isp_cfg is None:
             return
@@ -296,6 +299,24 @@ class IsaacRtxRenderer(BaseRenderer):
         # Create replicator tiled render product
         rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(spec.cfg.width, spec.cfg.height))
         render_product_paths = [rp.path]
+
+        # Apply background color as per-render-product USD attributes so each render product gets its own
+        # background without touching the process-wide /rtx/background carb settings.
+        background_color = getattr(spec.cfg, "background_color", None)
+        if background_color is not None:
+            r, g, b = background_color
+            rp_prim = stage.GetPrimAtPath(rp.path)
+            if rp_prim is not None and rp_prim.IsValid():
+                with Sdf.ChangeBlock():
+                    rp_prim.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+                    rp_prim.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
+                        (r, g, b)
+                    )
+            else:
+                logger.warning(
+                    "create_render_data: render product prim at '%s' not found; background_color will not be applied.",
+                    rp.path,
+                )
 
         # Synthetic-data instance mapping filter for segmentation; before annotator attach.
         SyntheticData.Get().set_instance_mapping_semantic_filter(
