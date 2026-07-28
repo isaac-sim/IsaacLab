@@ -15,6 +15,8 @@ import tomllib
 
 import isaaclab.cli as cli
 
+pytestmark = pytest.mark.unit
+
 # Each teleop workflow and the repository-relative script it forwards to.
 TELEOP_WORKFLOWS = {
     "run": ("scripts", "environments", "teleoperation", "teleop_se3_agent.py"),
@@ -58,7 +60,7 @@ def test_teleop_workflow_isaaclab_imports_are_covered_by_the_extras(command, scr
     """Every ``isaaclab_*`` package a teleop script imports must ship with the extras.
 
     ``record_demos.py`` imports ``isaaclab_mimic`` at module level, so an environment built
-    from ``--extra xr`` alone used to die with ``ModuleNotFoundError`` only after Isaac Sim
+    from ``--extra teleop`` alone used to die with ``ModuleNotFoundError`` only after Isaac Sim
     had finished booting. This catches that class of gap without needing an install.
     """
     with (cli.ISAACLAB_ROOT / "pyproject.toml").open("rb") as f:

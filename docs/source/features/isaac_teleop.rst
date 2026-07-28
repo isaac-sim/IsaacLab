@@ -1359,7 +1359,7 @@ Record Demonstrations for Imitation Learning
 ---------------------------------------------
 
 Isaac Teleop integrates with Isaac Lab's ``record_demos.py`` script for recording teleoperated
-demonstrations, exposed as the ``isaaclab record`` command.
+demonstrations, exposed as the ``isaaclab teleop record`` command.
 
 When your environment configuration has an ``isaac_teleop`` attribute, the script automatically
 uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:

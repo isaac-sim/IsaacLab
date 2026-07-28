@@ -210,7 +210,7 @@ def test_uv_run_teleop_co_resolves_with_isaacsim():
 
     conflict_groups = [{entry["extra"] for entry in group} for group in tool_uv["conflicts"]]
     assert {"isaacsim", "teleop"} not in conflict_groups
-    assert "websockets>=14.0" in tool_uv["override-dependencies"]
+    assert "websockets>=14.0,<17.0.0" in tool_uv["override-dependencies"]
 
     # The lxml split between Isaac Teleop and the imitation-learning stack is real and stays.
     assert {"teleop", "mimic"} in conflict_groups

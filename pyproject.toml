@@ -398,9 +398,11 @@ override-dependencies = [
     "torchaudio==2.11.0",
     # Isaac Sim 6.0 pins 4.12.2, which lacks Sentinel required by the Newton viewer stack.
     "typing-extensions>=4.15.0",
-    # Isaac Sim 6.0 pins ==12.0. Viser needs >=13.1 and isaacteleop[cloudxr] needs >=14.0,
-    # so the override has to clear the higher floor for the XR teleop workflow to resolve.
-    "websockets>=14.0",
+    # Isaac Sim 6.0 pins ==12.0, viser needs >=13.1, and isaacteleop[cloudxr] needs >=14.0,
+    # so the override must clear the highest floor. Overrides replace a requirement for every
+    # requester, so carry viser's <17.0.0 ceiling here too -- without it, a future websockets
+    # 17 would satisfy this override and silently break viser.
+    "websockets>=14.0,<17.0.0",
     # isaacsim-kernel pins ==7.4.4; numba subclasses coverage.types.Tracer at import and
     # needs >=7.6.1. Without this override the ``test`` extra cannot co-resolve with Isaac
     # Sim, which would make the teleop package's own test suite uninstallable.
