@@ -134,8 +134,8 @@ rerun = [
     "rerun-sdk>=0.29.0",
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
-isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
-isaacsim-local = ["isaacsim[all,extscache]>=6.0.0.1"]
+isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
+isaacsim-local = ["isaacsim[all,extscache]>=6.0.1.0"]
 # Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
 ov = ["ovphysx>=0.4.13", "ovstage>=0.1.0,<0.2.0"]
 rtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
@@ -372,6 +372,12 @@ conflicts = [
     [{ extra = "isaacsim" }, { extra = "mimic" }],
     [{ extra = "isaacsim" }, { extra = "all" }],
     [{ extra = "isaacsim" }, { extra = "test" }],
+    [{ extra = "isaacsim-local" }, { extra = "teleop" }],
+    [{ extra = "isaacsim-local" }, { extra = "ov" }],
+    [{ extra = "isaacsim-local" }, { extra = "viser" }],
+    [{ extra = "isaacsim-local" }, { extra = "mimic" }],
+    [{ extra = "isaacsim-local" }, { extra = "all" }],
+    [{ extra = "isaacsim-local" }, { extra = "test" }],
     [{ extra = "isaacsim-local" }, { extra = "isaacsim" }],
 ]
 python-preference = "only-managed"
