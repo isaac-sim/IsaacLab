@@ -567,6 +567,42 @@ def _merge_pass_status(prev: dict | None, new: dict) -> dict:
     }
 
 
+def _make_failed_pass_result(
+    prefix: str,
+    pass_file_label: str,
+    message: str,
+    report_file: str,
+    stdout_data: bytes,
+    stderr_data: bytes,
+    time_elapsed: float,
+    wall_time: float,
+    tests: int = 1,
+) -> tuple[JUnitXml, dict, bool]:
+    """Create and persist a failed per-file pass result."""
+    details = message + "\n\n"
+    if stdout_data:
+        details += "=== STDOUT (last 5000 chars) ===\n"
+        details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if stderr_data:
+        details += "=== STDERR (last 5000 chars) ===\n"
+        details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    error_report = _create_error_report(prefix, pass_file_label, message, details)
+    error_report.write(report_file)
+    return (
+        error_report,
+        {
+            "errors": 1,
+            "failures": 0,
+            "skipped": 0,
+            "tests": tests,
+            "result": "FAILED",
+            "time_elapsed": time_elapsed,
+            "wall_time": wall_time,
+        },
+        True,
+    )
+
+
 def _run_one_pass(
     ctx: _PassContext,
     k_expr: str | None,
@@ -795,6 +831,21 @@ def _run_one_pass(
             True,
         )
 
+    exact_node_selection = any("::" in target for target in ctx.pytest_targets)
+    if exact_node_selection and tests == 0:
+        msg = f"Configured test node IDs selected zero tests: {', '.join(ctx.pytest_targets)}"
+        logger.error(msg)
+        return _make_failed_pass_result(
+            "selection",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+        )
+
     (
         report,
         errors,
@@ -832,6 +883,21 @@ def _run_one_pass(
     )
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
+    if returncode != 0 and not shutdown_hanged and not has_test_failures:
+        msg = f"pytest exited with code {returncode} without reporting a test failure"
+        logger.error(f"{ctx.test_file}{suffix}: {msg}")
+        return _make_failed_pass_result(
+            "pytest_exit",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            tests=max(tests, 1),
+        )
+
     was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)
 
     if shutdown_hanged:
