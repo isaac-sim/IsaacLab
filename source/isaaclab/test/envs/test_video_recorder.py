@@ -475,3 +475,77 @@ def test_close_flushes_partial_clip():
             recorder.close()
 
     mock_clip.write_videofile.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Additional _parse_source edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_parse_source_extra_segments_truncated_to_three():
+    """Extra colon-delimited segments beyond the third are silently ignored."""
+    from isaaclab.envs.utils.video_recorder import _parse_source
+
+    kind, type_or_name, sub = _parse_source("visualizer:kit:tiled:extra")
+    assert kind == "visualizer"
+    assert type_or_name == "kit"
+    assert sub == "tiled"
+
+
+# ---------------------------------------------------------------------------
+# Trigger edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_trigger_interval_one_fires_every_step():
+    """video_interval=1 with video_length=1 fires a new clip on every step."""
+    viz = _FakeViz("kit")
+    recorder = VideoRecorder(_cfg(video_length=1, video_interval=1), _make_env(visualizers=[viz]))
+
+    close_calls = 0
+
+    def _fake_close():
+        nonlocal close_calls
+        close_calls += 1
+        recorder._recording = False
+        recorder._frames = []
+
+    recorder._close_clip = _fake_close
+
+    with patch("isaaclab.envs.utils.video_recorder.os.makedirs"):
+        for _ in range(5):
+            recorder.step()
+
+    assert close_calls == 5
+
+
+# ---------------------------------------------------------------------------
+# close() with empty frame buffer
+# ---------------------------------------------------------------------------
+
+
+def test_close_with_empty_frame_buffer_does_not_write():
+    """close() must not call moviepy when _frames is empty (e.g. all None frames)."""
+    recorder = VideoRecorder(_cfg(), _make_env())
+    recorder._recording = True
+    recorder._frames = []
+
+    mock_cls = MagicMock()
+    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", mock_cls):
+        recorder.close()
+
+    mock_cls.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _maybe_delete_old_clips error tolerance
+# ---------------------------------------------------------------------------
+
+
+def test_maybe_delete_old_clips_tolerates_missing_file():
+    """FileNotFoundError from os.remove is swallowed silently."""
+    recorder = VideoRecorder(_cfg(keep_last_n_clips=1), _make_env())
+    recorder._clip_index = 3
+
+    with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=FileNotFoundError):
+        recorder._maybe_delete_old_clips()  # must not raise

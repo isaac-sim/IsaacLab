@@ -54,6 +54,7 @@ with contextlib.suppress(ImportError):
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
 from isaaclab_tasks.utils import setup_preset_cli
 
 # ---------------------------------------------------------------------------
@@ -78,8 +79,9 @@ def _output_dir(example: int) -> str:
 
 def _build_env_cfg_example_1(num_envs: int):
     """AnymalD + Kit visualizer: viewport clip and tiled-camera grid clip."""
-    from isaaclab_tasks.core.velocity.config.anymal_d.rough_env_cfg import AnymalDRoughEnvCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
+
+    from isaaclab_tasks.core.velocity.config.anymal_d.rough_env_cfg import AnymalDRoughEnvCfg
 
     env_cfg = AnymalDRoughEnvCfg()
     env_cfg.scene.num_envs = num_envs
@@ -141,9 +143,10 @@ def _build_env_cfg_example_2(num_envs: int):
 
 def _build_env_cfg_example_3(num_envs: int):
     """Shadow Hand + Kit + Newton + sensor: three simultaneous streams."""
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
 
     env_cfg = ShadowHandCameraEnvCfg()
     env_cfg.tiled_camera = env_cfg.tiled_camera.rgb  # rgb-only preset
