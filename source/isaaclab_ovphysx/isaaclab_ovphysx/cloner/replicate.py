@@ -14,7 +14,7 @@ This function records a *pending clone* on :class:`OvPhysxManager`.  When
 :meth:`~isaaclab_ovphysx.physics.OvPhysxManager._warmup_and_load` eventually
 creates the ``PhysX`` instance and loads the USD stage (which contains only
 ``env_0`` physics — env_1..N are empty Xform containers), it replays every
-pending clone via ``physx.clone(source, targets)`` to create the remaining
+pending clone via ``physx.clone(source, targets, transforms)`` to create the remaining
 environments entirely inside the physics runtime without touching USD.
 """
 
@@ -24,9 +24,11 @@ from collections.abc import Sequence
 
 import torch
 
-from pxr import Sdf, Usd
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.cloner.cloner_utils import split_clone_template
+
+_CloneTransform = tuple[float, float, float, float, float, float, float]
 
 
 def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
@@ -35,6 +37,23 @@ def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> t
     if row_mask.dtype != torch.bool:
         row_mask = row_mask.to(dtype=torch.bool)
     return env_ids[row_mask]
+
+
+def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> _CloneTransform:
+    """Convert a USD pose matrix to an OvPhysX xyzw clone transform."""
+    matrix = matrix.RemoveScaleShear()
+    position = matrix.ExtractTranslation()
+    quaternion = matrix.ExtractRotationQuat()
+    imaginary = quaternion.GetImaginary()
+    return (
+        float(position[0]),
+        float(position[1]),
+        float(position[2]),
+        float(imaginary[0]),
+        float(imaginary[1]),
+        float(imaginary[2]),
+        float(quaternion.GetReal()),
+    )
 
 
 class OvPhysxReplicateContext:
@@ -50,7 +69,7 @@ class OvPhysxReplicateContext:
         physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
         if physics_scene_prim.IsValid():
             physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
-        self._queue: list[tuple[str, list[str], list[tuple[float, float, float]]]] = []
+        self._queue: list[tuple[str, list[str], list[_CloneTransform]]] = []
 
     def queue(
         self, source: str, targets: Sequence[str], parent_positions: Sequence[tuple[float, float, float]]
@@ -60,9 +79,18 @@ class OvPhysxReplicateContext:
         Args:
             source: Source prim path.
             targets: Destination prim paths.
-            parent_positions: Parent Xform positions [m] for each destination.
+            parent_positions: Legacy translation-only world positions [m] for
+                whole-environment target roots. Each position becomes a final
+                target-root pose with identity rotation.
         """
-        self._queue.append((source, list(targets), list(parent_positions)))
+        target_transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
+        self._queue_transforms(source, targets, target_transforms)
+
+    def _queue_transforms(
+        self, source: str, targets: Sequence[str], target_transforms: Sequence[_CloneTransform]
+    ) -> None:
+        """Queue final target-root world poses for one OvPhysX clone operation."""
+        self._queue.append((source, list(targets), list(target_transforms)))
 
     def queue_mapping(
         self,
@@ -82,12 +110,14 @@ class OvPhysxReplicateContext:
             env_ids: Environment indices.
             mapping: Bool/int mask selecting envs per source.
             positions: Optional per-environment world positions [m].
-            quaternions: Optional per-environment orientations, unused by OvPhysX.
+            quaternions: Optional per-environment orientations in xyzw order.
         """
-        del quaternions
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
         for i, src in enumerate(sources):
             active_env_ids = _select_env_ids(env_ids, mapping, i).tolist()
+            if not active_env_ids:
+                continue
 
             self_env_id: int | None = None
             pre, suf = split_clone_template(destinations[i])
@@ -95,28 +125,45 @@ class OvPhysxReplicateContext:
             if candidate.isdigit():
                 self_env_id = int(candidate)
 
+            source_world = xform_cache.GetLocalToWorldTransform(self.stage.GetPrimAtPath(src)).RemoveScaleShear()
+            if self_env_id is None:
+                source_anchor_world = Gf.Matrix4d(1.0)
+            else:
+                source_anchor = self.stage.GetPrimAtPath(f"{pre}{self_env_id}")
+                source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor).RemoveScaleShear()
+            source_relative = source_world * source_anchor_world.GetInverse()
+
             targets: list[str] = []
-            parent_positions: list[tuple[float, float, float]] = []
+            target_transforms: list[_CloneTransform] = []
             for env_id in active_env_ids:
                 env_id = int(env_id)
                 if env_id == self_env_id:
                     continue
                 targets.append(destinations[i].format(env_id))
+
+                target_env_world = Gf.Matrix4d(1.0)
                 if positions is not None and env_id < len(positions):
                     pos = positions[env_id]
-                    parent_positions.append((float(pos[0]), float(pos[1]), float(pos[2])))
-                else:
-                    parent_positions.append((0.0, 0.0, 0.0))
+                    target_env_world.SetTranslateOnly(Gf.Vec3d(float(pos[0]), float(pos[1]), float(pos[2])))
+                if quaternions is not None and env_id < len(quaternions):
+                    quat = quaternions[env_id]
+                    target_env_world.SetRotateOnly(
+                        Gf.Quatd(
+                            float(quat[3]),
+                            Gf.Vec3d(float(quat[0]), float(quat[1]), float(quat[2])),
+                        )
+                    )
+                target_transforms.append(_matrix_to_clone_transform(source_relative * target_env_world))
 
             if targets:
-                self.queue(src, targets, parent_positions)
+                self._queue_transforms(src, targets, target_transforms)
 
     def replicate(self) -> None:
         """Publish all queued clones to :class:`OvPhysxManager`."""
         from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxManager
 
-        for source, targets, parent_positions in self._queue:
-            OvPhysxManager.register_clone(source, targets, parent_positions)
+        for source, targets, target_transforms in self._queue:
+            OvPhysxManager._register_clone_transforms(source, targets, target_transforms)
         self._queue.clear()
 
 
@@ -145,13 +192,10 @@ def ovphysx_replicate(
     ``physx.clone()`` calls happen in ``_warmup_and_load()`` after OVStage
     has been attached.
 
-    The ``positions`` parameter contains the 2-D grid world positions for all
-    environments.  They are forwarded to the C++ clone plugin so that the
-    parent Xform prim for each clone (e.g. ``/World/envs/env_N``) is placed at
-    the correct grid location in Fabric. The in-memory OVStage only contains
-    ``env_0``; without explicit positions all clone parents would be created at
-    the origin, causing all articulations to pile up and the GPU solver to
-    diverge on the first warmup step.
+    The ``positions`` and ``quaternions`` parameters describe each environment's
+    world pose. For nested source rows, the adapter preserves the row's pose
+    relative to its source environment and passes the resulting target-root
+    world pose to ``physx.clone()``.
 
     Args:
         stage: USD stage (not modified by this function).
@@ -161,9 +205,9 @@ def ovphysx_replicate(
         mapping: ``(num_sources, num_envs)`` bool tensor; True selects which
             environments receive each source.
         positions: World (x, y, z) positions [m] for every environment, shape
-            ``[num_envs, 3]``. Used to place clone parent Xform prims in
-            Fabric at correct grid locations.
-        quaternions: Ignored — orientations are set at first reset.
+            ``[num_envs, 3]``.
+        quaternions: Optional environment orientations in xyzw order, shape
+            ``[num_envs, 4]``.
         device: Torch device (unused; kept for API compatibility).
     """
     del device
