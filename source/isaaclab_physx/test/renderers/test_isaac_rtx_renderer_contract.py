@@ -69,8 +69,9 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
     import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
     from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
-    import isaaclab.sim.utils.stage as stage_utils
     from pxr import Sdf, UsdGeom
+
+    import isaaclab.sim.utils.stage as stage_utils
 
     # Stub Kit settings / stage so create_render_data can run without Isaac Sim.
     # has_gui=False keeps the depth-only color-render branch inactive for rgb cameras.
