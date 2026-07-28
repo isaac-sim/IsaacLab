@@ -121,7 +121,6 @@ jobs:
         fi
 
     - name: Build and Push Docker Images
-      id: publish
       run: |
         BRANCH_NAME="${{ github.ref_name }}"
         IMAGE_BASE_VERSION="${{ needs.config.outputs.isaacsim_image_tag }}"
@@ -134,7 +133,6 @@ jobs:
         # before an image was introduced skips it instead of failing the run.
         if [ ! -f "$DOCKERFILE" ]; then
           echo "🟠 $DOCKERFILE does not exist on '$BRANCH_NAME'; nothing to publish."
-          echo "published=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -143,10 +141,7 @@ jobs:
         echo "IsaacSim base image: ${{ needs.config.outputs.isaacsim_image_name }}:$IMAGE_BASE_VERSION"
         echo "Target Isaac Lab image: $IMAGE"
 
-        # Build the tags for the branch, split into the immutable candidate that
-        # is pushed and validated first, and the moving tag that is only
-        # promoted onto it afterwards. Publishing the moving tag in the same
-        # push would leave a failed image live on `latest` / `latest-develop`.
+        # Build the list of tags based on the branch.
         #
         # Tagging scheme (immutable tag uses the full commit SHA so it matches
         # the nightly cron's tags on main; see publish-images.yaml there):
@@ -159,19 +154,18 @@ jobs:
         #
         # $SUFFIX distinguishes images sharing one repository (empty for the base
         # image, "-kitless" for the kit-less one) and is appended to every tag.
-        CANDIDATE_TAG=""
-        MOVING_TAG=""
+        TAGS=()
 
         case "$BRANCH_NAME" in
           develop)
-            MOVING_TAG="$IMAGE:latest-develop$SUFFIX"
-            CANDIDATE_TAG="$IMAGE:latest-develop-$SHA$SUFFIX"
+            TAGS+=("$IMAGE:latest-develop$SUFFIX")
+            TAGS+=("$IMAGE:latest-develop-$SHA$SUFFIX")
             ;;
           main)
-            MOVING_TAG="$IMAGE:latest$SUFFIX"
+            TAGS+=("$IMAGE:latest$SUFFIX")
             VERSION="$(tr -d '[:space:]' < VERSION)"
             if [ -n "$VERSION" ]; then
-              CANDIDATE_TAG="$IMAGE:v$VERSION$SUFFIX"
+              TAGS+=("$IMAGE:v$VERSION$SUFFIX")
             else
               echo "🛑 ERROR: VERSION file is empty or missing. Cannot tag build with version tag."
               exit 1
@@ -180,8 +174,8 @@ jobs:
           release/*)
             # Sanitize the part after release/ for use as a Docker tag suffix.
             RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
-            MOVING_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX$SUFFIX"
-            CANDIDATE_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX-$SHA$SUFFIX"
+            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX$SUFFIX")
+            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-$SHA$SUFFIX")
             ;;
           *)
             echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."
@@ -226,57 +220,30 @@ jobs:
         fi
 
         echo "Target platforms: $BUILD_PLATFORMS"
-        echo "Candidate tag: $CANDIDATE_TAG"
-        echo "Moving tag (promoted after validation): $MOVING_TAG"
+        echo "Tags to publish:"
+        printf '  - %s\n' "${TAGS[@]}"
 
-        echo "🔵 Building and pushing the candidate tag..."
+        # Compose -t flags for buildx
+        TAG_ARGS=()
+        for t in "${TAGS[@]}"; do
+          TAG_ARGS+=("-t" "$t")
+        done
+
+        echo "🔵 Building and pushing image with tags listed above..."
         if ! docker buildx build \
           --platform "$BUILD_PLATFORMS" \
           --progress=plain \
-          -t "$CANDIDATE_TAG" \
+          "${TAG_ARGS[@]}" \
           ${{ matrix.build_args }} \
           --cache-from type=gha,scope=publish-${{ matrix.key }} \
           --cache-to type=gha,mode=max,scope=publish-${{ matrix.key }} \
           -f "$DOCKERFILE" \
           --push .; then
-          echo "🔴 docker buildx build/push failed for: $CANDIDATE_TAG"
+          echo "🔴 docker buildx build/push failed for tags:"
+          printf '  - %s\n' "${TAGS[@]}"
           exit 1
         fi
 
-        echo "🟢 Successfully built and pushed: $CANDIDATE_TAG (platforms: $BUILD_PLATFORMS)"
-
-        echo "published=true" >> "$GITHUB_OUTPUT"
-        echo "candidate_tag=$CANDIDATE_TAG" >> "$GITHUB_OUTPUT"
-        echo "moving_tag=$MOVING_TAG" >> "$GITHUB_OUTPUT"
-
-    # Validate the exact artifact that was pushed, with no source overlay, so
-    # the check covers the published image rather than the working tree. This
-    # runs before the moving tag is promoted, so a failure never reaches users.
-    - name: Validate published kit-less image
-      if: matrix.key == 'kitless' && steps.publish.outputs.published == 'true'
-      uses: ./.github/actions/validate-kitless-image
-      with:
-        image-tag: ${{ steps.publish.outputs.candidate_tag }}
-        mount-source: "false"
-
-    # Point the moving tag at the validated candidate. imagetools re-tags the
-    # existing manifest registry-side, so this preserves multi-arch manifests
-    # and never rebuilds. Skipped automatically when validation above fails.
-    - name: Promote moving tag
-      if: steps.publish.outputs.published == 'true'
-      run: |
-        set -euo pipefail
-        docker buildx imagetools create \
-          -t "${{ steps.publish.outputs.moving_tag }}" \
-          "${{ steps.publish.outputs.candidate_tag }}"
-        echo "🟢 Promoted ${{ steps.publish.outputs.moving_tag }} -> ${{ steps.publish.outputs.candidate_tag }}"
-
-    # Validation pulls the published image onto the runner; drop it again so the
-    # self-hosted disk does not accumulate one image per publish.
-    - name: Remove local image
-      if: always() && matrix.key == 'kitless'
-      run: |
-        tag="${{ steps.publish.outputs.candidate_tag }}"
-        if [ -n "$tag" ]; then
-          docker image rm -f "$tag" || true
-        fi
+        for t in "${TAGS[@]}"; do
+          echo "🟢 Successfully built and pushed: $t (platforms: $BUILD_PLATFORMS)"
+        done

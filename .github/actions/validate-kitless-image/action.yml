@@ -5,21 +5,14 @@
 
 name: Validate Kit-less Image
 description: >
-  Validates the shipped kit-less container with Newton training, OVRTX
-  initialization, an existing pytest subset, and the non-root runtime contract.
+  Validates the kit-less container built by kitless-docker.yml with Newton
+  training, OVRTX initialization, an existing pytest subset, and the non-root
+  runtime contract.
 
 inputs:
   image-tag:
     description: Local Docker image tag to validate.
     required: true
-  mount-source:
-    description: >
-      Mount the checked-out source, scripts, and apps over the baked copies.
-      Enable this for dependency-cache hits so validation uses the current
-      checkout; disable it when validating the exact image that will be
-      published.
-    required: false
-    default: "false"
 
 runs:
   using: composite
@@ -28,18 +21,16 @@ runs:
     shell: bash
     env:
       IMAGE_TAG: ${{ inputs.image-tag }}
-      MOUNT_SOURCE: ${{ inputs.mount-source }}
     run: |
       set -euo pipefail
 
-      mount_args=()
-      if [ "$MOUNT_SOURCE" = "true" ]; then
-        mount_args=(
-          -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro"
-          -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro"
-          -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro"
-        )
-      fi
+      # A deps-cached image carries the dependency graph but not necessarily
+      # this PR's source, so mount the checkout over the baked copy read-only.
+      mount_args=(
+        -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro"
+        -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro"
+        -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro"
+      )
 
       run_training_smoke() {
         local label="$1"
@@ -95,20 +86,14 @@ runs:
       print("ovrtx renderer initialized")
       '
 
-      # Install pytest only in this disposable container layer. The shipped
-      # runtime image remains free of test-only dependencies.
+      # pytest goes only into this disposable layer; reinstalling the workspace
+      # would fail against the read-only source mount.
       docker run --rm --gpus all --network host \
         "${mount_args[@]}" \
         "$IMAGE_TAG" \
         bash -lc '
       set -euo pipefail
-      uv sync --active --frozen --no-dev --no-managed-python --no-python-downloads \
-        --extra rl-games \
-        --extra rsl-rl \
-        --extra rtx \
-        --extra sb3 \
-        --extra skrl \
-        --extra test
+      uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
       python -m pytest \
         source/isaaclab_newton/test/test_mock_interfaces \
         -q -p no:cacheprovider

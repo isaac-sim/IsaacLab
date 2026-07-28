@@ -43,21 +43,15 @@ WORKDIR ${ISAACLAB_PATH}
 # installation remains cached when only scripts or application code changes.
 COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
 COPY source/ source/
+COPY isaaclab.sh ./
 
-# The venv pins the system Python 3.12 (the version documented in the install
-# docs) so the interpreter cannot silently drift from the runtime stage's
-# libpython3.12 if the base image's default python3 ever changes.
-# Install from the committed lockfile. The four core RL extras cover RL Games,
-# RSL-RL, Stable-Baselines3, and SKRL. The OVRTX runtime is supported;
-# the OVPhysX runtime remains excluded until its required OmniClient version
-# is compatible with the repository lock.
+# Same entry point as Dockerfile.base. The selector is explicit because OVRTX
+# lives in the `ov` feature a bare --install excludes; OVPhysX stays out until
+# its OmniClient pin is compatible. The venv pins python3.12 to match the
+# runtime stage's libpython3.12, and isaaclab.sh resolves VIRTUAL_ENV first.
 RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
- && uv sync --active --frozen --no-dev --no-managed-python --no-python-downloads \
-      --extra rl-games \
-      --extra rsl-rl \
-      --extra rtx \
-      --extra sb3 \
-      --extra skrl \
+ && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
+ && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[ovrtx] \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \
@@ -72,7 +66,6 @@ COPY scripts/ scripts/
 COPY docs/licenses/ docs/licenses/
 COPY docker/docker-compose.yaml docker/docker-compose.yaml
 COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py
-COPY isaaclab.sh ./
 
 
 FROM ${BASE_IMAGE_ARG} AS runtime
@@ -83,9 +76,8 @@ ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
 ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
-# Mirrors Dockerfile.base: the runtime home is a build argument so the image and
-# the Compose volume mounts, which derive their paths from DOCKER_USER_HOME in
-# .env.kitless, cannot drift apart.
+# Build arg like Dockerfile.base, so the image home and the Compose mounts
+# derived from DOCKER_USER_HOME cannot drift apart.
 ARG DOCKER_USER_HOME_ARG=/home/isaaclab
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV HOME=${DOCKER_USER_HOME}
@@ -96,12 +88,8 @@ ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
-# System libraries the ovrtx renderer loads at initialization. The GLVND split
-# means libgl1 alone is not enough: libGL.so.1 comes from libgl1, but
-# libOpenGL.so.0 and libEGL.so.1 ship in libopengl0 and libegl1 respectively,
-# and the usd_resolver plugin fails to load without them. The NVIDIA container
-# toolkit injects the Vulkan ICD when the `graphics` driver capability is
-# requested.
+# Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
+# but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -126,10 +114,8 @@ COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
 COPY --from=builder --chown=isaaclab:isaaclab ${ISAACLAB_PATH} ${ISAACLAB_PATH}
 
-# Pre-create every named-volume mount point declared by the kitless Compose
-# profile. A fresh named volume inherits ownership from the image directory at
-# its mount path, so deriving these paths from Compose keeps the non-root setup
-# synchronized with the profile without duplicating its list here.
+# A fresh named volume inherits ownership from the image directory at its mount
+# path, so pre-create and chown them; derived from Compose to avoid duplication.
 RUN set -o pipefail \
  && export DOCKER_ISAACLAB_PATH="${ISAACLAB_PATH}" \
            DOCKER_USER_HOME="${HOME}" \

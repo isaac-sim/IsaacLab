@@ -30,16 +30,9 @@ jobs:
     outputs:
       run_kitless_tests: ${{ steps.detect.outputs.should_run }}
     steps:
-    # This job is an install/build test, so it gates on the install inputs that
-    # feed the deps hash, its own wiring, and the existing kit-less pytest
-    # subset exercised inside the resulting image.
-    #
-    # The build job skips via `if:` and reports green to branch protection,
-    # which is why there is no workflow-level `paths:` filter (a not-triggered
-    # required check would block the PR forever).
-    # Full checkout, not the sparse one arm-ci uses for its detect-only job:
-    # the validation steps below need the working tree, and actions/checkout
-    # leaves core.sparseCheckout set, so a later full checkout stays sparse.
+    # The build job skips via `if:` rather than a workflow-level `paths:` filter,
+    # so a required check is always created. Checked out in full (not sparse like
+    # arm-ci) because the steps below need the working tree.
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
@@ -129,16 +122,9 @@ jobs:
         echo "image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}-kitless" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}-kitless"
 
-    # Same ECR-cached setup as the build.yaml image builds: an existing
-    # per-commit or deps-<hash> tag in ECR skips the build entirely, and full
-    # builds reuse the registry layer cache. Dockerfile.kitless builds from the
-    # public ubuntu:24.04 image, so the (historically named)
-    # isaacsim-base-image / isaacsim-version inputs only pin the base image
-    # whose digest feeds the deps hash; the ISAACSIM_* build-args the action
-    # passes are not declared by this Dockerfile and are ignored. The kit-less
-    # guarantee stays asserted inside the Dockerfile itself (no isaacsim
-    # distribution, no _isaac_sim link), so any path that produces the image
-    # has already proven it.
+    # Same ECR cache as build.yaml. This image builds from ubuntu:24.04, so the
+    # isaacsim-* inputs only pin the base whose digest feeds the deps hash; the
+    # ISAACSIM_* build-args are undeclared here and ignored.
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -172,7 +158,6 @@ jobs:
       uses: ./.github/actions/validate-kitless-image
       with:
         image-tag: ${{ steps.tag.outputs.image_tag }}
-        mount-source: "true"
 
     # Keep the self-hosted runner's disk lean: drop the local tags after the
     # run; the layers stay cached in ECR for the next build.

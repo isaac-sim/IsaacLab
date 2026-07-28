@@ -109,28 +109,24 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
     assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
 
 
-def test_kitless_dockerfile_uses_frozen_dependencies_without_isaac_sim_or_ovphysx():
-    """The kit-less image locks Newton, OVRTX, and all core RL frameworks."""
+def test_kitless_dockerfile_installs_newton_rl_and_ovrtx_without_isaac_sim_or_ovphysx():
+    """The kit-less image installs Newton, OVRTX, and all core RL frameworks."""
     dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
 
     assert (
         "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
         in dockerfile_text
     )
-    assert "COPY pyproject.toml uv.lock" in dockerfile_text
-    assert "uv sync --active --frozen" in dockerfile_text
-    assert "--no-dev" in dockerfile_text
-    for extra in ("rl-games", "rsl-rl", "rtx", "sb3", "skrl"):
-        assert f"--extra {extra}" in dockerfile_text
-    assert "--extra rlinf" not in dockerfile_text
-    assert "--extra ov" not in dockerfile_text
+    # Installed through the same entry point as Dockerfile.base/Dockerfile.curobo.
+    assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[ovrtx]' in dockerfile_text
+    assert "COPY isaaclab.sh ./" in dockerfile_text
+    assert "ov[ovphysx]" not in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
     assert "'ovphysx' not in names" in dockerfile_text
     assert "'ovrtx' in names" in dockerfile_text
     assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
     assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
     assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
-    assert "COPY isaaclab.sh ./" in dockerfile_text
 
 
 # --------------------------------------------------------------------------- #
