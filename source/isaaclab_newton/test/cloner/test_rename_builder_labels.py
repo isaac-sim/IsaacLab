@@ -465,7 +465,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(newton_clone_utils_module.solvers.SolverMuJoCo, "register_custom_attributes"),
             mock.patch.object(newton_clone_utils_module.solvers.SolverKamino, "register_custom_attributes"),
         ):
-            builder = visualization_builder_module.build_visualization_builder_from_stage_envs(
+            builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
                 stage, env_paths, clone_plan
             )
 
