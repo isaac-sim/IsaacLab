@@ -2556,7 +2556,7 @@ def test_setting_effort_limit_explicit(
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-def test_reset(sim, num_articulations, device, articulation_type):
+def test_reset(sim, num_articulations, device, articulation_type, monkeypatch):
     """Test that reset method works properly."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
@@ -2568,7 +2568,17 @@ def test_reset(sim, num_articulations, device, articulation_type):
 
     # Now we are ready!
     # reset articulation
+    actuator = next(iter(articulation.actuators.values()))
+    actuator_reset = actuator.reset
+    reset_env_ids = []
+
+    def record_actuator_reset(env_ids=None):
+        reset_env_ids.append(env_ids)
+        actuator_reset(env_ids)
+
+    monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     articulation.reset()
+    assert reset_env_ids == [None]
 
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active

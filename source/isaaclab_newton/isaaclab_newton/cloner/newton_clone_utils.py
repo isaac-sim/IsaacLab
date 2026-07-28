@@ -13,7 +13,7 @@ import torch
 import warp as wp
 from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 
-from pxr import Usd, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
@@ -66,6 +66,66 @@ def _unauthored_collision_mesh_shapes(builder: ModelBuilder, authored_shape_indi
         and (builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES)
         and index not in authored_shape_indices
     ]
+
+
+def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
+    """Return whether a prim hierarchy contains visible geometry without collision."""
+    root_prim = stage.GetPrimAtPath(prim_path)
+    if not root_prim:
+        return False
+    for prim in Usd.PrimRange(root_prim):
+        if not prim.IsA(UsdGeom.Gprim) or prim.HasAPI(UsdPhysics.CollisionAPI):
+            continue
+        imageable = UsdGeom.Imageable(prim)
+        if imageable.ComputeVisibility() != UsdGeom.Tokens.invisible and imageable.ComputePurpose() in (
+            UsdGeom.Tokens.default_,
+            UsdGeom.Tokens.proxy,
+        ):
+            return True
+    return False
+
+
+def _restore_visible_colliders_without_visual_shapes(
+    builder: ModelBuilder, stage: Usd.Stage, path_shape_map: dict[str, int] | None
+) -> None:
+    """Show viewport-visible colliders on bodies without separate visual shapes.
+
+    Newton normally hides every collider when any visual-only shape exists in the
+    imported model. Isaac Lab procedural shapes use one default-purpose USD geometry
+    for both collision and visualization, so an unrelated visual asset must not hide
+    them. Imported collision meshes, guide-purpose collision geometry, and
+    colliders on bodies with separate visual shapes remain hidden.
+    """
+    if not path_shape_map:
+        return
+    bodies_with_visual_shapes = {
+        builder.shape_body[index]
+        for index, flags in enumerate(builder.shape_flags)
+        if builder.shape_body[index] >= 0 and flags & ShapeFlags.VISIBLE and not flags & ShapeFlags.COLLIDE_SHAPES
+    }
+    static_parent_paths = {
+        path.rpartition("/")[0] for path, index in path_shape_map.items() if builder.shape_body[index] < 0
+    }
+    static_parents_with_visual_shapes = {
+        path for path in static_parent_paths if _has_visible_non_collision_geometry(stage, path)
+    }
+    for path, index in path_shape_map.items():
+        flags = builder.shape_flags[index]
+        body_index = builder.shape_body[index]
+        if (
+            not flags & ShapeFlags.COLLIDE_SHAPES
+            or builder.shape_type[index] == GeoType.MESH
+            or body_index in bodies_with_visual_shapes
+            or (body_index < 0 and path.rpartition("/")[0] in static_parents_with_visual_shapes)
+        ):
+            continue
+        imageable = UsdGeom.Imageable(stage.GetPrimAtPath(path))
+        if (
+            imageable
+            and imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
+            and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy)
+        ):
+            builder.shape_flags[index] = flags | ShapeFlags.VISIBLE
 
 
 def build_source_builders(
@@ -133,6 +193,7 @@ def _build_source_builder(
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )
+    _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
     if authored:
         authored_shape_indices = _apply_authored_approximations(builder, import_result["path_shape_map"], authored)
         if simplify_meshes:

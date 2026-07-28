@@ -47,6 +47,7 @@ PER_TEST_TIMEOUTS = {
     "test_simulation_render_config.py": 1000,
     "test_operational_space.py": 1000,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
+    "test_standalone_scripts.py": 3600,  # Runs every supported standalone launch in the selected CI runtime group
     "test_rl_games_wrapper.py": 1000,
     "test_rsl_rl_export_flow.py": 4000,
     "test_rsl_rl_wrapper.py": 1000,
