@@ -111,7 +111,7 @@ def _build_env_cfg_example_1(num_envs: int):
     env_cfg = _shadow_env_cfg(num_envs)
     env_cfg.sim.physics = env_cfg.sim.physics.default
 
-    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, focal_length=16.0)]
+    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT)]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [
@@ -162,7 +162,6 @@ def _build_env_cfg_example_3(num_envs: int):
     kit_cfg = KitVisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
-        focal_length=16.0,
         tiled_cam_view=True,
         tiled_cam_num=min(num_envs, 16),
         # Reuse the existing scene camera sensor so the tiled panel shows
@@ -174,7 +173,7 @@ def _build_env_cfg_example_3(num_envs: int):
         lookat=_SHADOW_LOOKAT,
         window_width=1280,
         window_height=720,
-        focal_length=16.0,
+        focal_length=18.0,
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 
