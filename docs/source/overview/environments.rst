@@ -1001,7 +1001,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-KukaAllegro
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``isaacsim_physx``
+      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **presets=** ``cube``, ``shapes``
     * - Isaac-Lift-KukaAllegro-Camera
       - Manager Based
