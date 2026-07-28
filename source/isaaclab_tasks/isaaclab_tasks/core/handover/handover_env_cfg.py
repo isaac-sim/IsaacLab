@@ -143,30 +143,22 @@ def _shadow_hand_cfg(
     *init_rot* — the gain tuning is identical on both hands.
 
     The Newton variant reuses the shared actuator defined on ``SHADOW_HAND_NEWTON_CFG``,
-    raising its gains to ``20.0`` / ``2.0`` -- the smallest tested setting at which the
-    handover policy learns the catch (mean reward at iter 200 / 2048 envs ~27 -> ~777 vs
-    reorient's base gains). The scalar replaces the per-joint gain mapping, so this applies
-    to every joint in the group, wrists included.
+    raising its gains to ``20.0`` / ``2.0`` -- the catch needs more joint authority than
+    reorientation. The scalar replaces the per-joint gain mapping, so it applies to the whole
+    actuator group.
     """
     physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
         init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
     )
-    # Newton's importer bakes the asset's native root orientation into the
-    # root joint (see the note on SHADOW_HAND_NEWTON_CFG.init_state), so the
-    # task rotation must compose with that base rotation rather than replace
-    # it — replacing left both palms heading 90 degrees off and the object
-    # never rested in the right hand.
-    # Composed in float64 via the shared (x, y, z, w) quaternion product,
-    # matching the previously used wp.quatd math bit-for-bit.
+    # Newton's importer bakes the asset's root orientation into the root joint (see the note on
+    # SHADOW_HAND_NEWTON_CFG.init_state), so the task rotation must compose with it rather than
+    # replace it — replacing leaves both palms rotated 90 degrees.
     newton_rot = tuple(
         math_utils.quat_mul(
             torch.tensor(init_rot, dtype=torch.float64),
             torch.tensor(SHADOW_HAND_NEWTON_CFG.init_state.rot, dtype=torch.float64),
         ).tolist()
     )
-    # The Newton hand inherits the shared actuator from ``SHADOW_HAND_NEWTON_CFG``, raising its
-    # gains: the catch needs a higher nominal gain (20.0/2.0) than reorient's base. Per-hand prim
-    # path and init pose also differ here.
     newton_mjwarp_cfg = SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
         init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
@@ -272,12 +264,11 @@ class PhysicsCfg(PresetCfg):
             nconmax=70,
             impratio=10.0,
             cone="elliptic",
-            update_data_interval=2,
+            update_data_interval=4,
             ccd_iterations=50,  # bumped from default 35 for multi-finger contact geometry
         ),
-        # 4 substeps (vs the reorient task's 2): sustained ball-palm contact against the
-        # distal joints explodes ~0.7% of 8192 envs to NaN at 2 substeps (zero-action
-        # probe, 300 steps); 4 substeps shows none.
+        # 4 substeps (vs reorient's 2): sustained ball-palm contact drives a small fraction of
+        # envs to NaN at 2.
         num_substeps=4,
         debug_mode=False,
     )
