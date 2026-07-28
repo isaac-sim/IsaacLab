@@ -168,7 +168,7 @@ def test_training_and_play_write_bundles(
         ]
     )
     training_data = load_training_bundle(training_output)
-    assert training_data["schema_version"] == "1.2"
+    assert training_data["schema_version"] == "1.3"
     assert training_data["run"]["config"]["physics_backend"] == "newton_mjwarp"
     assert training_data["runtime"]["startup_time_s"]["python_imports"] > 0
     assert training_data["runtime"]["startup_time_s"]["task_config"] > 0
