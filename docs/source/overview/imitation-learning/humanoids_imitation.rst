@@ -78,7 +78,7 @@ Collect five demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run python scripts/tools/record_demos.py \
+   uv run --extra teleop isaaclab teleop record \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --xr \
@@ -100,7 +100,7 @@ You can replay the collected demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run python scripts/tools/replay_demos.py \
+   uv run --extra teleop isaaclab teleop replay \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
@@ -129,7 +129,7 @@ Annotate the demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+   uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
    --task Isaac-PickPlace-GR1T2-Abs-Mimic-v0 \
    --visualizer kit \
    --device cpu \
@@ -167,7 +167,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+   uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu \
    --num_envs 20 \
    --generation_num_trials 1000 \
@@ -271,7 +271,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run python scripts/tools/record_demos.py \
+      uv run --extra teleop isaaclab teleop record \
       --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
       --visualizer kit \
       --device cpu \
@@ -283,7 +283,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+      uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
       --visualizer kit \
       --device cpu \
@@ -299,7 +299,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+      uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
       --visualizer kit \
       --device cpu \
@@ -427,7 +427,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run python scripts/tools/record_demos.py \
+      uv run --extra teleop isaaclab teleop record \
       --device cpu \
       --xr \
       --visualizer kit \
@@ -443,7 +443,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run python scripts/tools/replay_demos.py \
+      uv run --extra teleop isaaclab teleop replay \
       --device cpu \
       --visualizer kit \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
@@ -453,7 +453,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+      uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
       --device cpu \
       --visualizer kit \
       --task Isaac-Locomanipulation-G1-Abs-Mimic-v0 \
@@ -467,7 +467,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+   uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu --num_envs 20 --generation_num_trials 1000 \
    --input_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --output_file ./datasets/generated_dataset_g1_locomanip.hdf5
 
