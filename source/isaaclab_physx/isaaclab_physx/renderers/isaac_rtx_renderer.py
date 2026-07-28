@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -295,14 +296,15 @@ class IsaacRtxRenderer(BaseRenderer):
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
 
-        # Create replicator tiled render product, using a unique name from requested outputs so
-        # sequential envs in one Kit process (e.g. simple_shading_* pytest cases) do not reuse
-        # a stale Replicator / SyntheticData activation. Prefer the public data-type names: all
-        # simple_shading_* modes share the same underlying AOV (``SimpleShadingSD``).
+        # Unique UUID name so concurrent tiled cameras and sequential env create/destroy
+        # cycles in one Kit process do not reuse a stale Replicator / SyntheticData activation.
+        # ``uuid4().hex`` (no hyphens) prefixed with ``rp_`` is a valid USD identifier.
+        # Collision risk is negligible: uuid4 provides 122 random bits, so the birthday-paradox
+        # chance among n names is ~n^2 / 2^123 (e.g. ~10^-25 for a million names).
         rp = rep.create.render_product_tiled(
             cameras=cam_prim_paths,
             tile_resolution=(spec.cfg.width, spec.cfg.height),
-            name="__".join(spec.cfg.data_types),
+            name=f"rp_{uuid.uuid4().hex}",
         )
 
         # Synthetic-data instance mapping filter for segmentation; before annotator attach.
