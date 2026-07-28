@@ -25,7 +25,11 @@ from pxr import UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+from isaaclab.scene_data.deformable_discovery import (
+    build_deformable_vertex_count_lookup,
+    discover_deformables_on_stage,
+    resolve_deformable_vertex_count,
+)
 
 from isaaclab_ovphysx._runtime import import_ovphysx
 
@@ -175,9 +179,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         if not entries:
             return
 
-        path_to_count = {entry.root_path: entry.vertex_count for entry in entries}
+        path_to_count = build_deformable_vertex_count_lookup(entries)
         path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
-        all_paths = list(path_to_count.keys())
+        all_paths = list(path_to_type.keys())
         non_rigid_names: set[str] = set()
         for path in all_paths:
             if re.search(r"/World/envs/env_\d+/", path):
@@ -220,8 +224,21 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                     }
                 )
                 for path in view.prim_paths:
+                    # Prefer USD-discovered unpadded counts over padded max_nodes so
+                    # SceneData ↔ shadow particle_q slices stay size-aligned.
+                    resolved = resolve_deformable_vertex_count(path, path_to_count, fallback=-1)
+                    if resolved < 0:
+                        logger.warning(
+                            "No USD vertex count for deformable path '%s'; using padded "
+                            "max_simulation_nodes_per_body=%d.",
+                            path,
+                            max_nodes,
+                        )
+                        count = int(max_nodes)
+                    else:
+                        count = min(int(resolved), int(max_nodes))
                     self._geometry_paths.append(path)
-                    self._geometry_counts.append(int(path_to_count.get(path, max_nodes)))
+                    self._geometry_counts.append(count)
                 entity_offset += view.count
 
         total_points = sum(self._geometry_counts)

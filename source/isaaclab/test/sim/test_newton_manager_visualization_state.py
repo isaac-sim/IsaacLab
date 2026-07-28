@@ -31,6 +31,9 @@ def _reset_newton_manager_state():
     NewtonManager._num_envs = None
     NewtonManager._scene_data = None
     NewtonManager._scene_data_mapping = None
+    NewtonManager._scene_data_points = None
+    NewtonManager._scene_data_geometry_mapping = None
+    NewtonManager._shadow_deformable_entities = None
 
 
 def _make_env_stage(num_envs: int = 1):
@@ -114,7 +117,9 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
             finalize_calls.append(device)
             return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
 
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: _FakeBuilder())
+    monkeypatch.setattr(
+        nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (_FakeBuilder(), ([], []))
+    )
 
     NewtonManager._ensure_visualization_model()
 
@@ -136,15 +141,18 @@ def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, ca
 
     class _EmptyBuilder:
         body_count = 0
+        particle_count = 0
 
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: _EmptyBuilder())
+    monkeypatch.setattr(
+        nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (_EmptyBuilder(), ([], []))
+    )
 
     with caplog.at_level("ERROR"):
         NewtonManager._ensure_visualization_model()
 
     assert NewtonManager._model is None
     assert NewtonManager._state_0 is None
-    assert any("no Newton bodies" in r.message for r in caplog.records)
+    assert any("no Newton bodies or particles" in r.message for r in caplog.records)
 
 
 def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(monkeypatch):
@@ -165,7 +173,9 @@ def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(mon
         def finalize(self, device):
             return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
 
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: _FakeBuilder())
+    monkeypatch.setattr(
+        nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (_FakeBuilder(), ([], []))
+    )
 
     NewtonManager._ensure_visualization_model()
 
@@ -271,3 +281,82 @@ def test_resolve_scene_data_body_paths_uses_joint_body_targets():
     resolved_paths = NewtonManager._resolve_scene_data_body_paths(body_paths, stage)
 
     assert resolved_paths == ["/World/envs/env_0/Robot/robot0_forearm"]
+
+
+def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
+    """PhysX/OVPhysX shadow sync copies backend points into ``state.particle_q``.
+
+    Uses a real :class:`~isaaclab.scene_data.SceneDataProvider` with an identity
+    geometry mapping (``None``). Passthrough must not rebind away from the shadow
+    ``particle_q`` buffer — that left OVRTX rendering rest-pose cloth under OVPhysX.
+    """
+    import warp as wp
+
+    from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
+    from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics.visualization_deformables import ShadowDeformableEntity
+
+    class _ClothPointsBackend(SceneDataBackend):
+        def __init__(self):
+            self._points = wp.array(
+                [wp.vec3(1.0, 2.0, 3.0), wp.vec3(4.0, 5.0, 6.0)],
+                dtype=wp.vec3f,
+                device="cpu",
+            )
+            self._points_data = SceneDataFormat.Points()
+            self._points_data.points = self._points
+
+        @property
+        def transforms(self) -> SceneDataFormat.Transform:
+            return SceneDataFormat.Transform()
+
+        @property
+        def transform_count(self) -> int:
+            return 0
+
+        @property
+        def transform_paths(self) -> list[str]:
+            return []
+
+        @property
+        def points(self) -> SceneDataFormat.Points:
+            return self._points_data
+
+        @property
+        def point_count(self) -> int:
+            return 2
+
+        @property
+        def geometry_paths(self) -> list[str]:
+            return ["/World/envs/env_0/Cloth"]
+
+        @property
+        def geometry_counts(self) -> list[int]:
+            return [2]
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
+
+    provider = SceneDataProvider(_ClothPointsBackend())
+    # This test covers particle sync only; stub rigid-body transform refresh.
+    monkeypatch.setattr(
+        provider, "get_transforms", lambda output, mapping=None, allow_passthrough=True: True
+    )
+
+    particle_q = wp.zeros(2, dtype=wp.vec3f, device="cpu")
+    NewtonManager._model = SimpleNamespace(body_label=["/World/envs/env_0/Robot"])
+    NewtonManager._state_0 = SimpleNamespace(
+        body_q=wp.zeros(1, dtype=wp.transformf, device="cpu"), particle_q=particle_q
+    )
+    NewtonManager._shadow_deformable_entities = [
+        ShadowDeformableEntity(root_path="/World/envs/env_0/Cloth", particle_offset=0, particle_count=2)
+    ]
+
+    NewtonManager.update_visualization_state(provider)
+
+    # Shadow buffer must remain the same object and receive a copy of live points.
+    assert NewtonManager._state_0.particle_q is particle_q
+    copied = particle_q.numpy()
+    assert copied[0].tolist() == [1.0, 2.0, 3.0]
+    assert copied[1].tolist() == [4.0, 5.0, 6.0]

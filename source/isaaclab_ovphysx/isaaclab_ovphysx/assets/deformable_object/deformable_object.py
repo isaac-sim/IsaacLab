@@ -20,7 +20,6 @@ from pxr import Sdf, Usd, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
 
@@ -191,7 +190,6 @@ class DeformableObject(BaseDeformableObject):
             cfg: Configuration instance for the deformable object.
         """
         super().__init__(cfg)
-        queue_usd_replication(cfg)
         OvPhysxManager.require_full_stage()
         self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
         self._deformable_type: str | None = None
