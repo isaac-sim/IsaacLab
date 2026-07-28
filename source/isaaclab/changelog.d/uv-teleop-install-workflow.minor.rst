@@ -30,6 +30,11 @@ Fixed
   ``coverage==7.4.4`` while the ``test`` extra needs ``coverage>=7.6.1`` for numba; a
   ``coverage>=7.6.1`` override reconciles them and the ``isaacsim``/``test`` conflict is
   removed, so ``uv run --extra teleop --extra test`` can run the teleop test suite.
+* Fixed the imitation-learning training scripts being unrunnable under ``uv``. The
+  ``isaacsim``/``mimic`` conflict was stale -- ``robomimic`` no longer constrains ``lxml``, so
+  the two extras co-resolve. ``scripts/imitation_learning/robomimic/train.py``, ``play.py``,
+  and ``robust_eval.py`` need both ``robomimic`` and the Kit runtime, and now run via
+  ``uv run --extra isaacsim --extra mimic``.
 * Fixed ``ModuleNotFoundError: No module named 'isaaclab_mimic'`` when recording
   demonstrations from a teleop-only environment. ``scripts/tools/record_demos.py`` imports
   ``isaaclab_mimic`` at module level, so the ``teleop`` extra now installs the

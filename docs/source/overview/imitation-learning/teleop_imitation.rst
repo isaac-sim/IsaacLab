@@ -481,7 +481,7 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
 
       .. code:: bash
 
-         uv run --extra mimic python scripts/imitation_learning/robomimic/train.py \
+         uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
@@ -491,7 +491,7 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
 
       .. code:: bash
 
-         uv run --extra mimic python scripts/imitation_learning/robomimic/train.py \
+         uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
          --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
@@ -514,7 +514,7 @@ Run the trained policy to visualize the results:
 
       .. code:: bash
 
-         uv run --extra mimic python scripts/imitation_learning/robomimic/play.py \
+         uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/play.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --num_rollouts 50 \
@@ -525,7 +525,7 @@ Run the trained policy to visualize the results:
 
       .. code:: bash
 
-         uv run --extra mimic python scripts/imitation_learning/robomimic/play.py \
+         uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/play.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
          --viz kit \
          --num_rollouts 50 \

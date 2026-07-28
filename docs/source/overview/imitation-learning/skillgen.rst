@@ -489,7 +489,7 @@ Train a state-based policy for the basic cube stacking task:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/robomimic/train.py \
+         uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
          --algo bc \
          --dataset ./datasets/generated_dataset_skillgen_cube_stack.hdf5
@@ -514,7 +514,7 @@ Train a policy for the more complex adaptive bin stacking:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/robomimic/train.py \
+         uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
          --algo bc \
          --dataset ./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5
@@ -544,7 +544,7 @@ Test your trained policies:
       .. code:: bash
 
          # Basic cube stacking evaluation
-         uv run python scripts/imitation_learning/robomimic/play.py \
+         uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/play.py \
          --device cpu \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
          --num_rollouts 50 \
@@ -570,7 +570,7 @@ Test your trained policies:
       .. code:: bash
 
          # Adaptive bin cube stacking evaluation
-         uv run python scripts/imitation_learning/robomimic/play.py \
+         uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/play.py \
          --device cpu \
          --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
          --num_rollouts 50 \

@@ -408,12 +408,13 @@ override-dependencies = [
     # Sim, which would make the teleop package's own test suite uninstallable.
     "coverage>=7.6.1",
 ]
-# teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
-# declaring the conflict lets uv fork the resolution instead of failing.
-# isaacsim pins clash with ov/ovphysx/mimic (and ``all`` aggregates several of these);
-# forking keeps ``--extra isaacsim`` resolvable on its own. ``teleop`` bundles isaacsim
-# for the Kit XR runtime, so it inherits those conflicts too. Viser is not among them:
-# the websockets override reconciles it with Isaac Sim.
+# ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0, so those two
+# genuinely cannot co-resolve; declaring the conflict lets uv fork the resolution instead
+# of failing. ``teleop`` bundles isaacsim for the Kit XR runtime, so it inherits that.
+# ``mimic`` is deliberately absent from the isaacsim pairs: robomimic no longer constrains
+# lxml, so the imitation-learning stack co-resolves with Isaac Sim and the robomimic
+# training scripts, which need Kit, are runnable via ``--extra isaacsim --extra mimic``.
+# Viser is absent for the same reason -- the websockets override reconciles it.
 conflicts = [
     [{ extra = "teleop" }, { extra = "mimic" }],
     [{ extra = "teleop" }, { extra = "all" }],
@@ -421,7 +422,6 @@ conflicts = [
     [{ extra = "teleop" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
     [{ extra = "isaacsim" }, { extra = "ovphysx" }],
-    [{ extra = "isaacsim" }, { extra = "mimic" }],
     [{ extra = "isaacsim" }, { extra = "all" }],
 ]
 python-preference = "only-managed"

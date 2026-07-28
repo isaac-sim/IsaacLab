@@ -187,10 +187,13 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
 
     # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("ov", "ovphysx", "mimic", "all"):
+    for extra in ("ov", "ovphysx", "all"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
     # ``test`` is no longer forked away: the coverage override reconciles it with Isaac Sim.
     assert {"isaacsim", "test"} not in conflict_groups
+    # ``mimic`` is no longer forked away either: robomimic dropped its lxml constraint, so
+    # the robomimic training scripts can run against Kit via ``--extra isaacsim --extra mimic``.
+    assert {"isaacsim", "mimic"} not in conflict_groups
 
     assert {"isaacsim", "viser"} not in conflict_groups
     assert "websockets==13.1" in pyproject["tool"]["uv"]["override-dependencies"]
