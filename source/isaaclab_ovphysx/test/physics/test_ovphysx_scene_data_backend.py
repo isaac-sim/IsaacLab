@@ -18,6 +18,14 @@ import pytest
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _register_ovphysx_schemas_before_test_stages():
+    """Register OvPhysX schemas before this module creates any USD stage."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    OvPhysxManager._prepare_stage_creation()
+
+
 def _make_two_environment_stage():
     """Create an in-memory USD stage with one cube in each of two environments."""
     from pxr import Usd
