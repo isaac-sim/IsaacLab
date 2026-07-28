@@ -25,6 +25,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
+from .common import ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
@@ -166,4 +167,16 @@ class ManagerBasedEnvCfg:
 
     Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list
     with a default stream from the active visualizer.
+    """
+
+    viewer: ViewerCfg = ViewerCfg()
+    """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+    or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
+
+    .. deprecated::
+        This field is deprecated and will be removed in a future release. Configure the viewport
+        camera via :class:`~isaaclab.visualizers.VisualizerCfg` on the simulation config::
+
+            from isaaclab.visualizers import VisualizerCfg
+            env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
     """

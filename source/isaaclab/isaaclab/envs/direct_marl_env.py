@@ -33,7 +33,7 @@ from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
-from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType
+from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, _apply_deprecated_viewer_cfg
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
@@ -102,6 +102,10 @@ class DirectMARLEnv(gym.Env):
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
+
+        # Backwards-compat: if the deprecated viewer field has non-default eye/lookat, apply
+        # them to sim.default_visualizer_cfg so the scene camera still matches user intent.
+        _apply_deprecated_viewer_cfg(self.cfg)
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:

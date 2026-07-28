@@ -10,13 +10,10 @@ Pure Python — no simulation context or Kit app required.
 
 from __future__ import annotations
 
-import argparse
 import logging
 import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock
-
-import pytest
 
 from isaaclab_rl.entrypoints.common import apply_video_recording, wrap_record_video
 

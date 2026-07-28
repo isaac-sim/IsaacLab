@@ -61,6 +61,7 @@ import torch
 import warp as wp
 
 from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -288,7 +289,7 @@ def main():
         device=args_cli.device,
         num_envs=args_cli.num_envs,
     )
-    env_cfg.viewer.eye = (2.1, 1.0, 1.3)
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.1, 1.0, 1.3))
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
 
     # wrap for video recording

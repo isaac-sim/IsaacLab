@@ -92,6 +92,51 @@ class ViewerCfg:
             )
 
 
+def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
+    """Apply the deprecated ``viewer`` field to ``sim.default_visualizer_cfg`` if it was set.
+
+    When user code sets ``env_cfg.viewer.eye`` or ``env_cfg.viewer.lookat``, this helper
+    detects the non-default values, emits a log warning, and writes them into
+    ``env_cfg.sim.default_visualizer_cfg`` so the Kit visualizer still picks up the
+    configured camera position.
+
+    Must be called before :class:`~isaaclab.sim.SimulationContext` is constructed so
+    that the translated cfg is visible to the context.
+    """
+    import logging as _logging
+
+    viewer = getattr(env_cfg, "viewer", None)
+    if viewer is None:
+        return
+
+    _defaults = ViewerCfg()
+    eye_changed = not _viewer_cfg_field_matches_default(viewer.eye, _defaults.eye)
+    lookat_changed = not _viewer_cfg_field_matches_default(viewer.lookat, _defaults.lookat)
+
+    if not (eye_changed or lookat_changed):
+        return
+
+    _logging.getLogger(__name__).warning(
+        "env_cfg.viewer is deprecated. Set env_cfg.sim.default_visualizer_cfg = "
+        "VisualizerCfg(eye=..., lookat=...) instead. The viewer values have been "
+        "automatically forwarded for this run."
+    )
+
+    sim_cfg = getattr(env_cfg, "sim", None)
+    if sim_cfg is None:
+        return
+
+    if getattr(sim_cfg, "default_visualizer_cfg", None) is not None:
+        return
+
+    from isaaclab.visualizers import VisualizerCfg
+
+    sim_cfg.default_visualizer_cfg = VisualizerCfg(
+        eye=tuple(viewer.eye),
+        lookat=tuple(viewer.lookat),
+    )
+
+
 ##
 # Types.
 ##

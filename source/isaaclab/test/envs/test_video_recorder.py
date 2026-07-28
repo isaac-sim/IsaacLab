@@ -3,19 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for VideoRecorder and VideoRecorderCfg.
+"""Unit tests for VideoRecorder, VideoRecorderCfg, and the ViewerCfg deprecation shim.
 
 All tests are pure-Python mocks — no simulation context or Kit app required.
 """
 
 from __future__ import annotations
 
+import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
+from isaaclab.envs.common import ViewerCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder, _parse_source
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
@@ -549,3 +551,112 @@ def test_maybe_delete_old_clips_tolerates_missing_file():
 
     with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=FileNotFoundError):
         recorder._maybe_delete_old_clips()  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# ViewerCfg deprecation shim (isaaclab.envs.common)
+# ---------------------------------------------------------------------------
+
+
+def test_viewer_cfg_default_no_warning():
+    """ViewerCfg() with all defaults must not emit a DeprecationWarning."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        ViewerCfg()  # must not raise
+
+
+def test_viewer_cfg_custom_eye_warns():
+    """ViewerCfg(eye=...) with a non-default value must emit DeprecationWarning."""
+    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
+        ViewerCfg(eye=(1.0, 2.0, 3.0))
+
+
+def test_viewer_cfg_custom_lookat_warns():
+    """ViewerCfg(lookat=...) with a non-default value must emit DeprecationWarning."""
+    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
+        ViewerCfg(lookat=(1.0, 0.0, 0.0))
+
+
+def test_viewer_cfg_custom_resolution_warns():
+    """ViewerCfg(resolution=...) with a non-default value must emit DeprecationWarning."""
+    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
+        ViewerCfg(resolution=(640, 480))
+
+
+def test_viewer_cfg_custom_origin_type_warns():
+    """ViewerCfg(origin_type=...) with a non-default value must emit DeprecationWarning."""
+    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
+        ViewerCfg(origin_type="env")
+
+
+def test_viewer_cfg_default_eye_no_warning():
+    """Passing the default eye value explicitly must not trigger a warning."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        ViewerCfg(eye=(7.5, 7.5, 7.5))
+
+
+def test_viewer_cfg_warning_is_deprecation_warning_subclass():
+    """The emitted warning must be a DeprecationWarning (not just a UserWarning)."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ViewerCfg(eye=(0.0, 0.0, 1.0))
+
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+
+
+# ---------------------------------------------------------------------------
+# _apply_deprecated_viewer_cfg bridge (isaaclab.envs.common)
+# ---------------------------------------------------------------------------
+
+
+def _make_env_cfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0)):
+    """Build a minimal env-cfg-like object with viewer and sim attributes."""
+    from types import SimpleNamespace
+
+    viewer = ViewerCfg()
+    viewer.eye = eye
+    viewer.lookat = lookat
+    sim = SimpleNamespace(default_visualizer_cfg=None)
+    return SimpleNamespace(viewer=viewer, sim=sim)
+
+
+def test_apply_deprecated_viewer_noop_when_defaults():
+    """No changes when viewer eye/lookat are at their defaults."""
+    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+
+    env_cfg = _make_env_cfg()
+    _apply_deprecated_viewer_cfg(env_cfg)
+    assert env_cfg.sim.default_visualizer_cfg is None
+
+
+def test_apply_deprecated_viewer_sets_default_visualizer_cfg():
+    """Non-default eye applies to sim.default_visualizer_cfg."""
+    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+
+    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
+    _apply_deprecated_viewer_cfg(env_cfg)
+    assert env_cfg.sim.default_visualizer_cfg is not None
+    assert env_cfg.sim.default_visualizer_cfg.eye == (1.0, 2.0, 3.0)
+
+
+def test_apply_deprecated_viewer_does_not_overwrite_existing_cfg():
+    """Does not clobber a default_visualizer_cfg the user already set."""
+    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+    from isaaclab.visualizers import VisualizerCfg
+
+    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
+    existing = VisualizerCfg(eye=(9.0, 9.0, 9.0))
+    env_cfg.sim.default_visualizer_cfg = existing
+    _apply_deprecated_viewer_cfg(env_cfg)
+    assert env_cfg.sim.default_visualizer_cfg is existing
+
+
+def test_apply_deprecated_viewer_noop_when_no_viewer_attribute():
+    """Cfg objects without a viewer field are silently skipped."""
+    from types import SimpleNamespace
+
+    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(default_visualizer_cfg=None))
+    _apply_deprecated_viewer_cfg(env_cfg)  # must not raise
