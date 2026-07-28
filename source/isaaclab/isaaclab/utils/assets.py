@@ -36,23 +36,53 @@ _MDL_RELATIVE_IMPORT_RE = re.compile(
 )
 
 
+_KIT_EXPERIENCE_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), *([".."] * 4), "apps", "isaaclab.python.kit")
+)
+
+# Isaac Sim resolves ``persistent.isaac.asset_root.default``, so it is read first. The
+# legacy ``cloud`` setting is only consulted for experience files that predate it.
+_KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
+
+
 def _parse_kit_asset_root() -> str:
     """Parse the configured Isaac asset root.
 
     Returns:
-        Value of ``persistent.isaac.asset_root.cloud`` from ``isaaclab.python.kit``.
+        Value of ``persistent.isaac.asset_root.default``, or of the legacy
+        ``persistent.isaac.asset_root.cloud``, from ``isaaclab.python.kit``.
     """
-    _ISAACLAB_ROOT = os.path.join(os.path.dirname(__file__), *([".."] * 4))
-    kit_path = os.path.normpath(os.path.join(_ISAACLAB_ROOT, "apps", "isaaclab.python.kit"))
-    with open(kit_path) as f:
-        for line in reversed(f.readlines()):  # read from the last line since it's the last setting defined
-            m = re.match(r'\s*persistent\.isaac\.asset_root\.cloud\s*=\s*"([^"]*)"', line)
+    with open(_KIT_EXPERIENCE_PATH) as f:
+        lines = f.readlines()
+    for setting in _KIT_ASSET_ROOT_SETTINGS:
+        pattern = re.compile(rf'\s*persistent\.isaac\.asset_root\.{setting}\s*=\s*"([^"]*)"')
+        for line in reversed(lines):  # read from the last line since it's the last setting defined
+            m = pattern.match(line)
             if m:
                 return m.group(1)
     return ""
 
 
-NUCLEUS_ASSET_ROOT_DIR: str = _parse_kit_asset_root()
+def _resolve_asset_root() -> str:
+    """Resolve the configured Isaac asset root.
+
+    The ``ISAACSIM_ASSET_ROOT`` environment variable follows the public Isaac Sim
+    asset-root precedence. The kit file remains the fallback for kitless use.
+
+    Returns:
+        Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
+        configured in ``isaaclab.python.kit``.
+    """
+    # the value is used exactly as ``isaacsim.storage.native`` uses it, so both sides resolve
+    # the same root; only the trailing separator is dropped, for ``/`` and for the documented
+    # Windows ``\``
+    asset_root = os.getenv("ISAACSIM_ASSET_ROOT")
+    if asset_root:
+        return asset_root.rstrip("/\\")
+    return _parse_kit_asset_root()
+
+
+NUCLEUS_ASSET_ROOT_DIR: str = _resolve_asset_root()
 """Path to the root directory on the Nucleus Server."""
 
 NVIDIA_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
