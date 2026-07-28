@@ -797,7 +797,9 @@ def test_articulation_dynamics_reorder_body_rows_and_joint_axes(sim, device):
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
-            spawn=sim_utils.UsdFileCfg(usd_path=str(_branching_fixture_path())),
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
             actuators={},
             joint_ordering="mjwarp",
             body_ordering="mjwarp",
@@ -848,7 +850,7 @@ def test_articulation_dynamics_reorder_body_rows_and_joint_axes(sim, device):
 def test_articulation_dynamics_preserve_floating_base_columns_during_joint_reordering(sim, device):
     """Keep floating-base columns leading while gathering actuated-joint axes."""
     articulation_cfg = generate_articulation_cfg("anymal").replace(
-        joint_ordering=tuple(reversed(_ANYMAL_PHYSX_JOINT_NAMES))
+        joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES))
     )
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
     sim.reset()
