@@ -9,7 +9,7 @@ Changed
 ^^^^^^^
 
 * **Breaking:** Renamed the canonical Franka Reach configuration module from ``joint_pos_env_cfg`` to
-  ``franka_env_cfg``.
+  ``franka_reach_env_cfg`` and the OSC module from ``osc_env_cfg`` to ``franka_reach_osc_env_cfg``.
 * **Breaking:** Removed ``Isaac-Reach-Franka-Newton-IK-Rel`` and
   ``Isaac-Reach-Franka-Newton-IK-Rel-v0``. Use
   ``Isaac-Reach-Franka presets=newton_mjwarp,newton_ik`` instead.

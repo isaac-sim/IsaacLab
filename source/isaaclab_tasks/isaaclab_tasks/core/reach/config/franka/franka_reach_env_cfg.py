@@ -13,10 +13,8 @@ from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonCfg
 
 import isaaclab.envs.mdp as mdp
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
@@ -25,27 +23,7 @@ from isaaclab_tasks.utils import PresetCfg
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_CFG  # isort: skip
-
-
-_FRANKA_PANDA_REACH_CFG = FRANKA_PANDA_CFG.copy()
-_FRANKA_PANDA_REACH_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
-_FRANKA_PANDA_REACH_CFG.actuators = {
-    "panda_arm": ImplicitActuatorCfg(
-        joint_names_expr=["panda_joint[1-7]"],
-        # Override the converter-authored angular drives with SI gains until the USD is corrected.
-        velocity_limit_sim={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
-        stiffness={"panda_joint[1-2]": 1000.0, "panda_joint[3-4]": 750.0, "panda_joint[5-7]": 300.0},
-        damping={"panda_joint[1-2]": 20.0, "panda_joint[3-4]": 4.0, "panda_joint[5-7]": 2.0},
-    ),
-    "panda_hand": ImplicitActuatorCfg(
-        joint_names_expr=["panda_finger_joint.*"],
-        stiffness=None,
-        damping=None,
-    ),
-}
-
-_IK_ACTION_SCALE = (0.05, 0.05, 0.05, 0.5, 0.5, 0.5)
+from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG  # isort: skip
 
 
 ##
@@ -70,7 +48,7 @@ class FrankaArmActionCfg(PresetCfg):
             ik_method="dls",
             ik_params={"lambda_val": 0.01},
         ),
-        scale=_IK_ACTION_SCALE,
+        scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
     newton_ik: NewtonInverseKinematicsActionCfg = NewtonInverseKinematicsActionCfg(
@@ -83,7 +61,7 @@ class FrankaArmActionCfg(PresetCfg):
                 body_offset_pos=(0.0, 0.0, 0.107),
                 command_type="pose",
                 use_relative_mode=True,
-                scale=_IK_ACTION_SCALE,
+                scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
                 rotation_weight=2.0,
             ),
             NewtonIKJointLimitObjectiveCfg(weight=0.1),
@@ -109,7 +87,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         super().__post_init__()
 
         # switch robot to franka
-        self.scene.robot = _FRANKA_PANDA_REACH_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]

@@ -358,7 +358,7 @@ for the lift-cube environment:
 .. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
 .. |g1_assemble_trocar| image:: ../_static/tasks/manipulation/g1_assemble_trocar.jpg
 
-.. |reach-franka-link| replace:: :isaaclab-source:`Isaac-Reach-Franka <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/franka_env_cfg.py>`
+.. |reach-franka-link| replace:: :isaaclab-source:`Isaac-Reach-Franka <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/franka_reach_env_cfg.py>`
 .. |reach-ur10-link| replace:: :isaaclab-source:`Isaac-Reach-UR10 <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/ur_10/joint_pos_env_cfg.py>`
 .. |deploy-reach-ur10e-link| replace:: :isaaclab-source:`IsaacContrib-Deploy-Reach-UR10e <source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`
 .. |lift-cube-link| replace:: :isaaclab-source:`Isaac-Lift-Cube-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka/joint_pos_env_cfg.py>`

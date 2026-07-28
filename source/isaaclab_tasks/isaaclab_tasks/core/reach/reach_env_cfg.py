@@ -25,7 +25,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-from isaaclab_tasks.core.reach import mdp as reach_mdp
 from isaaclab_tasks.utils import PresetCfg
 
 ##
@@ -35,7 +34,6 @@ from isaaclab_tasks.utils import PresetCfg
 
 @configclass
 class ReachPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
@@ -55,6 +53,7 @@ class ReachPhysicsCfg(PresetCfg):
         solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
     )
     ovphysx: OvPhysxCfg = OvPhysxCfg()
+    default: NewtonCfg = newton_mjwarp
 
 
 ##
@@ -106,6 +105,8 @@ class CommandsCfg:
         body_name=MISSING,
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,
+        position_success_threshold=0.05,
+        orientation_success_threshold=0.2,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.35, 0.65),
             pos_y=(-0.2, 0.2),
@@ -193,8 +194,8 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     success = DoneTerm(
-        func=reach_mdp.pose_command_success,
-        params={"command_name": "ee_pose", "position_threshold": 0.05, "orientation_threshold": 0.2},
+        func=mdp.pose_command_success,
+        params={"command_name": "ee_pose"},
     )
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 

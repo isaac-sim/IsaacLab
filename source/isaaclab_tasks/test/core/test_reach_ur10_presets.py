@@ -26,6 +26,7 @@ def _without_physics(cfg):
 @pytest.mark.parametrize(
     ("presets", "physics_type"),
     [
+        ((), "NewtonCfg"),
         (("physx",), "PhysxCfg"),
         (("newton_mjwarp",), "NewtonCfg"),
     ],
@@ -61,6 +62,6 @@ def test_reach_ur10_uses_shared_mdp_and_arm_motion_penalty():
     assert cfg.rewards.joint_vel.weight == pytest.approx(-0.0001)
     assert cfg.terminations.success.params == {
         "command_name": "ee_pose",
-        "position_threshold": 0.05,
-        "orientation_threshold": 0.2,
     }
+    assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
+    assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)

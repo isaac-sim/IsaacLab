@@ -7,11 +7,11 @@ from isaaclab.controllers.operational_space_cfg import OperationalSpaceControlle
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.utils.configclass import configclass
 
-from . import franka_env_cfg
+from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
 
 
 @configclass
-class FrankaReachEnvCfg(franka_env_cfg.FrankaReachEnvCfg):
+class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent
         super().__post_init__()
