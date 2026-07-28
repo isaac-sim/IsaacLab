@@ -51,6 +51,9 @@ def test_make_xfail_rendering_params_removes_flaky_mark() -> None:
     )
 
     assert [mark.name for mark in marked[0].marks] == ["xfail"]
+    xfail_mark = marked[0].marks[0]
+    assert xfail_mark.kwargs["reason"] == "Known rendering regression."
+    assert xfail_mark.kwargs["strict"] is False
 
 
 def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
@@ -70,7 +73,8 @@ def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
 
     marked = make_skip_rendering_params(
         params,
-        {("legacy", "newton", "ovrtx_renderer", "simple_shading_full_mdl"): ("Native renderer crash.")},
+        {("legacy", "newton", "ovrtx_renderer", "simple_shading_full_mdl"): "Native renderer crash."},
     )
 
     assert [mark.name for mark in marked[0].marks] == ["skip"]
+    assert marked[0].marks[0].kwargs["reason"] == "Native renderer crash."

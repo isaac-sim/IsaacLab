@@ -576,9 +576,10 @@ def _make_failed_pass_result(
     stderr_data: bytes,
     time_elapsed: float,
     wall_time: float,
-    tests: int = 1,
+    report: JUnitXml | None = None,
+    tests: int = 0,
 ) -> tuple[JUnitXml, dict, bool]:
-    """Create and persist a failed per-file pass result."""
+    """Append and persist a synthetic failure without discarding existing results."""
     details = message + "\n\n"
     if stdout_data:
         details += "=== STDOUT (last 5000 chars) ===\n"
@@ -586,15 +587,17 @@ def _make_failed_pass_result(
     if stderr_data:
         details += "=== STDERR (last 5000 chars) ===\n"
         details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
-    error_report = _create_error_report(prefix, pass_file_label, message, details)
-    error_report.write(report_file)
+    if report is None:
+        report = JUnitXml()
+    report += _create_error_report(prefix, pass_file_label, message, details)
+    report.write(report_file)
     return (
-        error_report,
+        report,
         {
             "errors": 1,
             "failures": 0,
             "skipped": 0,
-            "tests": tests,
+            "tests": tests + 1,
             "result": "FAILED",
             "time_elapsed": time_elapsed,
             "wall_time": wall_time,
@@ -844,6 +847,8 @@ def _run_one_pass(
             stderr_data,
             time_elapsed,
             wall_time,
+            report=report,
+            tests=tests,
         )
 
     (
@@ -895,7 +900,8 @@ def _run_one_pass(
             stderr_data,
             time_elapsed,
             wall_time,
-            tests=max(tests, 1),
+            report=report,
+            tests=tests,
         )
 
     was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)

@@ -15,7 +15,7 @@ from types import ModuleType
 
 def _load_orchestrator_module() -> ModuleType:
     """Load ``tools/conftest.py`` without registering it as a pytest plugin."""
-    module_path = Path(__file__).resolve().parents[1] / "conftest.py"
+    module_path = Path(__file__).resolve().parents[4] / "tools" / "conftest.py"
     module_name = "isaaclab_test_orchestrator"
     tools_dir = str(module_path.parent)
     if tools_dir not in sys.path:
@@ -39,18 +39,35 @@ def _write_empty_junit_report(report_file: str) -> None:
     )
 
 
+def _write_passing_junit_report(report_file: str) -> None:
+    """Write a valid JUnit report containing one passing test case."""
+    path = Path(report_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        (
+            '<?xml version="1.0" encoding="utf-8"?><testsuites>'
+            '<testsuite tests="1"><testcase classname="test_sample" name="test_present"/>'
+            "</testsuite></testsuites>"
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_exact_node_ids_selecting_zero_tests_fail(monkeypatch, tmp_path: Path) -> None:
-    """Stale exact node IDs must not produce a successful test-file result."""
+    """Stale exact node IDs must fail independently of the subprocess exit code."""
     orchestrator = _load_orchestrator_module()
     test_file = tmp_path / "test_sample.py"
     test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    report_paths: list[Path] = []
 
     def _capture(*_args, report_file: str, **_kwargs):
+        report_paths.append(Path(report_file))
         _write_empty_junit_report(report_file)
-        return 4, b"ERROR: not found", b"", "", 0.1, ""
+        return 0, b"no tests selected", b"", "", 0.1, ""
 
     monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
     monkeypatch.chdir(tmp_path)
+    missing_node_id = f"{test_file}::test_missing"
     context = orchestrator._PassContext(
         test_file=str(test_file),
         file_name=test_file.name,
@@ -60,7 +77,7 @@ def test_exact_node_ids_selecting_zero_tests_fail(monkeypatch, tmp_path: Path) -
         startup_deadline=1,
         env={},
         inject_shard_select=False,
-        pytest_targets=[f"{test_file}::test_missing"],
+        pytest_targets=[missing_node_id],
     )
 
     report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -70,17 +87,20 @@ def test_exact_node_ids_selecting_zero_tests_fail(monkeypatch, tmp_path: Path) -
     assert status["errors"] == 1
     assert status["tests"] == 1
     assert was_failure
+    assert missing_node_id in report_paths[0].read_text(encoding="utf-8")
 
 
-def test_nonzero_pytest_exit_without_reported_failure_fails(monkeypatch, tmp_path: Path) -> None:
-    """A nonzero pytest exit must fail even when its JUnit report has no failures."""
+def test_nonzero_pytest_exit_preserves_reported_tests(monkeypatch, tmp_path: Path) -> None:
+    """A synthetic exit error should be appended without discarding real test cases."""
     orchestrator = _load_orchestrator_module()
     test_file = tmp_path / "test_sample.py"
     test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    report_paths: list[Path] = []
 
     def _capture(*_args, report_file: str, **_kwargs):
-        _write_empty_junit_report(report_file)
-        return 5, b"no tests ran", b"", "", 0.1, ""
+        report_paths.append(Path(report_file))
+        _write_passing_junit_report(report_file)
+        return 2, b"interrupted after test completion", b"", "", 0.1, ""
 
     monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
     monkeypatch.chdir(tmp_path)
@@ -101,5 +121,8 @@ def test_nonzero_pytest_exit_without_reported_failure_fails(monkeypatch, tmp_pat
     assert report is not None
     assert status["result"] == "FAILED"
     assert status["errors"] == 1
-    assert status["tests"] == 1
+    assert status["tests"] == 2
     assert was_failure
+    xml = report_paths[0].read_text(encoding="utf-8")
+    assert "test_present" in xml
+    assert "pytest exited with code 2" in xml
