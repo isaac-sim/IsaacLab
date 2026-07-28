@@ -357,7 +357,7 @@ class RerunVisualizer(BaseVisualizer):
                         render_newton_visualization_markers(
                             self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
                         )
-                    self._render_live_plots()
+                self._render_live_plots()
             finally:
                 self._viewer.end_frame()
 
