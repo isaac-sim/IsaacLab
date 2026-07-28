@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from types import ModuleType, SimpleNamespace
 
@@ -97,6 +98,133 @@ def test_manager_supports_current_runtime_api():
     assert physx.constructor["active_cuda_gpus"] is None
     assert physx.constructor["config"].num_threads == 8
     assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
+
+
+def test_manager_serializes_env0_only_stage_in_memory(caplog):
+    """The OVPhysX input keeps globals and env 0 without writing cloned envs."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    for path in ("/World/Ground", "/World/envs/env_0/Cube", "/World/envs/env_1/Cube"):
+        UsdGeom.Xform.Define(stage, path)
+
+    with caplog.at_level(logging.INFO, logger=OvPhysxManager.__module__):
+        usda = OvPhysxManager._serialize_env0_only_stage(stage)
+    layer = Sdf.Layer.CreateAnonymous("filtered.usda")
+    assert layer.ImportFromString(usda)
+    filtered = Usd.Stage.Open(layer)
+
+    assert filtered.GetPrimAtPath("/World/Ground").IsValid()
+    assert filtered.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
+    assert not filtered.GetPrimAtPath("/World/envs/env_1").IsValid()
+    assert "stripped 1 env_<i!=0> subtrees from in-memory USD" in caplog.text
+
+
+def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
+    """The in-memory serializer diagnoses stages without the standard env namespace."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/Ground")
+
+    with caplog.at_level(logging.DEBUG, logger=OvPhysxManager.__module__):
+        OvPhysxManager._serialize_env0_only_stage(stage)
+
+    assert "no /World/envs prim — serialized stage as-is" in caplog.text
+
+
+def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
+    """The manager owns OVStage from population through PhysX release."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    events = []
+
+    class FakeStage:
+        def __init__(self, name):
+            events.append(("stage", name))
+
+        def destroy(self):
+            events.append(("destroy",))
+
+    class FakePhysX:
+        def attach_ovstage(self, stage, read_ordinal):
+            events.append(("attach", stage, read_ordinal))
+
+        def reset_stage(self):
+            events.append(("reset",))
+            return 17
+
+        def wait_op(self, op):
+            events.append(("wait", op))
+
+    fake_ovstage = ModuleType("ovstage")
+    fake_ovstage.Stage = FakeStage
+    fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
+    fake_ovstage.population = SimpleNamespace(
+        open_usd_from_string=lambda stage, usda, ordinal, domains: events.append(
+            ("populate", stage, usda, ordinal, domains)
+        )
+    )
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+
+    previous_physx = OvPhysxManager._physx
+    previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
+    OvPhysxManager._physx = FakePhysX()
+    OvPhysxManager._ovstage = None
+    try:
+        OvPhysxManager._attach_ovstage("#usda 1.0")
+        stage = OvPhysxManager._ovstage
+        OvPhysxManager._release_physx()
+    finally:
+        OvPhysxManager._physx = previous_physx
+        OvPhysxManager._ovstage = previous_ovstage
+
+    assert events == [
+        ("stage", "isaaclab"),
+        ("populate", stage, "#usda 1.0", 1, "all"),
+        ("attach", stage, 1),
+        ("reset",),
+        ("wait", 17),
+        ("destroy",),
+    ]
+
+
+def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
+    """A failed in-memory population does not leak its OVStage allocation."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    destroyed = []
+
+    class FakeStage:
+        def __init__(self, name):
+            self.name = name
+
+        def destroy(self):
+            destroyed.append(self.name)
+
+    def fail_population(*args, **kwargs):
+        raise RuntimeError("population failed")
+
+    fake_ovstage = ModuleType("ovstage")
+    fake_ovstage.Stage = FakeStage
+    fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
+    fake_ovstage.population = SimpleNamespace(open_usd_from_string=fail_population)
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+
+    previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
+    OvPhysxManager._ovstage = None
+    try:
+        with pytest.raises(RuntimeError, match="population failed"):
+            OvPhysxManager._attach_ovstage("#usda 1.0")
+        assert OvPhysxManager._ovstage is None
+    finally:
+        OvPhysxManager._ovstage = previous_ovstage
+
+    assert destroyed == ["isaaclab"]
 
 
 def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path):

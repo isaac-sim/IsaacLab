@@ -142,13 +142,13 @@ def ovphysx_replicate(
     Translates the generic IsaacLab source/destination/mapping representation
     into ``(source_path, [target_paths])`` pairs and registers them on
     :class:`~isaaclab_ovphysx.physics.OvPhysxManager`.  The actual
-    ``physx.clone()`` calls happen in ``_warmup_and_load()`` after the USD
-    stage has been loaded.
+    ``physx.clone()`` calls happen in ``_warmup_and_load()`` after OVStage
+    has been attached.
 
     The ``positions`` parameter contains the 2-D grid world positions for all
     environments.  They are forwarded to the C++ clone plugin so that the
     parent Xform prim for each clone (e.g. ``/World/envs/env_N``) is placed at
-    the correct grid location in Fabric.  The exported USD stage only contains
+    the correct grid location in Fabric. The in-memory OVStage only contains
     ``env_0``; without explicit positions all clone parents would be created at
     the origin, causing all articulations to pile up and the GPU solver to
     diverge on the first warmup step.
