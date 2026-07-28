@@ -900,8 +900,47 @@ class KitVisualizer(BaseVisualizer):
         return True
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
-        """Apply configured camera pose from eye/lookat."""
+        """Apply configured camera pose from eye/lookat, and apply focal length."""
         self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
+        self._apply_cfg_focal_length()
+
+    def _apply_cfg_focal_length(self) -> None:
+        """Set the focal length on the active viewport camera prim.
+
+        Converts :attr:`~KitVisualizerCfg.focal_length` to the USD camera's ``focalLength``
+        attribute using the same vertical-aperture formula as :class:`NewtonVisualizer`, so that
+        the same value produces the same vertical field of view in both backends::
+
+            v_fov = 2 * atan(15.2908 / (2 * focal_length))
+
+        The Kit USD camera uses a horizontal aperture (20.955 mm) internally, so the stored
+        focal length is rescaled to match the target v_fov at the configured window aspect ratio.
+        """
+        import math
+
+        focal_length = float(self.cfg.focal_length)
+        if focal_length <= 0.0:
+            return
+        _USD_VERTICAL_APERTURE_MM = 15.2908
+        _USD_HORIZONTAL_APERTURE_MM = 20.955
+        # Target v_fov using Newton's (vertical aperture) formula.
+        target_v_fov_rad = 2.0 * math.atan(_USD_VERTICAL_APERTURE_MM / (2.0 * focal_length))
+        # Convert to h_fov at the configured window aspect ratio.
+        aspect = float(self.cfg.window_width) / float(self.cfg.window_height)
+        target_h_fov_rad = 2.0 * math.atan(math.tan(target_v_fov_rad / 2.0) * aspect)
+        # Solve for the focal_length that gives this h_fov with Kit's horizontal aperture.
+        fl_usd = _USD_HORIZONTAL_APERTURE_MM / (2.0 * math.tan(target_h_fov_rad / 2.0))
+
+        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
+        if usd_stage is None:
+            return
+        camera_path = self._controlled_camera_path or _DEFAULT_VIEWPORT_CAMERA_PATH
+        camera_prim = usd_stage.GetPrimAtPath(camera_path)
+        if not camera_prim.IsValid():
+            return
+        fl_attr = camera_prim.GetAttribute("focalLength")
+        if fl_attr:
+            fl_attr.Set(fl_usd)
 
     def _set_active_camera_path(self, camera_path: str) -> bool:
         """Set active camera path for viewport if the prim exists.

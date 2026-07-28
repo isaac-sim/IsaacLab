@@ -111,7 +111,7 @@ def _build_env_cfg_example_1(num_envs: int):
     env_cfg = _shadow_env_cfg(num_envs)
     env_cfg.sim.physics = env_cfg.sim.physics.default
 
-    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT)]
+    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, focal_length=16.0)]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [
@@ -162,6 +162,7 @@ def _build_env_cfg_example_3(num_envs: int):
     kit_cfg = KitVisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
+        focal_length=16.0,
         tiled_cam_view=True,
         tiled_cam_num=min(num_envs, 16),
         # Reuse the existing scene camera sensor so the tiled panel shows
@@ -173,11 +174,7 @@ def _build_env_cfg_example_3(num_envs: int):
         lookat=_SHADOW_LOOKAT,
         window_width=1280,
         window_height=720,
-        # focal_length=18 matches Kit's effective vertical FOV (~46°).
-        # Kit uses focal_length=12 on a horizontal-aperture USD camera (h_ap=20.955mm),
-        # giving h_FOV=82.3° → v_FOV≈46° at 16:9.  Newton applies focal_length directly
-        # to the vertical aperture (15.29mm), so focal_length=12 gives v_FOV=65° (too wide).
-        focal_length=18.0,
+        focal_length=16.0,
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 
