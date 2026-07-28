@@ -252,12 +252,12 @@ def test_int32_binding_accepts_int32_and_rejects_float32():
     view = _make_view(n=2)
     view.read_into(
         TensorType.DEFORMABLE_SIM_ELEMENT_INDICES,
-        wp.zeros((2, 1), dtype=wp.int32),
+        wp.zeros((2, 1), dtype=wp.int32, device="cpu"),
     )
     with pytest.raises(OvPhysxView.DtypeMismatch, match="int32"):
         view.read_into(
             TensorType.DEFORMABLE_SIM_ELEMENT_INDICES,
-            wp.zeros((2, 1), dtype=wp.float32),
+            wp.zeros((2, 1), dtype=wp.float32, device="cpu"),
         )
 
 

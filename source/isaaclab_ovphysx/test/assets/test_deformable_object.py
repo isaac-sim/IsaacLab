@@ -726,7 +726,11 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         authored_paths = {path for path in expected_paths if stage.GetPrimAtPath(path).IsValid()}
         assert authored_paths == source_paths | {ancestor_path}
         authored_deformable_paths = {f"/World/envs/env_{index}/Object/simulation" for index in range(num_envs)}
-        assert all(stage.GetPrimAtPath(path).IsValid() for path in authored_deformable_paths)
+        deformable_rows = plan.cfg_rows[id(scene.cfg.deformable)]
+        deformable_source_paths = {f"{plan.sources[row]}/simulation" for row in deformable_rows}
+        assert {
+            path for path in authored_deformable_paths if stage.GetPrimAtPath(path).IsValid()
+        } == deformable_source_paths
 
         sim.reset()
 
@@ -742,6 +746,7 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         assert layer.ImportFromString(OvPhysxManager._stage_usda)
         materialized_stage = Usd.Stage.Open(layer)
         assert materialized_stage.GetPrimAtPath(camera_path).IsValid()
+        assert all(materialized_stage.GetPrimAtPath(path).IsValid() for path in authored_deformable_paths)
 
         sim.step()
         scene.update(sim.cfg.dt)

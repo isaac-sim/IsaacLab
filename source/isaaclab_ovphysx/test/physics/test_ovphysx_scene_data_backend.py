@@ -190,9 +190,7 @@ def test_manager_full_stage_overlays_existing_ancestor_without_removing_descenda
 
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [
-            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0)])
-        ]
+        OvPhysxManager._pending_clones = [("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0)])]
         materialized_usda = OvPhysxManager._materialize_pending_clones(stage.Flatten().ExportToString())
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
         assert layer.ImportFromString(materialized_usda)
@@ -221,9 +219,7 @@ def test_manager_retains_clone_recipes_across_full_stage_serializations():
     try:
         OvPhysxManager._pending_clones = []
         OvPhysxManager._active_clone_recipes = []
-        OvPhysxManager.register_clone(
-            "/World/envs/env_0/Object", ["/World/envs/env_1/Object"], [(1.0, 0.0, 0.0)]
-        )
+        OvPhysxManager.register_clone("/World/envs/env_0/Object", ["/World/envs/env_1/Object"], [(1.0, 0.0, 0.0)])
         for _ in range(2):
             OvPhysxManager._rearm_pending_clones()
             materialized_usda = OvPhysxManager._materialize_pending_clones(stage.Flatten().ExportToString())
