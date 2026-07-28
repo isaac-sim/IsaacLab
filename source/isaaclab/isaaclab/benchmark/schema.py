@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.2).
+"""Public schema for Isaac Lab benchmark bundles (v1.3).
 
 Defines the on-disk JSON schema produced by the benchmark workflows
 in :mod:`isaaclab.benchmark.entrypoints`.
@@ -17,7 +17,7 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.2
+Current version: 1.3
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.3"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]

@@ -142,7 +142,7 @@ def test_training_bundle_round_trip(tmp_path):
     with open(path) as f:
         data = json.load(f)
 
-    assert SCHEMA_VERSION == "1.1"
+    assert SCHEMA_VERSION == "1.3"
     assert data["schema_version"] == SCHEMA_VERSION
     assert data["run"]["framework"] == "rsl_rl"
     assert data["run"]["config"]["physics_backend"] == "newton_mjwarp"
