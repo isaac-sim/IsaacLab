@@ -149,7 +149,7 @@ Measure environment stepping performance without any RL library:
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --num_frames 1000 \
-       --warmup_frames 50 \
+       --warmup_steps 50 \
        --benchmark_formatter json \
        --output_path ./results
 
@@ -218,7 +218,9 @@ Environment-Step Timing Semantics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Runtime, training, and play benchmarks report
-:class:`~isaaclab.benchmark.EnvironmentStepTiming`. The default
+:class:`~isaaclab.benchmark.EnvironmentStepTiming`. Its ``warmup_steps`` field
+records the exact number of initial ``env.step()`` calls excluded from
+timing. The default
 ``host_return`` measurement mode records wall time until ``env.step()`` returns
 without forcing queued device work to complete. It describes the host-visible
 call boundary, not a device-complete boundary; asynchronously queued work can be
@@ -413,7 +415,7 @@ Non-RL / Runtime Benchmark Arguments
    * - ``--num_frames``
      - ``1000``
      - Number of environment steps to measure
-   * - ``--warmup_frames``
+   * - ``--warmup_steps``
      - ``50``
      - Exact number of environment steps to exclude from timing; zero measures the first step
    * - ``--measure_sync_step``
@@ -474,7 +476,7 @@ RL Play Arguments
    * - ``--num_frames``
      - ``100``
      - Number of measured inference steps
-   * - ``--warmup_frames``
+   * - ``--warmup_steps``
      - ``1``
      - Number of preceding environment steps to exclude from timing and throughput
    * - ``--checkpoint``
@@ -487,15 +489,16 @@ RL Play Arguments
      - ``false``
      - Collect the serialized synchronized diagnostic described above
 
-Runtime and play execute ``warmup_frames + num_frames`` environment steps. Thus,
+Runtime and play execute ``warmup_steps + num_frames`` environment steps. Thus,
 the requested ``num_frames`` is always the exact number of measured steps. Play
-warmup frames are excluded only from timing and throughput; they still contribute
+warm-up steps are excluded only from timing and throughput; they still contribute
 to reward, episode-length, success-rate, and resource measurements.
 
-Runtime warmup frames are excluded from steady-state timing, throughput, and
-synchronized environment-step measurements. When warmup is nonzero, the first
-warmup frame ordinary wall-clock time is retained separately as the ``first_step`` startup diagnostic.
-With zero warmup, the first measured frame supplies that diagnostic.
+Runtime warm-up steps are excluded from steady-state timing, throughput, and
+synchronized environment-step measurements. When warm-up is nonzero, the first
+warm-up step's ordinary wall-clock time is retained separately as the
+``first_step`` startup diagnostic. With zero warm-up, the first measured step
+supplies that diagnostic.
 
 Measurement Types
 -----------------

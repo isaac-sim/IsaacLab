@@ -121,7 +121,7 @@ def test_runtime_request_uses_runtime_defaults() -> None:
         "Isaac-Cartpole-Direct",
         "--num_frames",
         "1000",
-        "--warmup_frames",
+        "--warmup_steps",
         "50",
         "--output_path",
         ".",
@@ -131,16 +131,16 @@ def test_runtime_request_uses_runtime_defaults() -> None:
 
 
 @pytest.mark.parametrize("backend", ["rsl_rl", "rl_games", "skrl", "sb3"])
-def test_play_request_uses_backend_warmup_frames_argument(backend: str, monkeypatch) -> None:
-    request = BenchmarkPlayRequest(backend=backend, task="Isaac-Cartpole-Direct", warmup_frames=12)
+def test_play_request_uses_backend_warmup_steps_argument(backend: str, monkeypatch) -> None:
+    request = BenchmarkPlayRequest(backend=backend, task="Isaac-Cartpole-Direct", warmup_steps=12)
 
     argv = dispatch._request_argv(request)
     monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
     entrypoint = importlib.import_module(dispatch._workflow_module("play", backend))
     args, remaining_args = entrypoint._parse_args(argv)
 
-    assert argv[argv.index("--warmup_frames") + 1] == "12"
-    assert args.warmup_frames == 12
+    assert argv[argv.index("--warmup_steps") + 1] == "12"
+    assert args.warmup_steps == 12
     assert remaining_args == []
 
 
@@ -157,7 +157,7 @@ def test_task_workflow_help_does_not_require_task(workflow: str, monkeypatch, ca
 
 
 def test_request_dispatches_to_library_module(monkeypatch) -> None:
-    request = BenchmarkRuntimeRequest(task="Isaac-Cartpole-Direct", num_frames=1, warmup_frames=0)
+    request = BenchmarkRuntimeRequest(task="Isaac-Cartpole-Direct", num_frames=1, warmup_steps=0)
     expected = BenchmarkResult(bundle=object(), output_paths=(Path("result.json"),))
     received: list[str] = []
     caller_argv = ["caller.py", "--unrelated"]
@@ -185,7 +185,7 @@ def test_request_dispatches_to_library_module(monkeypatch) -> None:
         "Isaac-Cartpole-Direct",
         "--num_frames",
         "1",
-        "--warmup_frames",
+        "--warmup_steps",
         "0",
     ]
 

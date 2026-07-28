@@ -149,6 +149,7 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
     timing = data["runtime"]["environment_step_timing"]
+    assert timing["warmup_steps"] == 0
     assert timing["outside_simulation_step_fraction"] == pytest.approx(0.375)
     assert timing["measurement_mode"] == "serialized_synchronized"
     assert "overhead_step_time_s" not in timing

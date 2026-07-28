@@ -124,12 +124,14 @@ def test_build_runtime_adds_environment_step_timing():
         total_fps=[4.0],
         steps_per_iteration=8,
         frames_per_environment_step=8,
+        environment_step_warmup_steps=3,
         environment_step_times_s=[1.0, 2.0],
         simulation_step_times_s=[0.5, 0.5],
         simulation_step_calls=8,
     )
 
     assert rt.environment_step_timing is not None
+    assert rt.environment_step_timing.warmup_steps == 3
     assert rt.environment_step_timing.environment_step_time_s.mean == pytest.approx(1.5)
     assert rt.environment_step_timing.environment_step_time_s.std == pytest.approx(2**-0.5)
     assert rt.environment_step_timing.environment_step_fps.mean == pytest.approx(16.0 / 3.0)
@@ -165,16 +167,32 @@ def test_build_runtime_adds_environment_step_timing_without_simulation_breakdown
         total_fps=[4.0],
         steps_per_iteration=8,
         frames_per_environment_step=8,
+        environment_step_warmup_steps=2,
         environment_step_times_s=[1.0, 2.0],
     )
 
     assert rt.environment_step_timing is not None
+    assert rt.environment_step_timing.warmup_steps == 2
     assert rt.environment_step_timing.environment_step_fps.mean == pytest.approx(16.0 / 3.0)
     assert rt.environment_step_timing.simulation_step_time_s is None
     assert rt.environment_step_timing.outside_simulation_step_time_s is None
     assert rt.environment_step_timing.outside_simulation_step_fraction is None
     assert rt.environment_step_timing.simulation_step_calls is None
     assert rt.environment_step_timing.measurement_mode == "host_return"
+
+
+def test_build_runtime_rejects_negative_environment_step_warmup_steps():
+    with pytest.raises(ValueError, match="warmup_steps must be non-negative"):
+        builders.build_runtime(
+            startup_time_s=StartupTime(0.1, 0.2, 0.3),
+            iteration_times_s=[2.0],
+            collection_fps=[4.0],
+            total_fps=[4.0],
+            steps_per_iteration=8,
+            frames_per_environment_step=8,
+            environment_step_warmup_steps=-1,
+            environment_step_times_s=[1.0],
+        )
 
 
 @pytest.mark.parametrize("simulation_step_times_s", [[], [0.0, 0.5], [-0.1, 0.5]])
