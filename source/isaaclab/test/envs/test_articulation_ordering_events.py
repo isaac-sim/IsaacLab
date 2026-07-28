@@ -21,7 +21,6 @@ _NUM_SHAPES = sum(_NUM_SHAPES_PER_BACKEND_BODY)
 _NONIDENTITY_BODY_ORDERING = SimpleNamespace(
     user_to_backend_indices=(0, 2, 1),
     backend_to_user_indices=(0, 2, 1),
-    is_identity=False,
 )
 
 
@@ -178,8 +177,8 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
 ):
     """Newton automatically converts public body selections to backend shape ranges."""
-    import isaaclab_newton.assets as newton_assets_module
-    import isaaclab_newton.physics.newton_manager as newton_manager_module
+    newton_assets_module = pytest.importorskip("isaaclab_newton.assets")
+    newton_manager_module = pytest.importorskip("isaaclab_newton.physics.newton_manager")
 
     monkeypatch.setattr(newton_assets_module, "Articulation", _FakeNewtonArticulation)
     monkeypatch.setattr(newton_manager_module, "NewtonManager", _FakeNewtonManager)

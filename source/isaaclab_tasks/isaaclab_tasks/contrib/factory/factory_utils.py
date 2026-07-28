@@ -40,7 +40,7 @@ def set_friction(asset, value, num_envs):
     )
 
 
-def set_body_inertias(robot, num_envs):
+def set_body_inertias(robot):
     """Note: this is to account for the asset_options.armature parameter in IGE."""
     # Apply the offset through the asset setter (instead of the raw tensor view) so
     # ``data.body_inertia`` stays coherent and the update is ordering-safe by construction.

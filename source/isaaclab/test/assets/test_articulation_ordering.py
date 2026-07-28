@@ -1330,7 +1330,6 @@ def test_ordering_state_lives_only_on_data() -> None:
 _NONIDENTITY_ORDERING = types.SimpleNamespace(
     user_to_backend_indices=(0, 2, 1),
     backend_to_user_indices=(0, 2, 1),
-    is_identity=False,
 )
 
 

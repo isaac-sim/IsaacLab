@@ -249,30 +249,23 @@ For the opposite direction, enumerate backend output columns and use
         joint_target_backend = joint_target_public[:, list(ordering.backend_to_user_indices)]
 
 Use ``robot.body_ordering`` in the same way for body-indexed axes. Keep the
-``None`` and identity guards: both avoid an unnecessary gather, while
-``None`` also means no map object exists.
+``None`` guard because it avoids an unnecessary gather and means no map object
+exists.
 
 Warp Conversion
 ^^^^^^^^^^^^^^^
 
-The device maps on :class:`~isaaclab.assets.ArticulationNameMap` are the
-supported escape hatch for custom Warp code. For example, this kernel gathers
-one ``(environment, joint)`` array from backend order into public order:
+The elementwise reorder kernels in
+``isaaclab.assets.articulation.ordering_kernels`` translate raw-view arrays
+between backend and public order. For example,
+``reorder_2d_backend_to_user`` gathers one ``(environment, joint)`` array into
+public order:
 
 .. code-block:: python
 
     import warp as wp
 
-
-    @wp.kernel
-    def gather_joint_axis_backend_to_public(
-        source: wp.array2d(dtype=wp.float32),
-        user_to_backend: wp.array(dtype=wp.int32),
-        destination: wp.array2d(dtype=wp.float32),
-    ):
-        env_id, user_joint_id = wp.tid()
-        backend_joint_id = user_to_backend[user_joint_id]
-        destination[env_id, user_joint_id] = source[env_id, backend_joint_id]
+    from isaaclab.assets.articulation.ordering_kernels import reorder_2d_backend_to_user
 
 
     ordering = robot.joint_ordering
@@ -285,7 +278,7 @@ one ``(environment, joint)`` array from backend order into public order:
             device=robot.device,
         )
         wp.launch(
-            gather_joint_axis_backend_to_public,
+            reorder_2d_backend_to_user,
             dim=(robot.num_instances, robot.num_joints),
             inputs=[joint_pos_backend, ordering.user_to_backend],
             outputs=[joint_pos_public],
@@ -295,25 +288,6 @@ one ``(environment, joint)`` array from backend order into public order:
 The caller owns output allocation, launch dimensions, data type, and every
 non-articulation axis. A public-to-backend gather uses
 ``ordering.backend_to_user``. Treat both device maps as read-only.
-
-The elementwise reorder kernels in
-``isaaclab.assets.articulation.ordering_kernels`` are public for exactly this
-task: translating a raw-view array between backend and public order. Rather than
-hand-writing the gather above, launch ``reorder_2d_backend_to_user`` with the
-asset's ``user_to_backend`` map (``backend_data`` and ``user_to_backend`` are
-its inputs, ``user_data`` is its output):
-
-.. code-block:: python
-
-    from isaaclab.assets.articulation.ordering_kernels import reorder_2d_backend_to_user
-
-    wp.launch(
-        reorder_2d_backend_to_user,
-        dim=(robot.num_instances, robot.num_joints),
-        inputs=[joint_pos_backend, ordering.user_to_backend],
-        outputs=[joint_pos_public],
-        device=robot.device,
-    )
 
 The ``reorder_2d`` and ``reorder_3d`` kernels, in both the ``*_backend_to_user``
 and ``*_user_to_backend`` directions, form this public elementwise family. All
