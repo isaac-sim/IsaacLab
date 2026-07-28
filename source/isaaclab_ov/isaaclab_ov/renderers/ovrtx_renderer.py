@@ -19,6 +19,7 @@ How it fits together
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import os
@@ -34,6 +35,17 @@ import torch
 import warp as wp
 
 import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
+
+# ovstage is optional: when present the renderer uses the split-ownership model
+# (ovstage owns scene data, ovrtx owns rendering). When absent it falls back to
+# the legacy renderer-owned scene APIs (deprecated in ovrtx 0.4).
+_OVSTAGE_AVAILABLE = False
+try:
+    import ovstage
+
+    _OVSTAGE_AVAILABLE = True
+except ModuleNotFoundError:
+    pass
 
 # The ovrtx C library links to its own version of the USD libraries. Having
 # the pxr Python package available can cause the C library to load an
@@ -107,6 +119,68 @@ _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
 _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
+
+
+# Runtime environment variable used to enable the ovstage code path for ovrtx.
+_USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
+
+
+if _OVSTAGE_AVAILABLE:
+    # DLDataType for a 4×4 double matrix (omni:xform column). ovstage stores omni:xform
+    # as one 16-lane float64 element per prim; wp.mat44d maps to the same layout via __dlpack__.
+    _OVSTAGE_XFORM_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=64, lanes=16)
+
+    def _xform_tensor_from_numpy(xforms: np.ndarray) -> Any:
+        """Wrap a ``(N, 4, 4)`` float64 array as a 16-lane DLTensor for ``omni:xform`` writes.
+
+        Args:
+            xforms: Array of shape ``(N, 4, 4)`` with dtype ``float64``.
+
+        Returns:
+            A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=16``.
+        """
+        flat = np.ascontiguousarray(xforms, dtype=np.float64).reshape(-1)
+        return ovstage.make_dltensor(flat, dtype=_OVSTAGE_XFORM_DTYPE, shape=[xforms.shape[0]])
+
+    # DLDataType for a float32 3-vector (``points`` column). ovstage stores ``point3f[] points``
+    # as one 3-lane float32 element per vertex; a warp ``vec3f`` array exports as ``(N, 3)`` lanes=1
+    # via DLPack, so a lanes=3 override on a host numpy array is required to match the column.
+    _OVSTAGE_POINT_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=3)
+
+    def _points_tensor_from_numpy(points: np.ndarray) -> Any:
+        """Wrap an ``(N, 3)`` float32 array as a 3-lane DLTensor for ``points`` writes.
+
+        Args:
+            points: Array of shape ``(N, 3)`` with dtype ``float32``.
+
+        Returns:
+            A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=3``.
+        """
+        flat = np.ascontiguousarray(points, dtype=np.float32).reshape(-1)
+        return ovstage.make_dltensor(flat, dtype=_OVSTAGE_POINT_DTYPE, shape=[points.shape[0]])
+
+
+def ovrtx_use_ovstage_enabled() -> bool:
+    """Return whether the ovstage scene-ownership path should be used.
+
+    Enabled by ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``. Defaults to ``0`` so existing deployments are
+    unaffected until ovstage is explicitly opted into.
+
+    Raises:
+        ValueError: If the environment variable is set to anything other than ``0`` or ``1``.
+        RuntimeError: If the environment variable is ``1`` but ovstage is not importable. Falling
+            back to the legacy path here would silently ignore an explicit request and make the
+            renderer look like it had honoured it.
+    """
+    value = os.environ.get(_USE_OVSTAGE_ENV, "0").strip()
+    if value not in {"0", "1"}:
+        raise ValueError(f"Invalid value for environment variable `{_USE_OVSTAGE_ENV}`: {value}. Expected 0 or 1.")
+    if value == "1" and not _OVSTAGE_AVAILABLE:
+        raise RuntimeError(
+            f"`{_USE_OVSTAGE_ENV}=1` requests the ovstage scene-ownership path, but the 'ovstage' "
+            "package is not installed. Install it with: ./isaaclab.sh -i 'ov[ovstage]' "
+        )
+    return value == "1"
 
 
 def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
@@ -297,21 +371,24 @@ class OVRTXRenderer(BaseRenderer):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
         self._render_product_paths = []
-        self._camera_xform_binding = None
-        self._object_xform_binding = None
+        # Shared by both paths. The legacy-only binding handles that pair with these live in
+        # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
+        # through its stage queries.
         self._object_newton_indices: wp.array | None = None
-        self._deformable_points_binding = None
         self._deformable_particle_offsets: list[int] = []
         self._deformable_particle_counts: list[int] = []
-        self._particle_points_binding = None
         self._particle_visual_offsets: list[int] = []
         self._particle_visual_counts: list[int] = []
-        self._particle_workaround_applied = False
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
+
+        # Selected once at construction so every dispatch method below sees a stable path for the
+        # lifetime of the renderer, even if the environment variable changes mid-process.
+        self._use_ovstage = ovrtx_use_ovstage_enabled()
+        self._init_fields()
 
         logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
@@ -372,13 +449,37 @@ class OVRTXRenderer(BaseRenderer):
         if self._clone_plan is None:
             raise RuntimeError("Clone plan is required when preparing OVRTX stage")
 
+        # The ovstage path cannot read env-root transforms back after load (see
+        # _clone_sources_ovstage), so snapshot them here while the full USD stage is still live.
+        if self._use_ovstage:
+            self._capture_env_root_xforms_ovstage(stage, num_envs)
+
+        # keep_env_roots is False on the ovstage path: ovstage's ``Stage.clone`` requires each target
+        # path to not already exist, so the non-source env roots must be trimmed from the exported
+        # stage for it to recreate them. Their xforms were captured just above, since trimming them
+        # is what makes them unreadable afterwards.
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
             source_paths=self._clone_plan.sources,
+            keep_env_roots=not self._use_ovstage,
         )
 
-    def _initialize_from_spec(self, spec: CameraRenderSpec):
+    def _init_fields_legacy(self) -> None:
+        """Initialize the legacy-path instance fields.
+
+        Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
+        here: the four ``bind_attribute``/``bind_array_attribute`` handles and the
+        ``UsdGeom.Points`` seeding flag. State shared by both paths (``_object_newton_indices``, the
+        particle offset/count lists) stays in :meth:`__init__`.
+        """
+        self._camera_xform_binding = None
+        self._object_xform_binding = None
+        self._deformable_points_binding = None
+        self._particle_points_binding = None
+        self._particle_workaround_applied = False
+
+    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
@@ -551,7 +652,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
-    def _setup_xform_bindings(self):
+    def _setup_xform_bindings_legacy(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
             from isaaclab_newton.physics import NewtonManager
@@ -602,7 +703,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
 
-    def _setup_deformable_bindings(self, num_envs: int):
+    def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
 
         Args:
@@ -689,7 +790,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._deformable_points_binding is None:
             raise RuntimeError("Failed to create OVRTX deformable body bindings")
 
-    def _setup_particle_bindings(self) -> None:
+    def _setup_particle_bindings_legacy(self) -> None:
         """Setup OVRTX bindings for Newton particle clouds."""
         try:
             from isaaclab_newton.physics import NewtonManager
@@ -782,7 +883,7 @@ class OVRTXRenderer(BaseRenderer):
                     " Camera.cfg.data_types when isp_cfg is set."
                 )
 
-    def update_transforms(self) -> None:
+    def _update_transforms_legacy(self) -> None:
         """Sync transforms to OVRTX."""
         if self._object_xform_binding is None or self._object_newton_indices is None:
             return
@@ -808,7 +909,7 @@ class OVRTXRenderer(BaseRenderer):
                 device=self._device,
             )
 
-    def update_geometries(self) -> None:
+    def _update_geometries_legacy(self) -> None:
         """Sync geometries to OVRTX."""
         if self._deformable_points_binding is None and self._particle_points_binding is None:
             return
@@ -899,7 +1000,7 @@ class OVRTXRenderer(BaseRenderer):
         ]
         self._particle_points_binding.write(cast(Any, host_slices), data_access=DataAccess.SYNC)
 
-    def update_camera(
+    def _update_camera_legacy(
         self,
         render_data: OVRTXRenderData,
         positions: ProxyArray,
@@ -1285,7 +1386,7 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_motion_vectors_data = wp.from_dlpack(mapping)
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
-    def render(self, render_data: OVRTXRenderData) -> None:
+    def _render_legacy(self, render_data: OVRTXRenderData) -> None:
         """Render the scene into the provided RenderData."""
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
@@ -1311,7 +1412,7 @@ class OVRTXRenderer(BaseRenderer):
                 render_data.warp_buffers[str(RenderBufferKind.RGBA)],
             )
 
-    def cleanup(self, render_data: OVRTXRenderData | None) -> None:
+    def _cleanup_legacy(self, render_data: OVRTXRenderData | None) -> None:
         """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
 
         # Unbind before tearing down renderer
@@ -1350,3 +1451,777 @@ class OVRTXRenderer(BaseRenderer):
         self._render_product_paths.clear()
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
+
+    # ---------------------------------------------------------------------------
+    # Dispatch methods — route to ovstage or legacy implementation
+    # ---------------------------------------------------------------------------
+
+    def _init_fields(self) -> None:
+        if self._use_ovstage:
+            self._init_fields_ovstage()
+        else:
+            self._init_fields_legacy()
+
+    def _initialize_from_spec(self, spec: CameraRenderSpec) -> None:
+        if self._use_ovstage:
+            self._initialize_from_spec_ovstage(spec)
+        else:
+            self._initialize_from_spec_legacy(spec)
+
+    def _setup_xform_bindings(self) -> None:
+        if self._use_ovstage:
+            self._setup_xform_bindings_ovstage()
+        else:
+            self._setup_xform_bindings_legacy()
+
+    def _setup_deformable_bindings(self, num_envs: int) -> None:
+        if self._use_ovstage:
+            self._setup_deformable_bindings_ovstage(num_envs)
+        else:
+            self._setup_deformable_bindings_legacy(num_envs)
+
+    def _setup_particle_bindings(self) -> None:
+        if self._use_ovstage:
+            self._setup_particle_bindings_ovstage()
+        else:
+            self._setup_particle_bindings_legacy()
+
+    def update_transforms(self) -> None:
+        """Sync transforms to OVRTX."""
+        if self._use_ovstage:
+            self._update_transforms_ovstage()
+        else:
+            self._update_transforms_legacy()
+
+    def update_geometries(self) -> None:
+        """Sync geometries to OVRTX."""
+        if self._use_ovstage:
+            self._update_geometries_ovstage()
+        else:
+            self._update_geometries_legacy()
+
+    def update_camera(
+        self,
+        render_data: OVRTXRenderData,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray,
+    ) -> None:
+        """Update camera transforms in OVRTX."""
+        if self._use_ovstage:
+            self._update_camera_ovstage(render_data, positions, orientations, intrinsics)
+        else:
+            self._update_camera_legacy(render_data, positions, orientations, intrinsics)
+
+    def render(self, render_data: OVRTXRenderData) -> None:
+        """Render the scene into the provided RenderData."""
+        if self._use_ovstage:
+            self._render_ovstage(render_data)
+        else:
+            self._render_legacy(render_data)
+
+    def cleanup(self, render_data: OVRTXRenderData | None) -> None:
+        """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
+        if self._use_ovstage:
+            self._cleanup_ovstage(render_data)
+        else:
+            self._cleanup_legacy(render_data)
+
+    # ---------------------------------------------------------------------------
+    # ovstage implementation
+    #
+    # Follow-up:
+    # - Experiment with dropping the per-frame ``.wait()`` calls. ``advance_write_floor(N).wait()`` in
+    #   :meth:`_render_ovstage` already bars all writes at ordinals <= N, so accumulate the
+    #   ``Operation`` objects and ``stage.release_op(op.op_id)`` after it. They must outlive the
+    #   barrier — an ``Operation`` is its buffer's only keepalive. Saves caller-side blocking only.
+    # - Direct zero-copy warp DLpack writes are rejected in ovstage 0.1.0 because
+    #   ``omni:xform``/``points`` are  lanes=16/3 while warp's DLPack export is always lanes=1.
+    #   ovstage 0.1.1 will address this.
+    # ---------------------------------------------------------------------------
+
+    def _init_fields_ovstage(self) -> None:
+        self._stage = None
+        self._stage_paths = None
+        self._ovstage_exit_stack: contextlib.ExitStack | None = None
+        self._current_ordinal: int = 0
+        self._camera_xform_query = None
+        self._camera_paths_list = None
+        self._object_xform_query = None
+        self._object_paths_list = None
+        self._deformable_points_query = None
+        self._deformable_paths_list = None
+        self._particle_points_query = None
+        self._particle_paths_list = None
+        self._env_root_xforms: np.ndarray | None = None
+
+    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec) -> None:
+        """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
+
+        Args:
+            spec: Tiled camera description (resolution, paths, data types).
+        """
+        width = spec.cfg.width
+        height = spec.cfg.height
+        num_envs = spec.num_instances
+        data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
+        if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
+            data_types = [*data_types, "rgb_hdr"]
+
+        env_0_prefix = "/World/envs/env_0/"
+        first_cam_path = spec.camera_prim_paths[0]
+        if not first_cam_path.startswith(env_0_prefix):
+            raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
+        self._camera_rel_path = spec.camera_path_relative_to_env_0
+
+        logger.info("Injecting camera definitions...")
+
+        if self._exported_usd_string is None:
+            raise RuntimeError("Expected an exported USD string from stage")
+
+        render_product_string, render_product_path = build_render_product_as_string(
+            width=width,
+            height=height,
+            num_envs=num_envs,
+            data_types=data_types,
+            minimal_mode=_resolve_rtx_minimal_mode(data_types),
+            camera_rel_path=self._camera_rel_path,
+        )
+        self._render_product_paths.append(render_product_path)
+
+        combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
+        self._exported_usd_string = None  # Free memory
+
+        # If temp_usd_dir is set, write the combined USD stage to a temporary file.
+        if self.cfg.temp_usd_dir is not None:
+            _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", combined_usd_string)
+
+        logger.info("Loading USD into OvRTX via ovstage...")
+        self._ovstage_exit_stack = contextlib.ExitStack()
+        self._stage = self._ovstage_exit_stack.enter_context(ovstage.Stage("isaaclab.ovrtx"))
+        self._stage_paths = self._ovstage_exit_stack.enter_context(ovstage.PathDictionary(self._stage))
+        # Ordinal 0 is the empty/unwritten state in ovstage; the first write must use >= 1.
+        self._current_ordinal += 1
+        ovstage.population.open_usd_from_string(
+            self._stage,
+            combined_usd_string,
+            ordinal=self._current_ordinal,
+            domains=ovstage.PopulationDomain.RENDERING,
+        )
+
+        if num_envs > 1:
+            self._clone_sources_ovstage()
+            self._update_scene_partitions_after_clone_ovstage(num_envs)
+
+        self._initialized_scene = True
+
+        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+
+        # Re-author the RenderProduct's camera relationship after clone. ``stage.clone`` recreates the per-env
+        # cameras, so the RenderProduct must be pointed at the freshly-interned camera path ids to discover every
+        # camera for tiled rendering.
+        render_product_paths = self._stage_paths.create_path_list_from_strings([render_product_path])
+        with self._stage.query_from_path_list(render_product_paths) as render_product_query:
+            camera_attribute = self._stage_paths.intern_token("camera")
+            camera_target_ids = np.array(
+                [self._stage_paths.intern_path(path) for path in camera_paths], dtype=np.uint64
+            )
+            self._stage.write_attribute(
+                render_product_query,
+                camera_attribute,
+                ordinal=self._current_ordinal,
+                tensors=camera_target_ids,
+                is_array=True,
+                semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
+            ).wait()
+        self._stage_paths.destroy_path_list(render_product_paths)
+
+        self._camera_paths_list = self._stage_paths.create_path_list_from_strings(camera_paths)
+        self._camera_xform_query = self._stage.query_from_path_list(self._camera_paths_list)
+
+        if self._camera_xform_query is None:
+            raise RuntimeError("Camera query is None — cannot render without a valid camera query")
+        logger.info("Camera query created successfully")
+
+        # Resetting the xform stack makes omni:xform the absolute world transform, preventing
+        # ancestor transforms (env root, asset root) from compounding on top of the camera pose.
+        self._stage.write_attribute(
+            self._camera_xform_query,
+            "omni:resetXformStack",
+            ordinal=self._current_ordinal,
+            tensors=np.full(num_envs, True, dtype=np.bool_),
+            is_array=False,
+        ).wait()
+
+        self._setup_xform_bindings_ovstage()
+        self._setup_deformable_bindings_ovstage(num_envs)
+        self._setup_particle_bindings_ovstage()
+
+        # Commit all init-time writes then attach. attach_ovstage happens last so the renderer
+        # immediately sees the fully-configured scene on its first step.
+        self._stage.advance_write_floor(ordinal=self._current_ordinal).wait()
+        self._renderer.attach_ovstage(self._stage)
+        logger.info("OVRTX loaded USD from string successfully via ovstage")
+        self._current_ordinal += 1
+
+    def _capture_env_root_xforms_ovstage(self, stage: Any, num_envs: int) -> None:
+        """Capture per-env root transforms from the live USD stage before export.
+
+        Must be called before :func:`export_stage_to_string`, which trims non-source
+        env geometry so those transforms cannot be read back reliably from ovstage after load.
+        The captured array is consumed by :meth:`_clone_sources_ovstage` and cleared after use.
+        """
+        from pxr import UsdGeom
+
+        xform_cache = UsdGeom.XformCache()
+        self._env_root_xforms = np.empty((num_envs, 4, 4), dtype=np.float64)
+        for i in range(num_envs):
+            prim = stage.GetPrimAtPath(f"/World/envs/env_{i}")
+            self._env_root_xforms[i] = np.array(xform_cache.GetLocalToWorldTransform(prim), dtype=np.float64).reshape(
+                4, 4
+            )
+
+    def _clone_sources_ovstage(self):
+        """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan` (ovstage path)."""
+        clone_plan = self._clone_plan
+        if clone_plan is None:
+            raise RuntimeError("Clone plan is required when using OVRTX cloning")
+
+        num_envs = clone_plan.clone_mask.shape[1]
+        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+
+        env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
+        env_query = self._stage.query_from_path_list(env_paths_list)
+
+        # Snapshot per-env root transforms before clone overwrites them with the source env root.
+        #
+        # We only create xform queries for prims in the body_label list, so their transforms are
+        # driven each frame from simulation data. Prims not in that list (e.g. static rigid objects
+        # such as tables) get no query, and we never reset their xform stack. Their world placement
+        # therefore relies on every ancestor holding a correct xform in the ovstage data. In
+        # particular, if an env root has no valid xform, these prims collapse toward env_0 frame
+        # (e.g. tables ending up at env_0 and missing from the other tiles).
+        #
+        # Snapshotting the env-root xforms here and restoring them after clone (see below) keeps those
+        # hierarchy-positioned prims correctly placed per env. This is a cheap one-off operation,
+        # preferable to forcing every static object into the body_label list just to bind its xform.
+        #
+        # Transforms were captured from the live USD stage in prepare_stage before export
+        # stripped non-source envs — they are not readable from ovstage at this point.
+        env_root_xforms = self._env_root_xforms
+        if env_root_xforms is None:
+            raise RuntimeError("env_root_xforms not captured; ensure prepare_stage was called first")
+        logger.info("Using pre-captured per-env root transforms for post-clone restore")
+
+        logger.info("Cloning sources in OVRTX...")
+        env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
+
+        num_cloned_sources = 0
+        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].tolist()
+
+            target_paths = []
+            for env_id in target_env_ids:
+                resolved_destination = destination.format(env_id)
+                if resolved_destination != source:
+                    target_paths.append(resolved_destination)
+
+            if target_paths:
+                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
+                try:
+                    self._stage.clone(source, target_paths, ordinal=self._current_ordinal)
+                    num_cloned_sources += 1
+                except Exception as e:
+                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+
+        logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
+
+        # Restore the pre-clone xforms.
+        self._stage.write_attribute(
+            env_query,
+            "omni:xform",
+            ordinal=self._current_ordinal,
+            tensors=_xform_tensor_from_numpy(env_root_xforms),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+        ).wait()
+        self._env_root_xforms = None
+        logger.info("Restored per-env root transforms after cloning")
+
+        self._stage.release_query(env_query).wait()
+        self._stage_paths.destroy_path_list(env_paths_list)
+
+    def _update_scene_partitions_after_clone_ovstage(self, num_envs: int):
+        """Update scene partition attributes on cloned environments and cameras (ovstage path)."""
+        logger.info("Writing scene partitions for %d environments...", num_envs)
+        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+        camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        # TOKEN_ID semantic tells ovstage the uint64 values are interned string tokens, not raw integers;
+        # the renderer resolves them back to the original "env_N" strings for scene-partition lookup.
+        token_ids = np.array([self._stage_paths.intern_token(f"env_{i}") for i in range(num_envs)], dtype=np.uint64)
+
+        env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
+        env_query = self._stage.query_from_path_list(env_paths_list)
+        self._stage.write_attribute(
+            env_query,
+            "primvars:omni:scenePartition",
+            ordinal=self._current_ordinal,
+            tensors=token_ids,
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.TOKEN_ID,
+        ).wait()
+        self._stage.release_query(env_query).wait()
+        self._stage_paths.destroy_path_list(env_paths_list)
+        logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
+
+        cam_paths_list = self._stage_paths.create_path_list_from_strings(camera_prim_paths)
+        cam_query = self._stage.query_from_path_list(cam_paths_list)
+        self._stage.write_attribute(
+            cam_query,
+            "omni:scenePartition",
+            ordinal=self._current_ordinal,
+            tensors=token_ids,
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.TOKEN_ID,
+        ).wait()
+        self._stage.release_query(cam_query).wait()
+        self._stage_paths.destroy_path_list(cam_paths_list)
+        logger.info("Written omni:scenePartition to %d cameras", num_envs)
+
+    def _setup_xform_bindings_ovstage(self) -> None:
+        """Setup OVRTX bindings for scene objects to sync with Newton physics (ovstage path)."""
+        try:
+            from isaaclab_newton.physics import NewtonManager
+        except ImportError:
+            logger.debug("NewtonManager not available, skipping object bindings")
+            return
+
+        if SimulationContext.instance() is None:
+            logger.info("No active simulation context, will not set up ovrtx object bindings for newton")
+            return
+
+        newton_model = NewtonManager.get_model()
+        if newton_model is None:
+            logger.debug("Newton model not available, skipping object bindings")
+            return
+
+        all_body_paths = getattr(newton_model, "body_label", None)
+        if all_body_paths is None:
+            logger.info("Newton model has no body_label, skipping object bindings")
+            return
+
+        object_paths = []
+        newton_indices = []
+        for idx, path in enumerate(all_body_paths):
+            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
+                object_paths.append(path)
+                newton_indices.append(idx)
+
+        if len(object_paths) == 0:
+            logger.info("No dynamic objects found for binding")
+            return
+
+        self._object_paths_list = self._stage_paths.create_path_list_from_strings(object_paths)
+        self._object_xform_query = self._stage.query_from_path_list(self._object_paths_list)
+
+        self._stage.write_attribute(
+            self._object_xform_query,
+            "omni:resetXformStack",
+            ordinal=self._current_ordinal,
+            tensors=np.full(len(object_paths), True, dtype=np.bool_),
+            is_array=False,
+        ).wait()
+
+        if self._object_xform_query is None:
+            raise RuntimeError("Failed to create OVRTX object bindings")
+
+        self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
+
+    def _setup_deformable_bindings_ovstage(self, num_envs: int) -> None:
+        """Setup OVRTX bindings for Newton deformable bodies (ovstage path).
+
+        Args:
+            num_envs: Number of environments.
+        """
+        try:
+            from isaaclab_newton.physics import NewtonManager
+        except ImportError:
+            logger.debug("NewtonManager not available, skipping deformable body bindings")
+            return
+
+        # Early return if the deformable registry is empty.
+        deformable_registry = NewtonManager._deformable_registry
+        if not deformable_registry:
+            logger.debug("Deformable registry is empty, skipping deformable body bindings")
+            return
+
+        # Validate the number of particle offsets for each deformable entry upfront.
+        bad_entries = [entry for entry in deformable_registry if len(entry.particle_offsets) != num_envs]
+        if bad_entries:
+            details = "\n".join(
+                f"- '{entry.prim_path}' has {len(entry.particle_offsets)} particle offsets" for entry in bad_entries
+            )
+            raise RuntimeError(
+                f"OVRTX expects one particle offset per environment ({num_envs}), but the following "
+                f"deformable entries have a mismatched offset count:\n{details}"
+            )
+
+        self._deformable_particle_offsets = []
+        self._deformable_particle_counts = []
+
+        vis_mesh_prim_paths: list[str] = []
+
+        # Each registry entry is one deformable asset registered at spawn time. Its
+        # ``vis_mesh_prim_path`` uses a regex env wildcard (e.g. ``env_.*``) to denote one
+        # homogeneous visual mesh replicated into every environment, not a subset of envs.
+        # During replication, Newton appends one particle block per env in contiguous env order
+        # and records the start index in ``entry.particle_offsets``; ``particles_per_body`` is
+        # the block size. The inner loop therefore emits one OVRTX mesh binding per env,
+        # resolving the env wildcard with ``env_idx`` and pairing it with that env's slice in
+        # the flat ``particle_q`` array.
+        #
+        # This mapping is valid only while deformable registry entries remain homogeneous across
+        # all envs with dense, contiguous env ids. If deformables later support env subsets or
+        # non-contiguous env ids, OVRTX must consume explicit per-instance env metadata instead
+        # of deriving env ids from ``enumerate(entry.particle_offsets)``.
+        for entry in deformable_registry:
+            for idx, particle_offset in enumerate(entry.particle_offsets):
+                self._deformable_particle_offsets.append(particle_offset)
+                self._deformable_particle_counts.append(entry.particles_per_body)
+
+                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
+
+        prim_count = len(vis_mesh_prim_paths)
+        if prim_count == 0:
+            logger.warning("No deformable visual prim paths collected, skipping deformable body bindings")
+            return
+
+        self._deformable_paths_list = self._stage_paths.create_path_list_from_strings(vis_mesh_prim_paths)
+        self._deformable_points_query = self._stage.query_from_path_list(self._deformable_paths_list)
+
+        # particle_q is already in world space, so resetting the xform stack and pinning an identity
+        # omni:xform prevents the env-root and asset-root ancestor transforms from being applied on top.
+        self._stage.write_attribute(
+            self._deformable_points_query,
+            "omni:resetXformStack",
+            ordinal=self._current_ordinal,
+            tensors=np.full(prim_count, True, dtype=np.bool_),
+            is_array=False,
+        ).wait()
+
+        identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
+        self._stage.write_attribute(
+            self._deformable_points_query,
+            "omni:xform",
+            ordinal=self._current_ordinal,
+            tensors=_xform_tensor_from_numpy(identity_xforms),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+        ).wait()
+
+        if self._deformable_points_query is None:
+            raise RuntimeError("Failed to create OVRTX deformable body bindings")
+
+    def _setup_particle_bindings_ovstage(self) -> None:
+        """Setup OVRTX bindings for Newton particle clouds (ovstage path)."""
+        try:
+            from isaaclab_newton.physics import NewtonManager
+        except ImportError:
+            logger.debug("NewtonManager not available, skipping particle point bindings")
+            return
+
+        particle_visual_prims = NewtonManager._particle_visual_prims
+        if not particle_visual_prims:
+            logger.debug("No particle visual prims registered, skipping particle point bindings")
+            return
+
+        self._particle_visual_offsets = []
+        self._particle_visual_counts = []
+        points_prim_paths: list[str] = []
+
+        for prim_path, record in particle_visual_prims.items():
+            points_prim_paths.append(prim_path)
+            self._particle_visual_offsets.append(record.offset)
+            self._particle_visual_counts.append(record.count)
+
+        prim_count = len(points_prim_paths)
+
+        self._particle_paths_list = self._stage_paths.create_path_list_from_strings(points_prim_paths)
+        self._particle_points_query = self._stage.query_from_path_list(self._particle_paths_list)
+
+        # Divergence from the legacy path: ovstage's PrimMode has only UPSERT and INSERT, with no
+        # MUST_EXIST equivalent, so the writes below cannot assert that every registered particle
+        # path resolves to a real prim the way _setup_particle_bindings_legacy does. A stale or
+        # mistyped path silently upserts a new row instead of raising, surfacing as invisible
+        # particles rather than an error. Same caveat applies to _setup_deformable_bindings_ovstage.
+        #
+        # particle_q is already in world space, so resetting the xform stack and pinning an identity
+        # omni:xform prevents the env-root and asset-root ancestor transforms from being applied on top.
+        self._stage.write_attribute(
+            self._particle_points_query,
+            "omni:resetXformStack",
+            ordinal=self._current_ordinal,
+            tensors=np.full(prim_count, True, dtype=np.bool_),
+            is_array=False,
+        ).wait()
+
+        identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
+        self._stage.write_attribute(
+            self._particle_points_query,
+            "omni:xform",
+            ordinal=self._current_ordinal,
+            tensors=_xform_tensor_from_numpy(identity_xforms),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+        ).wait()
+
+        if self._particle_points_query is None:
+            raise RuntimeError("Failed to create OVRTX particle point bindings")
+
+        # Note: no ``UsdGeom.Points`` seeding workaround is needed here. The legacy path's
+        # ``_apply_particle_workaround`` (OMPE-102610) exists because OVRTX fails to initialize
+        # Points prims from a zero-copy GPU ASYNC ``points`` write through ``bind_array_attribute``.
+        # The ovstage path instead writes host numpy DLTensors through ``Stage.write_attribute``,
+        # which populates the column synchronously, so the prims are valid from the first frame.
+
+    def _update_transforms_ovstage(self) -> None:
+        if self._object_xform_query is None or self._object_newton_indices is None:
+            return
+
+        # If self._object_newton_indices is not None, then Newton's the current physics backend
+
+        from isaaclab_newton.physics import NewtonManager
+
+        newton_state = NewtonManager.get_state()
+        if newton_state is None:
+            raise RuntimeError("Newton state should not be None")
+
+        body_q = getattr(newton_state, "body_q", None)
+        if body_q is None:
+            return
+
+        num_objects = len(self._object_newton_indices)
+        object_transforms = wp.empty(num_objects, dtype=wp.mat44d, device=self._device)
+        wp.launch(
+            kernel=sync_newton_transforms_kernel,
+            dim=num_objects,
+            inputs=[object_transforms, self._object_newton_indices, body_q],
+            device=self._device,
+        )
+        # Synchronize then copy to CPU numpy: ovstage's make_dltensor only accepts the lanes=16
+        # dtype override on numpy arrays, not DLPack producers. wp.mat44d exports as (N,4,4) lanes=1
+        # via DLPack, which conflicts with the lanes=16 omni:xform column created at population time.
+        wp.synchronize_device(self._device)
+        self._stage.write_attribute(
+            self._object_xform_query,
+            "omni:xform",
+            ordinal=self._current_ordinal,
+            tensors=_xform_tensor_from_numpy(object_transforms.numpy().reshape(-1, 4, 4)),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+        ).wait()
+
+    def _update_geometries_ovstage(self) -> None:
+        if self._deformable_points_query is None and self._particle_points_query is None:
+            return
+
+        # If either geometry query is not None, then Newton's the current physics backend
+        from isaaclab_newton.physics import NewtonManager
+
+        newton_state = NewtonManager.get_state()
+        if newton_state is None:
+            raise RuntimeError("Newton state should not be None")
+
+        # particle_q is the world-space particle positions for all deformable bodies and particle
+        # clouds. A non-None geometry query means entries were registered, so Newton must
+        # expose particle state; a missing particle_q here is an inconsistent state.
+        particle_q = getattr(newton_state, "particle_q", None)
+        if particle_q is None:
+            raise RuntimeError("Newton state has no particle_q but geometry bindings exist")
+
+        # ovstage write_attribute needs one DLPack tensor per prim, not one flat ``particle_q``
+        # plus offsets. Synchronize then copy to CPU numpy once (shared by both queries below):
+        # the ``points`` column is ``point3f[]`` (lanes=3), and ovstage's make_dltensor only
+        # accepts the lanes=3 dtype override on numpy arrays, not DLPack producers. A warp
+        # ``vec3f`` slice exports as ``(N, 3)`` lanes=1, which is rejected as a type mismatch
+        # against the lanes=3 column.
+        wp.synchronize_device(self._device)
+        particle_np = particle_q.numpy()
+
+        if self._deformable_points_query is not None:
+            self._write_particle_q_slices_ovstage(
+                self._deformable_points_query,
+                particle_np,
+                self._deformable_particle_offsets,
+                self._deformable_particle_counts,
+            )
+
+        if self._particle_points_query is not None:
+            self._write_particle_q_slices_ovstage(
+                self._particle_points_query,
+                particle_np,
+                self._particle_visual_offsets,
+                self._particle_visual_counts,
+            )
+
+    def _write_particle_q_slices_ovstage(
+        self,
+        query: Any,
+        particle_np: np.ndarray,
+        particle_offsets: list[int],
+        particle_counts: list[int],
+    ) -> None:
+        """Write world-space ``particle_q`` slices into the ``points`` column of one ovstage query.
+
+        Args:
+            query: ovstage query selecting the prims whose ``points`` attribute is written.
+            particle_np: Host copy of the flat world-space particle positions [m], shape
+                ``[total_particles, 3]``.
+            particle_offsets: Start index of each prim's slice into :paramref:`particle_np`.
+            particle_counts: Number of particles in each prim's slice.
+        """
+        particle_slices = [
+            _points_tensor_from_numpy(particle_np[particle_offset : particle_offset + particle_count])
+            for particle_offset, particle_count in zip(particle_offsets, particle_counts, strict=True)
+        ]
+
+        self._stage.write_attribute(
+            query,
+            "points",
+            ordinal=self._current_ordinal,
+            tensors=particle_slices,
+            is_array=True,
+            semantic=ovstage.AttributeSemantic.POINT,
+        ).wait()
+
+    def _update_camera_ovstage(
+        self,
+        render_data: OVRTXRenderData,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray,
+    ) -> None:
+        num_envs = positions.shape[0]
+        converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
+        convert_camera_frame_orientation_convention_wp(
+            src=orientations.warp,
+            dst=converted_wp,
+            origin="world",
+            target="opengl",
+            device=self._device,
+        )
+        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
+        wp.launch(
+            kernel=create_camera_transforms_kernel,
+            dim=num_envs,
+            inputs=[positions, converted_wp, camera_transforms],
+            device=self._device,
+        )
+        if self._camera_xform_query is not None:
+            # Synchronize then copy to CPU numpy: same lanes=16 constraint as object transforms above.
+            wp.synchronize_device(self._device)
+            self._stage.write_attribute(
+                self._camera_xform_query,
+                "omni:xform",
+                ordinal=self._current_ordinal,
+                tensors=_xform_tensor_from_numpy(camera_transforms.numpy().reshape(-1, 4, 4)),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.MATRIX,
+            ).wait()
+
+    def _render_ovstage(self, render_data: OVRTXRenderData) -> None:
+        if not self._initialized_scene:
+            raise RuntimeError("Scene not initialized. Call initialize() first.")
+        if self._renderer is None or len(self._render_product_paths) == 0:
+            return
+        # Commit all per-frame writes (transforms, geometries, camera) then step.
+        # advance_write_floor must precede step — the renderer rejects ordinal > write_floor.
+        self._stage.advance_write_floor(ordinal=self._current_ordinal).wait()
+        products = self._renderer.step(
+            render_products=set(self._render_product_paths),
+            delta_time=1.0 / 60.0,
+            ordinal=self._current_ordinal,
+        )
+        self._current_ordinal += 1
+        product_path = self._render_product_paths[0]
+        if product_path in products and len(products[product_path].frames) > 0:
+            self._process_render_frame(
+                render_data,
+                products[product_path].frames[0],
+                render_data.warp_buffers,
+            )
+
+        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
+        # buffers are the same warp buffer map used by extraction.
+        if render_data.ppisp_pipeline is not None:
+            render_data.ppisp_pipeline.apply(
+                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
+                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
+            )
+
+    def _cleanup_ovstage(self, render_data: OVRTXRenderData | None) -> None:
+        def _safe_release_query(query, name: str) -> None:
+            if query is None or self._stage is None:
+                return
+            try:
+                self._stage.release_query(query).wait()
+            except Exception as e:
+                if "destroyed" not in str(e).lower():
+                    logger.warning("Error releasing %s query: %s", name, e)
+
+        def _safe_destroy_path_list(path_list, name: str) -> None:
+            if path_list is None or self._stage_paths is None:
+                return
+            try:
+                self._stage_paths.destroy_path_list(path_list)
+            except Exception as e:
+                if "destroyed" not in str(e).lower():
+                    logger.warning("Error destroying %s path list: %s", name, e)
+
+        _safe_release_query(self._camera_xform_query, "camera transforms")
+        self._camera_xform_query = None
+        _safe_destroy_path_list(self._camera_paths_list, "camera paths")
+        self._camera_paths_list = None
+        _safe_release_query(self._object_xform_query, "object transforms")
+        self._object_xform_query = None
+        _safe_destroy_path_list(self._object_paths_list, "object paths")
+        self._object_paths_list = None
+        _safe_release_query(self._deformable_points_query, "deformable points")
+        self._deformable_points_query = None
+        _safe_destroy_path_list(self._deformable_paths_list, "deformable paths")
+        self._deformable_paths_list = None
+        _safe_release_query(self._particle_points_query, "particle points")
+        self._particle_points_query = None
+        _safe_destroy_path_list(self._particle_paths_list, "particle paths")
+        self._particle_paths_list = None
+
+        self._object_newton_indices = None
+        self._deformable_particle_offsets = []
+        self._deformable_particle_counts = []
+        self._particle_visual_offsets = []
+        self._particle_visual_counts = []
+        self._env_root_xforms = None
+
+        # Detach before closing ExitStack: the renderer holds a live reference into the stage,
+        # so detaching first avoids a use-after-free when ExitStack destroys Stage and PathDictionary.
+        #
+        # Both are guarded because cleanup can run before initialization completed: Camera.__del__
+        # calls cleanup() whenever a renderer exists, even if create_render_data() never ran (e.g. the
+        # sim was never played, or scene setup raised). detach_ovstage() raises when nothing is
+        # attached, and the ExitStack does not exist until _initialize_from_spec_ovstage creates it.
+        if self._renderer is not None and self._stage is not None:
+            self._renderer.detach_ovstage()
+        self._renderer = None
+
+        if self._ovstage_exit_stack is not None:
+            self._ovstage_exit_stack.close()
+        self._ovstage_exit_stack = None
+        self._stage = None
+        self._stage_paths = None
+
+        self._render_product_paths.clear()
+        self._output_id_color_buffers.clear()
+        self._initialized_scene = False
+        self._current_ordinal = 0

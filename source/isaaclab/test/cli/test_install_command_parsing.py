@@ -22,6 +22,7 @@ from isaaclab.cli.commands.install import (
     MANUAL_EXTRA_FEATURES,
     OPTIONAL_ISAACLAB_SUBMODULES,
     VALID_EXTRA_FEATURES,
+    _install_ov_extra_dependencies,
     command_install,
     split_install_items,
 )
@@ -148,6 +149,21 @@ class TestInstallConstants:
             assert pkg not in core_names
 
 
+@pytest.mark.parametrize(
+    ("selector", "expected_extra"),
+    [
+        ("ovphysx", "ovphysx"),
+        ("ovrtx", "ovrtx"),
+    ],
+)
+def test_ov_selector_installs_matching_root_extra(selector, expected_extra):
+    """OV selectors dispatch to root extras with the same discoverable name."""
+    with patch("isaaclab.cli.commands.install._install_root_extra") as install_root_extra:
+        _install_ov_extra_dependencies(selector)
+
+    install_root_extra.assert_called_once_with(expected_extra)
+
+
 # ---------------------------------------------------------------------------
 # command_install dispatch tests (all external I/O mocked)
 # ---------------------------------------------------------------------------
@@ -157,6 +173,7 @@ _INSTALL_MODULE = "isaaclab.cli.commands.install"
 # Functions that must be mocked to prevent actual system calls.
 _PATCHES = [
     f"{_INSTALL_MODULE}._install_system_deps",
+    f"{_INSTALL_MODULE}._arm_cmake_policy_compatibility",
     f"{_INSTALL_MODULE}._install_isaaclab_submodules",
     f"{_INSTALL_MODULE}._install_extra_feature",
     f"{_INSTALL_MODULE}._install_optional_submodule_extra_dependencies",
@@ -165,7 +182,6 @@ _PATCHES = [
     f"{_INSTALL_MODULE}._install_root_extra",
     f"{_INSTALL_MODULE}._install_isaacsim",
     f"{_INSTALL_MODULE}._ensure_cuda_torch",
-    f"{_INSTALL_MODULE}._maybe_preinstall_arm_nlopt",
     f"{_INSTALL_MODULE}._maybe_uninstall_prebundled_torch",
     f"{_INSTALL_MODULE}._ensure_pink_ik_dependencies_installed",
     f"{_INSTALL_MODULE}._repoint_prebundle_packages",
@@ -211,6 +227,10 @@ class TestCommandInstallDispatch:
                 p.stop()
 
         return mocks
+
+    def test_wraps_dependency_installs_with_arm_cmake_compatibility(self):
+        mocks = self._run("all")
+        mocks["_arm_cmake_policy_compatibility"].assert_called_once_with()
 
     # --- "all" ---
 

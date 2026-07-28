@@ -57,6 +57,9 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "dexsuite_kuka_hetero": 8.0,
 }
 
+# Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
+_CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
+
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
 # robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
 # materials, etc.), so it complements the per-pixel L2 gate by catching regressions that survive a loosened pixel
@@ -610,6 +613,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f"<td>{entry['test']}</td>"
             f"<td>{entry['backend']}</td>"
             f"<td>{entry['renderer']}</td>"
+            f"<td>{entry.get('ovstage_variant', 'No')}</td>"
             f"<td>{entry['aov']}</td>"
             f"<td>{entry['diff_pct']:.2f}</td>"
             f"<td>{entry['threshold']:.1f}</td>"
@@ -677,6 +681,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>Test</th>"
         "<th>Backend</th>"
         "<th>Renderer</th>"
+        "<th>OVStage</th>"
         "<th>AOV</th>"
         "<th>PixelDiff&nbsp;%</th>"
         "<th>PixelDiff Threshold&nbsp;%</th>"
@@ -960,6 +965,7 @@ def validate_camera_outputs(
             "test": test_name,
             "backend": physics_backend,
             "renderer": renderer,
+            "ovstage_variant": "Yes" if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE") == "1" else "No",
             "aov": data_type,
             "diff_pct": diff_pct,
             "ssim": ssim_score,
@@ -1342,12 +1348,15 @@ def rendering_test_cartpole(
             data_type,
             compare_golden=compare_golden and data_type == "rgb",
         )
+        max_different_pixels_percentage = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"]
+        if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
+            max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
         validate_camera_outputs(
             "cartpole",
             physics_backend,
             renderer,
             camera_outputs,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"],
+            max_different_pixels_percentage=max_different_pixels_percentage,
             comparison_scores=comparison_scores,
         )
 
