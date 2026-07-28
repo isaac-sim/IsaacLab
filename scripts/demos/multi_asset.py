@@ -8,16 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/multi_asset.py --num_envs 1024
+    uv run python scripts/demos/multi_asset.py --num_envs 1024
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/multi_asset.py --visualizer newton --num_envs 1024
+    uv run python scripts/demos/multi_asset.py --visualizer newton --num_envs 1024
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/multi_asset.py --physics newton_mjwarp --num_envs 1024
+    uv run python scripts/demos/multi_asset.py --physics newton_mjwarp --num_envs 1024
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/multi_asset.py --visualizer newton --physics newton_mjwarp --num_envs 1024
+    uv run python scripts/demos/multi_asset.py --visualizer newton --physics newton_mjwarp --num_envs 1024
 
 """
 
@@ -36,7 +36,7 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=512, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 add_launcher_args(parser)
 # demos should open Kit visualizer by default
 parser.set_defaults(visualizer=["kit"])

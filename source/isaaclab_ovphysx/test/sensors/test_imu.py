@@ -8,7 +8,7 @@
 """Real-backend tests for the OVPhysX IMU sensor.
 
 Mirrors the structure of source/isaaclab_physx/test/sensors/test_imu.py
-but runs kitless under ./isaaclab.sh -p -m pytest — no AppLauncher needed.
+but runs kitless under uv run python -m pytest — no AppLauncher needed.
 SimulationContext is instantiated directly (it does not require Kit), and
 UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
 omni.client (which works standalone in Kit's Python).
@@ -16,7 +16,7 @@ omni.client (which works standalone in Kit's Python).
 Tests that load the PhysX pendulum URDF (``test_single_dof_pendulum`` and
 ``test_indirect_attachment``) are skipped pending a USD-converted pendulum
 asset. URDF→USD conversion requires the Kit URDF importer extension, which
-is not loaded under the direct ./isaaclab.sh -p runner.
+is not loaded under the direct uv run python runner.
 
 Process-global wheel state: like the rigid-object test, this file mixes
 procedural USD assets (``test_constant_velocity``, ``test_constant_acceleration``,
@@ -685,7 +685,7 @@ def test_sensor_print(sim_ctx, device):
     reason=(
         "Blocked on a USD-converted pendulum asset (the PhysX test loads"
         " source/isaaclab_physx/test/sensors/urdfs/simple_2_link.urdf via the Kit URDF importer,"
-        " which is not loaded under the direct ./isaaclab.sh -p runner). Re-enable"
+        " which is not loaded under the direct uv run python runner). Re-enable"
         " once a pre-converted USD pendulum is available."
     )
 )
@@ -697,7 +697,7 @@ def test_single_dof_pendulum():
     reason=(
         "Blocked on a USD-converted pendulum asset (the PhysX test loads"
         " source/isaaclab_physx/test/sensors/urdfs/simple_2_link.urdf via the Kit URDF importer,"
-        " which is not loaded under the direct ./isaaclab.sh -p runner). Re-enable"
+        " which is not loaded under the direct uv run python runner). Re-enable"
         " once a pre-converted USD pendulum is available."
     )
 )

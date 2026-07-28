@@ -118,7 +118,10 @@ class Se2SpaceMouse(DeviceBase):
         # implement a timeout for device search
         for _ in range(5):
             for device in hid.enumerate():
-                if device["product_string"] == "SpaceMouse Compact":
+                if (
+                    device["product_string"] == "SpaceMouse Compact"
+                    or device["product_string"] == "SpaceNavigator for Notebooks"
+                ):
                     # set found flag
                     found = True
                     vendor_id = device["vendor_id"]

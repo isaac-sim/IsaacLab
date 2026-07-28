@@ -37,15 +37,35 @@ Start from a Supported Deformable Task
 Before adding VBD to a new task, first run one of the experimental Franka
 deformable tasks:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
 For the surface-deformable cloth variant, use:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
 
 Both tasks configure MJWarp for the rigid Franka and VBD for the deformable
 object through
@@ -86,15 +106,35 @@ The important pieces are:
 
 You can select the deformable Newton preset globally:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
 
 or select the physics field directly:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
 
 Use the direct path override when only one task field should use the VBD preset.
 Use ``physics=newton_mjwarp_vbd`` when you want every matching preset field in
@@ -336,16 +376,34 @@ Body selectors must use full Newton body-label regexes, such as
 
 Try the demo:
 
-.. code-block:: bash
+.. tab-set::
 
-    # zero-agent visual smoke test (default preset is now the proxy-coupled one)
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
 
-    # scripted pick-and-lift via state machine
-    ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+      .. code-block:: bash
 
-    # explicitly select the alternating-substep preset instead
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 presets=newton_mjwarp_vbd
+          # zero-agent visual smoke test (default preset is now the proxy-coupled one)
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+          # scripted pick-and-lift via state machine
+          uv run python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+
+          # explicitly select the alternating-substep preset instead
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 presets=newton_mjwarp_vbd
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # zero-agent visual smoke test (default preset is now the proxy-coupled one)
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+          # scripted pick-and-lift via state machine
+          ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+
+          # explicitly select the alternating-substep preset instead
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 presets=newton_mjwarp_vbd
 
 
 Contact and Material Parameters

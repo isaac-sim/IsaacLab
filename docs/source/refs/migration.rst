@@ -143,8 +143,7 @@ dependencies such as ``pxr``, ``omni``, or ``scipy``. This is critical because K
 Isaac Sim viewer do **not** tolerate imports of ``pxr``, ``omni``, or ``scipy`` before the
 application is launched — doing so will cause crashes or undefined behavior. With lazy
 exporting, config objects can be constructed *before* ``SimulationApp`` is launched, which
-enables automatic physics-backend selection without requiring flags like
-``--enable_cameras``.
+enables automatic physics-backend selection without extra launch options.
 
 Two key patterns support this:
 
@@ -168,8 +167,8 @@ Lazy Exporting in User Code
 
 If your own project imports Isaac Lab symbols eagerly (i.e. via normal ``from ... import``
 statements in ``__init__.py``), those imports may trigger heavyweight modules before the
-simulation app is ready. This prevents automatic backend selection and may require you to
-pass explicit flags like ``--enable_cameras`` or ``--kit``.
+simulation app is ready. This prevents automatic backend selection and may require explicit
+backend configuration.
 
 To fix this, adopt the same lazy-exporting pattern used throughout Isaac Lab:
 

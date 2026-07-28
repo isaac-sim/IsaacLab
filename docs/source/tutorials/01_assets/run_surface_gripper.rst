@@ -132,9 +132,20 @@ The Code Execution
 
 To run the code and see the results, let's run the script from the terminal:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device cpu
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/01_assets/run_surface_gripper.py --device cpu
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device cpu
 
 
 This command should open a stage with a ground plane, lights, and two pick-and-place robots.
@@ -152,10 +163,21 @@ query the gripper state. We also saw how to update its buffers to read the lates
 In addition to this tutorial, we also provide a few other scripts that spawn different robots. These are included
 in the ``scripts/demos`` directory. You can run these scripts as:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Spawn many pick-and-place robots and perform a pick-and-place task
-   ./isaaclab.sh -p scripts/demos/pick_and_place.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         # Spawn many pick-and-place robots and perform a pick-and-place task
+         uv run python scripts/demos/pick_and_place.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Spawn many pick-and-place robots and perform a pick-and-place task
+         ./isaaclab.sh -p scripts/demos/pick_and_place.py
 
 Note that in practice, the users would be expected to register their :class:`assets.SurfaceGripper` instances inside
 a :class:`isaaclab.InteractiveScene` object, which will automatically handle the calls to the

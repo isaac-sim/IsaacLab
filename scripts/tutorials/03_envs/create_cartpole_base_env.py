@@ -9,7 +9,7 @@ scene, action, observation and event managers to create an environment.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
 
 """
 

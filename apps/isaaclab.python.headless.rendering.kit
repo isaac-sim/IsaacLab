@@ -17,13 +17,17 @@ keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
 [dependencies]
 # Isaac Lab minimal app
 "isaaclab.python.headless" = {}
-"isaacsim.core.rendering_manager" = {}
 "omni.replicator.core" = {}
 
 # Rendering
 "omni.kit.material.library" = {}
 "omni.kit.viewport.rtx" = {}
+"omni.kit.viewport.utility" = {}
 "omni.kit.hydra_texture" = {}  # required for headless rendering and rtx instantiation
+# Required even in headless camera runs: viewport.window creates the implicit
+# Kit viewport render product and global RenderSettings prims under /Render
+# that RTX/rendering golden-stage tests and viewport camera helpers expect.
+"omni.kit.viewport.window" = {}
 
 
 [settings.isaaclab]

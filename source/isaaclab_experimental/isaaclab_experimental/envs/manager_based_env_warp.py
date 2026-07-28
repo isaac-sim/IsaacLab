@@ -32,7 +32,6 @@ from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
@@ -202,12 +201,13 @@ class ManagerBasedEnvWarp:
         # add timeline event to load managers
         self.load_managers()
 
+        # Wire live plots into all active visualizers and build Kit omni.ui panels when present.
+        self.setup_manager_visualizers()
+
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
-            # setup live visualizers
-            self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -384,11 +384,15 @@ class ManagerBasedEnvWarp:
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
-
+        """Wire manager terms into live plots for all active visualizer backends."""
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers)
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """

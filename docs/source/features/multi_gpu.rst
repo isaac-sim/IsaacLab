@@ -283,11 +283,23 @@ Single-node training (defaults to all available GPUs):
     .. tab-item:: isaaclab.sh
         :sync: isaaclab
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python scripts/reinforcement_learning/train_multigpu.py \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv
@@ -306,12 +318,25 @@ Override the GPU count or torchrun settings when needed:
     .. tab-item:: isaaclab.sh
         :sync: isaaclab
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-               --num_gpus 4 --master_port 29504 \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python scripts/reinforcement_learning/train_multigpu.py \
+                     --num_gpus 4 --master_port 29504 \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+                     --num_gpus 4 --master_port 29504 \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv
@@ -331,13 +356,27 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
     .. tab-item:: isaaclab.sh
         :sync: isaaclab
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-               --rl_library skrl --ml_framework jax --num_gpus 4 \
-               --coordinator_address localhost:5000 \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python scripts/reinforcement_learning/train_multigpu.py \
+                     --rl_library skrl --ml_framework jax --num_gpus 4 \
+                     --coordinator_address localhost:5000 \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+                     --rl_library skrl --ml_framework jax --num_gpus 4 \
+                     --coordinator_address localhost:5000 \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv

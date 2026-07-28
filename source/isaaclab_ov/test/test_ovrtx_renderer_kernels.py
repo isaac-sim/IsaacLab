@@ -5,8 +5,6 @@
 
 """Unit tests for OVRTX renderer kernels."""
 
-import math
-
 import numpy as np
 import pytest
 import warp as wp
@@ -15,62 +13,9 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
 )
 
+from isaaclab.renderers.segmentation_colors import pack_rgba, random_color_from_id
+
 DEVICE = "cuda:0"
-
-
-def _color_hash(seed: int) -> int:
-    # MurmurHash3-style 32-bit finalizer with wraparound, matching color_hash in ovrtx_renderer_kernels
-    # and omni.replicator's randomColoursCPU. The 32-bit truncation (0xFFFFFFFF masks) is load-bearing.
-    mask = 0xFFFFFFFF
-    h = seed & mask
-    h ^= h >> 16
-    h = (h * 0x85EBCA6B) & mask
-    h ^= h >> 13
-    h = (h * 0xC2B2AE35) & mask
-    h ^= h >> 16
-    return h & mask
-
-
-def _random_colours_id(input_id: int) -> tuple[int, int, int, int]:
-    GOLDEN_RATIO_INV = 1.0 / 1.618033988749895
-
-    hash_val = _color_hash(input_id)
-    hue = math.fmod(input_id * GOLDEN_RATIO_INV, 1.0)
-    hue_perturbation = (hash_val & 0xFFFF) / 65536.0
-    hue = math.fmod(hue + hue_perturbation * 0.1, 1.0)
-    sat_hash = hash_val >> 16
-    val_hash = hash_val >> 8
-    saturation = 0.7 + 0.3 * ((sat_hash & 0xFF) / 255.0)
-    value = 0.8 + 0.2 * ((val_hash & 0xFF) / 255.0)
-    i = int(hue * 6.0)
-    f = (hue * 6.0) - i
-    p = value * (1.0 - saturation)
-    q = value * (1.0 - saturation * f)
-    t = value * (1.0 - saturation * (1.0 - f))
-    i = i % 6
-    if i == 0:
-        r, g, b = value, t, p
-    elif i == 1:
-        r, g, b = q, value, p
-    elif i == 2:
-        r, g, b = p, value, t
-    elif i == 3:
-        r, g, b = p, q, value
-    elif i == 4:
-        r, g, b = t, p, value
-    else:
-        r, g, b = value, p, q
-    return (int(r * 255), int(g * 255), int(b * 255), 255)
-
-
-def _reference_color(input_id: int) -> int:
-    if input_id == 0:
-        return 0
-    if input_id == 1:
-        return 0xFF000000
-
-    r, g, b, a = _random_colours_id(input_id)
-    return r | (g << 8) | (b << 16) | (a << 24)
 
 
 def _reference_extract_all_depth_tiles(
@@ -561,83 +506,41 @@ class TestExtractAllRgbFloatTilesKernel:
         np.testing.assert_allclose(output_wp.numpy(), expected, rtol=0, atol=0)
 
 
-class TestRandomColorsFromIdsKernel:
-    """Tests for generate_random_colors_from_ids_kernel."""
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA not available")
+class TestGenerateRandomColorsFromIdsKernel:
+    """generate_random_colors_from_ids_kernel agrees with the shared segmentation_colors reference."""
 
-    def test_random_colors(self):
-        inputs_np = np.array([[[0], [1]], [[2], [3]]], dtype=np.uint32)
-        input_ids = wp.array(inputs_np, dtype=wp.uint32, ndim=3, device=DEVICE)
-        output_colors = wp.zeros(shape=inputs_np.shape, dtype=wp.uint32, device=DEVICE)
-
-        wp.launch(
-            kernel=generate_random_colors_from_ids_kernel,
-            dim=inputs_np.shape,
-            inputs=[input_ids, output_colors],
-            device=DEVICE,
-        )
+    def _launch(self, ids_np: np.ndarray) -> np.ndarray:
+        ids_wp = wp.array(ids_np, dtype=wp.uint32, device=DEVICE)
+        out_wp = wp.zeros(ids_np.shape, dtype=wp.uint32, device=DEVICE)
+        wp.launch(generate_random_colors_from_ids_kernel, dim=ids_np.shape, inputs=[ids_wp, out_wp], device=DEVICE)
         wp.synchronize()
+        return out_wp.numpy()
 
-        out_np = output_colors.numpy()
-        for (i, j, k), input_id in np.ndenumerate(inputs_np):
-            input_id = int(np.uint32(input_id))
-            ref_color = _reference_color(input_id)
-            out_color = int(out_np[i, j, k])
-            assert out_color == ref_color, (
-                f"At ({i},{j},{k}) id={input_id}: expected 0x{ref_color:08x}, got 0x{out_color:08x}"
+    def test_matches_host_reference(self):
+        """Output matches pack_rgba(random_color_from_id(id)) for a small grid of ids."""
+        ids_np = np.array([[[0], [1]], [[2], [3]]], dtype=np.uint32)
+        out_np = self._launch(ids_np)
+        for (i, j, k), input_id in np.ndenumerate(ids_np):
+            expected = pack_rgba(random_color_from_id(int(np.uint32(input_id))))
+            assert int(out_np[i, j, k]) == expected, (
+                f"At ({i},{j},{k}) id={input_id}: expected 0x{expected:08x}, got 0x{int(out_np[i, j, k]):08x}"
             )
 
     def test_deterministic_across_launches(self):
-        shape = (4, 4, 1)
+        """Two launches with the same input produce identical output."""
         rng = np.random.default_rng(42)
-        inputs_np = rng.integers(0, 2**31, size=shape, dtype=np.uint32)
-        input_ids = wp.array(inputs_np, dtype=wp.uint32, ndim=3, device=DEVICE)
-        output_colors = wp.zeros(shape=shape, dtype=wp.uint32, device=DEVICE)
+        ids_np = rng.integers(0, 2**31, size=(4, 4, 1), dtype=np.uint32)
+        first = self._launch(ids_np).copy()
+        second = self._launch(ids_np)
+        np.testing.assert_array_equal(first, second)
 
-        wp.launch(
-            kernel=generate_random_colors_from_ids_kernel,
-            dim=shape,
-            inputs=[input_ids, output_colors],
-            device=DEVICE,
-        )
-        wp.synchronize()
-        first_run = output_colors.numpy().copy()
-
-        wp.launch(
-            kernel=generate_random_colors_from_ids_kernel,
-            dim=shape,
-            inputs=[input_ids, output_colors],
-            device=DEVICE,
-        )
-        wp.synchronize()
-        second_run = output_colors.numpy()
-
-        np.testing.assert_array_equal(first_run, second_run)
-
-    @pytest.mark.parametrize(
-        "input_value",
-        [
-            0,
-            1,
-            2,
-            3,
-            100,
-        ],
-    )
+    @pytest.mark.parametrize("input_value", [0, 1, 2, 3, 100])
     def test_single_value(self, input_value):
-        inputs_np = np.array([[[input_value]]], dtype=np.uint32)
-        input_ids = wp.array(inputs_np, dtype=wp.uint32, ndim=3, device=DEVICE)
-        output_colors = wp.zeros(shape=(1, 1, 1), dtype=wp.uint32, device=DEVICE)
-
-        wp.launch(
-            kernel=generate_random_colors_from_ids_kernel,
-            dim=(1, 1, 1),
-            inputs=[input_ids, output_colors],
-            device=DEVICE,
-        )
-        wp.synchronize()
-
-        ref_color = _reference_color(int(np.uint32(input_value)))
-        out_color = int(output_colors.numpy()[0, 0, 0])
-        assert out_color == ref_color, (
-            f"id=0x{int(np.uint32(input_value)):08x}: expected 0x{ref_color:08x}, got 0x{out_color:08x}"
+        ids_np = np.array([[[input_value]]], dtype=np.uint32)
+        out_np = self._launch(ids_np)
+        expected = pack_rgba(random_color_from_id(int(np.uint32(input_value))))
+        out_color = int(out_np[0, 0, 0])
+        assert out_color == expected, (
+            f"id=0x{int(np.uint32(input_value)):08x}: expected 0x{expected:08x}, got 0x{out_color:08x}"
         )

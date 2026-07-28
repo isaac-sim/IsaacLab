@@ -33,9 +33,20 @@ needed.
 
 Example usage:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
 
 
 The captured frames will be saved in the same directory as the training checkpoints, under
@@ -138,9 +149,19 @@ the tag ``<sensor_name>/<data_type>/episode_<index>``. View the captures alongsi
 metrics by pointing TensorBoard at the training log directory or the ``sensor_frames/train``
 subdirectory:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run python -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
 
 **File.** PNG images are written per sensor, data type, episode, and step:
 

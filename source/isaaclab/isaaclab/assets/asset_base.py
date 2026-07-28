@@ -15,6 +15,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
@@ -68,6 +69,9 @@ class AssetBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
+        # register the original cfg object for cloning: the clone plan keys rows by the
+        # cfg identity the scene collected; contexts and policy resolve at replication time
+        queue_replication(cfg)
         # store inputs
         self.cfg = cfg.copy()
         # Resolve shape-check flag once: True means checks are active.

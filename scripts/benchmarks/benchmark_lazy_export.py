@@ -21,9 +21,9 @@ This script does NOT require Isaac Sim or a GPU.
 
 Usage::
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py --iterations 20
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py --tasks Isaac-Velocity-Flat-AnymalD
+    uv run python scripts/benchmarks/benchmark_lazy_export.py
+    uv run python scripts/benchmarks/benchmark_lazy_export.py --iterations 20
+    uv run python scripts/benchmarks/benchmark_lazy_export.py --tasks Isaac-Velocity-Flat-AnymalD
 """
 
 from __future__ import annotations

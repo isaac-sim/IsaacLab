@@ -151,9 +151,20 @@ allows for recording of data of PhysX simulations, which can often help simulati
 
 To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the command line prompt when launching an Isaac Lab process
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
 Joints actuate in PhysX but not in a Newton-based backend
@@ -246,10 +257,21 @@ To obtain more detailed logs, you can run your application with the following fl
 
 For instance, to run a standalone script with verbose logging, you can use the following command:
 
-.. code-block:: bash
+.. tab-set::
 
-    # Run the standalone script with info logging
-    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          # Run the standalone script with info logging
+          uv run python scripts/tutorials/00_sim/create_empty.py --info
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Run the standalone script with info logging
+          ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
 
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.

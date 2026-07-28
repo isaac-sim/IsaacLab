@@ -215,8 +215,6 @@ def _run_train_once(
         "rl_games",
         "--task",
         task_name,
-        "--enable_cameras",
-        "--headless",
         "--seed",
         "42",
         "--max_iterations",
