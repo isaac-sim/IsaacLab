@@ -10,26 +10,26 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from scripts.benchmarks import play, training
-from scripts.benchmarks.rl_games import benchmark_rl_games_play as play_rl_games
-from scripts.benchmarks.rsl_rl import benchmark_rsl_rl_play as play_rsl_rl
-from scripts.benchmarks.rsl_rl import benchmark_rsl_rl_train as train_rsl_rl
-from scripts.benchmarks.sb3 import benchmark_sb3_play as play_sb3
-from scripts.benchmarks.sb3 import benchmark_sb3_train as train_sb3
-from scripts.benchmarks.skrl import benchmark_skrl_play as play_skrl
-from scripts.benchmarks.skrl import benchmark_skrl_train as train_skrl
+from isaaclab.benchmark import dispatch
+from isaaclab.benchmark.entrypoints.backends.rl_games import benchmark_play_rl_games as play_rl_games
+from isaaclab.benchmark.entrypoints.backends.rsl_rl import benchmark_play_rsl_rl as play_rsl_rl
+from isaaclab.benchmark.entrypoints.backends.rsl_rl import benchmark_train_rsl_rl as train_rsl_rl
+from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_play_sb3 as play_sb3
+from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_train_sb3 as train_sb3
+from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_play_skrl as play_skrl
+from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_train_skrl as train_skrl
 
 
 @pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])
-def test_training_dispatches_libraries_to_library_named_adapters(library: str):
-    """The training dispatcher uses the library-named benchmark adapter."""
-    assert training.LIBRARY_ENTRYPOINTS[library].name == f"benchmark_{library}_train.py"
+def test_training_dispatches_libraries_to_explicitly_named_adapters(library: str):
+    """Test that training dispatches to the explicitly named package adapter."""
+    assert dispatch._RL_WORKFLOW_MODULES["training"][library].endswith(f"{library}.benchmark_train_{library}")
 
 
 @pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])
-def test_play_dispatches_libraries_to_library_named_adapters(library: str):
-    """The play dispatcher uses the library-named benchmark adapter."""
-    assert play.LIBRARY_ENTRYPOINTS[library].name == f"benchmark_{library}_play.py"
+def test_play_dispatches_libraries_to_explicitly_named_adapters(library: str):
+    """Test that play dispatches to the explicitly named package adapter."""
+    assert dispatch._RL_WORKFLOW_MODULES["play"][library].endswith(f"{library}.benchmark_play_{library}")
 
 
 @pytest.mark.parametrize("adapter", [play_rl_games, play_rsl_rl, play_sb3, play_skrl])
