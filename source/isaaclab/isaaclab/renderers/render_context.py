@@ -13,6 +13,7 @@ from typing import Any, cast
 from isaaclab.sensors.camera.camera_data import CameraData
 
 from .base_renderer import BaseRenderer
+from .camera_render_spec import CameraRenderSpec
 from .renderer import Renderer
 from .renderer_cfg import RendererCfg
 
@@ -33,6 +34,7 @@ class RenderContext:
 
     __slots__ = (
         "_renderer_entries",
+        "_render_data_entries",
         "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
@@ -41,6 +43,8 @@ class RenderContext:
 
     def __init__(self) -> None:
         self._renderer_entries: list[tuple[RendererCfg, BaseRenderer]] = []
+        # Render data handed out by :meth:`create_render_data`, released by :meth:`close`.
+        self._render_data_entries: list[tuple[BaseRenderer, Any]] = []
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
@@ -85,6 +89,52 @@ class RenderContext:
         if self._physics_initialized:
             new_renderer.initialize()
         return new_renderer
+
+    def create_render_data(self, renderer: BaseRenderer, spec: CameraRenderSpec) -> Any:
+        """Create render data for a camera and take ownership of releasing it.
+
+        Cameras must obtain their render data through this method rather than calling
+        :meth:`BaseRenderer.create_render_data` directly, so that :meth:`close` can release
+        it deterministically while the simulation app is still alive.
+
+        Releasing cannot be left to the camera's finalizer: the render data is owned by the
+        simulator, but the camera is a Python object whose finalizer only runs once the last
+        reference is dropped. A single surviving reference -- an environment attribute, or an
+        observation term that cached the sensor -- keeps the resources registered until the
+        app shuts down, which surfaces as leaked shader processors and pipeline layouts.
+
+        Args:
+            renderer: Backend obtained from :meth:`get_renderer`.
+            spec: Render specification for the requesting camera.
+
+        Returns:
+            The backend's render data object.
+        """
+        render_data = renderer.create_render_data(spec)
+        self._render_data_entries.append((renderer, render_data))
+        return render_data
+
+    def close(self) -> None:
+        """Release all render data and drop the registered renderer backends.
+
+        Called during simulation teardown, before the stage is closed. Errors from an
+        individual backend are logged and do not prevent the rest from being released.
+        Repeated calls are no-ops.
+        """
+        for renderer, render_data in self._render_data_entries:
+            try:
+                renderer.cleanup(render_data)
+            except Exception:
+                logger.exception(
+                    "Error releasing render data for %s; continuing with remaining renderers.",
+                    type(renderer).__name__,
+                )
+        self._render_data_entries.clear()
+        self._renderer_entries.clear()
+        self._prepared_renderer_ids.clear()
+        self._prepared_num_envs = None
+        self._last_scene_state_step = None
+        self._physics_initialized = False
 
     def ensure_initialize(self) -> None:
         """Idempotent call fired after PHYSICS_READY callback."""
