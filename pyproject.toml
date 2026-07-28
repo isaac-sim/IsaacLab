@@ -169,7 +169,7 @@ torchaudio = "2.11.0"
 ovphysx = ">=0.4.13"
 ovrtx = ">=0.3.0,<0.4.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
-newton = "f690bf31d8c3a8994ea2d05066faed757efce39f"
+newton = "2e6352778bf80d603bf57a32e40e7b0572d44f76"
 warp = "1.16.0.dev20260716"
 
 [tool.ruff]
@@ -336,7 +336,7 @@ prerelease = "allow"
 # the CUDA indexes via [tool.uv.sources]. Version pins mirror [tool.isaaclab.versions] above.
 override-dependencies = [
     "numpy>=2",
-    "newton[sim,importers] @ git+https://github.com/rubengrandia/newton.git@f690bf31d8c3a8994ea2d05066faed757efce39f",
+    "newton[sim,importers] @ git+https://github.com/rubengrandia/newton.git@2e6352778bf80d603bf57a32e40e7b0572d44f76",
     "mujoco>=3.10.0,<3.11.0",
     "mujoco-warp>=3.10.0.2,<3.11.0",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
