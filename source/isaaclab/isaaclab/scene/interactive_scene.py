@@ -707,8 +707,20 @@ class InteractiveScene:
         return state
 
     """
-    Operations: Iteration.
+    Operations: Lifecycle.
     """
+
+    def close(self) -> None:
+        """Release simulator-side resources held by the scene's sensors.
+
+        Called at simulation teardown, while the app is still alive. Errors from one sensor do
+        not prevent the rest from being closed.
+        """
+        for name, sensor in self._sensors.items():
+            try:
+                sensor.close()
+            except Exception:
+                logger.exception("Error closing sensor %r; continuing with the remaining sensors.", name)
 
     def keys(self) -> list[str]:
         """Returns the keys of the scene entities.

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
@@ -209,13 +210,29 @@ class Camera(SensorBase):
         self._renderer: BaseRenderer | None = None
         self._render_data = None
 
-    def __del__(self):
-        """Unsubscribes from callbacks.
+    def close(self) -> None:
+        """Release this camera's renderer resources. Safe to call more than once.
 
-        Renderer resources are released by :meth:`~isaaclab.renderers.RenderContext.close`, not
-        here: a finalizer may run after the renderer's plugins are torn down, or never at all.
+        Called by :meth:`~isaaclab.renderers.RenderContext.close` at simulation teardown. It is
+        not done in :meth:`__del__`, which does not run while any reference to this camera
+        survives and may otherwise run after the renderer's plugins are torn down.
+        """
+        if self._render_data is None:
+            return
+        # Drop the handle first so a failing cleanup is reported once and never retried.
+        render_data, self._render_data = self._render_data, None
+        self._renderer.cleanup(render_data)
+
+    def __del__(self):
+        """Unsubscribes from callbacks, and releases renderer resources if still held.
+
+        The release is a backstop for cameras no scene owns; scene-owned cameras are already
+        closed by :meth:`~isaaclab.scene.InteractiveScene.close`. It is skipped during
+        interpreter finalization, when the renderer's plugins may already be torn down.
         """
         super().__del__()
+        if not sys.is_finalizing():
+            self.close()
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -541,7 +558,7 @@ class Camera(SensorBase):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-        self._render_data = sim_ctx.render_context.create_render_data(self._renderer, render_spec)
+        self._render_data = self._renderer.create_render_data(render_spec)
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()

@@ -74,6 +74,15 @@ class SensorBase(ABC):
         # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
+    def close(self) -> None:
+        """Release simulator-side resources held by this sensor. Safe to call more than once.
+
+        Called by :meth:`~isaaclab.scene.InteractiveScene.close` at simulation teardown, while
+        the app is still alive. Subclasses holding such resources must override this rather than
+        release them in :meth:`__del__`, which does not run while any reference to the sensor
+        survives.
+        """
+
     def __del__(self):
         """Unsubscribe from the callbacks."""
         # clear physics events handles

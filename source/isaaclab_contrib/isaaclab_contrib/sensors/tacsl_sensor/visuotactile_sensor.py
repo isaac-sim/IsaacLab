@@ -126,10 +126,15 @@ class VisuoTactileSensor(SensorBase):
         # Now call parent class constructor
         super().__init__(cfg)
 
+    def close(self) -> None:
+        """Release the resources of the camera this sensor owns. See :meth:`SensorBase.close`."""
+        if self._camera_sensor is not None:
+            self._camera_sensor.close()
+        super().close()
+
     def __del__(self):
         """Unsubscribes from callbacks and detach from the replicator registry."""
-        if self._camera_sensor is not None:
-            self._camera_sensor.__del__()
+        self.close()
         # unsubscribe from callbacks
         super().__del__()
 

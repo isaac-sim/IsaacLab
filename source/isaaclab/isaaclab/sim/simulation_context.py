@@ -845,7 +845,9 @@ class SimulationContext:
             cls._instance._services.close_all(caught_exceptions=service_errors)
 
             # Must run while the app is alive and before the stage goes away.
-            cls._instance._render_context.close()
+            scene = getattr(cls._instance, "_interactive_scene", None)
+            if scene is not None:
+                scene.close()
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.

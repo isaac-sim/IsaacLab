@@ -32,14 +32,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 class _FakeBackend(BaseRenderer):
     """Test double for :class:`BaseRenderer`; does not load PhysX/Newton/OV renderer classes."""
 
-    __slots__ = (
-        "_prepare_hits",
-        "_update_transforms_hits",
-        "_update_geometries_hits",
-        "_event_log",
-        "_cleanup_log",
-        "_cleanup_raises",
-    )
+    __slots__ = ("_prepare_hits", "_update_transforms_hits", "_update_geometries_hits", "_event_log")
 
     def __init__(
         self,
@@ -48,16 +41,12 @@ class _FakeBackend(BaseRenderer):
         update_transforms_hits: list[int] | None = None,
         update_geometries_hits: list[int] | None = None,
         event_log: list[str] | None = None,
-        cleanup_log: list[Any] | None = None,
-        cleanup_raises: bool = False,
     ) -> None:
         super().__init__()
         self._prepare_hits = prepare_hits
         self._update_transforms_hits = update_transforms_hits
         self._update_geometries_hits = update_geometries_hits
         self._event_log = event_log
-        self._cleanup_log = cleanup_log
-        self._cleanup_raises = cleanup_raises
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         return {}
@@ -96,10 +85,7 @@ class _FakeBackend(BaseRenderer):
             self._event_log.append("read")
 
     def cleanup(self, render_data: Any) -> None:
-        if self._cleanup_log is not None:
-            self._cleanup_log.append(render_data)
-        if self._cleanup_raises:
-            raise RuntimeError("backend cleanup failed")
+        pass
 
 
 def _set_entries(ctx: RenderContext, *cfg_backend_pairs: tuple[RendererCfg, BaseRenderer]) -> None:
@@ -231,81 +217,3 @@ def test_reset_scene_state_cadence_allows_repeat_update_scene_state_same_step():
     ctx.reset_scene_state_cadence()
     ctx.update_scene_state(1)
     assert len(hits) == 2
-
-
-def test_close_releases_render_data_created_through_context():
-    """close releases every render data handed out by create_render_data."""
-    ctx = RenderContext()
-    cleaned: list[Any] = []
-    backend = _FakeBackend(cleanup_log=cleaned)
-    _set_entries(ctx, (IsaacRtxRendererCfg(), backend))
-
-    first = ctx.create_render_data(backend, cast(Any, object()))
-    second = ctx.create_render_data(backend, cast(Any, object()))
-
-    ctx.close()
-
-    assert cleaned == [first, second]
-
-
-def test_close_releases_render_data_while_a_reference_survives():
-    """close releases render data even when the creating owner is still referenced.
-
-    Regression test for the shutdown crash where a camera kept in a task attribute (in
-    addition to the scene's own entry) never reached a zero reference count, so its
-    finalizer never ran and its renderer resources stayed registered until the app tore
-    down. Release must be driven by :meth:`RenderContext.close`, not by reference counting.
-    """
-    ctx = RenderContext()
-    cleaned: list[Any] = []
-    backend = _FakeBackend(cleanup_log=cleaned)
-    _set_entries(ctx, (IsaacRtxRendererCfg(), backend))
-
-    render_data = ctx.create_render_data(backend, cast(Any, object()))
-    surviving_owner = {"camera_like": render_data}  # stands in for the extra reference
-
-    ctx.close()
-
-    assert cleaned == [render_data]
-    assert surviving_owner["camera_like"] is render_data
-
-
-def test_close_is_idempotent():
-    """A second close does not release the same render data twice."""
-    ctx = RenderContext()
-    cleaned: list[Any] = []
-    backend = _FakeBackend(cleanup_log=cleaned)
-    _set_entries(ctx, (IsaacRtxRendererCfg(), backend))
-    ctx.create_render_data(backend, cast(Any, object()))
-
-    ctx.close()
-    ctx.close()
-
-    assert len(cleaned) == 1
-
-
-def test_close_continues_after_a_backend_raises():
-    """One backend failing to clean up does not strand the others."""
-    ctx = RenderContext()
-    cleaned: list[Any] = []
-    failing = _FakeBackend(cleanup_raises=True)
-    healthy = _FakeBackend(cleanup_log=cleaned)
-    _set_entries(ctx, (IsaacRtxRendererCfg(), failing), (NewtonWarpRendererCfg(), healthy))
-
-    ctx.create_render_data(failing, cast(Any, object()))
-    healthy_data = ctx.create_render_data(healthy, cast(Any, object()))
-
-    ctx.close()
-
-    assert cleaned == [healthy_data]
-
-
-def test_close_drops_registered_backends():
-    """close clears the backend registry so a stale renderer cannot outlive the stage."""
-    ctx = RenderContext()
-    backend = _FakeBackend()
-    _set_entries(ctx, (IsaacRtxRendererCfg(), backend))
-
-    ctx.close()
-
-    assert ctx._renderer_entries == []  # noqa: SLF001
