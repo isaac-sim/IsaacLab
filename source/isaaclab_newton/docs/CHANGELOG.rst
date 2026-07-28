@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+2.3.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.KaminoSolverCfg.material_friction_mix_mode` and
+  :attr:`~isaaclab_newton.physics.KaminoSolverCfg.material_restitution_mix_mode` to control
+  how the friction and restitution coefficients of two contacting shapes are mixed into
+  contact-pair values by the Kamino solver.
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`. When set, converts the normalized RGB
+  color to an ARGB clear color passed to ``SensorTiledCamera.ClearData`` on each render call.
+
+
 2.2.0 (2026-07-26)
 ~~~~~~~~~~~~~~~~~~
 

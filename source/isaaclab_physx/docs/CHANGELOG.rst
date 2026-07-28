@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+3.1.1 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`. When set, applies
+  ``/rtx/background/source/type = 2`` (Color) and ``/rtx/background/source/color`` via the
+  settings manager during camera setup.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` failing with
+  ``Annotator SimpleShadingSD is not attached to any render products`` when
+  multiple environments sequentially request ``simple_shading_*`` camera
+  outputs in the same Kit process. Each tiled render product is given a
+  unique UUID name, and the owned HydraTexture is destroyed on cleanup to
+  avoid leaking render products across env create/destroy cycles.
+
+
 3.1.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 

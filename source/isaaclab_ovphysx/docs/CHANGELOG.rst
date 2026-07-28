@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+8.0.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added backend joint/body ordering introspection properties to
+  :class:`~isaaclab_ovphysx.assets.Articulation`.
+
+Changed
+^^^^^^^
+
+* Added ``ovstage`` as a required dependency so it is installed automatically alongside
+  ``isaaclab_ovphysx``.
+* Changed the OVPhysX dependency to ``ovphysx==0.5.9`` and migrated initial
+  USD ingestion to OVStage.
+
+Fixed
+^^^^^
+
+* Fixed indexed joint-state writes with nonidentity joint ordering so positions
+  and velocities reach the intended backend joints.
+* Fixed root-link velocity refreshes that overwrote and falsely marked the
+  body-link velocity cache as fresh.
+* Fixed partial joint position and velocity writes that rewrote newer
+  unselected backend rows with stale cached values.
+
+
 7.0.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 
