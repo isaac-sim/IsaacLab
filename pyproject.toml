@@ -160,6 +160,9 @@ mimic = [
 ]
 
 teleop = [
+    # XR teleoperation needs the Kit XR runtime, so the extra carries Isaac Sim itself.
+    # Referenced through the isaacsim extra so the pin stays in one place.
+    "isaaclab-dev[isaacsim]",
     "isaaclab-teleop",
     # ``isaaclab teleop record`` imports isaaclab_mimic.envs for the mimic env registrations
     # and its subtask instruction UI. Only the source package is needed; robomimic stays in
@@ -169,11 +172,7 @@ teleop = [
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
-# One-flag shorthand for the XR teleoperation workflow, which needs the Kit XR runtime on
-# top of Isaac Teleop. Kept as an aggregate rather than folding isaacsim into ``teleop`` so
-# ``teleop`` stays lean and does not inherit isaacsim's conflicts (notably with ``test``).
-xr = ["isaaclab-dev[isaacsim,teleop]"]
-
+# RLinf VLA post-training (externally contributed).
 rlinf = [
     "ray[default]>=2.47.0",
     "av>=12.3.0",
@@ -402,27 +401,26 @@ override-dependencies = [
     # Isaac Sim 6.0 pins ==12.0. Viser needs >=13.1 and isaacteleop[cloudxr] needs >=14.0,
     # so the override has to clear the higher floor for the XR teleop workflow to resolve.
     "websockets>=14.0",
+    # isaacsim-kernel pins ==7.4.4; numba subclasses coverage.types.Tracer at import and
+    # needs >=7.6.1. Without this override the ``test`` extra cannot co-resolve with Isaac
+    # Sim, which would make the teleop package's own test suite uninstallable.
+    "coverage>=7.6.1",
 ]
 # teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
 # declaring the conflict lets uv fork the resolution instead of failing.
-# isaacsim pins clash with ovphysx/mimic/test (and ``all`` aggregates several of
-# these); forking keeps ``--extra isaacsim`` resolvable on its own. teleop is
-# deliberately absent here: the XR workflow needs Kit, so ``--extra isaacsim
-# --extra teleop`` must co-resolve (see the websockets override above).
+# isaacsim pins clash with ov/ovphysx/mimic (and ``all`` aggregates several of these);
+# forking keeps ``--extra isaacsim`` resolvable on its own. ``teleop`` bundles isaacsim
+# for the Kit XR runtime, so it inherits those conflicts too. Viser is not among them:
+# the websockets override reconciles it with Isaac Sim.
 conflicts = [
     [{ extra = "teleop" }, { extra = "mimic" }],
     [{ extra = "teleop" }, { extra = "all" }],
+    [{ extra = "teleop" }, { extra = "ov" }],
+    [{ extra = "teleop" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
     [{ extra = "isaacsim" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "mimic" }],
     [{ extra = "isaacsim" }, { extra = "all" }],
-    [{ extra = "isaacsim" }, { extra = "test" }],
-    # ``xr`` aggregates isaacsim and teleop, so it inherits both of their conflicts.
-    [{ extra = "xr" }, { extra = "ov" }],
-    [{ extra = "xr" }, { extra = "viser" }],
-    [{ extra = "xr" }, { extra = "mimic" }],
-    [{ extra = "xr" }, { extra = "all" }],
-    [{ extra = "xr" }, { extra = "test" }],
 ]
 python-preference = "only-managed"
 package = false

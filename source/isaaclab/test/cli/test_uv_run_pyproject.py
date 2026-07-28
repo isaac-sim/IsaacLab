@@ -59,7 +59,6 @@ def test_uv_run_exposes_centralized_feature_extras():
         "ovrtx",
         "mimic",
         "teleop",
-        "xr",
         "rlinf",
         "tetrahedralization",
         "all",
@@ -188,20 +187,23 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
 
     # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("ovphysx", "mimic", "all", "test"):
+    for extra in ("ov", "ovphysx", "mimic", "all"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
+    # ``test`` is no longer forked away: the coverage override reconciles it with Isaac Sim.
+    assert {"isaacsim", "test"} not in conflict_groups
 
     assert {"isaacsim", "viser"} not in conflict_groups
     assert "websockets==13.1" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_teleop_co_resolves_with_isaacsim():
-    """The XR teleop workflow needs Isaac Sim, so the two extras must co-resolve.
+    """The teleop extra bundles Isaac Sim, so the two must co-resolve.
 
-    ``uv run --extra isaacsim --extra teleop`` is the documented teleoperation command.
-    It only resolves because the ``websockets`` override relaxes ``isaacsim-kernel``'s
-    ``==12.0`` pin to the ``>=14.0`` line ``isaacteleop[cloudxr]`` requires. Declaring the
-    pair in ``[tool.uv].conflicts``, or dropping the override, would break the command.
+    ``uv run --extra teleop`` is the documented teleoperation command, and it pulls Isaac
+    Sim in. It only resolves because the ``websockets`` override relaxes
+    ``isaacsim-kernel``'s ``==12.0`` pin to the ``>=14.0`` line ``isaacteleop[cloudxr]``
+    requires. Declaring the pair in ``[tool.uv].conflicts``, or dropping the override,
+    would break the command.
     """
     pyproject = _root_pyproject()
     tool_uv = pyproject["tool"]["uv"]
@@ -215,24 +217,31 @@ def test_uv_run_teleop_co_resolves_with_isaacsim():
     assert {"teleop", "all"} in conflict_groups
 
 
-def test_uv_run_xr_extra_aggregates_isaacsim_and_teleop():
-    """``xr`` is the one-flag shorthand for the XR teleoperation workflow.
+def test_uv_run_teleop_extra_bundles_isaacsim():
+    """``--extra teleop`` is the single flag for the XR teleoperation workflow.
 
-    It aggregates ``isaacsim`` and ``teleop`` rather than folding Isaac Sim into
-    ``teleop``, so ``teleop`` stays lean and keeps working alongside ``test``. Because the
-    aggregate pulls Isaac Sim in, it must inherit every conflict both halves declare --
-    uv fails to resolve the lockfile otherwise.
+    XR teleop needs the Kit XR runtime, so the extra carries Isaac Sim through the
+    ``isaacsim`` extra rather than repeating its pin. Bundling Isaac Sim means ``teleop``
+    inherits its conflicts with the OV runtimes and Viser -- uv fails to resolve the
+    lockfile otherwise.
     """
     pyproject = _root_pyproject()
     optional_dependencies = pyproject["project"]["optional-dependencies"]
+    teleop = optional_dependencies["teleop"]
 
-    assert optional_dependencies["xr"] == ["isaaclab-dev[isaacsim,teleop]"]
-    # Isaac Sim must not leak into the plain teleop extra.
-    assert not any(dep.startswith("isaacsim") for dep in optional_dependencies["teleop"])
+    # Isaac Sim comes in by reference so [tool.isaaclab.versions] stays the single source.
+    assert "isaaclab-dev[isaacsim]" in teleop
+    assert not any(dep.startswith("isaacsim[") for dep in teleop)
+    # record_demos.py imports isaaclab_mimic at module level; robomimic stays in ``mimic``.
+    assert "isaaclab-mimic" in teleop
+    assert not any(dep.startswith("robomimic") for dep in teleop)
 
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("ov", "viser", "mimic", "all", "test"):
-        assert {"xr", extra} in conflict_groups, f"xr must inherit the conflict with '{extra}'"
+    for extra in ("mimic", "all", "ovphysx", "viser"):
+        assert {"teleop", extra} in conflict_groups, f"teleop must declare a conflict with '{extra}'"
+    # ``--extra teleop --extra test`` must keep working so the teleop suite stays runnable.
+    assert {"teleop", "test"} not in conflict_groups
+    assert "coverage>=7.6.1" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():

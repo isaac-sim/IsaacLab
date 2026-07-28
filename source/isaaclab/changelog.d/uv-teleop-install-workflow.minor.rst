@@ -8,20 +8,28 @@ Added
   ``isaaclab teleop replay`` for playback (``scripts/tools/replay_demos.py``). This mirrors
   the existing ``isaaclab benchmark`` subcommand grouping, so teleoperation and
   imitation-learning workflows follow the same paradigm as reinforcement learning.
-* Added the ``xr`` install extra, a one-flag aggregate of the ``isaacsim`` and ``teleop``
-  extras for the XR teleoperation workflow: ``uv run --extra xr isaaclab teleop run``. Use
-  ``--extra teleop`` on its own for the Isaac Teleop stack without the Kit XR runtime. ``xr``
-  conflicts with ``ov``, ``viser``, ``mimic``, ``all``, and ``test``, inheriting the
-  conflicts of both halves.
+
+Changed
+^^^^^^^
+
+* Changed the ``teleop`` install extra to bundle Isaac Sim, so ``uv run --extra teleop``
+  installs everything the XR teleoperation workflow needs in one flag. Previously the extra
+  carried only the Isaac Teleop stack and could not be combined with ``isaacsim`` at all.
+  Because it now pulls Isaac Sim in, ``teleop`` also conflicts with ``ov`` and ``viser``
+  alongside the existing ``mimic`` and ``all`` conflicts; install those separately.
 
 Fixed
 ^^^^^
 
-* Fixed the ``uv`` resolution conflict that made ``uv run --extra isaacsim --extra teleop``
-  unusable. ``isaacsim-kernel`` pins ``websockets==12.0`` while ``isaacteleop[cloudxr]``
-  requires ``websockets>=14.0``; a ``websockets>=14.0`` override now lets the two extras
-  co-resolve, so XR teleoperation can be installed from the documented ``uv`` workflow. The
-  ``teleop``/``mimic`` and ``teleop``/``all`` conflicts remain because of the ``lxml`` split.
+* Fixed the ``uv`` resolution conflict that made Isaac Sim and Isaac Teleop impossible to
+  install together. ``isaacsim-kernel`` pins ``websockets==12.0`` while
+  ``isaacteleop[cloudxr]`` requires ``websockets>=14.0``; a ``websockets>=14.0`` override
+  reconciles them. The ``teleop``/``mimic`` and ``teleop``/``all`` conflicts remain because
+  of the ``lxml`` split.
+* Fixed ``--extra test`` being unusable with Isaac Sim. ``isaacsim-kernel`` pins
+  ``coverage==7.4.4`` while the ``test`` extra needs ``coverage>=7.6.1`` for numba; a
+  ``coverage>=7.6.1`` override reconciles them and the ``isaacsim``/``test`` conflict is
+  removed, so ``uv run --extra teleop --extra test`` can run the teleop test suite.
 * Fixed ``ModuleNotFoundError: No module named 'isaaclab_mimic'`` when recording
   demonstrations from a teleop-only environment. ``scripts/tools/record_demos.py`` imports
   ``isaaclab_mimic`` at module level, so the ``teleop`` extra now installs the
