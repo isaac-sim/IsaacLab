@@ -1,0 +1,366 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Round-trip tests for exporting a Newton model back to USD.
+
+The contract under test is model idempotence, not USD fidelity::
+
+    m1 = load(source.usda)
+    export(m1) -> out.usda
+    m2 = load(out.usda)
+    assert m1 == m2
+
+The exported stage is deliberately *not* compared against the source stage. Newton's importer
+normalizes as it reads (unit conversion, shape-scale baking, fixed-joint body collapsing), so the
+two files differ by construction. What must hold is that a second import observes no further
+change -- the exported stage is a fixed point of the import.
+"""
+
+from __future__ import annotations
+
+import newton
+import numpy as np
+import pytest
+from isaaclab_newton.sim.usd_export import export_model_to_usd
+
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
+
+# Model array attributes compared between the two imports. Grouped by concern so a failure names
+# the concern rather than a bare attribute list.
+BODY_ATTRS = ("body_mass", "body_inertia", "body_com", "body_q")
+JOINT_ATTRS = (
+    "joint_type",
+    "joint_axis",
+    "joint_target_ke",
+    "joint_target_kd",
+    "joint_limit_lower",
+    "joint_limit_upper",
+    "joint_armature",
+    "joint_friction",
+    "joint_effort_limit",
+    "joint_velocity_limit",
+)
+SHAPE_ATTRS = ("shape_material_mu", "shape_material_restitution")
+
+
+def _author_source_stage(
+    path: str,
+    root: str = "/World",
+    principal_axes: Gf.Quatf | None = None,
+    drive_gains: tuple[float, float] = (120.0, 7.5),
+    max_force: float = 33.0,
+    joint_local_pos0: tuple[float, float, float] | None = None,
+    visual_only_shape: bool = False,
+) -> None:
+    """Author a minimal two-body articulation with a driven revolute joint.
+
+    Values are deliberately non-default and non-round so a dropped or mis-scaled attribute cannot
+    coincide with a default.
+
+    Args:
+        path: Destination path for the stage.
+        root: Prim path the articulation is rooted at. Varied by tests because real assets do not
+            root their bodies under ``/World``.
+        principal_axes: Optional rotation for the inertia frame. A non-identity rotation produces
+            products of inertia in the body frame.
+    """
+    stage = Usd.Stage.CreateNew(path)
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+
+    scene_prim = UsdPhysics.Scene.Define(stage, f"{root}/physicsScene").GetPrim()
+    # Non-default solver settings: the defaults (1000 Hz, -1 iterations) would round-trip even if
+    # the exporter dropped them entirely.
+    scene_prim.CreateAttribute("newton:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(240)
+    scene_prim.CreateAttribute("newton:maxSolverIterations", Sdf.ValueTypeNames.Int).Set(37)
+
+    world = UsdGeom.Xform.Define(stage, root)
+    # Newton requires every joint to belong to an articulation; mark the root explicitly.
+    UsdPhysics.ArticulationRootAPI.Apply(world.GetPrim())
+
+    for name, pos, mass in (("Base", (0.0, 0.0, 0.5), 3.25), ("Link", (0.0, 0.0, 1.25), 1.75)):
+        prim_path = f"{root}/{name}"
+        cube = UsdGeom.Cube.Define(stage, prim_path)
+        cube.GetSizeAttr().Set(0.4)
+        cube.AddTranslateOp().Set(Gf.Vec3d(*pos))
+
+        prim = cube.GetPrim()
+        UsdPhysics.CollisionAPI.Apply(prim)
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+        mass_api = UsdPhysics.MassAPI.Apply(prim)
+        mass_api.GetMassAttr().Set(mass)
+        mass_api.GetDiagonalInertiaAttr().Set(Gf.Vec3f(0.11, 0.22, 0.33))
+        if principal_axes is not None:
+            mass_api.GetPrincipalAxesAttr().Set(principal_axes)
+
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{root}/Link/joint")
+    joint.GetBody0Rel().SetTargets([f"{root}/Base"])
+    joint.GetBody1Rel().SetTargets([f"{root}/Link"])
+    joint.GetAxisAttr().Set("Z")
+    # Degrees on the stage; Newton converts to radians on import.
+    joint.GetLowerLimitAttr().Set(-45.0)
+    joint.GetUpperLimitAttr().Set(75.0)
+
+    drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")
+    drive.GetStiffnessAttr().Set(drive_gains[0])
+    drive.GetDampingAttr().Set(drive_gains[1])
+    drive.GetMaxForceAttr().Set(max_force)
+
+    if joint_local_pos0 is not None:
+        joint.GetLocalPos0Attr().Set(Gf.Vec3f(*joint_local_pos0))
+
+    if visual_only_shape:
+        # A gprim under a body with no CollisionAPI: Newton imports it as a visible, non-colliding
+        # shape, which the exporter must not turn into a collider.
+        visual = UsdGeom.Cube.Define(stage, f"{root}/Link/visual_only")
+        visual.GetSizeAttr().Set(0.2)
+
+    # Newton-specific extras, read through SchemaResolverNewton.
+    joint_prim = joint.GetPrim()
+    joint_prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(0.017)
+    joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(0.045)
+
+    stage.GetRootLayer().Save()
+
+
+def _load(path: str) -> tuple[newton.Model, dict]:
+    """Import ``path`` into a Newton model, returning the model and the importer's result maps."""
+    builder = newton.ModelBuilder()
+    stage_info = builder.add_usd(str(path))
+    return builder.finalize(), stage_info
+
+
+def _assert_arrays_equal(m1: newton.Model, m2: newton.Model, attrs: tuple[str, ...], group: str) -> None:
+    """Assert every attribute in ``attrs`` matches between the two models."""
+    mismatched = []
+    for attr in attrs:
+        a, b = getattr(m1, attr, None), getattr(m2, attr, None)
+        if a is None and b is None:
+            continue
+        if a is None or b is None:
+            mismatched.append(f"{attr}: present on only one model")
+            continue
+        arr_a, arr_b = np.asarray(a.numpy()), np.asarray(b.numpy())
+        if arr_a.shape != arr_b.shape:
+            mismatched.append(f"{attr}: shape {arr_a.shape} != {arr_b.shape}")
+        elif not np.allclose(arr_a, arr_b, rtol=1e-5, atol=1e-6, equal_nan=True):
+            delta = np.max(np.abs(arr_a - arr_b))
+            mismatched.append(f"{attr}: max|delta|={delta:.6g}\n  reimport={arr_a}\n  export  ={arr_b}")
+    assert not mismatched, f"{group} differ after export/reimport:\n" + "\n".join(mismatched)
+
+
+@pytest.fixture
+def source_stage(tmp_path):
+    """Path to a freshly authored source stage."""
+    path = tmp_path / "source.usda"
+    _author_source_stage(str(path))
+    return path
+
+
+def test_round_trip_preserves_body_properties(source_stage, tmp_path):
+    """Body mass, inertia, COM and pose survive export and reimport."""
+    m1, stage_info = _load(source_stage)
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    assert m1.body_count == m2.body_count, f"body_count {m1.body_count} != {m2.body_count}"
+    _assert_arrays_equal(m1, m2, BODY_ATTRS, "body properties")
+
+
+def test_round_trip_preserves_joint_properties(source_stage, tmp_path):
+    """Joint drive gains, limits, armature and friction survive export and reimport."""
+    m1, stage_info = _load(source_stage)
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    assert m1.joint_count == m2.joint_count, f"joint_count {m1.joint_count} != {m2.joint_count}"
+    _assert_arrays_equal(m1, m2, JOINT_ATTRS, "joint properties")
+
+
+def test_round_trip_preserves_shape_materials(source_stage, tmp_path):
+    """Shape friction and restitution survive export and reimport."""
+    m1, stage_info = _load(source_stage)
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    assert m1.shape_count == m2.shape_count, f"shape_count {m1.shape_count} != {m2.shape_count}"
+    _assert_arrays_equal(m1, m2, SHAPE_ATTRS, "shape materials")
+
+
+def test_round_trip_preserves_solver_settings(source_stage, tmp_path):
+    """Solver settings survive the round-trip.
+
+    Solver configuration lives on the physics scene prim rather than in the model, so exporting the
+    model alone would silently drop it. The fixture authors non-default values so this cannot pass
+    by defaulting.
+    """
+    m1, stage_info = _load(source_stage)
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    _, stage_info_2 = _load(out)
+
+    assert stage_info_2["physics_dt"] == pytest.approx(stage_info["physics_dt"]), "physics timestep lost on export"
+    assert stage_info_2["max_solver_iterations"] == stage_info["max_solver_iterations"], (
+        "max solver iterations lost on export"
+    )
+
+
+def test_export_is_a_fixed_point(source_stage, tmp_path):
+    """Exporting the reimported model reproduces the first export byte-for-byte.
+
+    A difference here means the exporter carries hidden state: the second export saw a model that
+    the first export failed to fully describe.
+    """
+    m1, stage_info = _load(source_stage)
+    first = tmp_path / "first.usda"
+    export_model_to_usd(m1, str(first), stage_info=stage_info)
+
+    m2, stage_info_2 = _load(first)
+    second = tmp_path / "second.usda"
+    export_model_to_usd(m2, str(second), stage_info=stage_info_2)
+
+    assert first.read_text() == second.read_text(), "export is not idempotent; exporter carries hidden state"
+
+
+def test_round_trip_when_bodies_are_not_under_world(tmp_path):
+    """Assets that root their bodies outside ``/World`` still reimport.
+
+    Regression test: the articulation root was previously hardcoded to ``/World``, so exports of
+    assets rooted elsewhere (``/cartpole``, ``/env``) produced a stage whose articulation root
+    contained no bodies, and every reimport failed with "joints not belonging to any articulation".
+    """
+    source = tmp_path / "rooted_elsewhere.usda"
+    _author_source_stage(str(source), root="/robot")
+    m1, stage_info = _load(source)
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    assert m1.joint_count == m2.joint_count
+    _assert_arrays_equal(m1, m2, JOINT_ATTRS, "joint properties")
+
+
+def test_round_trip_preserves_products_of_inertia(tmp_path):
+    """A body inertia tensor with off-diagonal terms survives the round-trip.
+
+    Regression test: ``UsdPhysics.MassAPI`` stores inertia as a diagonal in a rotated frame, so
+    authoring only ``diagonalInertia`` silently dropped the products of inertia.
+    """
+    source = tmp_path / "rotated_inertia.usda"
+    # A principal frame rotated 45 degrees about Z produces off-diagonal terms in the body frame.
+    _author_source_stage(str(source), principal_axes=Gf.Quatf(0.9238795, 0.0, 0.0, 0.3826834))
+    m1, stage_info = _load(source)
+
+    inertia = m1.body_inertia.numpy().reshape(m1.body_count, 3, 3)
+    off_diagonal = max(abs(inertia[i][j][k]) for i in range(m1.body_count) for j, k in ((0, 1), (0, 2), (1, 2)))
+    assert off_diagonal > 1e-6, "fixture failed to produce products of inertia; test would be vacuous"
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    _assert_arrays_equal(m1, m2, ("body_inertia",), "body inertia")
+
+
+def test_round_trip_preserves_effort_limit_without_drive_gains(tmp_path):
+    """A torque-controlled joint keeps its effort limit.
+
+    Regression test: the drive was only authored when stiffness or damping was non-zero, so
+    torque-controlled joints (zero gains, finite effort limit -- e.g. the shipped Cartpole asset)
+    silently lost their effort limit and reimported at Newton's unlimited default.
+    """
+    source = tmp_path / "torque_controlled.usda"
+    _author_source_stage(str(source), drive_gains=(0.0, 0.0), max_force=1000.0)
+    m1, stage_info = _load(source)
+
+    assert not m1.joint_target_ke.numpy().any(), "fixture authored drive gains; test would be vacuous"
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    _assert_arrays_equal(m1, m2, ("joint_effort_limit",), "joint effort limit")
+
+
+def test_aliased_prim_paths_export_one_prim_per_shape(source_stage, tmp_path):
+    """Several prim paths referring to one shape export as a single collider.
+
+    Regression test: the importer's path maps are many-to-one -- nested prims such as
+    ``.../mesh`` and ``.../mesh/mesh`` resolve to the same shape index. Authoring one prim per
+    *path* emitted more colliders than the model held (the shipped Rizon4s asset reimported with 27
+    shapes instead of 21).
+    """
+    m1, stage_info = _load(source_stage)
+    # Alias every shape under a deeper nested path, as the real assets do.
+    aliased = dict(stage_info["path_shape_map"])
+    for path, index in list(stage_info["path_shape_map"].items()):
+        aliased[f"{path}/mesh"] = index
+    stage_info = {**stage_info, "path_shape_map": aliased}
+    assert len(aliased) > len(set(aliased.values())), "fixture failed to alias paths; test would be vacuous"
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    assert m1.shape_count == m2.shape_count, f"shape_count {m1.shape_count} != {m2.shape_count}"
+
+
+def test_round_trip_preserves_joint_frames(tmp_path):
+    """Joint attachment frames survive the round-trip.
+
+    Regression test: ``joint_X_p`` / ``joint_X_c`` were never authored, so every joint collapsed to
+    its body origin on reimport and the articulation reassembled in the wrong pose.
+    """
+    source = tmp_path / "offset_joint.usda"
+    _author_source_stage(str(source), joint_local_pos0=(0.37, -0.11, 0.05))
+    m1, stage_info = _load(source)
+
+    assert np.abs(m1.joint_X_p.numpy()[:, :3]).max() > 1e-6, "fixture produced no joint offset; test would be vacuous"
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    _assert_arrays_equal(m1, m2, ("joint_X_p", "joint_X_c"), "joint frames")
+
+
+def test_visual_only_shapes_do_not_become_colliders(tmp_path):
+    """A visible, non-colliding shape stays non-colliding through the round-trip.
+
+    Regression test: every exported shape was given a ``CollisionAPI``, so visual meshes reimported
+    as colliders and silently enlarged the collision set.
+    """
+    source = tmp_path / "with_visual.usda"
+    _author_source_stage(str(source), visual_only_shape=True)
+    m1, stage_info = _load(source)
+
+    collide = int(newton.ShapeFlags.COLLIDE_SHAPES)
+    assert any(not (int(f) & collide) for f in m1.shape_flags.numpy()), (
+        "fixture produced no visual-only shape; test would be vacuous"
+    )
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    assert m1.shape_count == m2.shape_count
+    np.testing.assert_array_equal(
+        m1.shape_flags.numpy(), m2.shape_flags.numpy(), err_msg="shape flags changed on reimport"
+    )
+
+
+def test_exported_stage_preserves_source_prim_paths(source_stage, tmp_path):
+    """Bodies are exported at their original prim paths, not synthesized ones."""
+    m1, stage_info = _load(source_stage)
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+
+    exported = Usd.Stage.Open(str(out))
+    for path in stage_info["path_body_map"]:
+        assert exported.GetPrimAtPath(path).IsValid(), f"source prim path {path} missing from export"
