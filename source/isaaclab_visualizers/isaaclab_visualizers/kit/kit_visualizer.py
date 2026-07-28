@@ -160,8 +160,8 @@ class KitVisualizer(BaseVisualizer):
             return
         self._sim_time += dt
         self._step_counter += 1
-        # Update dynamic camera tracking (asset_root / asset_body) before the frame renders.
-        if self.cfg.origin_type in ("asset_root", "asset_body"):
+        # Update dynamic asset tracking before the frame renders.
+        if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         try:
             import omni.kit.app
@@ -381,10 +381,10 @@ class KitVisualizer(BaseVisualizer):
         the viewport.
 
         Call this after mutating :attr:`cfg.origin_type`, :attr:`cfg.origin_env_index`, or
-        :attr:`cfg.origin_asset` so the viewport reflects the new origin immediately rather than
+        :attr:`cfg.origin_track_path` so the viewport reflects the new origin immediately rather than
         waiting for the next :meth:`step` call.
 
-        For ``"asset_root"`` and ``"asset_body"`` origins the camera update is deferred to the
+        For ``"asset"`` origins the camera update is deferred to the
         next :meth:`step` because asset state is not available until after
         :meth:`~isaaclab.sim.SimulationContext.reset`.
         """
@@ -1048,13 +1048,9 @@ class KitVisualizer(BaseVisualizer):
                         f"[0, {num_envs - 1}] for origin_type='env'."
                     )
                 self._viewer_origin = scene.env_origins[self.cfg.origin_env_index]
-        elif self.cfg.origin_type in ("asset_root", "asset_body"):
-            if self.cfg.origin_asset is None:
-                raise ValueError(
-                    f"[KitVisualizer] origin_type='{self.cfg.origin_type}' requires origin_asset to be set."
-                )
-            if self.cfg.origin_type == "asset_body" and self.cfg.origin_body is None:
-                raise ValueError("[KitVisualizer] origin_type='asset_body' requires origin_body to be set.")
+        elif self.cfg.origin_type == "asset":
+            if self.cfg.origin_track_path is None:
+                raise ValueError("[KitVisualizer] origin_type='asset' requires origin_track_path to be set.")
             # Asset data is not available until after sim.reset(); defer to step().
             return
         else:
@@ -1066,21 +1062,23 @@ class KitVisualizer(BaseVisualizer):
     def _update_asset_tracking_camera(self) -> None:
         """Update the viewport camera to track an asset root or body.
 
-        Called every :meth:`step` when :attr:`KitVisualizerCfg.origin_type` is
-        ``"asset_root"`` or ``"asset_body"``.
+        Called every :meth:`step` when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
+        Parses :attr:`~KitVisualizerCfg.origin_track_path`: ``"asset_name"`` tracks the root,
+        ``"asset_name/body_name"`` tracks a specific body.
         """
         scene = self._interactive_scene
-        if scene is None or self.cfg.origin_asset is None:
+        if scene is None or self.cfg.origin_track_path is None:
             return
+        asset_name, _, body_name = self.cfg.origin_track_path.partition("/")
         try:
-            asset = scene[self.cfg.origin_asset]
+            asset = scene[asset_name]
         except KeyError:
             return
-        if self.cfg.origin_type == "asset_root":
-            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.origin_env_index]
-        elif self.cfg.origin_type == "asset_body" and self.cfg.origin_body is not None:
-            body_ids, _ = asset.find_bodies(self.cfg.origin_body)
+        if body_name:
+            body_ids, _ = asset.find_bodies(body_name)
             self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.origin_env_index, body_ids[0]]
+        else:
+            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.origin_env_index]
         self._apply_viewer_origin_to_camera()
 
     def _apply_viewer_origin_to_camera(self) -> None:

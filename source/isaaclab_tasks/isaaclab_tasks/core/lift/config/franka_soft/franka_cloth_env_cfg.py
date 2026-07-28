@@ -273,7 +273,7 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
 
         # visualizer camera settings
         self.sim.visualizer_cfgs = [
-            KitVisualizerCfg(origin_type="asset_root", origin_asset="robot", origin_env_index=0, eye=(1.25, -1.5, 0.6))
+            KitVisualizerCfg(origin_type="asset", origin_track_path="robot", origin_env_index=0, eye=(1.25, -1.5, 0.6))
         ]
         self.sim.physics = PhysicsCfg()
 

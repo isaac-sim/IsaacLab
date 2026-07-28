@@ -95,10 +95,16 @@ class ViewerCfg:
 def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     """Apply the deprecated ``viewer`` field to ``sim.default_visualizer_cfg`` if it was set.
 
-    When user code sets ``env_cfg.viewer.eye`` or ``env_cfg.viewer.lookat``, this helper
-    detects the non-default values, emits a log warning, and writes them into
-    ``env_cfg.sim.default_visualizer_cfg`` so the Kit visualizer still picks up the
-    configured camera position.
+    Detects any non-default value on ``env_cfg.viewer`` (eye, lookat, origin_type, asset
+    tracking), emits a log warning, and writes the settings into
+    ``env_cfg.sim.default_visualizer_cfg`` so the Kit visualizer still picks them up.
+
+    Mapping from deprecated :class:`ViewerCfg` fields to :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`:
+
+    * ``eye`` / ``lookat``            → ``eye`` / ``lookat``
+    * ``env_index``                   → ``origin_env_index``
+    * ``origin_type="asset_root"``    → ``origin_type="asset"``, ``origin_track_path="<asset_name>"``
+    * ``origin_type="asset_body"``    → ``origin_type="asset"``, ``origin_track_path="<asset_name>/<body_name>"``
 
     Must be called before :class:`~isaaclab.sim.SimulationContext` is constructed so
     that the translated cfg is visible to the context.
@@ -112,13 +118,14 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     _defaults = ViewerCfg()
     eye_changed = not _viewer_cfg_field_matches_default(viewer.eye, _defaults.eye)
     lookat_changed = not _viewer_cfg_field_matches_default(viewer.lookat, _defaults.lookat)
+    origin_changed = viewer.origin_type != _defaults.origin_type
 
-    if not (eye_changed or lookat_changed):
+    if not (eye_changed or lookat_changed or origin_changed):
         return
 
     _logging.getLogger(__name__).warning(
         "env_cfg.viewer is deprecated. Set env_cfg.sim.default_visualizer_cfg = "
-        "VisualizerCfg(eye=..., lookat=...) instead. The viewer values have been "
+        "KitVisualizerCfg(eye=..., lookat=...) instead. The viewer values have been "
         "automatically forwarded for this run."
     )
 
@@ -129,12 +136,35 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     if getattr(sim_cfg, "default_visualizer_cfg", None) is not None:
         return
 
-    from isaaclab.visualizers import VisualizerCfg
+    # Map deprecated origin_type values to the new KitVisualizerCfg fields.
+    new_origin_type = viewer.origin_type
+    origin_track_path = None
+    if viewer.origin_type in ("asset_root", "asset_body"):
+        new_origin_type = "asset"
+        if getattr(viewer, "asset_name", None) is not None:
+            body_name = getattr(viewer, "body_name", None)
+            if viewer.origin_type == "asset_body" and body_name is not None:
+                origin_track_path = f"{viewer.asset_name}/{body_name}"
+            else:
+                origin_track_path = viewer.asset_name
 
-    sim_cfg.default_visualizer_cfg = VisualizerCfg(
-        eye=tuple(viewer.eye),
-        lookat=tuple(viewer.lookat),
-    )
+    try:
+        from isaaclab_visualizers.kit import KitVisualizerCfg
+
+        sim_cfg.default_visualizer_cfg = KitVisualizerCfg(
+            eye=tuple(viewer.eye),
+            lookat=tuple(viewer.lookat),
+            origin_type=new_origin_type,
+            origin_env_index=getattr(viewer, "env_index", 0),
+            origin_track_path=origin_track_path,
+        )
+    except ImportError:
+        from isaaclab.visualizers import VisualizerCfg
+
+        sim_cfg.default_visualizer_cfg = VisualizerCfg(
+            eye=tuple(viewer.eye),
+            lookat=tuple(viewer.lookat),
+        )
 
 
 ##

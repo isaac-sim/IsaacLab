@@ -6,7 +6,7 @@
 """Deprecated: ViewportCameraController compatibility shim.
 
 Camera tracking is now built into :class:`~isaaclab_visualizers.kit.KitVisualizer`.
-Configure ``eye``, ``lookat``, ``origin_type``, and ``origin_asset`` directly on
+Configure ``eye``, ``lookat``, ``origin_type``, and ``origin_track_path`` directly on
 :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` and add it to
 :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
 """
@@ -24,8 +24,7 @@ class ViewportCameraController:
     """Deprecated compatibility shim for the removed ``ViewportCameraController`` class.
 
     .. deprecated::
-        :class:`ViewportCameraController` has been removed. Camera tracking (world, env,
-        asset_root, asset_body origins) is now built into
+        :class:`ViewportCameraController` has been removed. Camera tracking is now built into
         :class:`~isaaclab_visualizers.kit.KitVisualizer`. Configure it via
         :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`::
 
@@ -37,8 +36,8 @@ class ViewportCameraController:
                     KitVisualizerCfg(
                         eye=(7.5, 7.5, 7.5),
                         lookat=(0.0, 0.0, 0.0),
-                        origin_type="asset_root",
-                        origin_asset="robot",
+                        origin_type="asset",
+                        origin_track_path="robot",
                     )
                 ]
             )
@@ -48,7 +47,7 @@ class ViewportCameraController:
         warnings.warn(
             "ViewportCameraController is deprecated and has been removed. "
             "Camera tracking is now built into KitVisualizer — configure "
-            "origin_type, origin_asset, eye, and lookat directly on KitVisualizerCfg "
+            "origin_type, origin_track_path, eye, and lookat directly on KitVisualizerCfg "
             "and add it to SimulationCfg.visualizer_cfgs.",
             DeprecationWarning,
             stacklevel=2,

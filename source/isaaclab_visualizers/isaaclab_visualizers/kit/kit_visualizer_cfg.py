@@ -47,24 +47,23 @@ class KitVisualizerCfg(VisualizerCfg):
 
     * ``"world"``: global origin.
     * ``"env"``: origin of the environment at :attr:`origin_env_index`.
-    * ``"asset_root"``: root of the asset :attr:`origin_asset` in environment :attr:`origin_env_index`.
-    * ``"asset_body"``: body :attr:`origin_body` on asset :attr:`origin_asset` (requires both).
+    * ``"asset"``: a scene asset (or body) specified by :attr:`origin_track_path`.
     """
 
     origin_env_index: int = 0
     """Index of the environment used as the viewport camera origin.
 
-    Only meaningful when :attr:`origin_type` is ``"env"``, ``"asset_root"``, or ``"asset_body"``.
+    Only meaningful when :attr:`origin_type` is ``"env"`` or ``"asset"``.
     """
 
-    origin_asset: str | None = None
-    """Scene asset key used as the viewport camera tracking target.
+    origin_track_path: str | None = None
+    """Asset tracking path for the viewport camera origin.
 
-    Required when :attr:`origin_type` is ``"asset_root"`` or ``"asset_body"``.
-    """
+    Format: ``"<asset_name>"`` to track the asset root, or ``"<asset_name>/<body_name>"``
+    to track a specific body on the asset.  Required when :attr:`origin_type` is ``"asset"``.
 
-    origin_body: str | None = None
-    """Body name within :attr:`origin_asset` used as the viewport camera tracking target.
+    Examples::
 
-    Required when :attr:`origin_type` is ``"asset_body"``.
+        origin_track_path = "robot"             # track robot root
+        origin_track_path = "robot/panda_hand"  # track panda_hand body on robot
     """

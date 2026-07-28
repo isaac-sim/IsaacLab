@@ -183,7 +183,6 @@ def test_kit_newton_logs_error_no_clip(caplog):
     writes do not notify RTX's scene delegate, producing black frames).  The
     recorder logs a clear error suggesting 'visualizer:newton' instead.
     """
-    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     with tempfile.TemporaryDirectory() as output_dir:

@@ -428,8 +428,8 @@ class BaseEnvWindow:
         else:
             fancy_names = [name.replace("_", " ").title() for name in self._viewer_assets_options]
             viewer_asset_name = self._viewer_assets_options[fancy_names.index(value)]
-            viz.cfg.origin_type = "asset_root"
-            viz.cfg.origin_asset = viewer_asset_name
+            viz.cfg.origin_type = "asset"
+            viz.cfg.origin_track_path = viewer_asset_name
 
         # Reposition the viewport camera immediately so the new origin is reflected
         # without waiting for the next env.step() call.
