@@ -468,8 +468,44 @@ Clone Isaac Lab, create the ``_isaac_sim`` link, install, and verify:
 Build Isaac Sim from source
 ---------------------------
 
-Build Isaac Sim only when you need to modify it or test a nightly revision. Building requires
-Ubuntu 22.04 or newer on Linux. Clone and build:
+Use this path only when you need to modify Isaac Sim itself or test a nightly revision. Every other
+workflow is faster with the pre-built Isaac Sim used by :ref:`installation-method-uv`.
+
+Building requires Ubuntu 22.04 or newer on Linux. On Windows, `enable long path support
+<https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`__
+first, otherwise the build fails on path-length limits. Check your driver against the `Omniverse
+technical requirements
+<https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`__.
+
+The workflow builds the simulator, packages it as Python wheels, and hands those wheels to ``uv``.
+The instructions are adapted from the `Isaac Sim documentation
+<https://github.com/isaac-sim/IsaacSim?tab=readme-ov-file#quick-start>`__.
+
+.. rubric:: Automatic setup
+
+From an Isaac Lab checkout, one command runs the whole build-and-wire-up sequence:
+
+.. code-block:: bash
+
+   git clone https://github.com/isaac-sim/IsaacSim.git
+   uv run isaaclab --isaacsim_source ./IsaacSim
+
+It builds Isaac Sim (skipped when the checkout is already built), packages the build as wheels,
+links them into Isaac Lab as ``_isaac_sim_wheels``, and re-resolves Isaac Sim from those wheels.
+When it finishes, run Isaac Lab against your build:
+
+.. code-block:: bash
+
+   export UV_FIND_LINKS=_isaac_sim_wheels
+   uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Direct presets=physx
+
+The four steps below are the same sequence performed by hand. Follow them when you want to run the
+build outside the Isaac Lab checkout or need to debug a failing step. On Windows, creating
+``_isaac_sim_wheels`` needs an elevated prompt; without one the command falls back to reporting the
+absolute wheel path to use for ``UV_FIND_LINKS``.
+
+.. rubric:: Step 1 — Build Isaac Sim
 
 .. tab-set::
    :sync-group: os
@@ -482,9 +518,16 @@ Ubuntu 22.04 or newer on Linux. Clone and build:
          git clone https://github.com/isaac-sim/IsaacSim.git
          cd IsaacSim
          ./build.sh
+         # use linux-aarch64 instead of linux-x86_64 on aarch64
          export ISAACSIM_PATH="${PWD}/_build/linux-x86_64/release"
          export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
+
+      Check that the build runs before continuing:
+
+      .. code-block:: bash
+
          ${ISAACSIM_PATH}/isaac-sim.sh
+         ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -496,16 +539,176 @@ Ubuntu 22.04 or newer on Linux. Clone and build:
          build.bat
          set ISAACSIM_PATH="%cd%\_build\windows-x86_64\release"
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
+
+      Check that the build runs before continuing:
+
+      .. code-block:: batch
+
          %ISAACSIM_PATH%\isaac-sim.bat
+         %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.experimental.api\add_cubes.py
 
-Then clone Isaac Lab and follow the same ``_isaac_sim`` link, install, and verification commands
-from :ref:`the downloaded Isaac Sim package setup <installation-method-binary>`, using the source
-build path above as ``ISAACSIM_PATH``. On Linux aarch64, use ``linux-aarch64`` instead of
-``linux-x86_64``.
+If the simulator crashes at this point, the problem is in the Isaac Sim build, not in Isaac Lab.
+Consult the `Linux troubleshooting guide
+<https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__ and the `Isaac Sim
+forums <https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html>`__ before continuing.
 
-.. dropdown:: Detailed Isaac Sim source-build setup
+.. rubric:: Step 2 — Package the build as Python wheels
 
-   .. include:: source_details.inc
+Isaac Lab consumes Isaac Sim as a Python package, so turn the build into wheels. Run this from the
+``IsaacSim`` directory after every rebuild you want Isaac Lab to pick up:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./repo.sh python_package --create
+         ./repo.sh comment_archive_deps
+         ./repo.sh python_package --wheel
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         .\repo.bat python_package --create
+         .\repo.bat comment_archive_deps
+         .\repo.bat python_package --wheel
+
+The wheels land in ``_build/packages/dist/``.
+
+.. rubric:: Step 3 — Clone Isaac Lab and point it at your wheels
+
+.. isaaclab-clone-commands::
+
+Link the wheel directory into the Isaac Lab checkout as ``_isaac_sim_wheels``. The name is
+git-ignored, and it gives ``uv`` a stable path that survives shell restarts:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         cd IsaacLab
+         ln -s <path-to>/IsaacSim/_build/packages/dist _isaac_sim_wheels
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         cd IsaacLab
+         :: requires a Command Prompt with Administrator access
+         mklink /D _isaac_sim_wheels <path-to>\IsaacSim\_build\packages\dist
+
+      If you cannot create symbolic links, skip this and set ``UV_FIND_LINKS`` to the absolute
+      ``dist`` path in the next step instead.
+
+.. rubric:: Step 4 — Run Isaac Lab against your build
+
+``UV_FIND_LINKS`` tells ``uv`` where your wheels are, and the ``isaacsim-local`` extra requests
+Isaac Sim without the published version pin. Re-resolve Isaac Sim once so the lock file picks your
+wheels over the released package, then run as usual:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         export UV_FIND_LINKS=_isaac_sim_wheels
+
+         # one time: re-resolve Isaac Sim against your wheels
+         uv lock --upgrade-package isaacsim
+
+         # verify: this should open a black simulator viewport
+         uv run --extra isaacsim-local python scripts/tutorials/00_sim/create_empty.py --viz kit
+
+         # train
+         uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct presets=physx
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         set UV_FIND_LINKS=_isaac_sim_wheels
+
+         :: one time: re-resolve Isaac Sim against your wheels
+         uv lock --upgrade-package isaacsim
+
+         :: verify: this should open a black simulator viewport
+         uv run --extra isaacsim-local python scripts\tutorials\00_sim\create_empty.py --viz kit
+
+         :: train
+         uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl ^
+            --task Isaac-Cartpole-Direct presets=physx
+
+The first launch can take over ten minutes while Isaac Sim downloads extensions. Add
+``export UV_FIND_LINKS=_isaac_sim_wheels`` to your shell profile so every later ``uv`` command keeps
+seeing your build. ``uv lock`` rewrites the tracked ``uv.lock``; leave that change uncommitted.
+
+After rebuilding Isaac Sim, repeat step 2 and then:
+
+.. code-block:: bash
+
+   # same version as before (the usual case): reinstall from the new wheels
+   uv run --extra isaacsim-local --reinstall-package isaacsim isaaclab train ...
+
+   # version changed: re-resolve first
+   uv lock --upgrade-package isaacsim
+
+.. note::
+
+   ``uv`` selects the highest Isaac Sim version it can see across your wheels and
+   ``pypi.nvidia.com``, with a floor at the Isaac Sim release Isaac Lab supports. A build from
+   Isaac Sim ``main`` is normally newer than the published release, so your wheels win. If your
+   build's version is *not* newer, request it explicitly with the version from the wheel filename:
+
+   .. code-block:: bash
+
+      uv run --extra isaacsim-local --with "isaacsim==<version>" isaaclab train ...
+
+.. rubric:: Using the legacy ``isaaclab.sh`` installer instead
+
+If you prefer the legacy installer, skip steps 2–4 and use the Kit build directly: link it as
+``_isaac_sim`` and install as in :ref:`installation-method-binary`.
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         cd IsaacLab
+         ln -s ${ISAACSIM_PATH} _isaac_sim
+         sudo apt install cmake build-essential
+         ./isaaclab.sh -i
+         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         cd IsaacLab
+         mklink /D _isaac_sim %ISAACSIM_PATH%
+         isaaclab.bat -i
+         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
+
+This path relies on ``_isaac_sim/setup_python_env.sh`` to expose Isaac Sim on ``PYTHONPATH``, so run
+scripts through ``./isaaclab.sh -p`` (or ``isaaclab.bat -p``) rather than a bare ``python``.
 
 .. _installation-method-container:
 

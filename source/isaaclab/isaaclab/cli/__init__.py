@@ -17,6 +17,7 @@ from .commands.install import (
 )
 from .commands.misc import (
     command_build_docs,
+    command_build_isaacsim,
     command_new,
     command_run_docker,
     command_run_isaacsim,
@@ -213,6 +214,15 @@ def cli() -> None:
         const="env_isaaclab",
         help="Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.",
     )
+    parser.add_argument(
+        "--isaacsim_source",
+        metavar="PATH",
+        help=(
+            "Build Isaac Sim from the source checkout at PATH, package it as wheels, and link\n"
+            "them as '_isaac_sim_wheels' for 'uv run --extra isaacsim-local'.\n"
+            "Skips the build when the checkout is already built."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -227,6 +237,9 @@ def cli() -> None:
 
     elif args.uv:
         command_setup_uv(args.uv)
+
+    elif args.isaacsim_source:
+        command_build_isaacsim(args.isaacsim_source)
 
     elif args.vscode:
         command_vscode_settings()

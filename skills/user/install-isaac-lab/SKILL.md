@@ -61,7 +61,6 @@ Keep this skill synchronized with the following install docs. If commands or ver
 - `docs/source/setup/installation/pip_details.inc` — steps included by `installation-method-python-env` (managed venv/conda + pip Isaac Sim).
 - `docs/source/setup/installation/wheel_details.inc` — steps included by `installation-method-wheel` (Isaac Lab Python package for external projects).
 - `docs/source/setup/installation/binaries_details.inc` — steps included by `installation-method-binary` (downloaded Isaac Sim package).
-- `docs/source/setup/installation/source_details.inc` — steps included by `installation-method-source` (Isaac Sim source build).
 - `docs/source/setup/installation/asset_caching_details.inc` — asset caching notes.
 - `docs/source/setup/installation/include/` — verification and shared helper snippets.
 - `docs/source/features/docker_cloud.rst` — Docker and cloud-workstation deep dive; complements `installation-method-container` and `installation-method-cloud` in `index.rst`.
