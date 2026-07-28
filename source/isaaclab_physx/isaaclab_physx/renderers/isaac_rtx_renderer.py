@@ -39,6 +39,8 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
 
+    from omni.replicator.core.scripts.utils.viewport_manager import HydraTexture
+
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -95,7 +97,7 @@ class IsaacRtxRenderData:
     """Render data for Isaac RTX renderer."""
 
     annotators: dict[str, Any]
-    render_product: Any
+    render_product: HydraTexture
     output_data: dict[str, ProxyArray] | None = None
     spec: CameraRenderSpec | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
@@ -602,12 +604,11 @@ class IsaacRtxRenderer(BaseRenderer):
         if render_data is None:
             return
 
-        if render_data.render_product is not None:
-            for annotator in render_data.annotators.values():
-                annotator.detach([render_data.render_product.path])
+        for annotator in render_data.annotators.values():
+            annotator.detach([render_data.render_product.path])
 
-            render_data.render_product.destroy()
-            render_data.render_product = None
+        render_data.render_product.destroy()
+        render_data.render_product = None
 
         render_data.annotators.clear()
         render_data.output_data = None
