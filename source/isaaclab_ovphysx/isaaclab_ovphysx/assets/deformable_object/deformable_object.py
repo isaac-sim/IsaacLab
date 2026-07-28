@@ -214,10 +214,9 @@ class DeformableObject(BaseDeformableObject):
         if isinstance(nodal_pos, torch.Tensor):
             nodal_pos = wp.from_torch(nodal_pos.contiguous(), dtype=wp.vec3f)
         if (
-            full_data
-            and env_ids.shape[0] < self.num_instances
+            env_ids.shape[0] < self.num_instances
             and self._data._nodal_pos_w.timestamp < self._data._sim_timestamp
-            and nodal_pos.ptr == self._data._nodal_pos_w.data.ptr
+            and self._arrays_overlap(nodal_pos, self._data._nodal_pos_w.data)
         ):
             nodal_pos = wp.clone(nodal_pos)
         if env_ids.shape[0] < self.num_instances:
@@ -260,10 +259,9 @@ class DeformableObject(BaseDeformableObject):
         if isinstance(nodal_vel, torch.Tensor):
             nodal_vel = wp.from_torch(nodal_vel.contiguous(), dtype=wp.vec3f)
         if (
-            full_data
-            and env_ids.shape[0] < self.num_instances
+            env_ids.shape[0] < self.num_instances
             and self._data._nodal_vel_w.timestamp < self._data._sim_timestamp
-            and nodal_vel.ptr == self._data._nodal_vel_w.data.ptr
+            and self._arrays_overlap(nodal_vel, self._data._nodal_vel_w.data)
         ):
             nodal_vel = wp.clone(nodal_vel)
         if env_ids.shape[0] < self.num_instances:
@@ -430,7 +428,8 @@ class DeformableObject(BaseDeformableObject):
             )
         except Exception as error:
             raise RuntimeError(
-                f"OVPhysX could not create a {self._deformable_type} deformable body view for pattern {root_pattern!r}."
+                f"OVPhysX could not create a {self._deformable_type} deformable body view for pattern "
+                f"{root_pattern!r}: {error}"
             ) from error
 
         if material_prim is not None:
@@ -542,6 +541,15 @@ class DeformableObject(BaseDeformableObject):
                 return wp.clone(env_ids, device=self.device)
             return env_ids
         return wp.array(list(env_ids), dtype=wp.int32, device=self.device)
+
+    @staticmethod
+    def _arrays_overlap(first: wp.array, second: wp.array) -> bool:
+        """Return whether two contiguous Warp arrays share any storage."""
+        first_start = int(first.ptr)
+        first_end = first_start + first.size * wp.types.type_size_in_bytes(first.dtype)
+        second_start = int(second.ptr)
+        second_end = second_start + second.size * wp.types.type_size_in_bytes(second.dtype)
+        return first_start < second_end and second_start < first_end
 
     def _get_nodal_pos_w_f32(self) -> wp.array(dtype=wp.float32):
         """Return the stable scalar view used for OVPhysX position writes [m]."""

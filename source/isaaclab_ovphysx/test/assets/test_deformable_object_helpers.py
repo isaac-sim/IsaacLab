@@ -280,6 +280,36 @@ def test_indexed_full_data_write_preserves_retained_aliased_edits(
     torch.testing.assert_close(retained.torch, expected)
 
 
+@pytest.mark.parametrize(
+    ("property_name", "write_method_name", "simulator_attribute", "command_value"),
+    [
+        ("nodal_pos_w", "write_nodal_pos_to_sim_index", "positions", 100.0),
+        ("nodal_vel_w", "write_nodal_velocity_to_sim_index", "velocities", -100.0),
+    ],
+)
+def test_indexed_partial_write_preserves_retained_aliased_slice(
+    property_name: str, write_method_name: str, simulator_attribute: str, command_value: float
+) -> None:
+    """A retained selected slice survives hydration of stale unselected rows."""
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+    initial = torch.full((3, 2, 3), -1.0, device=asset.device)
+    setattr(asset.root_view, simulator_attribute, wp.from_torch(initial.contiguous(), dtype=wp.float32))
+    retained = getattr(asset.data, property_name)
+
+    latest = torch.arange(18, dtype=torch.float32, device=asset.device).reshape(3, 2, 3)
+    setattr(asset.root_view, simulator_attribute, wp.from_torch(latest.contiguous(), dtype=wp.float32))
+    asset.update(0.1)
+    selected = retained.torch[1:2]
+    selected.fill_(command_value)
+
+    getattr(asset, write_method_name)(selected, env_ids=[1])
+
+    expected = latest.clone()
+    expected[1].fill_(command_value)
+    assert getattr(asset.data, property_name) is retained
+    torch.testing.assert_close(retained.torch, expected)
+
+
 def test_full_overwrite_stale_cache_does_not_read_simulator() -> None:
     asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
 

@@ -299,6 +299,27 @@ def test_manager_resets_full_stage_requirement_between_contexts():
     assert OvPhysxManager._requires_full_stage is False
 
 
+def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
+    """A forced re-warm invalidates views before replacing their attached stage."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from isaaclab.physics import PhysicsEvent
+
+    calls = []
+    monkeypatch.setattr(OvPhysxManager, "_warmup_done", False)
+    monkeypatch.setattr(OvPhysxManager, "_ovstage", object())
+    monkeypatch.setattr(OvPhysxManager, "_warmup_and_load", lambda: calls.append("warmup"))
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "dispatch_event",
+        lambda event, payload=None: calls.append(event),
+    )
+
+    OvPhysxManager.reset()
+
+    assert calls == [PhysicsEvent.STOP, "warmup", PhysicsEvent.PHYSICS_READY]
+
+
 def test_manager_supports_declared_legacy_runtime_api():
     """The declared public OVPhysX wheel keeps its constructor, step, and reset API."""
     from isaaclab_ovphysx.physics import OvPhysxManager

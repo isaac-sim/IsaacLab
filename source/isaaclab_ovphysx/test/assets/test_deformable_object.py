@@ -337,6 +337,37 @@ def test_set_nodal_state():
 
 
 @pytest.mark.parametrize(
+    ("property_name", "write_method_name", "tensor_type", "command_value"),
+    [
+        ("nodal_pos_w", "write_nodal_pos_to_sim_index", "deformable_sim_nodal_position", 100.0),
+        ("nodal_vel_w", "write_nodal_velocity_to_sim_index", "deformable_sim_nodal_velocity", -100.0),
+    ],
+)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
+def test_indexed_partial_write_preserves_retained_aliased_slice_in_simulator(
+    property_name: str, write_method_name: str, tensor_type: str, command_value: float
+) -> None:
+    """Preserve a retained selected command while hydrating stale rows from OVPhysX."""
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2)
+        sim.reset()
+
+        retained = getattr(deformable.data, property_name).torch
+        sim.step()
+        deformable.update(sim.cfg.dt)
+        latest = wp.to_torch(deformable.root_view.get_attribute(tensor_type)).clone()
+        selected = retained[1:2]
+        selected.fill_(command_value)
+
+        getattr(deformable, write_method_name)(selected, env_ids=torch.tensor([1], device=sim.device))
+        readback = wp.to_torch(deformable.root_view.get_attribute(tensor_type))
+
+        torch.testing.assert_close(readback[0], latest[0], rtol=1e-5, atol=1e-5)
+        torch.testing.assert_close(readback[1], selected[0], rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.parametrize(
     "num_objects, randomize_pos, randomize_rot",
     [
         (1, False, False),
@@ -658,6 +689,29 @@ def test_deformable_interactive_scene_uses_full_authored_stage():
 
         sim.step()
         scene.update(sim.cfg.dt)
+        _assert_finite_deformable_state(deformable)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.isaacsim_ci
+def test_forced_rewarm_rebuilds_deformable_bindings():
+    """Replace deformable bindings when a forced re-warm replaces the attached stage."""
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2)
+        sim.reset()
+
+        original_view = deformable.root_view
+        original_binding = original_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION)
+
+        OvPhysxManager._warmup_done = False
+        sim.reset()
+
+        assert deformable.is_initialized
+        assert deformable.root_view is not original_view
+        assert deformable.root_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION) is not original_binding
+        _assert_finite_deformable_state(deformable)
+        sim.step()
+        deformable.update(sim.cfg.dt)
         _assert_finite_deformable_state(deformable)
 
 
