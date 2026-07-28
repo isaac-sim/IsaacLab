@@ -94,6 +94,8 @@ def _body_ordering_for_mode(mode: str, num_bodies: int) -> tuple[str, ...] | Non
         return backend_names
     if mode == "reversed":
         return tuple(reversed(backend_names))
+    if mode == "cyclic":
+        return (backend_names[-1], *backend_names[:-1])
     raise ValueError(f"Unsupported body ordering mode: {mode}")
 
 
@@ -942,13 +944,14 @@ class TestArticulationDataBodyState:
         _assert_proxy_close(ordered_art.data.root_link_vel_w, identity_root_link_vel_w)
 
     @_non_mock_backends
+    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 1, 3)])
     @pytest.mark.parametrize("device", ["cpu"])
-    def test_reversed_body_ordering_reorders_public_body_properties(
-        self, backend, num_instances, num_joints, num_bodies, device
+    def test_body_ordering_reorders_public_body_properties(
+        self, backend, ordering_mode, num_instances, num_joints, num_bodies, device
     ):
         """Expose mass and every inertia component under the matching public body name."""
-        body_ordering = tuple(f"body_{index}" for index in reversed(range(num_bodies)))
+        body_ordering = _body_ordering_for_mode(ordering_mode, num_bodies)
         art, raw_backend = get_articulation(
             backend,
             num_instances,
@@ -2264,11 +2267,12 @@ class TestArticulationWritersBody:
     """Test body property writers/setters with all input combinations."""
 
     @_non_mock_backends
+    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
     @pytest.mark.parametrize("selection", ["index", "mask"])
-    def test_reversed_body_ordering_routes_property_writes_to_backend(self, backend: str, selection: str):
+    def test_body_ordering_routes_property_writes_to_backend(self, backend: str, ordering_mode: str, selection: str):
         """Route partial public property writes to matching backend bodies."""
         num_instances, num_joints, num_bodies = 2, 1, 4
-        body_ordering = tuple(f"body_{index}" for index in reversed(range(num_bodies)))
+        body_ordering = _body_ordering_for_mode(ordering_mode, num_bodies)
         art, raw_backend = get_articulation(
             backend,
             num_instances,
