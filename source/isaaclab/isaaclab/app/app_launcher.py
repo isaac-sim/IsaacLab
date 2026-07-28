@@ -467,6 +467,12 @@ class AppLauncher:
           how many environments are shown in the visualizers.
           More partial visualization configuration fields are available in the ``VisualizerCfg`` class.
 
+        * ``menagerie_physics_variant`` (str | None): MuJoCo Menagerie USD ``Physics`` variant override
+          (``auto``, ``physx``, ``mujoco``, or ``none``). When set via ``--menagerie-physics-variant``,
+          writes :envvar:`ISAACLAB_MUJOCO_MENAGERIE_PHYSICS_VARIANT` before spawning so training matches
+          ``presets=newton`` (``auto`` selects ``mujoco``) vs PhysX stacks (``auto`` selects ``physx``).
+
+
         .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
         Args:
@@ -609,6 +615,17 @@ class AppLauncher:
             default=argparse.SUPPRESS,
             help=("When set, caps the nums of envs shown in the launched visualizers."),
         )
+        arg_group.add_argument(
+            "--menagerie-physics-variant",
+            type=str,
+            choices=("auto", "physx", "mujoco", "none"),
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["menagerie_physics_variant"][1],
+            help=(
+                "MuJoCo Menagerie USD variant set 'Physics': 'physx' vs 'mujoco'. "
+                "'auto' follows presets= (newton -> mujoco, else physx). "
+                "'none' leaves USD default. Sets ISAACLAB_MUJOCO_MENAGERIE_PHYSICS_VARIANT."
+            ),
+        )
         # special flag for backwards compatibility
 
         # Corresponding to the beginning of the function,
@@ -630,6 +647,7 @@ class AppLauncher:
         "experience": ([str], ""),
         "deterministic": ([bool], False),
         "max_visible_envs": ([int, type(None)], None),
+        "menagerie_physics_variant": ([str, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -724,6 +742,10 @@ class AppLauncher:
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
+        from isaaclab.utils.assets import apply_menagerie_physics_variant_from_launcher_args  # noqa: PLC0415
+
+        apply_menagerie_physics_variant_from_launcher_args(launcher_args)
+
         # Handle core settings
         livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
         self._resolve_visualizer_settings(launcher_args)

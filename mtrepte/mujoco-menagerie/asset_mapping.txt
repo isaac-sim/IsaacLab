@@ -1,0 +1,34 @@
+MuJoCo Menagerie (Nucleus) <-> IsaacLab_1 v2 mapping notes
+Branch intent: mtrepte/mujoco_menagerie_v2
+
+Failure policy
+- No silent fallback. If a resolved path is missing, unreadable, or fails load/sim init, the run must error out immediately so broken assets/paths surface in CI or local runs. Do not substitute legacy USD automatically.
+
+Menagerie root
+  isaaclab.utils.assets.MUJOCO_MENAGERIE_DIR (= ISAAC_NUCLEUS_DIR + "/Samples/Mujoco_Menagerie")
+
+Replaced targets (current code -> Menagerie USD primary)
+  ANYMAL_B_CFG             -> anybotics_anymal_b/anymal_b/anymal_b.usda
+  ANYMAL_C_CFG             -> anybotics_anymal_c/anymal_c/anymal_c.usda
+  SPOT_CFG                 -> boston_dynamics_spot/spot.usda
+  UNITREE_GO2_CFG          -> unitree_go2/go2.usda
+  H1_CFG / H1_MINIMAL_CFG  -> unitree_h1/h1/h1.usda
+  G1_CFG / G1_MINIMAL_CFG  -> unitree_g1/g1/g1.usda
+  G1_29DOF_CFG             -> unitree_g1/usdex/g1_29dof_rev_1_0.usdc
+  ALLEGRO_HAND_CFG         -> wonik_allegro/right_hand/right_hand.usda
+  SHADOW_HAND_CFG          -> shadow_hand/right_hand/right_hand.usda
+
+Physics variants
+- The branch exposes --menagerie-physics-variant with choices auto, physx, mujoco, none.
+- The benchmark pytest --sim-backend option maps physx -> Menagerie Physics=physx and newton -> Menagerie Physics=mujoco.
+- Use explicit --sim-backend for A/B benchmark reproducibility.
+
+Not used in this benchmark matrix
+  apptronik_apollo, booster_t1, universal_robots_ur5e, robotiq_2f85 standalone
+  wonik_allegro left_hand_* unless left-hand tasks are added
+  shadow_hand left_hand_* unless left-hand tasks are added
+
+Ambiguous / split by task
+  G1: velocity envs use G1_MINIMAL_CFG / g1.usda. Locomanipulation uses G1_29DOF_CFG / g1_29dof_rev_1_0.usdc.
+  H1: rough/flat velocity use H1_MINIMAL_CFG today; full H1_CFG also points at the Menagerie H1 USD.
+  Dexsuite: Isaac-Dexsuite-Kuka-Allegro-* uses the KUKA_ALLEGRO_CFG bundle, not the Wonik Menagerie Allegro hand.

@@ -6,7 +6,6 @@
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
@@ -15,11 +14,10 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import
     GOAL_OBJECT_CFG,
     OBJECT_CFG,
     ROBOT_CFG,
+    AllegroSceneCfg,
     ObjectCfg,
     PhysicsCfg,
 )
-
-from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass
@@ -43,20 +41,38 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     # robot
     robot_cfg: ArticulationCfg = ROBOT_CFG
 
-    actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
-    fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
+    # Order matches the prior Isaac Allegro layout (per-knuckle across fingers); names follow MuJoCo Menagerie MJCF.
+    actuated_joint_names = [
+        "ffj0",
+        "mfj0",
+        "rfj0",
+        "thj0",
+        "ffj1",
+        "mfj1",
+        "rfj1",
+        "thj1",
+        "ffj2",
+        "mfj2",
+        "rfj2",
+        "thj2",
+        "ffj3",
+        "mfj3",
+        "rfj3",
+        "thj3",
+    ]
+    fingertip_body_names = [
+        "ff_tip",
+        "mf_tip",
+        "rf_tip",
+        "th_tip",
+    ]
 
     # in-hand object
     object_cfg: ObjectCfg = OBJECT_CFG
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192,
-        env_spacing=0.75,
-        replicate_physics=True,
-        clone_in_fabric=True,
-    )
+    # scene — use AllegroSceneCfg so that presets=newton_mjwarp disables clone_in_fabric automatically
+    scene: AllegroSceneCfg = AllegroSceneCfg()
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset

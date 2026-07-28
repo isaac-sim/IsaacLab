@@ -36,7 +36,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg, spawn_rigid_body_material
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 from isaaclab.utils.string import to_camel_case
 
 pytestmark = pytest.mark.integration
@@ -703,7 +703,7 @@ def test_modify_properties_on_articulation_instanced_usd(setup_simulation):
     """
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
     # spawn asset to the stage
-    asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
+    asset_usd_file = f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda"
     if "4.5" in ISAAC_NUCLEUS_DIR:
         asset_usd_file = asset_usd_file.replace("http", "https").replace("4.5", "5.0")
     sim_utils.create_prim("/World/asset_instanced", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))

@@ -10,6 +10,7 @@ from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    EventsCfg,
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
 )
@@ -38,6 +39,7 @@ class G1Rewards(RewardsCfg):
         weight=0.25,
         params={
             "command_name": "base_velocity",
+            # Same as H1: rigid bodies use ``*_ankle_roll_link`` (joints stay ``*_ankle_roll_joint``).
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
             "threshold": 0.4,
         },
@@ -73,8 +75,7 @@ class G1Rewards(RewardsCfg):
                     ".*_shoulder_pitch_joint",
                     ".*_shoulder_roll_joint",
                     ".*_shoulder_yaw_joint",
-                    ".*_elbow_pitch_joint",
-                    ".*_elbow_roll_joint",
+                    ".*_elbow_joint",
                 ],
             )
         },
@@ -85,14 +86,11 @@ class G1Rewards(RewardsCfg):
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
+                # Menagerie G1: wrist chains instead of numbered finger joints.
                 joint_names=[
-                    ".*_five_joint",
-                    ".*_three_joint",
-                    ".*_six_joint",
-                    ".*_four_joint",
-                    ".*_zero_joint",
-                    ".*_one_joint",
-                    ".*_two_joint",
+                    ".*_wrist_roll_joint",
+                    ".*_wrist_pitch_joint",
+                    ".*_wrist_yaw_joint",
                 ],
             )
         },
@@ -100,13 +98,19 @@ class G1Rewards(RewardsCfg):
     joint_deviation_torso = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_joint")},
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=["waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint"],
+            )
+        },
     )
 
 
 @configclass
 class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: G1Rewards = G1Rewards()
+    events: EventsCfg = EventsCfg()
 
     def __post_init__(self):
         # post init of parent
@@ -117,13 +121,13 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # Scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
+        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 
-        # G1 uses "torso_link" as base body — disable mass randomization for bipeds
+        # G1 uses "pelvis" as the root body — disable generic base mass randomization for bipeds.
         self.events.add_base_mass = None
         self.events.base_com = None
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
-        # G1 has precise initial pose — don't scale joint defaults randomly on reset
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "pelvis"
+        # G1 has precise initial pose — don't scale joint defaults randomly on reset.
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
         # Rewards
@@ -146,7 +150,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
 
         # terminations
-        self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
+        self.terminations.base_contact.params["sensor_cfg"].body_names = "pelvis"
 
     def play_mode(self):
         # play-mode overrides of parent

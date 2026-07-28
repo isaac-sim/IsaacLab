@@ -618,10 +618,10 @@ ALLEGRO_FINGERTIP_OFFSETS = {
 }
 
 ALLEGRO_FINGER_LINKS = {
-    "index": "index_link_3",
-    "middle": "middle_link_3",
-    "ring": "ring_link_3",
-    "thumb": "thumb_link_3",
+    "index": "ff_tip",
+    "middle": "mf_tip",
+    "ring": "rf_tip",
+    "thumb": "th_tip",
 }
 
 

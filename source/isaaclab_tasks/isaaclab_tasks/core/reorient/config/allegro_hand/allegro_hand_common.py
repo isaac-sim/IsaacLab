@@ -16,6 +16,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
@@ -98,6 +99,25 @@ class PhysicsCfg(PresetCfg):
     )
     ovphysx = OvPhysxCfg()
     default = newton_mjwarp
+
+
+@configclass
+class AllegroSceneCfg(PresetCfg):
+    """Scene configuration with preset variants for PhysX and Newton.
+
+    PhysX supports ``clone_in_fabric=True`` for faster scene cloning via the Fabric layer.
+    Newton does not support Fabric cloning, so ``clone_in_fabric`` must be ``False``.
+    """
+
+    physx: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+    )
+    newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
+    )
+    default: InteractiveSceneCfg = physx
+    ovphysx = physx
+    newton_kamino = newton_mjwarp
 
 
 # Scene pieces shared verbatim by the manager-based variant.

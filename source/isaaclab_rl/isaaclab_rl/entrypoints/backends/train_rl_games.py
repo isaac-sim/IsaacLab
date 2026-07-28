@@ -88,6 +88,7 @@ def run(argv: list[str]) -> None:
     from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
     from isaaclab_tasks.utils import resolve_task_config
+    from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
     args_cli = _parse_args(argv)
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
@@ -169,6 +170,8 @@ def run(argv: list[str]) -> None:
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = run_log_dir
 
+        log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
+
         env = create_isaaclab_env(
             args_cli.task,
             env_cfg,
@@ -225,6 +228,8 @@ def run(argv: list[str]) -> None:
             else:
                 runner.run({"train": True, "play": False, "sigma": train_sigma})
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()
         except KeyboardInterrupt:
             pass
+        finally:
+            log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+            env.close()

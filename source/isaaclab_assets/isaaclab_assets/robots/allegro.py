@@ -20,7 +20,7 @@ import math
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import MUJOCO_MENAGERIE_DIR
 
 ##
 # Configuration
@@ -28,7 +28,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ALLEGRO_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd",
+        usd_path=f"{MUJOCO_MENAGERIE_DIR}/wonik_allegro/right_hand/right_hand.usda",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
@@ -52,7 +52,11 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
         rot=(0.283045, 0.683330, -0.621782, 0.257551),
-        joint_pos={"^(?!thumb_joint_0).*": 0.0, "thumb_joint_0": 0.28},
+        # MuJoCo Menagerie MJCF names joints ``ffj*`` / ``thj0``; legacy Isaac Allegro used ``*_joint_*``.
+        joint_pos={
+            "^(?!thumb_joint_0$)(?!thj0$).*": 0.0,
+            "thumb_joint_0|thj0": 0.28,
+        },
     ),
     actuators={
         "fingers": ImplicitActuatorCfg(

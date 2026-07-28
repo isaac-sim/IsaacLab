@@ -107,6 +107,7 @@ def run(argv: list[str]) -> None:
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
     from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
+    from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
@@ -154,6 +155,8 @@ def run(argv: list[str]) -> None:
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir
 
+        log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
+
         env = create_isaaclab_env(
             args_cli.task,
             env_cfg,
@@ -200,6 +203,8 @@ def run(argv: list[str]) -> None:
         try:
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()
         except KeyboardInterrupt:
             pass
+        finally:
+            log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+            env.close()

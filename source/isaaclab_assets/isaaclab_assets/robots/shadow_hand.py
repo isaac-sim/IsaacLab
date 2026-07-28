@@ -18,15 +18,42 @@ Reference:
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import MUJOCO_MENAGERIE_DIR
 
 ##
 # Configuration
 ##
 
+# MuJoCo Menagerie ``right_hand`` uses the ``rh_`` joint prefix. Legacy Isaac Shadow assets used ``robot0_``.
+MENAGERIE_SHADOW_FINGERS_ACTUATOR_BASE = ImplicitActuatorCfg(
+    joint_names_expr=["rh_.*"],
+    effort_limit_sim={
+        "rh_WRJ1": 4.785,
+        "rh_WRJ2": 2.175,
+        "rh_(FF|MF|RF)J4": 0.9,
+        "rh_(FF|MF|RF)J(3|2)": 0.9,
+        "rh_(FF|MF|RF)J1": 0.7245,
+        "rh_LFJ5": 0.9,
+        "rh_LFJ(4|3|2)": 0.9,
+        "rh_LFJ1": 0.7245,
+        "rh_THJ5": 0.81,
+        "rh_THJ4": 2.3722,
+        "rh_THJ3": 1.45,
+        "rh_THJ(2|1)": 0.99,
+    },
+    stiffness={
+        "rh_WRJ.*": 5.0,
+        "rh_(FF|MF|RF|LF|TH)J.*": 1.0,
+    },
+    damping={
+        "rh_WRJ.*": 0.5,
+        "rh_(FF|MF|RF|LF|TH)J.*": 0.1,
+    },
+)
+
 SHADOW_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd",
+        usd_path=f"{MUJOCO_MENAGERIE_DIR}/shadow_hand/right_hand/right_hand.usda",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
@@ -49,36 +76,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
         rot=(0.0, -0.7071, 0.7071, 0.0),
         joint_pos={".*": 0.0},
     ),
-    actuators={
-        "fingers": ImplicitActuatorCfg(
-            joint_names_expr=["robot0_WR.*", "robot0_(FF|MF|RF|LF|TH)J(3|2|1)", "robot0_(LF|TH)J4", "robot0_THJ0"],
-            effort_limit_sim={
-                "robot0_WRJ1": 4.785,
-                "robot0_WRJ0": 2.175,
-                "robot0_(FF|MF|RF|LF)J1": 0.7245,
-                "robot0_FFJ(3|2)": 0.9,
-                "robot0_MFJ(3|2)": 0.9,
-                "robot0_RFJ(3|2)": 0.9,
-                "robot0_LFJ(4|3|2)": 0.9,
-                "robot0_THJ4": 2.3722,
-                "robot0_THJ3": 1.45,
-                "robot0_THJ(2|1)": 0.99,
-                "robot0_THJ0": 0.81,
-            },
-            stiffness={
-                "robot0_WRJ.*": 5.0,
-                "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 1.0,
-                "robot0_(LF|TH)J4": 1.0,
-                "robot0_THJ0": 1.0,
-            },
-            damping={
-                "robot0_WRJ.*": 0.5,
-                "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 0.1,
-                "robot0_(LF|TH)J4": 0.1,
-                "robot0_THJ0": 0.1,
-            },
-        ),
-    },
+    actuators={"fingers": MENAGERIE_SHADOW_FINGERS_ACTUATOR_BASE},
     soft_joint_pos_limit_factor=1.0,
 )
 """Configuration of Shadow Hand robot."""

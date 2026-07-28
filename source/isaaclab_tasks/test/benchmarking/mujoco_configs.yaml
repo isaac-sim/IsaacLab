@@ -1,0 +1,278 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Training benchmarks for environments whose robot USD moved to MuJoCo Menagerie (see mtrepte/mujoco-menagerie/).
+# One workflow per task (rsl_rl only) so each env runs once when using e.g. --workflows rsl_rl.
+# Thresholds and max_iterations match configs.yaml ``full`` for the same task / closest matching rule.
+#
+# Optional per-task keys (read by test_environments_training.train_job):
+#   num_envs — if set, ``--num_envs`` is passed to train.py; if omitted, train.py uses its default.
+#
+# Run (KPI benchmark): pytest ... --config_path mujoco_configs.yaml --mode benchmark --workflows rsl_rl skrl
+# Run (smoke / wiring):  pytest ... --config_path mujoco_configs.yaml --mode test --workflows rsl_rl skrl --sim-backend physx newton
+# Physics / Menagerie USD (pytest): ``--sim-backend`` accepts one or more values (parametrized per test).
+#   physx: ``--menagerie-physics-variant physx`` (default env presets).
+#   newton: ``--menagerie-physics-variant mujoco`` + ``presets=newton_mjwarp`` (see conftest.py).
+#
+# ``test`` mode: same env list as ``benchmark``, max_iterations=10, num_envs=2, thresholds chosen so KPI checks do not gate
+# (see env_benchmark_test_utils.evaluate_job). Lower metrics must be *above* the floor, so floors are -9999; duration
+# must stay *below* the cap, so the cap is 9999. Using +9999 for lowers and -9999 for duration would fail every job.
+#
+# --- Menagerie-backed robots WITHOUT registered tasks (not covered here) ---
+#
+# Anymal-B (ANYMAL_B_CFG / anybotics_anymal_b/anymal_b.usda)
+# Anymal-C (ANYMAL_C_CFG / anybotics_anymal_c/anymal_c.usda)
+#   Asset configs point to Menagerie USDs but no velocity task configs exist for these robots.
+#   Add task configs under core/velocity/config/anymal_{b,c}/ before adding entries here.
+#
+# --- Menagerie-related envs not covered by this file (missing from automated RL benchmark harness) ---
+#
+# Isaac-PickPlace-Locomanipulation-G1-Abs-v0
+#   Uses G1_29DOF Menagerie USD (distinct from velocity G1 minimal). Only robomimic_bc is registered;
+#   test/benchmarking/env_benchmark_test_utils.py parses rsl_rl / rl_games / sb3 / skrl logs only, so no row here.
+#   Exercise the asset via: scripts/imitation_learning/robomimic/train.py, play.py, robust_eval.py;
+#   demos: scripts/tools/record_demos.py (see isaaclab_teleop docs). Catalog: mtrepte/mujoco-menagerie/asset_tasks.txt.
+#
+# Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0
+#   Same G1_29DOF Menagerie role; gym registry has env_cfg only (no robomimic_bc_cfg_entry_point), so no stock robomimic
+#   train/play path. Smoke / controller coverage: source/isaaclab/test/controllers/test_pink_ik.py lists this task.
+#   Add a workflow entry point + agent JSON if you need imitation-learning benchmarks comparable to Locomanipulation-G1.
+#
+# Isaac-Shadow-Handover-Direct
+#   Multi-agent env; only skrl/rl_games entry points registered (no rsl_rl). Not covered by this rsl_rl-only file.
+#   Smoke: scripts/reinforcement_learning/skrl/train.py --task Isaac-Shadow-Handover-Direct --num_envs 2 --max_iterations 5
+
+benchmark_local:
+  # Reduced-iteration version of ``benchmark`` for single-GPU local weekend runs (~6-8 h on RTX PRO 6000).
+  # Iterations are halved vs ``benchmark`` (locomotion 500, Shadow 1500, others 300/500).
+  # Thresholds are intentionally loose — reward floors are set to "any positive learning signal" level,
+  # since convergence is not expected at half the iteration budget. Duration caps are also halved.
+  # Keep iteration counts identical on both branches (mujoco_menagerie_v2 and benchmark-test-infra)
+  # so timing comparisons are valid.
+  #
+  # Video: one 30-second clip (1500 env steps @ 50 Hz) recorded right before training ends.
+  # video_interval is set so the clip starts at ~90% of total steps (max_iterations × rsl_rl horizon 24).
+  # Pass --video to activate; video_length/video_interval here override the CLI defaults per-task.
+  rsl_rl:IsaacContrib-Velocity-Flat-AnymalB:
+    max_iterations: 500
+    video_length: 1500    # 30 s @ 50 Hz
+    video_interval: 10500 # starts at step ~10500 of ~12000 total (500 iter × 24)
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 1800
+  rsl_rl:IsaacContrib-Velocity-Flat-AnymalC:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 1800
+  rsl_rl:Isaac-Velocity-Flat-Spot:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 50
+      episode_length: 300
+    upper_thresholds:
+      duration: 3600
+  rsl_rl:Isaac-Velocity-Flat-UnitreeGo2:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 1800
+  rsl_rl:Isaac-Velocity-Flat-H1:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 1800
+  rsl_rl:Isaac-Velocity-Flat-G1:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 2000
+  rsl_rl:Isaac-Reorient-Cube-Allegro-Direct:
+    max_iterations: 300
+    video_length: 1500    # 30 s @ 50 Hz
+    video_interval: 5700  # starts at step ~5700 of ~7200 total (300 iter × 24)
+    lower_thresholds:
+      reward: 50
+      episode_length: 50
+    upper_thresholds:
+      duration: 1200
+  rsl_rl:Isaac-Reorient-Cube-Shadow-Direct:
+    max_iterations: 1500
+    video_length: 1500    # 30 s @ 50 Hz
+    video_interval: 34500 # starts at step ~34500 of ~36000 total (1500 iter × 24)
+    lower_thresholds:
+      reward: 200
+      episode_length: 100
+    upper_thresholds:
+      duration: 6000
+  skrl:Isaac-Shadow-Handover-Direct:
+    max_iterations: 500
+    video_length: 1500    # 30 s @ 50 Hz
+    video_interval: 14500 # starts at step ~14500 of ~16000 total (500 iter × 32 skrl horizon)
+    lower_thresholds:
+      reward: 2
+    upper_thresholds:
+      duration: 4500
+
+benchmark:
+  # Velocity-Flat thresholds align with configs.yaml ``full`` (Flat-* / per-task overrides).
+  rsl_rl:IsaacContrib-Velocity-Flat-AnymalB:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 10
+      episode_length: 700
+    upper_thresholds:
+      duration: 3000
+  rsl_rl:IsaacContrib-Velocity-Flat-AnymalC:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 10
+      episode_length: 700
+    upper_thresholds:
+      duration: 3000
+  rsl_rl:Isaac-Velocity-Flat-Spot:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 150
+      episode_length: 700
+    upper_thresholds:
+      duration: 6000
+  rsl_rl:Isaac-Velocity-Flat-UnitreeGo2:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 15
+      episode_length: 700
+    upper_thresholds:
+      duration: 3000
+  rsl_rl:Isaac-Velocity-Flat-H1:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 15
+      episode_length: 700
+    upper_thresholds:
+      duration: 3000
+  rsl_rl:Isaac-Velocity-Flat-G1:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 10
+      episode_length: 700
+    upper_thresholds:
+      duration: 3500
+  rsl_rl:Isaac-Reorient-Cube-Allegro-Direct:
+    max_iterations: 500
+    lower_thresholds:
+      reward: 200
+      episode_length: 150
+    upper_thresholds:
+      duration: 1500
+  rsl_rl:Isaac-Reorient-Cube-Shadow-Direct:
+    max_iterations: 3000
+    lower_thresholds:
+      reward: 1000
+      episode_length: 300
+    upper_thresholds:
+      duration: 10000
+  # Shadow Handover is a multi-agent env; only skrl is registered (no rsl_rl entry point).
+  # Pass --workflows rsl_rl skrl to include this row.
+  skrl:Isaac-Shadow-Handover-Direct:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 5
+    upper_thresholds:
+      duration: 8000
+
+test:
+  rsl_rl:IsaacContrib-Velocity-Flat-AnymalB: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:IsaacContrib-Velocity-Flat-AnymalC: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-Spot: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-UnitreeGo2: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-H1: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-G1: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Reorient-Cube-Allegro-Direct: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Reorient-Cube-Shadow-Direct: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  # Shadow Handover is skrl-only. Pass --workflows rsl_rl skrl to include.
+  skrl:Isaac-Shadow-Handover-Direct: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+    upper_thresholds:
+      duration: 9999

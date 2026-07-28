@@ -29,7 +29,7 @@ from isaaclab.sim.utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.assets import check_file_path, merge_mujoco_menagerie_spawn_variants, retrieve_file_path
 from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
@@ -339,9 +339,10 @@ def _spawn_from_usd_file(
         else:
             logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
 
-    # modify variants
-    if hasattr(cfg, "variants") and cfg.variants is not None:
-        select_usd_variants(prim_path, cfg.variants)
+    # modify variants (Menagerie USDA: auto ``Physics`` -> physx/mujoco unless overridden or disabled)
+    merged_variants = merge_mujoco_menagerie_spawn_variants(usd_path, getattr(cfg, "variants", None))
+    if merged_variants is not None:
+        select_usd_variants(prim_path, merged_variants)
 
     # modify rigid body properties
     if cfg.rigid_props is not None:

@@ -81,8 +81,10 @@ class ActuatorNetLSTM(DCMotor):
         self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
         self.sea_input[:, 0, 1] = joint_vel.flatten()
 
-        # run network inference
-        with torch.inference_mode():
+        # Run recurrent actuator inference without cuDNN. Some benchmark subprocesses
+        # initialize Newton before the first TorchScript LSTM call, which can leave
+        # cuDNN unavailable even though the non-cuDNN CUDA LSTM path works.
+        with torch.inference_mode(), torch.backends.cudnn.flags(enabled=False):
             torques, (self.sea_hidden_state[:], self.sea_cell_state[:]) = self.network(
                 self.sea_input, (self.sea_hidden_state, self.sea_cell_state)
             )
