@@ -89,8 +89,7 @@ To install Isaac Sim, use :ref:`installation-method-python-env`.
 
 .. _installation-standalone-importers:
 
-Standalone URDF/MJCF importers
-------------------------------
+.. rubric:: Standalone URDF/MJCF importers
 
 The URDF and MJCF converter scripts can run without Isaac Sim when the standalone
 ``isaacsim-asset-isolated`` wheel is installed in the active environment:
