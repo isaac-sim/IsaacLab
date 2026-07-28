@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Export pipeline integration tests.
-
-Each test launches Isaac Sim once for a batch of tasks. This avoids the
-per-task Kit startup churn while keeping each Kit process short enough to avoid
-accumulating PhysX GPU allocations across the full export matrix.
-"""
+"""RL-Games LEAPP export integration test."""
 
 import contextlib
 import importlib.util
@@ -23,12 +18,11 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-# Root of the repository (three levels up from this file).
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "rsl_rl" / "export.py"
-_EXPORT_MODULE_NAME = "_isaaclab_rsl_rl_leapp_export"
+_EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "rl_games" / "export.py"
+_EXPORT_MODULE_NAME = "_isaaclab_rl_games_leapp_export"
 _THIS_SCRIPT = Path(__file__).resolve()
-_EXPORT_BATCH_SIZE = 8
+_TASKS = ["Isaac-Cartpole", "Isaac-Reach-Franka", "Isaac-Lift-Cube-Franka"]
 _EXPORT_BATCH_TIMEOUT = 600
 _OUTPUT_TAIL_CHARS = 5000
 _PROCESS_FAILURE_PATTERNS = (
@@ -39,61 +33,10 @@ _PROCESS_FAILURE_PATTERNS = (
 )
 
 
-# Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
-TASKS = [
-    # Classic
-    "Isaac-Ant",
-    "Isaac-Cartpole",
-    # Navigation
-    "IsaacContrib-Navigation-Flat-AnymalC",
-    # Locomotion Velocity
-    "IsaacContrib-Velocity-Flat-AnymalB",
-    "IsaacContrib-Velocity-Rough-AnymalB",
-    "IsaacContrib-Velocity-Flat-AnymalC",
-    "IsaacContrib-Velocity-Rough-AnymalC",
-    "Isaac-Velocity-Flat-AnymalD",
-    "Isaac-Velocity-Rough-AnymalD",
-    "Isaac-Velocity-Flat-Cassie",
-    "Isaac-Velocity-Rough-Cassie",
-    "Isaac-Velocity-Flat-G1",
-    "Isaac-Velocity-Rough-G1",
-    "Isaac-Velocity-Flat-H1",
-    "Isaac-Velocity-Rough-H1",
-    "IsaacContrib-Velocity-Flat-Spot",
-    "IsaacContrib-Velocity-Flat-UnitreeA1",
-    "IsaacContrib-Velocity-Rough-UnitreeA1",
-    "IsaacContrib-Velocity-Flat-UnitreeGo1",
-    "IsaacContrib-Velocity-Rough-UnitreeGo1",
-    "Isaac-Velocity-Flat-UnitreeGo2",
-    "Isaac-Velocity-Rough-UnitreeGo2",
-    # Manipulation Reach
-    "Isaac-Reach-Franka",
-    "Isaac-Reach-UR10",
-    # Manipulation Lift
-    "Isaac-Lift-Cube-Franka",
-    # Manipulation Cabinet
-    "Isaac-Open-Drawer-Franka",
-    # Dexsuite
-    "Isaac-Reorient-KukaAllegro",
-    "Isaac-Lift-KukaAllegro",
-]
-
-
 def _export_dir(task_name: str) -> str:
     """Return the directory where export.py writes artifacts for *task_name*."""
-    return os.path.join(_REPO_ROOT, ".pretrained_checkpoints", "rsl_rl", task_name, task_name)
-
-
-def _task_batches(tasks: list[str]) -> list[list[str]]:
-    """Split export tasks into batches that share one Kit process."""
-    return [tasks[index : index + _EXPORT_BATCH_SIZE] for index in range(0, len(tasks), _EXPORT_BATCH_SIZE)]
-
-
-def _batch_id(task_names: list[str]) -> str:
-    """Return a compact pytest id for a task batch."""
-    first = task_names[0].replace("Isaac-", "")
-    last = task_names[-1].replace("Isaac-", "")
-    return f"{first}__to__{last}"
+    train_task = task_name.replace("-Play", "")
+    return os.path.join(_REPO_ROOT, ".pretrained_checkpoints", "rl_games", train_task, task_name)
 
 
 def _ensure_text(output: str | bytes | None) -> str:
@@ -115,22 +58,22 @@ def _leapp_log_tail(export_dir: str) -> str:
     return f"\n--- leapp log.txt (last 50 lines) ---\n{''.join(last_lines)}"
 
 
-def _fail_on_process_error(result: subprocess.CompletedProcess[str], task_names: list[str]) -> None:
+def _fail_on_process_error(result: subprocess.CompletedProcess[str]) -> None:
     """Fail when Isaac Sim reports an error but exits with a successful status."""
     output = f"{result.stdout}\n{result.stderr}"
     for pattern in _PROCESS_FAILURE_PATTERNS:
         if pattern in output:
             pytest.fail(
-                f"export batch reported {pattern!r} for {task_names}.\n"
+                f"export batch reported {pattern!r} for {_TASKS}.\n"
                 f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
                 f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
             )
 
 
 def _load_export_module():
-    """Load the LEAPP RSL-RL export script as an importable module."""
+    """Load the LEAPP RL-Games export script as an importable module."""
     module = sys.modules.get(_EXPORT_MODULE_NAME)
-    if module is not None and hasattr(module, "ensure_actor_hidden_state_initialized"):
+    if module is not None and hasattr(module, "export_rl_games_agent"):
         return module
 
     sys.modules.pop(_EXPORT_MODULE_NAME, None)
@@ -172,28 +115,6 @@ def _load_export_module():
     return module
 
 
-class _ModularRNN(torch.nn.Module):
-    """Minimal RSL-RL 5.x RNN wrapper shape."""
-
-    def __init__(self):
-        super().__init__()
-        self.rnn = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=2)
-        self.hidden_state = None
-
-
-class _ModularRecurrentPolicy(torch.nn.Module):
-    """Minimal RSL-RL 5.x RNNModel shape."""
-
-    is_recurrent = True
-
-    def __init__(self):
-        super().__init__()
-        self.rnn = _ModularRNN()
-
-    def get_hidden_state(self):
-        return self.rnn.hidden_state
-
-
 @contextlib.contextmanager
 def _clean_hydra_argv():
     """Temporarily hide pytest arguments from Hydra config resolution."""
@@ -214,6 +135,7 @@ def _export_args(task_name: str):
             task_name,
             "--use_pretrained_checkpoint",
             "--disable_graph_visualization",
+            "--headless",
         ]
     )
     return args_cli
@@ -229,23 +151,17 @@ def _run_export_task(task_name: str, simulation_app, sim_utils, get_settings_man
         get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
 
         args_cli = _export_args(task_name)
-        try:
-            with _clean_hydra_argv():
-                env_cfg, agent_cfg = resolve_task_config(task_name, args_cli.agent)
-            exported = export_module.export_rsl_rl_agent(args_cli, env_cfg, agent_cfg, simulation_app)
-        except Exception as exc:
-            if "actor_state_dict" in str(exc):
-                return
-            raise RuntimeError(f"export.py failed for {task_name}: {exc!r}{_leapp_log_tail(export_dir)}") from exc
+        with _clean_hydra_argv():
+            env_cfg, agent_cfg = resolve_task_config(task_name, args_cli.agent)
+        exported = export_module.export_rl_games_agent(args_cli, env_cfg, agent_cfg, simulation_app)
 
-        # Gracefully skip tasks whose checkpoint isn't published yet
-        if not exported:
-            return
+        assert exported, "Expected export to produce LEAPP artifacts"
 
         assert os.path.isfile(os.path.join(export_dir, f"{task_name}.onnx")), "Missing .onnx export"
         assert os.path.isfile(os.path.join(export_dir, f"{task_name}.yaml")), "Missing .yaml export"
         assert os.path.isfile(os.path.join(export_dir, "log.txt")), "Missing log.txt"
-
+    except Exception as exc:
+        raise RuntimeError(f"export.py failed for {task_name}: {exc!r}{_leapp_log_tail(export_dir)}") from exc
     finally:
         shutil.rmtree(export_dir, ignore_errors=True)
 
@@ -262,8 +178,6 @@ def _run_export_batch(task_names: list[str]) -> None:
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    # This flag matches the environment wrapper tests and avoids random stalls
-    # when many environments are constructed sequentially in one Kit process.
     get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     try:
@@ -286,26 +200,6 @@ def _run_export_batch_entrypoint() -> None:
     _run_export_batch(tasks)
 
 
-def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
-    """Verify LSTM state registration helpers support RSL-RL 5.x RNNModel."""
-    export_module = _load_export_module()
-    policy = _ModularRecurrentPolicy()
-
-    actor_state = export_module.ensure_actor_hidden_state_initialized(
-        policy, batch_size=1, device=torch.device("cpu"), dtype=torch.float32
-    )
-    registered_state = tuple(tensor + 1.0 for tensor in actor_state)
-    export_module.set_actor_hidden_state(
-        policy,
-        export_module.actor_hidden_from_registered(registered_state, actor_state),
-    )
-
-    assert export_module.is_actor_recurrent_policy(policy)
-    assert export_module.get_actor_memory_module(policy) is policy.rnn
-    assert export_module.get_actor_hidden_state(policy) is registered_state
-    assert policy.rnn.hidden_state is registered_state
-
-
 def test_export_flow_fails_on_sim_traceback():
     """Catch simulator failures even when the process reports success."""
     result = subprocess.CompletedProcess(
@@ -316,15 +210,14 @@ def test_export_flow_fails_on_sim_traceback():
     )
 
     with pytest.raises(pytest.fail.Exception):
-        _fail_on_process_error(result, ["Isaac-Reach-Franka"])
+        _fail_on_process_error(result)
 
 
-@pytest.mark.parametrize("task_names", _task_batches(TASKS), ids=_batch_id)
-def test_export_flow(task_names: list[str]):
-    """Run export.py for a task batch and assert the expected artifacts are created."""
+def test_rl_games_export_flow():
+    """Run RL-Games export.py and assert the expected artifacts are created."""
     try:
         result = subprocess.run(
-            _export_batch_command(task_names),
+            _export_batch_command(_TASKS),
             cwd=_REPO_ROOT,
             capture_output=True,
             text=True,
@@ -334,19 +227,24 @@ def test_export_flow(task_names: list[str]):
         stdout = _ensure_text(exc.stdout)
         stderr = _ensure_text(exc.stderr)
         pytest.fail(
-            f"export batch timed out after {_EXPORT_BATCH_TIMEOUT}s for {task_names}.\n"
+            f"export batch timed out after {_EXPORT_BATCH_TIMEOUT}s for {_TASKS}.\n"
             f"--- stdout tail ---\n{stdout[-_OUTPUT_TAIL_CHARS:]}\n"
             f"--- stderr tail ---\n{stderr[-_OUTPUT_TAIL_CHARS:]}"
         )
 
+    if "Unfortunately a pre-trained checkpoint is currently unavailable" in result.stdout:
+        pytest.skip("No pretrained RL-Games checkpoint available for test task")
+    if "KeyError: 'EXP_PATH'" in result.stderr:
+        pytest.skip("Isaac Sim EXP_PATH is not configured for export-flow test")
+
     if result.returncode != 0:
         pytest.fail(
-            f"export batch exited with code {result.returncode} for {task_names}.\n"
+            f"export batch exited with code {result.returncode} for {_TASKS}.\n"
             f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
             f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
         )
 
-    _fail_on_process_error(result, task_names)
+    _fail_on_process_error(result)
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--export-flow-batch":
