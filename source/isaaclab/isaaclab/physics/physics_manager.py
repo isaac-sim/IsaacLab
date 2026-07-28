@@ -428,7 +428,9 @@ class PhysicsManager(ABC):
     def close(cls) -> None:
         """Clean up physics resources.
 
-        Subclasses should call super().close() after backend-specific cleanup.
+        Subclasses whose STOP listeners own backend handles should call
+        ``super().close()`` before backend-specific cleanup so those listeners
+        can invalidate their handles while the backend is still live.
         """
         sim = PhysicsManager._sim
         is_active_manager = sim is not None and sim.physics_manager is cls

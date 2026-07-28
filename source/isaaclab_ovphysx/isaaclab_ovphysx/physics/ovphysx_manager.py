@@ -13,9 +13,7 @@ steps the simulation using the ovphysx C/Python API.
 from __future__ import annotations
 
 import atexit
-import inspect
 import logging
-import os
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -196,9 +194,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 class OvPhysxManager(PhysicsManager):
     """Manages an ovphysx-backed physics simulation lifecycle.
 
-    Unlike PhysxManager, this manager does not depend on Kit, Carbonite, or the
-    Omniverse timeline.  It drives the simulation entirely through the ovphysx
-    Python wheel.
+    Unlike PhysxManager, this manager does not depend on a host Kit or
+    Carbonite runtime, or on the Omniverse timeline. It drives the simulation
+    through the OVPhysX Python wheel and its packaged runtime.
 
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
@@ -208,11 +206,10 @@ class OvPhysxManager(PhysicsManager):
     _ovstage: ClassVar[Any] = None
     _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
-    # Device the process is locked to once :meth:`_warmup_and_load` constructs the
-    # ``ovphysx.PhysX`` instance for the first time.  ``ovphysx<=0.3.7`` enforces
-    # a process-global device-mode lock at the C++ layer (see HACK note on
-    # :meth:`_release_physx`); we mirror it here so a clear Python error is raised
-    # if a later :class:`~isaaclab.sim.SimulationContext` requests a different device.
+    # First device selected by IsaacLab for this process. OVPhysX 0.5.9 makes
+    # CPU-only mode sticky but does not symmetrically lock GPU mode. IsaacLab
+    # nevertheless pins the first choice so all contexts follow one predictable
+    # process lifecycle and a CPU-first process is never asked to switch modes.
     _locked_device: ClassVar[str | None] = None
     # Pending (source, targets, parent_positions) triples queued by
     # replication is queued before the PhysX instance exists.  Replayed via
@@ -265,36 +262,23 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _ensure_physx_schemas_registered(cls) -> None:
-        """Register the ``PhysxSchema`` USD plugin shipped with the ovphysx wheel.
+        """Register the codeless USD plugins published by the OVPhysX wheel.
 
-        In Kit-based runs ``omni.physx`` registers the schema; in kitless
-        runs it must be registered manually before the wheel can match
-        ``PhysxContactReportAPI`` and friends on the stage.  The wheel
-        bundles the plugin under ``ovphysx/plugins/usd/PhysxSchema``.  This
-        method is idempotent and leaves an existing Kit ``physxSchema``
-        provider authoritative. Registering the wheel's provider after Kit's
-        provider raises duplicate-type errors even though both plugins share
-        the same name.
+        The wheel's public paths include both ``PhysxSchema`` and
+        ``OmniUsdPhysicsDeformableSchema``. USD's plugin registry makes repeated
+        registration idempotent by plugin identity, so registering all published
+        paths also preserves any provider that Kit registered first.
         """
         if cls._physx_schemas_registered:
             return
         try:
-            import os  # noqa: PLC0415
-
             import ovphysx  # noqa: PLC0415
 
             from pxr import Plug  # noqa: PLC0415
-        except Exception:
+        except ImportError:
             return
-        registry = Plug.Registry()
-        if any(plugin.name == "physxSchema" for plugin in registry.GetAllPlugins()):
-            cls._physx_schemas_registered = True
-            return
-        plugin_root = os.path.join(os.path.dirname(ovphysx.__file__), "plugins", "usd")
-        for sub in ("PhysxSchema/resources", "PhysxSchemaAddition/resources"):
-            path = os.path.join(plugin_root, sub)
-            if os.path.isdir(path):
-                registry.RegisterPlugins(path)
+        schema_paths = [str(path) for path in ovphysx.codeless_schema_paths()]
+        Plug.Registry().RegisterPlugins(schema_paths)
         cls._physx_schemas_registered = True
 
     @classmethod
@@ -305,13 +289,10 @@ class OvPhysxManager(PhysicsManager):
         the stage may not be fully populated at this point.  The actual load
         happens lazily in :meth:`reset`.
 
-        ``cls._physx`` is intentionally not cleared here: the ovphysx C++ instance
-        is process-global (see HACK on :meth:`_release_physx`).  When a previous
-        :class:`SimulationContext` has already constructed it, we reuse it rather
-        than dropping the only Python reference (which would trigger the
-        destructor race) or re-constructing (which would hit the wheel's
-        device-mode lock).  ``cls._locked_device`` carries the device the cached
-        instance is bound to.
+        ``cls._physx`` is intentionally not cleared here: if the current
+        :class:`SimulationContext` already constructed it and has not been
+        closed, the manager reuses that instance. ``cls._locked_device`` carries
+        IsaacLab's conservative first-device policy for this process.
         """
         super().initialize(sim_context)
         cls._ensure_physx_schemas_registered()
@@ -354,63 +335,62 @@ class OvPhysxManager(PhysicsManager):
         if cls._physx is None:
             return
         dt = cls.get_physics_dt()
-        cls._step_physx(cls._physx, dt=dt, sim_time=PhysicsManager._sim_time)
+        cls._step_physx(cls._physx, dt=dt)
         cls._physx.update_articulations_kinematic()
         PhysicsManager._sim_time += dt
 
     @staticmethod
-    def _step_physx(physx: Any, dt: float, sim_time: float) -> None:
-        """Step either the declared legacy runtime or the trusted current runtime."""
-        if hasattr(physx, "reset_stage"):
-            physx.step_sync(dt=dt)
-        else:
-            physx.step_sync(dt=dt, sim_time=sim_time)
+    def _step_physx(physx: Any, dt: float) -> None:
+        """Step the pinned OVPhysX runtime synchronously."""
+        physx.step_sync(dt=dt)
 
     @staticmethod
     def _reset_physx_stage(physx: Any) -> None:
-        """Clear the loaded stage through the runtime's available reset API."""
-        reset = physx.reset_stage if hasattr(physx, "reset_stage") else physx.reset
-        operation = reset()
+        """Clear the loaded stage through the pinned OVPhysX runtime API."""
+        operation = physx.reset_stage()
         physx.wait_op(operation)
 
     @classmethod
     def close(cls) -> None:
         """Release ovphysx resources and clean up."""
-        cls._release_physx()
-
-        cls._stage_usda = None
-        cls._warmup_done = False
-        # Drop the SceneDataBackend singleton: its cached ``TensorBinding`` handles
-        # point into the wheel's prior scene which we just cleared.
-        # The next :class:`SimulationContext` re-creates the backend in
-        # :meth:`initialize`. Matches Newton's lifecycle.
-        cls._scene_data_backend = None
-
-        super().close()
+        # Dispatch STOP while the runtime is still live. Asset and sensor callbacks
+        # invalidate raw native handles before the view registry drains the remaining
+        # binding caches and the runtime is released.
+        try:
+            super().close()
+        finally:
+            try:
+                cls._release_physx()
+            finally:
+                cls._stage_usda = None
+                cls._warmup_done = False
+                # Drop the SceneDataBackend singleton: its cached bindings and buffers
+                # belong to the runtime instance just released. The next
+                # SimulationContext re-creates it in initialize().
+                cls._scene_data_backend = None
 
     @classmethod
     def _release_physx(cls) -> None:
-        """Soft-reset the ovphysx runtime stage; keep the C++ instance alive.
+        """Release the OVPhysX runtime instance and its owned OVStage.
 
-        Clears the loaded scene through the runtime's reset API, but does **not**
-        drop the Python reference.  The cached :class:`ovphysx.PhysX` is reused by
-        the next :class:`~isaaclab.sim.SimulationContext` via the reuse path in
-        :meth:`_warmup_and_load`.  Safe to call multiple times.
-
-        HACK(ovphysx<=0.3.7): the wheel's bundled libcarb.so and Kit's libcarb.so
-        coexist in the same process whenever ``import pxr`` runs (Kit USD plugins
-        on ``LD_LIBRARY_PATH`` pull in Kit's Carbonite).  Both register C++ static
-        destructors that race at process exit -- and crucially, also race when
-        ``ovphysx.PhysX``'s Python destructor fires mid-process via refcount drop.
-        So we must never let the only Python reference go to zero while the
-        process is alive.  ``os._exit(0)`` (registered via ``atexit`` in
-        :meth:`_warmup_and_load`) sidesteps the static-destructor phase entirely
-        at process exit.  Remove this workaround once the wheel ships a
-        namespace-isolated Carbonite (different soname / hidden visibility).
+        Safe to call multiple times. ``_locked_device`` intentionally survives
+        release so later IsaacLab contexts keep the process's first device
+        choice; this is required for CPU-first processes and conservative for
+        GPU-first processes.
         """
-        if cls._physx is not None:
-            cls._reset_physx_stage(cls._physx)
-        cls._destroy_ovstage()
+        physx = cls._physx
+        cls._physx = None
+        try:
+            if physx is not None:
+                try:
+                    cls._close_physx_views(physx)
+                finally:
+                    try:
+                        cls._reset_physx_stage(physx)
+                    finally:
+                        physx.release()
+        finally:
+            cls._destroy_ovstage()
 
     @classmethod
     def _attach_ovstage(cls, stage_usda: str) -> None:
@@ -439,6 +419,24 @@ class OvPhysxManager(PhysicsManager):
         if cls._ovstage is not None:
             cls._ovstage.destroy()
             cls._ovstage = None
+
+    @staticmethod
+    def _close_physx_views(physx: Any) -> None:
+        """Destroy every cached :class:`OvPhysxView` binding for ``physx``."""
+        from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
+
+        OvPhysxView._close_all_for(physx)
+
+    @classmethod
+    def _prepare_physx_for_stage_reuse(cls) -> None:
+        """Invalidate stage-bound handles before resetting a cached runtime."""
+        physx = cls._physx
+        if physx is None:
+            return
+        cls.dispatch_event(PhysicsEvent.STOP, payload={})
+        cls._close_physx_views(physx)
+        cls._reset_physx_stage(physx)
+        cls._destroy_ovstage()
 
     @classmethod
     def get_physx_instance(cls) -> Any:
@@ -516,19 +514,19 @@ class OvPhysxManager(PhysicsManager):
     def _warmup_and_load(cls) -> None:
         """Serialize the USD stage and attach it to the ovphysx runtime.
 
-        On the first call per process, constructs the :class:`ovphysx.PhysX`
-        instance, registers the ``atexit`` handler, and locks the process to
-        the resolved device.  On subsequent calls, reuses the cached instance
-        (see HACK on :meth:`_release_physx`) -- serializing the new USD,
-        attaching it via OVStage, replaying pending clones, and (on GPU)
-        re-running ``warmup_gpu`` so the new stage's bodies are resident.
+        When no runtime is active, constructs a new :class:`ovphysx.PhysX`
+        instance. The first construction also records IsaacLab's process device
+        choice. On subsequent calls before :meth:`close`, it invalidates existing
+        handles, reuses the active instance, attaches the new USD through OVStage,
+        replays pending clones, and (on GPU) re-runs ``warmup_gpu`` so the new
+        stage's bodies are resident.
 
         Raises:
-            RuntimeError: if ``SimulationContext`` is not set, or if a device
-                different from the process-locked one is requested.  The wheel
-                enforces a process-global device-mode lock at the C++ layer;
-                we surface it here as a clear Python error before the wheel
-                would raise :exc:`ovphysx.types.PhysXDeviceError`.
+            RuntimeError: If ``SimulationContext`` is not set, or if a device
+                different from IsaacLab's first device choice is requested.
+                OVPhysX CPU-only mode is process-wide and cannot be reversed;
+                IsaacLab applies the same conservative policy in both
+                directions for a predictable lifecycle.
         """
         sim = PhysicsManager._sim
         if sim is None:
@@ -546,8 +544,8 @@ class OvPhysxManager(PhysicsManager):
         if cls._locked_device is not None and ovphysx_device != cls._locked_device:
             raise RuntimeError(
                 f"OvPhysxManager is locked to device {cls._locked_device!r} for the lifetime of this process; "
-                f"cannot switch to {ovphysx_device!r} while its cached ovphysx.PhysX instance is active. "
-                "Restart the process to use a different device."
+                f"cannot switch to {ovphysx_device!r}. IsaacLab pins the first OVPhysX device choice because "
+                "CPU-only mode cannot be reversed; restart the process to use a different device."
             )
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
@@ -580,14 +578,10 @@ class OvPhysxManager(PhysicsManager):
             cls._construct_physx(ovphysx_device, gpu_index)
             cls._locked_device = ovphysx_device
         else:
-            # Reuse path: the cached PhysX may still hold the prior stage (the
-            # wheel allows only one attached stage at a time). Clearing the stage is
-            # idempotent on an already-cleared stage and required when this is
-            # a second :meth:`_warmup_and_load` within the same SimulationContext
-            # (e.g. when a caller manually clears ``_warmup_done`` to force a
-            # re-warmup).
-            cls._reset_physx_stage(cls._physx)
-            cls._destroy_ovstage()
+            # Bindings are tied to the realized objects of one stage. Invalidate
+            # asset/sensor handles and drain generic views before resetting the
+            # cached runtime; PHYSICS_READY after this method rebuilds them.
+            cls._prepare_physx_for_stage_reuse()
 
         cls._attach_ovstage(stage_usda)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
@@ -636,65 +630,22 @@ class OvPhysxManager(PhysicsManager):
     def _construct_physx(cls, ovphysx_device: str, gpu_index: int) -> None:
         """Bootstrap the ``ovphysx`` wheel and create the :class:`ovphysx.PhysX` instance.
 
-        Runs once per process.  Configures worker threads, registers the
-        process-exit ``os._exit(0)`` handler, and stores the result on
-        ``cls._physx``.  See HACK on :meth:`_release_physx` for why the
-        instance must outlive every individual :class:`SimulationContext`.
+        Configures worker threads, stores the result on ``cls._physx``, and
+        registers normal process-exit cleanup once.
         """
-        # HACK (temporary): hide pxr from sys.modules during ovphysx bootstrap.
-        # IsaacSim's pxr reports version 0.25.5 (pip convention) while ovphysx
-        # expects 25.11 (OpenUSD release convention).  Hiding pxr causes
-        # ovphysx.check_usd_compatibility() to skip the Python-side version
-        # check.  This should go away once ovphysx ships a namespaced USD
-        # copy with isolated symbols (same "import pxr" API, no collision).
-        import sys as _sys
-
-        _hidden_pxr = {k: _sys.modules.pop(k) for k in list(_sys.modules) if k == "pxr" or k.startswith("pxr.")}
-        try:
-            _ovphysx_bootstrap = import_ovphysx()
-            _ovphysx_bootstrap.bootstrap()
-        finally:
-            _sys.modules.update(_hidden_pxr)
-
         ovphysx = import_ovphysx()
+        ovphysx.bootstrap()
         cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index)
-
-        # FIXME(malesiani): re-evaluate this when carbonite ships an isolated copy.
-        # At process exit, two Carbonite instances are in memory:
-        #   1. ovphysx's bundled libcarb.so  (RPATH $ORIGIN/../plugins/)
-        #   2. kit's libcarb.so              (pulled in via LD_LIBRARY_PATH by Fabric/usdrt plugins)
-        #
-        # Why does kit's libcarb end up here even though we skip AppLauncher?
-        # Note: AppLauncher always starts the full Kit runtime — even headless=True
-        # still loads Kit.  "Kitless" in IsaacLab means AppLauncher is not used at all.
-        # But we still import `pxr` from IsaacSim's Kit USD build.  The moment `import pxr` runs, the Kit USD
-        # runtime loads Fabric infrastructure (omni.physx.fabric.plugin, usdrt.population.plugin)
-        # from kit's plugin directories, which are on LD_LIBRARY_PATH via setup_python_env.sh.
-        # Those plugins link against kit's libcarb.so, so kit's Carbonite lands in memory
-        # purely from `import pxr`, regardless of whether the Kit App is launched.
-        #
-        # Both Carbonite instances register C++ static destructors.  At process exit those
-        # destructors race and segfault.  The workaround is to release ovphysx cleanly
-        # (so GPU resources are freed) and then call os._exit() to skip the static destructor
-        # phase entirely.  os._exit() terminates the process without running C++ atexit
-        # handlers or static destructors, sidestepping the conflict.
-        #
-        # Proper long-term fix: ovphysx ships a fully namespace-isolated Carbonite
-        # (different soname / hidden visibility) so its symbols never collide with kit's.
         if not cls._atexit_registered:
-
-            def _atexit_release_and_exit():
-                # Skip physx.release() -- it deadlocks due to dual-Carbonite
-                # static destructor races (ovphysx's bundled libcarb vs Kit's).
-                # GPU resources are reclaimed by the driver at process exit.
-                os._exit(0)
-
-            atexit.register(_atexit_release_and_exit)
+            # Globally retained environments may otherwise keep TensorBinding DLPack
+            # caches alive until Python module finalization. Normal atexit cleanup runs
+            # before that phase and preserves the process's real exit status.
+            atexit.register(cls.close)
             cls._atexit_registered = True
 
     @staticmethod
     def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
-        """Create a PhysX instance for the declared or current OVPhysX runtime API.
+        """Create a PhysX instance through the pinned OVPhysX runtime API.
 
         Args:
             ovphysx: Imported OVPhysX runtime module.
@@ -718,44 +669,13 @@ class OvPhysxManager(PhysicsManager):
                     "/physics/suppressFabricUpdate": True,
                 }
             )
-        if hasattr(ovphysx.PhysX, "set_cpu_mode"):
-            ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
-            physx_kwargs = {
-                "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
-            }
-            if ovphysx_device == "gpu":
-                physx_kwargs["active_cuda_gpus"] = str(gpu_index)
-            return ovphysx.PhysX(**physx_kwargs)
-
-        physx_kwargs = {"device": ovphysx_device}
-        try:
-            physx_parameters = inspect.signature(ovphysx.PhysX).parameters
-        except (TypeError, ValueError):
-            # C-extension constructors may not expose a Python-visible signature
-            physx_parameters = {}
-        if "active_cuda_gpus" in physx_parameters and ovphysx_device == "gpu":
+        ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
+        physx_kwargs = {
+            "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
+        }
+        if ovphysx_device == "gpu":
             physx_kwargs["active_cuda_gpus"] = str(gpu_index)
-            physx_kwargs["config"] = ovphysx.PhysXConfig(
-                carbonite_overrides={
-                    "/physics/suppressReadback": True,
-                    "/physics/suppressFabricUpdate": True,
-                }
-            )
-        elif "gpu_index" in physx_parameters:
-            physx_kwargs["gpu_index"] = gpu_index
-
-        physx = ovphysx.PhysX(**physx_kwargs)
-        if hasattr(physx, "set_setting"):
-            physx.set_setting("/persistent/physics/numThreads", "8")
-            physx.set_setting("/physics/physxDispatcher", "true")
-            physx.set_setting("/physics/updateToUsd", "false")
-            physx.set_setting("/physics/updateVelocitiesToUsd", "false")
-            physx.set_setting("/physics/updateParticlesToUsd", "false")
-        else:
-            # the declared legacy runtime exposes no generic settings API, so
-            # only the thread count can be applied post-construction
-            physx.set_config_int32(ovphysx.ConfigInt32.NUM_THREADS, 8)
-        return physx
+        return ovphysx.PhysX(**physx_kwargs)
 
     @staticmethod
     def _configure_physx_scene_prim(scene_prim, cfg, device: str) -> None:
