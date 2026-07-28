@@ -7,6 +7,8 @@
 
   .. autosummary::
 
+    AckermannController
+    AckermannControllerCfg
     DifferentialIKController
     DifferentialIKControllerCfg
     OperationalSpaceController
@@ -14,6 +16,20 @@
     pink_ik.PinkIKController
     pink_ik.PinkIKControllerCfg
     pink_ik.NullSpacePostureTask
+
+Ackermann Steering
+------------------
+
+.. autoclass:: AckermannController
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: AckermannControllerCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
 
 Differential Inverse Kinematics
 -------------------------------

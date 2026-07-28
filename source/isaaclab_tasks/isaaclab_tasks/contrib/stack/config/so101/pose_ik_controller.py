@@ -41,6 +41,9 @@ class SO101PoseIKControllerCfg(DifferentialIKControllerCfg):
     :attr:`~DifferentialIKControllerCfg.joint_limit_avoidance_margin`) are inherited from the core config.
     """
 
+    class_type: type[SO101PoseIKController] | str = "{DIR}.pose_ik_controller:SO101PoseIKController"
+    """The associated SO-101 controller class."""
+
     orientation_joint_names: tuple[str, ...] | None = None
     """Names of the joints permitted to serve the orientation task rows. When set, every other
     joint's orientation-Jacobian columns are zeroed, so those joints serve **position only** while

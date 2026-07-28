@@ -8,11 +8,12 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
+from isaaclab.controllers import AckermannControllerCfg, DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
+    from .ackermann_actions import AckermannAction
     from .binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction, BinaryJointVelocityAction
     from .joint_actions import JointEffortAction, JointPositionAction, JointVelocityAction, RelativeJointPositionAction
     from .joint_actions_to_limits import EMAJointPositionToLimitsAction, JointPositionToLimitsAction
@@ -256,6 +257,59 @@ class NonHolonomicActionCfg(ActionTermCfg):
     """Scale factor for the action. Defaults to (1.0, 1.0)."""
     offset: tuple[float, float] = (0.0, 0.0)
     """Offset factor for the action. Defaults to (0.0, 0.0)."""
+
+
+@configclass
+class AckermannActionCfg(ActionTermCfg):
+    """Configuration for the physical Ackermann vehicle action term.
+
+    See :class:`AckermannAction` for more details.
+    """
+
+    class_type: type[AckermannAction] | str = "{DIR}.ackermann_actions:AckermannAction"
+
+    steering_joint_names: list[str] = MISSING
+    """Steering-joint names or regex expressions ordered left then right."""
+
+    wheel_joint_names: list[str] = MISSING
+    """Wheel spin-joint names or regex expressions in controller output order.
+
+    The first two joints are the left and right steerable-wheel spin joints. Remaining joints correspond to
+    :attr:`~isaaclab.controllers.AckermannControllerCfg.non_steerable_wheel_offsets` in the configured order.
+    """
+
+    steering_joint_directions: tuple[float, float] = MISSING
+    """Steering-joint axis direction multipliers ordered left then right.
+
+    Each entry must be ``1.0`` or ``-1.0``.
+    """
+
+    wheel_joint_directions: tuple[float, ...] = MISSING
+    """Wheel spin-joint axis direction multipliers in controller output order.
+
+    Each entry must be ``1.0`` or ``-1.0``.
+    """
+
+    scale: tuple[float, float] = (1.0, 1.0)
+    """Scale applied to non-steerable-axle speed [m/s] and virtual steering angle [rad].
+
+    Defaults to ``(1.0, 1.0)``.
+    """
+
+    offset: tuple[float, float] = (0.0, 0.0)
+    """Offset applied to non-steerable-axle speed [m/s] and virtual steering angle [rad].
+
+    Defaults to ``(0.0, 0.0)``.
+    """
+
+    clip: dict[str, tuple[float, float]] | None = None
+    """Clip ranges for processed vehicle commands. Defaults to None.
+
+    Dictionary keys are regex expressions matched against ``"linear_speed"`` [m/s] and ``"steering_angle"`` [rad].
+    """
+
+    controller: AckermannControllerCfg = MISSING
+    """The configuration for the Ackermann controller."""
 
 
 ##

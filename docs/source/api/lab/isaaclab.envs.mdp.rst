@@ -19,6 +19,14 @@ Actions
     :show-inheritance:
     :exclude-members: __init__, class_type
 
+Ackermann Vehicle Action
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: isaaclab.envs.mdp.actions.AckermannAction
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
 Events
 ------
 
