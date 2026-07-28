@@ -263,8 +263,7 @@ hand joints and RGB axes at tracked controller aim poses. See
    the full list.
 
 To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
-use the ``--cloudxr_env`` flag. Apple Vision Pro has no motion controllers, so pair it with a
-hand-tracking task such as ``IsaacContrib-PickPlace-G1-InspireFTP-Abs``:
+use the ``--cloudxr_env`` flag:
 
 .. tab-set::
 
@@ -273,7 +272,7 @@ hand-tracking task such as ``IsaacContrib-PickPlace-G1-InspireFTP-Abs``:
       .. code-block:: bash
 
          uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr \
              --cloudxr_env avp
@@ -283,7 +282,7 @@ hand-tracking task such as ``IsaacContrib-PickPlace-G1-InspireFTP-Abs``:
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr \
              --cloudxr_env avp
@@ -420,7 +419,7 @@ choose the tab that matches your hardware.
                .. code-block:: bash
 
                   uv run --extra teleop isaaclab teleop run \
-                      --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
+                      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
 
@@ -429,7 +428,7 @@ choose the tab that matches your hardware.
                .. code-block:: bash
 
                   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                      --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
+                      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
 
@@ -567,7 +566,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             uv run --extra teleop isaaclab teleop run \
-                --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
+                --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
 
@@ -580,7 +579,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                --task IsaacContrib-PickPlace-G1-InspireFTP-Abs \
+                --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
 
