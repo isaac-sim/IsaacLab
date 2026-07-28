@@ -15,7 +15,7 @@ from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 
 from pxr import Usd, UsdPhysics
 
-import isaaclab.cloner as cloner
+from isaaclab import cloner
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 # USD ``physics:approximation`` token (lower case) -> Newton remeshing method.

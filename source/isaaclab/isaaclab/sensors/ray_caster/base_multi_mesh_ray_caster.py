@@ -14,8 +14,8 @@ import warp as wp
 
 from pxr import Usd, UsdPhysics
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh

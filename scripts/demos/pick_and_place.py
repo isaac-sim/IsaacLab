@@ -32,8 +32,8 @@ from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 import carb
 import omni
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,

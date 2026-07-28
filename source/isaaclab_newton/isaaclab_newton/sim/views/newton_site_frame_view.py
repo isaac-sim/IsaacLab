@@ -13,8 +13,8 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter

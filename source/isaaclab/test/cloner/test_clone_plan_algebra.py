@@ -16,7 +16,7 @@ import sys
 import pytest
 import torch
 
-import isaaclab.cloner as cloner
+from isaaclab import cloner
 from isaaclab.cloner import ClonePlan
 
 ##

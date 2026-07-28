@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
 from isaaclab.sim.utils.transforms import resolve_prim_pose

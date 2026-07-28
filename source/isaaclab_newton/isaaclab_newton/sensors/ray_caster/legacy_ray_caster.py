@@ -15,8 +15,8 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
 from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster_camera import BaseMultiMeshRayCasterCamera
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster

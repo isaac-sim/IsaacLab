@@ -17,8 +17,8 @@ from trimesh.sample import sample_surface
 
 from pxr import UsdGeom, UsdPhysics
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 
 if TYPE_CHECKING:

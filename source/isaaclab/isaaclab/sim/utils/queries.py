@@ -12,7 +12,7 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-import isaaclab.cloner as cloner
+from isaaclab import cloner
 from isaaclab.sim.simulation_context import SimulationContext
 
 from .stage import get_current_stage

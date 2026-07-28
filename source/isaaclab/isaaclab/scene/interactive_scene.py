@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 import torch
 import warp as wp
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
@@ -109,7 +109,7 @@ class InteractiveScene:
 
     .. code-block:: python
 
-        import isaaclab.cloner as cloner
+        from isaaclab import cloner
         from isaaclab.assets import Articulation
 
         scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))

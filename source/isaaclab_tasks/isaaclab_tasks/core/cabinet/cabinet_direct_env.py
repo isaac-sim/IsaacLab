@@ -12,8 +12,8 @@ import warp as wp
 
 from pxr import UsdGeom
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.utils.stage import get_current_stage

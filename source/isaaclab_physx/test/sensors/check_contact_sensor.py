@@ -36,8 +36,8 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaaclab.cloner as lab_cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner as lab_cloner
 from isaaclab.assets import Articulation
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationCfg, SimulationContext

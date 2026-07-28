@@ -9,8 +9,8 @@ import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab_newton.physics import NewtonCfg
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnvCfg
 

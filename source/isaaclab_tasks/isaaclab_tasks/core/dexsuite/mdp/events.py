@@ -14,8 +14,8 @@ import torch
 import warp as wp
 from tqdm import tqdm
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
 

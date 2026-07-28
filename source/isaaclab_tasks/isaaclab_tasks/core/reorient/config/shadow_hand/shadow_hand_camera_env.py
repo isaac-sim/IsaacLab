@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.sensors import Camera
 from isaaclab.utils.math import quat_apply, scale_transform

@@ -22,8 +22,8 @@ import torch
 
 from pxr import Usd, UsdGeom
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.cloner import (
     REPLICATION_QUEUE,
     ClonePlan,

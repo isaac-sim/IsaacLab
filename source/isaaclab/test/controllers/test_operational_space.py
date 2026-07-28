@@ -18,9 +18,9 @@ from flaky import flaky
 
 pytestmark = pytest.mark.arm_ci
 
-import isaaclab.cloner as cloner
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg

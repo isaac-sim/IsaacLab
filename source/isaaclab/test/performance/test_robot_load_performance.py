@@ -17,8 +17,8 @@ import pytest
 import torch
 from isaaclab_physx.cloner import physx_replicate
 
-import isaaclab.cloner as cloner
 import isaaclab.sim.utils as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.timer import Timer

@@ -12,7 +12,7 @@ import torch
 from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
-import isaaclab.cloner as cloner
+from isaaclab import cloner
 
 
 def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:

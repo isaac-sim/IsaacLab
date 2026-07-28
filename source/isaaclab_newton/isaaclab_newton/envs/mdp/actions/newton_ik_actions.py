@@ -16,9 +16,9 @@ from newton import JointType
 from newton import Model as NewtonModel
 from newton.selection import ArticulationView
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
+from isaaclab import cloner
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers.action_manager import ActionTerm
 

@@ -12,7 +12,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-import isaaclab.cloner as cloner
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import ContactSensor, RayCaster
