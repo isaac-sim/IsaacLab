@@ -18,7 +18,7 @@ already-running Kit process.
 silently reuses the shared launcher instead of starting a second
 SimulationApp.
 
-``set ISAACLAB_BATCH_CAMERAS=1`` in the subprocess environment to start Kit
+Set ``ISAACLAB_BATCH_CAMERAS=1`` in the subprocess environment to start Kit
 with camera support enabled (used for batches that contain camera tests).
 """
 
@@ -86,6 +86,6 @@ def _kit_session():
 
 @pytest.fixture(scope="module", autouse=True)
 def _kit_module_fence():
-    """Reset Kit/USD state after each test file completes."""
+    """Reset Kit/USD state between test files in a shared session."""
     yield
     _reset_kit_state()
