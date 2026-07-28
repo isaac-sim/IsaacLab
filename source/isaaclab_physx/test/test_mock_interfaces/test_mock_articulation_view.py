@@ -205,6 +205,26 @@ class TestMockArticulationViewSetters:
         result = view.get_root_transforms()
         assert torch.allclose(result, new_data)
 
+    @pytest.mark.parametrize(
+        ("setter_name", "getter_name", "width"),
+        [
+            ("set_root_transforms", "get_root_transforms", 7),
+            ("set_root_velocities", "get_root_velocities", 6),
+        ],
+    )
+    def test_set_root_state_with_indices_uses_matching_global_rows(self, view, setter_name, getter_name, width):
+        """Test indexed root writes from global inputs select the matching source rows."""
+        baseline = torch.zeros(4, width)
+        getattr(view, setter_name)(baseline.clone())
+        new_data = torch.arange(4 * width, dtype=torch.float32).reshape(4, width)
+        indices = torch.tensor([0, 2])
+
+        getattr(view, setter_name)(new_data, indices=indices)
+
+        expected = baseline.clone()
+        expected[indices] = new_data[indices]
+        assert torch.equal(getattr(view, getter_name)(), expected)
+
     def test_set_dof_positions(self, view):
         """Test setting DOF positions."""
         new_data = torch.randn(4, 12)
@@ -212,14 +232,22 @@ class TestMockArticulationViewSetters:
         result = view.get_dof_positions()
         assert torch.allclose(result, new_data)
 
-    def test_set_dof_positions_with_indices(self, view):
-        """Test setting DOF positions with indices."""
-        new_data = torch.randn(2, 12)
+    @pytest.mark.parametrize(
+        ("setter_name", "getter_name"),
+        [("set_dof_positions", "get_dof_positions"), ("set_dof_velocities", "get_dof_velocities")],
+    )
+    def test_set_dof_state_with_indices_uses_matching_global_rows(self, view, setter_name, getter_name):
+        """Test indexed writes from global inputs select the matching source rows."""
+        baseline = torch.zeros(4, 12)
+        getattr(view, setter_name)(baseline.clone())
+        new_data = torch.arange(48, dtype=torch.float32).reshape(4, 12)
         indices = torch.tensor([0, 2])
-        view.set_dof_positions(new_data, indices=indices)
-        result = view.get_dof_positions()
-        assert torch.allclose(result[0], new_data[0])
-        assert torch.allclose(result[2], new_data[1])
+
+        getattr(view, setter_name)(new_data, indices=indices)
+
+        expected = baseline.clone()
+        expected[indices] = new_data[indices]
+        assert torch.equal(getattr(view, getter_name)(), expected)
 
     def test_set_dof_velocities(self, view):
         """Test setting DOF velocities."""
