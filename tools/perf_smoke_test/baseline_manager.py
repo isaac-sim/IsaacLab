@@ -268,6 +268,7 @@ def _stable_sample_id(metadata: dict[str, Any]) -> str:
     keys = (
         "ci_run_id",
         "ci_run_attempt",
+        "ci_run_label",
         "commit_sha",
         "task_id",
         "backend_key",
@@ -345,6 +346,8 @@ def make_sample_metadata(
         "ci_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
         "ci_workflow": os.environ.get("GITHUB_WORKFLOW"),
         "ci_job": os.environ.get("GITHUB_JOB"),
+        "ci_run_label": os.environ.get("PERF_SMOKE_RUN_LABEL"),
+        "ci_runner_name": os.environ.get("PERF_SMOKE_RUNNER_NAME"),
         "launch_config": launch_config,
         "runtime": {
             "isaacsim": software.get("isaacsim"),

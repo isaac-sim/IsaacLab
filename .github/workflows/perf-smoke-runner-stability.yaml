@@ -1,0 +1,197 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# One-time staging qualification for the L40S runner pool. The workflow waits
+# for the normal gate and baseline seeder from the same push to finish, then fans
+# the commit out to five independent allocations. Each allocation collects three
+# FPS samples per bucket without publishing baselines. The final CPU job combines
+# all 15 samples and fails unless the pool meets the predeclared stability policy.
+
+name: Performance Smoke - L40S Runner Stability
+
+on:
+  push:
+    branches: ['perf-smoke/develop-staging']
+    # Adding or deliberately updating this workflow requests qualification.
+    # Unrelated staging pushes do not repeatedly consume the L40S pool.
+    paths: ['.github/workflows/perf-smoke-runner-stability.yaml']
+
+permissions:
+  actions: read
+  # Reusable workflows cannot elevate their caller's token. The seeder requests
+  # write access for its normal publish mode, while this caller forces dry-run.
+  contents: write
+
+concurrency:
+  group: perf-smoke-runner-stability-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  wait_for_quiet_pool:
+    name: Wait for sibling performance workflows
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      actions: read
+      contents: read
+    steps:
+    - name: Wait for the gate and seeder from this push
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        REQUIRED_WORKFLOWS=(
+          "Performance Smoke Test"
+          "Performance Smoke - Seed Baselines"
+        )
+        L40_POOL_WORKFLOWS=(
+          "Performance Smoke Test"
+          "Performance Smoke - Seed Baselines"
+          "Perf Smoke — Publish CI Image"
+          "Perf Smoke — Auto Era Roll"
+        )
+        DEADLINE=$((SECONDS + 20400))
+        QUIET_POLLS=0
+        while (( SECONDS < DEADLINE )); do
+          RUNS="$(gh run list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --limit 100 \
+            --json headSha,workflowName,status)"
+          PREREQUISITES_READY=true
+          for workflow_name in "${REQUIRED_WORKFLOWS[@]}"; do
+            MATCH_COUNT="$(jq --arg name "${workflow_name}" \
+              --arg sha "${GITHUB_SHA}" \
+              '[.[] | select(.workflowName == $name and .headSha == $sha)] | length' <<<"${RUNS}")"
+            ACTIVE_COUNT="$(jq --arg name "${workflow_name}" \
+              --arg sha "${GITHUB_SHA}" \
+              '[.[] | select(.workflowName == $name and .headSha == $sha and .status != "completed")] | length' \
+              <<<"${RUNS}")"
+            if [ "${MATCH_COUNT}" -eq 0 ] || [ "${ACTIVE_COUNT}" -ne 0 ]; then
+              PREREQUISITES_READY=false
+              break
+            fi
+          done
+          ACTIVE_POOL_RUNS=0
+          for workflow_name in "${L40_POOL_WORKFLOWS[@]}"; do
+            ACTIVE_COUNT="$(jq --arg name "${workflow_name}" \
+              '[.[] | select(.workflowName == $name and .status != "completed")] | length' <<<"${RUNS}")"
+            ACTIVE_POOL_RUNS=$((ACTIVE_POOL_RUNS + ACTIVE_COUNT))
+          done
+          if [ "${PREREQUISITES_READY}" = true ] && [ "${ACTIVE_POOL_RUNS}" -eq 0 ]; then
+            QUIET_POLLS=$((QUIET_POLLS + 1))
+            if [ "${QUIET_POLLS}" -ge 2 ]; then
+              echo "Sibling workflows completed and the L40 pool stayed quiet; starting qualification."
+              exit 0
+            fi
+            echo "L40 pool is quiet; confirming for one more polling interval..."
+          else
+            QUIET_POLLS=0
+            echo "Waiting for sibling workflows and other L40 workloads to finish..."
+          fi
+          sleep 60
+        done
+        echo "::error::Timed out waiting for a quiet L40 pool after ${GITHUB_SHA}"
+        exit 1
+
+  stability_sample:
+    name: Runner allocation ${{ matrix.allocation }}
+    needs: [wait_for_quiet_pool]
+    if: ${{ always() && (needs.wait_for_quiet_pool.result == 'success' || needs.wait_for_quiet_pool.result == 'skipped') }}
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        allocation: [1, 2, 3, 4, 5]
+    uses: ./.github/workflows/perf-smoke-seed-baselines.yaml
+    secrets:
+      NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+    with:
+      branches: "${{ github.sha }}:perf-smoke/develop-staging"
+      commit_branch: perf-smoke/develop-staging
+      commit_count: "1"
+      samples_per_commit: "3"
+      tasks: "__ALL_TASKS__"
+      target_branch: perf-smoke/develop-staging
+      strict_ancestry: true
+      dry_run: true
+      run_label: "runner-allocation-${{ matrix.allocation }}"
+      artifact_suffix: "-stability-${{ matrix.allocation }}"
+      concurrency_group: "perf-smoke-stability-${{ github.run_id }}-${{ matrix.allocation }}"
+
+  qualify:
+    name: Qualify FPS stability
+    needs: [stability_sample]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Download runner evidence
+      id: download_evidence
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        pattern: seed-baselines-${{ github.run_id }}-stability-*
+        path: runner-stability-artifacts
+
+    - name: Report artifact download failure
+      if: ${{ steps.download_evidence.outcome == 'failure' }}
+      run: |
+        echo "::error::Runner evidence artifacts could not be downloaded; qualification will fail closed."
+        {
+          echo "### Runner evidence download failed"
+          echo
+          echo "The qualification report may be incomplete. Inspect the artifact download step above."
+        } >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: Build qualification report
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        RECORD_FILES=(runner-stability-artifacts/*/seed_records.json)
+        if [ "${#RECORD_FILES[@]}" -eq 0 ]; then
+          mkdir -p runner-stability-artifacts/no-evidence
+          printf '[]\n' > runner-stability-artifacts/no-evidence/seed_records.json
+          RECORD_FILES=(runner-stability-artifacts/no-evidence/seed_records.json)
+        fi
+        RECORD_ARGS=()
+        for record_file in "${RECORD_FILES[@]}"; do
+          RECORD_ARGS+=(--records "${record_file}")
+        done
+        python3 tools/perf_smoke_test/runner_stability.py \
+          "${RECORD_ARGS[@]}" \
+          --gpu_model l40s \
+          --expected_target_branch perf-smoke/develop-staging \
+          --expected_commit "${GITHUB_SHA}" \
+          --expected_allocations 5 \
+          --minimum_distinct_runners 3 \
+          --samples_per_allocation 3 \
+          --json_output runner-stability-report.json \
+          --markdown_output runner-stability-report.md \
+          --github_step_summary "${GITHUB_STEP_SUMMARY}" \
+          --require_ready
+
+    - name: Upload qualification report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: runner-stability-report-${{ github.run_id }}
+        path: |
+          runner-stability-report.json
+          runner-stability-report.md
+        retention-days: 30
+        if-no-files-found: warn
+
+    - name: Fail on artifact download error
+      if: ${{ always() && steps.download_evidence.outcome == 'failure' }}
+      run: |
+        echo "::error::Qualification evidence could not be downloaded."
+        exit 1

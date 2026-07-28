@@ -62,8 +62,8 @@ from task_config import TaskConfig, load_tasks  # noqa: E402
 _TOOL_DIR = Path(__file__).resolve().parent
 _CONTAINER_LOCAL_JIT_CACHE_BUCKETS = frozenset(
     {
-        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "physx"),
-        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "newton"),
+        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "physx_rtx_renderer"),
+        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "newton_rtx_renderer"),
     }
 )
 
@@ -795,6 +795,12 @@ def main() -> int:
                     "baseline_epoch": (r.sample_metadata or {}).get("baseline_epoch"),
                     "sample_index": (r.sample_metadata or {}).get("sample_index"),
                     "sample_id": (r.sample_metadata or {}).get("sample_id"),
+                    "timestamp": (r.sample_metadata or {}).get("timestamp"),
+                    "ci_run_id": (r.sample_metadata or {}).get("ci_run_id"),
+                    "ci_run_attempt": (r.sample_metadata or {}).get("ci_run_attempt"),
+                    "ci_job": (r.sample_metadata or {}).get("ci_job"),
+                    "ci_run_label": (r.sample_metadata or {}).get("ci_run_label"),
+                    "ci_runner_name": (r.sample_metadata or {}).get("ci_runner_name"),
                 }
                 for r in records
             ],
