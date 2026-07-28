@@ -1706,7 +1706,7 @@ def rendering_test_franka_cloth(
     if renderer == "newton_renderer":
         pytest.skip("Missing table in Newton Warp renderer (OMPE-103086)")
 
-    if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type == "motion_vectors":
+    if renderer == "ovrtx_renderer" and data_type == "motion_vectors":
         pytest.skip("Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754).")
 
     from isaaclab.envs import ManagerBasedRLEnv
