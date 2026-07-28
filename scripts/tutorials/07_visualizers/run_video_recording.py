@@ -171,6 +171,8 @@ def _build_env_cfg_example_3(num_envs: int):
     newton_cfg = NewtonVisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
+        window_width=1280,
+        window_height=720,
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 
