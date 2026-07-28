@@ -298,9 +298,12 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "_debug_vis_handle", None)
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
-    object.__setattr__(articulation, "_can_write_effort", True)
-    object.__setattr__(articulation, "_can_write_pos_target", True)
-    object.__setattr__(articulation, "_can_write_vel_target", True)
+
+    from isaaclab_ovphysx import tensor_types as TT
+
+    object.__setattr__(articulation, "_can_write_effort", articulation._get_binding(TT.DOF_ACTUATION_FORCE) is not None)
+    object.__setattr__(articulation, "_can_write_pos_target", articulation._get_binding(TT.DOF_POSITION_TARGET) is not None)
+    object.__setattr__(articulation, "_can_write_vel_target", articulation._get_binding(TT.DOF_VELOCITY_TARGET) is not None)
 
     return articulation, mock_bindings
 

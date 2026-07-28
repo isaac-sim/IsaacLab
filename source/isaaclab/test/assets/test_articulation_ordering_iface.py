@@ -249,7 +249,6 @@ def _coverage_ids(coverage: str, num_instances: int, num_items: int) -> tuple[li
 
 def _write_selected_joint_state(
     art,
-    backend: str,
     selection: str,
     operation: str,
     coverage: str,
@@ -282,14 +281,6 @@ def _write_selected_joint_state(
                 env_ids=env_ids_wp,
                 joint_ids=joint_ids_wp,
             )
-        elif backend == "ovphysx":
-            with pytest.deprecated_call():
-                art.write_joint_state_to_sim(
-                    position=position,
-                    velocity=velocity,
-                    env_ids=env_ids_wp,
-                    joint_ids=joint_ids_wp,
-                )
         else:
             art.write_joint_state_to_sim_index(
                 position=position,
@@ -374,7 +365,6 @@ def _exercise_partial_joint_write(
     for position_value, velocity_value in ((901.0, 902.0), (903.0, 904.0)):
         env_ids, joint_ids, position_payload, velocity_payload = _write_selected_joint_state(
             art,
-            backend,
             selection,
             operation,
             coverage,
@@ -449,7 +439,6 @@ def _exercise_stale_partial_joint_write(backend: str, operation: str) -> None:
                 assert staging_buffer.timestamp < art.data._sim_timestamp
         env_ids, joint_ids, position_payload, velocity_payload = _write_selected_joint_state(
             art,
-            backend,
             "index",
             operation,
             "one_env_one_item",
@@ -536,14 +525,6 @@ def _exercise_duplicate_full_length_joint_write(backend: str, operation: str) ->
         art.write_joint_position_to_sim_index(position=position, env_ids=env_ids_wp, joint_ids=joint_ids_wp)
     elif operation == "velocity":
         art.write_joint_velocity_to_sim_index(velocity=velocity, env_ids=env_ids_wp, joint_ids=joint_ids_wp)
-    elif backend == "ovphysx":
-        with pytest.deprecated_call():
-            art.write_joint_state_to_sim(
-                position=position,
-                velocity=velocity,
-                env_ids=env_ids_wp,
-                joint_ids=joint_ids_wp,
-            )
     else:
         art.write_joint_state_to_sim_index(
             position=position,
@@ -968,32 +949,6 @@ class TestArticulationDataBodyState:
             art.data.body_inertia,
             backend_properties["inertia"][:, user_to_backend],
         )
-
-    @pytest.mark.parametrize(
-        ("backend", "redundant_field", "retained_field"),
-        [
-            _backend_param("newton", "_body_com_acc_w_backend", "_body_com_vel_w_user"),
-            _backend_param("ovphysx", "_body_link_vel_w_backend", "_body_com_vel_w_backend"),
-        ],
-    )
-    def test_nonidentity_body_ordering_avoids_redundant_backend_staging(
-        self,
-        backend: str,
-        redundant_field: str,
-        retained_field: str,
-    ) -> None:
-        """Allocate one staging destination for each ordered body read path."""
-        art, _ = get_articulation(
-            backend,
-            num_instances=2,
-            num_joints=1,
-            num_bodies=3,
-            device="cpu",
-            body_ordering=("body_2", "body_1", "body_0"),
-        )
-
-        assert getattr(art.data, redundant_field, None) is None
-        assert getattr(art.data, retained_field) is not None
 
     @_requires_ovphysx
     def test_ovphysx_reversed_body_ordering_rereads_backend_shadows_after_reset(self):
@@ -1733,7 +1688,6 @@ class TestArticulationOrderingWriteParity:
 
         env_ids, joint_ids, position_payload, velocity_payload = _write_selected_joint_state(
             art,
-            "physx",
             "mask",
             operation,
             "one_env_one_item",
@@ -2046,14 +2000,35 @@ class TestArticulationOperations:
         np.testing.assert_array_equal(art.data.default_joint_pos.warp.numpy(), expected)
 
     @_requires_ovphysx
-    def test_ovphysx_mock_shell_mirrors_write_capabilities(self) -> None:
-        """The OVPhysX test shell mirrors the write bindings installed by initialization."""
+    def test_ovphysx_implicit_targets_are_written_in_backend_order(self) -> None:
+        """Write implicit position and velocity targets under their matching backend joint names."""
+        from isaaclab_ovphysx import tensor_types as TT
 
-        art, _ = get_articulation("ovphysx", device="cpu")
+        num_instances, num_joints = 2, 3
+        art, raw_backend = get_articulation(
+            "ovphysx",
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device="cpu",
+            joint_ordering=_joint_ordering_for_mode("reversed", num_joints),
+        )
+        position = np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
+        velocity = position + 100.0
+        art.data._joint_pos_target.assign(wp.array(position, dtype=wp.float32, device=art.device))
+        art.data._joint_vel_target.assign(wp.array(velocity, dtype=wp.float32, device=art.device))
+        object.__setattr__(art, "_has_implicit_actuators", True)
 
-        assert art._can_write_effort is True
-        assert art._can_write_pos_target is True
-        assert art._can_write_vel_target is True
+        art.write_data_to_sim()
+
+        backend_to_user = np.asarray(art.joint_ordering.backend_to_user_indices, dtype=np.int64)
+        np.testing.assert_array_equal(
+            raw_backend.bindings[TT.DOF_POSITION_TARGET]._data,
+            position[:, backend_to_user],
+        )
+        np.testing.assert_array_equal(
+            raw_backend.bindings[TT.DOF_VELOCITY_TARGET]._data,
+            velocity[:, backend_to_user],
+        )
 
     @_requires_physx
     def test_physx_newton_actuator_forces_are_written_in_backend_order(self):
