@@ -212,14 +212,9 @@ class Camera(SensorBase):
     def __del__(self):
         """Unsubscribes from callbacks.
 
-        Renderer resources are not released here. They are owned by
-        :class:`~isaaclab.renderers.render_context.RenderContext`, which releases them during
-        simulation teardown while the app is still alive. Releasing from a finalizer is unsafe:
-        it runs at an unpredictable time -- potentially during interpreter finalization, once
-        the renderer's simulator-side plugins are already torn down -- and is not guaranteed to
-        run at all while any other reference to this camera survives.
+        Renderer resources are released by :meth:`~isaaclab.renderers.RenderContext.close`, not
+        here: a finalizer may run after the renderer's plugins are torn down, or never at all.
         """
-        # unsubscribe callbacks
         super().__del__()
 
     def __str__(self) -> str:
@@ -546,8 +541,6 @@ class Camera(SensorBase):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-        # Created through the render context so that it owns releasing the render data at
-        # simulation teardown; this camera's finalizer is not a reliable release point.
         self._render_data = sim_ctx.render_context.create_render_data(self._renderer, render_spec)
 
         # Create internal buffers (includes intrinsic matrix and pose init)

@@ -91,17 +91,11 @@ class RenderContext:
         return new_renderer
 
     def create_render_data(self, renderer: BaseRenderer, spec: CameraRenderSpec) -> Any:
-        """Create render data for a camera and take ownership of releasing it.
+        """Create render data for a camera and retain it for release by :meth:`close`.
 
-        Cameras must obtain their render data through this method rather than calling
-        :meth:`BaseRenderer.create_render_data` directly, so that :meth:`close` can release
-        it deterministically while the simulation app is still alive.
-
-        Releasing cannot be left to the camera's finalizer: the render data is owned by the
-        simulator, but the camera is a Python object whose finalizer only runs once the last
-        reference is dropped. A single surviving reference -- an environment attribute, or an
-        observation term that cached the sensor -- keeps the resources registered until the
-        app shuts down, which surfaces as leaked shader processors and pipeline layouts.
+        Cameras must use this instead of :meth:`BaseRenderer.create_render_data`, whose result
+        would otherwise only be released by the camera's finalizer -- which does not run while
+        any reference to the camera survives.
 
         Args:
             renderer: Backend obtained from :meth:`get_renderer`.
