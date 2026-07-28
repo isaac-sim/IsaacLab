@@ -107,7 +107,6 @@ def _convert_testcase(
         "duration": _duration_seconds(testcase),
         "group_id": group_id,
         "retries": retries,
-        "log_paths": log_paths,
     }
     if testcase.attrib.get("name"):
         row["test_name"] = testcase.attrib["name"]

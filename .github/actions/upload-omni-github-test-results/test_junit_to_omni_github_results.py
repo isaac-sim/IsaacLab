@@ -119,7 +119,6 @@ def test_convert_junit_marks_crashes_and_timeouts(tmp_path: Path) -> None:
             "crash": True,
             "duration": 0.0,
             "group_id": "Docker + Tests / environments",
-            "log_paths": [],
             "message": "Process killed by signal 15 after timeout",
             "passed": False,
             "retries": 0,
@@ -131,8 +130,8 @@ def test_convert_junit_marks_crashes_and_timeouts(tmp_path: Path) -> None:
     ]
 
 
-def test_convert_junit_adds_log_paths_for_junit_and_comparison_artifacts(tmp_path: Path) -> None:
-    """Converted rows should point at the uploaded JUnit and comparison image artifacts."""
+def test_convert_junit_omits_log_paths_for_external_artifact_urls(tmp_path: Path) -> None:
+    """Converted rows should omit external artifacts that are not per-test log files."""
     converter = _load_converter_module()
     reports_dir = tmp_path
     output_dir = tmp_path / "out"
@@ -163,10 +162,7 @@ def test_convert_junit_adds_log_paths_for_junit_and_comparison_artifacts(tmp_pat
     )
 
     rows = _load_rows(output_dir)
-    assert rows[0]["log_paths"] == [
-        junit_log_url,
-        comparison_images_url,
-    ]
+    assert "log_paths" not in rows[0]
 
 
 def test_convert_junit_appends_markers_to_test_type_with_separator(tmp_path: Path) -> None:
