@@ -82,16 +82,13 @@ def add_shadow_deformables_to_builder(
 
     for (_wildcard_root, _wildcard_sim_key, _wildcard_vis_key), group_entries in sorted(wildcard_groups.items()):
         template = group_entries[0]
+        # ``path_to_env_regex`` rewrites cloned env ids; standalone roots outside
+        # ``/World/envs`` are kept exact so OVRTX/cloner patterns do not invent env paths.
         wildcard_root = path_to_env_regex(template.root_path)
         wildcard_sim = path_to_env_regex(template.sim_mesh_path)
         wildcard_vis = path_to_env_regex(template.vis_mesh_path)
-        asset_suffix = (
-            wildcard_root.split("/World/envs/env_.*/", 1)[-1]
-            if "/World/envs/" in wildcard_root
-            else wildcard_root.rsplit("/", 1)[-1]
-        )
         group = ShadowDeformableRegistryGroup(
-            prim_path=f"/World/envs/env_.*/{asset_suffix}",
+            prim_path=wildcard_root,
             sim_mesh_prim_path=wildcard_sim,
             vis_mesh_prim_path=wildcard_vis,
             deformable_type=template.deformable_type,
