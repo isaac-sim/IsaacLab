@@ -19,9 +19,8 @@ _TASK = "Isaac-Cartpole-Direct"
 @pytest.mark.parametrize("measure_sync_step", [False, True], ids=["default", "synchronized_breakdown"])
 def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool):
     """The runtime entry point writes schema and OmniPerf data in one run."""
-    sh = ROOT / "isaaclab.sh"
     cmd = [
-        str(sh),
+        str(ROOT / "isaaclab.sh"),
         "-p",
         "scripts/benchmarks/runtime.py",
         "--task",
@@ -45,7 +44,9 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool)
     ]
     res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=900)
     if res.returncode != 0:
-        pytest.fail(f"runtime.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
+        pytest.fail(
+            f"runtime benchmark rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}"
+        )
 
     device_lines = [line for line in res.stdout.splitlines() if "Environment device" in line]
     assert device_lines and device_lines[-1].endswith(": cpu"), f"unexpected device output: {device_lines}"

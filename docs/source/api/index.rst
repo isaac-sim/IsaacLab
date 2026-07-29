@@ -16,6 +16,7 @@ The following modules are available in the ``isaaclab`` extension:
    app
    actuators
    assets
+   benchmark
    cloner
    controllers
    devices

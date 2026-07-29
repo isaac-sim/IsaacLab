@@ -1200,14 +1200,12 @@ def rendering_test_shadow_hand(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "ovphysx":
-        pytest.skip("ovphysx is not supported yet.")
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.utils.configclass import configclass
 
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import ShadowHandCameraEnv
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
@@ -1299,8 +1297,8 @@ def rendering_test_shadow_hand_yellow_bg(
     """Golden render test for the Shadow Hand environment with a yellow camera background (RGB only)."""
     from isaaclab.utils.configclass import configclass
 
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import ShadowHandCameraEnv
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
@@ -1503,8 +1501,6 @@ def rendering_test_dexsuite_kuka(
     setup_homogeneous_envs: bool,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "ovphysx":
-        pytest.skip("ovphysx is not supported yet.")
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
@@ -1703,6 +1699,12 @@ def rendering_test_franka_cloth(
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
+    if renderer == "newton_renderer":
+        pytest.skip("Missing table in Newton Warp renderer (OMPE-103086)")
+
+    if renderer == "ovrtx_renderer" and data_type == "motion_vectors":
+        pytest.skip("Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754).")
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
@@ -1828,6 +1830,9 @@ def rendering_test_franka_soft(
 
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
+
+    if renderer == "newton_renderer":
+        pytest.skip("Missing table in Newton Warp renderer (OMPE-103086)")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 

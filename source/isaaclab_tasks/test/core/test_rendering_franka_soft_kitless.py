@@ -17,10 +17,7 @@ from rendering_test_utils import (
     rendering_test_franka_soft,
 )
 
-pytestmark = [
-    pytest.mark.isaacsim_ci,
-    pytest.mark.skip(reason="The table is missing from the Franka soft asset, so the golden images no longer match."),
-]
+pytestmark = pytest.mark.isaacsim_ci
 
 _COMPARISON_SCORES: list[dict] = []
 

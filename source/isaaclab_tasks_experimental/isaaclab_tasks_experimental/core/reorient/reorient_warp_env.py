@@ -688,7 +688,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
@@ -726,6 +726,8 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         #    self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[
         #        :, self.finger_bodies
         #    ]
+        # NOTE: if re-enabled, `self.finger_bodies` holds public-order indices (from `body_names.index`)
+        # and must be translated to backend view order before indexing this `root_physx_view` array.
         if self.cfg.obs_type == "openai":
             self.compute_reduced_observations()
         elif self.cfg.obs_type == "full":
