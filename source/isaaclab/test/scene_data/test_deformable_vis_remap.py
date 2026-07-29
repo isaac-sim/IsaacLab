@@ -13,7 +13,6 @@ import warp as wp
 
 from isaaclab.scene_data.deformable_vis_remap import (
     build_volume_vis_barycentric_remap,
-    launch_copy_particle_slice,
     launch_volume_vis_remap,
 )
 
@@ -67,12 +66,3 @@ def test_launch_volume_vis_remap_interpolates_sim_into_render_buffer():
     launch_volume_vis_remap(sim_q, render_q, 0, 0, remap, device="cpu")
     result = render_q.numpy()[0]
     np.testing.assert_allclose(result, [0.25, 0.25, 0.25], atol=1e-4)
-
-
-def test_launch_copy_particle_slice_copies_between_buffers():
-    src = wp.array([wp.vec3(1.0, 2.0, 3.0), wp.vec3(4.0, 5.0, 6.0)], dtype=wp.vec3f, device="cpu")
-    dst = wp.zeros(3, dtype=wp.vec3f, device="cpu")
-    launch_copy_particle_slice(src, dst, 0, 1, 2, device="cpu")
-    copied = dst.numpy()
-    assert copied[1].tolist() == [1.0, 2.0, 3.0]
-    assert copied[2].tolist() == [4.0, 5.0, 6.0]
