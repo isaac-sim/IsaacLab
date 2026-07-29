@@ -33,6 +33,34 @@ or ``--example 3`` to select which recording configuration to run.
       :language: python
       :linenos:
 
+.. |kit_viewport| image:: ../_static/how-to/record_video/example_kit_viewport.gif
+   :width: 100%
+   :alt: Kit viewport — 4 Shadow Hand environments (RTX)
+
+.. |newton_viewport| image:: ../_static/how-to/record_video/example_newton_viewport.gif
+   :width: 100%
+   :alt: Newton GL viewport — 4 Shadow Hand environments
+
+.. |tiled_viewport| image:: ../_static/how-to/record_video/example_tiled_kit_viewport.gif
+   :width: 100%
+   :alt: Kit tiled-camera grid — per-environment views
+
+.. |sensor| image:: ../_static/how-to/record_video/example_sensor.gif
+   :width: 100%
+   :alt: Scene tiled-camera sensor recording
+
+.. list-table::
+   :widths: 50 50
+
+   * - |kit_viewport|
+     - |newton_viewport|
+   * - Kit viewport (RTX): ``visualizer:kit``
+     - Newton GL viewport: ``visualizer:newton``
+   * - |tiled_viewport|
+     - |sensor|
+   * - Kit tiled-camera grid: ``visualizer:kit:tiled``
+     - Scene sensor (headless): ``sensor:tiled_camera``
+
 
 Tutorial examples
 -----------------
@@ -46,93 +74,48 @@ combines all of them simultaneously.
 Example 1: Kit viewport
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Run with:
-
 .. code-block:: bash
 
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
        --example 1 --num_envs 4
 
-One clip is written to ``videos/recording_tutorial/example_1/kit_viewport_0000.mp4`` —
-the Kit interactive viewport showing 4 parallel environments via RTX rendering.
-
-.. figure:: ../_static/how-to/record_video/example_kit_viewport.gif
-   :width: 100%
-   :alt: Kit viewport recording — 4 Shadow Hand environments
-
-   Kit viewport recording: ``kit_viewport_0000.mp4``
+Records the Kit interactive viewport (RTX renderer) showing 4 parallel environments.
+One clip is written to ``videos/recording_tutorial/example_1/kit_viewport_0000.mp4``.
 
 
 Example 2: Scene sensor, headless
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Run with:
 
 .. code-block:: bash
 
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
        --example 2 --num_envs 16
 
-No visualizer window opens.  The recorder reads frames directly from the
-``tiled_camera`` sensor in the Shadow Hand scene, writing one clip to
-``videos/recording_tutorial/example_2/sensor_0000.mp4``.
-
-.. figure:: ../_static/how-to/record_video/example_sensor.gif
-   :width: 100%
-   :alt: Sensor recording — tiled camera grid headless
-
-   Headless sensor recording: ``sensor_0000.mp4``
+No visualizer window opens.  Frames are read directly from the ``tiled_camera`` sensor,
+writing one clip to ``videos/recording_tutorial/example_2/sensor_0000.mp4``.
 
 ``source="sensor:tiled_camera"`` refers to the key under which the camera is registered
-in ``env.scene.sensors``.  The sensor must have ``"rgb"`` in its ``data_types``; depth or
-other channels can be recorded by appending the channel name (e.g.
-``"sensor:tiled_camera:depth"``).
+in ``env.scene.sensors``.  The sensor must have ``"rgb"`` in its ``data_types``; other
+channels can be recorded by appending the channel name (e.g. ``"sensor:tiled_camera:depth"``).
 
 
 Example 3: All sources simultaneously
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Run with:
 
 .. code-block:: bash
 
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
        --example 3 --num_envs 4
 
-Four clips are written to ``videos/recording_tutorial/example_3/``:
+Four independent clips are written to ``videos/recording_tutorial/example_3/``:
 
 * ``kit_viewport_0000.mp4`` — Kit interactive viewport (RTX renderer).
-* ``tiled_kit_viewport_0000.mp4`` — Kit tiled-camera grid reusing the scene sensor cameras.
+* ``tiled_kit_viewport_0000.mp4`` — Kit tiled-camera grid (per-environment views).
 * ``newton_viewport_0000.mp4`` — Newton GL viewer framebuffer.
 * ``sensor_0000.mp4`` — scene tiled-camera sensor (offline render).
 
-.. figure:: ../_static/how-to/record_video/example_kit_viewport.gif
-   :width: 100%
-   :alt: Kit viewport recording — 4 Shadow Hand environments (RTX)
-
-   Kit viewport (RTX): ``kit_viewport_0000.mp4``
-
-.. figure:: ../_static/how-to/record_video/example_tiled_kit_viewport.gif
-   :width: 100%
-   :alt: Kit tiled-camera grid — per-environment views
-
-   Kit tiled-camera grid: ``tiled_kit_viewport_0000.mp4``
-
-.. figure:: ../_static/how-to/record_video/example_newton_viewport.gif
-   :width: 100%
-   :alt: Newton GL viewport recording — 4 Shadow Hand environments
-
-   Newton viewport: ``newton_viewport_0000.mp4``
-
-.. figure:: ../_static/how-to/record_video/example_sensor.gif
-   :width: 100%
-   :alt: Sensor recording — scene tiled-camera
-
-   Scene sensor: ``sensor_0000.mp4``
-
-Each ``VideoRecorderCfg`` entry is fully independent — different sources write
-different files at their own cadence.  There is no limit on the number of simultaneous
-recorders.
+Each ``VideoRecorderCfg`` entry is fully independent — different sources write different
+files at their own cadence.  There is no limit on the number of simultaneous recorders.
 
 
 Source types
