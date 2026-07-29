@@ -79,14 +79,30 @@ class CableMaterialCfg(PhysicsMaterialCfg):
     bend_stiffness: float = 1.0e6
     """The finite, nonnegative cable bend elastic modulus [Pa]. Defaults to 1e6 Pa."""
 
-    def validate_config(self):
+    shear_stiffness: float | None = None
+    """The finite, nonnegative cable shear elastic modulus [Pa].
+
+    Defaults to None, in which case it is not authored and the solver falls back to
+    :attr:`stretch_stiffness`.
+    """
+
+    twist_stiffness: float | None = None
+    """The finite, nonnegative cable twist elastic modulus [Pa].
+
+    Defaults to None, in which case it is not authored and the solver falls back to
+    :attr:`bend_stiffness`.
+    """
+
+    def validate_config(self) -> None:
         """Validate cable material values."""
         for field in ("thickness", "density"):
             value = getattr(self, field)
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError(f"CableMaterialCfg {field} must be finite and greater than zero.")
-        for field in ("stretch_stiffness", "bend_stiffness"):
+        for field in ("stretch_stiffness", "bend_stiffness", "shear_stiffness", "twist_stiffness"):
             value = getattr(self, field)
+            if value is None:
+                continue
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"CableMaterialCfg {field} must be finite and nonnegative.")
 

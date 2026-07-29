@@ -167,7 +167,7 @@ Newton's importer.
       - Axial (stretch) elastic modulus ``E`` [Pa], i.e. force per area. Must be
         finite and nonnegative. Newton converts it to the rod's per-joint axial
         stiffness ``E * A / L``, where ``A`` is the circular cross-section area
-        and ``L`` is the segment rest length. Higher values reduce elongation
+        and ``L`` is the mean segment rest length. Higher values reduce elongation
         but need more solver iterations or substeps. Default ``1.0e9``.
     * - ``bend_stiffness``
       - Bending elastic modulus ``E`` [Pa]. Must be finite and nonnegative.
@@ -175,16 +175,36 @@ Newton's importer.
         ``I`` is the second moment of area of the circular cross-section.
         ``0.0`` gives a limp rope; increase for a stiff hose or wire. Default
         ``1.0e6``.
+    * - ``shear_stiffness``
+      - Transverse shear elastic modulus [Pa]. Must be finite and nonnegative.
+        Optional: when left at ``None`` the attribute is not authored and the solver
+        falls back to :attr:`stretch_stiffness`. Default ``None``.
+    * - ``twist_stiffness``
+      - Torsional elastic modulus [Pa]. Must be finite and nonnegative. Optional:
+        when left at ``None`` the attribute is not authored and the solver falls back
+        to :attr:`bend_stiffness`. Default ``None``.
 
 .. note::
-    Shear and twist stiffness are intentionally not exposed, and there are no
-    separate damping parameters. The imported rod cannot express shear or twist
-    stiffness, and Newton warns and ignores those attributes if they are present
-    on an imported material.
+    A Newton cable joint has four degrees of freedom: linear stretch and shear, and
+    angular bend and twist. Leaving :attr:`shear_stiffness` or :attr:`twist_stiffness`
+    unset does **not** mean the cable has no shear or twist resistance; it means the
+    solver reuses the stretch and bend moduli for them. Set them explicitly to decouple
+    torsion from bending, for example a hose that bends easily but resists twisting.
+    Authoring ``0.0`` is distinct from leaving them unset: it removes that resistance.
+
+    Damping is not exposed. The AOUSD deformable schema defines damping alongside the
+    moduli, but Isaac Lab does not author it.
 
 To target a specific axial ``E * A`` or bending ``E * I``, invert these
 relations to pick the modulus; ``scripts/demos/cables.py`` does this from a
 target stiffness and the segment geometry.
+
+.. warning::
+    Newton derives **one** stretch/bend stiffness pair for the whole cable, using the
+    **mean** segment length as ``L``. Author :attr:`positions` with roughly uniform
+    spacing: with a strongly uneven spacing the per-joint stiffness is wrong for the
+    outlier segments, since stiffness scales as ``1 / L``. A segment much longer than
+    the mean comes out too stiff, and a much shorter one too soft.
 
 
 Collision
@@ -288,7 +308,10 @@ Limitations
   supported.
 * **One curve per object.** :class:`~isaaclab.assets.CableObject` expects exactly
   one qualifying ``BasisCurves`` under its ``prim_path``.
-* **No shear, twist, or damping knobs.**
+* **No damping knobs.** The four stiffness moduli are exposed; their damping
+  counterparts are not.
+* **Uniform point spacing assumed.** One stiffness pair is derived from the mean segment
+  length, so uneven spacing mistunes the outlier segments.
 * **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
 
 For the public API, see :class:`~isaaclab.assets.CableObject`,

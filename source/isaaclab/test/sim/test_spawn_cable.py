@@ -19,6 +19,10 @@ _INVALID_CABLE_MATERIAL_VALUES = [
     ("density", 0.0),
     ("stretch_stiffness", -1.0),
     ("bend_stiffness", -1.0),
+    ("shear_stiffness", -1.0),
+    ("twist_stiffness", -1.0),
+    ("shear_stiffness", float("nan")),
+    ("twist_stiffness", float("inf")),
     ("thickness", float("nan")),
 ]
 
@@ -64,6 +68,23 @@ def test_spawn_cable_authors_newton_import_contract(stage):
     assert physics_material_prim.GetAttribute("physics:density").Get() == pytest.approx(1000.0)
     assert physics_material_prim.GetAttribute("physics:stretchStiffness").Get() == pytest.approx(1.0e9)
     assert physics_material_prim.GetAttribute("physics:bendStiffness").Get() == pytest.approx(1.0e6)
+    # Unset shear/twist stay unauthored so the solver applies its stretch/bend fallbacks.
+    assert not physics_material_prim.HasAttribute("physics:shearStiffness")
+    assert not physics_material_prim.HasAttribute("physics:twistStiffness")
+
+
+def test_spawn_cable_authors_optional_shear_and_twist_stiffness(stage):
+    cfg = CableCfg(
+        positions=((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.2, 0.0, 0.0)),
+        physics_material=CableMaterialCfg(shear_stiffness=2.5e8, twist_stiffness=0.0),
+    )
+
+    cfg.func("/World/Cable", cfg)
+    material_prim = stage.GetPrimAtPath("/World/Cable/geometry/physics_material")
+
+    assert material_prim.GetAttribute("physics:shearStiffness").Get() == pytest.approx(2.5e8)
+    # An authored zero must survive: it means "no twist resistance", not "unauthored".
+    assert material_prim.GetAttribute("physics:twistStiffness").Get() == pytest.approx(0.0)
 
 
 def test_spawn_cable_authors_optional_collision_properties(stage):

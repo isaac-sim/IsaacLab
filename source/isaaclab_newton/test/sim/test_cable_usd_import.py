@@ -10,6 +10,58 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 
+# Cable joint degrees of freedom, in the order Newton lays them out.
+_STRETCH, _SHEAR, _BEND, _TWIST = range(4)
+
+
+def _import_cable_joint_stiffness(**material_kwargs) -> list[float]:
+    """Spawn a cable, import it into Newton, and return its first joint's per-DOF stiffness."""
+    sim_utils.create_new_stage()
+    stage = sim_utils.get_current_stage()
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.0, 0.0)],
+        physics_material=CableMaterialCfg(
+            thickness=0.02, density=1000.0, stretch_stiffness=1.0e6, bend_stiffness=2.0e4, **material_kwargs
+        ),
+    )
+    cfg.func("/World/Cable", cfg)
+
+    builder = newton.ModelBuilder()
+    builder.add_usd(stage, root_path="/World/Cable")
+    dof0 = builder.joint_qd_start[0]
+    return [builder.joint_target_ke[dof0 + offset] for offset in range(4)]
+
+
+def test_newton_cable_shear_and_twist_fall_back_when_unset():
+    """Unset shear/twist must reuse stretch/bend, which is what makes the defaults backward compatible."""
+    stiffness = _import_cable_joint_stiffness()
+
+    assert stiffness[_SHEAR] == pytest.approx(stiffness[_STRETCH])
+    assert stiffness[_TWIST] == pytest.approx(stiffness[_BEND])
+
+
+def test_newton_cable_authored_shear_and_twist_override_fallbacks():
+    """Authoring the moduli must decouple shear from stretch and twist from bend."""
+    fallback = _import_cable_joint_stiffness()
+    stiffness = _import_cable_joint_stiffness(shear_stiffness=9.0e9, twist_stiffness=7.0e7)
+
+    # Stretch and bend are untouched; only the newly authored degrees of freedom move.
+    assert stiffness[_STRETCH] == pytest.approx(fallback[_STRETCH])
+    assert stiffness[_BEND] == pytest.approx(fallback[_BEND])
+    assert stiffness[_SHEAR] > 100.0 * stiffness[_STRETCH]
+    assert stiffness[_TWIST] > 100.0 * stiffness[_BEND]
+
+
+def test_newton_cable_partial_and_zero_shear_twist():
+    """Each modulus falls back independently, and an authored zero is not treated as unset."""
+    only_shear = _import_cable_joint_stiffness(shear_stiffness=9.0e9)
+    assert only_shear[_SHEAR] > 100.0 * only_shear[_STRETCH]
+    assert only_shear[_TWIST] == pytest.approx(only_shear[_BEND])
+
+    zero_twist = _import_cable_joint_stiffness(twist_stiffness=0.0)
+    assert zero_twist[_TWIST] == pytest.approx(0.0)
+    assert zero_twist[_BEND] > 0.0
+
 
 def test_newton_imports_cable_without_registry():
     """Test that Newton imports the authored cable directly from USD."""
@@ -43,6 +95,34 @@ def test_newton_imports_cable_without_registry():
     assert cable_attrs["material"]["density"] == pytest.approx(material.density)
     assert cable_attrs["material"]["stretchStiffness"] == pytest.approx(material.stretch_stiffness)
     assert cable_attrs["material"]["bendStiffness"] == pytest.approx(material.bend_stiffness)
+    # Unset shear/twist are not authored, so Newton applies its stretch/bend fallbacks.
+    assert "shearStiffness" not in cable_attrs["material"]
+    assert "twistStiffness" not in cable_attrs["material"]
+
+
+def test_newton_imports_cable_shear_and_twist_stiffness():
+    """Test that authored shear and twist moduli reach Newton instead of its fallbacks."""
+    stage = sim_utils.create_new_stage()
+    material = CableMaterialCfg(
+        thickness=0.02,
+        density=1234.0,
+        stretch_stiffness=2.5e6,
+        bend_stiffness=7.5e4,
+        shear_stiffness=1.25e6,
+        twist_stiffness=3.5e4,
+    )
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.2, 0.1, 0.0), (0.4, 0.0, 0.0)],
+        physics_material=material,
+    )
+    cfg.func("/World/Cable", cfg)
+
+    builder = newton.ModelBuilder()
+    import_result = builder.add_usd(stage, root_path="/World/Cable", return_deformable_results=True)
+    cable_material = import_result["path_cable_attrs"]["/World/Cable/geometry/mesh"]["material"]
+
+    assert cable_material["shearStiffness"] == pytest.approx(material.shear_stiffness)
+    assert cable_material["twistStiffness"] == pytest.approx(material.twist_stiffness)
 
 
 def test_newton_imports_cable_with_adjacent_collision_filtering():
