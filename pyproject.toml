@@ -107,11 +107,15 @@ dependencies = [
     "typing-extensions>=4.15.0",
 ]
 
-[dependency-groups]
-# Lightweight environment for building current and multi-version documentation.
-# Keep Warp unconstrained here: the project-level pin above and uv.lock select the
-# Newton-compatible version without duplicating the version in a second file.
-docs = [
+[project.optional-dependencies]
+# Developer/test tooling.
+test = [
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flaky",
+    # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
+    "coverage>=7.6.1",
     "sphinx>=7.0,<9",
     "sphinx-book-theme>=1.1",
     "myst-parser",
@@ -126,20 +130,11 @@ docs = [
     "sphinx-multiversion==0.2.4",
     "numpy",
     "matplotlib",
+    # Keep Warp unconstrained here: the project-level pin above and uv.lock select the
+    # Newton-compatible version without duplicating the version in a second file.
     "warp-lang",
     "lazy_loader>=0.4",
     "gymnasium",
-]
-
-[project.optional-dependencies]
-# Developer/test tooling.
-test = [
-    "pytest",
-    "pytest-mock",
-    "junitparser",
-    "flaky",
-    # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
-    "coverage>=7.6.1",
 ]
 # RL frameworks (rsl-rl is the default, in core deps); install the one you train with.
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]

@@ -2969,25 +2969,17 @@ teleop = [
     { name = "isaacteleop", extra = ["cloudxr", "retargeters", "ui"], marker = "(platform_machine in 'x86_64 AMD64' and sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-teleop') or (platform_machine not in 'x86_64 AMD64' and extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform != 'linux' and extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
 ]
 test = [
+    { name = "autodocsumm" },
     { name = "coverage", version = "7.15.2", source = { registry = "https://pypi.org/simple" } },
     { name = "flaky" },
-    { name = "junitparser" },
-    { name = "pytest" },
-    { name = "pytest-mock" },
-]
-viser = [
-    { name = "viser" },
-]
-
-[package.dev-dependencies]
-docs = [
-    { name = "autodocsumm" },
     { name = "gymnasium" },
+    { name = "junitparser" },
     { name = "lazy-loader" },
-    { name = "matplotlib", version = "3.10.8", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "matplotlib", version = "3.11.1", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "matplotlib", version = "3.11.1", source = { registry = "https://pypi.org/simple" } },
     { name = "myst-parser" },
     { name = "numpy" },
+    { name = "pytest" },
+    { name = "pytest-mock" },
     { name = "sphinx" },
     { name = "sphinx-book-theme" },
     { name = "sphinx-copybutton" },
@@ -3000,11 +2992,15 @@ docs = [
     { name = "sphinxemoji" },
     { name = "warp-lang" },
 ]
+viser = [
+    { name = "viser" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'rl-games'", specifier = ">=3.12.14" },
     { name = "albumentations", marker = "extra == 'rlinf'", specifier = ">=1.4.18" },
+    { name = "autodocsumm", marker = "extra == 'test'" },
     { name = "av", marker = "extra == 'rlinf'", specifier = ">=12.3.0" },
     { name = "botocore" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
@@ -3018,6 +3014,7 @@ requires-dist = [
     { name = "flaky", marker = "extra == 'test'" },
     { name = "gym", marker = "extra == 'rl-games'" },
     { name = "gymnasium", specifier = ">=1.2.0" },
+    { name = "gymnasium", marker = "extra == 'test'" },
     { name = "h5py", specifier = ">=3.15.0" },
     { name = "hf-xet", marker = "platform_machine in 'x86_64 AMD64 aarch64 arm64'", specifier = ">=1.4.1,<2.0.0" },
     { name = "hidapi", specifier = ">=0.14.0" },
@@ -3044,12 +3041,16 @@ requires-dist = [
     { name = "isaacteleop", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine in 'x86_64 AMD64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.4.0" },
     { name = "junitparser", marker = "extra == 'test'" },
     { name = "lazy-loader", specifier = ">=0.4" },
+    { name = "lazy-loader", marker = "extra == 'test'", specifier = ">=0.4" },
     { name = "matplotlib", specifier = ">=3.10.3" },
+    { name = "matplotlib", marker = "extra == 'test'" },
     { name = "moviepy", specifier = ">=1.0.3,<2.0.0.dev0" },
+    { name = "myst-parser", marker = "extra == 'test'" },
     { name = "newton", extras = ["sim", "importers"], specifier = ">=1.2.0" },
     { name = "newton-usd-schemas", specifier = ">=0.2.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
+    { name = "numpy", marker = "extra == 'test'" },
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
     { name = "omniverseclient", specifier = "==2.72.3", index = "https://pypi.org/simple" },
     { name = "onnx", specifier = ">=1.18.0" },
@@ -3083,6 +3084,16 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.4.1" },
     { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.4.1" },
     { name = "skrl", marker = "extra == 'skrl'", specifier = ">=2.1.0" },
+    { name = "sphinx", marker = "extra == 'test'", specifier = ">=7.0,<9" },
+    { name = "sphinx-book-theme", marker = "extra == 'test'", specifier = ">=1.1" },
+    { name = "sphinx-copybutton", marker = "extra == 'test'" },
+    { name = "sphinx-design", marker = "extra == 'test'" },
+    { name = "sphinx-icon", marker = "extra == 'test'" },
+    { name = "sphinx-multiversion", marker = "extra == 'test'", specifier = "==0.2.4" },
+    { name = "sphinx-paramlinks", marker = "extra == 'test'" },
+    { name = "sphinx-tabs", marker = "extra == 'test'" },
+    { name = "sphinxcontrib-bibtex", marker = "extra == 'test'", specifier = "==2.5.0" },
+    { name = "sphinxemoji", marker = "extra == 'test'" },
     { name = "stable-baselines3", marker = "extra == 'sb3'", specifier = ">=2.6" },
     { name = "standard-distutils", marker = "extra == 'rl-games'" },
     { name = "starlette", specifier = ">=0.46.0,<0.50" },
@@ -3115,29 +3126,9 @@ requires-dist = [
     { name = "usd-exchange", marker = "platform_machine in 'aarch64 arm64'", specifier = ">=2.2" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
     { name = "warp-lang", specifier = "==1.16.0.dev20260723" },
+    { name = "warp-lang", marker = "extra == 'test'" },
 ]
 provides-extras = ["test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "all"]
-
-[package.metadata.requires-dev]
-docs = [
-    { name = "autodocsumm" },
-    { name = "gymnasium" },
-    { name = "lazy-loader", specifier = ">=0.4" },
-    { name = "matplotlib" },
-    { name = "myst-parser" },
-    { name = "numpy" },
-    { name = "sphinx", specifier = ">=7.0,<9" },
-    { name = "sphinx-book-theme", specifier = ">=1.1" },
-    { name = "sphinx-copybutton" },
-    { name = "sphinx-design" },
-    { name = "sphinx-icon" },
-    { name = "sphinx-multiversion", specifier = "==0.2.4" },
-    { name = "sphinx-paramlinks" },
-    { name = "sphinx-tabs" },
-    { name = "sphinxcontrib-bibtex", specifier = "==2.5.0" },
-    { name = "sphinxemoji" },
-    { name = "warp-lang" },
-]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -4615,8 +4606,7 @@ version = "5.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docutils" },
-    { name = "jinja2", version = "3.1.5", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "jinja2", version = "3.1.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "jinja2", version = "3.1.6", source = { registry = "https://pypi.org/simple" } },
     { name = "markdown-it-py" },
     { name = "mdit-py-plugins" },
     { name = "pyyaml" },
@@ -6120,11 +6110,9 @@ dependencies = [
     { name = "babel" },
     { name = "beautifulsoup4" },
     { name = "docutils" },
-    { name = "jinja2", version = "3.1.5", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "jinja2", version = "3.1.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "jinja2", version = "3.1.6", source = { registry = "https://pypi.org/simple" } },
     { name = "pygments" },
-    { name = "requests", version = "2.32.3", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" } },
     { name = "sphinx" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ae/8e/add936feaaa9dade7d5b87c6852566d85e518b38ad32224dea32ef958984/pydata_sphinx_theme-0.20.0.tar.gz", hash = "sha256:0da172d41e19a66de875f4002f7054b385372ec65763852193791e658d50bb4a", size = 5004756, upload-time = "2026-07-09T09:09:14.693Z" }
@@ -7181,16 +7169,13 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alabaster" },
     { name = "babel" },
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-isaacsim') or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "docutils" },
     { name = "imagesize" },
-    { name = "jinja2", version = "3.1.5", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "jinja2", version = "3.1.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "packaging", version = "23.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
-    { name = "packaging", version = "26.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "jinja2", version = "3.1.6", source = { registry = "https://pypi.org/simple" } },
+    { name = "packaging", version = "23.2", source = { registry = "https://pypi.org/simple" } },
     { name = "pygments" },
-    { name = "requests", version = "2.32.3", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-all' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-mimic' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-12-isaaclab-dev-all' or extra != 'extra-12-isaaclab-dev-isaacsim' or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-mimic') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-teleop') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-test') or (extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-viser')" },
+    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" } },
     { name = "roman-numerals-py" },
     { name = "snowballstemmer" },
     { name = "sphinxcontrib-applehelp" },

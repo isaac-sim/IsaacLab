@@ -85,7 +85,8 @@ Please follow the steps mentioned in the `Contributing Code`_ section.
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
   the documentation. The build command creates a temporary environment for the locked
-  ``docs`` dependency group, leaving the repository's ``.venv`` unchanged.
+  ``test`` extra, which combines test and documentation requirements, leaving the
+  repository's ``.venv`` unchanged.
 
 
 To build the documentation, run the following command from the repository root. It installs
