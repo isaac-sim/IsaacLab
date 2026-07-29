@@ -57,18 +57,13 @@ def benchmark(args: list[str] | None = None) -> None:
     """Run a runtime, startup, training, or play benchmark.
 
     Args:
-        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+        args: Command-line arguments. Uses sys.argv when omitted.
     """
-    parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
-    parser.add_argument("command", choices=("runtime", "startup", "training", "play"), help="Benchmark workflow to run.")
-    if args is None:
-        args = sys.argv[1:]
-    if not args or args[0] in ("-h", "--help"):
-        parser.parse_args(args)
-    parsed_args = parser.parse_args(args[:1])
-    run_python_command(
-        ISAACLAB_ROOT / "scripts" / "benchmarks" / f"{parsed_args.command}.py", args[1:], check=True
-    )
+    from isaaclab.benchmark import run_benchmark_cli
+
+    status = run_benchmark_cli(args)
+    if status != 0:
+        raise SystemExit(status)
 
 
 def cli() -> None:

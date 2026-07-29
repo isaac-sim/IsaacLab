@@ -18,8 +18,8 @@ from newton.selection import ArticulationView
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
+from isaaclab import cloner
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.cloner import resolve_clone_plan_source
 from isaaclab.managers.action_manager import ActionTerm
 
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
@@ -178,7 +178,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         # single-env prototype builder the cloner already retained -- the same
         # source resolution other Newton consumers use, no bespoke registry.
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        source_path, _, asset_suffix = resolve_clone_plan_source(self._asset.cfg.prim_path, plan)
+        source_path, _, asset_suffix = cloner.query.path_to_source(plan, self._asset.cfg.prim_path)
         # The proto builder is keyed by the bare clone source; the articulation
         # lives at the asset suffix below it (e.g. ".../env_0" + "/Robot").
         self._source_path = source_path + asset_suffix

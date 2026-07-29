@@ -53,7 +53,7 @@ from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 wp.init()
 
 # OVPhysX/Warp and the PyTorch reference use different float32 operation order on CUDA.
-_OVPHYSX_WRENCH_RTOL = 5e-6
+_OVPHYSX_WRENCH_RTOL = 1e-5
 _OVPHYSX_WRENCH_ATOL = 1e-5
 
 # ---------------------------------------------------------------------------

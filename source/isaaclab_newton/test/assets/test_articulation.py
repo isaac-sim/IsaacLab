@@ -10,6 +10,15 @@
 
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
+from isaaclab.test.utils.articulation_ordering import (
+    ANYMAL_C_PHYSX_JOINT_NAMES,
+    BRANCHING_MJWARP_BODY_NAMES,
+    BRANCHING_MJWARP_JOINT_NAMES,
+    BRANCHING_PHYSX_BODY_NAMES,
+    BRANCHING_PHYSX_JOINT_NAMES,
+    PANDA_JOINT_NAMES,
+    PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+)
 
 HEADLESS = True
 
@@ -34,6 +43,7 @@ from newton import ModelFlags
 
 from pxr import UsdPhysics
 
+import isaaclab.assets.articulation.ordering_kernels as ordering_kernels
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -345,32 +355,6 @@ def fix_reversed_joints(stage):
 _REVERSED_JOINT_USD_FILES = {"revolute_articulation.usd"}
 """USD filenames with known reversed joint body0/body1 ordering."""
 
-_PANDA_JOINT_NAMES = (
-    "panda_joint1",
-    "panda_joint2",
-    "panda_joint3",
-    "panda_joint4",
-    "panda_joint5",
-    "panda_joint6",
-    "panda_joint7",
-    "panda_finger_joint1",
-    "panda_finger_joint2",
-)
-
-_PANDA_BODY_NAMES = (
-    "panda_link0",
-    "panda_link1",
-    "panda_link2",
-    "panda_link3",
-    "panda_link4",
-    "panda_link5",
-    "panda_link6",
-    "panda_link7",
-    "panda_hand",
-    "panda_leftfinger",
-    "panda_rightfinger",
-)
-_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_PANDA_BODY_NAMES[0], *reversed(_PANDA_BODY_NAMES[1:]))
 
 _ANYMAL_C_BODY_NAMES = (
     "base",
@@ -393,20 +377,6 @@ _ANYMAL_C_BODY_NAMES = (
 )
 _ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_ANYMAL_C_BODY_NAMES[0], *reversed(_ANYMAL_C_BODY_NAMES[1:]))
 
-_ANYMAL_C_PHYSX_JOINT_NAMES = (
-    "LF_HAA",
-    "LH_HAA",
-    "RF_HAA",
-    "RH_HAA",
-    "LF_HFE",
-    "LH_HFE",
-    "RF_HFE",
-    "RH_HFE",
-    "LF_KFE",
-    "LH_KFE",
-    "RF_KFE",
-    "RH_KFE",
-)
 
 _NEWTON_USER_ORDER_STATE_CACHES = (
     "_joint_pos_user",
@@ -616,10 +586,8 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, device, grav
     # so the live backend view already reflects MJWarp order on this branching fixture. These
     # values are the same ground truth isaaclab_physx's own
     # test_branching_fixture_resolves_distinct_conventions asserts for expected_mjwarp_*_names.
-    expected_mjwarp_joint_names = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
-    expected_mjwarp_body_names = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
-    assert tuple(articulation.backend_joint_names) == expected_mjwarp_joint_names
-    assert tuple(articulation.backend_body_names) == expected_mjwarp_body_names
+    assert tuple(articulation.backend_joint_names) == BRANCHING_MJWARP_JOINT_NAMES
+    assert tuple(articulation.backend_body_names) == BRANCHING_MJWARP_BODY_NAMES
 
     # Force the cross-backend emulation path (bypassing the same-backend identity fast path) and
     # compare its independently rebuilt Newton view against the live backend view above. A
@@ -666,23 +634,17 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     sim.reset()
     assert articulation.is_initialized
 
-    # Ground truth pinned by isaaclab_physx's test_branching_fixture_resolves_distinct_conventions.
-    expected_physx_joint_names = ("left_shoulder", "right_shoulder", "left_elbow", "right_elbow")
-    expected_mjwarp_joint_names = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
-    expected_physx_body_names = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
-    expected_mjwarp_body_names = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
-
     # Newton's native traversal is depth-first, so the live backend view already reflects MJWarp order.
-    assert tuple(articulation.backend_joint_names) == expected_mjwarp_joint_names
-    assert tuple(articulation.backend_body_names) == expected_mjwarp_body_names
+    assert tuple(articulation.backend_joint_names) == BRANCHING_MJWARP_JOINT_NAMES
+    assert tuple(articulation.backend_body_names) == BRANCHING_MJWARP_BODY_NAMES
 
     # Cross-backend discovery (bypassing the same-backend fast path) resolves the breadth-first PhysX order.
-    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == expected_physx_joint_names
-    assert get_articulation_name_ordering(articulation, "physx", kind="body") == expected_physx_body_names
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == BRANCHING_PHYSX_JOINT_NAMES
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == BRANCHING_PHYSX_BODY_NAMES
 
     # The requested PhysX ordering reorders the public joint/body axes to the BFS convention.
-    assert tuple(articulation.joint_names) == expected_physx_joint_names
-    assert tuple(articulation.body_names) == expected_physx_body_names
+    assert tuple(articulation.joint_names) == BRANCHING_PHYSX_JOINT_NAMES
+    assert tuple(articulation.body_names) == BRANCHING_PHYSX_BODY_NAMES
     assert articulation.joint_ordering is not None
     assert articulation.body_ordering is not None
 
@@ -724,7 +686,7 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
                 effort_limit=80.0,
             )
         },
-        joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)),
+        joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
     )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     sim.reset()
@@ -827,8 +789,8 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     if ordering_mode == "reversed":
         articulation_cfg = articulation_cfg.replace(
-            joint_ordering=tuple(reversed(_PANDA_JOINT_NAMES)),
-            body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+            joint_ordering=tuple(reversed(PANDA_JOINT_NAMES)),
+            body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
         )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
@@ -1038,7 +1000,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
         },
     )
     if ordering_mode == "reversed":
-        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)))
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     sim.reset()
     assert articulation.is_initialized
@@ -1108,7 +1070,7 @@ def test_newton_post_step_hook_publishes_ordered_state_inside_step(
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
-        joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)),
+        joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
         body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
     )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
@@ -1156,7 +1118,7 @@ def test_newton_clear_callbacks_deregisters_post_step_hook(
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
-        joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)),
+        joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
         body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
     )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
@@ -1182,6 +1144,68 @@ def test_newton_clear_callbacks_deregisters_post_step_hook(
     assert articulation._post_step_callback is None
     assert registered_callback not in SimulationManager._post_step_callbacks
     assert _other_callback in SimulationManager._post_step_callbacks
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.parametrize("use_newton_actuators", [False, True])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
+    sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators, ordering_mode, monkeypatch
+):
+    """Launch the fused target gather only under active ordering; copy straight through otherwise.
+
+    Regression for the identity fast path: an earlier rework launched
+    :func:`ordering_kernels.reorder_joint_targets_user_to_backend` unconditionally
+    in :meth:`write_data_to_sim`, so a scene with no ordering configured paid for a
+    per-step gather that the pre-ordering code never issued. This test records the
+    kernels launched during ``write_data_to_sim`` and asserts the target gather runs
+    only when ordering is active. With the unconditional launch reinstated, the
+    ``ordering_mode == "none"`` cases fail (the gather is recorded). Both the
+    Newton-actuator and Lab-actuator branches are covered.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+    )
+    if ordering_mode == "reversed":
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    has_ordering = ordering_mode == "reversed"
+    assert (articulation.data.joint_ordering is not None) is has_ordering
+    on_newton_path = getattr(articulation, "_has_newton_actuators", False)
+    if use_newton_actuators and not on_newton_path:
+        pytest.skip("newton.actuators unavailable; the Newton-actuator branch is not exercised")
+
+    # Drive an in-limits position target so the write path has data to forward.
+    articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
+
+    # Record every kernel launched during write_data_to_sim, then delegate to the
+    # real launch so the sim-bound buffers are still written.
+    launched_kernels: list = []
+    real_launch = wp.launch
+
+    def recording_launch(kernel, *args, **kwargs):
+        launched_kernels.append(kernel)
+        return real_launch(kernel, *args, **kwargs)
+
+    monkeypatch.setattr(wp, "launch", recording_launch)
+    articulation.write_data_to_sim()
+    monkeypatch.undo()
+
+    target_gather = ordering_kernels.reorder_joint_targets_user_to_backend
+    if has_ordering:
+        assert target_gather in launched_kernels
+    else:
+        # Identity ordering copies straight into the sim binds -- no target gather,
+        # and the sim-bound position target mirrors its user-order source.
+        assert target_gather not in launched_kernels
+        expected_source = articulation.data._joint_pos_target if on_newton_path else articulation._joint_pos_target_sim
+        np.testing.assert_allclose(articulation.data._sim_bind_joint_position_target.numpy(), expected_source.numpy())
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -2595,7 +2619,7 @@ def test_setting_effort_limit_explicit(
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-def test_reset(sim, num_articulations, device, articulation_type):
+def test_reset(sim, num_articulations, device, articulation_type, monkeypatch):
     """Test that reset method works properly."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
@@ -2607,7 +2631,17 @@ def test_reset(sim, num_articulations, device, articulation_type):
 
     # Now we are ready!
     # reset articulation
+    actuator = next(iter(articulation.actuators.values()))
+    actuator_reset = actuator.reset
+    reset_env_ids = []
+
+    def record_actuator_reset(env_ids=None):
+        reset_env_ids.append(env_ids)
+        actuator_reset(env_ids)
+
+    monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     articulation.reset()
+    assert reset_env_ids == [None]
 
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active
@@ -3891,7 +3925,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     if ordering_mode == "reversed":
-        joint_names = _PANDA_JOINT_NAMES if articulation_type == "panda" else _ANYMAL_C_PHYSX_JOINT_NAMES
+        joint_names = PANDA_JOINT_NAMES if articulation_type == "panda" else ANYMAL_C_PHYSX_JOINT_NAMES
         articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(joint_names)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()

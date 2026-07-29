@@ -19,14 +19,15 @@ from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
 BACKENDS = ["Mock"]  # Mock backend is always available.
+BACKEND_UNAVAILABLE_REASONS: dict[str, str] = {}
 
 try:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["physx"] = f"{type(error).__name__}: {error}"
 else:
     # PhysX data classes need gravity even though interface tests do not create a physics scene.
     _mock_physics_sim_view = MagicMock()
@@ -39,8 +40,8 @@ try:
     from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
     from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["newton"] = f"{type(error).__name__}: {error}"
 else:
     BACKENDS.append("newton")
 
@@ -50,8 +51,8 @@ try:
     from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
     from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
     BACKENDS.append("ovphysx")
 
@@ -298,6 +299,12 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "_debug_vis_handle", None)
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
+
+    from isaaclab_ovphysx import tensor_types as TT
+
+    object.__setattr__(articulation, "_can_write_effort", articulation._get_binding(TT.DOF_ACTUATION_FORCE) is not None)
+    object.__setattr__(articulation, "_can_write_pos_target", articulation._get_binding(TT.DOF_POSITION_TARGET) is not None)
+    object.__setattr__(articulation, "_can_write_vel_target", articulation._get_binding(TT.DOF_VELOCITY_TARGET) is not None)
 
     return articulation, mock_bindings
 

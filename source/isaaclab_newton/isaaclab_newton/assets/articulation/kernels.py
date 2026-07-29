@@ -44,15 +44,31 @@ def update_wrench_array_with_force_and_torque_ordered(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
     user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
     wrench: wp.array2d(dtype=wp.spatial_vectorf),
     env_mask: wp.array(dtype=wp.bool),
     body_mask: wp.array(dtype=wp.bool),
 ) -> None:
-    """Write public-order force and torque into a backend-order wrench array."""
+    """Write public-order force and torque into a backend-order wrench array.
+
+    Launched only under non-identity body ordering; the caller uses the
+    reorder-free :func:`~isaaclab_newton.assets.kernels.update_wrench_array_with_force_and_torque`
+    when no body ordering is active, so this kernel always applies the body map.
+
+    Args:
+        forces: Body-frame forces [N], shaped [num_envs, num_bodies], in public
+            body order.
+        torques: Body-frame torques [N*m], shaped [num_envs, num_bodies], in
+            public body order.
+        user_to_backend: Read-only map shaped [num_bodies] from each public body
+            index to its backend body index.
+        wrench: Backend-order wrench destination [N, N*m], shaped
+            [num_envs, num_bodies].
+        env_mask: Environment-selection mask shaped [num_envs].
+        body_mask: Public-body selection mask shaped [num_bodies].
+    """
     env_id, user_body_id = wp.tid()
     if env_mask[env_id] and body_mask[user_body_id]:
-        backend_body_id = resolve_backend_index(user_body_id, user_to_backend, has_ordering)
+        backend_body_id = user_to_backend[user_body_id]
         wrench[env_id, backend_body_id] = wp.spatial_vector(
             forces[env_id, user_body_id], torques[env_id, user_body_id], wp.float32
         )

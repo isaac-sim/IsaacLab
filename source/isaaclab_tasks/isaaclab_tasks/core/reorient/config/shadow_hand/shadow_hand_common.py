@@ -16,7 +16,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -27,7 +26,10 @@ from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
+from isaaclab_assets.robots.shadow_hand import (
+    SHADOW_HAND_CFG,
+    SHADOW_HAND_NEWTON_CFG,
+)
 
 
 @configclass
@@ -152,66 +154,10 @@ class ShadowHandRobotCfg(PresetCfg):
             joint_pos={".*": 0.0},
         )
     )
-    newton_mjwarp = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            # newton/mujoco have separate usd schema
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandNewton/shadow_hand_instanceable.usda",
-            activate_contact_sensors=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=True,
-                retain_accelerations=True,
-                max_depenetration_velocity=1000.0,
-            ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
-            joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
-            fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            # WARNING(Octi): Newton's import_usd.py bakes the USD body xformOp rotation into
-            # joint_X_p for the root fixed joint, which cancels with the matching localPose1
-            # rotation in joint_X_c during FK (joint_X_p * inv(joint_X_c) ≈ identity). This
-            # discards the root body's native USD orientation, so we must re-apply it here as a
-            # spawn rotation. PhysX or USD does not have this issue. Remove once Newton fixes root joint
-            # transform handling in import_usd.py.
-            rot=(0.0, 0.0, -0.70710678118, 0.70710678118),
-            joint_pos={".*": 0.0},
-        ),
-        actuators={
-            "fingers": ImplicitActuatorCfg(
-                joint_names_expr=["robot0_WR.*", "robot0_(FF|MF|RF|LF|TH)J(3|2|1)", "robot0_(LF|TH)J4", "robot0_THJ0"],
-                effort_limit_sim={
-                    "robot0_WRJ1": 4.785,
-                    "robot0_WRJ0": 2.175,
-                    "robot0_(FF|MF|RF|LF)J1": 0.7245,
-                    "robot0_FFJ(3|2)": 0.9,
-                    "robot0_MFJ(3|2)": 0.9,
-                    "robot0_RFJ(3|2)": 0.9,
-                    "robot0_LFJ(4|3|2)": 0.9,
-                    "robot0_THJ4": 2.3722,
-                    "robot0_THJ3": 1.45,
-                    "robot0_THJ(2|1)": 0.99,
-                    "robot0_THJ0": 0.81,
-                },
-                stiffness={
-                    "robot0_WRJ.*": 5.0,
-                    "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 1.0,
-                    "robot0_(LF|TH)J4": 1.0,
-                    "robot0_THJ0": 1.0,
-                },
-                damping={
-                    "robot0_WRJ.*": 0.5,
-                    "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 0.1,
-                    "robot0_(LF|TH)J4": 0.1,
-                    "robot0_THJ0": 0.1,
-                },
-                friction=1e-2,
-                armature=2e-3,
-            ),
-        },
-        soft_joint_pos_limit_factor=1.0,
-    )
+    # Newton robot lives in the asset (see isaaclab_assets.robots.shadow_hand); reorient
+    # uses its default gains. The handover task consumes the same asset cfg and overrides
+    # only the finger gains.
+    newton_mjwarp = SHADOW_HAND_NEWTON_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     ovphysx = SHADOW_HAND_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
@@ -293,6 +239,7 @@ class PhysicsCfg(PresetCfg):
 # Scene pieces shared verbatim by the manager-based variants.
 ROBOT_CFG = ShadowHandRobotCfg()
 OBJECT_CFG = ObjectCfg()
+
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(
     prim_path="/Visuals/goal_marker",
     markers={

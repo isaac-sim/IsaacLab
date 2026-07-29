@@ -11,10 +11,8 @@ import argparse
 
 import pytest
 
-from isaaclab.test.benchmark.metrics import SUCCESS_RATE_LOG_TAGS
-
-from scripts.benchmarks import early_stop
-from scripts.benchmarks.early_stop import (
+from isaaclab.benchmark.entrypoints import early_stop
+from isaaclab.benchmark.entrypoints.early_stop import (
     DEFAULT_SUCCESS_THRESHOLD,
     DEFAULT_SUCCESS_WINDOW,
     RlGamesEarlyStopObserver,
@@ -24,6 +22,7 @@ from scripts.benchmarks.early_stop import (
     build_success_kwargs,
     get_success_tracker,
 )
+from isaaclab.benchmark.metrics import SUCCESS_RATE_LOG_TAGS
 
 DEFAULT_SUCCESS_TAG = SUCCESS_RATE_LOG_TAGS[0]
 

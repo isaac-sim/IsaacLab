@@ -386,7 +386,9 @@ class DirectRLEnv(gym.Env):
                     self.sim.render()
 
         # return observations
-        return self._get_observations(), self.extras
+        # store the buffer like step() does, so consumers can read the latest observations
+        self.obs_buf = self._get_observations()
+        return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.

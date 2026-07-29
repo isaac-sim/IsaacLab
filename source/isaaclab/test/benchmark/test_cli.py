@@ -9,7 +9,7 @@ import argparse
 
 import pytest
 
-from isaaclab.test.benchmark._cli import parse_non_negative_int, parse_positive_int, validate_warmup_steps
+from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int, validate_warmup_steps
 
 
 @pytest.mark.parametrize("argument_type", [parse_non_negative_int, parse_positive_int])

@@ -20,7 +20,6 @@ import pytest
 import torch
 
 import omni.physx
-import omni.usd
 import usdrt
 
 import isaaclab.sim as sim_utils

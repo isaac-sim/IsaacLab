@@ -32,6 +32,8 @@ AppLauncher.add_app_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
+# Camera sensors require the rendering extensions in headless and viewport-free launches.
+args_cli.enable_cameras = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
