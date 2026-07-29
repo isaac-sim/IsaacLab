@@ -50,12 +50,12 @@ or ``--example 3`` to select which recording configuration to run.
 
    * - |kit_viewport|
      - |newton_viewport|
-   * - Kit viewport (RTX): ``visualizer:kit``
-     - Newton GL viewport: ``visualizer:newton``
+   * - Kit visualizer
+     - Newton GL visualizer
    * - |tiled_viewport|
      - |sensor|
-   * - Kit tiled-camera grid: ``visualizer:kit:tiled``
-     - Scene sensor (headless): ``sensor:tiled_camera``
+   * - Kit visualizer tiled streaming
+     - Scene sensor
 
 
 Tutorial examples
