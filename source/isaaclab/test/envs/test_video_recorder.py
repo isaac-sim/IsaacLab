@@ -193,8 +193,12 @@ def test_visualizer_source_auto_no_visualizer_raises():
         recorder._get_frame()
 
 
-def test_kit_visualizer_newton_physics_logs_error_and_returns_none(caplog):
-    """source='visualizer:kit' with Newton physics logs an error and returns None."""
+def test_kit_visualizer_newton_physics_logs_warning(caplog):
+    """source='visualizer:kit' with Newton physics logs a warning and attempts capture.
+
+    With cubric the capture succeeds; without it frames may be black.  Either way
+    the recorder warns and does not hard-fail.
+    """
     import logging
 
     kit_viz = _FakeViz("kit")
@@ -202,12 +206,12 @@ def test_kit_visualizer_newton_physics_logs_error_and_returns_none(caplog):
     env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
 
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
+    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
+        recorder._get_frame()
 
-    assert frame is None
-    assert kit_viz.render_calls == 0
     assert any("source='visualizer:newton'" in r.message for r in caplog.records)
+    # The recorder attempts capture rather than short-circuiting.
+    assert kit_viz.render_calls == 1
 
 
 # ---------------------------------------------------------------------------
