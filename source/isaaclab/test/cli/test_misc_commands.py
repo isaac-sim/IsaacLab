@@ -14,7 +14,7 @@ import isaaclab.cli.commands.misc as misc
 pytestmark = pytest.mark.unit
 
 
-def test_build_docs_runs_sphinx_with_the_locked_uv_group():
+def test_build_docs_runs_sphinx_with_the_locked_uv_test_extra():
     """The docs command must build through UV instead of an unpinned pip install."""
     docs_dir = misc.ISAACLAB_ROOT / "docs"
     output_dir = docs_dir / "_build" / "current"
@@ -31,8 +31,8 @@ def test_build_docs_runs_sphinx_with_the_locked_uv_group():
             "run",
             "--isolated",
             "--locked",
-            "--only-group",
-            "docs",
+            "--extra",
+            "test",
             "--",
             "python",
             "-m",
