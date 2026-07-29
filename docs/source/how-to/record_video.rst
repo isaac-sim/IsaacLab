@@ -5,10 +5,10 @@ Recording Video
 
 .. currentmodule:: isaaclab
 
-Isaac Lab records video by driving :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`
-entries inside ``env.step()`` — no gym wrapper or ``render_mode`` argument required.
-Add one or more :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries to
-``env_cfg.video_recorders`` and the env handles the rest.
+Isaac Lab can record video from any active visualizer or scene camera sensor by adding
+:class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries to the environment
+config.  Each recorder captures from a configurable source — a Kit viewport, a Newton GL window,
+or a tiled camera sensor — and writes ``mp4`` clips to disk independently.
 
 .. code-block:: python
 
@@ -17,10 +17,6 @@ Add one or more :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg
     env_cfg.video_recorders = [
         VideoRecorderCfg(source="visualizer:kit", output_dir="videos/")
     ]
-
-Clips are written to ``output_dir/<prefix>_NNNN.mp4`` via
-`moviepy <https://pypi.org/project/moviepy/>`_ when the clip reaches ``video_length``
-steps or when ``env.close()`` is called.
 
 This guide is accompanied by the ``run_video_recording.py`` tutorial script in
 ``IsaacLab/scripts/tutorials/07_visualizers``.  Pass ``--example 1``, ``--example 2``,
