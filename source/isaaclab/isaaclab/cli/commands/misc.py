@@ -93,7 +93,6 @@ def command_build_docs() -> None:
         uv_exe,
         "run",
         "--isolated",
-        "--locked",
         "--extra",
         "test",
         "--",

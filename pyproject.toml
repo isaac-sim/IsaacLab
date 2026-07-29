@@ -128,13 +128,6 @@ test = [
     "sphinxemoji",
     "sphinx-tabs",
     "sphinx-multiversion==0.2.4",
-    "numpy",
-    "matplotlib",
-    # Keep Warp unconstrained here: the project-level pin above and uv.lock select the
-    # Newton-compatible version without duplicating the version in a second file.
-    "warp-lang",
-    "lazy_loader>=0.4",
-    "gymnasium",
 ]
 # RL frameworks (rsl-rl is the default, in core deps); install the one you train with.
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
