@@ -29,12 +29,16 @@ from tools.odin.workflow import osmo_safe_task_name
 __all__ = [
     "PlanError",
     "PlannedRow",
+    "apply_metadata",
     "build_row_key",
     "chunk_rows",
     "load_task_rows",
     "plan_rows",
     "uv_extras_for",
 ]
+
+# Sizing fields a harvested metadata entry may contribute to a seed entry.
+_OVERLAY_FIELDS = ("num_envs", "max_iterations", "timeout_s")
 
 # pyproject extra names differ from the --rl_library token: underscores in the
 # CLI token, hyphens in the extra.
@@ -166,6 +170,35 @@ def load_task_rows(path: Path) -> list[dict[str, Any]]:
     if not isinstance(tasks, list):
         raise PlanError(f"{path} must contain a top-level 'tasks' list")
     return tasks
+
+
+def apply_metadata(task_rows: list[dict[str, Any]], metadata_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Overlay harvested sizing onto seed entries.
+
+    Entries are matched on ``(task_id, rl_library, physics)``. A value already
+    present on the seed entry wins, so a hand-set override is never silently
+    replaced by a measurement. Metadata for combinations absent from the seed
+    list is ignored.
+
+    Args:
+        task_rows: Seed entries from :func:`load_task_rows`.
+        metadata_rows: Harvested entries, from ``task_metadata.yaml``'s
+            ``tasks`` list.
+
+    Returns:
+        New seed entries with sizing filled in where it was missing.
+    """
+    by_key = {(entry.get("task_id"), entry.get("rl_library"), entry.get("physics")): entry for entry in metadata_rows}
+    merged: list[dict[str, Any]] = []
+    for entry in task_rows:
+        overlay = by_key.get((entry.get("task_id"), entry.get("rl_library"), entry.get("physics")))
+        combined = dict(entry)
+        if overlay is not None:
+            for field_name in _OVERLAY_FIELDS:
+                if combined.get(field_name) is None and overlay.get(field_name) is not None:
+                    combined[field_name] = overlay[field_name]
+        merged.append(combined)
+    return merged
 
 
 def _sort_key(row: PlannedRow) -> tuple[int, str, str, int]:

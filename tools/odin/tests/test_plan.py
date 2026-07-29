@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.odin.plan import PlanError, build_row_key, load_task_rows, plan_rows, uv_extras_for
+from tools.odin.plan import PlanError, apply_metadata, build_row_key, load_task_rows, plan_rows, uv_extras_for
 
 # A seed list carries only (task_id, rl_library, physics). Sizing is deliberately
 # absent: upstream defaults --num_envs and --max_iterations to None and falls
@@ -123,3 +123,37 @@ def test_shipped_seed_list_plans_cleanly() -> None:
     rows = plan_rows(task_rows=load_task_rows(shipped), seeds=[42])
     assert rows
     assert all(r.osmo_task_name for r in rows)
+
+
+def test_metadata_overlay_fills_missing_sizing() -> None:
+    metadata = [
+        {
+            "task_id": "Isaac-Ant",
+            "rl_library": "rsl_rl",
+            "physics": "physx",
+            "num_envs": 4096,
+            "max_iterations": 500,
+            "timeout_s": 900,
+        }
+    ]
+    merged = apply_metadata(_ROWS, metadata)
+    row = plan_rows(task_rows=merged, seeds=[42])[0]
+    assert (row.num_envs, row.max_iterations, row.timeout_s) == (4096, 500, 900)
+
+
+def test_metadata_overlay_never_overrides_an_explicit_value() -> None:
+    # A hand-set override must survive a later harvest.
+    seed = [dict(_ROWS[0], num_envs=64)]
+    metadata = [{"task_id": "Isaac-Ant", "rl_library": "rsl_rl", "physics": "physx", "num_envs": 4096}]
+    assert apply_metadata(seed, metadata)[0]["num_envs"] == 64
+
+
+def test_metadata_for_unlisted_combinations_is_ignored() -> None:
+    metadata = [{"task_id": "Isaac-Nonexistent", "rl_library": "rsl_rl", "physics": "physx", "num_envs": 1}]
+    assert apply_metadata(_ROWS, metadata) == _ROWS
+
+
+def test_metadata_matches_on_physics_too() -> None:
+    # Same task and library on a different backend must not inherit sizing.
+    metadata = [{"task_id": "Isaac-Ant", "rl_library": "rsl_rl", "physics": "newton_mjwarp", "num_envs": 4096}]
+    assert apply_metadata(_ROWS, metadata)[0].get("num_envs") is None

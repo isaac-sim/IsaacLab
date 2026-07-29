@@ -27,11 +27,16 @@ def workspace(tmp_path: Path) -> Path:
 def _dispatch_argv(workspace: Path, *extra: str) -> list[str]:
     return [
         "dispatch",
-        "--config", str(workspace / "odin.yaml"),
-        "--tasks-yaml", str(workspace / "tasks.yaml"),
-        "--image", "nvcr.io/nvidian/x@sha256:abc",
-        "--seeds", "42",
-        "--runs-root", str(workspace / "runs"),
+        "--config",
+        str(workspace / "odin.yaml"),
+        "--tasks-yaml",
+        str(workspace / "tasks.yaml"),
+        "--image",
+        "nvcr.io/nvidian/x@sha256:abc",
+        "--seeds",
+        "42",
+        "--runs-root",
+        str(workspace / "runs"),
         "--dry-run",
         *extra,
     ]
@@ -128,34 +133,57 @@ def test_multiple_seeds_expand(workspace: Path) -> None:
 
 def test_bad_config_path_exits_non_zero(workspace: Path, capsys) -> None:
     code = main(
-        ["dispatch", "--config", str(workspace / "absent.yaml"), "--tasks-yaml", str(workspace / "tasks.yaml"),
-         "--image", "img", "--seeds", "42", "--runs-root", str(workspace / "runs"), "--dry-run"]
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "absent.yaml"),
+            "--tasks-yaml",
+            str(workspace / "tasks.yaml"),
+            "--image",
+            "img",
+            "--seeds",
+            "42",
+            "--runs-root",
+            str(workspace / "runs"),
+            "--dry-run",
+        ]
     )
     assert code == 1
     assert "could not read" in capsys.readouterr().err
 
 
 def test_build_image_dry_run_writes_a_dockerfile(workspace: Path, tmp_path: Path) -> None:
-    code = main([
-        "build-image",
-        "--config", str(workspace / "odin.yaml"),
-        "--ref", "HEAD",
-        "--profile", "newton",
-        "--context-dir", str(tmp_path / "ctx"),
-        "--dry-run",
-    ])
+    code = main(
+        [
+            "build-image",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--ref",
+            "HEAD",
+            "--profile",
+            "newton",
+            "--context-dir",
+            str(tmp_path / "ctx"),
+            "--dry-run",
+        ]
+    )
     assert code == 0
     assert (tmp_path / "ctx" / "Dockerfile").exists()
 
 
 def test_build_image_rejects_an_unknown_ref(workspace: Path, tmp_path: Path, capsys) -> None:
-    code = main([
-        "build-image",
-        "--config", str(workspace / "odin.yaml"),
-        "--ref", "definitely-not-a-ref-abc123",
-        "--context-dir", str(tmp_path / "ctx"),
-        "--dry-run",
-    ])
+    code = main(
+        [
+            "build-image",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--ref",
+            "definitely-not-a-ref-abc123",
+            "--context-dir",
+            str(tmp_path / "ctx"),
+            "--dry-run",
+        ]
+    )
     assert code == 1
     assert "definitely-not-a-ref" in capsys.readouterr().err
 
@@ -173,3 +201,52 @@ def test_status_reports_job_counts(workspace: Path, capsys) -> None:
 
     assert code == 0
     assert "pending" in capsys.readouterr().out
+
+
+def test_harvest_on_a_missing_dispatch_exits_non_zero(workspace: Path) -> None:
+    assert main(["harvest", "--runs-root", str(workspace / "runs"), "20260101-000000"]) != 0
+
+
+def test_harvest_writes_metadata_from_bundles(workspace: Path, tmp_path: Path) -> None:
+    main(_dispatch_argv(workspace))
+    dispatch_id = _dispatch_dir(workspace).name
+    row_key = _state(workspace)["jobs"][0]["row_key"]
+    row_dir = _dispatch_dir(workspace) / row_key
+    row_dir.mkdir(parents=True, exist_ok=True)
+    (row_dir / "benchmark_training_x_2026-07-29_12-00-00.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.2",
+                "run": {
+                    "task": "Isaac-Ant",
+                    "framework": "rsl_rl",
+                    "config": {"physics_backend": "newton_mjwarp"},
+                    "seed": 42,
+                    "duration_s": 120.0,
+                    "status": "completed",
+                    "num_envs": 4096,
+                    "max_iterations": 500,
+                },
+                "runtime": {"total_wall_time_s": 120.0},
+            }
+        )
+    )
+    out = tmp_path / "task_metadata.yaml"
+
+    code = main(
+        [
+            "harvest",
+            "--runs-root",
+            str(workspace / "runs"),
+            dispatch_id,
+            "--output",
+            str(out),
+            "--timeout-headroom",
+            "2.0",
+        ]
+    )
+
+    assert code == 0
+    entry = yaml.safe_load(out.read_text())["tasks"][0]
+    assert entry["num_envs"] == 4096
+    assert entry["timeout_s"] == 240

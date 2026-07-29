@@ -11,6 +11,7 @@ Subcommands:
 - ``dispatch`` — plan rows, render workflows, submit, poll, fetch.
 - ``status`` — summarise a dispatch from ``dispatch.json``.
 - ``fetch`` — re-pull results for a dispatch's completed rows.
+- ``harvest`` — derive per-task metadata from a completed dispatch's bundles.
 """
 
 from __future__ import annotations
@@ -24,8 +25,9 @@ from pathlib import Path
 
 from tools.odin.client import OsmoClient
 from tools.odin.config_file import OdinConfig, OdinConfigError, load_odin_config
+from tools.odin.harvest import DEFAULT_TIMEOUT_HEADROOM, harvest_dispatch, write_task_metadata
 from tools.odin.image import DEFAULT_CUDA_IMAGE, PROFILES, ImageBuildError, build_image
-from tools.odin.plan import PlanError, PlannedRow, chunk_rows, load_task_rows, plan_rows
+from tools.odin.plan import PlanError, PlannedRow, apply_metadata, chunk_rows, load_task_rows, plan_rows
 from tools.odin.poller import poll_until_terminal
 from tools.odin.results import fetch_results, publish_command, validate_bundle
 from tools.odin.state import (
@@ -114,7 +116,10 @@ def command_dispatch(args: argparse.Namespace) -> int:
     cfg = load_odin_config(args.config)
     chunk_size = args.chunk_size if args.chunk_size is not None else cfg.chunk_size
 
-    rows = plan_rows(task_rows=load_task_rows(args.tasks_yaml), seeds=args.seeds, include=args.include)
+    task_rows = load_task_rows(args.tasks_yaml)
+    if args.metadata_yaml is not None:
+        task_rows = apply_metadata(task_rows, load_task_rows(args.metadata_yaml))
+    rows = plan_rows(task_rows=task_rows, seeds=args.seeds, include=args.include)
     if not rows:
         print("[odin] no rows matched; nothing to dispatch", file=sys.stderr)
         return 1
@@ -135,11 +140,7 @@ def command_dispatch(args: argparse.Namespace) -> int:
         ended_at=None,
         seeds=list(args.seeds),
         images={side: image for side, image in sides},
-        jobs=[
-            _job_from_row(row, side=side, image_ref=image)
-            for side, image in sides
-            for row in sided_rows[side]
-        ],
+        jobs=[_job_from_row(row, side=side, image_ref=image) for side, image in sides for row in sided_rows[side]],
     )
     write_dispatch_state(dispatch_dir, state)
 
@@ -153,9 +154,7 @@ def command_dispatch(args: argparse.Namespace) -> int:
                 cfg=cfg,
                 image_ref=image,
                 publish_commands={
-                    row.row_key: publish_command(
-                        base_uri=cfg.results_uri, dispatch_id=dispatch_id, row_key=row.row_key
-                    )
+                    row.row_key: publish_command(base_uri=cfg.results_uri, dispatch_id=dispatch_id, row_key=row.row_key)
                     for row in chunk
                 },
             )
@@ -268,6 +267,21 @@ def command_fetch(args: argparse.Namespace) -> int:
     return 0 if valid == len(completed) else 1
 
 
+def command_harvest(args: argparse.Namespace) -> int:
+    """Derive per-task metadata from a completed dispatch's bundles."""
+    dispatch_dir = args.runs_root / args.dispatch_id
+    if not dispatch_dir.is_dir():
+        print(f"[odin] no dispatch under {dispatch_dir}", file=sys.stderr)
+        return 1
+    entries = harvest_dispatch(dispatch_dir, timeout_headroom=args.timeout_headroom)
+    if not entries:
+        print(f"[odin] no completed bundles under {dispatch_dir}", file=sys.stderr)
+        return 1
+    write_task_metadata(args.output, entries)
+    print(f"[odin] harvested {len(entries)} task/library/physics combination(s) -> {args.output}")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="odin", description="Dispatch Isaac Lab benchmarks to OSMO.")
     sub = parser.add_subparsers(dest="command")
@@ -291,11 +305,15 @@ def _build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--config", type=Path, required=True)
     dispatch.add_argument("--tasks-yaml", type=Path, required=True)
     dispatch.add_argument("--image", type=str, required=True, help="Digest-pinned image for side A.")
-    dispatch.add_argument(
-        "--image-b", type=str, default=None, help="Digest-pinned image for side B; enables A/B mode."
-    )
+    dispatch.add_argument("--image-b", type=str, default=None, help="Digest-pinned image for side B; enables A/B mode.")
     dispatch.add_argument("--seeds", type=_parse_seeds, required=True)
     dispatch.add_argument("--include", type=str, default=None, help="Glob filter over task_id.")
+    dispatch.add_argument(
+        "--metadata-yaml",
+        type=Path,
+        default=None,
+        help="Harvested task_metadata.yaml to overlay sizing from. Seed-list values win.",
+    )
     dispatch.add_argument("--pool", type=str, default=None)
     dispatch.add_argument("--priority", choices=["HIGH", "NORMAL", "LOW"], default=None)
     dispatch.add_argument("--chunk-size", type=int, default=None)
@@ -312,6 +330,21 @@ def _build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--config", type=Path, required=True)
     fetch.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
 
+    harvest = sub.add_parser("harvest", help="Derive per-task metadata from a completed dispatch.")
+    harvest.add_argument("dispatch_id", type=str)
+    harvest.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
+    harvest.add_argument(
+        "--output",
+        type=Path,
+        default=Path(__file__).resolve().parent / "config" / "task_metadata.yaml",
+    )
+    harvest.add_argument(
+        "--timeout-headroom",
+        type=float,
+        default=DEFAULT_TIMEOUT_HEADROOM,
+        help="Multiplier applied to the slowest observed run when deriving timeout_s.",
+    )
+
     return parser
 
 
@@ -320,6 +353,7 @@ _COMMANDS = {
     "dispatch": command_dispatch,
     "status": command_status,
     "fetch": command_fetch,
+    "harvest": command_harvest,
 }
 
 
