@@ -398,6 +398,25 @@ def test_export_flow_fails_on_sim_traceback():
         _fail_on_process_error(result, ["Isaac-Reach-Franka"])
 
 
+def test_rsl_rl_export_seed_override():
+    """Preserve the requested seed in the RSL-RL export configuration."""
+    backend = next(backend for backend in _EXPORT_BACKENDS if backend.id == "rsl_rl")
+    export_module = _load_export_module(backend)
+    with _stub_isaaclab_cli_imports():
+        args_cli, _ = export_module.parse_export_args(["--task", "Isaac-Cartpole", "--seed", "123"])
+    agent_cfg = types.SimpleNamespace(
+        seed=0,
+        load_run=None,
+        load_checkpoint=None,
+        experiment_name="cartpole",
+    )
+
+    updated_cfg = export_module._update_agent_cfg_from_export_args(agent_cfg, args_cli)
+
+    assert args_cli.seed == 123
+    assert updated_cfg.seed == 123
+
+
 @pytest.mark.parametrize("backend", _EXPORT_BACKENDS, ids=lambda backend: backend.id)
 def test_leapp_export_flow(backend: ExportFlowBackend):
     """Run each backend export script and assert LEAPP artifacts are created."""

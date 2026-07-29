@@ -153,6 +153,15 @@ def set_rl_games_policy_states(agent, states) -> None:
     agent.states = list(states)
 
 
+def reset_rl_games_policy_states(agent, dones):
+    """Zero completed environments and return the resulting actor-side recurrent state."""
+    states = get_rl_games_policy_states(agent)
+    not_done = (~dones).reshape(1, -1, 1)
+    states = [state * not_done.to(dtype=state.dtype) for state in states]
+    set_rl_games_policy_states(agent, states)
+    return states
+
+
 def _validate_rl_games_recurrent_support(agent) -> None:
     """Raise when the RL-Games recurrent state is present but is not supported."""
     if getattr(agent, "is_rnn", False) and not is_rl_games_lstm_policy(agent):
@@ -286,14 +295,10 @@ def export_rl_games_agent(
                 obs = agent.obs_to_torch(obs)
                 actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
 
-                if is_rl_games_lstm_policy(agent):
-                    actor_states_after = get_rl_games_policy_states(agent)
-                    annotate.update_state(policy_node_name, state_dict_from_sequence(actor_states_after))
-
                 obs, _, dones, _ = env.step(actions)
-                if len(dones) > 0 and is_rl_games_lstm_policy(agent):
-                    for state in agent.states:
-                        state[:, dones, :] = 0.0
+                if is_rl_games_lstm_policy(agent):
+                    actor_states_after = reset_rl_games_policy_states(agent, dones)
+                    annotate.update_state(policy_node_name, state_dict_from_sequence(actor_states_after))
 
         leapp.stop()
         leapp_started = False

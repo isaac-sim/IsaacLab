@@ -11,6 +11,7 @@ import argparse
 import contextlib
 import importlib.metadata as metadata
 import os
+import random
 import sys
 import time
 from collections.abc import Mapping
@@ -50,6 +51,7 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
 
     parser = argparse.ArgumentParser(description="Export an RL agent with RSL-RL.")
     add_common_export_args(parser, agent_default="rsl_rl_cfg_entry_point")
+    parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
     parser.add_argument(
         "--experiment_name", type=str, default=None, help="Name of the experiment folder used to locate checkpoints."
     )
@@ -199,6 +201,10 @@ def actor_hidden_from_registered(registered_state, original_hidden):
 
 def _update_agent_cfg_from_export_args(agent_cfg, args_cli: argparse.Namespace):
     """Apply export-relevant CLI overrides to the RSL-RL agent config."""
+    if args_cli.seed is not None:
+        if args_cli.seed == -1:
+            args_cli.seed = random.randint(0, 10000)
+        agent_cfg.seed = args_cli.seed
     if args_cli.load_run is not None:
         agent_cfg.load_run = args_cli.load_run
     if args_cli.checkpoint is not None:
