@@ -13,7 +13,7 @@ import numpy as np
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import split_clone_template
+from isaaclab import cloner
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
@@ -95,7 +95,7 @@ class _NewtonRayCasterPoseMixin:
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         if plan is not None:
             for destination_template in plan.destinations:
-                destination_prefix, _ = split_clone_template(destination_template)
+                destination_prefix, _ = cloner.path.split(destination_template)
                 if prim_expr.startswith(destination_prefix) and "/" not in prim_expr[len(destination_prefix) :]:
                     return [NewtonManager.cl_register_site(None, wp.transform(), per_world=True)]
 

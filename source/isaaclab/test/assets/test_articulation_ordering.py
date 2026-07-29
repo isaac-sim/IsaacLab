@@ -376,7 +376,7 @@ def test_mjwarp_ordering_helper_reports_actionable_cross_backend_failure(
     message = str(exc_info.value)
     assert f"Unable to resolve 'mjwarp' {kind} ordering" in message
     assert "active backend 'physx'" in message
-    assert f"env.scene.robot.{config_field}" in message
+    assert f"ArticulationCfg.{config_field}" in message
     assert f"explicit {kind}-name permutation" in message
     assert "mjwarp_usd_builder: the Newton USD builder returned no articulation names" in message
 
@@ -1330,7 +1330,6 @@ def test_ordering_state_lives_only_on_data() -> None:
 _NONIDENTITY_ORDERING = types.SimpleNamespace(
     user_to_backend_indices=(0, 2, 1),
     backend_to_user_indices=(0, 2, 1),
-    is_identity=False,
 )
 
 

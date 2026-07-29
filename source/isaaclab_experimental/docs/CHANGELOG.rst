@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.1.5 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_experimental.envs.DirectRLEnvWarp.step` and
+  :meth:`~isaaclab_experimental.envs.DirectRLEnvWarp.reset` to store observations in
+  ``obs_buf``.
+
+
 0.1.4 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 

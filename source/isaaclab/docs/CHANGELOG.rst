@@ -1,6 +1,109 @@
 Changelog
 ---------
 
+14.0.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab.benchmark` as the public benchmark framework and added
+  typed Python requests for runtime, startup, training, and play workflows.
+* Added an optional serialized synchronized breakdown of time inside and outside
+  simulation calls; the outside-simulation remainder is not classified as
+  overhead.
+* Added :mod:`isaaclab.cloner.path` and :mod:`isaaclab.cloner.query`, holding the
+  segment-boundary-safe prim-path primitives and the clone-plan queries respectively.
+* Added exhaustive standalone demo and tutorial smoke-test coverage across
+  declared physics, renderer, and visualizer combinations, with the headless
+  demo matrix enabled in CI.
+* Added optional orientation-threshold tracking to
+  :class:`~isaaclab.envs.mdp.UniformPoseCommand` and a shared
+  :func:`~isaaclab.envs.mdp.pose_command_success` termination term.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.app.AppLauncher` to no longer intercept ``SIGSEGV`` at the
+  Python level. A Python handler cannot run for a synchronous segfault on the main
+  thread, reported a successful exit for segfaults on worker threads, and replaced the
+  carb crash reporter's handler. Native crashes now follow the default signal action,
+  so the crash reporter can produce minidumps again.
+* **Breaking:** Replaced the internal :mod:`isaaclab.test.benchmark` API and
+  removed backend-specific compatibility scripts. Import :mod:`isaaclab.benchmark`
+  and use the supported ``scripts/benchmarks/{runtime,startup,training,play}.py``
+  launchers, ``isaaclab benchmark``, or
+  :func:`~isaaclab.benchmark.run_benchmark` instead.
+* **Breaking:** Standardized benchmark warm-up arguments. Runtime and play use
+  ``--warmup_frames``, and :class:`~isaaclab.benchmark.BenchmarkPlayRequest` uses
+  ``warmup_frames``. Training continues to use ``--warmup_steps``. Pass the
+  corresponding option with a value of ``0`` to include every step in timing.
+* Changed runtime benchmarks to report effective throughput over the complete
+  measured interval and added environment-step host-return rates across runtime,
+  play, and training benchmarks.
+* **Breaking:** Reorganized the cloner path/plan helpers into the :mod:`isaaclab.cloner.path`
+  and :mod:`isaaclab.cloner.query` submodules, accessed module-qualified, and removed the
+  ``isaaclab.cloner.cloner_utils`` module. Migrate as follows:
+
+  * ``split_clone_template`` to :func:`isaaclab.cloner.path.split`
+  * ``get_suffix`` to :func:`isaaclab.cloner.path.relativize`
+  * ``replace_path_prefix`` to :func:`isaaclab.cloner.path.rebase`
+  * ``resolve_clone_plan_source(path_expr, plan)`` to
+    :func:`isaaclab.cloner.query.path_to_source` with argument order ``(plan, path_expr)``
+  * ``iter_clone_plan_matches(plan, path_expr)`` to :func:`isaaclab.cloner.query.iter_sources`
+  * ``ClonePlan.from_env_0(...)`` to :func:`isaaclab.cloner.clone_plan_from_env_0`
+* **Breaking:** Changed standalone demos that require Isaac Sim PhysX to use
+  ``isaacsim_physx`` explicitly. Replace ``--physics physx`` with
+  ``--physics isaacsim_physx`` when launching these demos.
+
+Fixed
+^^^^^
+
+* Fixed the abort-signal handler of :class:`~isaaclab.app.AppLauncher` re-entering
+  ``SimulationApp.close()`` when a signal arrived while the app was already closing.
+  The nested calls recursed until the stack overflowed, which prevented distributed
+  training workers from shutting down on ``SIGTERM`` (the launcher had to escalate to
+  ``SIGKILL``) and masked the failure behind a spurious segmentation fault. A
+  re-entrant signal now falls back to the default signal action. The ``atexit`` close
+  arms the same guard so a signal during a normal shutdown cannot start a nested
+  teardown.
+* Fixed signal-terminated processes reporting a successful exit status. Kit fast
+  shutdown terminated the process with exit code 0 from inside the graceful close, so
+  a ``SIGTERM``-ed worker was recorded as succeeded by distributed launchers. The
+  handler now closes the app with the conventional killed-by-signal status
+  (``close(exit_code=128 + signum)``; the app performs its full teardown before
+  exiting on ``isaacsim.simulation_app`` >= 2.18.5) and re-raises the signal with the
+  default action if the close returns.
+* Fixed ``Ctrl-C`` terminating the process with exit code 0 before ``finally`` blocks
+  or ``KeyboardInterrupt`` handlers in user code could run. ``SIGINT`` is restored to
+  Python's default handler; the app is still closed by the ``atexit`` callback.
+* Fixed the ``atexit`` close replacing the exit status of an unhandled exception with
+  a successful exit code 0 under Kit fast shutdown. The close now passes a failure
+  exit code when an exception is pending.
+* Fixed OVPhysX rigid-body material randomization to accept explicit selectors
+  that contain all bodies.
+* Fixed the clone-plan queries treating environment ids as
+  :attr:`~isaaclab.cloner.ClonePlan.clone_mask` column indices, so a plan whose
+  :attr:`~isaaclab.cloner.ClonePlan.env_ids` are not ``0..num_clones-1`` reported the wrong
+  environments and indexed the wrong column, disagreeing with
+  :func:`~isaaclab.cloner.replicate`.
+* Fixed :func:`isaaclab.cloner.query.iter_sources` (previously ``iter_clone_plan_matches``)
+  dropping asset variants in scenes with more than ten environments, because rows were ranked
+  by their destination template with the row's first environment id substituted.
+* Fixed :func:`isaaclab.cloner.query.path_to_source` resolving a concrete clone path in a
+  heterogeneous plan to the first populated variant rather than the one its own environment
+  was cloned from.
+* Fixed the prototype-side queries picking the first matching plan row where the clone-side
+  queries picked the most specific one. Both now resolve to the nearest owning row.
+* Fixed :func:`isaaclab.cloner.path.split` accepting a template with more than one ``"{}"``
+  slot, and the path primitives not accepting ``"/"`` as a root.
+* Fixed the Newton bin-packing demo dropping contacts and constraints when its
+  MJWarp buffers overflowed.
+* Fixed :meth:`~isaaclab.envs.DirectRLEnv.reset` to store the observation buffer like
+  :meth:`~isaaclab.envs.DirectRLEnv.step`, and exposed it on the
+  multi-agent-to-single-agent adapter.
+
+
 13.3.0 (2026-07-28)
 ~~~~~~~~~~~~~~~~~~~
 

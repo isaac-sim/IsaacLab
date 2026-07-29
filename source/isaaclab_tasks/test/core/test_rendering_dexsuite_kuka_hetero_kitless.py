@@ -33,4 +33,8 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 )
 def test_rendering_dexsuite_kuka_hetero_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images (Dexsuite KukaAllegro Lift, single camera)."""
+    if physics_backend == "ovphysx":
+        pytest.skip(
+            "The OVPhysX preset selects the homogeneous cube because heterogeneous multi-asset scenes are unsupported."
+        )
     rendering_test_dexsuite_kuka(physics_backend, renderer, data_type, False, _COMPARISON_SCORES)
