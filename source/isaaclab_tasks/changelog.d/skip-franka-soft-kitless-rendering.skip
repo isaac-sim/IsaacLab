@@ -1,2 +1,0 @@
-Test-only: skip the kit-less Franka soft and Franka cloth rendering
-correctness tests while the table is missing from the asset.

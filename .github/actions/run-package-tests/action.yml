@@ -94,6 +94,22 @@ inputs:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
     required: false
+  standalone-script-scope:
+    description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
+    default: ''
+    required: false
+  standalone-script-visualizer:
+    description: 'Visualizer slice used when standalone-script-scope is set'
+    default: 'none'
+    required: false
+  standalone-script-runtime-group:
+    description: 'Run Kit-dependent or non-Kit standalone script cases'
+    default: ''
+    required: false
+  result-file:
+    description: 'Optional JUnit result filename; defaults to the workflow job identifier'
+    default: ''
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
@@ -286,7 +302,7 @@ runs:
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
+        result-file: "${{ inputs.result-file != '' && inputs.result-file || format('{0}-report.xml', github.job) }}"
         container-name: "${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ inputs.image-tag }}
         pytest-options: ${{ inputs.pytest-options }}
@@ -305,13 +321,18 @@ runs:
         wheelhouse-host-dir: ${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
+        standalone-script-scope: ${{ inputs.standalone-script-scope }}
+        standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
+        standalone-script-runtime-group: ${{ inputs.standalone-script-runtime-group }}
 
     - name: Check Test Results
       if: always()
       shell: bash
+      env:
+        RESULT_FILE: "${{ inputs.result-file != '' && inputs.result-file || format('{0}-report.xml', github.job) }}"
       run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -qE 'failures="[1-9][0-9]*"' reports/${{ github.job }}-report.xml || grep -qE 'errors="[1-9][0-9]*"' reports/${{ github.job }}-report.xml; then
+        if [ -f "reports/$RESULT_FILE" ]; then
+          if grep -qE 'failures="[1-9][0-9]*"' "reports/$RESULT_FILE" || grep -qE 'errors="[1-9][0-9]*"' "reports/$RESULT_FILE"; then
             echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
             exit 1
           fi

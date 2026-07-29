@@ -27,6 +27,7 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    preserve_attribute,
     resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
@@ -99,7 +100,19 @@ def _get_distributed_rank(args_cli: argparse.Namespace) -> int:
 
 
 def run(argv: list[str]) -> None:
-    """Train a skrl agent."""
+    """Train a skrl agent while restoring the caller's global SKRL settings."""
+    import skrl
+
+    args_cli = _parse_args(argv)
+    with contextlib.ExitStack() as cleanup:
+        if args_cli.ml_framework.startswith("jax"):
+            cleanup.enter_context(preserve_attribute(skrl.config.jax, "backend"))
+            skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
+        _run(args_cli)
+
+
+def _run(args_cli: argparse.Namespace) -> None:
+    """Execute SKRL training with parsed arguments."""
     import skrl
 
     from isaaclab.app import launch_simulation
@@ -110,8 +123,6 @@ def run(argv: list[str]) -> None:
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
     from isaaclab_tasks.utils import resolve_task_config
-
-    args_cli = _parse_args(argv)
 
     if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
         skrl.logger.error(
@@ -138,9 +149,6 @@ def run(argv: list[str]) -> None:
         if args_cli.max_iterations:
             agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
         agent_cfg["trainer"]["close_environment_at_exit"] = False
-
-        if args_cli.ml_framework.startswith("jax"):
-            skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
         if args_cli.seed == -1:
             args_cli.seed = random.randint(0, 10000)

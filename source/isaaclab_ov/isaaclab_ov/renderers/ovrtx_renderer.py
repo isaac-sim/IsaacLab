@@ -510,6 +510,7 @@ class OVRTXRenderer(BaseRenderer):
             data_types=data_types,
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
+            background_color=getattr(spec.cfg, "background_color", None),
         )
         self._render_product_paths.append(render_product_path)
 
