@@ -1816,53 +1816,20 @@ def rendering_test_franka_cloth(
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
-        # TEMP: skip golden validation; capture a render sequence as a GIF for visual inspection.
-        # (Original: single zero-action step so cloth falls under gravity but does not yet collide with the cube.)
-        from isaaclab_newton.physics import NewtonManager
-
-        num_frames = 90
+        # We step only once to let the cloth fall uniformly on the gravity but not collide with the cube on the table.
+        # This is to limit the inconsistent nodal poses and pixels from run to run due to solver scheduling and
+        # numerical precision.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-        frames: list[Image.Image] = []
-        deformable = env.scene["deformable"]
-        print(f"[gif-debug] gravity={env.cfg.sim.gravity} dt={env.cfg.sim.dt} decimation={env.cfg.decimation}")
-        print(f"[gif-debug] deformable_registry_len={len(NewtonManager._deformable_registry)}")
-        for frame_idx in range(num_frames):
-            obs, rew, terminated, truncated, extras = env.step(zero_actions)
-            nodal_pos = deformable.data.nodal_pos_w.torch
-            com = nodal_pos.mean(dim=1)
-            com_z = com[:, 2]
-            z_min = nodal_pos[..., 2].amin()
-            z_max = nodal_pos[..., 2].amax()
-            newton_state = NewtonManager.get_state()
-            particle_q = getattr(newton_state, "particle_q", None)
-            if particle_q is not None:
-                pq = particle_q.numpy()
-                pq_z_min, pq_z_max = float(pq[:, 2].min()), float(pq[:, 2].max())
-            else:
-                pq_z_min = pq_z_max = float("nan")
-            if frame_idx % 10 == 0 or frame_idx == num_frames - 1:
-                print(
-                    f"[gif-debug] frame={frame_idx:03d} com_z={com_z.detach().cpu().tolist()} "
-                    f"nodal_z=[{float(z_min):.4f},{float(z_max):.4f}] "
-                    f"particle_q_z=[{pq_z_min:.4f},{pq_z_max:.4f}] "
-                    f"terminated={terminated.sum().item()} truncated={truncated.sum().item()}"
-                )
-            camera_outputs = env.scene.sensors["tiled_camera"].data.output
-            output = camera_outputs[data_type]
-            tensor = output if isinstance(output, torch.Tensor) else output.torch
-            condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
-            corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
-            normalized = normalize_camera_output_for_display(corrected, data_type)
-            grid = make_camera_output_grid(normalized)
-            ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
-            frames.append(Image.fromarray(ndarr))
+        env.step(zero_actions)
 
-        gif_dir = os.path.join(os.getcwd(), "huidongc", "render_gifs")
-        os.makedirs(gif_dir, exist_ok=True)
-        gif_path = os.path.join(gif_dir, f"{test_name}-{physics_backend}-{renderer}-{data_type}.gif")
-        frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=50, loop=0)
-        logger.info("Wrote %d-frame GIF to %s", len(frames), gif_path)
-        print(f"[gif-debug] Wrote {len(frames)}-frame GIF to {gif_path}")
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["tiled_camera"].data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            comparison_scores=comparison_scores,
+        )
     finally:
         if env is not None:
             env.close()
