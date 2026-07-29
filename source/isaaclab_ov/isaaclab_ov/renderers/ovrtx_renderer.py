@@ -716,10 +716,6 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("NewtonManager not available, skipping deformable body bindings")
             return
 
-        # Ensure the shadow Newton model (and PhysX/OVPhysX shadow deformable registry)
-        # is built before resolving OVRTX mesh point bindings.
-        NewtonManager.get_model()
-
         # Early return if the deformable registry is empty.
         deformable_registry = NewtonManager._deformable_registry
         if not deformable_registry:
@@ -1855,10 +1851,6 @@ class OVRTXRenderer(BaseRenderer):
         except ImportError:
             logger.debug("NewtonManager not available, skipping deformable body bindings")
             return
-
-        # Ensure the shadow Newton model (and PhysX/OVPhysX shadow deformable registry)
-        # is built before resolving OVRTX mesh point bindings.
-        NewtonManager.get_model()
 
         # Early return if the deformable registry is empty.
         deformable_registry = NewtonManager._deformable_registry
