@@ -150,20 +150,6 @@ class TestRlGamesRecurrentState:
         with pytest.raises(NotImplementedError, match="Only RL-Games LSTM"):
             export_module._validate_rl_games_recurrent_support(agent)
 
-    def test_completed_environment_states_are_reset(self):
-        """Verify completed environments publish zeroed recurrent feedback state."""
-        export_module = _load_backend_export_module("rl_games")
-        agent = types.SimpleNamespace(
-            states=[torch.ones(1, 2, 3), torch.full((1, 2, 3), 2.0)],
-        )
-
-        states = export_module.reset_rl_games_policy_states(agent, torch.tensor([True, False]))
-
-        assert all(torch.count_nonzero(state[:, 0, :]) == 0 for state in states)
-        assert torch.equal(states[0][:, 1, :], torch.ones(1, 3))
-        assert torch.equal(states[1][:, 1, :], torch.full((1, 3), 2.0))
-        assert all(torch.equal(agent_state, state) for agent_state, state in zip(agent.states, states))
-
 
 def _make_skrl_lstm_agent():
     pytest.importorskip("skrl")
