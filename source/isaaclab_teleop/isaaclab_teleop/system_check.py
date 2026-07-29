@@ -436,8 +436,48 @@ def _check_cpu() -> list[SystemCheckItem]:
     return items
 
 
-def _check_gpu() -> list[SystemCheckItem]:
-    """Build the GPU requirement items."""
+def _resolve_cuda_index(device: str | int | None) -> int:
+    """Resolve *device* to a CUDA ordinal to probe.
+
+    Args:
+        device: A torch device string (``"cuda:1"``), a CUDA ordinal, or
+            ``None``.  ``None``, a bare ``"cuda"``, and non-CUDA strings such as
+            ``"cpu"`` all fall back to the process's current CUDA device.  A
+            CPU simulation device still warrants probing a GPU, because CloudXR
+            encodes on one regardless.
+
+    Returns:
+        The CUDA ordinal to measure.  Falls back to ``0`` when the requested
+        ordinal does not exist, so an out-of-range device string cannot crash
+        the check.
+    """
+    import torch
+
+    index: int | None = None
+    if isinstance(device, int):
+        index = device
+    elif isinstance(device, str) and device.startswith("cuda"):
+        _, _, ordinal = device.partition(":")
+        if ordinal.isdigit():
+            index = int(ordinal)
+
+    if index is None:
+        index = torch.cuda.current_device()
+    if not 0 <= index < torch.cuda.device_count():
+        logger.debug(f"CUDA device {device!r} is out of range; probing device 0 instead")
+        index = 0
+    return index
+
+
+def _check_gpu(device: str | int | None = None) -> list[SystemCheckItem]:
+    """Build the GPU requirement items.
+
+    Args:
+        device: The device teleoperation will run on.  Probing a fixed ordinal
+            would measure the wrong adapter on a multi-GPU workstation whose
+            simulation runs on, say, ``cuda:1``, producing a false warning or a
+            false pass.  See :func:`_resolve_cuda_index` for how this resolves.
+    """
     import torch
 
     if not torch.cuda.is_available():
@@ -451,15 +491,18 @@ def _check_gpu() -> list[SystemCheckItem]:
             )
         ]
 
+    index = _resolve_cuda_index(device)
+
     items: list[SystemCheckItem] = []
-    props = torch.cuda.get_device_properties(0)
+    props = torch.cuda.get_device_properties(index)
 
     vram_gb = props.total_memory / 1e9
     items.append(
         SystemCheckItem(
             name="GPU memory",
             passed=vram_gb >= GPU_VRAM_MIN_GB,
-            actual=f"{vram_gb:.0f} GB ({props.name})",
+            # Name the ordinal so a multi-GPU host shows which adapter was measured.
+            actual=f"{vram_gb:.0f} GB (cuda:{index} {props.name})",
             required=f">= {GPU_VRAM_MIN_GB:.0f} GB",
         )
     )
@@ -534,7 +577,7 @@ def _check_system() -> list[SystemCheckItem]:
     return items
 
 
-def check_system_requirements() -> SystemCheckResult:
+def check_system_requirements(device: str | int | None = None) -> SystemCheckResult:
     """Measure this workstation against the recommended teleop spec.
 
     Each probe group is isolated: a failure inside one (a missing optional
@@ -542,14 +585,22 @@ def check_system_requirements() -> SystemCheckResult:
     aborting the check, because this must never prevent a teleop session from
     starting.
 
+    Args:
+        device: The device teleoperation will run on, e.g. ``"cuda:1"`` or a
+            CUDA ordinal.  On a multi-GPU workstation this selects which adapter
+            the GPU checks measure; passing the wrong one (or leaving it
+            unset on a host whose simulation is not on the current device)
+            yields a false warning or a false pass.  Defaults to the process's
+            current CUDA device.
+
     Returns:
         A :class:`SystemCheckResult` holding one
         :class:`SystemCheckItem` per measured requirement.
     """
     items: list[SystemCheckItem] = []
-    for probe in (_check_cpu, _check_gpu, _check_system):
+    for probe in (_check_cpu, lambda: _check_gpu(device), _check_system):
         try:
             items.extend(probe())
         except Exception:
-            logger.debug(f"Teleop capability probe {probe.__name__} failed; skipping", exc_info=True)
+            logger.debug("A teleop capability probe failed; skipping it", exc_info=True)
     return SystemCheckResult(items=tuple(items))

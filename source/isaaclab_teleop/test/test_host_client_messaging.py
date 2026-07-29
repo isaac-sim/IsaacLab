@@ -184,7 +184,7 @@ class TestSystemCheckOnStart:
         monkeypatch.setattr(
             system_check,
             "check_system_requirements",
-            lambda: system_check.SystemCheckResult(
+            lambda device=None: system_check.SystemCheckResult(
                 items=(system_check.SystemCheckItem("CPU governor", False, "powersave", "performance"),)
             ),
         )
@@ -201,7 +201,7 @@ class TestSystemCheckOnStart:
         monkeypatch.setattr(
             system_check,
             "check_system_requirements",
-            lambda: system_check.SystemCheckResult(
+            lambda device=None: system_check.SystemCheckResult(
                 items=(system_check.SystemCheckItem("CPU governor", True, "performance", "performance"),)
             ),
         )
@@ -214,7 +214,7 @@ class TestSystemCheckOnStart:
 
         lifecycle = _make_lifecycle(teleop)
 
-        def _boom():
+        def _boom(device=None):
             raise RuntimeError("probe exploded")
 
         monkeypatch.setattr(system_check, "check_system_requirements", _boom)

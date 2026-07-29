@@ -50,14 +50,16 @@ def _at_spec(monkeypatch, **overrides):
         "clock_mhz": 5362.0,
         "cores": 24,
         "cuda_available": True,
-        "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
-        "vram_bytes": 102 * 10**9,
-        "capability": (12, 0),
+        "gpus": {0: ("NVIDIA RTX PRO 6000 Blackwell Workstation Edition", 102 * 10**9, (12, 0))},
+        "device_count": 1,
+        "current_device": 0,
+        "device": None,
         "driver": "580.173.02",
         "ram_bytes": 64 * 2**30,
         "machine": "x86_64",
     }
     values.update(overrides)
+    probed: list[int] = []
 
     import psutil
     import torch
@@ -71,16 +73,19 @@ def _at_spec(monkeypatch, **overrides):
     monkeypatch.setattr(psutil, "cpu_count", lambda logical=True: values["cores"])
     monkeypatch.setattr(psutil, "virtual_memory", lambda: _FakeVirtualMemory(values["ram_bytes"]))
     monkeypatch.setattr(torch.cuda, "is_available", lambda: values["cuda_available"])
-    monkeypatch.setattr(
-        torch.cuda,
-        "get_device_properties",
-        lambda index: _FakeGpuProps(
-            values["gpu_name"], values["vram_bytes"], values["capability"][0], values["capability"][1]
-        ),
-    )
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: values["device_count"])
+    monkeypatch.setattr(torch.cuda, "current_device", lambda: values["current_device"])
+
+    # Per-ordinal GPUs so tests can prove the *right* adapter was measured.
+    def _props(index):
+        probed.append(index)
+        name, vram, cap = values["gpus"][index]
+        return _FakeGpuProps(name, vram, cap[0], cap[1])
+
+    monkeypatch.setattr(torch.cuda, "get_device_properties", _props)
     monkeypatch.setattr(system_check.platform, "machine", lambda: values["machine"])
 
-    result = check_system_requirements()
+    result = check_system_requirements(device=values["device"])
     return result, {item.name: item for item in result.items}
 
 
@@ -108,8 +113,8 @@ class TestSystemCheckThresholds:
             ({"governor": "powersave"}, "CPU governor"),
             ({"clock_mhz": 3200.0}, "CPU boost clock"),
             ({"cores": 4}, "CPU physical cores"),
-            ({"vram_bytes": 16 * 10**9}, "GPU memory"),
-            ({"capability": (8, 6)}, "GPU architecture"),
+            ({"gpus": {0: ("Weak GPU", 16 * 10**9, (12, 0))}}, "GPU memory"),
+            ({"gpus": {0: ("Ampere GPU", 102 * 10**9, (8, 6))}}, "GPU architecture"),
             ({"driver": "550.100.01"}, "NVIDIA driver"),
             ({"ram_bytes": 32 * 2**30}, "System memory"),
             ({"machine": "aarch64"}, "CPU architecture"),
@@ -137,6 +142,61 @@ class TestSystemCheckThresholds:
         # teleoperate well.
         result, _ = _at_spec(monkeypatch, cores=8)
         assert result.passed
+
+
+class TestMultiGpuDeviceSelection:
+    """The GPU probe must measure the adapter teleop actually runs on.
+
+    Regression coverage for a fixed ``get_device_properties(0)``, which on a
+    multi-GPU workstation reports the wrong adapter -- warning about a capable
+    machine, or passing an incapable one.
+    """
+
+    # cuda:0 is a weak display adapter, cuda:1 is the capable simulation GPU --
+    # the layout that makes an ordinal-0 probe visibly wrong.
+    _MIXED = {
+        0: ("NVIDIA T400", 4 * 10**9, (7, 5)),
+        1: ("NVIDIA RTX PRO 6000 Blackwell Workstation Edition", 102 * 10**9, (12, 0)),
+    }
+
+    def test_selected_device_is_measured_not_ordinal_zero(self, monkeypatch):
+        result, items = _at_spec(monkeypatch, gpus=self._MIXED, device_count=2, current_device=0, device="cuda:1")
+        assert result.passed
+        assert "RTX PRO 6000" in items["GPU memory"].actual
+
+    def test_weak_selected_device_is_not_masked_by_a_capable_ordinal_zero(self, monkeypatch):
+        # The inverse error: passing because ordinal 0 happens to be capable.
+        flipped = {0: self._MIXED[1], 1: self._MIXED[0]}
+        result, _ = _at_spec(monkeypatch, gpus=flipped, device_count=2, current_device=0, device="cuda:1")
+        assert not result.passed
+        assert {item.name for item in result.failures} == {"GPU memory", "GPU architecture"}
+
+    def test_reported_ordinal_identifies_the_measured_adapter(self, monkeypatch):
+        _, items = _at_spec(monkeypatch, gpus=self._MIXED, device_count=2, current_device=0, device="cuda:1")
+        assert "cuda:1" in items["GPU memory"].actual
+
+    def test_unset_device_falls_back_to_the_current_device(self, monkeypatch):
+        result, items = _at_spec(monkeypatch, gpus=self._MIXED, device_count=2, current_device=1, device=None)
+        assert result.passed
+        assert "cuda:1" in items["GPU memory"].actual
+
+    @pytest.mark.parametrize("device", ["cuda", "cpu", None])
+    def test_non_ordinal_devices_use_the_current_device(self, monkeypatch, device):
+        # A CPU simulation device still warrants a GPU probe: CloudXR encodes on
+        # one regardless of where physics runs.
+        result, items = _at_spec(monkeypatch, gpus=self._MIXED, device_count=2, current_device=1, device=device)
+        assert result.passed
+        assert "cuda:1" in items["GPU memory"].actual
+
+    def test_integer_device_is_accepted(self, monkeypatch):
+        _, items = _at_spec(monkeypatch, gpus=self._MIXED, device_count=2, current_device=0, device=1)
+        assert "cuda:1" in items["GPU memory"].actual
+
+    def test_out_of_range_device_falls_back_without_crashing(self, monkeypatch):
+        # An out-of-range ordinal must not take down a teleop session.
+        result, items = _at_spec(monkeypatch, gpus=self._MIXED, device_count=2, current_device=0, device="cuda:7")
+        assert "cuda:0" in items["GPU memory"].actual
+        assert not result.passed  # ordinal 0 is the weak adapter here
 
 
 class TestSystemCheckSkips:

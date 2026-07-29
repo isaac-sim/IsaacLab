@@ -800,7 +800,9 @@ class TeleopSessionLifecycle:
         from .system_check import check_system_requirements
 
         try:
-            result = check_system_requirements()
+            # Probe the adapter teleop actually runs on: on a multi-GPU host the
+            # default ordinal is not necessarily the simulation device.
+            result = check_system_requirements(device=self._cfg.sim_device)
         except Exception:
             logger.debug("Teleop workstation check failed; continuing without it", exc_info=True)
             return

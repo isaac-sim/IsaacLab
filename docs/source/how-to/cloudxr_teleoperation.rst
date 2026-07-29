@@ -108,6 +108,10 @@ many slow cores.
 If a probe is unavailable (for example, ``cpufreq`` is not exposed inside a container), that item
 is reported as skipped rather than failed.
 
+On a multi-GPU workstation the GPU checks measure the device the session runs on -- the one
+selected with ``--device`` -- not simply the first adapter. The reported value names the ordinal
+(e.g. ``cuda:1``) so it is clear which GPU was measured.
+
 To use the check on its own -- for example to qualify a machine before setting up a session:
 
 .. code-block:: bash
