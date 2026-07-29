@@ -32,6 +32,21 @@ def test_row_key_format_is_stable() -> None:
     assert build_row_key("rsl_rl", "physx", "Isaac-Ant", 42) == "rsl_rl_physx_Isaac-Ant_seed42"
 
 
+def test_row_key_includes_the_renderer_when_set() -> None:
+    # A camera task expands across renderers on the same physics; without this
+    # segment those rows collide on one key.
+    assert build_row_key("rsl_rl", "physx", "Isaac-Cam", 42, renderer="ovrtx") == "rsl_rl_physx_ovrtx_Isaac-Cam_seed42"
+
+
+def test_renderer_variants_do_not_collide() -> None:
+    entries = [
+        {"task_id": "Isaac-Cam", "rl_library": "rsl_rl", "physics": "newton_mjwarp", "renderer": r}
+        for r in ("ovrtx", "newton_renderer", "isaacsim_rtx")
+    ]
+    keys = [row.row_key for row in plan_rows(task_rows=entries, seeds=[42])]
+    assert len(keys) == len(set(keys)) == 3
+
+
 def test_full_profile_holds_every_backend() -> None:
     # One virtualenv covers Kit PhysX, OvPhysX, Newton and OVRTX, so a row's
     # physics preset never has to be resolved to a runtime before dispatch.

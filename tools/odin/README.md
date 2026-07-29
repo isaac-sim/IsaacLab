@@ -65,23 +65,46 @@ comparison compared.
 Discovery over the Gym registry is the default row source:
 
 ```bash
-uv run python -m tools.odin.cli discover --selection standard
+uv run python -m tools.odin.cli discover
 ```
 
-`--selection` names the row-set shape — it is **not** an RL policy; the RL
-library axis is `--library`. Current counts:
+Expansion is **total** — every task, every RL library it declares, and every
+*legal mode* it supports — and filters are the only way to narrow.
 
-| Selection | Rows | Use |
-|---|---|---|
-| `standard` (default) | 163 (102 core / 61 contrib) | one library per task, every declared backend |
-| `core-only` | 102 | fast pre-merge gate |
-| `all-libraries` | 348 | RL-library comparison |
-| `cross-backend` | 75 | Newton vs OvPhysX |
+A **mode** is a legal `(physics, renderer)` combination. Discovery returns those
+directly rather than raw axes, so nothing downstream reconstructs the cross
+product or reasons about which pairings are rejected. Tasks declaring renderers
+are always expanded across them: benchmarking a camera task headless measures
+everything except the thing under test.
 
-Compose with `--include` / `--exclude` globs, `--library`, `--physics`,
-`--scope {core,contrib,all}` and `--max_rows`.
+The cross product is not all legal. OVRTX is kitless and cannot share a process
+with Kit physics, so `isaacsim_physx + ovrtx` is rejected — 15 of the 16
+pairings survive for a Cartpole camera task. Discovery checks each pairing
+against the runtime validator, which costs about 7 seconds for the whole
+registry and saves finding out on a GPU.
 
-Two selection rules worth knowing. `physx` is dropped from any task that also
+Current shape: **87 tasks → 429 rows**, of which 109 carry a renderer across the
+5 camera-capable tasks.
+
+| Filter | Effect |
+|---|---|
+| `--library rsl_rl` | restrict the RL library axis; repeatable |
+| `--physics newton_mjwarp` | restrict the physics axis; repeatable |
+| `--renderer none` | restrict the renderer axis; repeatable (`none` keeps headless rows) |
+| `--scope {core,contrib,all}` | core vs contrib, from the explicit `scope` field |
+| `--include` / `--exclude` | `task_id` globs |
+| `--max_rows N` | deterministic head of the sorted order, as a cost valve |
+
+```bash
+# Newton vs OvPhysX on the same tasks, one library
+uv run python -m tools.odin.cli discover \
+    --physics newton_mjwarp --physics ovphysx --library rsl_rl
+
+# Core only
+uv run python -m tools.odin.cli discover --scope core --library rsl_rl
+```
+
+Two expansion rules worth knowing. `physx` is dropped from any task that also
 declares `ovphysx`, because headless they resolve to the same backend and
 running both is an exact duplicate (28 tasks). Tasks declaring no physics preset
 get one row with the field omitted, since they reject any `physics=` token

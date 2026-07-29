@@ -69,7 +69,7 @@ class PlannedRow:
     """One dispatchable unit of work.
 
     Args:
-        row_key: Deterministic identity, ``{rl_library}_{physics}_{task_id}_seed{seed}``.
+        row_key: Deterministic identity, ``{rl_library}_{physics}[_{renderer}]_{task_id}_seed{seed}``.
         task_id: Gym task id.
         rl_library: One of ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``.
         physics: Physics preset token passed as ``physics=<value>``, or ``None``
@@ -83,7 +83,7 @@ class PlannedRow:
         timeout_s: Wall-clock budget [s] driving chunk ordering, or ``None`` to
             inherit the workflow-level ceiling.
         uv_extras: ``--extra`` tokens for the task's ``uv run`` invocation.
-        profile: uv profile the row runs under, ``isaacsim`` or ``kitless``.
+        profile: uv profile the row runs under; ``full`` holds every backend.
         osmo_task_name: DNS-1123-safe OSMO task name derived from *row_key*.
     """
 
@@ -101,26 +101,33 @@ class PlannedRow:
     osmo_task_name: str
 
 
-def build_row_key(rl_library: str, physics: str | None, task_id: str, seed: int) -> str:
+def build_row_key(rl_library: str, physics: str | None, task_id: str, seed: int, renderer: str | None = None) -> str:
     """Return the deterministic identity for one row.
+
+    The renderer segment is only present when a renderer is selected, so keys
+    for headless rows are unchanged. It cannot be omitted when one *is*
+    selected: a camera task expands across several renderers on the same
+    physics, and those rows would otherwise collide.
 
     Args:
         rl_library: RL library token.
-        physics: Physics preset token.
+        physics: Physics preset token, or ``None``.
         task_id: Gym task id.
         seed: Environment seed.
+        renderer: Renderer preset token, or ``None`` for headless.
 
     Returns:
-        ``{rl_library}_{physics}_{task_id}_seed{seed}``.
+        ``{rl_library}_{physics}[_{renderer}]_{task_id}_seed{seed}``.
     """
-    return f"{rl_library}_{physics or 'default'}_{task_id}_seed{seed}"
+    renderer_segment = f"{renderer}_" if renderer else ""
+    return f"{rl_library}_{physics or 'default'}_{renderer_segment}{task_id}_seed{seed}"
 
 
 def uv_extras_for_profile(profile: str) -> tuple[str, ...]:
     """Return the full extras set for a uv profile.
 
     Args:
-        profile: ``isaacsim`` or ``kitless``.
+        profile: Profile name; ``full`` holds every backend.
 
     Returns:
         Every extra baked into that profile's virtualenv.
@@ -238,7 +245,7 @@ def plan_rows(
         extras = uv_extras_for_profile(profile)
 
         for seed in seeds:
-            row_key = build_row_key(rl_library, physics, task_id, seed)
+            row_key = build_row_key(rl_library, physics, task_id, seed, renderer)
             if row_key in seen:
                 raise PlanError(f"duplicate row key {row_key!r}; check tasks.yaml for repeated entries")
             seen.add(row_key)

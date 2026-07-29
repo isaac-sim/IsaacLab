@@ -265,13 +265,13 @@ def test_discover_writes_a_planner_ready_task_list(workspace: Path, tmp_path: Pa
         cli_module,
         "discover_tasks",
         lambda: [
-            DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), ("newton_mjwarp",), ()),
-            DiscoveredTask("IsaacContrib-Walk", "contrib", ("rsl_rl",), ("ovphysx",), ()),
+            DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (DiscoveredTask.Mode("newton_mjwarp", None),)),
+            DiscoveredTask("IsaacContrib-Walk", "contrib", ("rsl_rl",), (DiscoveredTask.Mode("ovphysx", None),)),
         ],
     )
     out = tmp_path / "tasks.yaml"
 
-    assert main(["discover", "--selection", "standard", "--output", str(out)]) == 0
+    assert main(["discover", "--output", str(out)]) == 0
 
     payload = yaml.safe_load(out.read_text())
     assert payload["discovery"]["row_count"] == 2
@@ -283,6 +283,8 @@ def test_discover_scope_filter_can_empty_the_list(tmp_path: Path, monkeypatch) -
     from tools.odin.discover import DiscoveredTask
 
     monkeypatch.setattr(
-        cli_module, "discover_tasks", lambda: [DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (), ())]
+        cli_module,
+        "discover_tasks",
+        lambda: [DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (DiscoveredTask.Mode(None, None),))],
     )
     assert main(["discover", "--scope", "contrib", "--output", str(tmp_path / "t.yaml")]) != 0

@@ -9,11 +9,22 @@
 # Sizing is absent by design: it is harvested from a real run into
 # task_metadata.yaml and applied as an overlay.
 discovery:
-  generated_at: '2026-07-29T14:50:50Z'
-  selection: standard
+  generated_at: '2026-07-29T15:01:23Z'
   task_count: 87
-  row_count: 163
+  row_count: 429
 tasks:
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: rl_games
+  physics: physx
 - task_id: Isaac-Ant
   scope: core
   rl_library: rsl_rl
@@ -26,6 +37,46 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: physx
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: sb3
+  physics: newton_kamino
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: sb3
+  physics: newton_mjwarp
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: sb3
+  physics: physx
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Ant
+  scope: core
+  rl_library: skrl
+  physics: physx
+- task_id: Isaac-Ant-Direct
+  scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+- task_id: Isaac-Ant-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Ant-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Ant-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: Isaac-Ant-Direct
   scope: core
   rl_library: rsl_rl
@@ -42,6 +93,34 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: Isaac-Ant-Direct
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+- task_id: Isaac-Ant-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Ant-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Ant-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: Isaac-Cartpole
   scope: core
   rl_library: rsl_rl
@@ -54,33 +133,390 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: sb3
+  physics: newton_kamino
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: sb3
+  physics: newton_mjwarp
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: sb3
+  physics: ovphysx
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Cartpole
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: rtx
 - task_id: Isaac-Cartpole-Camera
   scope: core
   rl_library: rsl_rl
   physics: newton_kamino
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: rtx
 - task_id: Isaac-Cartpole-Camera
   scope: core
   rl_library: rsl_rl
   physics: newton_mjwarp
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: rtx
 - task_id: Isaac-Cartpole-Camera
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: rtx
 - task_id: Isaac-Cartpole-Camera-Direct
   scope: core
   rl_library: rsl_rl
   physics: isaacsim_physx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: isaacsim_physx
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: isaacsim_physx
+  renderer: rtx
 - task_id: Isaac-Cartpole-Camera-Direct
   scope: core
   rl_library: rsl_rl
   physics: newton_kamino
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: rtx
 - task_id: Isaac-Cartpole-Camera-Direct
   scope: core
   rl_library: rsl_rl
   physics: newton_mjwarp
+  renderer: isaacsim_rtx
 - task_id: Isaac-Cartpole-Camera-Direct
   scope: core
   rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+  renderer: rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Cartpole-Camera-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+  renderer: rtx
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: rl_games
   physics: ovphysx
 - task_id: Isaac-Cartpole-Direct
   scope: core
@@ -97,6 +533,38 @@ tasks:
 - task_id: Isaac-Cartpole-Direct
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: sb3
+  physics: isaacsim_physx
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: sb3
+  physics: newton_kamino
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: sb3
+  physics: newton_mjwarp
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: sb3
+  physics: ovphysx
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Cartpole-Direct
+  scope: core
+  rl_library: skrl
   physics: ovphysx
 - task_id: Isaac-Fourbar-Pole-Swingup
   scope: core
@@ -104,12 +572,48 @@ tasks:
   physics: newton_kamino
 - task_id: Isaac-Humanoid
   scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Humanoid
+  scope: core
+  rl_library: rl_games
+  physics: physx
+- task_id: Isaac-Humanoid
+  scope: core
   rl_library: rsl_rl
   physics: newton_mjwarp
 - task_id: Isaac-Humanoid
   scope: core
   rl_library: rsl_rl
   physics: physx
+- task_id: Isaac-Humanoid
+  scope: core
+  rl_library: sb3
+  physics: newton_mjwarp
+- task_id: Isaac-Humanoid
+  scope: core
+  rl_library: sb3
+  physics: physx
+- task_id: Isaac-Humanoid
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Humanoid
+  scope: core
+  rl_library: skrl
+  physics: physx
+- task_id: Isaac-Humanoid-Direct
+  scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+- task_id: Isaac-Humanoid-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Humanoid-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: Isaac-Humanoid-Direct
   scope: core
   rl_library: rsl_rl
@@ -122,13 +626,34 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: Isaac-Humanoid-Direct
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+- task_id: Isaac-Humanoid-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Humanoid-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
 - task_id: Isaac-Lift-Cloth-Franka
   scope: core
   rl_library: rsl_rl
   physics: newton_mjwarp_vbd
 - task_id: Isaac-Lift-Cube-Franka
   scope: core
+  rl_library: rl_games
+- task_id: Isaac-Lift-Cube-Franka
+  scope: core
   rl_library: rsl_rl
+- task_id: Isaac-Lift-Cube-Franka
+  scope: core
+  rl_library: sb3
+- task_id: Isaac-Lift-Cube-Franka
+  scope: core
+  rl_library: skrl
 - task_id: Isaac-Lift-Franka
   scope: core
   rl_library: rsl_rl
@@ -149,10 +674,42 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: newton_mjwarp
+  renderer: isaacsim_rtx
+- task_id: Isaac-Lift-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Lift-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Lift-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: rtx
 - task_id: Isaac-Lift-KukaAllegro-Camera
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Lift-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Lift-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Lift-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: rtx
 - task_id: Isaac-Lift-Soft-Franka
   scope: core
   rl_library: rsl_rl
@@ -163,7 +720,25 @@ tasks:
   physics: physx
 - task_id: Isaac-Open-Drawer-Franka
   scope: core
+  rl_library: rl_games
+- task_id: Isaac-Open-Drawer-Franka
+  scope: core
   rl_library: rsl_rl
+- task_id: Isaac-Open-Drawer-Franka
+  scope: core
+  rl_library: skrl
+- task_id: Isaac-Open-Drawer-Franka-Direct
+  scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+- task_id: Isaac-Open-Drawer-Franka-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Open-Drawer-Franka-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: Isaac-Open-Drawer-Franka-Direct
   scope: core
   rl_library: rsl_rl
@@ -175,10 +750,41 @@ tasks:
 - task_id: Isaac-Open-Drawer-Franka-Direct
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Open-Drawer-Franka-Direct
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+- task_id: Isaac-Open-Drawer-Franka-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Open-Drawer-Franka-Direct
+  scope: core
+  rl_library: skrl
   physics: ovphysx
 - task_id: Isaac-Pendulum-Direct
   scope: core
   rl_library: rl_games
+- task_id: Isaac-Pendulum-Direct
+  scope: core
+  rl_library: skrl
+- task_id: Isaac-Reach-Franka
+  scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+- task_id: Isaac-Reach-Franka
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Reach-Franka
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Reach-Franka
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: Isaac-Reach-Franka
   scope: core
   rl_library: rsl_rl
@@ -194,6 +800,22 @@ tasks:
 - task_id: Isaac-Reach-Franka
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Reach-Franka
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+- task_id: Isaac-Reach-Franka
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Reach-Franka
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Reach-Franka
+  scope: core
+  rl_library: skrl
   physics: ovphysx
 - task_id: Isaac-Reach-Franka-OSC
   scope: core
@@ -213,6 +835,22 @@ tasks:
   physics: ovphysx
 - task_id: Isaac-Reach-UR10
   scope: core
+  rl_library: rl_games
+  physics: isaacsim_physx
+- task_id: Isaac-Reach-UR10
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Reach-UR10
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Reach-UR10
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+- task_id: Isaac-Reach-UR10
+  scope: core
   rl_library: rsl_rl
   physics: isaacsim_physx
 - task_id: Isaac-Reach-UR10
@@ -226,10 +864,40 @@ tasks:
 - task_id: Isaac-Reach-UR10
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Reach-UR10
+  scope: core
+  rl_library: skrl
+  physics: isaacsim_physx
+- task_id: Isaac-Reach-UR10
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Reach-UR10
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Reach-UR10
+  scope: core
+  rl_library: skrl
   physics: ovphysx
 - task_id: Isaac-Reorient-Cube-Allegro
   scope: core
+  rl_library: rl_games
+- task_id: Isaac-Reorient-Cube-Allegro
+  scope: core
   rl_library: rsl_rl
+- task_id: Isaac-Reorient-Cube-Allegro
+  scope: core
+  rl_library: skrl
+- task_id: Isaac-Reorient-Cube-Allegro-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Reorient-Cube-Allegro-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: Isaac-Reorient-Cube-Allegro-Direct
   scope: core
   rl_library: rsl_rl
@@ -238,17 +906,145 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: Isaac-Reorient-Cube-Allegro-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Reorient-Cube-Allegro-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: isaacsim_rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: newton_renderer
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: ovrtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+  renderer: rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: isaacsim_rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+  renderer: rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
+  renderer: rtx
 - task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
   scope: core
   rl_library: rsl_rl
   physics: newton_kamino
+  renderer: isaacsim_rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: newton_renderer
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: ovrtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_kamino
+  renderer: rtx
 - task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
   scope: core
   rl_library: rsl_rl
   physics: newton_mjwarp
+  renderer: isaacsim_rtx
 - task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
   scope: core
   rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Reorient-Cube-Shadow-Camera-Direct
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: rtx
+- task_id: Isaac-Reorient-Cube-Shadow-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Reorient-Cube-Shadow-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Reorient-Cube-Shadow-Direct
+  scope: core
+  rl_library: rl_games
   physics: ovphysx
 - task_id: Isaac-Reorient-Cube-Shadow-Direct
   scope: core
@@ -262,6 +1058,30 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: Isaac-Reorient-Cube-Shadow-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Reorient-Cube-Shadow-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Reorient-Cube-Shadow-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
   scope: core
   rl_library: rsl_rl
@@ -273,6 +1093,30 @@ tasks:
 - task_id: Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
+  scope: core
+  rl_library: rl_games
   physics: ovphysx
 - task_id: Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
   scope: core
@@ -306,10 +1150,50 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: newton_mjwarp
+  renderer: isaacsim_rtx
+- task_id: Isaac-Reorient-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: newton_renderer
+- task_id: Isaac-Reorient-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: ovrtx
+- task_id: Isaac-Reorient-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: newton_mjwarp
+  renderer: rtx
 - task_id: Isaac-Reorient-KukaAllegro-Camera
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+  renderer: isaacsim_rtx
+- task_id: Isaac-Reorient-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: newton_renderer
+- task_id: Isaac-Reorient-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: ovrtx
+- task_id: Isaac-Reorient-KukaAllegro-Camera
+  scope: core
+  rl_library: rsl_rl
+  physics: ovphysx
+  renderer: rtx
+- task_id: Isaac-Shadow-Handover-Direct
+  scope: core
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: Isaac-Shadow-Handover-Direct
+  scope: core
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: Isaac-Shadow-Handover-Direct
   scope: core
   rl_library: rsl_rl
@@ -317,6 +1201,14 @@ tasks:
 - task_id: Isaac-Shadow-Handover-Direct
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Shadow-Handover-Direct
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Shadow-Handover-Direct
+  scope: core
+  rl_library: skrl
   physics: ovphysx
 - task_id: Isaac-Velocity-Flat-AnymalD
   scope: core
@@ -326,6 +1218,14 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: Isaac-Velocity-Flat-AnymalD
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Flat-AnymalD
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
 - task_id: Isaac-Velocity-Flat-Cassie
   scope: core
   rl_library: rsl_rl
@@ -337,6 +1237,18 @@ tasks:
 - task_id: Isaac-Velocity-Flat-Cassie
   scope: core
   rl_library: rsl_rl
+  physics: physx
+- task_id: Isaac-Velocity-Flat-Cassie
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Velocity-Flat-Cassie
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Flat-Cassie
+  scope: core
+  rl_library: skrl
   physics: physx
 - task_id: Isaac-Velocity-Flat-G1
   scope: core
@@ -346,6 +1258,14 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: newton_mjwarp
+- task_id: Isaac-Velocity-Flat-G1
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Velocity-Flat-G1
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
 - task_id: Isaac-Velocity-Flat-H1
   scope: core
   rl_library: rsl_rl
@@ -358,6 +1278,18 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: physx
+- task_id: Isaac-Velocity-Flat-H1
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Velocity-Flat-H1
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Flat-H1
+  scope: core
+  rl_library: skrl
+  physics: physx
 - task_id: Isaac-Velocity-Flat-Spot
   scope: core
   rl_library: rsl_rl
@@ -365,6 +1297,14 @@ tasks:
 - task_id: Isaac-Velocity-Flat-Spot
   scope: core
   rl_library: rsl_rl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Flat-Spot
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Velocity-Flat-Spot
+  scope: core
+  rl_library: skrl
   physics: newton_mjwarp
 - task_id: Isaac-Velocity-Flat-UnitreeGo2
   scope: core
@@ -378,6 +1318,18 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: physx
+- task_id: Isaac-Velocity-Flat-UnitreeGo2
+  scope: core
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: Isaac-Velocity-Flat-UnitreeGo2
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Flat-UnitreeGo2
+  scope: core
+  rl_library: skrl
+  physics: physx
 - task_id: Isaac-Velocity-Rough-AnymalD
   scope: core
   rl_library: rsl_rl
@@ -385,6 +1337,14 @@ tasks:
 - task_id: Isaac-Velocity-Rough-AnymalD
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Velocity-Rough-AnymalD
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Rough-AnymalD
+  scope: core
+  rl_library: skrl
   physics: ovphysx
 - task_id: Isaac-Velocity-Rough-Cassie
   scope: core
@@ -394,6 +1354,14 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: Isaac-Velocity-Rough-Cassie
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Rough-Cassie
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
 - task_id: Isaac-Velocity-Rough-G1
   scope: core
   rl_library: rsl_rl
@@ -401,6 +1369,14 @@ tasks:
 - task_id: Isaac-Velocity-Rough-G1
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Velocity-Rough-G1
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Rough-G1
+  scope: core
+  rl_library: skrl
   physics: ovphysx
 - task_id: Isaac-Velocity-Rough-H1
   scope: core
@@ -410,6 +1386,14 @@ tasks:
   scope: core
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: Isaac-Velocity-Rough-H1
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Rough-H1
+  scope: core
+  rl_library: skrl
+  physics: ovphysx
 - task_id: Isaac-Velocity-Rough-UnitreeGo2
   scope: core
   rl_library: rsl_rl
@@ -417,6 +1401,14 @@ tasks:
 - task_id: Isaac-Velocity-Rough-UnitreeGo2
   scope: core
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: Isaac-Velocity-Rough-UnitreeGo2
+  scope: core
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: Isaac-Velocity-Rough-UnitreeGo2
+  scope: core
+  rl_library: skrl
   physics: ovphysx
 - task_id: IsaacContrib-AutoMate-Assembly-Direct
   scope: contrib
@@ -518,25 +1510,55 @@ tasks:
   rl_library: skrl
 - task_id: IsaacContrib-Lift-Cube-OpenArm
   scope: contrib
+  rl_library: rl_games
+- task_id: IsaacContrib-Lift-Cube-OpenArm
+  scope: contrib
   rl_library: rsl_rl
 - task_id: IsaacContrib-Navigation-3DObstacles-ARL-Robot-1
+  scope: contrib
+  rl_library: rl_games
+- task_id: IsaacContrib-Navigation-3DObstacles-ARL-Robot-1
+  scope: contrib
+  rl_library: rsl_rl
+- task_id: IsaacContrib-Navigation-3DObstacles-ARL-Robot-1
+  scope: contrib
+  rl_library: skrl
+- task_id: IsaacContrib-Navigation-Flat-AnymalC
   scope: contrib
   rl_library: rsl_rl
 - task_id: IsaacContrib-Navigation-Flat-AnymalC
   scope: contrib
-  rl_library: rsl_rl
+  rl_library: skrl
+- task_id: IsaacContrib-Open-Drawer-OpenArm
+  scope: contrib
+  rl_library: rl_games
 - task_id: IsaacContrib-Open-Drawer-OpenArm
   scope: contrib
   rl_library: rsl_rl
 - task_id: IsaacContrib-Reach-OpenArm
   scope: contrib
+  rl_library: rl_games
+- task_id: IsaacContrib-Reach-OpenArm
+  scope: contrib
   rl_library: rsl_rl
+- task_id: IsaacContrib-Reach-OpenArm
+  scope: contrib
+  rl_library: skrl
+- task_id: IsaacContrib-Reach-OpenArmBi
+  scope: contrib
+  rl_library: rl_games
 - task_id: IsaacContrib-Reach-OpenArmBi
   scope: contrib
   rl_library: rsl_rl
 - task_id: IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1
   scope: contrib
+  rl_library: rl_games
+- task_id: IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1
+  scope: contrib
   rl_library: rsl_rl
+- task_id: IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1
+  scope: contrib
+  rl_library: skrl
 - task_id: IsaacContrib-Tracking-LocoManip-Digit
   scope: contrib
   rl_library: rsl_rl
@@ -553,6 +1575,30 @@ tasks:
   scope: contrib
   rl_library: rsl_rl
   physics: physx
+- task_id: IsaacContrib-Velocity-Flat-AnymalB
+  scope: contrib
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: IsaacContrib-Velocity-Flat-AnymalB
+  scope: contrib
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Flat-AnymalB
+  scope: contrib
+  rl_library: skrl
+  physics: physx
+- task_id: IsaacContrib-Velocity-Flat-AnymalC
+  scope: contrib
+  rl_library: rl_games
+  physics: newton_kamino
+- task_id: IsaacContrib-Velocity-Flat-AnymalC
+  scope: contrib
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Flat-AnymalC
+  scope: contrib
+  rl_library: rl_games
+  physics: physx
 - task_id: IsaacContrib-Velocity-Flat-AnymalC
   scope: contrib
   rl_library: rsl_rl
@@ -565,9 +1611,27 @@ tasks:
   scope: contrib
   rl_library: rsl_rl
   physics: physx
+- task_id: IsaacContrib-Velocity-Flat-AnymalC
+  scope: contrib
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: IsaacContrib-Velocity-Flat-AnymalC
+  scope: contrib
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Flat-AnymalC
+  scope: contrib
+  rl_library: skrl
+  physics: physx
+- task_id: IsaacContrib-Velocity-Flat-AnymalC-Direct
+  scope: contrib
+  rl_library: rl_games
 - task_id: IsaacContrib-Velocity-Flat-AnymalC-Direct
   scope: contrib
   rl_library: rsl_rl
+- task_id: IsaacContrib-Velocity-Flat-AnymalC-Direct
+  scope: contrib
+  rl_library: skrl
 - task_id: IsaacContrib-Velocity-Flat-Digit
   scope: contrib
   rl_library: rsl_rl
@@ -584,6 +1648,30 @@ tasks:
   scope: contrib
   rl_library: rsl_rl
   physics: physx
+- task_id: IsaacContrib-Velocity-Flat-UnitreeA1
+  scope: contrib
+  rl_library: sb3
+  physics: newton_kamino
+- task_id: IsaacContrib-Velocity-Flat-UnitreeA1
+  scope: contrib
+  rl_library: sb3
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Flat-UnitreeA1
+  scope: contrib
+  rl_library: sb3
+  physics: physx
+- task_id: IsaacContrib-Velocity-Flat-UnitreeA1
+  scope: contrib
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: IsaacContrib-Velocity-Flat-UnitreeA1
+  scope: contrib
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Flat-UnitreeA1
+  scope: contrib
+  rl_library: skrl
+  physics: physx
 - task_id: IsaacContrib-Velocity-Flat-UnitreeGo1
   scope: contrib
   rl_library: rsl_rl
@@ -592,6 +1680,14 @@ tasks:
   scope: contrib
   rl_library: rsl_rl
   physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Flat-UnitreeGo1
+  scope: contrib
+  rl_library: skrl
+  physics: newton_kamino
+- task_id: IsaacContrib-Velocity-Flat-UnitreeGo1
+  scope: contrib
+  rl_library: skrl
+  physics: newton_mjwarp
 - task_id: IsaacContrib-Velocity-Rough-AnymalB
   scope: contrib
   rl_library: rsl_rl
@@ -600,6 +1696,22 @@ tasks:
   scope: contrib
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: IsaacContrib-Velocity-Rough-AnymalB
+  scope: contrib
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Rough-AnymalB
+  scope: contrib
+  rl_library: skrl
+  physics: ovphysx
+- task_id: IsaacContrib-Velocity-Rough-AnymalC
+  scope: contrib
+  rl_library: rl_games
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Rough-AnymalC
+  scope: contrib
+  rl_library: rl_games
+  physics: ovphysx
 - task_id: IsaacContrib-Velocity-Rough-AnymalC
   scope: contrib
   rl_library: rsl_rl
@@ -607,10 +1719,24 @@ tasks:
 - task_id: IsaacContrib-Velocity-Rough-AnymalC
   scope: contrib
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: IsaacContrib-Velocity-Rough-AnymalC
+  scope: contrib
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Rough-AnymalC
+  scope: contrib
+  rl_library: skrl
   physics: ovphysx
 - task_id: IsaacContrib-Velocity-Rough-AnymalC-Direct
   scope: contrib
+  rl_library: rl_games
+- task_id: IsaacContrib-Velocity-Rough-AnymalC-Direct
+  scope: contrib
   rl_library: rsl_rl
+- task_id: IsaacContrib-Velocity-Rough-AnymalC-Direct
+  scope: contrib
+  rl_library: skrl
 - task_id: IsaacContrib-Velocity-Rough-Digit
   scope: contrib
   rl_library: rsl_rl
@@ -623,6 +1749,22 @@ tasks:
   scope: contrib
   rl_library: rsl_rl
   physics: ovphysx
+- task_id: IsaacContrib-Velocity-Rough-UnitreeA1
+  scope: contrib
+  rl_library: sb3
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Rough-UnitreeA1
+  scope: contrib
+  rl_library: sb3
+  physics: ovphysx
+- task_id: IsaacContrib-Velocity-Rough-UnitreeA1
+  scope: contrib
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Rough-UnitreeA1
+  scope: contrib
+  rl_library: skrl
+  physics: ovphysx
 - task_id: IsaacContrib-Velocity-Rough-UnitreeGo1
   scope: contrib
   rl_library: rsl_rl
@@ -630,4 +1772,12 @@ tasks:
 - task_id: IsaacContrib-Velocity-Rough-UnitreeGo1
   scope: contrib
   rl_library: rsl_rl
+  physics: ovphysx
+- task_id: IsaacContrib-Velocity-Rough-UnitreeGo1
+  scope: contrib
+  rl_library: skrl
+  physics: newton_mjwarp
+- task_id: IsaacContrib-Velocity-Rough-UnitreeGo1
+  scope: contrib
+  rl_library: skrl
   physics: ovphysx

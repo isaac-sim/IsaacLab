@@ -6,7 +6,8 @@
 """Generate the dispatch task list from the Gym registry.
 
 Discovery is the default row source; a hand-written list remains possible as an
-override via ``--tasks-yaml``. The registry walk lives in :func:`discover_tasks`
+override via ``--tasks_yaml``. Expansion is total and filtering is the only way
+to narrow, so there is one vocabulary rather than two. The registry walk lives in :func:`discover_tasks`
 and needs Isaac Lab importable; everything else is pure and testable offline.
 
 The emitted file is the same shape :func:`~tools.odin.plan.load_task_rows`
@@ -27,28 +28,21 @@ from typing import Any
 import yaml
 
 __all__ = [
-    "SELECTIONS",
     "RL_LIBRARY_PRIORITY",
     "DiscoveredTask",
     "DiscoveryError",
     "discover_tasks",
     "filter_rows",
-    "rows_for_selection",
+    "expand_rows",
     "write_task_list",
 ]
 
-# Preferred order when a selection picks one library per task.
+# Stable ordering for the RL library axis.
 RL_LIBRARY_PRIORITY: tuple[str, ...] = ("rsl_rl", "rl_games", "skrl", "sb3")
 
 # Physics presets never dispatched. ``newton_mjwarp_vbd_proxy`` is a proxy
 # variant rather than a backend under test.
 _SKIP_PHYSICS = frozenset({"newton_mjwarp_vbd_proxy"})
-
-# Named row-set shapes. Called a *selection*, not a policy: 'policy' means the
-# learned agent everywhere else in this codebase.
-SELECTIONS: tuple[str, ...] = ("standard", "core-only", "all-libraries", "cross-backend")
-
-_CROSS_BACKEND_PHYSICS = ("newton_mjwarp", "ovphysx")
 
 
 class DiscoveryError(RuntimeError):
@@ -64,16 +58,28 @@ class DiscoveredTask:
         scope: ``core`` or ``contrib``.
         rl_libraries: Odin-supported RL libraries the task declares, in
             :data:`RL_LIBRARY_PRIORITY` order.
-        physics: Physics preset names the task declares, excluding names that
-            are not valid ``physics=`` selectors.
-        renderers: Renderer preset names the task declares.
+        modes: The task's **legal** physics/renderer combinations. Callers never
+            reconstruct the cross product or reason about which pairings are
+            rejected; discovery has already resolved that.
     """
+
+    @dataclass(frozen=True)
+    class Mode:
+        """One legal way to run a task.
+
+        Args:
+            physics: Physics preset token, or ``None`` for tasks that declare
+                none and reject any ``physics=`` selector.
+            renderer: Renderer preset token, or ``None`` to run headless.
+        """
+
+        physics: str | None
+        renderer: str | None
 
     task_id: str
     scope: str
     rl_libraries: tuple[str, ...]
-    physics: tuple[str, ...]
-    renderers: tuple[str, ...]
+    modes: tuple[DiscoveredTask.Mode, ...]
 
 
 def _canonical_physics(names: tuple[str, ...]) -> tuple[str, ...]:
@@ -88,48 +94,37 @@ def _canonical_physics(names: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(kept)
 
 
-def rows_for_selection(tasks: list[DiscoveredTask], selection: str) -> list[dict[str, Any]]:
-    """Expand discovered tasks into dispatch rows under a named selection.
+def expand_rows(tasks: list[DiscoveredTask]) -> list[dict[str, Any]]:
+    """Expand discovered tasks into every dispatchable row.
+
+    Expansion is total across the RL library axis and the task's legal modes.
+    Narrowing is :func:`filter_rows`' job, so there is one mechanism for "what to
+    keep" rather than a second vocabulary of named row-set shapes.
 
     Args:
         tasks: Discovered tasks.
-        selection: One of :data:`SELECTIONS`.
 
     Returns:
-        Row dicts sorted by ``(task_id, rl_library, physics)``, each carrying
-        ``task_id``, ``scope``, ``rl_library`` and — unless the task declares no
-        physics preset — ``physics``.
-
-    Raises:
-        DiscoveryError: If *selection* is unknown.
+        Row dicts sorted by ``(task_id, rl_library, physics, renderer)``. The
+        ``physics`` and ``renderer`` keys are omitted when the mode leaves them
+        unset, because an empty ``physics=`` token is rejected by the task.
     """
-    if selection not in SELECTIONS:
-        raise DiscoveryError(f"unknown selection {selection!r}; expected one of {list(SELECTIONS)}")
-
     rows: list[dict[str, Any]] = []
     for task in tasks:
-        if not task.rl_libraries:
-            continue
-        if selection == "core-only" and task.scope != "core":
-            continue
+        for library in task.rl_libraries:
+            for mode in task.modes:
+                row: dict[str, Any] = {
+                    "task_id": task.task_id,
+                    "scope": task.scope,
+                    "rl_library": library,
+                }
+                if mode.physics is not None:
+                    row["physics"] = mode.physics
+                if mode.renderer is not None:
+                    row["renderer"] = mode.renderer
+                rows.append(row)
 
-        libraries = task.rl_libraries if selection == "all-libraries" else task.rl_libraries[:1]
-        physics = _canonical_physics(task.physics)
-        if selection == "cross-backend":
-            physics = tuple(name for name in physics if name in _CROSS_BACKEND_PHYSICS)
-            if not physics:
-                continue
-
-        for library in libraries:
-            if not physics:
-                # 35 tasks declare no physics preset and reject any physics=
-                # token, so they get exactly one row with the field absent.
-                rows.append({"task_id": task.task_id, "scope": task.scope, "rl_library": library})
-                continue
-            for name in physics:
-                rows.append({"task_id": task.task_id, "scope": task.scope, "rl_library": library, "physics": name})
-
-    rows.sort(key=lambda row: (row["task_id"], row["rl_library"], row.get("physics") or ""))
+    rows.sort(key=lambda row: (row["task_id"], row["rl_library"], row.get("physics") or "", row.get("renderer") or ""))
     return rows
 
 
@@ -140,18 +135,21 @@ def filter_rows(
     exclude: str | None = None,
     libraries: list[str] | None = None,
     physics: list[str] | None = None,
+    renderers: list[str] | None = None,
     scope: str | None = None,
     max_rows: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Apply post-filters to selection rows.
+    """Narrow expanded rows.
 
     Args:
-        rows: Rows from :func:`rows_for_selection`.
+        rows: Rows from :func:`expand_rows`.
         include: Glob a ``task_id`` must match.
         exclude: Glob a ``task_id`` must not match.
         libraries: Restrict to these RL libraries.
         physics: Restrict to these physics presets. Rows with no physics token
             are kept only when ``"default"`` is listed.
+        renderers: Restrict to these renderer presets. Rows are headless unless
+            a renderer was requested, so ``"none"`` keeps headless rows.
         scope: ``core``, ``contrib``, or ``all``.
         max_rows: Deterministic head of the sorted order, as a cost valve.
 
@@ -168,6 +166,9 @@ def filter_rows(
     if physics:
         wanted = set(physics)
         result = [row for row in result if (row.get("physics") or "default") in wanted]
+    if renderers:
+        wanted_renderers = set(renderers)
+        result = [row for row in result if (row.get("renderer") or "none") in wanted_renderers]
     if scope and scope != "all":
         result = [row for row in result if row.get("scope") == scope]
     if max_rows is not None:
@@ -175,11 +176,23 @@ def filter_rows(
     return result
 
 
-def discover_tasks() -> list[DiscoveredTask]:
+def discover_tasks(*, validate_modes: bool = True) -> list[DiscoveredTask]:
     """Walk the Gym registry and return every dispatchable training task.
 
     Imports Isaac Lab, so it needs the project environment. Contrib tasks are
     included when ``isaaclab_tasks_experimental`` is importable.
+
+    For tasks that declare renderers, every physics/renderer pairing is checked
+    against the runtime validator and only the legal ones become modes. That
+    matters because the cross product is not all legal: OVRTX is kitless and
+    cannot share a process with Kit physics, so ``isaacsim_physx + ovrtx`` is
+    rejected. Discovering that here costs one config resolution per pairing;
+    discovering it on a GPU costs a whole dispatch.
+
+    Args:
+        validate_modes: Check renderer pairings against the runtime validator.
+            Disabling it emits the full cross product, which is faster but will
+            include combinations that fail at startup.
 
     Returns:
         Discovered tasks sorted by ``task_id``.
@@ -209,19 +222,75 @@ def discover_tasks() -> list[DiscoveredTask]:
         if not libraries:
             continue
         preset_map = enumerate_task_presets(spec.id)
-        physics = tuple(sorted(preset_map.get(PresetTarget.PHYSICS, []))) if preset_map else ()
+        physics = _canonical_physics(tuple(sorted(preset_map.get(PresetTarget.PHYSICS, [])))) if preset_map else ()
         renderers = tuple(sorted(preset_map.get(PresetTarget.RENDERER, []))) if preset_map else ()
         tasks.append(
             DiscoveredTask(
                 task_id=spec.id,
                 scope="contrib" if spec.id.startswith("IsaacContrib-") else "core",
                 rl_libraries=libraries,
-                physics=physics,
-                renderers=renderers,
+                modes=_legal_modes(spec.id, physics, renderers, validate=validate_modes),
             )
         )
     tasks.sort(key=lambda task: task.task_id)
     return tasks
+
+
+def _legal_modes(
+    task_id: str, physics: tuple[str, ...], renderers: tuple[str, ...], *, validate: bool
+) -> tuple[DiscoveredTask.Mode, ...]:
+    """Return the legal physics/renderer combinations for one task.
+
+    A task declaring renderers is always expanded across them: benchmarking a
+    camera task headless measures everything except the thing under test.
+    """
+    physics_options: tuple[str | None, ...] = physics or (None,)
+    if not renderers:
+        return tuple(DiscoveredTask.Mode(physics=name, renderer=None) for name in physics_options)
+
+    modes: list[DiscoveredTask.Mode] = []
+    for physics_name in physics_options:
+        for renderer in renderers:
+            if validate and not _mode_resolves(task_id, physics_name, renderer):
+                continue
+            modes.append(DiscoveredTask.Mode(physics=physics_name, renderer=renderer))
+    return tuple(modes)
+
+
+def _mode_resolves(task_id: str, physics: str | None, renderer: str | None) -> bool:
+    """Return whether a physics/renderer pairing resolves and passes validation.
+
+    Any failure — an unknown preset, an unloadable config, or a rejected backend
+    combination — makes the pairing undispatchable, so all of them are treated
+    the same.
+    """
+    import argparse
+    import sys
+
+    from isaaclab.app.sim_launcher import _validate_runtime, scan
+
+    from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task")
+    parser.add_argument("--agent", default=None)
+    argv = ["--task", task_id]
+    if physics is not None:
+        argv.append(f"physics={physics}")
+    if renderer is not None:
+        argv.append(f"renderer={renderer}")
+
+    original_argv = list(sys.argv)
+    try:
+        args, remaining = setup_preset_cli(parser, argv)
+        sys.argv = [sys.argv[0]] + remaining
+        env_cfg, _ = resolve_task_config(args.task, args.agent)
+        _validate_runtime(scan(env_cfg, args), args)
+        return True
+    except Exception:  # noqa: BLE001 - any failure means undispatchable
+        return False
+    finally:
+        sys.argv = original_argv
 
 
 def _is_training_task(task_id: str) -> bool:
