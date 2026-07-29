@@ -23,6 +23,7 @@ def resolve_method_benchmarks(
 ) -> list[MethodBenchmarkDefinition]:
     """Resolve shared method specs against backend capabilities and overrides."""
     definitions: list[MethodBenchmarkDefinition] = []
+    method_name_overrides = getattr(adapter, "method_name_overrides", {})
     for spec in suite.methods:
         if spec.requires is not None and spec.requires not in adapter.capabilities:
             continue
@@ -34,7 +35,7 @@ def resolve_method_benchmarks(
         definitions.append(
             MethodBenchmarkDefinition(
                 name=spec.name,
-                method_name=spec.method_name,
+                method_name=method_name_overrides.get(spec.method_name, spec.method_name),
                 input_generators=generators,
                 category=spec.category,
             )

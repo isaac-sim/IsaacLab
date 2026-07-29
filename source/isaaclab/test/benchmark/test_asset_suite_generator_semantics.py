@@ -34,10 +34,10 @@ _CONFIG = MethodBenchmarkRunnerConfig(
         ("physx", "articulation", 7),
         ("newton_mjwarp", "articulation", 3),
         ("ovphysx", "articulation", 7),
-        ("physx", "rigid_object", 3),
+        ("physx", "rigid_object", 7),
         ("newton_mjwarp", "rigid_object", 3),
         ("ovphysx", "rigid_object", 7),
-        ("physx", "rigid_object_collection", 3),
+        ("physx", "rigid_object_collection", 7),
         ("newton_mjwarp", "rigid_object_collection", 3),
         ("ovphysx", "rigid_object_collection", 7),
     ),
@@ -66,14 +66,14 @@ def test_physx_rigid_object_omits_body_ids_in_both_index_modes() -> None:
             assert "body_ids" not in definition.input_generators[mode](_CONFIG)
 
 
-def test_physx_collection_inertia_uses_matrix_shape_in_both_index_modes() -> None:
-    """PhysX collection inertia setters should retain their matrix-valued inputs."""
+def test_physx_collection_inertia_uses_flattened_shape_in_both_index_modes() -> None:
+    """PhysX collection inertia setters should retain their flattened matrix inputs."""
     adapter = get_asset_benchmark_adapter("physx", "rigid_object_collection")
     definitions = resolve_method_benchmarks(get_asset_benchmark_suite("rigid_object_collection"), adapter)
     definition = next(definition for definition in definitions if definition.method_name == "set_inertias")
 
     for mode in ("torch_list", "torch_tensor"):
-        assert definition.input_generators[mode](_CONFIG)["inertias"].shape == (2, 3, 3, 3)
+        assert definition.input_generators[mode](_CONFIG)["inertias"].shape == (2, 3, 9)
 
 
 @pytest.mark.parametrize("physics", ("physx", "newton_mjwarp", "ovphysx"))

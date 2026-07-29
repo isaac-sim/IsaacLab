@@ -82,6 +82,7 @@ class AssetBenchmarkAdapter(Protocol):
     capabilities: frozenset[str]
     default_num_bodies: int
     default_num_joints: int
+    method_name_overrides: Mapping[str, str]
     generator_overrides: Mapping[WorkloadKey, InputGenerator]
     supported_properties: frozenset[str]
     property_dependency_overrides: Mapping[str, tuple[str, ...]]

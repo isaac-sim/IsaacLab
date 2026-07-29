@@ -52,7 +52,7 @@ def create_contact_sensor_scene_cfg(
                 collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
                 activate_contact_sensors=True,
             ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.3)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
         )
         contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",

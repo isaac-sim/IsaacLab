@@ -67,6 +67,9 @@ def get_asset_benchmark_adapter(component: str) -> PackageAssetBenchmarkAdapter:
         supported_properties=properties,
         default_num_bodies=default_num_bodies,
         default_num_joints=default_num_joints,
+        method_name_overrides={
+            "write_joint_friction_coefficient_to_sim": "write_joint_friction_coefficient_to_sim_index"
+        },
         generator_overrides=overrides,
         property_dependency_overrides=dependencies,
     )

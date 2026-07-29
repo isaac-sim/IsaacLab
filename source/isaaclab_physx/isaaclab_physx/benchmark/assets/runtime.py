@@ -304,7 +304,7 @@ def _create_data_target(component, config):
         _configure_articulation_view(mock_view, config)
         data = ArticulationData(mock_view, config.device)
         data._apply_ordering_maps_after_resolve()
-        return data, lambda cfg: _refresh_articulation_data(data, cfg)
+        return data, lambda cfg, _mock_view=mock_view: _refresh_articulation_data(data, cfg)
     if component == "rigid_object":
         mock_view = MockRigidBodyViewWarp(count=config.num_instances, device=config.device)
         mock_view.set_random_mock_data()

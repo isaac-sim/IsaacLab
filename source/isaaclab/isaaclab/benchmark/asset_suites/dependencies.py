@@ -31,25 +31,14 @@ ARTICULATION_DEPENDENCIES = {
     "body_com_quat_b": ("body_com_pose_b",),
 }
 
-RIGID_OBJECT_DEPENDENCIES = {
-    **ARTICULATION_DEPENDENCIES,
-    "root_link_lin_vel_b": ("root_link_vel_b",),
-    "root_link_ang_vel_b": ("root_link_vel_b",),
-    "root_com_lin_vel_b": ("root_com_vel_b",),
-    "root_com_ang_vel_b": ("root_com_vel_b",),
-}
-
+RIGID_OBJECT_DEPENDENCIES = ARTICULATION_DEPENDENCIES
 OVPHYSX_RIGID_OBJECT_DEPENDENCIES = ARTICULATION_DEPENDENCIES
 
 OBJECT_COLLECTION_DEPENDENCIES = {
     "object_link_lin_vel_w": ("object_link_vel_w",),
     "object_link_ang_vel_w": ("object_link_vel_w",),
-    "object_link_lin_vel_b": ("object_link_vel_b",),
-    "object_link_ang_vel_b": ("object_link_vel_b",),
     "object_com_pos_w": ("object_com_pose_w",),
     "object_com_quat_w": ("object_com_pose_w",),
-    "object_com_lin_vel_b": ("object_com_vel_b",),
-    "object_com_ang_vel_b": ("object_com_vel_b",),
     "object_com_lin_vel_w": ("object_com_vel_w",),
     "object_com_ang_vel_w": ("object_com_vel_w",),
     "object_link_pos_w": ("object_link_pose_w",),

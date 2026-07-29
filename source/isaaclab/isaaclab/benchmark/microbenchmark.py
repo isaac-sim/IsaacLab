@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -126,7 +127,7 @@ class MicrobenchmarkFactory:
         return MicrobenchmarkCommand(descriptor.variant, component, script, child_args)
 
 
-def _create_parser(factory: MicrobenchmarkFactory) -> argparse.ArgumentParser:
+def _create_parser(factory: MicrobenchmarkFactory, *, add_help: bool = True) -> argparse.ArgumentParser:
     """Create the top-level micro-benchmark parser."""
     variants = ", ".join(factory.physics_variants())
     components = ", ".join(factory.components())
@@ -135,6 +136,7 @@ def _create_parser(factory: MicrobenchmarkFactory) -> argparse.ArgumentParser:
         description="Run one component micro-benchmark with an exact physics variant.",
         epilog=f"physics variants: {variants}\ncomponents: {components}",
         formatter_class=argparse.RawTextHelpFormatter,
+        add_help=add_help,
     )
 
 
@@ -152,10 +154,16 @@ def run_microbenchmark_cli(args: list[str] | None = None) -> int:
         subprocess.CalledProcessError: If the child benchmark fails.
     """
     factory = MicrobenchmarkFactory()
-    parser = _create_parser(factory)
+    raw_args = list(args) if args is not None else sys.argv[1:]
+    forward_help = any(arg in ("-h", "--help") for arg in raw_args)
+    if forward_help:
+        has_component = any(arg == "--component" or arg.startswith("--component=") for arg in raw_args)
+        has_physics = any(arg.startswith("physics=") for arg in raw_args)
+        forward_help = has_component and has_physics
+    parser = _create_parser(factory, add_help=not forward_help)
     parser.add_argument("--component", required=True, choices=factory.components())
     parser.add_argument("physics", help="Exact selector in the form physics=<variant>.")
-    parsed, passthrough = parser.parse_known_args(args)
+    parsed, passthrough = parser.parse_known_args(raw_args)
     physics = parsed.physics.removeprefix("physics=")
     if physics == parsed.physics or not physics:
         parser.error("physics must use the form physics=<variant>")

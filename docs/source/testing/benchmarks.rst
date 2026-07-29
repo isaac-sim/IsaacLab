@@ -69,7 +69,7 @@ From a source installation, run:
        --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results \
-       physics=physx
+       physics=isaacsim_physx
 
 ``summary`` prints a human-readable terminal report and writes its flat metrics
 JSON. ``schema`` writes the stable, typed JSON bundle used for programmatic
@@ -243,7 +243,7 @@ Command
        --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/play \
-       physics=physx
+       physics=isaacsim_physx
 
 Warm-Up
 ~~~~~~~
@@ -299,7 +299,7 @@ Command
        --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/training \
-       physics=physx
+       physics=isaacsim_physx
 
 Warm-Up
 ~~~~~~~
@@ -360,7 +360,7 @@ Command
        --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/startup \
-       physics=physx
+       physics=isaacsim_physx
 
 Warm-Up
 ~~~~~~~
@@ -408,7 +408,7 @@ and sensor preset explicitly:
        --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/rendered \
-       physics=physx renderer=isaacsim_rtx presets=rgb
+       physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb
 
 Selecting ``summary`` enables the available Kit physics, rendering,
 application, and GPU frame-time recorders. Some recorders may be unavailable in
@@ -424,7 +424,7 @@ Keep the command fixed and substitute one physics selector:
 
 .. code-block:: text
 
-   physics=physx
+   physics=isaacsim_physx
    physics=newton_mjwarp
    physics=ovphysx
 

@@ -53,7 +53,7 @@ def _generator_overrides(component: str):
         )
         overrides.update(
             _indexed_overrides(
-                "set_coms", {"coms": ("instances", "bodies", 3)}, {"env_ids": "instances"}
+                "set_coms", {"coms": ("instances", "bodies", 7)}, {"env_ids": "instances"}
             )
         )
         overrides.update(
@@ -64,8 +64,8 @@ def _generator_overrides(component: str):
         return overrides
     if component == "rigid_object_collection":
         return _indexed_overrides(
-            "set_inertias",
-            {"inertias": ("instances", "bodies", 3, 3)},
+            "set_coms",
+            {"coms": ("instances", "bodies", 7)},
             {"env_ids": "instances", "body_ids": "bodies"},
         )
     return {}

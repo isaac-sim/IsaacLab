@@ -345,7 +345,7 @@ def _create_articulation_data_target(config):
     mock_view.eval_mass_matrix = lambda state, *, H, J, body_I_s, joint_S_s: None
     data = data_type(mock_view, config.device)
     data._apply_ordering_maps_after_resolve()
-    return data, lambda cfg: _refresh_articulation_data(data, cfg)
+    return data, lambda cfg, _mock_view=mock_view: _refresh_articulation_data(data, cfg)
 
 
 def _create_data_target(component, config):
