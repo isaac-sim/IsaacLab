@@ -308,7 +308,7 @@ def test_actuator_constructor_accepts_exact_proxy_selector_annotation(constructo
 
 
 def test_scene_entity_cfg_requests_legacy_list_for_joint_bookkeeping():
-    """Test SceneEntityCfg keeps list equality and slice-optimization semantics explicit."""
+    """Test SceneEntityCfg keeps legacy list resolution and slice optimization."""
     robot = MockArticulation(
         num_instances=1,
         num_joints=3,
@@ -316,21 +316,17 @@ def test_scene_entity_cfg_requests_legacy_list_for_joint_bookkeeping():
         joint_names=["joint_0", "joint_1", "joint_2"],
         device="cpu",
     )
-    original_find_joints = robot.find_joints
-    requested_modes = []
-
-    def record_find_joints(*args, **kwargs):
-        requested_modes.append(kwargs.get("as_proxy"))
-        return original_find_joints(*args, **kwargs)
-
-    robot.find_joints = record_find_joints
     entity_cfg = SceneEntityCfg("robot", joint_names=["joint_2", "joint_0"], preserve_order=True)
+    all_joints_cfg = SceneEntityCfg("robot", joint_names=["joint_0", "joint_1", "joint_2"])
 
     entity_cfg.resolve({"robot": robot})
+    all_joints_cfg.resolve({"robot": robot})
 
-    assert requested_modes == [False]
+    assert isinstance(entity_cfg.joint_ids, list)
     assert entity_cfg.joint_ids == [2, 0]
     assert entity_cfg.joint_names == ["joint_2", "joint_0"]
+    assert all_joints_cfg.joint_ids == slice(None)
+    assert all_joints_cfg.joint_names == ["joint_0", "joint_1", "joint_2"]
 
 
 def test_scene_entity_cfg_does_not_pass_asset_mode_to_sensor_finder():
