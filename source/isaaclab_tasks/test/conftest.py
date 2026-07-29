@@ -24,9 +24,9 @@ def enable_scene_partition(monkeypatch):
     monkeypatch.setenv("ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION", "1")
 
 
-@pytest.fixture(params=["legacy", "ovstage"])
+@pytest.fixture()
 def ovstage_variant(request, monkeypatch):
-    """Parametrize tests across the legacy and ovstage OVRTX code paths."""
+    """Select the indirectly parametrized OVRTX stage path."""
     if request.param == "ovstage":
         monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
     else:
