@@ -82,9 +82,11 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
             " Example: 'schema,omniperf'."
         ),
     )
+    _common.add_video_args(parser, include_interval=False)
     add_launcher_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
+    _common.enable_cameras_for_video(args)
     sys.argv = [sys.argv[0]] + remaining
     return args, remaining
 
@@ -179,7 +181,8 @@ def run(argv: list[str]) -> BenchmarkResult:
             )
 
             env_t0 = time.perf_counter_ns()
-            env = gym.make(args.task, cfg=env_cfg)
+            env = gym.make(args.task, cfg=env_cfg, render_mode="rgb_array" if args.video else None)
+            env = _common.wrap_record_video_play(env, args.output_path, args)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
 
@@ -259,6 +262,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 reward=reward,
                 ep_length=ep_length,
                 checkpoint_path=resume_path,
+                video_path=_common.play_video_dir(args.output_path, args),
             )
 
             benchmark.attach_bundle(bundle)
