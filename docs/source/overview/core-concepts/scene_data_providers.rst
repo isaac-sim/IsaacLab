@@ -92,9 +92,10 @@ additionally need a Newton ``Model``/``State`` to render against. To satisfy tha
 stage on first access and updates its ``body_q`` from the PhysX backend each render frame.
 When the scene contains PhysX or OVPhysX deformables, the shadow model also allocates
 ``particle_q`` slots for soft/cloth meshes, syncs simulation nodal positions through
-:meth:`SceneDataProvider.get_points`, and populates a shadow deformable registry so OVRTX
-can bind surface-deformable visual mesh ``points``. Volume sim-to-visual remapping for
-OVRTX remains unsupported (same limitation as the Newton-sim deformable path).
+:meth:`SceneDataProvider.get_points` with ``allow_passthrough=False`` (so shadow buffers
+stay bound for ``get_state()`` consumers), and populates a shadow deformable registry so
+OVRTX can bind surface-deformable visual mesh ``points``. Volume sim-to-visual remapping
+for OVRTX remains unsupported (same limitation as the Newton-sim deformable path).
 This is hidden behind :meth:`NewtonManager.get_model` / :meth:`NewtonManager.get_state`, so
 renderers don't need to know which physics backend is active.
 

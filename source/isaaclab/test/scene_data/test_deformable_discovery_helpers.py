@@ -10,7 +10,9 @@ from __future__ import annotations
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
     build_deformable_vertex_count_lookup,
+    group_deformable_root_paths_for_views,
     resolve_deformable_vertex_count,
+    sort_deformable_entries_for_geometry_sync,
 )
 
 
@@ -19,15 +21,16 @@ def test_build_deformable_vertex_count_lookup_indexes_root_and_sim_mesh():
         DeformableStageEntry(
             root_path="/World/envs/env_0/Deformable",
             sim_mesh_path="/World/envs/env_0/Deformable/geometry/mesh",
-            vis_mesh_path="/World/envs/env_0/Deformable/geometry/mesh",
+            vis_mesh_path="/World/envs/env_0/Deformable/geometry/vis_mesh",
             deformable_type="volume",
             vertex_count=69,
-            vis_vertex_count=69,
+            vis_vertex_count=72,
         )
     ]
     lookup = build_deformable_vertex_count_lookup(entries)
     assert lookup["/World/envs/env_0/Deformable"] == 69
     assert lookup["/World/envs/env_0/Deformable/geometry/mesh"] == 69
+    assert lookup["/World/envs/env_0/Deformable/geometry/vis_mesh"] == 72
 
 
 def test_resolve_deformable_vertex_count_walks_ancestors():
@@ -56,3 +59,45 @@ def test_resolve_deformable_vertex_count_matches_env_relative_suffix():
         )
         == 30
     )
+
+
+def test_group_deformable_root_paths_for_views_collapses_replicated_env_assets():
+    root_paths = [
+        "/World/envs/env_0/ClothA",
+        "/World/envs/env_1/ClothA",
+        "/World/envs/env_0/SoftB",
+    ]
+    path_to_type = {
+        "/World/envs/env_0/ClothA": "surface",
+        "/World/envs/env_1/ClothA": "surface",
+        "/World/envs/env_0/SoftB": "volume",
+    }
+    grouped = group_deformable_root_paths_for_views(root_paths, path_to_type)
+    assert grouped["surface"] == (["/World/envs/env_*/ClothA"], [])
+    assert grouped["volume"] == (["/World/envs/env_*/SoftB"], [])
+
+
+def test_sort_deformable_entries_for_geometry_sync_orders_volume_before_surface():
+    entries = [
+        DeformableStageEntry(
+            root_path="/World/envs/env_0/Cloth",
+            sim_mesh_path="/World/envs/env_0/Cloth/sim",
+            vis_mesh_path="/World/envs/env_0/Cloth/vis",
+            deformable_type="surface",
+            vertex_count=4,
+            vis_vertex_count=4,
+        ),
+        DeformableStageEntry(
+            root_path="/World/envs/env_0/Soft",
+            sim_mesh_path="/World/envs/env_0/Soft/sim",
+            vis_mesh_path="/World/envs/env_0/Soft/vis",
+            deformable_type="volume",
+            vertex_count=5,
+            vis_vertex_count=5,
+        ),
+    ]
+    ordered = sort_deformable_entries_for_geometry_sync(entries)
+    assert [entry.root_path for entry in ordered] == [
+        "/World/envs/env_0/Soft",
+        "/World/envs/env_0/Cloth",
+    ]

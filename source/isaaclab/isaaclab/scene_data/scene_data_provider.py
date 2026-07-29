@@ -307,7 +307,7 @@ class SceneDataProvider:
             wp.copy(output.points, input_points.points)
             return True
 
-        mapping_host = mapping.numpy().tolist() if mapping is not None else None
+        mapping_host = mapping.numpy() if mapping is not None else None
         dest_size = int(output.points.shape[0])
         src_size = int(input_points.points.shape[0])
         src_offset = 0
