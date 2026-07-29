@@ -11,6 +11,7 @@ Subcommands:
 - ``dispatch`` — plan rows, render workflows, submit, poll, fetch.
 - ``status`` — summarise a dispatch from ``dispatch.json``.
 - ``fetch`` — re-pull results for a dispatch's completed rows.
+- ``discover`` — generate the task list from the Gym registry.
 - ``harvest`` — derive per-task metadata from a completed dispatch's bundles.
 """
 
@@ -25,6 +26,7 @@ from pathlib import Path
 
 from tools.odin.client import OsmoClient
 from tools.odin.config_file import OdinConfig, OdinConfigError, load_odin_config
+from tools.odin.discover import POLICIES, DiscoveryError, discover_tasks, filter_rows, rows_for_policy, write_task_list
 from tools.odin.harvest import DEFAULT_TIMEOUT_HEADROOM, harvest_dispatch, write_task_metadata
 from tools.odin.image import DEFAULT_CUDA_IMAGE, PROFILES, ImageBuildError, build_image
 from tools.odin.plan import PlanError, PlannedRow, apply_metadata, chunk_rows, load_task_rows, plan_rows
@@ -281,6 +283,39 @@ def command_fetch(args: argparse.Namespace) -> int:
     return 0 if valid == len(completed) else 1
 
 
+def command_discover(args: argparse.Namespace) -> int:
+    """Generate the dispatch task list by walking the Gym registry."""
+    tasks = discover_tasks()
+    rows = filter_rows(
+        rows_for_policy(tasks, args.policy),
+        include=args.include,
+        exclude=args.exclude,
+        libraries=args.library,
+        physics=args.physics,
+        scope=args.scope,
+        max_rows=args.max_rows,
+    )
+    if not rows:
+        print("[odin] discovery produced no rows; check the filters", file=sys.stderr)
+        return 1
+    write_task_list(
+        args.output,
+        rows,
+        meta={
+            "generated_at": _utc_now_iso(),
+            "policy": args.policy,
+            "task_count": len({row["task_id"] for row in rows}),
+            "row_count": len(rows),
+        },
+    )
+    scopes = Counter(row.get("scope", "core") for row in rows)
+    print(
+        f"[odin] discovered {len({r['task_id'] for r in rows})} task(s) -> {len(rows)} row(s) "
+        f"({', '.join(f'{k}={v}' for k, v in sorted(scopes.items()))}) -> {args.output}"
+    )
+    return 0
+
+
 def command_harvest(args: argparse.Namespace) -> int:
     """Derive per-task metadata from a completed dispatch's bundles."""
     dispatch_dir = args.runs_root / args.dispatch_id
@@ -349,6 +384,16 @@ def _build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--config", type=Path, required=True)
     fetch.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
 
+    discover = sub.add_parser("discover", help="Generate the task list from the Gym registry.")
+    discover.add_argument("--policy", choices=POLICIES, default="standard")
+    discover.add_argument("--output", type=Path, default=Path(__file__).resolve().parent / "config" / "tasks.yaml")
+    discover.add_argument("--include", type=str, default=None, help="Glob a task_id must match.")
+    discover.add_argument("--exclude", type=str, default=None, help="Glob a task_id must not match.")
+    discover.add_argument("--library", action="append", default=None, help="Restrict the library axis; repeatable.")
+    discover.add_argument("--physics", action="append", default=None, help="Restrict the physics axis; repeatable.")
+    discover.add_argument("--scope", choices=["core", "contrib", "all"], default="all")
+    discover.add_argument("--max-rows", type=int, default=None, help="Deterministic head of the sorted order.")
+
     harvest = sub.add_parser("harvest", help="Derive per-task metadata from a completed dispatch.")
     harvest.add_argument("dispatch_id", type=str)
     harvest.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
@@ -372,6 +417,7 @@ _COMMANDS = {
     "dispatch": command_dispatch,
     "status": command_status,
     "fetch": command_fetch,
+    "discover": command_discover,
     "harvest": command_harvest,
 }
 
@@ -392,7 +438,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         return _COMMANDS[args.command](args)
-    except (OdinConfigError, PlanError, ImageBuildError) as exc:
+    except (OdinConfigError, PlanError, ImageBuildError, DiscoveryError) as exc:
         print(f"[odin] {exc}", file=sys.stderr)
         return 1
 

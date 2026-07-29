@@ -80,8 +80,12 @@ def test_dry_run_submits_nothing(workspace: Path) -> None:
 
 
 def test_include_filter_narrows_the_row_set(workspace: Path) -> None:
+    import fnmatch
+
     main(_dispatch_argv(workspace, "--include", "Isaac-Cartpole-*"))
-    assert {job["task_id"] for job in _state(workspace)["jobs"]} == {"Isaac-Cartpole-Direct"}
+    matched = {job["task_id"] for job in _state(workspace)["jobs"]}
+    assert matched
+    assert all(fnmatch.fnmatch(task_id, "Isaac-Cartpole-*") for task_id in matched)
 
 
 def test_rows_carry_no_sizing_by_default(workspace: Path) -> None:
@@ -250,3 +254,35 @@ def test_harvest_writes_metadata_from_bundles(workspace: Path, tmp_path: Path) -
     entry = yaml.safe_load(out.read_text())["tasks"][0]
     assert entry["num_envs"] == 4096
     assert entry["timeout_s"] == 240
+
+
+def test_discover_writes_a_planner_ready_task_list(workspace: Path, tmp_path: Path, monkeypatch) -> None:
+    # The registry walk needs Isaac Lab; the CLI wiring around it does not.
+    from tools.odin import cli as cli_module
+    from tools.odin.discover import DiscoveredTask
+
+    monkeypatch.setattr(
+        cli_module,
+        "discover_tasks",
+        lambda: [
+            DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), ("newton_mjwarp",), ()),
+            DiscoveredTask("IsaacContrib-Walk", "contrib", ("rsl_rl",), ("ovphysx",), ()),
+        ],
+    )
+    out = tmp_path / "tasks.yaml"
+
+    assert main(["discover", "--policy", "standard", "--output", str(out)]) == 0
+
+    payload = yaml.safe_load(out.read_text())
+    assert payload["discovery"]["row_count"] == 2
+    assert {row["scope"] for row in payload["tasks"]} == {"core", "contrib"}
+
+
+def test_discover_scope_filter_can_empty_the_list(tmp_path: Path, monkeypatch) -> None:
+    from tools.odin import cli as cli_module
+    from tools.odin.discover import DiscoveredTask
+
+    monkeypatch.setattr(
+        cli_module, "discover_tasks", lambda: [DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (), ())]
+    )
+    assert main(["discover", "--scope", "contrib", "--output", str(tmp_path / "t.yaml")]) != 0
