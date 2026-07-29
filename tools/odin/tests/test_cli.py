@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""End-to-end CLI wiring, exercised offline via ``--dry-run``."""
+"""End-to-end CLI wiring, exercised offline via ``--dry_run``."""
 
 import json
 import shutil
@@ -29,15 +29,15 @@ def _dispatch_argv(workspace: Path, *extra: str) -> list[str]:
         "dispatch",
         "--config",
         str(workspace / "odin.yaml"),
-        "--tasks-yaml",
+        "--tasks_yaml",
         str(workspace / "tasks.yaml"),
         "--image",
         "nvcr.io/nvidian/x@sha256:abc",
         "--seeds",
         "42",
-        "--runs-root",
+        "--runs_root",
         str(workspace / "runs"),
-        "--dry-run",
+        "--dry_run",
         *extra,
     ]
 
@@ -59,7 +59,7 @@ def test_dry_run_dispatch_exits_zero(workspace: Path) -> None:
 
 
 def test_dry_run_writes_workflow_yaml_per_chunk(workspace: Path) -> None:
-    main(_dispatch_argv(workspace, "--chunk-size", "1"))
+    main(_dispatch_argv(workspace, "--chunk_size", "1"))
     rendered = sorted(_dispatch_dir(workspace).glob("workflow.*.yaml"))
     assert len(rendered) >= 2
     assert yaml.safe_load(rendered[0].read_text())["workflow"]["groups"]
@@ -97,27 +97,27 @@ def test_rows_carry_no_sizing_by_default(workspace: Path) -> None:
 
 
 def test_ab_mode_plans_both_sides(workspace: Path) -> None:
-    main(_dispatch_argv(workspace, "--image-b", "nvcr.io/nvidian/x@sha256:def"))
+    main(_dispatch_argv(workspace, "--image_b", "nvcr.io/nvidian/x@sha256:def"))
     state = _state(workspace)
     assert {job["side"] for job in state["jobs"]} == {"a", "b"}
     assert state["images"] == {"a": "nvcr.io/nvidian/x@sha256:abc", "b": "nvcr.io/nvidian/x@sha256:def"}
 
 
 def test_ab_row_keys_are_disambiguated_by_side(workspace: Path) -> None:
-    main(_dispatch_argv(workspace, "--image-b", "nvcr.io/nvidian/x@sha256:def"))
+    main(_dispatch_argv(workspace, "--image_b", "nvcr.io/nvidian/x@sha256:def"))
     keys = [job["row_key"] for job in _state(workspace)["jobs"]]
     assert len(keys) == len(set(keys))
 
 
 def test_ab_osmo_task_names_are_unique(workspace: Path) -> None:
     # Two OSMO tasks sharing a name inside one workflow is a submit-time error.
-    main(_dispatch_argv(workspace, "--image-b", "nvcr.io/nvidian/x@sha256:def"))
+    main(_dispatch_argv(workspace, "--image_b", "nvcr.io/nvidian/x@sha256:def"))
     names = [job["osmo_task_name"] for job in _state(workspace)["jobs"]]
     assert len(names) == len(set(names))
 
 
 def test_each_side_uses_its_own_image(workspace: Path) -> None:
-    main(_dispatch_argv(workspace, "--image-b", "nvcr.io/nvidian/x@sha256:def"))
+    main(_dispatch_argv(workspace, "--image_b", "nvcr.io/nvidian/x@sha256:def"))
     by_side = {job["side"]: job["image_ref"] for job in _state(workspace)["jobs"]}
     assert by_side["a"] == "nvcr.io/nvidian/x@sha256:abc"
     assert by_side["b"] == "nvcr.io/nvidian/x@sha256:def"
@@ -141,15 +141,15 @@ def test_bad_config_path_exits_non_zero(workspace: Path, capsys) -> None:
             "dispatch",
             "--config",
             str(workspace / "absent.yaml"),
-            "--tasks-yaml",
+            "--tasks_yaml",
             str(workspace / "tasks.yaml"),
             "--image",
             "img",
             "--seeds",
             "42",
-            "--runs-root",
+            "--runs_root",
             str(workspace / "runs"),
-            "--dry-run",
+            "--dry_run",
         ]
     )
     assert code == 1
@@ -166,9 +166,9 @@ def test_build_image_dry_run_writes_a_dockerfile(workspace: Path, tmp_path: Path
             "HEAD",
             "--profile",
             "full",
-            "--context-dir",
+            "--context_dir",
             str(tmp_path / "ctx"),
-            "--dry-run",
+            "--dry_run",
         ]
     )
     assert code == 0
@@ -183,9 +183,9 @@ def test_build_image_rejects_an_unknown_ref(workspace: Path, tmp_path: Path, cap
             str(workspace / "odin.yaml"),
             "--ref",
             "definitely-not-a-ref-abc123",
-            "--context-dir",
+            "--context_dir",
             str(tmp_path / "ctx"),
-            "--dry-run",
+            "--dry_run",
         ]
     )
     assert code == 1
@@ -193,7 +193,7 @@ def test_build_image_rejects_an_unknown_ref(workspace: Path, tmp_path: Path, cap
 
 
 def test_status_on_a_missing_dispatch_exits_non_zero(workspace: Path) -> None:
-    assert main(["status", "--runs-root", str(workspace / "runs"), "20260101-000000"]) != 0
+    assert main(["status", "--runs_root", str(workspace / "runs"), "20260101-000000"]) != 0
 
 
 def test_status_reports_job_counts(workspace: Path, capsys) -> None:
@@ -201,14 +201,14 @@ def test_status_reports_job_counts(workspace: Path, capsys) -> None:
     dispatch_id = _dispatch_dir(workspace).name
     capsys.readouterr()
 
-    code = main(["status", "--runs-root", str(workspace / "runs"), dispatch_id])
+    code = main(["status", "--runs_root", str(workspace / "runs"), dispatch_id])
 
     assert code == 0
     assert "pending" in capsys.readouterr().out
 
 
 def test_harvest_on_a_missing_dispatch_exits_non_zero(workspace: Path) -> None:
-    assert main(["harvest", "--runs-root", str(workspace / "runs"), "20260101-000000"]) != 0
+    assert main(["harvest", "--runs_root", str(workspace / "runs"), "20260101-000000"]) != 0
 
 
 def test_harvest_writes_metadata_from_bundles(workspace: Path, tmp_path: Path) -> None:
@@ -240,12 +240,12 @@ def test_harvest_writes_metadata_from_bundles(workspace: Path, tmp_path: Path) -
     code = main(
         [
             "harvest",
-            "--runs-root",
+            "--runs_root",
             str(workspace / "runs"),
             dispatch_id,
             "--output",
             str(out),
-            "--timeout-headroom",
+            "--timeout_headroom",
             "2.0",
         ]
     )
@@ -271,7 +271,7 @@ def test_discover_writes_a_planner_ready_task_list(workspace: Path, tmp_path: Pa
     )
     out = tmp_path / "tasks.yaml"
 
-    assert main(["discover", "--policy", "standard", "--output", str(out)]) == 0
+    assert main(["discover", "--selection", "standard", "--output", str(out)]) == 0
 
     payload = yaml.safe_load(out.read_text())
     assert payload["discovery"]["row_count"] == 2

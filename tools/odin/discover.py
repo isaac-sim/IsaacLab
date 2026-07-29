@@ -27,24 +27,26 @@ from typing import Any
 import yaml
 
 __all__ = [
-    "POLICIES",
+    "SELECTIONS",
     "RL_LIBRARY_PRIORITY",
     "DiscoveredTask",
     "DiscoveryError",
     "discover_tasks",
     "filter_rows",
-    "rows_for_policy",
+    "rows_for_selection",
     "write_task_list",
 ]
 
-# Preferred order when a policy picks one library per task.
+# Preferred order when a selection picks one library per task.
 RL_LIBRARY_PRIORITY: tuple[str, ...] = ("rsl_rl", "rl_games", "skrl", "sb3")
 
 # Physics presets never dispatched. ``newton_mjwarp_vbd_proxy`` is a proxy
 # variant rather than a backend under test.
 _SKIP_PHYSICS = frozenset({"newton_mjwarp_vbd_proxy"})
 
-POLICIES: tuple[str, ...] = ("standard", "core-only", "all-libraries", "cross-backend")
+# Named row-set shapes. Called a *selection*, not a policy: 'policy' means the
+# learned agent everywhere else in this codebase.
+SELECTIONS: tuple[str, ...] = ("standard", "core-only", "all-libraries", "cross-backend")
 
 _CROSS_BACKEND_PHYSICS = ("newton_mjwarp", "ovphysx")
 
@@ -86,12 +88,12 @@ def _canonical_physics(names: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(kept)
 
 
-def rows_for_policy(tasks: list[DiscoveredTask], policy: str) -> list[dict[str, Any]]:
-    """Expand discovered tasks into dispatch rows under a named policy.
+def rows_for_selection(tasks: list[DiscoveredTask], selection: str) -> list[dict[str, Any]]:
+    """Expand discovered tasks into dispatch rows under a named selection.
 
     Args:
         tasks: Discovered tasks.
-        policy: One of :data:`POLICIES`.
+        selection: One of :data:`SELECTIONS`.
 
     Returns:
         Row dicts sorted by ``(task_id, rl_library, physics)``, each carrying
@@ -99,21 +101,21 @@ def rows_for_policy(tasks: list[DiscoveredTask], policy: str) -> list[dict[str, 
         physics preset — ``physics``.
 
     Raises:
-        DiscoveryError: If *policy* is unknown.
+        DiscoveryError: If *selection* is unknown.
     """
-    if policy not in POLICIES:
-        raise DiscoveryError(f"unknown policy {policy!r}; expected one of {list(POLICIES)}")
+    if selection not in SELECTIONS:
+        raise DiscoveryError(f"unknown selection {selection!r}; expected one of {list(SELECTIONS)}")
 
     rows: list[dict[str, Any]] = []
     for task in tasks:
         if not task.rl_libraries:
             continue
-        if policy == "core-only" and task.scope != "core":
+        if selection == "core-only" and task.scope != "core":
             continue
 
-        libraries = task.rl_libraries if policy == "all-libraries" else task.rl_libraries[:1]
+        libraries = task.rl_libraries if selection == "all-libraries" else task.rl_libraries[:1]
         physics = _canonical_physics(task.physics)
-        if policy == "cross-backend":
+        if selection == "cross-backend":
             physics = tuple(name for name in physics if name in _CROSS_BACKEND_PHYSICS)
             if not physics:
                 continue
@@ -125,9 +127,7 @@ def rows_for_policy(tasks: list[DiscoveredTask], policy: str) -> list[dict[str, 
                 rows.append({"task_id": task.task_id, "scope": task.scope, "rl_library": library})
                 continue
             for name in physics:
-                rows.append(
-                    {"task_id": task.task_id, "scope": task.scope, "rl_library": library, "physics": name}
-                )
+                rows.append({"task_id": task.task_id, "scope": task.scope, "rl_library": library, "physics": name})
 
     rows.sort(key=lambda row: (row["task_id"], row["rl_library"], row.get("physics") or ""))
     return rows
@@ -143,10 +143,10 @@ def filter_rows(
     scope: str | None = None,
     max_rows: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Apply post-filters to policy rows.
+    """Apply post-filters to selection rows.
 
     Args:
-        rows: Rows from :func:`rows_for_policy`.
+        rows: Rows from :func:`rows_for_selection`.
         include: Glob a ``task_id`` must match.
         exclude: Glob a ``task_id`` must not match.
         libraries: Restrict to these RL libraries.
@@ -193,7 +193,6 @@ def discover_tasks() -> list[DiscoveredTask]:
         import gymnasium as gym
 
         import isaaclab_tasks  # noqa: F401
-
         from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
         from isaaclab_tasks.utils.preset_target import PresetTarget
     except ImportError as exc:

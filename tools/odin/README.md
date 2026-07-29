@@ -17,7 +17,7 @@ part of this tool; it lives on the `antoiner/feat/odin` branch.
 - The `osmo` CLI on `PATH` with a configured profile (`osmo login`).
 - Docker, with `docker login nvcr.io` already done, for `build-image --push`.
 - Network access for image build, push, and submission. Everything else,
-  including `--dry-run`, works offline.
+  including `--dry_run`, works offline.
 
 ## Build an image
 
@@ -33,7 +33,7 @@ uv run python -m tools.odin.cli build-image \
     --push
 ```
 
-`--dry-run` writes the build context and prints the tag without invoking git
+`--dry_run` writes the build context and prints the tag without invoking git
 bundling or Docker — useful for inspecting the generated Dockerfile.
 
 One profile, `full`, holding every backend:
@@ -60,25 +60,60 @@ Images are tagged `<registry>/<repository>:<short_sha>-<profiles>`. Pass the
 resolved **digest** to `dispatch`, not the tag, so a retag cannot change what a
 comparison compared.
 
+## Generate the task list
+
+Discovery over the Gym registry is the default row source:
+
+```bash
+uv run python -m tools.odin.cli discover --selection standard
+```
+
+`--selection` names the row-set shape — it is **not** an RL policy; the RL
+library axis is `--library`. Current counts:
+
+| Selection | Rows | Use |
+|---|---|---|
+| `standard` (default) | 163 (102 core / 61 contrib) | one library per task, every declared backend |
+| `core-only` | 102 | fast pre-merge gate |
+| `all-libraries` | 348 | RL-library comparison |
+| `cross-backend` | 75 | Newton vs OvPhysX |
+
+Compose with `--include` / `--exclude` globs, `--library`, `--physics`,
+`--scope {core,contrib,all}` and `--max_rows`.
+
+Two selection rules worth knowing. `physx` is dropped from any task that also
+declares `ovphysx`, because headless they resolve to the same backend and
+running both is an exact duplicate (28 tasks). Tasks declaring no physics preset
+get one row with the field omitted, since they reject any `physics=` token
+(35 tasks).
+
+Beware that `physics=physx` does **not** mean Kit PhysX: it resolves to kitless
+OvPhysX on 39 tasks and to Kit PhysX on only 5. `isaacsim_physx` is the reliably
+Kit one. To sweep the whole PhysX family:
+`--physics physx --physics ovphysx --physics isaacsim_physx`.
+
+A hand-written list remains possible — `dispatch --tasks_yaml <file>` uses it
+verbatim.
+
 ## Run a dispatch
 
 ```bash
 uv run python -m tools.odin.cli dispatch \
     --config tools/odin/config/odin.yaml \
-    --tasks-yaml tools/odin/config/tasks.yaml \
+    --tasks_yaml tools/odin/config/tasks.yaml \
     --image nvcr.io/nvidian/antoiner-isaac-lab@sha256:... \
     --seeds 42,43,44 \
     [--include 'Isaac-Ant*'] \
-    [--metadata-yaml tools/odin/config/task_metadata.yaml] \
-    [--chunk-size 25] [--pool POOL] [--priority HIGH|NORMAL|LOW] \
-    [--dry-run]
+    [--metadata_yaml tools/odin/config/task_metadata.yaml] \
+    [--chunk_size 25] [--pool POOL] [--priority HIGH|NORMAL|LOW] \
+    [--dry_run]
 ```
 
 To compare two commits, build an image per commit and pass both:
 
 ```bash
     --image  <image-for-commit-A> \
-    --image-b <image-for-commit-B>
+    --image_b <image-for-commit-B>
 ```
 
 Both sides run the identical row set. Side B's row keys and OSMO task names take
@@ -106,8 +141,8 @@ uv run python -m tools.odin.cli harvest <dispatch_id> \
 ```
 
 That file records resolved `num_envs` / `max_iterations`, a `timeout_s` derived
-from the slowest observed run (`--timeout-headroom`, default 2.0), and a reward
-baseline. Feed it back with `--metadata-yaml` on the next dispatch. Seed-list
+from the slowest observed run (`--timeout_headroom`, default 2.0), and a reward
+baseline. Feed it back with `--metadata_yaml` on the next dispatch. Seed-list
 values win over harvested ones, so a hand-set override survives a re-harvest.
 
 The comparable upstream table is
@@ -128,7 +163,7 @@ odin_runs/
 ## Preflight
 
 `dispatch` refuses to submit until two server-side checks pass (override with
-`--skip-preflight`):
+`--skip_preflight`):
 
 1. `osmo data check <results_uri> -a WRITE` — a read-only bucket would swallow
    every result, and that is exactly how OSMO retired datasets.

@@ -9,8 +9,8 @@
 # Sizing is absent by design: it is harvested from a real run into
 # task_metadata.yaml and applied as an overlay.
 discovery:
-  generated_at: '2026-07-29T14:46:22Z'
-  policy: standard
+  generated_at: '2026-07-29T14:50:50Z'
+  selection: standard
   task_count: 87
   row_count: 163
 tasks:

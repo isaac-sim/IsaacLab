@@ -26,7 +26,14 @@ from pathlib import Path
 
 from tools.odin.client import OsmoClient
 from tools.odin.config_file import OdinConfig, OdinConfigError, load_odin_config
-from tools.odin.discover import POLICIES, DiscoveryError, discover_tasks, filter_rows, rows_for_policy, write_task_list
+from tools.odin.discover import (
+    SELECTIONS,
+    DiscoveryError,
+    discover_tasks,
+    filter_rows,
+    rows_for_selection,
+    write_task_list,
+)
 from tools.odin.harvest import DEFAULT_TIMEOUT_HEADROOM, harvest_dispatch, write_task_metadata
 from tools.odin.image import DEFAULT_CUDA_IMAGE, PROFILES, ImageBuildError, build_image
 from tools.odin.plan import PlanError, PlannedRow, apply_metadata, chunk_rows, load_task_rows, plan_rows
@@ -185,7 +192,7 @@ def _submit_and_poll(
     if not args.skip_preflight and not client.data_check(cfg.results_uri, access="WRITE"):
         print(
             f"[odin] {cfg.results_uri} is not writable; results would be lost. "
-            "Fix the bucket mode or pass --skip-preflight to override.",
+            "Fix the bucket mode or pass --skip_preflight to override.",
             file=sys.stderr,
         )
         return 1
@@ -287,7 +294,7 @@ def command_discover(args: argparse.Namespace) -> int:
     """Generate the dispatch task list by walking the Gym registry."""
     tasks = discover_tasks()
     rows = filter_rows(
-        rows_for_policy(tasks, args.policy),
+        rows_for_selection(tasks, args.selection),
         include=args.include,
         exclude=args.exclude,
         libraries=args.library,
@@ -303,7 +310,7 @@ def command_discover(args: argparse.Namespace) -> int:
         rows,
         meta={
             "generated_at": _utc_now_iso(),
-            "policy": args.policy,
+            "selection": args.selection,
             "task_count": len({row["task_id"] for row in rows}),
             "row_count": len(rows),
         },
@@ -345,65 +352,70 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="uv extras profile to warm; repeatable. Defaults to 'full'.",
     )
-    build.add_argument("--cuda-image", type=str, default=DEFAULT_CUDA_IMAGE)
-    build.add_argument("--context-dir", type=Path, default=Path("./.odin-build"))
+    build.add_argument("--cuda_image", type=str, default=DEFAULT_CUDA_IMAGE)
+    build.add_argument("--context_dir", type=Path, default=Path("./.odin-build"))
     build.add_argument("--push", action="store_true")
-    build.add_argument("--dry-run", action="store_true")
+    build.add_argument("--dry_run", action="store_true")
 
     dispatch = sub.add_parser("dispatch", help="Plan, submit, and poll a dispatch.")
     dispatch.add_argument("--config", type=Path, required=True)
-    dispatch.add_argument("--tasks-yaml", type=Path, required=True)
+    dispatch.add_argument("--tasks_yaml", type=Path, required=True)
     dispatch.add_argument("--image", type=str, required=True, help="Digest-pinned image for side A.")
-    dispatch.add_argument("--image-b", type=str, default=None, help="Digest-pinned image for side B; enables A/B mode.")
+    dispatch.add_argument("--image_b", type=str, default=None, help="Digest-pinned image for side B; enables A/B mode.")
     dispatch.add_argument("--seeds", type=_parse_seeds, required=True)
     dispatch.add_argument("--include", type=str, default=None, help="Glob filter over task_id.")
     dispatch.add_argument(
-        "--metadata-yaml",
+        "--metadata_yaml",
         type=Path,
         default=None,
         help="Harvested task_metadata.yaml to overlay sizing from. Seed-list values win.",
     )
     dispatch.add_argument("--pool", type=str, default=None)
     dispatch.add_argument("--priority", choices=["HIGH", "NORMAL", "LOW"], default=None)
-    dispatch.add_argument("--chunk-size", type=int, default=None)
-    dispatch.add_argument("--poll-interval", type=float, default=15.0)
-    dispatch.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
-    dispatch.add_argument("--dry-run", action="store_true")
+    dispatch.add_argument("--chunk_size", type=int, default=None)
+    dispatch.add_argument("--poll_interval", type=float, default=15.0)
+    dispatch.add_argument("--runs_root", type=Path, default=Path("./odin_runs"))
+    dispatch.add_argument("--dry_run", action="store_true")
     dispatch.add_argument(
-        "--skip-preflight",
+        "--skip_preflight",
         action="store_true",
         help="Submit without checking that results_uri is writable.",
     )
 
     status = sub.add_parser("status", help="Summarise a dispatch.")
     status.add_argument("dispatch_id", type=str)
-    status.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
+    status.add_argument("--runs_root", type=Path, default=Path("./odin_runs"))
 
     fetch = sub.add_parser("fetch", help="Re-pull results for a dispatch.")
     fetch.add_argument("dispatch_id", type=str)
     fetch.add_argument("--config", type=Path, required=True)
-    fetch.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
+    fetch.add_argument("--runs_root", type=Path, default=Path("./odin_runs"))
 
     discover = sub.add_parser("discover", help="Generate the task list from the Gym registry.")
-    discover.add_argument("--policy", choices=POLICIES, default="standard")
+    discover.add_argument(
+        "--selection",
+        choices=SELECTIONS,
+        default="standard",
+        help="Which task/backend combinations to emit. Not an RL policy.",
+    )
     discover.add_argument("--output", type=Path, default=Path(__file__).resolve().parent / "config" / "tasks.yaml")
     discover.add_argument("--include", type=str, default=None, help="Glob a task_id must match.")
     discover.add_argument("--exclude", type=str, default=None, help="Glob a task_id must not match.")
     discover.add_argument("--library", action="append", default=None, help="Restrict the library axis; repeatable.")
     discover.add_argument("--physics", action="append", default=None, help="Restrict the physics axis; repeatable.")
     discover.add_argument("--scope", choices=["core", "contrib", "all"], default="all")
-    discover.add_argument("--max-rows", type=int, default=None, help="Deterministic head of the sorted order.")
+    discover.add_argument("--max_rows", type=int, default=None, help="Deterministic head of the sorted order.")
 
     harvest = sub.add_parser("harvest", help="Derive per-task metadata from a completed dispatch.")
     harvest.add_argument("dispatch_id", type=str)
-    harvest.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
+    harvest.add_argument("--runs_root", type=Path, default=Path("./odin_runs"))
     harvest.add_argument(
         "--output",
         type=Path,
         default=Path(__file__).resolve().parent / "config" / "task_metadata.yaml",
     )
     harvest.add_argument(
-        "--timeout-headroom",
+        "--timeout_headroom",
         type=float,
         default=DEFAULT_TIMEOUT_HEADROOM,
         help="Multiplier applied to the slowest observed run when deriving timeout_s.",
