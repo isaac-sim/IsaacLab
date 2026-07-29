@@ -170,52 +170,21 @@ To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the co
 Joints actuate in PhysX but not in a Newton-based backend
 ---------------------------------------------------------
 
-If your robot's joints move under PhysX but appear unactuated under one of the
-Newton-based backends (MuJoCo Warp, XPBD, Featherstone, Semi-implicit) — even
-though you have authored an :class:`~isaaclab.actuators.ImplicitActuatorCfg`
-with non-zero ``stiffness`` and ``damping`` — the cause is almost always that
-the USD asset ships with zero authored drive gains.
+Newton resolves target modes for joints covered by an Isaac Lab actuator
+configuration before constructing the solver. For an
+:class:`~isaaclab.actuators.ImplicitActuatorCfg`, stiffness-only, damping-only,
+both-gain, and zero-gain configurations select position, velocity, combined
+position/velocity, and effort modes respectively. ``None`` retains the
+corresponding imported USD gain. Explicit actuator configurations use effort
+mode because Isaac Lab computes their effort directly.
 
-Newton's USD importer only materialises a solver actuator when the authored
-``PhysicsDriveAPI`` reports a non-zero stiffness *or* damping. Many existing
-assets leave both at ``0`` on purpose, expecting the actuator gains to come from
-an :class:`~isaaclab.actuators.ImplicitActuatorCfg` at runtime. PhysX creates
-the actuator regardless and lets the runtime gain writes take effect, so the
-asset works there; Newton drops the actuator before the runtime writes can
-attach to it.
-
-The fix is to set
-:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` to
-``True`` on the spawn config. This writes a minimal placeholder stiffness
-(``1e-3``) to any drive whose authored stiffness *and* damping are both zero,
-which is enough for Newton's importer to create the actuator. The actual gains
-are then overwritten by the actuator model at runtime, so the placeholder has
-no effect on the simulated dynamics.
-
-.. code:: python
-
-   from isaaclab.actuators import ImplicitActuatorCfg
-   from isaaclab.assets import ArticulationCfg
-   import isaaclab.sim as sim_utils
-
-   ROBOT_CFG = ArticulationCfg(
-       spawn=sim_utils.UsdFileCfg(
-           usd_path="...",
-           joint_drive_props=sim_utils.JointDrivePropertiesCfg(ensure_drives_exist=True),
-       ),
-       actuators={
-           "legs": ImplicitActuatorCfg(
-               joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-               effort_limit_sim=120.0,
-               velocity_limit_sim=7.5,
-               stiffness={".*": 40.0},
-               damping={".*": 5.0},
-           ),
-       },
-   )
-
-See :ref:`import-new-asset-ensure-drives-exist` for the underlying USD-import
-details and the equivalent fix when authoring a new asset.
+Joints not covered by an Isaac Lab actuator configuration retain their imported
+USD target modes. Thus, zero-gain USD drives no longer require
+:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` solely
+to make a configured joint actuate in Newton. The option remains available for
+workflows that need to author placeholder drives independently of an Isaac Lab
+actuator configuration. See :ref:`import-new-asset-ensure-drives-exist` for
+details.
 
 
 Checking the internal logs from the simulator
