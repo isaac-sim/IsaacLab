@@ -51,6 +51,15 @@ class ImageSpec:
     repository: str
     pull_credential: str | None
 
+    @property
+    def registry_host(self) -> str:
+        """Return just the registry host, e.g. ``nvcr.io`` from ``nvcr.io/nvidian``.
+
+        OSMO's task ``credentials:`` block maps a credential name to the registry
+        host it authenticates, not to the full namespaced path.
+        """
+        return self.registry.split("/", 1)[0]
+
 
 @dataclass(frozen=True)
 class ResourcesSpec:

@@ -118,6 +118,18 @@ odin_runs/
         └── benchmark_training_Isaac-Ant_2026-07-29_12-00-00.json
 ```
 
+## Preflight
+
+`dispatch` refuses to submit until two server-side checks pass (override with
+`--skip-preflight`):
+
+1. `osmo data check <results_uri> -a WRITE` — a read-only bucket would swallow
+   every result, and that is exactly how OSMO retired datasets.
+2. `osmo workflow validate` on every rendered chunk — OSMO rejects unknown task
+   fields, bad pool/platform pairs, unknown credential names, and unreachable
+   images. Validating all chunks before submitting any avoids a half-submitted
+   dispatch.
+
 ## Failure kinds
 
 `dispatch.json` records one of four kinds per failed row:
@@ -134,10 +146,12 @@ drift cannot wedge the poll loop or be misread as a benchmark crash.
 
 ## Known gaps
 
-- **Result retrieval is provisional.** OSMO datasets were retired. `results.py`
-  isolates publish and fetch behind one seam, currently implemented with
-  `osmo data upload` / `osmo data download` against a bucket URI. When the
-  replacement mechanism is settled, that is the only file to change.
+- **DSS is not used.** OSMO datasets were retired (`outputs: - dataset:` now
+  fails server-side with *"Bucket isaac mode is read-only"*). Publishing is
+  declarative instead: each task carries an `outputs: - url: swift://...` block
+  and OSMO performs the upload. Registering results as nv-datasets, if wanted,
+  would be a controller-side step after fetch — the DSS client API could not be
+  reached to design against.
 - **The seed task list is interim.** It is replaced once the upstream
   task-discovery API lands, at which point `plan.load_task_rows` swaps its
   source and nothing downstream changes.

@@ -5,12 +5,18 @@
 
 """Publish and fetch benchmark bundles.
 
-OSMO datasets were retired, so this module is the seam that isolates whatever
-replaces them. Nothing else in OdinV2 imports a storage concept, so swapping the
-implementation here is a one-file change.
+OSMO datasets were retired — ``outputs: - dataset:`` is rejected server-side with
+*"Bucket isaac mode is read-only"*. Publishing is therefore declarative: each
+task carries an ``outputs: - url: <dispatch prefix>`` block and OSMO uploads the
+task's output directory itself.
 
-The current implementation uses bucket URIs via ``osmo data upload`` and
-``osmo data download``.
+That is deliberately not a command spliced into the entry script. OSMO's
+``uploadOutputs()`` runs unconditionally after exec, including when the
+benchmark fails, so a crashed run still returns whatever it produced and the
+benchmark's exit code cannot be masked by a publishing step. It also keeps
+storage credentials out of the container entirely.
+
+Fetching stays client-side via ``osmo data download``.
 """
 
 from __future__ import annotations
@@ -19,7 +25,7 @@ import json
 from pathlib import Path
 from typing import Protocol
 
-__all__ = ["fetch_results", "publish_command", "results_uri_for", "validate_bundle"]
+__all__ = ["dispatch_output_uri", "fetch_results", "results_uri_for", "validate_bundle"]
 
 # Upstream's SchemaBundleFile writes "<output_prefix>_<timestamp>.json" into
 # --output_path, where output_prefix is "benchmark_<workflow>_<task>".
@@ -44,23 +50,21 @@ def results_uri_for(base_uri: str, dispatch_id: str, row_key: str) -> str:
     return f"{base_uri.rstrip('/')}/{dispatch_id}/{row_key}"
 
 
-def publish_command(*, base_uri: str, dispatch_id: str, row_key: str) -> str:
-    """Return the shell snippet that uploads one row's output directory.
+def dispatch_output_uri(base_uri: str, dispatch_id: str) -> str:
+    """Return the storage prefix an OSMO ``outputs:`` block uploads into.
 
-    The snippet tolerates its own failure: the benchmark's exit code is the
-    task's verdict, and an upload problem must be visible in the logs without
-    masking it.
+    Every task in a dispatch shares this prefix. Each task writes into
+    ``{{output}}/<row_key>/``, so the uploaded tree lands at
+    ``<base_uri>/<dispatch_id>/<row_key>/`` and rows never collide.
 
     Args:
         base_uri: Bucket URI prefix from ``odin.yaml``.
         dispatch_id: Dispatch identifier.
-        row_key: Row identity.
 
     Returns:
-        A single-line shell command for splicing into the entry script.
+        ``<base_uri>/<dispatch_id>/``, with a trailing slash.
     """
-    uri = results_uri_for(base_uri, dispatch_id, row_key)
-    return f'osmo data upload "{uri}" "$OUT" || echo "=== odin: results upload failed ==="'
+    return f"{base_uri.rstrip('/')}/{dispatch_id}/"
 
 
 def validate_bundle(bundle_dir: Path) -> bool:

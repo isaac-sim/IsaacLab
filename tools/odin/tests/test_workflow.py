@@ -7,7 +7,6 @@
 
 import dataclasses
 
-import pytest
 import yaml
 
 from tools.odin.config_file import ImageSpec, OdinConfig, ResourcesSpec, RetrySpec
@@ -44,17 +43,17 @@ _ROW = PlannedRow(
 _IMAGE = "nvcr.io/nvidian/antoiner-isaac-lab@sha256:abc"
 
 
-def _render(rows=(_ROW,), publish=None, chunk_index=0):
-    rows = list(rows)
-    if publish is None:
-        publish = {row.row_key: "echo published" for row in rows}
+_OUTPUT_URI = "swift://h/AUTH_team-isaac/results/20260728-120000/"
+
+
+def _render(rows=(_ROW,), chunk_index=0, output_uri=_OUTPUT_URI):
     return render_workflow_yaml(
         dispatch_id="20260728-120000",
         chunk_index=chunk_index,
-        rows=rows,
+        rows=list(rows),
         cfg=_CFG,
         image_ref=_IMAGE,
-        publish_commands=publish,
+        output_uri=output_uri,
     )
 
 
@@ -84,8 +83,11 @@ def test_image_reference_is_the_digest_pinned_argument() -> None:
     assert _task(_render())["image"] == _IMAGE
 
 
-def test_pull_credential_is_emitted_when_configured() -> None:
-    assert _task(_render())["pull_credential"] == "ngc_read_only"
+def test_pull_credential_maps_the_name_to_the_registry_host() -> None:
+    # OSMO rejects a bare `pull_credential:` field, and its `credentials:` block
+    # is keyed by credential name with the registry HOST as the value -- not the
+    # namespaced registry path.
+    assert _task(_render())["credentials"] == {"ngc_read_only": "nvcr.io"}
 
 
 def test_timeouts_come_from_config() -> None:
@@ -136,9 +138,14 @@ def test_renderer_selector_is_emitted_when_set() -> None:
     assert "renderer=isaacsim_rtx" in _script(_render(rows=(row,)))
 
 
-def test_publish_command_is_spliced_in() -> None:
-    script = _script(_render(publish={_ROW.row_key: "osmo data upload s3://b/x $OUT"}))
-    assert "osmo data upload s3://b/x $OUT" in script
+def test_task_declares_a_declarative_outputs_block() -> None:
+    # Publishing must not be a shell command in the entry script: the image has
+    # no osmo binary and no credentials, so it would silently no-op.
+    assert _task(_render())["outputs"] == [{"url": _OUTPUT_URI}]
+
+
+def test_entry_script_contains_no_upload_command() -> None:
+    assert "osmo data upload" not in _script(_render())
 
 
 def test_entry_script_preserves_the_benchmark_exit_code() -> None:
@@ -161,9 +168,12 @@ def test_workflow_name_is_unique_per_chunk() -> None:
     assert first != second
 
 
-def test_missing_publish_command_is_rejected() -> None:
-    with pytest.raises(KeyError, match=_ROW.row_key):
-        _render(publish={})
+def test_every_task_shares_the_dispatch_output_prefix() -> None:
+    # Each task writes into its own {{output}}/<row_key>/, so one shared prefix
+    # is correct and rows cannot collide.
+    second = dataclasses.replace(_ROW, row_key="other", osmo_task_name="other")
+    rendered = _render(rows=(_ROW, second))
+    assert _task(rendered, 0)["outputs"] == _task(rendered, 1)["outputs"]
 
 
 def test_long_row_key_is_truncated_with_a_stable_hash() -> None:

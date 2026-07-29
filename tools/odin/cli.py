@@ -29,7 +29,7 @@ from tools.odin.harvest import DEFAULT_TIMEOUT_HEADROOM, harvest_dispatch, write
 from tools.odin.image import DEFAULT_CUDA_IMAGE, PROFILES, ImageBuildError, build_image
 from tools.odin.plan import PlanError, PlannedRow, apply_metadata, chunk_rows, load_task_rows, plan_rows
 from tools.odin.poller import poll_until_terminal
-from tools.odin.results import fetch_results, publish_command, validate_bundle
+from tools.odin.results import dispatch_output_uri, fetch_results, validate_bundle
 from tools.odin.state import (
     SCHEMA_VERSION,
     DispatchState,
@@ -153,10 +153,7 @@ def command_dispatch(args: argparse.Namespace) -> int:
                 rows=chunk,
                 cfg=cfg,
                 image_ref=image,
-                publish_commands={
-                    row.row_key: publish_command(base_uri=cfg.results_uri, dispatch_id=dispatch_id, row_key=row.row_key)
-                    for row in chunk
-                },
+                output_uri=dispatch_output_uri(cfg.results_uri, dispatch_id),
             )
             path = dispatch_dir / f"workflow.{side}{chunk_index}.yaml"
             path.write_text(yaml_text)
@@ -180,6 +177,23 @@ def _submit_and_poll(
 ) -> int:
     """Submit every rendered workflow, then poll to completion and fetch results."""
     client = OsmoClient(profile=cfg.osmo_profile)
+
+    # Preflight: OSMO uploads results itself via each task's outputs block, so a
+    # read-only bucket would not surface until every task had already run.
+    if not args.skip_preflight and not client.data_check(cfg.results_uri, access="WRITE"):
+        print(
+            f"[odin] {cfg.results_uri} is not writable; results would be lost. "
+            "Fix the bucket mode or pass --skip-preflight to override.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Validate every chunk before submitting any of them, so a schema error
+    # cannot leave a dispatch half-submitted.
+    if not args.skip_preflight:
+        for path, _side in rendered:
+            client.validate(path)
+
     for path, _side in rendered:
         workflow_id = client.submit(
             path,
@@ -320,6 +334,11 @@ def _build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--poll-interval", type=float, default=15.0)
     dispatch.add_argument("--runs-root", type=Path, default=Path("./odin_runs"))
     dispatch.add_argument("--dry-run", action="store_true")
+    dispatch.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Submit without checking that results_uri is writable.",
+    )
 
     status = sub.add_parser("status", help="Summarise a dispatch.")
     status.add_argument("dispatch_id", type=str)

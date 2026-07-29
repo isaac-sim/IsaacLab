@@ -111,3 +111,28 @@ def test_dataset_helpers_are_gone() -> None:
     # OSMO datasets were retired; leaving these around would invite their use.
     assert not hasattr(OsmoClient, "dataset_download")
     assert not hasattr(OsmoClient, "dataset_delete")
+
+
+def test_validate_accepts_a_good_workflow(monkeypatch, tmp_path: Path) -> None:
+    fake = _FakeRun(_cp(stdout="Workflow validation succeeded."))
+    _client(monkeypatch, fake).validate(tmp_path / "wf.yaml")
+    assert fake.calls[0][:3] == ["osmo", "workflow", "validate"]
+
+
+def test_validate_raises_on_schema_rejection(monkeypatch, tmp_path: Path) -> None:
+    # OSMO rejects unknown task fields outright; catching that before submit is
+    # the whole point of the preflight.
+    fake = _FakeRun(_cp(returncode=1, stderr="Extra inputs are not permitted"))
+    with pytest.raises(OsmoCliError, match="Extra inputs"):
+        _client(monkeypatch, fake).validate(tmp_path / "wf.yaml")
+
+
+def test_data_check_reports_pass(monkeypatch) -> None:
+    fake = _FakeRun(_cp(stdout='{"status": "pass"}'))
+    assert _client(monkeypatch, fake).data_check("swift://h/x") is True
+    assert "-a" in fake.calls[0] and "WRITE" in fake.calls[0]
+
+
+def test_data_check_reports_failure(monkeypatch) -> None:
+    fake = _FakeRun(_cp(stdout='{"status": "fail"}'))
+    assert _client(monkeypatch, fake).data_check("swift://h/x") is False

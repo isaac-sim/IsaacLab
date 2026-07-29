@@ -66,7 +66,7 @@ def render_workflow_yaml(
     rows: list[PlannedRow],
     cfg: OdinConfig,
     image_ref: str,
-    publish_commands: dict[str, str],
+    output_uri: str,
 ) -> str:
     """Render the OSMO workflow YAML for one dispatch chunk.
 
@@ -76,18 +76,12 @@ def render_workflow_yaml(
         rows: Rows belonging to this chunk.
         cfg: Validated ``odin.yaml`` contents.
         image_ref: Digest-pinned image reference every task in this chunk runs.
-        publish_commands: Shell snippet per ``row_key``, spliced into the entry
-            script after the benchmark call.
+        output_uri: Storage prefix for the dispatch, emitted as each task's
+            ``outputs:`` block so OSMO performs the upload itself.
 
     Returns:
         The rendered workflow YAML.
-
-    Raises:
-        KeyError: If a row has no entry in *publish_commands*.
     """
-    missing = [row.row_key for row in rows if row.row_key not in publish_commands]
-    if missing:
-        raise KeyError(f"publish_commands is missing entries for: {missing}")
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
         undefined=StrictUndefined,
@@ -99,5 +93,5 @@ def render_workflow_yaml(
         rows=rows,
         cfg=cfg,
         image_ref=image_ref,
-        publish_commands=publish_commands,
+        output_uri=output_uri,
     )

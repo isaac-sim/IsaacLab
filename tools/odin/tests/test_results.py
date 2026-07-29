@@ -8,7 +8,7 @@
 import json
 from pathlib import Path
 
-from tools.odin.results import fetch_results, publish_command, results_uri_for, validate_bundle
+from tools.odin.results import dispatch_output_uri, fetch_results, results_uri_for, validate_bundle
 
 
 def _bundle(directory: Path, *, schema_version: str = "1.2", task: str = "Isaac-Ant") -> Path:
@@ -30,18 +30,24 @@ def test_trailing_slash_in_base_uri_does_not_double_up() -> None:
     assert "//20260728" not in uri.removeprefix("s3://")
 
 
-def test_publish_command_uploads_the_output_directory() -> None:
-    cmd = publish_command(base_uri="s3://b/results", dispatch_id="20260728-120000", row_key="row")
-    assert "osmo data upload" in cmd
-    assert "s3://b/results/20260728-120000/row" in cmd
-    assert '"$OUT"' in cmd
+def test_dispatch_output_uri_is_the_shared_prefix() -> None:
+    uri = dispatch_output_uri("swift://h/AUTH_x/results", "20260728-120000")
+    assert uri == "swift://h/AUTH_x/results/20260728-120000/"
 
 
-def test_publish_command_does_not_abort_the_task_on_upload_failure() -> None:
-    # The benchmark exit code is the task's verdict; a failed upload must be
-    # visible in the logs without masking it.
-    cmd = publish_command(base_uri="s3://b/results", dispatch_id="d", row_key="row")
-    assert "||" in cmd
+def test_dispatch_output_uri_prefixes_every_row_uri() -> None:
+    # OSMO uploads {{output}} into the dispatch prefix, and each task writes
+    # into {{output}}/<row_key>/, so the fetch URI must sit under it.
+    base, dispatch = "swift://h/AUTH_x/results", "20260728-120000"
+    assert results_uri_for(base, dispatch, "row").startswith(dispatch_output_uri(base, dispatch))
+
+
+def test_no_shell_publish_command_is_exported() -> None:
+    # Publishing is declarative now. A shell upload spliced into the entry
+    # script silently no-ops: the image has no osmo binary.
+    import tools.odin.results as results
+
+    assert not hasattr(results, "publish_command")
 
 
 def test_valid_bundle_passes(tmp_path: Path) -> None:

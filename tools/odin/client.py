@@ -233,6 +233,46 @@ class OsmoClient:
             tasks.append(TaskSnapshot(name=name, status=status, exit_code=None))
         return WorkflowSnapshot(workflow_id=workflow_id, status=wf_status, tasks=tasks)
 
+    def validate(self, yaml_path: Path) -> None:
+        """Validate a workflow YAML server-side without submitting it.
+
+        Catches schema drift that local rendering cannot: OSMO rejects unknown
+        task fields outright, and validates pool, platform, credential names,
+        and image reachability.
+
+        Args:
+            yaml_path: Path to the rendered workflow YAML.
+
+        Raises:
+            OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
+        """
+        cp = self._run([self._exe, "workflow", "validate", str(yaml_path)])
+        if cp.returncode != 0:
+            raise _classify(cp.stderr)(f"`osmo workflow validate` failed for {yaml_path.name}: {cp.stderr.strip()}")
+
+    def data_check(self, remote_uri: str, *, access: str = "WRITE") -> bool:
+        """Return whether the profile has *access* to *remote_uri*.
+
+        Used as a submit-time preflight. A bucket can be flipped read-only
+        server-side — that is how OSMO retired datasets, which surfaces as
+        ``Bucket <name> mode is read-only`` — and discovering it after a
+        dispatch has burned GPU hours is expensive.
+
+        Args:
+            remote_uri: Backend URI, e.g. ``swift://host/AUTH_x/prefix``.
+            access: Access mode to probe, e.g. ``WRITE`` or ``READ``.
+
+        Returns:
+            ``True`` when the check reports a pass.
+
+        Raises:
+            OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
+        """
+        cp = self._run([self._exe, "data", "check", remote_uri, "-a", access])
+        if cp.returncode != 0:
+            raise _classify(cp.stderr)(f"`osmo data check` failed: {cp.stderr.strip()}")
+        return '"pass"' in cp.stdout or "'pass'" in cp.stdout
+
     def data_download(self, remote_uri: str, dest_dir: Path) -> None:
         """Download a bucket URI into a local directory.
 

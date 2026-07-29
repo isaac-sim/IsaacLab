@@ -102,3 +102,7 @@ def test_unreadable_path_is_reported(tmp_path: Path) -> None:
 def test_shipped_config_is_valid() -> None:
     shipped = Path(__file__).resolve().parents[1] / "config" / "odin.yaml"
     assert load_odin_config(shipped).pool
+
+
+def test_registry_host_strips_the_namespace(tmp_path: Path) -> None:
+    assert load_odin_config(_write(tmp_path, _VALID)).image.registry_host == "nvcr.io"

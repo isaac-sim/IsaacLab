@@ -5,7 +5,7 @@
 
 # OdinV2 dispatch configuration.
 osmo_profile: default
-pool: isaac-dev-l40s-04
+pool: isaac-dev-l40-03
 priority: NORMAL
 
 image:
@@ -18,7 +18,7 @@ resources:
   gpu: 1
   memory: 64Gi
   storage: 64Gi
-  platform: ovx-l40s
+  platform: ovx-l40
 
 # Every task is wrapped in its own single-task group, so OSMO's clock is
 # per-group and this is a ceiling that catches wedged tasks rather than a
@@ -33,9 +33,14 @@ queue_timeout_s: 172800
 # Maximum tasks per submitted OSMO workflow.
 chunk_size: 25
 
-# Bucket URI prefix results are published under. OSMO datasets were retired;
-# see tools/odin/results.py for the seam this feeds.
-results_uri: s3://isaac-odin/results
+# Storage prefix results are published under. Emitted as each task's OSMO
+# `outputs:` block, so OSMO performs the upload itself — no credentials and no
+# osmo binary are needed inside the container.
+#
+# OSMO datasets were retired: `outputs: - dataset:` is rejected server-side with
+# "Bucket isaac mode is read-only". Direct swift writes to this prefix pass
+# `osmo data check -a WRITE`, which `dispatch` runs as a preflight.
+results_uri: swift://pdx.s8k.io/AUTH_team-isaac/datasets/odin
 
 retry:
   reschedule_codes: "3001-3006"

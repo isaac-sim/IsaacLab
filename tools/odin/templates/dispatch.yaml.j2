@@ -21,7 +21,9 @@ workflow:
     - name: {{ row.osmo_task_name }}
       image: {{ image_ref }}
 {% if cfg.image.pull_credential %}
-      pull_credential: {{ cfg.image.pull_credential }}
+      # OSMO maps a credential name to the registry host it authenticates.
+      credentials:
+        {{ cfg.image.pull_credential }}: {{ cfg.image.registry_host }}
 {% endif %}
       environment:
         ACCEPT_EULA: "Y"
@@ -44,8 +46,13 @@ workflow:
           set -e
           echo "=== odin: benchmark exit_code=$rc ==="
           find "$OUT" -type f | head -40
-          {{ publish_commands[row.row_key] }}
           exit $rc
+      # OSMO uploads {{ '{{output}}' }} itself, after exec and regardless of exit
+      # code, so a crashed run still returns what it produced and no publishing
+      # step can mask the benchmark's verdict. Each task writes into its own
+      # {{ '{{output}}' }}/<row_key>/, so uploads never collide under this shared prefix.
+      outputs:
+      - url: {{ output_uri }}
 {% if cfg.retry.reschedule_codes or cfg.retry.restart_codes %}
       exitActions:
 {% if cfg.retry.reschedule_codes %}
