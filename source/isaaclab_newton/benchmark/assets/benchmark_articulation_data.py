@@ -55,7 +55,7 @@ import numpy as np
 import warp as wp
 from isaaclab_newton.test.mock_interfaces import MockNewtonArticulationView, create_mock_newton_manager
 
-from isaaclab.test.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
+from isaaclab.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)

@@ -31,7 +31,12 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates how to spawn deformable prims into the scene.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_vbd", "ovphysx"], help="Physics backend.")
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx", "newton_vbd", "ovphysx"],
+    help="Physics backend.",
+)
 add_launcher_args(parser)
 backend_args, _ = parser.parse_known_args()
 parser.set_defaults(visualizer=None if backend_args.physics == "ovphysx" else ["kit"])

@@ -12,7 +12,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different arms and apply random joint position commands:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -50,7 +50,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different biped robots:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -88,10 +88,11 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different deformable objects and let them fall from a height:
 
-   **Physics:** ``physx``, ``newton_vbd``
+   **Physics:** ``isaacsim_physx``, ``newton_vbd``, ``ovphysx``
 
-   **Visualizer:** ``none``, ``kit`` for either physics backend; ``newton``,
-   ``rerun``, and ``viser`` with Newton VBD only
+   **Visualizer:** ``none`` for every physics backend; ``kit`` with
+   Isaac Sim PhysX or Newton VBD; ``newton`` with Newton VBD only; ``rerun``
+   and ``viser`` with Newton VBD or OvPhysX
 
    .. tab-set::
       :sync-group: os
@@ -127,7 +128,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Interactive inference of trained H1 rough terrain locomotion policy:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``kit`` only
 
@@ -183,7 +184,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different hands and command them to open and close:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -221,7 +222,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Define multiple markers that are useful for visualizations:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -259,7 +260,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the interactive scene and spawn varying assets in individual environments:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -297,7 +298,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Compose task scenes into one heterogeneous simulation using clone combinations:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -331,7 +332,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -370,7 +371,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the interactive scene and spawn a simple parallel robot for pick and place:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``kit`` only
 
@@ -421,7 +422,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Teleoperate a Franka Panda robot using Haply haptic device with force feedback:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -472,7 +473,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Create and spawn procedurally generated terrains with different configurations:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -511,7 +512,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn a quadcopter in the default environment:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -549,7 +550,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different quadrupeds and make robots stand using position commands:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -587,7 +588,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn a multi-mesh ray caster that uses Warp kernels for raycasting
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``newton``, ``rerun``, ``viser`` with either physics
    backend; ``kit`` with PhysX only
