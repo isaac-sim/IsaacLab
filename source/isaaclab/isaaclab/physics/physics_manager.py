@@ -431,7 +431,11 @@ class PhysicsManager(ABC):
         Subclasses should call super().close() after backend-specific cleanup.
         """
         sim = PhysicsManager._sim
-        is_active_manager = sim is not None and sim.physics_manager is cls
+        # A config may declare its manager lazily as a ``"module:Class"`` string, which proxies
+        # attribute access but is a ``str``, so compare against that form as well as the class.
+        is_active_manager = sim is not None and (
+            sim.physics_manager is cls or sim.physics_manager == f"{cls.__module__}:{cls.__qualname__}"
+        )
         if is_active_manager:
             cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
 

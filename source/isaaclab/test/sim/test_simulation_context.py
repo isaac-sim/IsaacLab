@@ -17,11 +17,13 @@ import weakref
 
 import numpy as np
 import pytest
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
 
 import omni.timeline
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = pytest.mark.integration
@@ -90,6 +92,32 @@ def test_init(device):
     )
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize(
+    "physics_cfg",
+    [PhysxCfg(), NewtonCfg(solver_cfg=MJWarpSolverCfg())],
+    ids=["physx", "newton"],
+)
+def test_stop_is_dispatched_for_lazy_class_type(physics_cfg):
+    """``PhysicsEvent.STOP`` must be dispatched even when ``class_type`` is declared lazily.
+
+    Configs declare ``class_type`` as a ``"module:Class"`` string, which proxies attribute access
+    but is a ``str``. The active-manager identity check in ``PhysicsManager.close`` therefore
+    never matched the class, and ``STOP`` never reached any sensor or asset.
+    """
+    sim = SimulationContext(SimulationCfg(physics=physics_cfg))
+
+    stopped = []
+
+    def on_stop(_):
+        stopped.append(True)
+
+    sim.physics_manager.register_callback(on_stop, PhysicsEvent.STOP, name="test_stop")
+    SimulationContext.clear_instance()
+
+    assert stopped, "PhysicsEvent.STOP was not dispatched at teardown"
 
 
 @pytest.mark.isaacsim_ci
