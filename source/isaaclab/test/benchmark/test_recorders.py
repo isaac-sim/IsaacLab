@@ -11,11 +11,11 @@ import types
 
 import pytest
 
-from isaaclab.test.benchmark.interfaces import MeasurementData
-from isaaclab.test.benchmark.recorders.record_cpu_info import CPUInfoRecorder
-from isaaclab.test.benchmark.recorders.record_gpu_info import GPUInfoRecorder
-from isaaclab.test.benchmark.recorders.record_memory_info import MemoryInfoRecorder
-from isaaclab.test.benchmark.recorders.record_version_info import VersionInfoRecorder
+from isaaclab.benchmark.interfaces import MeasurementData
+from isaaclab.benchmark.recorders.record_cpu_info import CPUInfoRecorder
+from isaaclab.benchmark.recorders.record_gpu_info import GPUInfoRecorder
+from isaaclab.benchmark.recorders.record_memory_info import MemoryInfoRecorder
+from isaaclab.benchmark.recorders.record_version_info import VersionInfoRecorder
 
 pytestmark = pytest.mark.benchmark
 
@@ -302,7 +302,7 @@ class TestGPUInfoRecorder:
         """Peak memory row for device 0 exists and is 0.0 before any update."""
         import torch
 
-        from isaaclab.test.benchmark.recorders.record_gpu_info import GPUInfoRecorder
+        from isaaclab.benchmark.recorders.record_gpu_info import GPUInfoRecorder
 
         monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
         monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
@@ -329,7 +329,7 @@ class TestGPUInfoRecorder:
         """Feed the recorder a scripted memory sequence; peak must match the max."""
         import torch
 
-        from isaaclab.test.benchmark.recorders.record_gpu_info import GPUInfoRecorder
+        from isaaclab.benchmark.recorders.record_gpu_info import GPUInfoRecorder
 
         monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
         monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
@@ -499,7 +499,7 @@ class TestMemoryInfoRecorder:
 
     def test_rss_peak_is_zero_before_any_record(self):
         """Test that RSS peak is 0.0 before any update has been called."""
-        from isaaclab.test.benchmark.recorders.record_memory_info import MemoryInfoRecorder
+        from isaaclab.benchmark.recorders.record_memory_info import MemoryInfoRecorder
 
         rec = MemoryInfoRecorder()
         data = rec.get_data()
@@ -511,7 +511,7 @@ class TestMemoryInfoRecorder:
         """Test that RSS peak tracks the running maximum across updates."""
         import psutil
 
-        from isaaclab.test.benchmark.recorders.record_memory_info import MemoryInfoRecorder
+        from isaaclab.benchmark.recorders.record_memory_info import MemoryInfoRecorder
 
         # Scripted RSS sequence; peak must equal the max seen so far.
         scripted_values = [100 * 1024**3, 200 * 1024**3, 150 * 1024**3]  # bytes
@@ -544,7 +544,7 @@ class TestMemoryInfoRecorder:
         """Test that RSS peak does not decrease when memory usage drops."""
         import psutil
 
-        from isaaclab.test.benchmark.recorders.record_memory_info import MemoryInfoRecorder
+        from isaaclab.benchmark.recorders.record_memory_info import MemoryInfoRecorder
 
         # Decreasing sequence — peak is set by the first sample and then stays.
         scripted_values = [300 * 1024**3, 50 * 1024**3, 25 * 1024**3]

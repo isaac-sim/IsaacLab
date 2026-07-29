@@ -23,7 +23,7 @@ from isaaclab_assets import UR10_CFG  # isort: skip
 
 @configclass
 class UR10ReachEnvCfg(ReachEnvCfg):
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # post init of parent
         super().__post_init__()
 
@@ -33,8 +33,8 @@ class UR10ReachEnvCfg(ReachEnvCfg):
         self.events.reset_robot_joints.params["position_range"] = (0.75, 1.25)
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["ee_link"]
-        self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["ee_link"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["ee_link"]
+        self.rewards.joint_vel.params["asset_cfg"].joint_names = [".*"]
         # override actions
         self.actions.arm_action = mdp.JointPositionActionCfg(
             asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True

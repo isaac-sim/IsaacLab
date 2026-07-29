@@ -157,6 +157,37 @@ envs 0/1, sphere into envs 2/3):
                     [1, 1, 0, 0],
                     [0, 0, 1, 1]]
 
+Querying a plan
+~~~~~~~~~~~~~~~
+
+Anything that has to follow an asset between the two sides of that table — a sensor
+resolving its ``prim_path`` back to the prototype it should read, a ray caster
+loading one mesh per variant — asks :mod:`isaaclab.cloner.query` rather than
+manipulating path strings itself:
+
+.. code-block:: python
+
+    from isaaclab import cloner
+
+    # where does this prototype land in env 2?
+    cloner.query.path_to_clone(plan, "/World/envs/env_0/Obstacle_1", env_id=2)
+    # -> "/World/envs/env_2/Obstacle"
+
+    # which envs does this prototype reach at all?
+    cloner.query.path_env_ids(plan, "/World/envs/env_0/Obstacle_1")
+    # -> (2, 3)
+
+    # which prototype is env 2's obstacle cloned from?
+    cloner.query.path_to_source(plan, "/World/envs/env_2/Obstacle")
+    # -> ("/World/envs/env_0/Obstacle_1", "/World/envs/env_*/Obstacle", "")
+
+Two obstacle variants share one destination template, so the template alone does not
+identify a prototype — the environment does. A concrete path carries it in the clone
+slot; a ``env_.*`` wildcard does not, and resolves to one representative variant
+unless you pass ``env_id``. Use :func:`~isaaclab.cloner.query.iter_sources` when you
+need every variant behind a template. Note that environment ids are not mask columns:
+column ``j`` stands for ``env_ids[j]``, and the queries speak ids throughout.
+
 A plan is the *what*. Putting one together and handing it to the backends is
 the *how*, and Isaac Lab exposes three idiomatic ways to do that. All three end
 in the same ``cloner.replicate(plan, stage=...)`` call, so the choice between
@@ -225,11 +256,11 @@ intervene before replication actually happens:
         cfg.class_type(cfg)
     cloner.replicate(plan, stage=stage)
 
-``ClonePlan.from_env_0`` + ``replicate``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``clone_plan_from_env_0`` + ``replicate``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Shortcut for the case where every env is just a copy of env_0.
-:meth:`~isaaclab.cloner.ClonePlan.from_env_0` builds the single-source plan in
+:func:`~isaaclab.cloner.clone_plan_from_env_0` builds the single-source plan in
 one line by pointing at the prototype, and :func:`~isaaclab.cloner.replicate`
 finishes the setup. This is the pattern most :class:`~isaaclab.envs.DirectRLEnv`
 subclasses use — they author the env-0 prototype prim by prim in
@@ -244,7 +275,7 @@ subclasses use — they author the env-0 prototype prim by prim in
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
 
 Every env receives the same prototype. When envs need to differ, use one of the

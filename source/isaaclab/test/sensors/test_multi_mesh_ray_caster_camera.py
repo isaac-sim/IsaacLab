@@ -25,8 +25,8 @@ import torch
 import omni.replicator.core as rep
 from pxr import Gf
 
-import isaaclab.cloner as lab_cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner as lab_cloner
 from isaaclab.cloner import ClonePlan
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns

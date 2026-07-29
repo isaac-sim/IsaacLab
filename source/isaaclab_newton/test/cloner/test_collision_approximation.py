@@ -73,6 +73,36 @@ def _make_two_source_stage(approximation_a: str | None, approximation_b: str | N
     return stage, sources
 
 
+def _make_mixed_visual_stage() -> Usd.Stage:
+    """Create dynamic and static colliders with and without separate visual shapes."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdGeom.Xform.Define(stage, _SOURCE)
+
+    primitive_body = UsdGeom.Xform.Define(stage, f"{_SOURCE}/Primitive")
+    UsdPhysics.RigidBodyAPI.Apply(primitive_body.GetPrim())
+    primitive = UsdGeom.Cube.Define(stage, f"{_SOURCE}/Primitive/geometry")
+    UsdPhysics.CollisionAPI.Apply(primitive.GetPrim())
+
+    authored_body = UsdGeom.Xform.Define(stage, f"{_SOURCE}/Authored")
+    UsdPhysics.RigidBodyAPI.Apply(authored_body.GetPrim())
+    UsdGeom.Sphere.Define(stage, f"{_SOURCE}/Authored/visual")
+    collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/Authored/collider")
+    collider.CreatePurposeAttr(UsdGeom.Tokens.guide)
+    UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+
+    UsdGeom.Xform.Define(stage, f"{_SOURCE}/StaticPrimitive")
+    static_primitive = UsdGeom.Cube.Define(stage, f"{_SOURCE}/StaticPrimitive/geometry")
+    UsdPhysics.CollisionAPI.Apply(static_primitive.GetPrim())
+
+    UsdGeom.Xform.Define(stage, f"{_SOURCE}/StaticAuthored")
+    UsdGeom.Sphere.Define(stage, f"{_SOURCE}/StaticAuthored/visual")
+    static_collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/StaticAuthored/collider")
+    UsdPhysics.CollisionAPI.Apply(static_collider.GetPrim())
+    return stage
+
+
 def _build_sources(stage: Usd.Stage, sources: list[str], **kwargs) -> dict[str, newton.ModelBuilder]:
     return build_source_builders(
         stage,
@@ -154,3 +184,13 @@ class TestClonerCollisionApproximation:
 
         for source in sources:
             assert list(_collision_shapes(builders[source]).values()) == [GeoType.SPHERE]
+
+    def test_primitive_collider_remains_visible_in_mixed_visual_model(self):
+        """Colliders remain visible only when their body or static parent has no visual shape."""
+        builder = _build(_make_mixed_visual_stage())
+        flags_by_label = dict(zip(builder.shape_label, builder.shape_flags, strict=True))
+
+        assert flags_by_label[f"{_SOURCE}/Primitive/geometry"] & ShapeFlags.VISIBLE
+        assert not flags_by_label[f"{_SOURCE}/Authored/collider"] & ShapeFlags.VISIBLE
+        assert flags_by_label[f"{_SOURCE}/StaticPrimitive/geometry"] & ShapeFlags.VISIBLE
+        assert not flags_by_label[f"{_SOURCE}/StaticAuthored/collider"] & ShapeFlags.VISIBLE

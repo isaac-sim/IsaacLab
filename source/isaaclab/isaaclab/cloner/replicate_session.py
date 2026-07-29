@@ -15,6 +15,7 @@ from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
+from .clone_plan import make_clone_plan
 from .cloner_strategies import sequential
 from .usd import UsdReplicateContext
 
@@ -167,8 +168,6 @@ class ReplicateSession:
         self._plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:
-        from .cloner_utils import make_clone_plan  # noqa: PLC0415
-
         self._plan = make_clone_plan(self._cfgs, **self._kwargs)
         return self
 

@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+2.3.1 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed external visualizers for standalone scenes outside ``/World/envs``.
+
+* Fixed Newton implicit MPM initialization with convex-mesh rigid colliders.
+
+* Fixed Newton rigid object collections selecting unrelated sibling assets when
+  their configured prim paths differed in one segment.
+
+* Fixed Newton visualizers hiding procedural primitive geometry in scenes that
+  also contained assets with separate visual meshes.
+
+* Fixed visualizer initialization invoking the generic solver reset instead of
+  the active Newton solver's reset behavior.
+
+* Fixed full-articulation resets forwarding an unsupported slice to stateful
+  Isaac Lab actuators.
+
+
+2.3.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.KaminoSolverCfg.material_friction_mix_mode` and
+  :attr:`~isaaclab_newton.physics.KaminoSolverCfg.material_restitution_mix_mode` to control
+  how the friction and restitution coefficients of two contacting shapes are mixed into
+  contact-pair values by the Kamino solver.
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`. When set, converts the normalized RGB
+  color to an ARGB clear color passed to ``SensorTiledCamera.ClearData`` on each render call.
+
+
 2.2.0 (2026-07-26)
 ~~~~~~~~~~~~~~~~~~
 
