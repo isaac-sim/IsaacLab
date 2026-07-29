@@ -81,6 +81,7 @@ from pxr import Usd, UsdGeom
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
+from isaaclab.scene_data.deformable_vis_remap import launch_copy_particle_slice, launch_volume_vis_remap
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
@@ -425,6 +426,7 @@ class NewtonManager(PhysicsManager):
     _scene_data_points: SceneDataFormat.Points | None = None
     _scene_data_geometry_mapping: wp.array | None = None
     _shadow_deformable_entities: list | None = None
+    _sim_particle_q: wp.array | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -2386,6 +2388,12 @@ class NewtonManager(PhysicsManager):
             stage, env_paths, clone_plan, up_axis=up_axis
         )
         NewtonManager._shadow_deformable_entities = shadow_entities
+        sim_particle_total = sum(entity.sim_particle_count for entity in shadow_entities)
+        if sim_particle_total > 0:
+            device = PhysicsManager._device or "cpu"
+            NewtonManager._sim_particle_q = wp.zeros(sim_particle_total, dtype=wp.vec3f, device=device)
+        else:
+            NewtonManager._sim_particle_q = None
 
         particle_count = getattr(builder, "particle_count", 0)
         if builder.body_count == 0 and particle_count == 0:
@@ -2481,18 +2489,61 @@ class NewtonManager(PhysicsManager):
                 cls._scene_data_points = SceneDataFormat.Points()
             if cls._scene_data_geometry_mapping is None and cls._shadow_deformable_entities:
                 geometry_paths = [entity.root_path for entity in cls._shadow_deformable_entities]
-                geometry_offsets = [entity.particle_offset for entity in cls._shadow_deformable_entities]
+                geometry_offsets = [entity.sim_particle_offset for entity in cls._shadow_deformable_entities]
                 cls._scene_data_geometry_mapping = scene_data_provider.create_geometry_mapping(
                     geometry_paths, geometry_offsets
                 )
-            cls._scene_data_points.points = cls._state_0.particle_q
-            scene_data_provider.get_points(
-                cls._scene_data_points,
-                mapping=cls._scene_data_geometry_mapping,
-                allow_passthrough=False,
-            )
+            if cls._sim_particle_q is None:
+                sim_total = sum(entity.sim_particle_count for entity in cls._shadow_deformable_entities or [])
+                if sim_total > 0:
+                    device = PhysicsManager._device or "cpu"
+                    cls._sim_particle_q = wp.zeros(sim_total, dtype=wp.vec3f, device=device)
+            if cls._sim_particle_q is not None:
+                cls._scene_data_points.points = cls._sim_particle_q
+                scene_data_provider.get_points(
+                    cls._scene_data_points,
+                    mapping=cls._scene_data_geometry_mapping,
+                    allow_passthrough=False,
+                )
+                cls._sync_render_particle_q_from_sim()
+            else:
+                cls._scene_data_points.points = cls._state_0.particle_q
+                scene_data_provider.get_points(
+                    cls._scene_data_points,
+                    mapping=cls._scene_data_geometry_mapping,
+                    allow_passthrough=False,
+                )
 
         cls._mark_sensor_state_dirty()
+
+    @classmethod
+    def _sync_render_particle_q_from_sim(cls) -> None:
+        """Copy or remap sim nodal positions into shadow ``particle_q`` render slots."""
+        if cls._state_0 is None or cls._state_0.particle_q is None or cls._sim_particle_q is None:
+            return
+        if not cls._shadow_deformable_entities:
+            return
+
+        device = cls._state_0.particle_q.device
+        for entity in cls._shadow_deformable_entities:
+            if entity.volume_vis_remap is not None:
+                launch_volume_vis_remap(
+                    cls._sim_particle_q,
+                    cls._state_0.particle_q,
+                    entity.sim_particle_offset,
+                    entity.render_particle_offset,
+                    entity.volume_vis_remap,
+                    device=device,
+                )
+            else:
+                launch_copy_particle_slice(
+                    cls._sim_particle_q,
+                    cls._state_0.particle_q,
+                    entity.sim_particle_offset,
+                    entity.render_particle_offset,
+                    entity.render_particle_count,
+                    device=device,
+                )
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:

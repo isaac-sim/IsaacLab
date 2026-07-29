@@ -36,6 +36,7 @@ def _reset_newton_manager_state():
     NewtonManager._scene_data_points = None
     NewtonManager._scene_data_geometry_mapping = None
     NewtonManager._shadow_deformable_entities = None
+    NewtonManager._sim_particle_q = None
 
 
 def _make_env_stage(num_envs: int = 1):
@@ -423,8 +424,15 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
         body_q=wp.zeros(1, dtype=wp.transformf, device="cpu"), particle_q=particle_q
     )
     NewtonManager._shadow_deformable_entities = [
-        ShadowDeformableEntity(root_path="/World/envs/env_0/Cloth", particle_offset=0, particle_count=2)
+        ShadowDeformableEntity(
+            root_path="/World/envs/env_0/Cloth",
+            sim_particle_offset=0,
+            sim_particle_count=2,
+            render_particle_offset=0,
+            render_particle_count=2,
+        )
     ]
+    NewtonManager._sim_particle_q = wp.zeros(2, dtype=wp.vec3f, device="cpu")
 
     NewtonManager.update_visualization_state(provider)
 
@@ -433,6 +441,148 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     copied = particle_q.numpy()
     assert copied[0].tolist() == [1.0, 2.0, 3.0]
     assert copied[1].tolist() == [4.0, 5.0, 6.0]
+
+
+def test_update_visualization_state_remaps_volume_vis_positions(monkeypatch):
+    """Volume shadow sync barycentrically remaps sim nodes into vis-sized render slots."""
+    import numpy as np
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics.visualization_deformables import ShadowDeformableEntity
+
+    from isaaclab.scene_data.deformable_vis_remap import build_volume_vis_barycentric_remap
+    from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
+    from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+
+    remap = build_volume_vis_barycentric_remap(
+        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32),
+        np.array([0, 1, 2, 3], dtype=np.int32),
+        np.array([[0.25, 0.25, 0.25]], dtype=np.float32),
+    )
+    assert remap is not None
+
+    class _VolumePointsBackend(SceneDataBackend):
+        def __init__(self):
+            self._points = wp.array(
+                [
+                    wp.vec3(0.0, 0.0, 0.0),
+                    wp.vec3(1.0, 0.0, 0.0),
+                    wp.vec3(0.0, 1.0, 0.0),
+                    wp.vec3(0.0, 0.0, 1.0),
+                ],
+                dtype=wp.vec3f,
+                device="cpu",
+            )
+            self._points_data = SceneDataFormat.Points()
+            self._points_data.points = self._points
+
+        @property
+        def transforms(self) -> SceneDataFormat.Transform:
+            return SceneDataFormat.Transform()
+
+        @property
+        def transform_count(self) -> int:
+            return 0
+
+        @property
+        def transform_paths(self) -> list[str]:
+            return []
+
+        @property
+        def points(self) -> SceneDataFormat.Points:
+            return self._points_data
+
+        @property
+        def point_count(self) -> int:
+            return 4
+
+        @property
+        def geometry_paths(self) -> list[str]:
+            return ["/World/envs/env_0/Soft"]
+
+        @property
+        def geometry_counts(self) -> list[int]:
+            return [4]
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
+
+    provider = SceneDataProvider(_VolumePointsBackend())
+    monkeypatch.setattr(provider, "get_transforms", lambda output, mapping=None, allow_passthrough=True: True)
+
+    particle_q = wp.zeros(1, dtype=wp.vec3f, device="cpu")
+    NewtonManager._model = SimpleNamespace(body_label=["/World/envs/env_0/Robot"])
+    NewtonManager._state_0 = SimpleNamespace(
+        body_q=wp.zeros(1, dtype=wp.transformf, device="cpu"), particle_q=particle_q
+    )
+    NewtonManager._shadow_deformable_entities = [
+        ShadowDeformableEntity(
+            root_path="/World/envs/env_0/Soft",
+            sim_particle_offset=0,
+            sim_particle_count=4,
+            render_particle_offset=0,
+            render_particle_count=1,
+            volume_vis_remap=remap,
+        )
+    ]
+    NewtonManager._sim_particle_q = wp.zeros(4, dtype=wp.vec3f, device="cpu")
+
+    NewtonManager.update_visualization_state(provider)
+
+    np.testing.assert_allclose(particle_q.numpy()[0], [0.25, 0.25, 0.25], atol=1e-4)
+
+
+def test_shadow_deformable_volume_remap_registers_ovrtx_with_vis_mesh(monkeypatch):
+    """Volume bodies with barycentric remap use visual mesh slots and register for OVRTX."""
+    from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
+
+    from pxr import Gf, Sdf, Usd, UsdGeom
+
+    def _add_api_schemas(prim, schemas):
+        api_schemas = Sdf.TokenListOp()
+        api_schemas.explicitItems = schemas
+        prim.SetMetadata("apiSchemas", api_schemas)
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Soft")
+    tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/Soft/simulation")
+    _add_api_schemas(
+        tet.GetPrim(),
+        ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsVolumeDeformableSimAPI"],
+    )
+    points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
+    tet.CreatePointsAttr(points)
+    tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+    vis = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Soft/visual")
+    vis.CreatePointsAttr([Gf.Vec3f(0.25, 0.25, 0.25)])
+    vis.CreateFaceVertexCountsAttr([3])
+    vis.CreateFaceVertexIndicesAttr([0, 0, 0])
+
+    class _FakeBuilder:
+        particle_count = 0
+        cloth_calls = 0
+        soft_calls = 0
+
+        def add_cloth_mesh(self, **kwargs):
+            self.cloth_calls += 1
+            self.particle_count += 1
+
+        def add_soft_mesh(self, **kwargs):
+            self.soft_calls += 1
+            self.particle_count += 4
+
+    builder = _FakeBuilder()
+    flat_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, [(0, "/World/envs/env_0")])
+
+    assert builder.cloth_calls == 1
+    assert builder.soft_calls == 0
+    assert len(flat_entities) == 1
+    assert flat_entities[0].sim_particle_count == 4
+    assert flat_entities[0].render_particle_count == 1
+    assert flat_entities[0].volume_vis_remap is not None
+    assert len(registry_groups) == 1
+    assert registry_groups[0].register_for_ovrtx is True
+    assert registry_groups[0].particles_per_body == 1
 
 
 def test_standalone_visualization_builder_populates_shadow_deformable_metadata(monkeypatch):
