@@ -180,12 +180,12 @@ def build_image(
         return tag
 
     _bundle_commit(commit_sha, repo_root=repo_root, dest=context_dir / "isaaclab.bundle", run=run)
-    _check(
-        run(["docker", "build", "-t", tag, str(context_dir)], capture_output=True, text=True, check=False),
-        "docker build",
-    )
+    # Docker output is streamed rather than captured. This build pulls Isaac Sim
+    # and can run for tens of minutes; with output captured, a wedged step and a
+    # merely slow one look identical until the process exits.
+    _check(run(["docker", "build", "--network=host", "-t", tag, str(context_dir)], check=False), "docker build")
     if push:
-        _check(run(["docker", "push", tag], capture_output=True, text=True, check=False), "docker push")
+        _check(run(["docker", "push", tag], check=False), "docker push")
     return tag
 
 
@@ -240,6 +240,15 @@ def _bundle_commit(commit_sha: str, *, repo_root: Path, dest: Path, run: _Runner
 
 
 def _check(completed: subprocess.CompletedProcess, what: str) -> None:
-    """Raise :class:`ImageBuildError` when *completed* failed."""
-    if completed.returncode != 0:
-        raise ImageBuildError(f"{what} failed: {(completed.stderr or '').strip()}")
+    """Raise :class:`ImageBuildError` when *completed* failed.
+
+    ``stderr`` is only present for the steps that capture it; streamed steps
+    have already printed their diagnostics, so the message names the step and
+    the exit code instead.
+    """
+    if completed.returncode == 0:
+        return
+    detail = (completed.stderr or "").strip()
+    raise ImageBuildError(
+        f"{what} failed: {detail}" if detail else f"{what} failed with exit code {completed.returncode}"
+    )

@@ -27,9 +27,21 @@ WORKDIR /workspace/isaaclab
 RUN test "$(git rev-parse HEAD)" = "{{ commit_sha }}"
 
 # uv sync resolves against this commit's committed uv.lock, so a commit that
-# changes a dependency is tested with the changed dependency. Each profile warms
-# UV_CACHE_DIR; at task time `uv run --frozen --extra ...` re-syncs from that
-# cache without touching the network.
+# changes a dependency is tested with the changed dependency.
+#
+# The download cache is a BuildKit cache mount, not an image layer. This step
+# pulls tens of GB from PyPI, and on a flaky link a drop partway through would
+# otherwise discard everything and restart from zero -- the mount makes a retry
+# resume from what already landed. It also keeps the cache out of the image.
+#
+# Nothing needs the cache at run time: the venv built here already matches what
+# tasks request, and `uv run --frozen` cannot re-resolve, so a task with the
+# same extras never reaches the network.
+#
+# UV_HTTP_TIMEOUT is raised well above the 30s default because large wheels
+# behind a VPN routinely stall longer than that without the transfer being dead.
+ENV UV_HTTP_TIMEOUT=180
 {% for profile in profiles %}
-RUN uv sync --frozen {% for extra in profile_extras[profile] %}--extra {{ extra }} {% endfor %}
+RUN --mount=type=cache,target=/opt/uv-cache,sharing=locked \
+    uv sync --frozen {% for extra in profile_extras[profile] %}--extra {{ extra }} {% endfor %}
 {% endfor %}

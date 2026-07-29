@@ -78,7 +78,7 @@ def test_dockerfile_clones_from_the_bundle_and_verifies_the_sha() -> None:
 
 def test_dockerfile_syncs_once_per_profile() -> None:
     text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["full"])
-    assert text.count("RUN uv sync") == 1
+    assert text.count("uv sync --frozen") == 1
 
 
 def test_dockerfile_pins_the_lockfile_on_sync() -> None:
@@ -91,7 +91,7 @@ def test_full_profile_never_selects_conflicting_extras() -> None:
     # ovphysx is no longer forbidden -- the packaging override made it
     # co-resolvable with isaacsim -- but these five still conflict.
     text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["full"])
-    sync_line = next(line for line in text.splitlines() if "RUN uv sync" in line)
+    sync_line = next(line for line in text.splitlines() if "uv sync --frozen" in line)
     for forbidden in ("--extra all", "--extra mimic", "--extra teleop", "--extra viser", "--extra test"):
         assert forbidden not in sync_line
     assert "--extra ovphysx" in sync_line
@@ -126,6 +126,9 @@ def test_build_bundles_one_ref_and_invokes_docker_build(tmp_path: Path) -> None:
     assert fake.ran("git", "update-ref", f"refs/heads/{BUNDLE_REF}")
     assert fake.ran("git", "bundle", "create")
     assert fake.ran("docker", "build")
+    # BuildKit's own netns could not resolve DNS during the first real build;
+    # host networking sidesteps the bridge resolver entirely.
+    assert "--network=host" in next(c for c in fake.calls if c[:2] == ["docker", "build"])
 
 
 def test_temp_ref_is_deleted_after_bundling(tmp_path: Path) -> None:
@@ -164,8 +167,22 @@ def test_push_runs_when_requested(tmp_path: Path) -> None:
 
 
 def test_failed_docker_build_raises(tmp_path: Path) -> None:
-    fake = _FakeRun({"docker build": _cp(returncode=1, stderr="no space left on device")})
-    with pytest.raises(ImageBuildError, match="no space left"):
+    # Docker output is streamed, not captured, so the error names the step and
+    # exit code; the diagnostics are already on stdout.
+    fake = _FakeRun({"docker build": _cp(returncode=100)})
+    with pytest.raises(ImageBuildError, match="docker build failed with exit code 100"):
         build_image(
             spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["full"], context_dir=tmp_path / "ctx", run=fake
         )
+
+
+def test_uv_sync_uses_a_resumable_cache_mount() -> None:
+    # This step pulls tens of GB from PyPI. Without a cache mount a dropped
+    # connection discards everything and the retry restarts from zero.
+    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["full"])
+    assert "--mount=type=cache,target=/opt/uv-cache" in text
+
+
+def test_uv_http_timeout_is_raised_above_the_default() -> None:
+    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["full"])
+    assert "UV_HTTP_TIMEOUT" in text
