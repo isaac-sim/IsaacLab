@@ -89,6 +89,14 @@ def test_bool_is_not_accepted_as_integer(tmp_path: Path) -> None:
         load_odin_config(_write(tmp_path, text))
 
 
+def test_chunk_size_below_one_is_rejected(tmp_path: Path) -> None:
+    # Caught at load time: chunking happens after dispatch.json is written, so
+    # rejecting it there would strand an orphan dispatch.
+    text = _VALID.replace("chunk_size: 25", "chunk_size: 0")
+    with pytest.raises(OdinConfigError, match="chunk_size"):
+        load_odin_config(_write(tmp_path, text))
+
+
 def test_non_mapping_document_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(OdinConfigError, match="mapping"):
         load_odin_config(_write(tmp_path, "- just\n- a\n- list\n"))

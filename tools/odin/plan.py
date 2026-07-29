@@ -210,13 +210,30 @@ def load_task_rows(path: Path) -> list[dict[str, Any]]:
     return tasks
 
 
+def _overlay_key(entry: dict[str, Any]) -> tuple[Any, ...]:
+    """Return the identity an entry is matched on when overlaying metadata.
+
+    Mirrors :func:`~tools.odin.harvest.harvest_dispatch`'s grouping key exactly.
+    Renderer and presets belong in it: a camera row and a headless row of the
+    same task and backend measure different workloads, so one must not inherit
+    the other's budget.
+    """
+    return (
+        entry.get("task_id"),
+        entry.get("rl_library"),
+        entry.get("physics"),
+        entry.get("renderer") or "none",
+        ",".join(sorted(normalize_presets(entry.get("presets")))),
+    )
+
+
 def apply_metadata(task_rows: list[dict[str, Any]], metadata_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Overlay harvested sizing onto seed entries.
 
-    Entries are matched on ``(task_id, rl_library, physics)``. A value already
-    present on the seed entry wins, so a hand-set override is never silently
-    replaced by a measurement. Metadata for combinations absent from the seed
-    list is ignored.
+    Entries are matched on ``(task_id, rl_library, physics, renderer, presets)``.
+    A value already present on the seed entry wins, so a hand-set override is
+    never silently replaced by a measurement. Metadata for combinations absent
+    from the seed list is ignored.
 
     Args:
         task_rows: Seed entries from :func:`load_task_rows`.
@@ -226,10 +243,10 @@ def apply_metadata(task_rows: list[dict[str, Any]], metadata_rows: list[dict[str
     Returns:
         New seed entries with sizing filled in where it was missing.
     """
-    by_key = {(entry.get("task_id"), entry.get("rl_library"), entry.get("physics")): entry for entry in metadata_rows}
+    by_key = {_overlay_key(entry): entry for entry in metadata_rows}
     merged: list[dict[str, Any]] = []
     for entry in task_rows:
-        overlay = by_key.get((entry.get("task_id"), entry.get("rl_library"), entry.get("physics")))
+        overlay = by_key.get(_overlay_key(entry))
         combined = dict(entry)
         if overlay is not None:
             for field_name in _OVERLAY_FIELDS:
@@ -239,13 +256,22 @@ def apply_metadata(task_rows: list[dict[str, Any]], metadata_rows: list[dict[str
     return merged
 
 
-def _sort_key(row: PlannedRow) -> tuple[int, str, str, int]:
+def _sort_key(row: PlannedRow) -> tuple[int, str, str, str, str, int]:
     """Order rows cheapest-first, with unbudgeted rows last.
 
     Rows without a harvested budget sort after budgeted ones so a chunk does not
-    mix a known-short task with an unknown-length one.
+    mix a known-short task with an unknown-length one. The renderer and preset
+    segments make the order total: without them, a task's preset variants tie
+    and their relative order follows input order rather than being fixed.
     """
-    return (row.timeout_s if row.timeout_s is not None else 2**31 - 1, row.task_id, row.physics or "", row.seed)
+    return (
+        row.timeout_s if row.timeout_s is not None else 2**31 - 1,
+        row.task_id,
+        row.physics or "",
+        row.renderer or "",
+        ",".join(row.presets),
+        row.seed,
+    )
 
 
 def plan_rows(
@@ -262,8 +288,8 @@ def plan_rows(
         include: Optional glob filter applied to ``task_id``.
 
     Returns:
-        Rows sorted by ``(timeout_s, task_id, physics, seed)`` so reruns and
-        resumes observe an identical layout.
+        Rows sorted by ``(timeout_s, task_id, physics, renderer, presets, seed)``
+        so reruns and resumes observe an identical layout.
 
     Raises:
         PlanError: On a missing field, an unknown RL library, or a duplicate row
@@ -337,10 +363,10 @@ def chunk_rows(rows: list[PlannedRow], chunk_size: int) -> list[tuple[int, list[
         ``(chunk_index, chunk_rows)`` pairs with ascending *chunk_index*.
 
     Raises:
-        ValueError: If *chunk_size* is less than one.
+        PlanError: If *chunk_size* is less than one.
     """
     if chunk_size < 1:
-        raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
+        raise PlanError(f"chunk_size must be >= 1, got {chunk_size}")
     if not rows:
         return []
     ordered = sorted(rows, key=_sort_key)

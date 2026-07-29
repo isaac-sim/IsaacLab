@@ -172,6 +172,29 @@ def test_metadata_matches_on_physics_too() -> None:
     assert apply_metadata(_ROWS, metadata)[0].get("num_envs") is None
 
 
+def test_metadata_matches_on_renderer_and_presets_too() -> None:
+    # harvest groups on five fields; matching on three would let a camera row
+    # inherit a headless row's budget, which is the wrong workload entirely.
+    seed = [dict(_ROWS[0], renderer="ovrtx", presets="depth")]
+    headless = [{"task_id": "Isaac-Ant", "rl_library": "rsl_rl", "physics": "physx", "timeout_s": 60}]
+    assert apply_metadata(seed, headless)[0].get("timeout_s") is None
+
+    camera = [dict(headless[0], renderer="ovrtx", presets="depth")]
+    assert apply_metadata(seed, camera)[0]["timeout_s"] == 60
+
+
+def test_preset_variants_have_a_fixed_order() -> None:
+    # Without renderer and presets in the sort key these rows tie, so their
+    # layout follows input order and reruns disagree.
+    entries = [
+        {"task_id": "Isaac-Cam", "rl_library": "rsl_rl", "physics": "newton_mjwarp", "renderer": "ovrtx", "presets": p}
+        for p in ("rgb", "depth")
+    ]
+    forward = [row.row_key for row in plan_rows(task_rows=entries, seeds=[42])]
+    reversed_ = [row.row_key for row in plan_rows(task_rows=list(reversed(entries)), seeds=[42])]
+    assert forward == reversed_
+
+
 def test_task_without_a_physics_preset_is_planned() -> None:
     # 35 of the 87 usable tasks declare no physics preset and hard-fail on any
     # physics= token, so physics must be optional.

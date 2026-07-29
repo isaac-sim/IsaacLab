@@ -28,11 +28,17 @@ import yaml
 
 __all__ = [
     "DEFAULT_TIMEOUT_HEADROOM",
+    "HarvestError",
     "TaskMetadata",
     "harvest_dispatch",
     "read_bundle",
     "write_task_metadata",
 ]
+
+
+class HarvestError(ValueError):
+    """Raised when a dispatch cannot be harvested into trustworthy metadata."""
+
 
 # Multiplier applied to the slowest observed run when deriving a wall-clock
 # budget. Generous because an under-budgeted row is killed mid-training, which
@@ -128,20 +134,26 @@ def harvest_dispatch(dispatch_dir: Path, *, timeout_headroom: float = DEFAULT_TI
         One entry per ``(task_id, rl_library, physics)``, sorted by that key.
 
     Raises:
-        ValueError: If *timeout_headroom* is not greater than zero.
+        HarvestError: If *timeout_headroom* is not greater than zero, or the
+            dispatch's ``dispatch.json`` exists but cannot be read.
     """
     if timeout_headroom <= 0:
-        raise ValueError(f"timeout_headroom must be > 0, got {timeout_headroom}")
+        raise HarvestError(f"timeout_headroom must be > 0, got {timeout_headroom}")
 
     # An A/B dispatch holds two commits' results side by side. Harvesting both
     # into one baseline would silently average them, so side B is excluded.
+    # An unreadable state file is fatal rather than empty: treating it as "no
+    # side B" is exactly the silent averaging this guards against.
     side_b_rows: set[str] = set()
     state_path = dispatch_dir / "dispatch.json"
     if state_path.exists():
         try:
             payload = json.loads(state_path.read_text())
-        except (OSError, ValueError):
-            payload = {}
+        except (OSError, ValueError) as exc:
+            raise HarvestError(
+                f"could not read {state_path}: {exc}. Without it an A/B dispatch's two sides would be averaged "
+                "into one baseline."
+            ) from exc
         side_b_rows = {
             str(job.get("row_key")) for job in payload.get("jobs") or [] if job.get("side") not in (None, "a")
         }

@@ -27,10 +27,10 @@ from pathlib import Path
 from tools.odin.client import OsmoClient
 from tools.odin.config_file import OdinConfig, OdinConfigError, load_odin_config
 from tools.odin.discover import DiscoveryError, discover_tasks, expand_rows, filter_rows, write_task_list
-from tools.odin.harvest import DEFAULT_TIMEOUT_HEADROOM, harvest_dispatch, write_task_metadata
+from tools.odin.harvest import DEFAULT_TIMEOUT_HEADROOM, HarvestError, harvest_dispatch, write_task_metadata
 from tools.odin.image import DEFAULT_CUDA_IMAGE, PROFILES, ImageBuildError, build_image
 from tools.odin.plan import PlanError, PlannedRow, apply_metadata, chunk_rows, load_task_rows, plan_rows
-from tools.odin.poller import poll_until_terminal
+from tools.odin.poller import PollError, poll_until_terminal
 from tools.odin.results import dispatch_output_uri, fetch_results, validate_bundle
 from tools.odin.state import (
     SCHEMA_VERSION,
@@ -142,6 +142,11 @@ def command_dispatch(args: argparse.Namespace) -> int:
     if args.resume is not None:
         return _resume_dispatch(args=args, cfg=cfg)
     chunk_size = args.chunk_size if args.chunk_size is not None else cfg.chunk_size
+    # Validated before anything is written: chunking runs after dispatch.json
+    # exists, so failing there would strand an orphan dispatch that LATEST
+    # resolves to.
+    if chunk_size < 1:
+        raise PlanError(f"chunk_size must be >= 1, got {chunk_size}")
 
     # --image and --seeds are only optional on the resume path, which re-attaches
     # to work that was already planned and submitted.
@@ -152,19 +157,27 @@ def command_dispatch(args: argparse.Namespace) -> int:
         print("[odin] --seeds is required unless retrying (retries reuse the parent's seeds)", file=sys.stderr)
         return 1
 
+    # Each element pairs a task-row list with the seeds it expands across. A
+    # fresh dispatch has one; a retry has one per seed, because a row that
+    # passed on seed 42 must not be re-run because seed 43 failed.
+    plan_groups: list[tuple[list[dict], list[int]]]
     parent_dispatch_id: str | None = None
     if args.retry_failed is not None:
         parent_dispatch_id = _resolve_dispatch_id(args.runs_root, args.retry_failed)
-        task_rows, seeds = _failed_rows_from(args.runs_root / parent_dispatch_id)
-        if not task_rows:
+        rows_by_seed = _failed_rows_from(args.runs_root / parent_dispatch_id)
+        if not rows_by_seed:
             print(f"[odin] {parent_dispatch_id} has no failed rows to retry", file=sys.stderr)
             return 1
-        print(f"[odin] retrying {len(task_rows)} failed row(s) from {parent_dispatch_id}")
+        plan_groups = [(task_rows, [seed]) for seed, task_rows in sorted(rows_by_seed.items())]
+        seeds = sorted(rows_by_seed)
+        retried = sum(len(task_rows) for task_rows, _ in plan_groups)
+        print(f"[odin] retrying {retried} failed row(s) from {parent_dispatch_id}")
     else:
         task_rows = load_task_rows(args.tasks_yaml)
         seeds = args.seeds
         if args.metadata_yaml is not None:
             task_rows = apply_metadata(task_rows, load_task_rows(args.metadata_yaml))
+        plan_groups = [(task_rows, seeds)]
 
     if args.play or args.keep_checkpoints:
         overrides: dict = {}
@@ -174,8 +187,13 @@ def command_dispatch(args: argparse.Namespace) -> int:
             overrides["keep_checkpoint"] = True
         if args.video_length:
             overrides["video_length"] = args.video_length
-        task_rows = [dict(row, **overrides) for row in task_rows]
-    rows = plan_rows(task_rows=task_rows, seeds=seeds, include=args.include)
+        plan_groups = [([dict(row, **overrides) for row in task_rows], s) for task_rows, s in plan_groups]
+
+    rows = [
+        row
+        for task_rows, group_seeds in plan_groups
+        for row in plan_rows(task_rows=task_rows, seeds=group_seeds, include=args.include)
+    ]
     if not rows:
         print("[odin] no rows matched; nothing to dispatch", file=sys.stderr)
         return 1
@@ -224,31 +242,42 @@ def command_dispatch(args: argparse.Namespace) -> int:
     return _submit_and_poll(args=args, cfg=cfg, state=state, dispatch_dir=dispatch_dir, rendered=rendered)
 
 
-def _failed_rows_from(dispatch_dir: Path) -> tuple[list[dict], list[int]]:
-    """Return task rows and seeds reconstructed from a dispatch's failed jobs.
+def _failed_rows_from(dispatch_dir: Path) -> dict[int, list[dict]]:
+    """Return a dispatch's failed rows as task rows, grouped by seed.
 
-    Only one row per identity is emitted even when several seeds failed; the
-    seed axis is carried separately so :func:`plan_rows` re-expands it exactly
-    as the original dispatch did.
+    Failure is a property of ``(identity, seed)``, not of an identity: a row
+    that passed on seed 42 must not be re-run because seed 43 failed. Grouping
+    by seed keeps each identity paired with the seeds it actually failed on.
 
     Args:
         dispatch_dir: Directory of the dispatch to retry.
 
     Returns:
-        ``(task_rows, seeds)`` suitable for :func:`plan_rows`.
+        Seed to task rows that failed on it, each suitable for
+        :func:`plan_rows` with that single seed.
 
     Raises:
-        PlanError: If the dispatch cannot be read.
+        PlanError: If the dispatch cannot be read, or is an A/B dispatch.
     """
     state = read_dispatch_state(dispatch_dir)
     if state is None:
         raise PlanError(f"no dispatch.json under {dispatch_dir}")
 
-    failed = [job for job in state.jobs if job.status == "failed"]
+    # A retry plans one row per identity and dispatches it against --image, so
+    # a side-B failure would silently be re-run on side A's image.
+    sides = sorted({job.side for job in state.jobs})
+    if len(sides) > 1:
+        raise PlanError(
+            f"{dispatch_dir.name} is an A/B dispatch (sides {sides}); a retry would run both sides against one "
+            "image. Re-dispatch each side on its own instead."
+        )
+
+    grouped: dict[int, list[dict]] = {}
     seen: set[tuple] = set()
-    task_rows: list[dict] = []
-    for job in failed:
-        identity = (job.task_id, job.rl_library, job.physics, job.renderer, job.presets)
+    for job in state.jobs:
+        if job.status != "failed":
+            continue
+        identity = (job.seed, job.task_id, job.rl_library, job.physics, job.renderer, job.presets)
         if identity in seen:
             continue
         seen.add(identity)
@@ -265,9 +294,9 @@ def _failed_rows_from(dispatch_dir: Path) -> tuple[list[dict], list[int]]:
             row["max_iterations"] = job.max_iterations
         if job.timeout_s is not None:
             row["timeout_s"] = job.timeout_s
-        task_rows.append(row)
+        grouped.setdefault(job.seed, []).append(row)
 
-    return task_rows, sorted({job.seed for job in failed})
+    return grouped
 
 
 def _resume_dispatch(*, args: argparse.Namespace, cfg: OdinConfig) -> int:
@@ -631,7 +660,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         return _COMMANDS[args.command](args)
-    except (OdinConfigError, PlanError, ImageBuildError, DiscoveryError) as exc:
+    except (OdinConfigError, PlanError, ImageBuildError, DiscoveryError, HarvestError, PollError) as exc:
         print(f"[odin] {exc}", file=sys.stderr)
         return 1
 

@@ -310,12 +310,22 @@ def _legal_modes(
     return tuple(modes)
 
 
+# Errors that mean the validator itself could not run, rather than that the
+# combination under test was rejected. Swallowing these marks every mode illegal
+# and leaves the CLI blaming the operator's filters for an empty row set.
+_INFRASTRUCTURE_ERRORS = (ImportError, AttributeError, NameError, SyntaxError)
+
+
 def _mode_resolves(task_id: str, physics: str | None, renderer: str | None, presets: str | None = None) -> bool:
     """Return whether a physics/renderer pairing resolves and passes validation.
 
-    Any failure — an unknown preset, an unloadable config, or a rejected backend
-    combination — makes the pairing undispatchable, so all of them are treated
-    the same.
+    An unknown preset, an unloadable config, or a rejected backend combination
+    all mean the same thing — the pairing is undispatchable — so they return
+    ``False`` alike.
+
+    Raises:
+        DiscoveryError: If validation could not run at all, e.g. because an
+            Isaac Lab import or API it depends on has changed.
     """
     import argparse
     import sys
@@ -342,7 +352,12 @@ def _mode_resolves(task_id: str, physics: str | None, renderer: str | None, pres
         env_cfg, _ = resolve_task_config(args.task, args.agent)
         _validate_runtime(scan(env_cfg, args), args)
         return True
-    except Exception:  # noqa: BLE001 - any failure means undispatchable
+    except _INFRASTRUCTURE_ERRORS as exc:
+        raise DiscoveryError(
+            f"preset validation for {task_id!r} could not run: {type(exc).__name__}: {exc}. This is an Isaac Lab "
+            "import or API failure, not a rejected preset combination."
+        ) from exc
+    except Exception:  # noqa: BLE001 - any other failure means undispatchable
         return False
     finally:
         sys.argv = original_argv

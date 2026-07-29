@@ -179,6 +179,10 @@ def load_odin_config(path: Path) -> OdinConfig:
     resources_raw = _require(raw, "resources", "")
     retry_raw = raw.get("retry") or {}
 
+    chunk_size = _require_int(raw, "chunk_size", "")
+    if chunk_size < 1:
+        raise OdinConfigError(f"chunk_size must be >= 1, got {chunk_size}")
+
     return OdinConfig(
         osmo_profile=_require_str(raw, "osmo_profile", ""),
         pool=_require_str(raw, "pool", ""),
@@ -197,7 +201,7 @@ def load_odin_config(path: Path) -> OdinConfig:
         ),
         exec_timeout_s=_require_int(raw, "exec_timeout_s", ""),
         queue_timeout_s=_require_int(raw, "queue_timeout_s", ""),
-        chunk_size=_require_int(raw, "chunk_size", ""),
+        chunk_size=chunk_size,
         results_uri=_require_str(raw, "results_uri", ""),
         retry=RetrySpec(
             reschedule_codes=str(retry_raw.get("reschedule_codes") or ""),

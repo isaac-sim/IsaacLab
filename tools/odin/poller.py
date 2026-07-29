@@ -20,13 +20,25 @@ from tools.odin.client import WorkflowSnapshot
 from tools.odin.state import DispatchState, FailureInfo, JobEntry, write_dispatch_state
 
 __all__ = [
+    "MAX_CONSECUTIVE_POLL_FAILURES",
     "OSMO_STATE_TO_FAILURE_KIND",
     "TERMINAL_OSMO_STATES",
+    "PollError",
     "classify_terminal_state",
     "is_terminal",
     "poll_until_terminal",
     "sync_once",
 ]
+
+# Consecutive ticks in which every workflow query failed before the loop gives
+# up. A transient 5xx clears within a tick or two; bad credentials never do, and
+# without a ceiling the loop would retry them until the operator noticed.
+MAX_CONSECUTIVE_POLL_FAILURES = 20
+
+
+class PollError(RuntimeError):
+    """Raised when polling cannot make progress and the loop gives up."""
+
 
 # ``COMPLETED`` is intentionally absent: the caller decides between success and
 # ``malformed_bundle`` after validating the fetched bundle.
@@ -105,7 +117,7 @@ def sync_once(
     dispatch_dir: Path,
     on_task_completed: Callable[[JobEntry], None],
     completed_seen: set[str] | None = None,
-) -> None:
+) -> int:
     """Run one reconciliation pass over every workflow and rewrite state.
 
     Idempotent: repeated calls with no remote change are a no-op.
@@ -119,6 +131,9 @@ def sync_once(
             across ticks so a completion is not re-enqueued every poll. Seeded
             from already-completed jobs when ``None``.
 
+    Returns:
+        How many workflow queries failed this pass.
+
     Raises:
         ValueError: If ``state.osmo_workflow_ids`` is empty.
     """
@@ -128,14 +143,15 @@ def sync_once(
     if completed_seen is None:
         completed_seen = {job.row_key for job in state.jobs if job.status == "completed"}
 
+    query_failures = 0
     for workflow_id in state.osmo_workflow_ids:
         try:
             snapshot = client.status(workflow_id)
         except Exception as exc:  # noqa: BLE001 - any query failure is skippable
             # OSMO returns transient 4xx/5xx, and a query can race a workflow
             # finishing. Skip this workflow for this tick; the next one picks it
-            # up. A persistent auth failure keeps surfacing here, which is the
-            # operator's signal to fix credentials.
+            # up. The caller bounds how long that can go on.
+            query_failures += 1
             print(f"[odin] osmo workflow query {workflow_id} failed; skipping this tick: {exc}", flush=True)
             continue
 
@@ -171,6 +187,7 @@ def sync_once(
                 job.transition_to("pending")
 
     write_dispatch_state(dispatch_dir, state)
+    return query_failures
 
 
 def poll_until_terminal(
@@ -180,6 +197,7 @@ def poll_until_terminal(
     dispatch_dir: Path,
     on_task_completed: Callable[[JobEntry], None],
     poll_interval_s: float,
+    max_consecutive_failures: int = MAX_CONSECUTIVE_POLL_FAILURES,
 ) -> None:
     """Drive every workflow to completion, rewriting ``dispatch.json`` each tick.
 
@@ -189,16 +207,34 @@ def poll_until_terminal(
         dispatch_dir: Directory holding ``dispatch.json``.
         on_task_completed: Called once per task that reaches ``COMPLETED``.
         poll_interval_s: Seconds between passes; ``0`` in tests.
+        max_consecutive_failures: Ticks in which every workflow query may fail
+            before the loop gives up.
+
+    Raises:
+        PollError: If every query failed for *max_consecutive_failures* ticks in
+            a row. ``dispatch.json`` is current, so ``--resume`` picks up from
+            there once the cause is fixed.
     """
     completed_seen = {job.row_key for job in state.jobs if job.status == "completed"}
+    consecutive_failures = 0
     while not _all_terminal(state):
-        sync_once(
+        query_failures = sync_once(
             client=client,
             state=state,
             dispatch_dir=dispatch_dir,
             on_task_completed=on_task_completed,
             completed_seen=completed_seen,
         )
+        if query_failures < len(state.osmo_workflow_ids):
+            consecutive_failures = 0
+        else:
+            consecutive_failures += 1
+            if consecutive_failures >= max_consecutive_failures:
+                raise PollError(
+                    f"every OSMO query failed on {consecutive_failures} consecutive polls; giving up. "
+                    "Check credentials and connectivity, then re-attach with `dispatch --resume "
+                    f"{state.dispatch_id}`."
+                )
         if _all_terminal(state):
             break
         if poll_interval_s > 0:

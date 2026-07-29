@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from tools.odin.client import TaskSnapshot, WorkflowSnapshot
-from tools.odin.poller import classify_terminal_state, is_terminal, poll_until_terminal, sync_once
+from tools.odin.poller import PollError, classify_terminal_state, is_terminal, poll_until_terminal, sync_once
 from tools.odin.state import SCHEMA_VERSION, DispatchState, FailureInfo, JobEntry
 
 
@@ -220,6 +220,43 @@ def test_poll_until_terminal_returns_when_all_jobs_finish(tmp_path: Path) -> Non
         dispatch_dir=tmp_path,
         on_task_completed=lambda job: None,
         poll_interval_s=0,
+    )
+    assert state.jobs[0].status == "completed"
+
+
+def test_poll_gives_up_after_a_run_of_total_query_failures(tmp_path: Path) -> None:
+    # Bad credentials fail every query forever. Without a ceiling the loop spins
+    # silently instead of telling the operator what to fix.
+    with pytest.raises(PollError, match="consecutive polls"):
+        poll_until_terminal(
+            client=_ExplodingClient(),
+            state=_state(_job()),
+            dispatch_dir=tmp_path,
+            on_task_completed=lambda job: None,
+            poll_interval_s=0,
+            max_consecutive_failures=3,
+        )
+
+
+def test_a_recovered_query_resets_the_failure_budget(tmp_path: Path) -> None:
+    class _FlakyClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def status(self, workflow_id: str) -> WorkflowSnapshot:
+            self.calls += 1
+            if self.calls < 3:
+                raise RuntimeError("osmo backend hiccup")
+            return _snapshot("COMPLETED")
+
+    state = _state(_job())
+    poll_until_terminal(
+        client=_FlakyClient(),
+        state=state,
+        dispatch_dir=tmp_path,
+        on_task_completed=lambda job: None,
+        poll_interval_s=0,
+        max_consecutive_failures=3,
     )
     assert state.jobs[0].status == "completed"
 

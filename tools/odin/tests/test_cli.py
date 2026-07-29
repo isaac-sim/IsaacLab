@@ -402,20 +402,7 @@ def test_retry_failed_plans_only_the_failed_rows(workspace: Path) -> None:
         if job["status"] == "failed"
     }
 
-    code = main(
-        [
-            "dispatch",
-            "--config",
-            str(workspace / "odin.yaml"),
-            "--image",
-            "img@sha256:abc",
-            "--runs_root",
-            str(workspace / "runs"),
-            "--retry_failed",
-            parent,
-            "--dry_run",
-        ]
-    )
+    code = main(_retry_argv(workspace, parent))
 
     assert code == 0
     child = sorted((workspace / "runs").iterdir())[-1]
@@ -428,42 +415,79 @@ def test_retry_failed_reuses_the_parent_seeds(workspace: Path) -> None:
     main(_dispatch_argv(workspace, "--seeds", "42,43", "--include", "Isaac-Cartpole-Direct"))
     parent = _mark_failed(workspace, limit=2)
 
-    main(
-        [
-            "dispatch",
-            "--config",
-            str(workspace / "odin.yaml"),
-            "--image",
-            "img@sha256:abc",
-            "--runs_root",
-            str(workspace / "runs"),
-            "--retry_failed",
-            parent,
-            "--dry_run",
-        ]
-    )
+    main(_retry_argv(workspace, parent))
 
     child = sorted((workspace / "runs").iterdir())[-1]
     assert json.loads((child / "dispatch.json").read_text())["seeds"]
 
 
+def _retry_argv(workspace: Path, parent: str) -> list[str]:
+    return [
+        "dispatch",
+        "--config",
+        str(workspace / "odin.yaml"),
+        "--image",
+        "img@sha256:abc",
+        "--runs_root",
+        str(workspace / "runs"),
+        "--retry_failed",
+        parent,
+        "--dry_run",
+    ]
+
+
+def _identity(job: dict) -> tuple:
+    return (job["task_id"], job["rl_library"], job["physics"], job["seed"])
+
+
+def test_retry_failed_pairs_each_identity_with_the_seeds_it_failed_on(workspace: Path) -> None:
+    # Collapsing failures to (identities, union-of-seeds) re-expands a cross
+    # product, so a seed that passed is billed a second GPU run.
+    main(_dispatch_argv(workspace, "--seeds", "42,43", "--include", "Isaac-Cartpole-Direct"))
+    dispatch_dir = _dispatch_dir(workspace)
+    state = json.loads((dispatch_dir / "dispatch.json").read_text())
+    state["osmo_workflow_ids"] = ["wf-1"]
+    by_seed = {seed: [job for job in state["jobs"] if job["seed"] == seed] for seed in (42, 43)}
+    # Two distinct identities, each failing on one seed only.
+    victims = [by_seed[42][0], by_seed[43][1]]
+    for job in victims:
+        job["status"] = "failed"
+        job["ended_at"] = "2026-07-29T12:00:00Z"
+        job["failure"] = {"kind": "benchmark_crash", "message": "boom", "details": {}}
+    (dispatch_dir / "dispatch.json").write_text(json.dumps(state))
+
+    assert main(_retry_argv(workspace, dispatch_dir.name)) == 0
+
+    child = json.loads((sorted((workspace / "runs").iterdir())[-1] / "dispatch.json").read_text())
+    assert {_identity(job) for job in child["jobs"]} == {_identity(job) for job in victims}
+
+
+def test_retry_of_an_ab_dispatch_is_refused(workspace: Path, capsys) -> None:
+    # Retrying plans one row per identity against --image, so a side-B failure
+    # would silently be re-run on side A's image.
+    main(_dispatch_argv(workspace, "--include", "Isaac-Cartpole-Direct", "--image_b", "nvcr.io/nvidian/x@sha256:def"))
+    parent = _mark_failed(workspace, limit=2)
+
+    code = main(_retry_argv(workspace, parent))
+
+    assert code == 1
+    assert "A/B dispatch" in capsys.readouterr().err
+
+
+def test_chunk_size_below_one_leaves_no_orphan_dispatch(workspace: Path, capsys) -> None:
+    # Chunking runs after dispatch.json is written, so a late rejection would
+    # leave a dispatch that LATEST resolves to.
+    code = main(_dispatch_argv(workspace, "--chunk_size", "0"))
+
+    assert code == 1
+    assert "chunk_size" in capsys.readouterr().err
+    assert not (workspace / "runs").exists()
+
+
 def test_retry_failed_on_a_clean_dispatch_is_an_error(workspace: Path, capsys) -> None:
     main(_dispatch_argv(workspace))
     parent = _dispatch_dir(workspace).name
-    code = main(
-        [
-            "dispatch",
-            "--config",
-            str(workspace / "odin.yaml"),
-            "--image",
-            "img",
-            "--runs_root",
-            str(workspace / "runs"),
-            "--retry_failed",
-            parent,
-            "--dry_run",
-        ]
-    )
+    code = main(_retry_argv(workspace, parent))
     assert code == 1
     assert "no failed rows" in capsys.readouterr().err
 

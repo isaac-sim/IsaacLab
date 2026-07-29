@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 
+from tools.odin import discover
 from tools.odin.discover import DiscoveredTask, expand_rows, filter_rows, write_task_list
 from tools.odin.plan import load_task_rows, plan_rows
 
@@ -138,6 +139,16 @@ def test_written_list_is_consumable_by_the_planner(tmp_path: Path) -> None:
     planned = plan_rows(task_rows=load_task_rows(out), seeds=[42])
     assert len(planned) == len(rows)
     assert any(row.physics is None for row in planned)
+
+
+def test_broken_imports_are_not_mistaken_for_rejected_presets() -> None:
+    # An import regression that swallows to False marks every mode illegal, and
+    # the CLI then blames the operator's filters for the empty row set.
+    assert ImportError in discover._INFRASTRUCTURE_ERRORS
+    assert AttributeError in discover._INFRASTRUCTURE_ERRORS
+    # A rejected preset combination raises these; they must stay swallowed.
+    assert ValueError not in discover._INFRASTRUCTURE_ERRORS
+    assert RuntimeError not in discover._INFRASTRUCTURE_ERRORS
 
 
 def test_provenance_header_is_ignored_by_the_planner(tmp_path: Path) -> None:

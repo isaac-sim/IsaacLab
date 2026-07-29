@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tools.odin.harvest import harvest_dispatch, read_bundle, write_task_metadata
+from tools.odin.harvest import HarvestError, harvest_dispatch, read_bundle, write_task_metadata
 
 
 def _write_bundle(
@@ -142,8 +142,18 @@ def test_empty_dispatch_yields_nothing(tmp_path: Path) -> None:
 
 
 def test_non_positive_headroom_is_rejected(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="timeout_headroom"):
+    with pytest.raises(HarvestError, match="timeout_headroom"):
         harvest_dispatch(tmp_path, timeout_headroom=0)
+
+
+def test_unreadable_dispatch_state_is_fatal(tmp_path: Path) -> None:
+    # Swallowing it empties side_b_rows, which averages an A/B dispatch's two
+    # commits into one baseline -- exactly what excluding side B prevents.
+    _write_bundle(tmp_path, "row_a")
+    (tmp_path / "dispatch.json").write_text("{not json")
+
+    with pytest.raises(HarvestError, match="dispatch.json"):
+        harvest_dispatch(tmp_path)
 
 
 def test_written_metadata_is_a_valid_seed_list_overlay(tmp_path: Path) -> None:
