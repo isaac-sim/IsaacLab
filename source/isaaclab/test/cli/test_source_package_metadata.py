@@ -46,6 +46,4 @@ def test_isaaclab_standalone_usd_providers_are_platform_disjoint():
         dependency for dependency in pyproject["project"]["dependencies"] if dependency.startswith("usd-exchange")
     ]
 
-    assert usd_exchange_dependencies == [
-        "usd-exchange>=2.2 ; platform_machine == 'aarch64' or platform_machine == 'arm64'"
-    ]
+    assert usd_exchange_dependencies == ["usd-exchange>=2.2 ; platform_machine == 'aarch64'"]
