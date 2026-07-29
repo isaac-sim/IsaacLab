@@ -52,18 +52,6 @@ def _remap_volume_vis_positions_kernel(
     render_particle_q[render_offset + vis_idx] = p
 
 
-@wp.kernel
-def _copy_particle_slice_kernel(
-    src: wp.array(dtype=wp.vec3f),
-    dst: wp.array(dtype=wp.vec3f),
-    src_offset: int,
-    dst_offset: int,
-):
-    """Copy one contiguous particle slice between buffers."""
-    idx = wp.tid()
-    dst[dst_offset + idx] = src[src_offset + idx]
-
-
 def launch_volume_vis_remap(
     sim_particle_q: wp.array,
     render_particle_q: wp.array,
@@ -88,26 +76,6 @@ def launch_volume_vis_remap(
             tet_indices_wp,
             bary_wp,
         ],
-        device=device,
-    )
-
-
-def launch_copy_particle_slice(
-    src: wp.array,
-    dst: wp.array,
-    src_offset: int,
-    dst_offset: int,
-    count: int,
-    *,
-    device: str,
-) -> None:
-    """Copy ``count`` particles from ``src`` to ``dst`` at the given offsets."""
-    if count <= 0:
-        return
-    wp.launch(
-        _copy_particle_slice_kernel,
-        dim=count,
-        inputs=[src, dst, src_offset, dst_offset],
         device=device,
     )
 
