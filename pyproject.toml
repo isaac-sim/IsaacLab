@@ -297,7 +297,6 @@ ignore-words-list = "aheared,collet,followng,haa,publically,rouines,slq,collapsa
 
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
-    "enable_cameras: test file requires camera support (AppLauncher enable_cameras=True); used to group files into camera-enabled shared Kit sessions",
     "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
     "windows_ci: mark test to run on Windows platforms in CI",
     "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",
