@@ -27,24 +27,18 @@ import traceback
 from functools import partial
 
 from isaaclab.app import AppLauncher
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark._cli import add_sensor_benchmark_args, parse_non_negative_int, parse_positive_int
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX contact sensor update.")
-parser.add_argument("--physics_variant", choices=("physx",), default="physx", help="Exact physics variant.")
-parser.add_argument("--num_envs", type=parse_positive_int, default=4096, help="Number of environments to simulate.")
-parser.add_argument("--num_steps", type=parse_positive_int, default=500, help="Number of timed simulation steps.")
-parser.add_argument("--warmup_steps", type=parse_non_negative_int, default=50, help="Number of untimed warm-up steps.")
+add_sensor_benchmark_args(
+    parser,
+    physics_variants=("physx",),
+    default_physics_variant="physx",
+    add_device=False,
+)
 parser.add_argument("--decimation", type=parse_positive_int, default=4, help="Physics steps per timed sensor cadence.")
 parser.add_argument(
     "--history_length", type=parse_non_negative_int, default=0, help="Number of contact history frames."
-)
-parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
-parser.add_argument(
-    "--benchmark_formatter",
-    type=str,
-    default="summary",
-    choices=["json", "osmo", "omniperf", "summary"],
-    help="Formatter used for benchmark results.",
 )
 parser.add_argument("--disable_graph", action="store_true", help="Disable CUDA graph capture of the sensor update.")
 
@@ -61,7 +55,7 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.benchmark import LatencyBenchmarkRunner, LatencySample, SingleMeasurement
-from isaaclab.benchmark.micro import measure_latency
+from isaaclab.benchmark.micro import SensorLatencySamples, add_sensor_latency_measurements, measure_latency
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -154,6 +148,7 @@ def main():
         output_path=args_cli.output_path,
         metadata={
             "physics_variant": args_cli.physics_variant,
+            "label": args_cli.label,
             "mode": mode,
             "device": str(sim.device),
             "num_envs": args_cli.num_envs,
@@ -163,14 +158,16 @@ def main():
             "history_length": args_cli.history_length,
         },
     )
-    benchmark.add_latency_samples("sensor_cadence", cadence_samples)
-    benchmark.add_synchronized_samples("observer", "Synchronized Observer Floor", observer_synchronized_s)
-    benchmark.add_measurement(
-        "validation",
-        measurement=[
+    add_sensor_latency_measurements(
+        benchmark,
+        samples=SensorLatencySamples(cadence_samples, observer_synchronized_s, []),
+        validation=[
             SingleMeasurement(name="Sensors in Contact", value=num_in_contact, unit="count"),
             SingleMeasurement(name="Expected Sensors", value=args_cli.num_envs, unit="count"),
         ],
+        update_phase="sensor_cadence",
+        observer_phase="observer",
+        validation_phase="validation",
     )
     benchmark.finalize()
 

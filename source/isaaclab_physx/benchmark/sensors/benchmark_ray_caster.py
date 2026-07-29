@@ -20,32 +20,23 @@ import traceback
 from functools import partial
 
 from isaaclab.app import AppLauncher
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark._cli import add_sensor_benchmark_args
 from isaaclab.benchmark._ray_caster import rough_terrain_size
 
 parser = argparse.ArgumentParser(description="Benchmark the standard PhysX RayCaster update path.")
-parser.add_argument("--physics_variant", choices=("physx",), default="physx", help="Exact physics variant.")
-parser.add_argument("--num_envs", type=parse_positive_int, default=4096, help="Number of environments.")
+add_sensor_benchmark_args(
+    parser,
+    physics_variants=("physx",),
+    default_physics_variant="physx",
+    add_device=False,
+)
 parser.add_argument("--grid_size", type=float, default=1.0, help="Width and length [m] of each ray grid.")
 parser.add_argument("--grid_resolution", type=float, default=0.25, help="Ray-grid resolution [m].")
-parser.add_argument("--num_steps", type=parse_positive_int, default=500, help="Number of timed updates.")
-parser.add_argument(
-    "--warmup_steps", type=parse_non_negative_int, default=50, help="Number of untimed warm-up updates."
-)
 parser.add_argument(
     "--terrain",
     choices=("all", "plane", "rough"),
     default="all",
     help="Terrain workload to run. The default runs plane and rough workloads.",
-)
-parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
-parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
-parser.add_argument(
-    "--benchmark_formatter",
-    type=str,
-    default="summary",
-    choices=["json", "osmo", "omniperf", "summary"],
-    help="Formatter used for benchmark results.",
 )
 parser.add_argument(
     "--disable_graph",
@@ -70,7 +61,7 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
-from isaaclab.benchmark.micro import measure_latency
+from isaaclab.benchmark.micro import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
@@ -179,7 +170,6 @@ def main() -> None:
 
     synchronize_device = partial(wp.synchronize_device, sim.device)
     samples_by_workload = {}
-    observer_samples_by_workload = {}
     validation_by_workload = {}
     for workload, sensor in sensors.items():
         for _ in range(args_cli.warmup_steps):
@@ -188,19 +178,12 @@ def main() -> None:
         # Intentionally drain warm-up work before any timed boundary.
         wp.synchronize_device(sim.device)
 
-        samples = []
-        for _ in range(args_cli.num_steps):
-            sim.step(render=False)
-            samples.append(
-                measure_latency(
-                    operation=lambda sensor=sensor: sensor.update(sim_dt, force_recompute=True),
-                    synchronize=synchronize_device,
-                )
-            )
-        samples_by_workload[workload] = samples
-        observer_samples_by_workload[workload] = [
-            measure_latency(operation=lambda: None, synchronize=synchronize_device) for _ in range(args_cli.num_steps)
-        ]
+        samples_by_workload[workload] = collect_sensor_latency_samples(
+            num_steps=args_cli.num_steps,
+            step=lambda: sim.step(render=False),
+            update=lambda sensor=sensor: sensor.update(sim_dt, force_recompute=True),
+            synchronize=synchronize_device,
+        )
 
         ray_hits = sensor.data.ray_hits_w.torch
         finite_hits = int(torch.isfinite(ray_hits).all(dim=-1).sum().item())
@@ -248,15 +231,13 @@ def main() -> None:
         },
     )
     for workload in workloads:
-        benchmark.add_latency_samples(f"{workload}_sensor_update", samples_by_workload[workload])
-        benchmark.add_synchronized_samples(
-            f"{workload}_observer",
-            "Synchronized Observer Floor",
-            [sample.synchronized_s for sample in observer_samples_by_workload[workload]],
-        )
-        benchmark.add_measurement(
-            f"{workload}_validation",
-            measurement=validation_by_workload[workload],
+        add_sensor_latency_measurements(
+            benchmark,
+            samples=samples_by_workload[workload],
+            validation=validation_by_workload[workload],
+            update_phase=f"{workload}_sensor_update",
+            observer_phase=f"{workload}_observer",
+            validation_phase=f"{workload}_validation",
         )
     benchmark.finalize()
 

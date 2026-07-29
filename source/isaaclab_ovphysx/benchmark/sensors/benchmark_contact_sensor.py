@@ -18,23 +18,15 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark._cli import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the OVPhysX contact sensor update path.")
-parser.add_argument("--physics_variant", choices=("ovphysx",), default="ovphysx", help="Exact physics variant.")
-parser.add_argument("--num_envs", type=parse_positive_int, default=4096, help="Number of environments to simulate.")
-parser.add_argument("--num_steps", type=parse_positive_int, default=500, help="Number of timed simulation steps.")
-parser.add_argument("--warmup_steps", type=parse_non_negative_int, default=50, help="Number of untimed warm-up steps.")
-parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
-parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
-parser.add_argument(
-    "--benchmark_formatter",
-    type=str,
-    default="summary",
-    choices=["json", "osmo", "omniperf", "summary"],
-    help="Formatter used for benchmark results.",
+add_sensor_benchmark_args(
+    parser,
+    physics_variants=("ovphysx",),
+    default_physics_variant="ovphysx",
+    add_device=True,
 )
-parser.add_argument("--device", type=str, default="cuda:0", help="Simulation device.")
 args_cli = parser.parse_args()
 
 import warp as wp
@@ -44,7 +36,7 @@ from isaaclab_ovphysx.sensors import ContactSensorCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
-from isaaclab.benchmark.micro import measure_latency
+from isaaclab.benchmark.micro import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
@@ -98,28 +90,13 @@ def main() -> None:
         wp.synchronize_device(sim.device)
 
         synchronize_device = partial(wp.synchronize_device, sim.device)
-        samples = []
-        for _ in range(args_cli.num_steps):
-            sim.step()
-            samples.append(
-                measure_latency(
-                    operation=lambda: sensor.update(sim_dt, force_recompute=True),
-                    synchronize=synchronize_device,
-                )
-            )
-
-        observer_samples = [
-            measure_latency(operation=lambda: None, synchronize=synchronize_device) for _ in range(args_cli.num_steps)
-        ]
-
-        # Read-only phase: the blocking native fetch without the Warp kernel tail.
-        read_only_samples = [
-            measure_latency(
-                operation=lambda: sensor._contact_binding.read_net_forces(sensor._net_forces_flat_buf),
-                synchronize=synchronize_device,
-            )
-            for _ in range(args_cli.num_steps)
-        ]
+        samples = collect_sensor_latency_samples(
+            num_steps=args_cli.num_steps,
+            step=sim.step,
+            update=lambda: sensor.update(sim_dt, force_recompute=True),
+            synchronize=synchronize_device,
+            native_read=lambda: sensor._contact_binding.read_net_forces(sensor._net_forces_flat_buf),
+        )
 
         net_forces = sensor.data.net_forces_w.torch
         num_in_contact = int((net_forces.norm(dim=-1) > 0.1).sum().item())
@@ -139,25 +116,16 @@ def main() -> None:
                 "warmup_steps": args_cli.warmup_steps,
             },
         )
-        full_stats = benchmark.add_latency_samples("sensor_update", samples)
-        read_stats = benchmark.add_latency_samples("native_read", read_only_samples)
-        benchmark.add_synchronized_samples(
-            "observer", "Synchronized Observer Floor", [s.synchronized_s for s in observer_samples]
-        )
-        benchmark.add_measurement(
-            "sensor_update",
-            measurement=SingleMeasurement(
-                name="Estimated Synchronized Non-read Time",
-                value=(full_stats.mean_s - read_stats.mean_s) * 1000.0,
-                unit="ms",
-            ),
-        )
-        benchmark.add_measurement(
-            "validation",
-            measurement=[
+        add_sensor_latency_measurements(
+            benchmark,
+            samples=samples,
+            validation=[
                 SingleMeasurement(name="Sensors in Contact", value=num_in_contact, unit="count"),
                 SingleMeasurement(name="Expected Sensors", value=args_cli.num_envs, unit="count"),
             ],
+            update_phase="sensor_update",
+            observer_phase="observer",
+            validation_phase="validation",
         )
         benchmark.finalize()
 

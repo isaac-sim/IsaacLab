@@ -19,34 +19,24 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark._cli import add_sensor_benchmark_args
 from isaaclab.benchmark._ray_caster import rough_terrain_size
 
 parser = argparse.ArgumentParser(description="Benchmark the OVPhysX RayCaster update path.")
-parser.add_argument("--physics_variant", choices=("ovphysx",), default="ovphysx", help="Exact physics variant.")
-parser.add_argument("--num_envs", type=parse_positive_int, default=4096, help="Number of environments.")
+add_sensor_benchmark_args(
+    parser,
+    physics_variants=("ovphysx",),
+    default_physics_variant="ovphysx",
+    add_device=True,
+)
 parser.add_argument("--grid_size", type=float, default=1.0, help="Width and length [m] of each ray grid.")
 parser.add_argument("--grid_resolution", type=float, default=0.25, help="Ray-grid resolution [m].")
-parser.add_argument("--num_steps", type=parse_positive_int, default=500, help="Number of timed updates.")
-parser.add_argument(
-    "--warmup_steps", type=parse_non_negative_int, default=50, help="Number of untimed warm-up updates."
-)
 parser.add_argument(
     "--terrain",
     choices=("all", "plane", "rough"),
     default="all",
     help="Terrain workload to run. The default runs plane and rough workloads.",
 )
-parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
-parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
-parser.add_argument(
-    "--benchmark_formatter",
-    type=str,
-    default="summary",
-    choices=["json", "osmo", "omniperf", "summary"],
-    help="Formatter used for benchmark results.",
-)
-parser.add_argument("--device", type=str, default="cuda:0", help="Simulation device.")
 args_cli = parser.parse_args()
 if args_cli.grid_size <= 0:
     parser.error("--grid_size must be greater than zero")
@@ -60,7 +50,7 @@ from isaaclab_ovphysx.physics import OvPhysxCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
-from isaaclab.benchmark.micro import measure_latency
+from isaaclab.benchmark.micro import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -168,8 +158,6 @@ def main() -> None:
 
         synchronize_device = partial(wp.synchronize_device, sim.device)
         samples_by_workload = {}
-        observer_samples_by_workload = {}
-        read_only_samples_by_workload = {}
         validation_by_workload = {}
         for workload, sensor in sensors.items():
             for _ in range(args_cli.warmup_steps):
@@ -178,31 +166,16 @@ def main() -> None:
             # Intentionally drain warm-up work before any timed boundary.
             wp.synchronize_device(sim.device)
 
-            samples = []
-            for _ in range(args_cli.num_steps):
-                sim.step()
-                samples.append(
-                    measure_latency(
-                        operation=lambda sensor=sensor: sensor.update(sim_dt, force_recompute=True),
-                        synchronize=synchronize_device,
-                    )
-                )
-            samples_by_workload[workload] = samples
-            observer_samples_by_workload[workload] = [
-                measure_latency(operation=lambda: None, synchronize=synchronize_device)
-                for _ in range(args_cli.num_steps)
-            ]
-
-            read_only_samples = []
+            native_read = None
             if sensor._ovphysx_body_view is not None:
-                read_only_samples = [
-                    measure_latency(
-                        operation=lambda sensor=sensor: sensor._ovphysx_body_view.read(sensor._pose_buf),
-                        synchronize=synchronize_device,
-                    )
-                    for _ in range(args_cli.num_steps)
-                ]
-            read_only_samples_by_workload[workload] = read_only_samples
+                native_read = partial(sensor._ovphysx_body_view.read, sensor._pose_buf)
+            samples_by_workload[workload] = collect_sensor_latency_samples(
+                num_steps=args_cli.num_steps,
+                step=sim.step,
+                update=lambda sensor=sensor: sensor.update(sim_dt, force_recompute=True),
+                synchronize=synchronize_device,
+                native_read=native_read,
+            )
 
             ray_hits = sensor.data.ray_hits_w.torch
             finite_hits = int(torch.isfinite(ray_hits).all(dim=-1).sum().item())
@@ -254,27 +227,14 @@ def main() -> None:
             },
         )
         for workload in workloads:
-            update_phase = f"{workload}_sensor_update"
-            full_stats = benchmark.add_latency_samples(update_phase, samples_by_workload[workload])
-            read_only_samples = read_only_samples_by_workload[workload]
-            if read_only_samples:
-                read_stats = benchmark.add_latency_samples(f"{workload}_native_read", read_only_samples)
-                benchmark.add_measurement(
-                    update_phase,
-                    measurement=SingleMeasurement(
-                        name="Estimated Synchronized Non-read Time",
-                        value=(full_stats.mean_s - read_stats.mean_s) * 1000.0,
-                        unit="ms",
-                    ),
-                )
-            benchmark.add_synchronized_samples(
-                f"{workload}_observer",
-                "Synchronized Observer Floor",
-                [sample.synchronized_s for sample in observer_samples_by_workload[workload]],
-            )
-            benchmark.add_measurement(
-                f"{workload}_validation",
-                measurement=validation_by_workload[workload],
+            add_sensor_latency_measurements(
+                benchmark,
+                samples=samples_by_workload[workload],
+                validation=validation_by_workload[workload],
+                update_phase=f"{workload}_sensor_update",
+                observer_phase=f"{workload}_observer",
+                validation_phase=f"{workload}_validation",
+                native_read_phase=f"{workload}_native_read",
             )
         benchmark.finalize()
 

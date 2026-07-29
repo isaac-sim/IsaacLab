@@ -18,29 +18,14 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark._cli import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the Newton JointWrench sensor update path.")
-parser.add_argument(
-    "--physics_variant",
-    choices=("newton_mjwarp", "newton_kamino"),
-    default="newton_mjwarp",
-    help="Exact Newton solver variant.",
-)
-parser.add_argument("--num_envs", type=parse_positive_int, default=4096, help="Number of environments.")
-parser.add_argument("--num_steps", type=parse_positive_int, default=500, help="Number of timed updates.")
-parser.add_argument(
-    "--warmup_steps", type=parse_non_negative_int, default=50, help="Number of untimed warm-up updates."
-)
-parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
-parser.add_argument("--device", type=str, default="cuda:0", help="Simulation device.")
-parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
-parser.add_argument(
-    "--benchmark_formatter",
-    type=str,
-    default="summary",
-    choices=["json", "osmo", "omniperf", "summary"],
-    help="Formatter used for benchmark results.",
+add_sensor_benchmark_args(
+    parser,
+    physics_variants=("newton_mjwarp", "newton_kamino"),
+    default_physics_variant="newton_mjwarp",
+    add_device=True,
 )
 args_cli = parser.parse_args()
 
@@ -50,7 +35,7 @@ from isaaclab_newton.benchmark._physics import create_microbenchmark_physics_cfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
-from isaaclab.benchmark.micro import measure_latency
+from isaaclab.benchmark.micro import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils.configclass import configclass
@@ -90,19 +75,12 @@ def main() -> None:
         wp.synchronize_device(sim.device)
 
         synchronize_device = partial(wp.synchronize_device, sim.device)
-        samples = []
-        for _ in range(args_cli.num_steps):
-            sim.step(render=False)
-            samples.append(
-                measure_latency(
-                    operation=lambda: sensor.update(sim_dt, force_recompute=True),
-                    synchronize=synchronize_device,
-                )
-            )
-
-        observer_samples = [
-            measure_latency(operation=lambda: None, synchronize=synchronize_device) for _ in range(args_cli.num_steps)
-        ]
+        samples = collect_sensor_latency_samples(
+            num_steps=args_cli.num_steps,
+            step=lambda: sim.step(render=False),
+            update=lambda: sensor.update(sim_dt, force_recompute=True),
+            synchronize=synchronize_device,
+        )
 
         force = sensor.data.force.torch
         torque = sensor.data.torque.torch
@@ -128,17 +106,17 @@ def main() -> None:
                 "warmup_steps": args_cli.warmup_steps,
             },
         )
-        benchmark.add_latency_samples("sensor_update", samples)
-        benchmark.add_synchronized_samples(
-            "observer", "Synchronized Observer Floor", [sample.synchronized_s for sample in observer_samples]
-        )
-        benchmark.add_measurement(
-            "validation",
-            measurement=[
+        add_sensor_latency_measurements(
+            benchmark,
+            samples=samples,
+            validation=[
                 SingleMeasurement(name="Finite Wrenches", value=finite_wrenches, unit="count"),
                 SingleMeasurement(name="Nonzero Wrenches", value=nonzero_wrenches, unit="count"),
                 SingleMeasurement(name="Expected Wrenches", value=expected_wrenches, unit="count"),
             ],
+            update_phase="sensor_update",
+            observer_phase="observer",
+            validation_phase="validation",
         )
         benchmark.finalize()
 

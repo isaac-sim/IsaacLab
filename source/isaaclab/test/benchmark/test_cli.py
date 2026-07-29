@@ -9,6 +9,7 @@ import argparse
 
 import pytest
 
+import isaaclab.benchmark._cli as benchmark_cli
 from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int, validate_warmup_steps
 
 
@@ -32,3 +33,46 @@ def test_validate_warmup_steps_accepts_a_remaining_sample(warmup_steps: int, ava
 def test_validate_warmup_steps_rejects_exhausted_workload(warmup_steps: int, available_steps: int):
     with pytest.raises(ValueError, match="must be less than resolved training environment steps"):
         validate_warmup_steps(warmup_steps, available_steps)
+
+
+def test_sensor_argument_helper_registers_one_consistent_common_contract() -> None:
+    """Every retained sensor script should share the same workload and output arguments."""
+    parser = argparse.ArgumentParser()
+    benchmark_cli.add_sensor_benchmark_args(
+        parser,
+        physics_variants=("newton_mjwarp", "newton_kamino"),
+        default_physics_variant="newton_mjwarp",
+        add_device=True,
+    )
+
+    args = parser.parse_args(
+        [
+            "--physics_variant",
+            "newton_kamino",
+            "--num_envs",
+            "8",
+            "--num_steps",
+            "3",
+            "--warmup_steps",
+            "2",
+            "--label",
+            "candidate",
+            "--output_path",
+            "results",
+            "--benchmark_formatter",
+            "json",
+            "--device",
+            "cpu",
+        ]
+    )
+
+    assert vars(args) == {
+        "physics_variant": "newton_kamino",
+        "num_envs": 8,
+        "num_steps": 3,
+        "warmup_steps": 2,
+        "label": "candidate",
+        "output_path": "results",
+        "benchmark_formatter": "json",
+        "device": "cpu",
+    }

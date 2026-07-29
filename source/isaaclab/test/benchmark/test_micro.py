@@ -6,9 +6,11 @@
 """Tests for shared micro-benchmark latency sampling."""
 
 from collections.abc import Callable
+from types import SimpleNamespace
 
 import pytest
 
+import isaaclab.benchmark.micro as micro
 from isaaclab.benchmark.micro import (
     LatencyBenchmarkRunner,
     add_latency_measurements,
@@ -154,3 +156,87 @@ def test_latency_runner_samples_recorders_before_finalize(monkeypatch) -> None:
 
     assert runner.finalize() == ()
     assert events == ["recorders", "finalize"]
+
+
+def test_collect_sensor_latency_samples_preserves_visible_timing_order() -> None:
+    """Physics stepping should remain outside update timing and native reads should remain separate."""
+    events: list[str] = []
+
+    samples = micro.collect_sensor_latency_samples(
+        num_steps=2,
+        step=lambda: events.append("step"),
+        update=lambda: events.append("update"),
+        synchronize=lambda: events.append("synchronize"),
+        native_read=lambda: events.append("native_read"),
+    )
+
+    assert events == [
+        "step",
+        "synchronize",
+        "update",
+        "synchronize",
+        "step",
+        "synchronize",
+        "update",
+        "synchronize",
+        "synchronize",
+        "synchronize",
+        "synchronize",
+        "synchronize",
+        "synchronize",
+        "native_read",
+        "synchronize",
+        "synchronize",
+        "native_read",
+        "synchronize",
+    ]
+    assert len(samples.updates) == 2
+    assert len(samples.observer_s) == 2
+    assert len(samples.native_reads) == 2
+
+
+def test_add_sensor_latency_measurements_reports_standard_phases_and_native_remainder() -> None:
+    """The shared reporter should retain update, observer, native-read, and validation phases."""
+
+    class Benchmark:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def add_latency_samples(self, phase_name, samples):
+            self.calls.append(("latency", phase_name, samples))
+            return SimpleNamespace(mean_s=0.004 if phase_name == "sensor_update" else 0.001)
+
+        def add_synchronized_samples(self, phase_name, name, samples):
+            self.calls.append(("synchronized", phase_name, name, samples))
+
+        def add_measurement(self, phase_name, measurement):
+            self.calls.append(("measurement", phase_name, measurement))
+
+    benchmark = Benchmark()
+    samples = SimpleNamespace(
+        updates=[SimpleNamespace(synchronized_s=0.004)],
+        observer_s=[0.0001],
+        native_reads=[SimpleNamespace(synchronized_s=0.001)],
+    )
+    validation = [SimpleNamespace(name="Finite Values")]
+
+    micro.add_sensor_latency_measurements(
+        benchmark,
+        samples=samples,
+        validation=validation,
+        update_phase="sensor_update",
+        observer_phase="observer",
+        validation_phase="validation",
+        native_read_phase="native_read",
+    )
+
+    assert [(call[0], call[1]) for call in benchmark.calls] == [
+        ("latency", "sensor_update"),
+        ("latency", "native_read"),
+        ("measurement", "sensor_update"),
+        ("synchronized", "observer"),
+        ("measurement", "validation"),
+    ]
+    estimated = benchmark.calls[2][2]
+    assert estimated.name == "Estimated Synchronized Non-read Time"
+    assert estimated.value == pytest.approx(3.0)
