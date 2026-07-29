@@ -18,12 +18,17 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
+from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+
 parser = argparse.ArgumentParser(description="Benchmark the OVPhysX RayCaster update path.")
-parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments.")
+parser.add_argument("--physics_variant", choices=("ovphysx",), default="ovphysx", help="Exact physics variant.")
+parser.add_argument("--num_envs", type=parse_positive_int, default=4096, help="Number of environments.")
 parser.add_argument("--grid_size", type=float, default=1.0, help="Width and length [m] of each ray grid.")
 parser.add_argument("--grid_resolution", type=float, default=0.25, help="Ray-grid resolution [m].")
-parser.add_argument("--num_steps", type=int, default=500, help="Number of timed updates.")
-parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up updates.")
+parser.add_argument("--num_steps", type=parse_positive_int, default=500, help="Number of timed updates.")
+parser.add_argument(
+    "--warmup_steps", type=parse_non_negative_int, default=50, help="Number of untimed warm-up updates."
+)
 parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
 parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
 parser.add_argument(
@@ -39,12 +44,6 @@ if args_cli.grid_size <= 0:
     parser.error("--grid_size must be greater than zero")
 if args_cli.grid_resolution <= 0:
     parser.error("--grid_resolution must be greater than zero")
-if args_cli.num_envs <= 0:
-    parser.error("--num_envs must be greater than zero")
-if args_cli.num_steps <= 0:
-    parser.error("--num_steps must be greater than zero")
-if args_cli.warmup_steps < 0:
-    parser.error("--warmup_steps must be non-negative")
 
 import torch
 import warp as wp
@@ -110,19 +109,19 @@ def main() -> None:
             sensor.update(sim_dt, force_recompute=True)
         wp.synchronize_device(sim.device)
 
-        synchronize = partial(wp.synchronize_device, sim.device)
+        synchronize_device = partial(wp.synchronize_device, sim.device)
         samples = []
         for _ in range(args_cli.num_steps):
             sim.step()
             samples.append(
                 measure_latency(
                     operation=lambda: sensor.update(sim_dt, force_recompute=True),
-                    synchronize=synchronize,
+                    synchronize=synchronize_device,
                 )
             )
 
         observer_samples = [
-            measure_latency(operation=lambda: None, synchronize=synchronize) for _ in range(args_cli.num_steps)
+            measure_latency(operation=lambda: None, synchronize=synchronize_device) for _ in range(args_cli.num_steps)
         ]
 
         # Read-only phase: the blocking native pose fetch without raycast kernels.
@@ -131,7 +130,7 @@ def main() -> None:
             read_only_samples = [
                 measure_latency(
                     operation=lambda: sensor._ovphysx_body_view.read(sensor._pose_buf),
-                    synchronize=synchronize,
+                    synchronize=synchronize_device,
                 )
                 for _ in range(args_cli.num_steps)
             ]
@@ -154,6 +153,7 @@ def main() -> None:
             formatter_type=args_cli.benchmark_formatter,
             output_path=args_cli.output_path,
             metadata={
+                "physics_variant": args_cli.physics_variant,
                 "label": args_cli.label,
                 "device": str(sim.device),
                 "num_envs": args_cli.num_envs,

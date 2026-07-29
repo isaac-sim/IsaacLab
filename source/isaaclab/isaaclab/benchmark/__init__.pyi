@@ -36,6 +36,9 @@ __all__ = [
     "add_latency_measurements",
     "measure_latency",
     "summarize_latency",
+    "MicrobenchmarkCommand",
+    "MicrobenchmarkFactory",
+    "run_microbenchmark_cli",
     "BooleanMeasurement",
     "DictMeasurement",
     "DictMetadata",
@@ -111,6 +114,7 @@ from .micro import (
     measure_latency,
     summarize_latency,
 )
+from .microbenchmark import MicrobenchmarkCommand, MicrobenchmarkFactory, run_microbenchmark_cli
 from .measurements import (
     BooleanMeasurement,
     DictMeasurement,

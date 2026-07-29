@@ -27,13 +27,17 @@ import traceback
 from functools import partial
 
 from isaaclab.app import AppLauncher
+from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX contact sensor update.")
-parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments to simulate.")
-parser.add_argument("--num_steps", type=int, default=500, help="Number of timed simulation steps.")
-parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up steps.")
-parser.add_argument("--decimation", type=int, default=4, help="Physics steps per timed sensor cadence.")
-parser.add_argument("--history_length", type=int, default=0, help="Number of contact history frames.")
+parser.add_argument("--physics_variant", choices=("physx",), default="physx", help="Exact physics variant.")
+parser.add_argument("--num_envs", type=parse_positive_int, default=4096, help="Number of environments to simulate.")
+parser.add_argument("--num_steps", type=parse_positive_int, default=500, help="Number of timed simulation steps.")
+parser.add_argument("--warmup_steps", type=parse_non_negative_int, default=50, help="Number of untimed warm-up steps.")
+parser.add_argument("--decimation", type=parse_positive_int, default=4, help="Physics steps per timed sensor cadence.")
+parser.add_argument(
+    "--history_length", type=parse_non_negative_int, default=0, help="Number of contact history frames."
+)
 parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
 parser.add_argument(
     "--benchmark_formatter",
@@ -46,16 +50,6 @@ parser.add_argument("--disable_graph", action="store_true", help="Disable CUDA g
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
-if args_cli.num_envs <= 0:
-    parser.error("--num_envs must be greater than zero")
-if args_cli.num_steps <= 0:
-    parser.error("--num_steps must be greater than zero")
-if args_cli.warmup_steps < 0:
-    parser.error("--warmup_steps must be non-negative")
-if args_cli.decimation <= 0:
-    parser.error("--decimation must be greater than zero")
-if args_cli.history_length < 0:
-    parser.error("--history_length must be non-negative")
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -122,25 +116,25 @@ def main():
     wp.synchronize_device(sim.device)
 
     # Time only sensor work. Physics steps happen outside the timed regions.
-    synchronize = partial(wp.synchronize_device, sim.device)
+    synchronize_device = partial(wp.synchronize_device, sim.device)
     cadence_samples: list[LatencySample] = []
     for _ in range(args_cli.num_steps):
         cadence_synchronized = 0.0
         cadence_submission = 0.0
         for _ in range(args_cli.decimation):
             sim.step(render=False)
-            sample = measure_latency(operation=lambda: sensor.update(sim_dt), synchronize=synchronize)
+            sample = measure_latency(operation=lambda: sensor.update(sim_dt), synchronize=synchronize_device)
             cadence_synchronized += sample.synchronized_s
             cadence_submission += sample.submission_s
 
-        sample = measure_latency(operation=lambda: getattr(sensor, "data"), synchronize=synchronize)
+        sample = measure_latency(operation=lambda: getattr(sensor, "data"), synchronize=synchronize_device)
         cadence_synchronized += sample.synchronized_s
         cadence_submission += sample.submission_s
         cadence_samples.append(LatencySample(submission_s=cadence_submission, synchronized_s=cadence_synchronized))
 
     observer_synchronized_s = [
         sum(
-            measure_latency(operation=lambda: None, synchronize=synchronize).synchronized_s
+            measure_latency(operation=lambda: None, synchronize=synchronize_device).synchronized_s
             for _ in range(args_cli.decimation + 1)
         )
         for _ in range(args_cli.num_steps)
@@ -159,6 +153,7 @@ def main():
         formatter_type=args_cli.benchmark_formatter,
         output_path=args_cli.output_path,
         metadata={
+            "physics_variant": args_cli.physics_variant,
             "mode": mode,
             "device": str(sim.device),
             "num_envs": args_cli.num_envs,

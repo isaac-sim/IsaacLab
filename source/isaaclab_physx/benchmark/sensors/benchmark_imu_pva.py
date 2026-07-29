@@ -19,12 +19,18 @@ import traceback
 from functools import partial
 
 from isaaclab.app import AppLauncher
+from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
 
 parser = argparse.ArgumentParser(description="Benchmark a PhysX IMU or PVA sensor update path.")
+parser.add_argument("--physics_variant", choices=("physx",), default="physx", help="Exact physics variant.")
 parser.add_argument("--sensor", choices=("imu", "pva"), required=True, help="Sensor update path to benchmark.")
-parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments and sensor instances.")
-parser.add_argument("--num_steps", type=int, default=500, help="Number of timed updates.")
-parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up updates.")
+parser.add_argument(
+    "--num_envs", type=parse_positive_int, default=4096, help="Number of environments and sensor instances."
+)
+parser.add_argument("--num_steps", type=parse_positive_int, default=500, help="Number of timed updates.")
+parser.add_argument(
+    "--warmup_steps", type=parse_non_negative_int, default=50, help="Number of untimed warm-up updates."
+)
 parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
 parser.add_argument("--output_path", type=str, default=".", help="Output directory for benchmark results.")
 parser.add_argument(
@@ -41,12 +47,6 @@ parser.add_argument(
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
-if args_cli.num_envs <= 0:
-    parser.error("--num_envs must be greater than zero")
-if args_cli.num_steps <= 0:
-    parser.error("--num_steps must be greater than zero")
-if args_cli.warmup_steps < 0:
-    parser.error("--warmup_steps must be non-negative")
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -109,19 +109,19 @@ def main() -> None:
         sensor.update(sim_dt, force_recompute=True)
     wp.synchronize_device(sim.device)
 
-    synchronize = partial(wp.synchronize_device, sim.device)
+    synchronize_device = partial(wp.synchronize_device, sim.device)
     samples = []
     for _ in range(args_cli.num_steps):
         sim.step(render=False)
         samples.append(
             measure_latency(
                 operation=lambda: sensor.update(sim_dt, force_recompute=True),
-                synchronize=synchronize,
+                synchronize=synchronize_device,
             )
         )
 
     observer_samples = [
-        measure_latency(operation=lambda: None, synchronize=synchronize) for _ in range(args_cli.num_steps)
+        measure_latency(operation=lambda: None, synchronize=synchronize_device) for _ in range(args_cli.num_steps)
     ]
 
     lin_acc_b = sensor.data.lin_acc_b.torch
@@ -137,6 +137,7 @@ def main() -> None:
         formatter_type=args_cli.benchmark_formatter,
         output_path=args_cli.output_path,
         metadata={
+            "physics_variant": args_cli.physics_variant,
             "label": args_cli.label,
             "sensor": args_cli.sensor,
             "device": str(sim.device),
