@@ -29,25 +29,36 @@ tested with the changed dependency.
 uv run python -m tools.odin.cli build-image \
     --config tools/odin/config/odin.yaml \
     --ref <sha|branch|tag> \
-    --profile newton --profile isaacsim \
+    --profile kitless --profile isaacsim \
     --push
 ```
 
 `--dry-run` writes the build context and prints the tag without invoking git
 bundling or Docker — useful for inspecting the generated Dockerfile.
 
-Two profiles exist because `[tool.uv].conflicts` declares `isaacsim`
-incompatible with `all`, `test`, `mimic`, `teleop`, `ovphysx`, and `viser`, so
-one virtualenv cannot serve every backend:
+Two profiles, each a full install:
 
 | Profile | Extras | Covers |
 |---|---|---|
-| `isaacsim` | `isaacsim, rsl-rl, skrl, rl-games, sb3` | `physics=physx`, `renderer=isaacsim_rtx` |
-| `newton` | `rsl-rl, skrl, rl-games, sb3, rerun, ovrtx, ovphysx` | `newton_mjwarp`, `newton_kamino`, `ovphysx`, `renderer=newton`/`ovrtx` |
+| `kitless` (default) | `rsl-rl, skrl, rl-games, sb3, rerun, ovrtx, ovphysx` | Newton, OvPhysX, OVRTX |
+| `isaacsim` | `isaacsim, rsl-rl, skrl, rl-games, sb3, rerun` | Kit PhysX, Isaac Sim RTX |
+
+Each profile is a **full install** of everything that co-resolves within it, so
+a row never reasons about individual extras — it just picks a profile.
+
+The split is forced, not a design choice: `isaacsim-core==6.0.0.1` requires
+`packaging==26.0` while `ovphysx==0.5.9` requires `packaging>=20,<24`, so one
+virtualenv cannot hold both.
+
+**A row's profile is not derivable from its physics token.** `physics=physx`
+resolves to kitless OvPhysX on 39 tasks and to Kit PhysX on 5;
+`physics=isaacsim_physx` resolves to Kit PhysX on all 10 that declare it. Only
+loading the env cfg settles it, which is task discovery's job. Rows carry
+`profile` explicitly and default to `kitless`.
 
 Both warm the same `UV_CACHE_DIR`, so a task's `uv run --frozen --extra ...`
-re-syncs from cache without touching the network. The dispatcher picks the
-extras per row from that row's physics and renderer.
+re-syncs from cache without touching the network. `build-image` bakes both
+profiles by default.
 
 Images are tagged `<registry>/<repository>:<short_sha>-<profiles>`. Pass the
 resolved **digest** to `dispatch`, not the tag, so a retag cannot change what a

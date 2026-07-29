@@ -9,7 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from tools.odin.plan import PlanError, apply_metadata, build_row_key, load_task_rows, plan_rows, uv_extras_for
+from tools.odin.plan import (
+    PlanError,
+    apply_metadata,
+    build_row_key,
+    load_task_rows,
+    plan_rows,
+    uv_extras_for_profile,
+)
 
 # A seed list carries only (task_id, rl_library, physics). Sizing is deliberately
 # absent: upstream defaults --num_envs and --max_iterations to None and falls
@@ -25,38 +32,42 @@ def test_row_key_format_is_stable() -> None:
     assert build_row_key("rsl_rl", "physx", "Isaac-Ant", 42) == "rsl_rl_physx_Isaac-Ant_seed42"
 
 
-def test_physx_selects_the_isaacsim_extras_profile() -> None:
-    extras = uv_extras_for("rsl_rl", "physx", None)
+def test_kitless_profile_is_a_full_install_without_isaac_sim() -> None:
+    extras = uv_extras_for_profile("kitless")
+    assert "isaacsim" not in extras
+    for expected in ("rsl-rl", "skrl", "rl-games", "sb3", "ovphysx", "ovrtx", "rerun"):
+        assert expected in extras
+
+
+def test_isaacsim_profile_is_a_full_install_with_isaac_sim() -> None:
+    extras = uv_extras_for_profile("isaacsim")
     assert "isaacsim" in extras
-    assert "rsl-rl" in extras
-    # [tool.uv].conflicts declares isaacsim incompatible with 'all' (which
-    # aggregates mimic), so selecting it would make the venv unresolvable.
-    assert "all" not in extras
-    assert "mimic" not in extras
+    for expected in ("rsl-rl", "skrl", "rl-games", "sb3"):
+        assert expected in extras
 
 
-def test_isaacsim_rtx_renderer_forces_the_isaacsim_profile() -> None:
-    assert "isaacsim" in uv_extras_for("rsl_rl", "newton_mjwarp", "isaacsim_rtx")
+def test_the_two_profiles_never_share_a_venv() -> None:
+    # isaacsim-core pins packaging==26.0 while ovphysx pins packaging<24, so a
+    # single virtualenv holding both is unresolvable. The split is forced.
+    assert "ovphysx" not in uv_extras_for_profile("isaacsim")
 
 
-def test_newton_backend_avoids_isaacsim() -> None:
-    extras = uv_extras_for("skrl", "newton_mjwarp", None)
-    assert "isaacsim" not in extras
-    assert "skrl" in extras
+def test_unknown_profile_is_rejected() -> None:
+    with pytest.raises(PlanError, match="quantum"):
+        uv_extras_for_profile("quantum")
 
 
-def test_ovphysx_never_shares_a_venv_with_isaacsim() -> None:
-    extras = uv_extras_for("rsl_rl", "ovphysx", None)
-    assert "isaacsim" not in extras
-    assert "ovphysx" in extras
+def test_rows_default_to_the_kitless_profile() -> None:
+    # physics=physx resolves to kitless OvPhysX on 39 of the 44 tasks that
+    # declare it, so kitless is the right default.
+    assert plan_rows(task_rows=_ROWS, seeds=[42])[0].profile == "kitless"
 
 
-def test_ovrtx_renderer_pulls_its_extra() -> None:
-    assert "ovrtx" in uv_extras_for("rsl_rl", "newton_mjwarp", "ovrtx")
-
-
-def test_rl_library_extra_uses_the_hyphenated_pyproject_name() -> None:
-    assert "rl-games" in uv_extras_for("rl_games", "newton_mjwarp", None)
+def test_row_can_request_the_isaacsim_profile() -> None:
+    entry = dict(_ROWS[0], profile="isaacsim")
+    row = plan_rows(task_rows=[entry], seeds=[42])[0]
+    assert row.profile == "isaacsim"
+    assert "isaacsim" in row.uv_extras
 
 
 def test_rows_expand_across_seeds() -> None:
@@ -103,7 +114,7 @@ def test_duplicate_row_keys_are_rejected() -> None:
 
 def test_missing_field_names_the_task() -> None:
     with pytest.raises(PlanError, match="Isaac-Ant"):
-        plan_rows(task_rows=[{"task_id": "Isaac-Ant", "rl_library": "rsl_rl"}], seeds=[42])
+        plan_rows(task_rows=[{"task_id": "Isaac-Ant"}], seeds=[42])
 
 
 def test_unknown_rl_library_is_rejected() -> None:
@@ -159,29 +170,9 @@ def test_metadata_matches_on_physics_too() -> None:
     assert apply_metadata(_ROWS, metadata)[0].get("num_envs") is None
 
 
-def test_isaacsim_physx_preset_selects_the_isaacsim_profile() -> None:
-    # 'isaacsim_physx' is a distinct registered preset (10 tasks), not an alias
-    # of 'physx'. Treating it as a newton row would build a venv without Isaac
-    # Sim and fail at runtime.
-    assert "isaacsim" in uv_extras_for("rsl_rl", "isaacsim_physx", None)
-
-
-def test_legacy_newton_alias_resolves_like_its_target() -> None:
-    assert uv_extras_for("rsl_rl", "newton", None) == uv_extras_for("rsl_rl", "newton_mjwarp", None)
-
-
-def test_legacy_kamino_alias_resolves_like_its_target() -> None:
-    assert uv_extras_for("rsl_rl", "kamino", None) == uv_extras_for("rsl_rl", "newton_kamino", None)
-
-
-def test_legacy_renderer_aliases_resolve_like_their_targets() -> None:
-    assert uv_extras_for("rsl_rl", "newton_mjwarp", "ovrtx_renderer") == uv_extras_for(
-        "rsl_rl", "newton_mjwarp", "ovrtx"
-    )
-    assert uv_extras_for("rsl_rl", "newton_mjwarp", "isaacsim_rtx_renderer") == uv_extras_for(
-        "rsl_rl", "newton_mjwarp", "isaacsim_rtx"
-    )
-
-
-def test_newton_kamino_stays_off_isaacsim() -> None:
-    assert "isaacsim" not in uv_extras_for("rsl_rl", "newton_kamino", None)
+def test_task_without_a_physics_preset_is_planned() -> None:
+    # 35 of the 87 usable tasks declare no physics preset and hard-fail on any
+    # physics= token, so physics must be optional.
+    row = plan_rows(task_rows=[{"task_id": "Isaac-X", "rl_library": "rsl_rl"}], seeds=[42])[0]
+    assert row.physics is None
+    assert row.row_key == "rsl_rl_default_Isaac-X_seed42"

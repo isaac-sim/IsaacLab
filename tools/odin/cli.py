@@ -96,7 +96,7 @@ def _job_from_row(row: PlannedRow, *, side: str, image_ref: str) -> JobEntry:
 def command_build_image(args: argparse.Namespace) -> int:
     """Build, and optionally push, a commit-pinned benchmark image."""
     cfg = load_odin_config(args.config)
-    profiles = args.profile or ["newton"]
+    profiles = args.profile or ["kitless", "isaacsim"]
     tag = build_image(
         spec=cfg.image,
         ref=args.ref,
@@ -308,7 +308,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         choices=sorted(PROFILES),
         default=None,
-        help="uv extras profile to warm; repeatable. Defaults to 'newton'.",
+        help="uv extras profile to warm; repeatable. Defaults to both.",
     )
     build.add_argument("--cuda-image", type=str, default=DEFAULT_CUDA_IMAGE)
     build.add_argument("--context-dir", type=Path, default=Path("./.odin-build"))

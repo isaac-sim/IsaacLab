@@ -22,6 +22,7 @@ def _row(key: str, timeout_s: int | None) -> PlannedRow:
         max_iterations=None,
         timeout_s=timeout_s,
         uv_extras=("rsl-rl", "isaacsim"),
+        profile="isaacsim",
         osmo_task_name=key.lower(),
     )
 

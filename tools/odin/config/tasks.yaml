@@ -13,6 +13,11 @@
 # the returned bundles and written to `task_metadata.yaml`, which later
 # dispatches read as an overlay on this file.
 #
+# `profile` selects the uv virtualenv: `kitless` (default) or `isaacsim`. It is
+# NOT derivable from the physics token -- `physics=physx` resolves to kitless
+# OvPhysX on 39 tasks and to Kit PhysX on 5, and only loading the env cfg
+# settles it. Every task below resolves kitless, so none sets it explicitly.
+#
 # This file is replaced wholesale once the upstream task-discovery API lands.
 tasks:
   - task_id: Isaac-Cartpole-Direct

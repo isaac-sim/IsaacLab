@@ -34,49 +34,34 @@ __all__ = [
     "chunk_rows",
     "load_task_rows",
     "plan_rows",
-    "uv_extras_for",
+    "uv_extras_for_profile",
 ]
 
 # Sizing fields a harvested metadata entry may contribute to a seed entry.
 _OVERLAY_FIELDS = ("num_envs", "max_iterations", "timeout_s")
 
-# pyproject extra names differ from the --rl_library token: underscores in the
-# CLI token, hyphens in the extra.
-_RL_LIBRARY_EXTRAS: dict[str, str] = {
-    "rsl_rl": "rsl-rl",
-    "rl_games": "rl-games",
-    "skrl": "skrl",
-    "sb3": "sb3",
+# Each profile is a full install of everything that co-resolves within it, so a
+# row never reasons about individual extras. Mirrors image.PROFILES; kept here
+# rather than imported to keep plan.py free of the image-build layer.
+#
+# The split is Kit vs kitless, not "physx vs newton". A preset token does NOT
+# determine the backend: `physics=physx` resolves to kitless OvPhysX on 39 tasks
+# and to Kit PhysX on 5, and `isaacsim_physx` resolves to Kit PhysX on all 10
+# that declare it. Only loading the env cfg settles it, which is task-discovery's
+# job -- so a row carries its profile rather than having it guessed from a name.
+PROFILE_EXTRAS: dict[str, tuple[str, ...]] = {
+    "isaacsim": ("isaacsim", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"),
+    "kitless": ("rsl-rl", "skrl", "rl-games", "sb3", "rerun", "ovrtx", "ovphysx"),
 }
 
-# Legacy preset aliases, mirroring PresetTarget.all_legacy_aliases(). Normalised
-# before profile selection so ``physics=newton`` and ``physics=newton_mjwarp``
-# resolve identically.
-_PRESET_ALIASES: dict[str, str] = {
-    "newton": "newton_mjwarp",
-    "kamino": "newton_kamino",
-    "ovrtx_renderer": "ovrtx",
-    "isaacsim_rtx_renderer": "isaacsim_rtx",
-}
+# Kitless covers Newton, OvPhysX and OVRTX, which is the large majority of rows.
+DEFAULT_PROFILE = "kitless"
 
-# Physics presets that require Isaac Sim in the virtualenv. Both ``physx`` and
-# its explicit ``isaacsim_physx`` spelling are registered across the task tree;
-# they are distinct preset names, not aliases of each other.
-_ISAACSIM_PHYSICS = frozenset({"physx", "isaacsim_physx"})
-# Renderers that require Isaac Sim in the virtualenv. Note the separate ``rtx``
-# preset (5 tasks) is deliberately absent: it has not been confirmed to need
-# Isaac Sim, and guessing wrong either breaks the venv or silently drops it.
-_ISAACSIM_RENDERERS = frozenset({"isaacsim_rtx"})
-# Extras added alongside the RL library when Isaac Sim is required. Nothing from
-# [tool.uv].conflicts' isaacsim row (all, test, mimic, teleop, ovphysx, viser)
-# may ever join this set.
-_ISAACSIM_COMPANIONS: tuple[str, ...] = ("isaacsim",)
-# Extras added when Isaac Sim is not required.
-_NEWTON_COMPANIONS: tuple[str, ...] = ("rerun",)
-# Omniverse tokens that are only resolvable outside the isaacsim fork.
-_OV_TOKENS = frozenset({"ovphysx", "ovrtx"})
+_RL_LIBRARIES = frozenset({"rsl_rl", "rl_games", "skrl", "sb3"})
 
-_REQUIRED_FIELDS = ("task_id", "rl_library", "physics")
+# ``physics`` is deliberately absent: 35 of the 87 usable tasks declare no
+# physics preset at all and hard-fail on any ``physics=`` token.
+_REQUIRED_FIELDS = ("task_id", "rl_library")
 
 
 class PlanError(ValueError):
@@ -91,7 +76,8 @@ class PlannedRow:
         row_key: Deterministic identity, ``{rl_library}_{physics}_{task_id}_seed{seed}``.
         task_id: Gym task id.
         rl_library: One of ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``.
-        physics: Physics preset token passed as ``physics=<value>``.
+        physics: Physics preset token passed as ``physics=<value>``, or ``None``
+            for tasks that declare no physics preset.
         renderer: Renderer preset token, or ``None`` to run headless.
         seed: Environment seed.
         num_envs: Parallel environment count, or ``None`` to use the task's
@@ -101,23 +87,25 @@ class PlannedRow:
         timeout_s: Wall-clock budget [s] driving chunk ordering, or ``None`` to
             inherit the workflow-level ceiling.
         uv_extras: ``--extra`` tokens for the task's ``uv run`` invocation.
+        profile: uv profile the row runs under, ``isaacsim`` or ``kitless``.
         osmo_task_name: DNS-1123-safe OSMO task name derived from *row_key*.
     """
 
     row_key: str
     task_id: str
     rl_library: str
-    physics: str
+    physics: str | None
     renderer: str | None
     seed: int
     num_envs: int | None
     max_iterations: int | None
     timeout_s: int | None
     uv_extras: tuple[str, ...]
+    profile: str
     osmo_task_name: str
 
 
-def build_row_key(rl_library: str, physics: str, task_id: str, seed: int) -> str:
+def build_row_key(rl_library: str, physics: str | None, task_id: str, seed: int) -> str:
     """Return the deterministic identity for one row.
 
     Args:
@@ -129,39 +117,24 @@ def build_row_key(rl_library: str, physics: str, task_id: str, seed: int) -> str
     Returns:
         ``{rl_library}_{physics}_{task_id}_seed{seed}``.
     """
-    return f"{rl_library}_{physics}_{task_id}_seed{seed}"
+    return f"{rl_library}_{physics or 'default'}_{task_id}_seed{seed}"
 
 
-def uv_extras_for(rl_library: str, physics: str, renderer: str | None) -> tuple[str, ...]:
-    """Return the ``uv`` extras needed to run one row.
-
-    Isaac Sim conflicts with the ``all`` aggregate under ``[tool.uv].conflicts``,
-    so RL-library extras are always selected individually rather than via ``all``.
+def uv_extras_for_profile(profile: str) -> tuple[str, ...]:
+    """Return the full extras set for a uv profile.
 
     Args:
-        rl_library: RL library token, e.g. ``rsl_rl``.
-        physics: Physics preset token, e.g. ``physx``.
-        renderer: Renderer preset token, or ``None``.
+        profile: ``isaacsim`` or ``kitless``.
 
     Returns:
-        Extras in a stable, de-duplicated order, suitable for ``--extra`` flags.
+        Every extra baked into that profile's virtualenv.
 
     Raises:
-        PlanError: If *rl_library* is not a known library.
+        PlanError: If *profile* is not a known profile.
     """
-    if rl_library not in _RL_LIBRARY_EXTRAS:
-        raise PlanError(f"unknown rl_library {rl_library!r}; expected one of {sorted(_RL_LIBRARY_EXTRAS)}")
-
-    physics = _PRESET_ALIASES.get(physics, physics)
-    renderer = _PRESET_ALIASES.get(renderer or "", renderer or "")
-
-    extras: list[str] = [_RL_LIBRARY_EXTRAS[rl_library]]
-    if physics in _ISAACSIM_PHYSICS or renderer in _ISAACSIM_RENDERERS:
-        extras.extend(_ISAACSIM_COMPANIONS)
-    else:
-        extras.extend(_NEWTON_COMPANIONS)
-        extras.extend(token for token in (physics, renderer) if token in _OV_TOKENS)
-    return tuple(dict.fromkeys(extras))
+    if profile not in PROFILE_EXTRAS:
+        raise PlanError(f"unknown profile {profile!r}; expected one of {sorted(PROFILE_EXTRAS)}")
+    return PROFILE_EXTRAS[profile]
 
 
 def load_task_rows(path: Path) -> list[dict[str, Any]]:
@@ -224,7 +197,7 @@ def _sort_key(row: PlannedRow) -> tuple[int, str, str, int]:
     Rows without a harvested budget sort after budgeted ones so a chunk does not
     mix a known-short task with an unknown-length one.
     """
-    return (row.timeout_s if row.timeout_s is not None else 2**31 - 1, row.task_id, row.physics, row.seed)
+    return (row.timeout_s if row.timeout_s is not None else 2**31 - 1, row.task_id, row.physics or "", row.seed)
 
 
 def plan_rows(
@@ -260,9 +233,13 @@ def plan_rows(
                 raise PlanError(f"task {task_id!r} is missing required field {field_name!r}")
 
         rl_library = str(entry["rl_library"])
-        physics = str(entry["physics"])
+        if rl_library not in _RL_LIBRARIES:
+            raise PlanError(f"unknown rl_library {rl_library!r}; expected one of {sorted(_RL_LIBRARIES)}")
+        physics = entry.get("physics")
+        physics = str(physics) if physics else None
         renderer = entry.get("renderer")
-        extras = uv_extras_for(rl_library, physics, renderer)
+        profile = str(entry.get("profile") or DEFAULT_PROFILE)
+        extras = uv_extras_for_profile(profile)
 
         for seed in seeds:
             row_key = build_row_key(rl_library, physics, task_id, seed)
@@ -281,6 +258,7 @@ def plan_rows(
                     max_iterations=_optional_int(entry.get("max_iterations")),
                     timeout_s=_optional_int(entry.get("timeout_s")),
                     uv_extras=extras,
+                    profile=profile,
                     osmo_task_name=osmo_safe_task_name(row_key),
                 )
             )

@@ -37,6 +37,7 @@ _ROW = PlannedRow(
     max_iterations=None,
     timeout_s=None,
     uv_extras=("rsl-rl", "isaacsim"),
+    profile="isaacsim",
     osmo_task_name="rsl-rl-physx-isaac-ant-seed42",
 )
 
