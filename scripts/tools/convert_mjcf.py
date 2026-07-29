@@ -26,7 +26,8 @@ optional arguments:
   --collision_type          Type of collision geometry to use. (default: "Convex Hull")
   --self_collision          Activate self-collisions between links. (default: False)
   --import_physics_scene    Import the physics scene from the MJCF file. (default: False)
-  --viz                     Preview the converted asset (kit, newton, rerun, viser). (default: "none")
+  --viz [BACKEND]           Preview the converted asset; bare --viz picks the backend that fits
+                            the runtime (kit, newton, rerun, viser). (default: no preview)
 """
 
 import argparse

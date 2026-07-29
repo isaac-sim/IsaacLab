@@ -26,7 +26,8 @@ optional arguments:
   --joint_stiffness         The stiffness of the joint drive. (default: 100.0)
   --joint_damping           The damping of the joint drive. (default: 1.0)
   --joint_target_type       The type of control to use for the joint drive. (default: "position")
-  --viz                     Preview the converted asset (kit, newton, rerun, viser). (default: "none")
+  --viz [BACKEND]           Preview the converted asset; bare --viz picks the backend that fits
+                            the runtime (kit, newton, rerun, viser). (default: no preview)
 
 """
 

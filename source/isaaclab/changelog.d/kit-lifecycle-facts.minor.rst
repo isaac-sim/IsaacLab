@@ -15,7 +15,8 @@ Added
   asset in an Isaac Lab visualizer without Isaac Sim (reusing
   :func:`~isaaclab.app.launch_simulation` and :class:`~isaaclab.sim.SimulationContext`).
   ``--viz kit`` keeps showing the asset in the Isaac Sim viewport and now reports an error when
-  selected without a full Isaac Sim installation, instead of being silently unavailable.
+  selected without a full Isaac Sim installation, instead of being silently unavailable. Passing
+  ``--viz`` without a backend selects the one that fits the runtime.
 
 Changed
 ^^^^^^^

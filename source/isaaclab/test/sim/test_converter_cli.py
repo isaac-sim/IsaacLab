@@ -132,3 +132,28 @@ def test_preview_opens_kitless_visualizer(monkeypatch: pytest.MonkeyPatch):
     converter_cli.ConverterCli.preview(argparse.Namespace(viz="newton"), None, "/tmp/robot.usd")
 
     assert calls == [("/tmp/robot.usd", "newton")]
+
+
+def test_parse_args_auto_viz_selects_kit_with_isaac_sim(monkeypatch: pytest.MonkeyPatch):
+    # bare '--viz' picks the backend that fits the runtime, so Isaac Sim gets the Kit viewport.
+    recorded = {}
+    monkeypatch.setattr(converter_cli, "AppLauncher", _make_fake_app_launcher(recorded, object()))
+    monkeypatch.setattr(sys, "argv", ["convert_urdf.py", "robot.urdf", "out", "--viz"])
+
+    args_cli, _ = converter_cli.ConverterCli.parse_args(_make_io_parser(), "urdf")
+
+    assert args_cli.viz == "kit"
+    assert recorded["launcher_args"] == {"visualizer": ["kit"]}
+
+
+def test_parse_args_auto_viz_selects_newton_without_isaac_sim(monkeypatch: pytest.MonkeyPatch):
+    # kitless, the Newton viewer is the one that ships with the base install.
+    monkeypatch.setattr(converter_cli.AppLauncher, "is_available", lambda: False)
+    monkeypatch.setattr(converter_cli.ImporterProvider, "is_standalone_available", lambda: True)
+    monkeypatch.setattr(converter_cli.ImporterProvider, "validate_standalone_runtime", lambda importer_kind: None)
+    monkeypatch.setattr(sys, "argv", ["convert_urdf.py", "robot.urdf", "out", "--viz"])
+
+    args_cli, simulation_app = converter_cli.ConverterCli.parse_args(_make_io_parser(), "urdf")
+
+    assert args_cli.viz == "newton"
+    assert simulation_app is None

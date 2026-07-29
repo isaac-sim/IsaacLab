@@ -56,17 +56,23 @@ class ConverterCli:
         parser.add_argument(
             "--viz",
             type=str,
+            nargs="?",
+            const="auto",
             default="none",
-            choices=["none", "kit", "newton", "rerun", "viser"],
+            choices=["none", "auto", "kit", "newton", "rerun", "viser"],
             help=(
-                "Preview the converted asset after conversion. 'kit' opens the Kit viewport and "
-                "requires a full Isaac Sim installation; 'newton', 'rerun', and 'viser' are kitless "
-                "and are only available when converting without Isaac Sim."
+                "Preview the converted asset after conversion. Pass --viz on its own to use the "
+                "backend that fits the runtime: the Kit viewport with a full Isaac Sim "
+                "installation, otherwise the kitless Newton viewer. Name a backend to choose it "
+                "explicitly -- 'kit' needs Isaac Sim, while 'newton', 'rerun', and 'viser' are "
+                "kitless and only available when converting without Isaac Sim."
             ),
         )
         args_cli = parser.parse_args()
 
         if AppLauncher.is_available():
+            if args_cli.viz == "auto":
+                args_cli.viz = "kit"
             if args_cli.viz not in ("none", "kit"):
                 # Conversion runs through Kit whenever Isaac Sim is installed, and a kitless
                 # visualizer cannot share that process. Reject the combination instead of
@@ -82,6 +88,10 @@ class ConverterCli:
             # would pump an invisible window.
             launcher_args = {"visualizer": ["kit"]} if args_cli.viz == "kit" else {}
             return args_cli, AppLauncher(launcher_args).app
+
+        if args_cli.viz == "auto":
+            # the Newton viewer ships with the base install, unlike rerun and viser
+            args_cli.viz = "newton"
 
         if args_cli.viz == "kit":
             # fail before converting: the Kit viewport needs a full Isaac Sim installation
