@@ -41,6 +41,9 @@ Known gaps (tracked, not silently ignored):
   Values round-trip, but array indices may be permuted for assets that interleave visual and
   collision prims.
 * Multi-world (cloned) scenes and procedurally added bodies have no source prim path and are skipped.
+* Free-joint degrees of freedom carry no exportable state. A floating body is expressed in USD by
+  the *absence* of a joint, so per-DOF values written to a free joint (drive gains, armature) have
+  nowhere to be authored and do not survive the round-trip.
 """
 
 from __future__ import annotations

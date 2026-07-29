@@ -406,6 +406,56 @@ def test_exported_stage_simulates_identically(tmp_path):
     assert rotation_error < 1e-5, f"body rotations diverged after export: max error = {rotation_error:.3e}"
 
 
+def _first_articulated_joint(model) -> int:
+    """Return the index of the first joint that is not a free joint."""
+    free = int(newton.JointType.FREE)
+    for index, joint_type in enumerate(model.joint_type.numpy()):
+        if int(joint_type) != free:
+            return index
+    raise AssertionError("model has no articulated joint")
+
+
+def test_export_captures_post_load_overrides(source_stage, tmp_path):
+    """The export reflects values overridden after load, not the values in the source file.
+
+    This is the property the feature exists for. Isaac Lab applies most configuration by writing
+    into the model after the stage is parsed (``write_joint_stiffness_to_sim`` and friends), so an
+    exporter that re-derived its output from the source USD would reproduce the *asset* rather than
+    what is being simulated -- and would pass every other test here, because all of them start from
+    an unmodified load.
+    """
+    m1, stage_info = _load(source_stage)
+
+    # Only DOFs backed by an actual joint can be exported: a free joint is expressed in USD by the
+    # absence of a joint prim, so its DOFs have nowhere to carry drive gains or armature.
+    dof_start = int(m1.joint_qd_start.numpy()[_first_articulated_joint(m1)])
+
+    # Stand in for Isaac Lab's config overrides: write distinctive values into the model, exactly as
+    # the asset classes do. The values are chosen not to coincide with the fixture's.
+    target_ke = m1.joint_target_ke.numpy().copy()
+    target_ke[dof_start] = 4242.0
+    armature = m1.joint_armature.numpy().copy()
+    armature[dof_start] = 0.0731
+    overrides = {
+        "joint_target_ke": target_ke,
+        "joint_armature": armature,
+        "body_mass": m1.body_mass.numpy() * 0.0 + 9.875,
+    }
+    for name, value in overrides.items():
+        getattr(m1, name).assign(value)
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    mismatched = []
+    for name, expected in overrides.items():
+        actual = getattr(m2, name).numpy()
+        if not np.allclose(actual, expected, rtol=1e-4, atol=1e-6):
+            mismatched.append(f"{name}: expected {expected}, exported {actual}")
+    assert not mismatched, "overrides applied after load were not captured by the export:\n" + "\n".join(mismatched)
+
+
 def test_exported_stage_preserves_source_prim_paths(source_stage, tmp_path):
     """Bodies are exported at their original prim paths, not synthesized ones."""
     m1, stage_info = _load(source_stage)
