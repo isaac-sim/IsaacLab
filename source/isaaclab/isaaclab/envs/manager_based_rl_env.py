@@ -292,7 +292,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             not_yet_reset[reset_env_ids] = False
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
+                # mark as terminated so RL wrappers observe the episode boundary
+                self.reset_terminated[manual_reset_ids] = True
+                # mirror the recorder lifecycle used for normal resets
+                self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
+                self.recorder_manager.record_post_reset(manual_reset_ids)
 
         # -- update command
         self.command_manager.compute(dt=self.step_dt)

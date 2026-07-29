@@ -148,6 +148,10 @@ class NewtonViewerGL(ViewerGL):
         """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
 
+    def is_reset_requested(self) -> bool:
+        """Return whether an episode reset was requested without clearing the flag."""
+        return self._reset_requested
+
     def consume_reset_request(self) -> bool:
         """Return whether an episode reset was requested and clear the flag."""
         requested = self._reset_requested
@@ -1129,6 +1133,12 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
+
+    def is_reset_requested(self) -> bool:
+        """Return whether an episode reset was requested from viewer controls without clearing the flag."""
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return self._viewer.is_reset_requested()
 
     def consume_reset_request(self) -> bool:
         """Return whether an episode reset was requested from viewer controls and clear the flag."""
