@@ -90,7 +90,7 @@ def shift_jacobian_com_to_origin(
         link_offset: Offset from a Jacobian body row to the full public body index.
             This is 1 for a fixed base and 0 for a floating base.
         src: COM-referenced Jacobian. Shape is
-            (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
+            (num_instances, num_jacobian_bodies, 6, num_joints + num_base_dofs).
         dst: Link-origin Jacobian output with the same shape and units as :paramref:`src`.
     """
     env_id, jacobian_body_id, dof_id = wp.tid()

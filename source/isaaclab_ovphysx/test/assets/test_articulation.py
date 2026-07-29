@@ -75,6 +75,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.assets import Articulation  # noqa: E402
+from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
@@ -82,6 +83,7 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
+from isaaclab.assets.articulation import ordering_kernels  # noqa: E402
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit  # noqa: E402
 from isaaclab.managers import SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
@@ -106,6 +108,157 @@ _OMNI_PHYSX_SCHEMAS_GAP_REASON = (
 _SPATIAL_TENDON_OVSTAGE_GAP_REASON = (
     "OVPhysX 0.5.9 segfaults while attaching OVStage scenes containing spatial tendon schemas."
 )
+
+
+def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
+    """OVPhysX should record a stable read once, replay it, and discard it on reset."""
+
+    class FakeCommand:
+        launch_count = 0
+
+        def launch(self):
+            self.launch_count += 1
+
+    class FakeDevice:
+        is_cuda = True
+        is_capturing = False
+
+    device = FakeDevice()
+    command = FakeCommand()
+    launch_calls = []
+
+    def fake_launch(*args, **kwargs):
+        launch_calls.append((args, kwargs))
+        return command
+
+    module = sys.modules[ArticulationData.__module__]
+    monkeypatch.setattr(module.wp, "get_device", lambda device_name: device)
+    monkeypatch.setattr(module.wp, "launch", fake_launch)
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cuda:0"
+    data._cached_read_launches = {}
+
+    for _ in range(2):
+        data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0][1]["record_cmd"] is True
+    assert command.launch_count == 2
+
+    data._reset_cached_read_launches()
+    device.is_capturing = True
+    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+    assert "record_cmd" not in launch_calls[-1][1]
+    assert data._cached_read_launches == {}
+
+    device.is_capturing = False
+    device.is_cuda = False
+    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+    assert len(launch_calls) == 4
+    assert all("record_cmd" not in kwargs for _, kwargs in launch_calls[-2:])
+    assert data._cached_read_launches == {}
+
+
+def test_cached_read_launch_ignores_empty_recording(monkeypatch):
+    """OVPhysX should treat an empty recorded launch as a completed no-op."""
+
+    class FakeDevice:
+        is_cuda = True
+        is_capturing = False
+
+    launch_calls = []
+
+    def fake_launch(*args, **kwargs):
+        launch_calls.append((args, kwargs))
+        return
+
+    module = sys.modules[ArticulationData.__module__]
+    monkeypatch.setattr(module.wp, "get_device", lambda device_name: FakeDevice())
+    monkeypatch.setattr(module.wp, "launch", fake_launch)
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cuda:0"
+    data._cached_read_launches = {}
+
+    data._launch_cached_read("joint_pos", object(), dim=0, inputs=[], outputs=[])
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0][1]["record_cmd"] is True
+    assert data._cached_read_launches == {}
+
+
+def test_cached_read_launches_reset_on_ordering_and_invalidation():
+    """Ordering installation and simulation invalidation should discard recorded reads."""
+
+    class MinimalData(ArticulationData):
+        def __dir__(self):
+            return []
+
+    class Buffer:
+        timestamp = 1.0
+
+    data = MinimalData.__new__(MinimalData)
+    data._cached_read_launches = {"read": object()}
+    data._configure_ordering_buffers = lambda: None
+    data._make_jacobian_body_user_to_backend = lambda: object()
+    data.joint_ordering = None
+    data._body_com_jacobian_w = Buffer()
+    data._mass_matrix = Buffer()
+    data._gravity_compensation_forces = Buffer()
+
+    data._apply_ordering_maps_after_resolve()
+
+    assert data._cached_read_launches == {}
+    assert data._body_com_jacobian_w.timestamp == -1.0
+    assert data._mass_matrix.timestamp == -1.0
+    assert data._gravity_compensation_forces.timestamp == -1.0
+
+    data._cached_read_launches = {"read": object()}
+    data._is_primed = True
+    data._sim_timestamp = 1.0
+    data._invalidate_initialize_callback(None)
+
+    assert data._cached_read_launches == {}
+    assert data._is_primed is False
+    assert data._sim_timestamp == 0.0
+
+
+def test_generalized_dynamics_reorder_uses_public_joint_order():
+    """OVPhysX dynamics reads should gather both matrix joint axes into public order."""
+
+    class Buffer:
+        def __init__(self):
+            self.data = wp.zeros((1, 2, 2), dtype=wp.float32, device="cpu")
+            self.timestamp = -1.0
+
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cpu"
+    data._sim_timestamp = 1.0
+    data._cached_read_launches = {}
+    data.joint_ordering = object()
+    data._jacobian_joint_user_to_backend = wp.array([1, 0], dtype=wp.int32, device="cpu")
+    data._num_base_dofs = 0
+
+    backend_values = wp.array([[[1.0, 2.0], [3.0, 4.0]]], dtype=wp.float32, device="cpu")
+    backend_buffer = wp.zeros_like(backend_values)
+    buffer = Buffer()
+
+    def read_binding(tensor_type, dst):
+        dst.assign(backend_values)
+
+    data._binding_read = read_binding
+    data._refresh_generalized_dynamics_buffer(
+        buffer,
+        backend_buffer,
+        TT.MASS_MATRIX,
+        ordering_kernels.reorder_mass_matrix_backend_to_user,
+    )
+
+    torch.testing.assert_close(
+        wp.to_torch(buffer.data),
+        torch.tensor([[[4.0, 3.0], [2.0, 1.0]]]),
+    )
+    assert buffer.timestamp == 1.0
 
 
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
@@ -789,6 +942,62 @@ def test_articulation_dynamics_fixed_base_match_raw_ovphysx_bindings(sim, device
     torch.testing.assert_close(
         expected_link_velocity, articulation.data.body_link_vel_w.torch[:, 1:], atol=1e-5, rtol=1e-4
     )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_articulation_dynamics_refresh_after_same_timestamp_model_writes(sim, device):
+    """Refresh computed dynamics after model-property writes without advancing simulation time."""
+    articulation, _ = generate_articulation(generate_articulation_cfg("panda"), 1, device=device)
+    sim.reset()
+
+    data = articulation.data
+    num_jacobian_bodies = articulation.num_bodies - 1
+    num_generalized_dofs = articulation.num_joints
+
+    # COM offsets affect COM Jacobians, mass matrices, and gravity forces.
+    data.body_com_jacobian_w
+    data.mass_matrix
+    data.gravity_compensation_forces
+    coms = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device)
+    coms[:, -1, 0] += 0.01
+    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf))
+    assert data._body_com_jacobian_w.timestamp < data._sim_timestamp
+    assert data._mass_matrix.timestamp < data._sim_timestamp
+    assert data._gravity_compensation_forces.timestamp < data._sim_timestamp
+    raw_jacobian = _read_binding_to_torch(articulation, TT.JACOBIAN, device).reshape(
+        1, num_jacobian_bodies, 6, num_generalized_dofs
+    )
+    torch.testing.assert_close(data.body_com_jacobian_w.torch, raw_jacobian)
+    torch.testing.assert_close(data.mass_matrix.torch, _read_binding_to_torch(articulation, TT.MASS_MATRIX, device))
+    torch.testing.assert_close(
+        data.gravity_compensation_forces.torch,
+        _read_binding_to_torch(articulation, TT.GRAVITY_FORCE, device),
+    )
+
+    # Mass affects the mass matrix and gravity forces, but not the kinematic Jacobian.
+    masses = data.body_mass.torch.clone()
+    masses[:, -1] *= 1.1
+    articulation.set_masses_index(masses=masses)
+    assert data._mass_matrix.timestamp < data._sim_timestamp
+    assert data._gravity_compensation_forces.timestamp < data._sim_timestamp
+    torch.testing.assert_close(data.mass_matrix.torch, _read_binding_to_torch(articulation, TT.MASS_MATRIX, device))
+    torch.testing.assert_close(
+        data.gravity_compensation_forces.torch,
+        _read_binding_to_torch(articulation, TT.GRAVITY_FORCE, device),
+    )
+
+    # Inertia and armature each affect only the generalized mass matrix.
+    inertias = data.body_inertia.torch.clone()
+    inertias[:, -1, [0, 4, 8]] *= 1.1
+    articulation.set_inertias_index(inertias=inertias)
+    assert data._mass_matrix.timestamp < data._sim_timestamp
+    torch.testing.assert_close(data.mass_matrix.torch, _read_binding_to_torch(articulation, TT.MASS_MATRIX, device))
+
+    armature = data.joint_armature.torch.clone()
+    armature[:, -1] += 0.01
+    articulation.write_joint_armature_to_sim_index(armature=armature)
+    assert data._mass_matrix.timestamp < data._sim_timestamp
+    torch.testing.assert_close(data.mass_matrix.torch, _read_binding_to_torch(articulation, TT.MASS_MATRIX, device))
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -2617,6 +2826,9 @@ def test_body_com_pose_b_cache_and_set_coms_invalidation(sim, device):
         ("body_state_w", articulation.data._body_state_w_buf),
         ("body_link_state_w", articulation.data._body_link_state_w_buf),
         ("body_com_state_w", articulation.data._body_com_state_w_buf),
+        ("body_com_jacobian_w", articulation.data._body_com_jacobian_w),
+        ("mass_matrix", articulation.data._mass_matrix),
+        ("gravity_compensation_forces", articulation.data._gravity_compensation_forces),
     ]
     for _, buffer in dependent_buffers:
         buffer.timestamp = articulation.data._sim_timestamp

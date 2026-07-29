@@ -74,6 +74,13 @@ class ArticulationData(BaseArticulationData):
         ``BODY_INERTIA``, and most ``DOF_*`` property bindings) on CPU only. These are routed through
         pinned-host staging buffers via :meth:`_binding_read` so that GPU-resident consumers see the
         data without per-step host allocations.
+
+    .. note::
+        **Recorded read commands.** OVPhysX reads into stable, pre-allocated destination buffers.
+        Outside CUDA graph capture, repeated Warp kernels that derive or reorder public data from
+        those buffers reuse recorded launch commands. Direct ``TensorBinding`` reads continue to use
+        :class:`OvPhysxView`'s object-identity cache. Recorded commands are discarded whenever ordering
+        buffers may be replaced or the data container is invalidated.
     """
 
     __backend_name__: str = "ovphysx"
@@ -112,6 +119,7 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp: float = 0.0
         self._fk_timestamp: float = 0.0
         self._is_primed: bool = False
+        self._cached_read_launches: dict[object, wp.Launch] = {}
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
 
@@ -136,6 +144,24 @@ class ArticulationData(BaseArticulationData):
         self.FORWARD_VEC_B = ProxyArray(wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=device))
 
         self._create_buffers()
+
+    def _launch_cached_read(self, key: object, kernel: wp.Kernel, *, dim, inputs, outputs) -> None:
+        """Launch a read kernel through a cached Warp command when running on CUDA."""
+        device = wp.get_device(self.device)
+        if not device.is_cuda or device.is_capturing:
+            wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device)
+            return
+        command = self._cached_read_launches.get(key)
+        if command is None:
+            command = wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device, record_cmd=True)
+            if command is None:
+                return
+            self._cached_read_launches[key] = command
+        command.launch()
+
+    def _reset_cached_read_launches(self) -> None:
+        """Discard recorded read launches whose arguments may no longer be valid."""
+        self._cached_read_launches.clear()
 
     @property
     def is_primed(self) -> bool:
@@ -256,6 +282,18 @@ class ArticulationData(BaseArticulationData):
         # Force a kinematic refresh on the next FK-dependent read.
         self._fk_timestamp = -1.0
 
+    def _reset_dynamics(
+        self, *, body_com_jacobian: bool = False, mass_matrix: bool = False, gravity_compensation: bool = False
+    ) -> None:
+        """Reset selected computed-dynamics caches after same-timestamp model writes."""
+        reset_timestamps(
+            [
+                self._body_com_jacobian_w if body_com_jacobian else None,
+                self._mass_matrix if mass_matrix else None,
+                self._gravity_compensation_forces if gravity_compensation else None,
+            ]
+        )
+
     def _reset_body_com_pose_b_dependents(self) -> None:
         """Reset cached properties derived from body-frame center-of-mass offsets."""
         reset_timestamps(
@@ -279,6 +317,7 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_state_w_buf,
             ]
         )
+        self._reset_dynamics(body_com_jacobian=True, mass_matrix=True, gravity_compensation=True)
 
     """
     Names.
@@ -823,12 +862,12 @@ class ArticulationData(BaseArticulationData):
             backend_buffer = self._body_com_vel_w
             self._read_spatial_vector_binding(TT.LINK_VELOCITY, backend_buffer)
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_link_vel_w",
                 _copy_first_body,
                 dim=self.num_instances,
                 inputs=[backend_buffer.data],
                 outputs=[self._root_link_vel_w.data],
-                device=self.device,
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
         if self._root_link_vel_w_ta is None:
@@ -846,12 +885,12 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_com_pose_w",
                 _compose_root_com_pose,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self._backend_body_com_pose_b],
                 outputs=[self._root_com_pose_w.data],
-                device=self.device,
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
         if self._root_com_pose_w_ta is None:
@@ -933,20 +972,20 @@ class ArticulationData(BaseArticulationData):
             return
         self._read_binding_into_buf(tensor_type, backend_buffer)
         if component_count is None:
-            wp.launch(
+            self._launch_cached_read(
+                (id(buf), "body_2d"),
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[backend_buffer.data, self.body_ordering.user_to_backend],
                 outputs=[buf.data],
-                device=self.device,
             )
         else:
-            wp.launch(
+            self._launch_cached_read(
+                (id(buf), "body_3d"),
                 ordering_kernels.reorder_3d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies, component_count),
                 inputs=[backend_buffer.data, self.body_ordering.user_to_backend],
                 outputs=[buf.data],
-                device=self.device,
             )
         buf.timestamp = backend_buffer.timestamp
 
@@ -1027,12 +1066,12 @@ class ArticulationData(BaseArticulationData):
         _ = self.body_com_vel_w
         _ = self.body_link_pose_w
         _ = self.body_com_pose_b
-        wp.launch(
+        self._launch_cached_read(
+            "body_link_vel_w",
             get_body_link_vel_from_body_com_vel,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_com_vel_w.data, self._body_link_pose_w.data, self._body_com_pose_b.data],
             outputs=[self._body_link_vel_w.data],
-            device=self.device,
         )
         self._body_link_vel_w.timestamp = self._sim_timestamp
         if self._body_link_vel_w_ta is None:
@@ -1056,12 +1095,12 @@ class ArticulationData(BaseArticulationData):
             return self._body_com_pose_w_ta
         _ = self.body_link_pose_w
         _ = self.body_com_pose_b
-        wp.launch(
+        self._launch_cached_read(
+            "body_com_pose_w",
             get_body_com_pose_from_body_link_pose,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_link_pose_w.data, self._body_com_pose_b.data],
             outputs=[self._body_com_pose_w.data],
-            device=self.device,
         )
         self._body_com_pose_w.timestamp = self._sim_timestamp
         if self._body_com_pose_w_ta is None:
@@ -1109,7 +1148,8 @@ class ArticulationData(BaseArticulationData):
             has_joint_ordering = self.has_joint_ordering
             if has_body_ordering or has_joint_ordering:
                 self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w_backend)
-                wp.launch(
+                self._launch_cached_read(
+                    "body_com_jacobian_w",
                     ordering_kernels.reorder_jacobian_backend_to_user,
                     dim=self._body_com_jacobian_w.data.shape,
                     inputs=[
@@ -1121,7 +1161,6 @@ class ArticulationData(BaseArticulationData):
                         has_joint_ordering,
                     ],
                     outputs=[self._body_com_jacobian_w.data],
-                    device=self.device,
                 )
             else:
                 self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w.data)
@@ -1131,7 +1170,8 @@ class ArticulationData(BaseArticulationData):
     @property
     def body_link_jacobian_w(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.body_link_jacobian_w`."""
-        wp.launch(
+        self._launch_cached_read(
+            "body_link_jacobian_w",
             articulation_kernels.shift_jacobian_com_to_origin,
             dim=self._body_link_jacobian_w.shape[:2] + (self._body_link_jacobian_w.shape[3],),
             inputs=[
@@ -1141,7 +1181,6 @@ class ArticulationData(BaseArticulationData):
                 self.body_com_jacobian_w.warp,
             ],
             outputs=[self._body_link_jacobian_w],
-            device=self.device,
         )
         return self._body_link_jacobian_w_ta
 
@@ -1153,12 +1192,12 @@ class ArticulationData(BaseArticulationData):
             return
         if self.has_joint_ordering:
             self._binding_read(tensor_type, backend_buffer)
-            wp.launch(
+            self._launch_cached_read(
+                (id(buffer), "generalized_dynamics"),
                 reorder_kernel,
                 dim=buffer.data.shape,
                 inputs=[backend_buffer, self._jacobian_joint_user_to_backend, self._num_base_dofs, True],
                 outputs=[buffer.data],
-                device=self.device,
             )
         else:
             self._binding_read(tensor_type, buffer.data)
@@ -1214,12 +1253,12 @@ class ArticulationData(BaseArticulationData):
 
         self._read_binding_into_buf(tensor_type, backend_buffer)
         if user_buffer.timestamp < backend_buffer.timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                (id(user_buffer), "joint_state"),
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self.num_instances, self.num_joints),
                 inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
                 outputs=[user_buffer.data],
-                device=self.device,
             )
             user_buffer.timestamp = backend_buffer.timestamp
 
@@ -1328,12 +1367,12 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "projected_gravity_b",
                 _projected_gravity,
                 dim=self.num_instances,
                 inputs=[self.GRAVITY_VEC_W, self.root_link_pose_w],
                 outputs=[self._projected_gravity_b.data],
-                device=self.device,
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
         if self._projected_gravity_b_ta is None:
@@ -1351,12 +1390,12 @@ class ArticulationData(BaseArticulationData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "heading_w",
                 _compute_heading,
                 dim=self.num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_pose_w],
                 outputs=[self._heading_w.data],
-                device=self.device,
             )
             self._heading_w.timestamp = self._sim_timestamp
         if self._heading_w_ta is None:
@@ -1372,12 +1411,12 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's actor frame with respect to its actor frame.
         """
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_link_lin_vel_b",
                 _world_vel_to_body_lin,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_link_vel_w],
                 outputs=[self._root_link_lin_vel_b.data],
-                device=self.device,
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_link_lin_vel_b_ta is None:
@@ -1393,12 +1432,12 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's actor frame with respect to its actor frame.
         """
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_link_ang_vel_b",
                 _world_vel_to_body_ang,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_link_vel_w],
                 outputs=[self._root_link_ang_vel_b.data],
-                device=self.device,
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_link_ang_vel_b_ta is None:
@@ -1415,12 +1454,12 @@ class ArticulationData(BaseArticulationData):
         with respect to its actor frame.
         """
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_com_lin_vel_b",
                 _world_vel_to_body_lin,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_com_vel_w],
                 outputs=[self._root_com_lin_vel_b.data],
-                device=self.device,
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_com_lin_vel_b_ta is None:
@@ -1437,12 +1476,12 @@ class ArticulationData(BaseArticulationData):
         with respect to its actor frame.
         """
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_com_ang_vel_b",
                 _world_vel_to_body_ang,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_com_vel_w],
                 outputs=[self._root_com_ang_vel_b.data],
-                device=self.device,
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_com_ang_vel_b_ta is None:
@@ -2187,6 +2226,7 @@ class ArticulationData(BaseArticulationData):
 
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Configure public-order buffers after articulation ordering maps are installed."""
+        self._reset_cached_read_launches()
         self._configure_ordering_buffers()
         self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
         if self.has_joint_ordering:
@@ -2351,6 +2391,7 @@ class ArticulationData(BaseArticulationData):
         Args:
             event: Simulation event (unused).
         """
+        self._reset_cached_read_launches()
         self._is_primed = False
         self._sim_timestamp = 0.0
         # Reset every TimestampedBuffer timestamp so the next property access
@@ -2429,20 +2470,20 @@ class ArticulationData(BaseArticulationData):
             return
         self._read_scalar_binding(tensor_type, backend_buffer)
         if component_count is None:
-            wp.launch(
+            self._launch_cached_read(
+                (id(user_buffer), "joint_property_2d"),
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self.num_instances, self.num_joints),
                 inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
                 outputs=[user_buffer.data],
-                device=self.device,
             )
         else:
-            wp.launch(
+            self._launch_cached_read(
+                (id(user_buffer), "joint_property_3d"),
                 ordering_kernels.reorder_3d_backend_to_user,
                 dim=(self.num_instances, self.num_joints, component_count),
                 inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
                 outputs=[user_buffer.data],
-                device=self.device,
             )
         user_buffer.timestamp = backend_buffer.timestamp
 
@@ -2538,12 +2579,12 @@ class ArticulationData(BaseArticulationData):
             DeprecationWarning,
             stacklevel=2,
         )
-        wp.launch(
+        self._launch_cached_read(
+            "default_root_state",
             concat_root_pose_and_vel_to_state,
             dim=self.num_instances,
             inputs=[self._default_root_pose, self._default_root_vel],
             outputs=[self._default_root_state_buf],
-            device=self.device,
         )
         if self._default_root_state_ta is None:
             self._default_root_state_ta = ProxyArray(self._default_root_state_buf)
@@ -2562,12 +2603,12 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_state_w_buf.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_com_vel_w],
                 outputs=[self._root_state_w_buf.data],
-                device=self.device,
             )
             self._root_state_w_buf.timestamp = self._sim_timestamp
         if self._root_state_w_ta is None:
@@ -2587,12 +2628,12 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_link_state_w_buf.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_link_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_link_vel_w],
                 outputs=[self._root_link_state_w_buf.data],
-                device=self.device,
             )
             self._root_link_state_w_buf.timestamp = self._sim_timestamp
         if self._root_link_state_w_ta is None:
@@ -2612,12 +2653,12 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_com_state_w_buf.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._launch_cached_read(
+                "root_com_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
                 inputs=[self.root_com_pose_w, self.root_com_vel_w],
                 outputs=[self._root_com_state_w_buf.data],
-                device=self.device,
             )
             self._root_com_state_w_buf.timestamp = self._sim_timestamp
         if self._root_com_state_w_ta is None:
@@ -2643,12 +2684,12 @@ class ArticulationData(BaseArticulationData):
             return self._body_state_w_ta
         _ = self.body_link_pose_w
         _ = self.body_com_vel_w
-        wp.launch(
+        self._launch_cached_read(
+            "body_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_link_pose_w.data, self._body_com_vel_w.data],
             outputs=[self._body_state_w_buf.data],
-            device=self.device,
         )
         self._body_state_w_buf.timestamp = self._sim_timestamp
         if self._body_state_w_ta is None:
@@ -2674,12 +2715,12 @@ class ArticulationData(BaseArticulationData):
             return self._body_link_state_w_ta
         _ = self.body_link_pose_w
         _ = self.body_link_vel_w
-        wp.launch(
+        self._launch_cached_read(
+            "body_link_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_link_pose_w.data, self._body_link_vel_w.data],
             outputs=[self._body_link_state_w_buf.data],
-            device=self.device,
         )
         self._body_link_state_w_buf.timestamp = self._sim_timestamp
         if self._body_link_state_w_ta is None:
@@ -2705,12 +2746,12 @@ class ArticulationData(BaseArticulationData):
             return self._body_com_state_w_ta
         _ = self.body_com_pose_w
         _ = self.body_com_vel_w
-        wp.launch(
+        self._launch_cached_read(
+            "body_com_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_com_pose_w.data, self._body_com_vel_w.data],
             outputs=[self._body_com_state_w_buf.data],
-            device=self.device,
         )
         self._body_com_state_w_buf.timestamp = self._sim_timestamp
         if self._body_com_state_w_ta is None:
