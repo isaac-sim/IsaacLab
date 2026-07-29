@@ -70,11 +70,15 @@ def test_uv_run_exposes_centralized_feature_extras():
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
     # ``ov`` installs both Omniverse backends; ``ovphysx`` / ``ovrtx`` select one.
+    # Every Omniverse extra carries ``ovstage``, which both backends need.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ovphysx"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovphysx"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ovrtx"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
 def test_version_single_source_matches_literal_pins():
