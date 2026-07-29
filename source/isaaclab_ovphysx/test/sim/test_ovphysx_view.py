@@ -158,8 +158,9 @@ def _make_view(n: int = 3, unavailable: set | None = None, device: str = "cpu") 
 
 @pytest.fixture(autouse=True)
 def _close_live_views():
+    existing_views = set(OvPhysxView._live_views)
     yield
-    for view in tuple(OvPhysxView._live_views):
+    for view in tuple(OvPhysxView._live_views - existing_views):
         view.close()
 
 

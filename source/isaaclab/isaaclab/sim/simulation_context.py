@@ -30,7 +30,7 @@ from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
-from isaaclab.utils.string import clear_resolve_matching_names_cache
+from isaaclab.utils.string import clear_resolve_matching_names_cache, string_to_callable
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
@@ -189,7 +189,10 @@ class SimulationContext:
             self.cfg.physics = self._physics
         self._physics = _resolve_auto_physx_cfg(self._physics, use_isaac_sim=has_kit())
         self.cfg.physics = self._physics
-        self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        physics_manager = self._physics.class_type
+        self.physics_manager: type[PhysicsManager] = (
+            string_to_callable(physics_manager) if isinstance(physics_manager, str) else physics_manager
+        )
         self.physics_manager.initialize(self)
 
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
@@ -833,7 +836,11 @@ class SimulationContext:
         if cls._instance is not None:
             # Close physics manager FIRST to detach PhysX from the stage
             # This must happen before clearing USD prims to avoid PhysX cleanup errors
-            cls._instance.physics_manager.close()
+            physics_error: Exception | None = None
+            try:
+                cls._instance.physics_manager.close()
+            except Exception as exc:
+                physics_error = exc
 
             # Close all visualizers
             for viz in cls._instance._visualizers:
@@ -857,6 +864,8 @@ class SimulationContext:
             gc.collect()
             logger.info("SimulationContext cleared")
 
+            if physics_error is not None:
+                raise physics_error
             if service_errors:
                 msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
                 # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+

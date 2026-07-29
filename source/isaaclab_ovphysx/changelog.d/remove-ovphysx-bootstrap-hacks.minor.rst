@@ -11,4 +11,8 @@ Fixed
   runtime is released. Normal process-exit cleanup now preserves Python
   handlers and the real exit status instead of forcing success.
 * Fixed startup to use the public OVPhysX 0.5.9 bootstrap and all codeless
-  schema paths without hiding host USD modules or probing private wheel paths.
+  schema paths without hiding host USD modules, probing private wheel paths, or
+  replacing a schema plugin already supplied by the host.
+* Fixed repeated frame-view initialization to release the previous tensor view.
+* Fixed process-exit cleanup to avoid leaking atexit exceptions or disturbing
+  another active backend.

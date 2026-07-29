@@ -285,9 +285,9 @@ class OvPhysxManager(PhysicsManager):
         """Register the codeless USD plugins published by the OVPhysX wheel.
 
         The wheel's public paths include both ``PhysxSchema`` and
-        ``OmniUsdPhysicsDeformableSchema``. USD's plugin registry makes repeated
-        registration idempotent by plugin identity, so registering all published
-        paths also preserves any provider that Kit registered first.
+        ``OmniUsdPhysicsDeformableSchema``. A host may already provide one of
+        those plugins from a compiled library, so only missing plugin names are
+        registered from the wheel's codeless resource paths.
         """
         if cls._physx_schemas_registered:
             return
@@ -297,8 +297,13 @@ class OvPhysxManager(PhysicsManager):
             from pxr import Plug  # noqa: PLC0415
         except ImportError:
             return
-        schema_paths = [str(path) for path in ovphysx.codeless_schema_paths()]
-        Plug.Registry().RegisterPlugins(schema_paths)
+        registry = Plug.Registry()
+        registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
+        schema_paths = [
+            str(path) for path in ovphysx.codeless_schema_paths() if path.parent.name.casefold() not in registered_names
+        ]
+        if schema_paths:
+            registry.RegisterPlugins(schema_paths)
         cls._physx_schemas_registered = True
 
     @classmethod
@@ -452,14 +457,14 @@ class OvPhysxManager(PhysicsManager):
 
     @staticmethod
     def _close_physx_views(physx: Any) -> None:
-        """Destroy every cached :class:`OvPhysxView` binding for ``physx``."""
+        """Destroy every cached :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding for ``physx``."""
         from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
 
         OvPhysxView._close_all_for(physx)
 
     @classmethod
     def _prepare_physx_for_stage_reuse(cls) -> None:
-        """Invalidate stage-bound handles before resetting a cached runtime."""
+        """Drain stage-bound handles after :meth:`reset` has dispatched STOP."""
         physx = cls._physx
         if physx is None:
             return
@@ -755,8 +760,10 @@ class OvPhysxManager(PhysicsManager):
     def _construct_physx(cls, ovphysx_device: str, gpu_index: int) -> None:
         """Bootstrap the ``ovphysx`` wheel and create the :class:`ovphysx.PhysX` instance.
 
-        Configures worker threads, stores the result on ``cls._physx``, and
-        registers normal process-exit cleanup once.
+        The pinned OVPhysX wheel documents :func:`ovphysx.bootstrap` as
+        idempotent, so every explicit runtime construction invokes it. This
+        method also configures worker threads, stores the result on
+        ``cls._physx``, and registers process-exit cleanup once.
         """
         ovphysx = import_ovphysx()
         ovphysx.bootstrap()
@@ -765,8 +772,24 @@ class OvPhysxManager(PhysicsManager):
             # Globally retained environments may otherwise keep TensorBinding DLPack
             # caches alive until Python module finalization. Normal atexit cleanup runs
             # before that phase and preserves the process's real exit status.
-            atexit.register(cls.close)
+            atexit.register(cls._close_at_exit)
             cls._atexit_registered = True
+
+    @classmethod
+    def _close_at_exit(cls) -> None:
+        """Release a live OVPhysX runtime without leaking an atexit exception."""
+        if cls._physx is None:
+            return
+        try:
+            sim = PhysicsManager._sim
+            if sim is not None and sim.physics_manager is cls:
+                cls.close()
+            else:
+                # Do not clear another backend's shared callbacks or simulation
+                # state if this is only a stale OVPhysX runtime.
+                cls._release_physx()
+        except Exception:
+            logger.exception("Failed to close OVPhysX during process exit.")
 
     @staticmethod
     def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:

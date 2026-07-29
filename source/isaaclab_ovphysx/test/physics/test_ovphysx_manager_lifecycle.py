@@ -10,7 +10,8 @@ from __future__ import annotations
 import subprocess
 import sys
 import textwrap
-from types import ModuleType
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -22,7 +23,9 @@ _MANAGER_STATE_FIELDS = (
     "_ovstage",
     "_stage_usda",
     "_warmup_done",
+    "_requires_full_stage",
     "_locked_device",
+    "_active_clone_recipes",
     "_pending_clones",
     "_atexit_registered",
     "_scene_data_backend",
@@ -53,13 +56,15 @@ def manager_module(monkeypatch):
 
     monkeypatch.setattr(module.atexit, "register", lambda callback: None)
     manager = module.OvPhysxManager
+    list_fields = {"_active_clone_recipes", "_pending_clones"}
     saved = {
-        name: list(getattr(manager, name)) if name == "_pending_clones" else getattr(manager, name)
+        name: list(getattr(manager, name)) if name in list_fields else getattr(manager, name)
         for name in _MANAGER_STATE_FIELDS
     }
     for name in _MANAGER_STATE_FIELDS:
-        setattr(manager, name, [] if name == "_pending_clones" else False if name.endswith("registered") else None)
+        setattr(manager, name, [] if name in list_fields else False if name.endswith("registered") else None)
     manager._warmup_done = False
+    manager._requires_full_stage = False
     manager._atexit_registered = False
     manager._physx_schemas_registered = False
     try:
@@ -77,15 +82,30 @@ def _fake_ovphysx_module(bootstrap):
     return module
 
 
-def test_schema_registration_uses_public_codeless_paths(monkeypatch, manager_module):
+@pytest.mark.parametrize(
+    ("registered_names", "expected_paths"),
+    [
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"]),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], []),
+    ],
+)
+def test_schema_registration_skips_providers_already_supplied_by_host(
+    monkeypatch, manager_module, registered_names, expected_paths
+):
     manager = manager_module.OvPhysxManager
-    schema_paths = ["/schemas/deformable", "/schemas/physx"]
+    schema_paths = [
+        Path("/schemas/PhysxSchema/resources"),
+        Path("/schemas/OmniUsdPhysicsDeformableSchema/resources"),
+    ]
     registrations = []
 
     fake_ovphysx = ModuleType("ovphysx")
     fake_ovphysx.codeless_schema_paths = lambda: schema_paths
 
     class FakeRegistry:
+        def GetAllPlugins(self):
+            return [SimpleNamespace(name=name) for name in registered_names]
+
         def RegisterPlugins(self, paths):
             registrations.append(list(paths))
 
@@ -97,7 +117,7 @@ def test_schema_registration_uses_public_codeless_paths(monkeypatch, manager_mod
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert registrations == [schema_paths]
+    assert registrations == ([expected_paths] if expected_paths else [])
 
 
 def test_bootstrap_preserves_pxr_and_registers_normal_cleanup(monkeypatch, manager_module):
@@ -120,7 +140,13 @@ def test_bootstrap_preserves_pxr_and_registers_normal_cleanup(monkeypatch, manag
 
     assert sys.modules["pxr"] is host_pxr
     assert sys.modules["pxr.Usd"] is host_usd
-    assert registrations == [manager.close]
+    assert registrations == [manager._close_at_exit]
+
+
+def test_pinned_bootstrap_is_idempotent_in_fresh_process():
+    completed, output = _run_child("import ovphysx\novphysx.bootstrap()\novphysx.bootstrap()\n")
+
+    assert completed.returncode == 0, output[-8000:]
 
 
 def test_release_destroys_bindings_before_runtime_and_stage(monkeypatch, manager_module):
@@ -169,6 +195,72 @@ def test_close_dispatches_stop_before_runtime_release(monkeypatch, manager_modul
     assert events == ["stop", "release"]
 
 
+def test_close_releases_runtime_after_stop_listener_failure(monkeypatch, manager_module):
+    from isaaclab.physics import PhysicsManager
+
+    manager = manager_module.OvPhysxManager
+    events = []
+
+    def fail_stop(cls):
+        raise ValueError("listener failure")
+
+    monkeypatch.setattr(PhysicsManager, "close", classmethod(fail_stop))
+    monkeypatch.setattr(manager, "_release_physx", classmethod(lambda cls: events.append("release")))
+
+    with pytest.raises(ValueError, match="listener failure"):
+        manager.close()
+
+    assert events == ["release"]
+
+
+def test_atexit_cleanup_noops_after_explicit_close(monkeypatch, manager_module):
+    manager = manager_module.OvPhysxManager
+    monkeypatch.setattr(manager, "_physx", None)
+    monkeypatch.setattr(manager, "close", classmethod(lambda cls: pytest.fail("unexpected close")))
+    monkeypatch.setattr(manager, "_release_physx", classmethod(lambda cls: pytest.fail("unexpected release")))
+
+    manager._close_at_exit()
+
+
+def test_atexit_cleanup_releases_stale_runtime_without_clearing_active_backend(monkeypatch, manager_module):
+    from isaaclab.physics import PhysicsManager
+
+    manager = manager_module.OvPhysxManager
+    events = []
+    sentinel_callbacks = {17: object()}
+    monkeypatch.setattr(manager, "_physx", object())
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=object()))
+    monkeypatch.setattr(PhysicsManager, "_callbacks", sentinel_callbacks)
+
+    def release(cls):
+        events.append("release")
+        cls._physx = None
+
+    monkeypatch.setattr(manager, "_release_physx", classmethod(release))
+
+    manager._close_at_exit()
+
+    assert events == ["release"]
+    assert PhysicsManager._callbacks is sentinel_callbacks
+
+
+def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, manager_module, caplog):
+    from isaaclab.physics import PhysicsManager
+
+    manager = manager_module.OvPhysxManager
+    monkeypatch.setattr(manager, "_physx", object())
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+
+    def fail_close(cls):
+        raise RuntimeError("failure")
+
+    monkeypatch.setattr(manager, "close", classmethod(fail_close))
+
+    manager._close_at_exit()
+
+    assert "Failed to close OVPhysX during process exit." in caplog.text
+
+
 def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
     manager = manager_module.OvPhysxManager
     events = []
@@ -198,25 +290,67 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
     ]
 
 
-def test_retained_binding_exits_through_normal_atexit():
-    script = textwrap.dedent(
+def test_frame_view_reinitialization_closes_previous_root_view(monkeypatch):
+    from isaaclab_ovphysx.sim.views import OvPhysxFrameView
+
+    events = []
+    frame_view = object.__new__(OvPhysxFrameView)
+    physx = object()
+    replacement = object()
+
+    class PreviousRootView:
+        def close(self):
+            events.append("close")
+
+    frame_view._root_view = PreviousRootView()
+    frame_view._pose_binding = object()
+    monkeypatch.setattr(frame_view, "_try_get_physx", lambda: physx)
+
+    def initialize(value):
+        assert frame_view._root_view is None
+        assert frame_view._pose_binding is None
+        events.append(("initialize", value))
+        frame_view._root_view = replacement
+
+    monkeypatch.setattr(frame_view, "_initialize_impl", initialize)
+
+    frame_view._on_physics_ready(None)
+
+    assert events == ["close", ("initialize", physx)]
+    assert frame_view._root_view is replacement
+
+
+def _retained_binding_script() -> str:
+    return textwrap.dedent(
         """
         import atexit
         import gc
+        import sys
 
         import warp as wp
 
+        def report_unraisable(unraisable):
+            print("ATEXIT_UNRAISABLE", repr(unraisable.exc_value), flush=True)
+
+        sys.unraisablehook = report_unraisable
         atexit.register(lambda: print("NORMAL_ATEXIT", flush=True))
         wp.init()
 
         import isaaclab.sim as sim_utils
         from isaaclab.assets import RigidObjectCfg
+        from isaaclab.physics import PhysicsEvent
         from isaaclab.sim import SimulationCfg, SimulationContext
         from isaaclab_ovphysx.assets import RigidObject
         from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
         from isaaclab_ovphysx.sim.views import OvPhysxView
 
         sim = SimulationContext(SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=1.0 / 60.0))
+        assert sim.physics_manager is OvPhysxManager
+        OvPhysxManager.register_callback(
+            lambda _payload: print("OVPHYSX_STOP", flush=True),
+            PhysicsEvent.STOP,
+            wrap_weak_ref=False,
+        )
         obj = RigidObject(
             RigidObjectCfg(
                 prim_path="/World/Cube",
@@ -241,6 +375,8 @@ def test_retained_binding_exits_through_normal_atexit():
         """
     )
 
+
+def _run_child(script: str) -> tuple[subprocess.CompletedProcess[str], str]:
     completed = subprocess.run(
         [sys.executable, "-c", script],
         text=True,
@@ -248,7 +384,31 @@ def test_retained_binding_exits_through_normal_atexit():
         timeout=120,
         check=False,
     )
-    output = completed.stdout + completed.stderr
+    return completed, completed.stdout + completed.stderr
+
+
+def _assert_no_atexit_errors(output: str) -> None:
+    assert "ATEXIT_UNRAISABLE" not in output, output[-8000:]
+    assert "Exception ignored in atexit callback" not in output, output[-8000:]
+    assert "Error in atexit._run_exitfuncs" not in output, output[-8000:]
+
+
+def test_retained_binding_exits_through_normal_atexit():
+    completed, output = _run_child(_retained_binding_script())
 
     assert completed.returncode == 0, output[-8000:]
     assert "NORMAL_ATEXIT" in output, output[-8000:]
+    assert "OVPHYSX_STOP" in output, output[-8000:]
+    _assert_no_atexit_errors(output)
+
+
+def test_retained_binding_preserves_uncaught_failure_exit_status():
+    script = _retained_binding_script() + '\nraise RuntimeError("EXPECTED_CHILD_FAILURE")\n'
+
+    completed, output = _run_child(script)
+
+    assert completed.returncode == 1, output[-8000:]
+    assert "EXPECTED_CHILD_FAILURE" in output, output[-8000:]
+    assert "NORMAL_ATEXIT" in output, output[-8000:]
+    assert "OVPHYSX_STOP" in output, output[-8000:]
+    _assert_no_atexit_errors(output)
