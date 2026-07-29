@@ -19,7 +19,7 @@ import json
 import os
 import re
 import subprocess
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -117,13 +117,14 @@ class OsmoClient:
             check=False,
         )
 
-    def submit(self, yaml_path: Path, *, rsync_pairs: Iterable[tuple[str, str]] = (), pool: str | None = None) -> str:
+    def submit(self, yaml_path: Path, *, pool: str | None = None, priority: str | None = None) -> str:
         """Submit a workflow YAML and return the workflow_id.
 
         Args:
             yaml_path: Path to the rendered workflow YAML.
-            rsync_pairs: Pairs of ``(local_path, container_path)`` for OSMO's
-                ``--rsync`` continuous-sync feature.
+            pool: Target OSMO pool, or ``None`` to use the profile's default.
+            priority: Scheduling priority (``HIGH``, ``NORMAL``, ``LOW``), or
+                ``None`` to use OSMO's default.
 
         Returns:
             The OSMO workflow ID parsed from stdout.
@@ -134,8 +135,8 @@ class OsmoClient:
         cmd: list[str] = [self._exe, "workflow", "submit", str(yaml_path)]
         if pool is not None:
             cmd.extend(["--pool", pool])
-        for local, remote in rsync_pairs:
-            cmd.extend(["--rsync", f"{local}:{remote}"])
+        if priority is not None:
+            cmd.extend(["--priority", priority])
         cp = self._run(cmd)
         if cp.returncode != 0:
             raise _classify(cp.stderr)(f"`osmo workflow submit` failed: {cp.stderr.strip()}")
@@ -232,41 +233,23 @@ class OsmoClient:
             tasks.append(TaskSnapshot(name=name, status=status, exit_code=None))
         return WorkflowSnapshot(workflow_id=workflow_id, status=wf_status, tasks=tasks)
 
-    def dataset_download(self, name: str, dest_dir: Path) -> None:
-        """Download an OSMO dataset to a local directory.
+    def data_download(self, remote_uri: str, dest_dir: Path) -> None:
+        """Download a bucket URI into a local directory.
 
-        Creates ``dest_dir`` (and parents) if missing.
+        OSMO datasets were retired; ``osmo data`` against a backend URI is the
+        replacement.
 
         Args:
-            name: OSMO dataset name (typically ``{prefix}-{dispatch_id}-{run_id}``).
-            dest_dir: Local directory to download into.
+            remote_uri: Backend URI, e.g. ``s3://bucket/prefix``.
+            dest_dir: Local destination, created with parents if missing.
 
         Raises:
             OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
         """
         dest_dir.mkdir(parents=True, exist_ok=True)
-        cmd = [self._exe, "dataset", "download", name, str(dest_dir)]
-        cp = self._run(cmd)
+        cp = self._run([self._exe, "data", "download", remote_uri, str(dest_dir)])
         if cp.returncode != 0:
-            raise _classify(cp.stderr)(f"`osmo dataset download` failed: {cp.stderr.strip()}")
-
-    def dataset_delete(self, name: str) -> None:
-        """Delete an OSMO dataset (all versions) without prompting.
-
-        Used by Bifrost to reclaim OSMO bucket storage after a bundle
-        has been downloaded + validated locally — the OSMO copy is
-        redundant once the bundle is on disk.
-
-        Args:
-            name: OSMO dataset name to delete.
-
-        Raises:
-            OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
-        """
-        cmd = [self._exe, "dataset", "delete", name, "--all", "--force"]
-        cp = self._run(cmd)
-        if cp.returncode != 0:
-            raise _classify(cp.stderr)(f"`osmo dataset delete` failed: {cp.stderr.strip()}")
+            raise _classify(cp.stderr)(f"`osmo data download` failed: {cp.stderr.strip()}")
 
     def cancel(self, workflow_id: str) -> None:
         """Cancel an in-flight workflow.
