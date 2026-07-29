@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
 import importlib.util
 import sys
 import types
@@ -18,11 +17,21 @@ pytest.importorskip("skrl")
 from skrl.agents.torch.ppo.ppo_rnn import PPO_RNN
 from skrl.models.torch import GaussianMixin, Model
 
-from isaaclab_rl.leapp import is_two_tensor_lstm_state
-
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "skrl" / "export.py"
+_EXPORT_UTILS_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "export_utils.py"
 _EXPORT_MODULE_NAME = "_isaaclab_skrl_leapp_export_helpers"
+_EXPORT_UTILS_MODULE_NAME = "_isaaclab_leapp_export_utils"
+
+
+def _load_export_utils_module():
+    """Load shared LEAPP export helpers from the scripts tree."""
+    sys.modules.pop(_EXPORT_UTILS_MODULE_NAME, None)
+    spec = importlib.util.spec_from_file_location(_EXPORT_UTILS_MODULE_NAME, _EXPORT_UTILS_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_EXPORT_UTILS_MODULE_NAME] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _load_export_module():
@@ -60,7 +69,7 @@ def _load_export_module():
             else:
                 sys.modules[name] = original_module
 
-    module.is_two_tensor_lstm_state = is_two_tensor_lstm_state
+    module.is_two_tensor_lstm_state = _load_export_utils_module().is_two_tensor_lstm_state
     return module
 
 
@@ -142,6 +151,15 @@ def test_skrl_lstm_feedback_detection_and_output_state():
     assert [tuple(tensor.shape) for tensor in output_states] == [(1, 1, 5), (1, 1, 5)]
 
 
+def test_skrl_algorithm_tag_from_agent_entry_point():
+    """Derive training-run algorithm tags from skrl agent entry points."""
+    export_module = _load_export_module()
+
+    assert export_module._algorithm_from_agent_entry_point("skrl_cfg_entry_point") == "ppo"
+    assert export_module._algorithm_from_agent_entry_point("skrl_amp_cfg_entry_point") == "amp"
+    assert export_module._algorithm_from_agent_entry_point("skrl_ippo_cfg_entry_point") == "ippo"
+
+
 def test_skrl_recurrent_non_lstm_is_rejected():
     """Verify recurrent skrl policies without two LSTM tensors are rejected."""
     export_module = _load_export_module()
@@ -154,13 +172,3 @@ def test_skrl_recurrent_non_lstm_is_rejected():
     assert not export_module.is_skrl_lstm_policy(agent)
     with pytest.raises(NotImplementedError, match="Only skrl LSTM"):
         export_module._validate_skrl_recurrent_support(agent)
-
-
-def test_skrl_non_torch_framework_is_rejected(monkeypatch):
-    """Verify LEAPP export clearly rejects non-torch skrl frameworks."""
-    export_module = _load_export_module()
-    monkeypatch.setattr(export_module, "_load_runtime_dependencies", lambda: None)
-    args_cli = argparse.Namespace(ml_framework="jax")
-
-    with pytest.raises(NotImplementedError, match="LEAPP export only supports torch"):
-        export_module.export_skrl_agent(args_cli, env_cfg=None, experiment_cfg=None)

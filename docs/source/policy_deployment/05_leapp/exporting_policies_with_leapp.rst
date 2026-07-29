@@ -16,7 +16,8 @@ ROS will add direct support for running LEAPP-exported policies in a future rele
 .. note::
 
    This export path currently supports **manager-based RL environments** (``ManagerBasedRLEnv``)
-   trained with **RSL-RL** only. Other environments are not yet supported.
+   trained with **RSL-RL**, **RL-Games**, **skrl**, or **Stable-Baselines3**. Other environments
+   are not yet supported.
 
 
 Prerequisites
@@ -52,8 +53,8 @@ LEAPP with:
 
          isaaclab.bat -p -m pip install leapp
 
-Ensure you have a trained RSL-RL checkpoint before proceeding. The standard Isaac Lab
-training workflow produces checkpoints under ``logs/rsl_rl/<experiment_name>/``.
+Ensure you have a trained checkpoint for the selected RL library before proceeding. The standard
+Isaac Lab training workflow stores checkpoints under ``logs/<rl_library>/``.
 
 
 Why Export with LEAPP
@@ -81,7 +82,8 @@ For a detailed description of LEAPP's generated artifacts and APIs, refer to the
 Exporting a Policy
 ------------------
 
-Use the RSL-RL export script to export a trained checkpoint:
+Use the export script for the RL library that produced the checkpoint. The available script
+directories are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``:
 
 .. tab-set::
    :sync-group: os
@@ -95,7 +97,7 @@ Use the RSL-RL export script to export a trained checkpoint:
 
             .. code-block:: bash
 
-               uv run python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+               uv run python scripts/reinforcement_learning/leapp/<rl_library>/export.py \
                    --task <TASK_NAME> \
                    --checkpoint <PATH_TO_CHECKPOINT>
 
@@ -103,7 +105,7 @@ Use the RSL-RL export script to export a trained checkpoint:
 
             .. code-block:: bash
 
-               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/<rl_library>/export.py \
                    --task <TASK_NAME> \
                    --checkpoint <PATH_TO_CHECKPOINT>
 
@@ -112,7 +114,7 @@ Use the RSL-RL export script to export a trained checkpoint:
 
       .. code-block:: batch
 
-         isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+         isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
              --task <TASK_NAME> ^
              --checkpoint <PATH_TO_CHECKPOINT>
 
@@ -158,8 +160,8 @@ exported graph is named after the task.
 CLI Options
 ^^^^^^^^^^^
 
-The export script accepts the following LEAPP-specific arguments in addition to the standard
-RSL-RL and AppLauncher arguments:
+The export scripts accept the following common LEAPP-specific arguments in addition to
+backend-specific and AppLauncher arguments:
 
 .. list-table::
    :widths: 30 15 55

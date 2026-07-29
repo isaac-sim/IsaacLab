@@ -12,11 +12,21 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from isaaclab_rl.leapp import is_two_tensor_lstm_state
-
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "rl_games" / "export.py"
+_EXPORT_UTILS_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "export_utils.py"
 _EXPORT_MODULE_NAME = "_isaaclab_rl_games_leapp_export_helpers"
+_EXPORT_UTILS_MODULE_NAME = "_isaaclab_leapp_export_utils"
+
+
+def _load_export_utils_module():
+    """Load shared LEAPP export helpers from the scripts tree."""
+    sys.modules.pop(_EXPORT_UTILS_MODULE_NAME, None)
+    spec = importlib.util.spec_from_file_location(_EXPORT_UTILS_MODULE_NAME, _EXPORT_UTILS_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_EXPORT_UTILS_MODULE_NAME] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _load_export_module():
@@ -54,7 +64,7 @@ def _load_export_module():
             else:
                 sys.modules[name] = original_module
 
-    module.is_two_tensor_lstm_state = is_two_tensor_lstm_state
+    module.is_two_tensor_lstm_state = _load_export_utils_module().is_two_tensor_lstm_state
     return module
 
 

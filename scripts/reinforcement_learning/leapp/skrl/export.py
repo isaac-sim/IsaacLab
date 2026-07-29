@@ -10,13 +10,8 @@ from __future__ import annotations
 import argparse
 import contextlib
 import os
-import random
 import sys
 import time
-
-from isaaclab.app import AppLauncher
-
-from isaaclab_tasks.utils import setup_preset_cli
 
 SKRL_VERSION = "2.1.0"
 _RUNTIME_IMPORTS_LOADED = False
@@ -44,95 +39,32 @@ state_dict_from_sequence = None
 state_sequence_from_registered = None
 
 
-def create_arg_parser() -> argparse.ArgumentParser:
-    """Create the command-line parser for skrl policy export."""
-    parser = argparse.ArgumentParser(description="Export an RL agent with skrl.")
-    parser.add_argument(
-        "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
-    )
-    parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-    parser.add_argument(
-        "--agent",
-        type=str,
-        default=None,
-        help=(
-            "Name of the RL agent configuration entry point. Defaults to None, in which case the argument "
-            "--algorithm is used to determine the default agent configuration entry point."
-        ),
-    )
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
-    parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-    parser.add_argument(
-        "--use_pretrained_checkpoint",
-        action="store_true",
-        help="Use the pre-trained checkpoint from Nucleus.",
-    )
-    parser.add_argument(
-        "--ml_framework",
-        type=str,
-        default="torch",
-        choices=["torch", "jax"],
-        help="The ML framework used for training the skrl agent.",
-    )
-    parser.add_argument(
-        "--algorithm",
-        type=str,
-        default="PPO",
-        choices=["AMP", "PPO", "IPPO", "MAPPO"],
-        help="The RL algorithm used for training the skrl agent.",
-    )
-
-    # LEAPP arguments
-    parser.add_argument(
-        "--export_task_name",
-        type=str,
-        default=None,
-        help="Name of the exported graph. Defaults to the task name.",
-    )
-    parser.add_argument(
-        "--export_method",
-        type=str,
-        default="onnx-dynamo",
-        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace"],
-        help="Method to export the policy",
-    )
-    parser.add_argument(
-        "--export_save_path",
-        type=str,
-        default=None,
-        help="Path to save the exported model",
-    )
-    parser.add_argument(
-        "--validation_steps",
-        type=int,
-        default=5,
-        help="Number of steps to validate the exported model",
-    )
-    parser.add_argument(
-        "--disable_graph_visualization",
-        action="store_true",
-        default=False,
-        help="Disable LEAPP graph visualization during compile_graph().",
-    )
-
-    AppLauncher.add_app_launcher_args(parser)
-    return parser
-
-
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
-    parser = create_arg_parser()
-    args_cli, hydra_args = setup_preset_cli(parser, argv)
-    args_cli.headless = True
-    return args_cli, hydra_args
+    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _leapp_scripts_dir not in sys.path:
+        sys.path.insert(0, _leapp_scripts_dir)
+    from export_utils import add_common_export_args, finalize_export_args
+
+    parser = argparse.ArgumentParser(description="Export an RL agent with skrl.")
+    add_common_export_args(parser, agent_default="skrl_cfg_entry_point")
+    return finalize_export_args(parser, argv)
 
 
-def _agent_cfg_entry_point(args_cli: argparse.Namespace) -> tuple[str, str]:
-    """Return the skrl config entry point and normalized algorithm name."""
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        return ("skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point", algorithm)
-    return args_cli.agent, args_cli.agent.split("_cfg")[0].split("skrl_")[-1].lower()
+def _algorithm_from_agent_entry_point(agent_cfg_entry_point: str) -> str:
+    """Derive the skrl algorithm tag used in training run directory names.
+
+    Isaac Lab stores PPO under ``skrl_cfg_entry_point`` and other algorithms under
+    ``skrl_<algorithm>_cfg_entry_point``. Training run directories are named with the
+    algorithm tag (e.g. ``*_ppo_torch``), so export needs that tag when auto-finding
+    checkpoints.
+    """
+    prefix = agent_cfg_entry_point.split("_cfg")[0]
+    if prefix == "skrl":
+        return "ppo"
+    if prefix.startswith("skrl_"):
+        return prefix[len("skrl_") :].lower()
+    return prefix.lower()
 
 
 def _load_runtime_dependencies() -> None:
@@ -168,15 +100,15 @@ def _load_runtime_dependencies() -> None:
     from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
     from isaaclab.utils.seed import configure_seed as configure_seed_fn
 
-    from isaaclab_rl.leapp import (
+    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _leapp_scripts_dir not in sys.path:
+        sys.path.insert(0, _leapp_scripts_dir)
+    from export_utils import (  # isort: skip
         is_two_tensor_lstm_state as is_two_tensor_lstm_state_fn,
-    )
-    from isaaclab_rl.leapp import (
         state_dict_from_sequence as state_dict_from_sequence_fn,
-    )
-    from isaaclab_rl.leapp import (
         state_sequence_from_registered as state_sequence_from_registered_fn,
     )
+
     from isaaclab_rl.skrl import SkrlVecEnvWrapper as SkrlVecEnvWrapperCls
     from isaaclab_rl.utils.pretrained_checkpoint import (
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
@@ -257,20 +189,13 @@ def export_skrl_agent(
     """Export a skrl agent."""
     _load_runtime_dependencies()
 
-    if args_cli.ml_framework != "torch":
-        raise NotImplementedError("LEAPP export only supports torch for skrl policies.")
-
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
-    _, algorithm = _agent_cfg_entry_point(args_cli)
+    algorithm = _algorithm_from_agent_entry_point(args_cli.agent)
 
     env_cfg.scene.num_envs = 1
     cli_device = getattr(args_cli, "device", None)
     env_cfg.sim.device = cli_device if cli_device is not None else env_cfg.sim.device
-
-    if args_cli.seed == -1:
-        args_cli.seed = random.randint(0, 10000)
-    experiment_cfg["seed"] = args_cli.seed if args_cli.seed is not None else experiment_cfg["seed"]
     env_cfg.seed = experiment_cfg["seed"]
 
     log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
@@ -284,9 +209,7 @@ def export_skrl_agent(
     elif args_cli.checkpoint:
         resume_path = retrieve_file_path(args_cli.checkpoint)
     else:
-        resume_path = get_checkpoint_path(
-            log_root_path, run_dir=f".*_{algorithm}_{args_cli.ml_framework}", other_dirs=["checkpoints"]
-        )
+        resume_path = get_checkpoint_path(log_root_path, run_dir=f".*_{algorithm}_torch", other_dirs=["checkpoints"])
 
     if not resume_path:
         print(f"[INFO] No checkpoint found for task: {checkpoint_task_name} in directory: {log_root_path}")
@@ -309,7 +232,7 @@ def export_skrl_agent(
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and algorithm in ["ppo"]:
             env = multi_agent_to_single_agent(env)
 
-        env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
+        env = SkrlVecEnvWrapper(env, ml_framework="torch")
 
         experiment_cfg["trainer"]["close_environment_at_exit"] = False
         experiment_cfg["agent"]["experiment"]["write_interval"] = 0
@@ -381,7 +304,7 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -
 
     from isaaclab_tasks.utils.hydra import hydra_task_config
 
-    agent_cfg_entry_point, _ = _agent_cfg_entry_point(args_cli)
+    agent_cfg_entry_point = args_cli.agent
     original_argv = sys.argv
     sys.argv = [sys.argv[0]] + hydra_args
     exported = False
