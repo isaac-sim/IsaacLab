@@ -40,22 +40,18 @@ __all__ = [
 # Sizing fields a harvested metadata entry may contribute to a seed entry.
 _OVERLAY_FIELDS = ("num_envs", "max_iterations", "timeout_s")
 
-# Each profile is a full install of everything that co-resolves within it, so a
-# row never reasons about individual extras. Mirrors image.PROFILES; kept here
-# rather than imported to keep plan.py free of the image-build layer.
+# Extras per profile. Mirrors image.PROFILES; kept here rather than imported to
+# keep plan.py free of the image-build layer.
 #
-# The split is Kit vs kitless, not "physx vs newton". A preset token does NOT
-# determine the backend: `physics=physx` resolves to kitless OvPhysX on 39 tasks
-# and to Kit PhysX on 5, and `isaacsim_physx` resolves to Kit PhysX on all 10
-# that declare it. Only loading the env cfg settles it, which is task-discovery's
-# job -- so a row carries its profile rather than having it guessed from a name.
+# A single ``full`` profile holds every backend, so a row's physics preset no
+# longer has to be resolved to a Kit/kitless runtime before it can be dispatched
+# -- which matters because a preset token does not determine the backend:
+# `physics=physx` resolves to OvPhysX on 39 tasks and to Kit PhysX on 5.
 PROFILE_EXTRAS: dict[str, tuple[str, ...]] = {
-    "isaacsim": ("isaacsim", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"),
-    "kitless": ("rsl-rl", "skrl", "rl-games", "sb3", "rerun", "ovrtx", "ovphysx"),
+    "full": ("isaacsim", "ovphysx", "ovrtx", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"),
 }
 
-# Kitless covers Newton, OvPhysX and OVRTX, which is the large majority of rows.
-DEFAULT_PROFILE = "kitless"
+DEFAULT_PROFILE = "full"
 
 _RL_LIBRARIES = frozenset({"rsl_rl", "rl_games", "skrl", "sb3"})
 

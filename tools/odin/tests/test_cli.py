@@ -161,7 +161,7 @@ def test_build_image_dry_run_writes_a_dockerfile(workspace: Path, tmp_path: Path
             "--ref",
             "HEAD",
             "--profile",
-            "kitless",
+            "full",
             "--context-dir",
             str(tmp_path / "ctx"),
             "--dry-run",

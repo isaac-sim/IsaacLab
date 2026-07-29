@@ -32,24 +32,20 @@ def test_row_key_format_is_stable() -> None:
     assert build_row_key("rsl_rl", "physx", "Isaac-Ant", 42) == "rsl_rl_physx_Isaac-Ant_seed42"
 
 
-def test_kitless_profile_is_a_full_install_without_isaac_sim() -> None:
-    extras = uv_extras_for_profile("kitless")
-    assert "isaacsim" not in extras
-    for expected in ("rsl-rl", "skrl", "rl-games", "sb3", "ovphysx", "ovrtx", "rerun"):
+def test_full_profile_holds_every_backend() -> None:
+    # One virtualenv covers Kit PhysX, OvPhysX, Newton and OVRTX, so a row's
+    # physics preset never has to be resolved to a runtime before dispatch.
+    extras = uv_extras_for_profile("full")
+    for expected in ("isaacsim", "ovphysx", "ovrtx", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"):
         assert expected in extras
 
 
-def test_isaacsim_profile_is_a_full_install_with_isaac_sim() -> None:
-    extras = uv_extras_for_profile("isaacsim")
-    assert "isaacsim" in extras
-    for expected in ("rsl-rl", "skrl", "rl-games", "sb3"):
-        assert expected in extras
-
-
-def test_the_two_profiles_never_share_a_venv() -> None:
-    # isaacsim-core pins packaging==26.0 while ovphysx pins packaging<24, so a
-    # single virtualenv holding both is unresolvable. The split is forced.
-    assert "ovphysx" not in uv_extras_for_profile("isaacsim")
+def test_full_profile_excludes_extras_that_cannot_co_resolve() -> None:
+    # teleop, viser, mimic, test and the `all` aggregate still conflict with
+    # isaacsim in [tool.uv].conflicts.
+    extras = uv_extras_for_profile("full")
+    for forbidden in ("teleop", "viser", "mimic", "test", "all"):
+        assert forbidden not in extras
 
 
 def test_unknown_profile_is_rejected() -> None:
@@ -57,17 +53,8 @@ def test_unknown_profile_is_rejected() -> None:
         uv_extras_for_profile("quantum")
 
 
-def test_rows_default_to_the_kitless_profile() -> None:
-    # physics=physx resolves to kitless OvPhysX on 39 of the 44 tasks that
-    # declare it, so kitless is the right default.
-    assert plan_rows(task_rows=_ROWS, seeds=[42])[0].profile == "kitless"
-
-
-def test_row_can_request_the_isaacsim_profile() -> None:
-    entry = dict(_ROWS[0], profile="isaacsim")
-    row = plan_rows(task_rows=[entry], seeds=[42])[0]
-    assert row.profile == "isaacsim"
-    assert "isaacsim" in row.uv_extras
+def test_rows_default_to_the_full_profile() -> None:
+    assert plan_rows(task_rows=_ROWS, seeds=[42])[0].profile == "full"
 
 
 def test_rows_expand_across_seeds() -> None:

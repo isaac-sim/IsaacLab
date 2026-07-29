@@ -53,9 +53,7 @@ class _FakeRun:
 
 
 def test_tag_encodes_the_short_sha_and_profiles() -> None:
-    assert image_tag_for(_SPEC, _SHA, ["isaacsim", "newton"]) == (
-        "nvcr.io/nvidian/antoiner-isaac-lab:abcdef1-isaacsim-newton"
-    )
+    assert image_tag_for(_SPEC, _SHA, ["full"]) == "nvcr.io/nvidian/antoiner-isaac-lab:abcdef1-full"
 
 
 def test_resolve_ref_returns_the_full_sha(tmp_path: Path) -> None:
@@ -71,7 +69,7 @@ def test_resolve_ref_rejects_an_unknown_ref(tmp_path: Path) -> None:
 
 
 def test_dockerfile_clones_from_the_bundle_and_verifies_the_sha() -> None:
-    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1-runtime-ubuntu24.04", profiles=["kitless"])
+    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1-runtime-ubuntu24.04", profiles=["full"])
     assert "FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04" in text
     assert "isaaclab.bundle" in text
     assert f"git clone --branch {BUNDLE_REF}" in text
@@ -79,22 +77,25 @@ def test_dockerfile_clones_from_the_bundle_and_verifies_the_sha() -> None:
 
 
 def test_dockerfile_syncs_once_per_profile() -> None:
-    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["isaacsim", "kitless"])
-    assert text.count("RUN uv sync") == 2
+    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["full"])
+    assert text.count("RUN uv sync") == 1
 
 
 def test_dockerfile_pins_the_lockfile_on_sync() -> None:
     # Without --frozen a stale local uv could re-resolve and defeat the pinning.
-    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["kitless"])
+    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["full"])
     assert "uv sync --frozen" in text
 
 
-def test_isaacsim_profile_never_selects_conflicting_extras() -> None:
-    # [tool.uv].conflicts declares isaacsim incompatible with these.
-    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["isaacsim"])
-    sync_line = next(line for line in text.splitlines() if "uv sync" in line)
-    for forbidden in ("--extra all", "--extra mimic", "--extra teleop", "--extra ovphysx", "--extra viser"):
+def test_full_profile_never_selects_conflicting_extras() -> None:
+    # ovphysx is no longer forbidden -- the packaging override made it
+    # co-resolvable with isaacsim -- but these five still conflict.
+    text = render_dockerfile(commit_sha=_SHA, cuda_image="nvidia/cuda:12.8.1", profiles=["full"])
+    sync_line = next(line for line in text.splitlines() if "RUN uv sync" in line)
+    for forbidden in ("--extra all", "--extra mimic", "--extra teleop", "--extra viser", "--extra test"):
         assert forbidden not in sync_line
+    assert "--extra ovphysx" in sync_line
+    assert "--extra isaacsim" in sync_line
 
 
 def test_unknown_profile_is_rejected() -> None:
@@ -108,12 +109,12 @@ def test_dry_run_writes_the_context_but_invokes_no_docker(tmp_path: Path) -> Non
         spec=_SPEC,
         ref="HEAD",
         repo_root=tmp_path,
-        profiles=["kitless"],
+        profiles=["full"],
         context_dir=tmp_path / "ctx",
         dry_run=True,
         run=fake,
     )
-    assert tag.endswith(":abcdef1-kitless")
+    assert tag.endswith(":abcdef1-full")
     assert (tmp_path / "ctx" / "Dockerfile").exists()
     assert not fake.ran("docker")
     assert not fake.ran("git", "bundle")
@@ -121,9 +122,7 @@ def test_dry_run_writes_the_context_but_invokes_no_docker(tmp_path: Path) -> Non
 
 def test_build_bundles_one_ref_and_invokes_docker_build(tmp_path: Path) -> None:
     fake = _FakeRun()
-    build_image(
-        spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["kitless"], context_dir=tmp_path / "ctx", run=fake
-    )
+    build_image(spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["full"], context_dir=tmp_path / "ctx", run=fake)
     assert fake.ran("git", "update-ref", f"refs/heads/{BUNDLE_REF}")
     assert fake.ran("git", "bundle", "create")
     assert fake.ran("docker", "build")
@@ -131,9 +130,7 @@ def test_build_bundles_one_ref_and_invokes_docker_build(tmp_path: Path) -> None:
 
 def test_temp_ref_is_deleted_after_bundling(tmp_path: Path) -> None:
     fake = _FakeRun()
-    build_image(
-        spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["kitless"], context_dir=tmp_path / "ctx", run=fake
-    )
+    build_image(spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["full"], context_dir=tmp_path / "ctx", run=fake)
     assert fake.ran("git", "update-ref", "-d", f"refs/heads/{BUNDLE_REF}")
 
 
@@ -141,16 +138,14 @@ def test_temp_ref_is_deleted_even_when_bundling_fails(tmp_path: Path) -> None:
     fake = _FakeRun({"git bundle create": _cp(returncode=1, stderr="bundle boom")})
     with pytest.raises(ImageBuildError, match="bundle boom"):
         build_image(
-            spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["kitless"], context_dir=tmp_path / "ctx", run=fake
+            spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["full"], context_dir=tmp_path / "ctx", run=fake
         )
     assert fake.ran("git", "update-ref", "-d", f"refs/heads/{BUNDLE_REF}")
 
 
 def test_push_is_skipped_unless_requested(tmp_path: Path) -> None:
     fake = _FakeRun()
-    build_image(
-        spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["kitless"], context_dir=tmp_path / "ctx", run=fake
-    )
+    build_image(spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["full"], context_dir=tmp_path / "ctx", run=fake)
     assert not fake.ran("docker", "push")
 
 
@@ -160,7 +155,7 @@ def test_push_runs_when_requested(tmp_path: Path) -> None:
         spec=_SPEC,
         ref="HEAD",
         repo_root=tmp_path,
-        profiles=["kitless"],
+        profiles=["full"],
         context_dir=tmp_path / "ctx",
         push=True,
         run=fake,
@@ -172,5 +167,5 @@ def test_failed_docker_build_raises(tmp_path: Path) -> None:
     fake = _FakeRun({"docker build": _cp(returncode=1, stderr="no space left on device")})
     with pytest.raises(ImageBuildError, match="no space left"):
         build_image(
-            spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["kitless"], context_dir=tmp_path / "ctx", run=fake
+            spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["full"], context_dir=tmp_path / "ctx", run=fake
         )

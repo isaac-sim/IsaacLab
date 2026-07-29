@@ -31,19 +31,19 @@ __all__ = [
     "resolve_ref",
 ]
 
-# uv extras per profile. Each profile is a *full* install of everything that
-# co-resolves within it, so a task never has to reason about which extras a
-# particular workload needs.
+# uv extras per profile. ``full`` is everything that co-resolves in one
+# virtualenv, so a task never reasons about which extras a workload needs and a
+# row never has to be routed to the right image.
 #
-# Two profiles rather than one because a single venv holding everything is
-# impossible: ``uv`` rejects ``--extra isaacsim --extra ovphysx`` outright with
-# "Extras `isaacsim` and `ovphysx` are incompatible with the declared
-# conflicts". The split is exactly Kit vs kitless.
+# This became possible once the packaging cap was widened: ovphysx capped
+# packaging at <24 while isaacsim-core pinned ==26.0, which made the two extras
+# unresolvable together. The ``packaging>=20,<27`` override in the root
+# pyproject collapses them onto 26.0.
+#
+# Still excluded, because they genuinely cannot co-resolve with isaacsim:
+# teleop, viser, mimic, test, and the ``all`` aggregate.
 PROFILES: dict[str, tuple[str, ...]] = {
-    # Everything that co-resolves with Isaac Sim.
-    "isaacsim": ("isaacsim", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"),
-    # Everything that co-resolves without it. Covers Newton, OvPhysX, and OVRTX.
-    "kitless": ("rsl-rl", "skrl", "rl-games", "sb3", "rerun", "ovrtx", "ovphysx"),
+    "full": ("isaacsim", "ovphysx", "ovrtx", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"),
 }
 
 # x86_64 resolves torch from the cu128 index (see [tool.uv.sources] in

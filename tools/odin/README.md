@@ -29,36 +29,32 @@ tested with the changed dependency.
 uv run python -m tools.odin.cli build-image \
     --config tools/odin/config/odin.yaml \
     --ref <sha|branch|tag> \
-    --profile kitless --profile isaacsim \
+    --profile full \
     --push
 ```
 
 `--dry-run` writes the build context and prints the tag without invoking git
 bundling or Docker — useful for inspecting the generated Dockerfile.
 
-Two profiles, each a full install:
+One profile, `full`, holding every backend:
 
 | Profile | Extras | Covers |
 |---|---|---|
-| `kitless` (default) | `rsl-rl, skrl, rl-games, sb3, rerun, ovrtx, ovphysx` | Newton, OvPhysX, OVRTX |
-| `isaacsim` | `isaacsim, rsl-rl, skrl, rl-games, sb3, rerun` | Kit PhysX, Isaac Sim RTX |
+| `full` | `isaacsim, ovphysx, ovrtx, rsl-rl, skrl, rl-games, sb3, rerun` | Kit PhysX, OvPhysX, Newton, OVRTX, all four RL libraries |
 
-Each profile is a **full install** of everything that co-resolves within it, so
-a row never reasons about individual extras — it just picks a profile.
+A single virtualenv became possible once the root `pyproject.toml` widened the
+`packaging` cap to `<27`: `ovphysx` capped it at `<24` while `isaacsim-core`
+pinned `==26.0`, which had made the two extras unresolvable together. `teleop`,
+`viser`, `mimic`, `test` and the `all` aggregate still conflict with `isaacsim`
+and are excluded.
 
-The split is forced, not a design choice: `isaacsim-core==6.0.0.1` requires
-`packaging==26.0` while `ovphysx==0.5.9` requires `packaging>=20,<24`, so one
-virtualenv cannot hold both.
+This matters beyond convenience. A preset token does **not** determine the
+physics backend — `physics=physx` resolves to OvPhysX on 39 tasks and to Kit
+PhysX on 5 — so with split profiles a row could only be routed correctly by
+loading its env cfg first. One profile removes that dependency entirely.
 
-**A row's profile is not derivable from its physics token.** `physics=physx`
-resolves to kitless OvPhysX on 39 tasks and to Kit PhysX on 5;
-`physics=isaacsim_physx` resolves to Kit PhysX on all 10 that declare it. Only
-loading the env cfg settles it, which is task discovery's job. Rows carry
-`profile` explicitly and default to `kitless`.
-
-Both warm the same `UV_CACHE_DIR`, so a task's `uv run --frozen --extra ...`
-re-syncs from cache without touching the network. `build-image` bakes both
-profiles by default.
+The build warms `UV_CACHE_DIR`, so a task's `uv run --frozen --extra ...`
+re-syncs from cache without touching the network.
 
 Images are tagged `<registry>/<repository>:<short_sha>-<profiles>`. Pass the
 resolved **digest** to `dispatch`, not the tag, so a retag cannot change what a
