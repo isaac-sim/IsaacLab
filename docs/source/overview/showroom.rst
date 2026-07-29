@@ -86,7 +86,11 @@ A few quick showroom scripts to run and checkout:
       :alt: Biped robots in Isaac Lab
 
 
--  Spawn a pile of cables that collide and settle on each other with the Newton VBD backend:
+-  Spawn a pile of cables that collide and settle on each other:
+
+   **Physics:** ``newton_vbd`` only
+
+   **Visualizer:** ``none``, ``kit``, ``newton``
 
    .. tab-set::
       :sync-group: os
@@ -94,9 +98,19 @@ A few quick showroom scripts to run and checkout:
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/cables.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/cables.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/cables.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
