@@ -85,6 +85,10 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  extra-uv-packages:
+    description: 'Space-separated packages to install with uv inside the Docker container before pytest starts'
+    default: ''
+    required: false
   wheelhouse-host-dir:
     description: 'Host directory containing wheelhouse/ and manifest.json for offline pip installs'
     default: ''
@@ -143,15 +147,16 @@ runs:
           local shard_count="${13}"
           local volume_mount_source="${14}"
           local extra_pip_packages="${15}"
-          local test_node_ids_file="${16}"
-          local test_node_ids_key="${17}"
-          local wheelhouse_host_dir="${18}"
-          local wheelhouse_packages="${19}"
-          local test_k_expr="${20}"
-          local ci_marker="${21}"
-          local standalone_script_scope="${22}"
-          local standalone_script_visualizer="${23}"
-          local standalone_script_runtime_group="${24}"
+          local extra_uv_packages="${16}"
+          local test_node_ids_file="${17}"
+          local test_node_ids_key="${18}"
+          local wheelhouse_host_dir="${19}"
+          local wheelhouse_packages="${20}"
+          local test_k_expr="${21}"
+          local ci_marker="${22}"
+          local standalone_script_scope="${23}"
+          local standalone_script_visualizer="${24}"
+          local standalone_script_runtime_group="${25}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -177,6 +182,9 @@ runs:
           fi
           if [ -n "$extra_pip_packages" ]; then
             echo "With extra pip packages: $extra_pip_packages"
+          fi
+          if [ -n "$extra_uv_packages" ]; then
+            echo "With extra uv packages: $extra_uv_packages"
           fi
           if [ -n "$wheelhouse_host_dir" ]; then
             echo "With wheelhouse host directory: $wheelhouse_host_dir"
@@ -293,6 +301,10 @@ runs:
           if [ -n "$extra_pip_packages" ]; then
             export TEST_EXTRA_PIP_PACKAGES="$extra_pip_packages"
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
+          fi
+          if [ -n "$extra_uv_packages" ]; then
+            export TEST_EXTRA_UV_PACKAGES="$extra_uv_packages"
+            docker_env_vars="$docker_env_vars -e TEST_EXTRA_UV_PACKAGES"
           fi
 
           if [ -n "$test_k_expr" ]; then
@@ -455,6 +467,15 @@ runs:
                     ;;
                 esac
               fi
+              if [ -n \"\${TEST_EXTRA_UV_PACKAGES:-}\" ]; then
+                echo \"Installing extra packages with uv: \${TEST_EXTRA_UV_PACKAGES}\"
+                isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)')\"
+                uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, sysconfig; print(pathlib.Path(sysconfig.get_path(\"scripts\")) / \"uv\")')\"
+                if [ ! -x \"\${uv_executable}\" ]; then
+                  ./isaaclab.sh -p -m pip install uv
+                fi
+                \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \${TEST_EXTRA_UV_PACKAGES}
+              fi
               echo 'Starting pytest with path: $test_path'
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
@@ -557,7 +578,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.extra-uv-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}"
 
     - name: Kill container on cancellation
       if: cancelled()
