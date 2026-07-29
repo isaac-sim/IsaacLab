@@ -26,8 +26,7 @@ This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
 annotation pattern to your own Direct RL environment.
 
-This export flow requires ``leapp>=0.5.2``. Before exporting, install LEAPP into
-the Isaac Lab Python environment:
+This export flow requires ``leapp>=0.5.2``. Set up the LEAPP dependencies with:
 
 .. tab-set::
    :sync-group: os
@@ -41,7 +40,7 @@ the Isaac Lab Python environment:
 
             .. code-block:: bash
 
-               uv pip install leapp
+               uv sync --extra leapp
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -94,7 +93,7 @@ annotations, export a trained policy with:
 
             .. code-block:: bash
 
-               uv run python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+               uv run --extra leapp python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
                    --task <TASK_NAME> \
                    --checkpoint <PATH_TO_CHECKPOINT> \
                    --export_save_path <EXPORT_PATH>

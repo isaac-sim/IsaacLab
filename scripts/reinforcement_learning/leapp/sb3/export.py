@@ -170,7 +170,10 @@ def _policy_actions(policy, obs, recurrent_state=None):
     """Run deterministic SB3 policy inference without crossing a NumPy boundary."""
     policy.set_training_mode(False)
     if recurrent_state is None:
-        actions = policy(obs, deterministic=True)[0]
+        if hasattr(policy, "_predict"):
+            actions = policy._predict(obs, deterministic=True)
+        else:
+            actions = policy(obs, deterministic=True)[0]
         next_state = None
     else:
         batch_size = next(iter(obs.values())).shape[0] if isinstance(obs, dict) else obs.shape[0]

@@ -184,9 +184,13 @@ def test_export_flow_fails_on_sim_traceback():
 def test_sb3_export_flow():
     """Run SB3 export.py and assert the expected artifacts are created."""
     try:
+        env = os.environ.copy()
+        env.setdefault("ACCEPT_EULA", "Y")
+        env.setdefault("OMNI_KIT_ACCEPT_EULA", "Y")
         result = subprocess.run(
             _export_batch_command(_TASKS),
             cwd=_REPO_ROOT,
+            env=env,
             capture_output=True,
             text=True,
             timeout=_EXPORT_BATCH_TIMEOUT,

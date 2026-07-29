@@ -23,8 +23,8 @@ ROS will add direct support for running LEAPP-exported policies in a future rele
 Prerequisites
 -------------
 
-This export flow requires ``leapp>=0.5.2``, Python >= 3.8, and PyTorch >= 2.6. Install
-LEAPP with:
+This export flow requires ``leapp>=0.5.2``, Python >= 3.10, and PyTorch >= 2.6. Set up
+the LEAPP dependencies with:
 
 .. tab-set::
    :sync-group: os
@@ -38,7 +38,7 @@ LEAPP with:
 
             .. code-block:: bash
 
-               uv pip install leapp
+               uv sync --extra leapp
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -97,7 +97,7 @@ directories are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``:
 
             .. code-block:: bash
 
-               uv run python scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+               uv run --extra leapp python scripts/reinforcement_learning/leapp/<rl_library>/export.py \
                    --task <TASK_NAME> \
                    --checkpoint <PATH_TO_CHECKPOINT>
 
@@ -132,7 +132,7 @@ For example, to export a UR10 reach policy:
 
             .. code-block:: bash
 
-               uv run python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+               uv run --extra leapp python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
                    --task Isaac-Reach-UR10 \
                    --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
 
@@ -333,7 +333,7 @@ to see the policy running in a viewport, pass a visualization option such as ``-
 
             .. code-block:: bash
 
-               uv run python scripts/reinforcement_learning/leapp/deploy.py \
+               uv run --extra leapp python scripts/reinforcement_learning/leapp/deploy.py \
                    --task <TASK_NAME> \
                    --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
                    --viz kit
