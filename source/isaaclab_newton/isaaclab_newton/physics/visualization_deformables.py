@@ -36,19 +36,19 @@ class ShadowDeformableEntity:
     root_path: str
     sim_particle_offset: int
     sim_particle_count: int
-    render_particle_offset: int
-    render_particle_count: int
+    vis_particle_offset: int
+    vis_particle_count: int
     volume_vis_remap: VolumeVisRemap | None = None
 
     @property
     def particle_offset(self) -> int:
         """Render-slot offset in ``particle_q`` (backward compatible alias)."""
-        return self.render_particle_offset
+        return self.vis_particle_offset
 
     @property
     def particle_count(self) -> int:
         """Render-slot count in ``particle_q`` (backward compatible alias)."""
-        return self.render_particle_count
+        return self.vis_particle_count
 
 
 @dataclass
@@ -60,7 +60,13 @@ class ShadowDeformableRegistryGroup:
     vis_mesh_prim_path: str
     deformable_type: str
     particles_per_body: int
-    register_for_ovrtx: bool
+    register_usd_vis_point_bindings: bool
+    """Whether USD visual-mesh ``points`` can be bound 1:1 to shadow ``particle_q`` slices.
+
+    Used by consumers such as OVRTX that push remapped (or matching) particle
+    positions into the authored visual mesh. Newton Warp does not need this;
+    it renders the shadow model directly.
+    """
     particle_offsets: list[int] = field(default_factory=list)
     entities: list[ShadowDeformableEntity] = field(default_factory=list)
 
@@ -86,7 +92,8 @@ def add_shadow_deformables_to_builder(
         env_paths: Sorted ``(env_id, env_prim_path)`` pairs.
 
     Returns:
-        Flat entity list for geometry mapping and grouped registry metadata for OVRTX.
+        Flat entity list for geometry mapping and grouped registry metadata for
+        USD visual-mesh point bindings (e.g. OVRTX).
     """
     entries = discover_deformables_on_stage(stage)
     if not entries:
@@ -117,24 +124,14 @@ def add_shadow_deformables_to_builder(
             vis_mesh_prim_path=wildcard_vis,
             deformable_type=template.deformable_type,
             particles_per_body=render_count,
-            register_for_ovrtx=uses_remap or template.vertex_count == template.vis_vertex_count,
+            register_usd_vis_point_bindings=uses_remap or template.vertex_count == template.vis_vertex_count,
         )
 
-        if not group.register_for_ovrtx and template.deformable_type == "surface":
+        if not group.register_usd_vis_point_bindings:
             logger.warning(
-                "Skipping OVRTX registry for shadow deformable '%s' because sim (%d) and visual (%d) "
-                "vertex counts differ and no remap is available.",
+                "Skipping USD visual-mesh point bindings for %s deformable '%s'",
+                template.deformable_type,
                 wildcard_root,
-                template.vertex_count,
-                template.vis_vertex_count,
-            )
-        elif not group.register_for_ovrtx and template.deformable_type == "volume":
-            logger.warning(
-                "Skipping OVRTX registry for volume deformable '%s' because sim (%d) and visual (%d) "
-                "counts differ and barycentric remap failed.",
-                wildcard_root,
-                template.vertex_count,
-                template.vis_vertex_count,
             )
 
         for entry in sorted(group_entries, key=lambda item: item.root_path):
@@ -163,8 +160,24 @@ def add_shadow_deformables_to_builder(
             body_rot = wp.quat(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
 
             before_render = int(getattr(builder, "particle_count", 0))
-            # Visualization-only material parameters; they do not drive PhysX/OVPhysX simulation.
-            if entry.deformable_type == "volume" and _uses_volume_vis_remap(entry):
+
+            if entry.deformable_type == "surface":
+                builder.add_cloth_mesh(
+                    pos=body_pos,
+                    rot=body_rot,
+                    scale=1.0,
+                    vel=wp.vec3(0.0, 0.0, 0.0),
+                    vertices=entry.vertices,
+                    indices=entry.indices,
+                    density=1.0,
+                    tri_ke=1e4,
+                    tri_ka=1e4,
+                    tri_kd=1.5e-6,
+                    edge_ke=5.0,
+                    edge_kd=1e-2,
+                    particle_radius=0.008,
+                )
+            elif _uses_volume_vis_remap(entry):
                 builder.add_cloth_mesh(
                     pos=body_pos,
                     rot=body_rot,
@@ -180,7 +193,7 @@ def add_shadow_deformables_to_builder(
                     edge_kd=1e-2,
                     particle_radius=0.008,
                 )
-            elif entry.deformable_type == "volume":
+            else:
                 builder.add_soft_mesh(
                     pos=body_pos,
                     rot=body_rot,
@@ -193,22 +206,6 @@ def add_shadow_deformables_to_builder(
                     k_lambda=1e5,
                     k_damp=0.0,
                 )
-            else:
-                builder.add_cloth_mesh(
-                    pos=body_pos,
-                    rot=body_rot,
-                    scale=1.0,
-                    vel=wp.vec3(0.0, 0.0, 0.0),
-                    vertices=entry.vertices,
-                    indices=entry.indices,
-                    density=1.0,
-                    tri_ke=1e4,
-                    tri_ka=1e4,
-                    tri_kd=1.5e-6,
-                    edge_ke=5.0,
-                    edge_kd=1e-2,
-                    particle_radius=0.008,
-                )
 
             added_render = int(getattr(builder, "particle_count", 0)) - before_render
             render_count = added_render if added_render > 0 else render_count
@@ -217,18 +214,18 @@ def add_shadow_deformables_to_builder(
                 root_path=entry.root_path,
                 sim_particle_offset=sim_particle_cursor,
                 sim_particle_count=sim_count,
-                render_particle_offset=render_particle_cursor,
-                render_particle_count=render_count,
+                vis_particle_offset=render_particle_cursor,
+                vis_particle_count=render_count,
                 volume_vis_remap=entry.volume_vis_remap,
             )
             sim_particle_cursor += sim_count
             render_particle_cursor += render_count
             flat_entities.append(entity)
-            group.particle_offsets.append(entity.render_particle_offset)
+            group.particle_offsets.append(entity.vis_particle_offset)
             group.entities.append(entity)
 
         if group.entities:
-            group.particles_per_body = group.entities[0].render_particle_count
+            group.particles_per_body = group.entities[0].vis_particle_count
             registry_groups.append(group)
 
     ordered_roots = [entry.root_path for entry in sort_deformable_entries_for_geometry_sync(entries)]
@@ -242,7 +239,11 @@ def populate_shadow_deformable_registry(
     manager_cls,
     registry_groups: Sequence[ShadowDeformableRegistryGroup],
 ) -> None:
-    """Populate ``manager_cls._deformable_registry`` for OVRTX under PhysX/OVPhysX sim."""
+    """Populate ``manager_cls._deformable_registry`` for USD visual-mesh point bindings.
+
+    Under PhysX/OVPhysX sim, OVRTX (and any similar consumer) uses this registry to
+    bind authored visual-mesh ``points`` to shadow ``particle_q`` render slots.
+    """
     try:
         from isaaclab_contrib.deformable.deformable_object import DeformableRegistryEntry
     except ImportError:
@@ -250,8 +251,9 @@ def populate_shadow_deformable_registry(
         return
 
     for group in registry_groups:
-        if not group.register_for_ovrtx:
+        if not group.register_usd_vis_point_bindings:
             continue
+
         manager_cls._deformable_registry.append(
             DeformableRegistryEntry(
                 prim_path=group.prim_path,

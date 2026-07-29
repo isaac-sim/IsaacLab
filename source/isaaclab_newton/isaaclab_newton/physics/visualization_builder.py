@@ -23,9 +23,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     rename_builder_labels,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics.visualization_deformables import (
-    add_shadow_deformables_to_builder,
-)
+from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
 
 
 def _deformable_ignore_paths(stage: Usd.Stage, sources: Sequence[str] | None = None) -> list[str]:
@@ -90,6 +88,7 @@ def build_visualization_builder_from_stage_envs(
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
         shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths)
         return builder, (shadow_entities, registry_groups)
+
     if not env_paths:
         raise ValueError("clone plan requires at least one environment path")
 
