@@ -70,16 +70,6 @@ _TRANSIENT_PATTERN = re.compile(
 )
 _WORKFLOW_ID_PATTERN = re.compile(r"^Workflow ID\s+-\s+(\S+)", re.MULTILINE)
 
-_UNKNOWN_FLAG_PATTERNS = (
-    re.compile(r"unknown flag", re.IGNORECASE),
-    re.compile(r"unrecognized argument", re.IGNORECASE),
-    re.compile(r"--output.*not recognized", re.IGNORECASE),
-)
-
-
-def _looks_like_unknown_flag(stderr: str) -> bool:
-    return any(p.search(stderr) for p in _UNKNOWN_FLAG_PATTERNS)
-
 
 def _classify(stderr: str) -> type[OsmoCliError]:
     if _AUTH_PATTERN.search(stderr):
@@ -148,9 +138,6 @@ class OsmoClient:
     def status(self, workflow_id: str) -> WorkflowSnapshot:
         """Fetch the workflow snapshot.
 
-        Tries ``--output json`` first; if the flag is unrecognized, retries
-        with the default table output and parses that.
-
         Args:
             workflow_id: The OSMO workflow ID returned by :meth:`submit`.
 
@@ -160,78 +147,37 @@ class OsmoClient:
         Raises:
             OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
         """
-        cmd_json = [self._exe, "workflow", "query", workflow_id, "--output", "json"]
-        cp = self._run(cmd_json)
-        if cp.returncode == 0:
-            return self._parse_status_json(cp.stdout, workflow_id)
-        if _looks_like_unknown_flag(cp.stderr):
-            cp2 = self._run([self._exe, "workflow", "query", workflow_id])
-            if cp2.returncode != 0:
-                raise _classify(cp2.stderr)(f"`osmo workflow query` failed: {cp2.stderr.strip()}")
-            return self._parse_status_table(cp2.stdout, workflow_id)
-        raise _classify(cp.stderr)(f"`osmo workflow query` failed: {cp.stderr.strip()}")
+        cp = self._run([self._exe, "workflow", "query", workflow_id, "-t", "json"])
+        if cp.returncode != 0:
+            raise _classify(cp.stderr)(f"`osmo workflow query` failed: {cp.stderr.strip()}")
+        return self._parse_status_json(cp.stdout, workflow_id)
 
     @staticmethod
     def _parse_status_json(stdout: str, workflow_id: str) -> WorkflowSnapshot:
+        """Parse ``osmo workflow query -t json`` output.
+
+        The document names the workflow under ``name`` and nests tasks one level
+        down, under ``groups[].tasks[]`` — Odin puts every task in its own group,
+        but the nesting is OSMO's regardless.
+        """
         try:
             data = json.loads(stdout)
         except json.JSONDecodeError as e:
             raise OsmoCliError(f"could not parse JSON status: {e}") from e
         tasks = [
             TaskSnapshot(
-                name=str(t["name"]),
-                status=str(t["status"]),
-                exit_code=(None if t.get("exit_code") in (None, "-") else int(t["exit_code"])),
+                name=str(task["name"]),
+                status=str(task["status"]),
+                exit_code=(None if task.get("exit_code") in (None, "-") else int(task["exit_code"])),
             )
-            for t in data.get("tasks") or []
+            for group in data.get("groups") or []
+            for task in group.get("tasks") or []
         ]
         return WorkflowSnapshot(
-            workflow_id=str(data.get("id", workflow_id)),
+            workflow_id=str(data.get("name") or workflow_id),
             status=str(data["status"]),
             tasks=tasks,
         )
-
-    @staticmethod
-    def _parse_status_table(stdout: str, workflow_id: str) -> WorkflowSnapshot:
-        """Parse the table form of ``osmo workflow query``.
-
-        OSMO's table looks like::
-
-            Workflow ID : odin-disp-...
-            Status      : COMPLETED
-            ...
-            Task Name                              Start Time              Status
-            =====================================================================
-            rsl-rl-physx-isaac-cartpole-...        May 11, 2026 16:46 CEST COMPLETED
-
-        The ``Status :`` line ("workflow status") uses ``: `` (colon-space)
-        separator; ``Task Name`` is the data-table header. Data rows have
-        the task name as the first whitespace-delimited token and the
-        status as the last; the middle (Start Time) contains spaces and
-        is ignored.
-        """
-        wf_status = "UNKNOWN"
-        tasks: list[TaskSnapshot] = []
-        in_tasks = False
-        for raw in stdout.splitlines():
-            line = raw.strip()
-            if not line or line.startswith("===") or line.startswith("---"):
-                continue
-            if line.startswith("Status") and ":" in line:
-                wf_status = line.split(":", 1)[1].strip()
-                continue
-            if line.startswith("Task Name"):
-                in_tasks = True
-                continue
-            if not in_tasks:
-                continue
-            parts = line.split()
-            if len(parts) < 2:
-                continue
-            name = parts[0]
-            status = parts[-1]
-            tasks.append(TaskSnapshot(name=name, status=status, exit_code=None))
-        return WorkflowSnapshot(workflow_id=workflow_id, status=wf_status, tasks=tasks)
 
     def validate(self, yaml_path: Path) -> None:
         """Validate a workflow YAML server-side without submitting it.

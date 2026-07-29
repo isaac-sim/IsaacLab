@@ -81,6 +81,20 @@ def test_optional_sizing_survives_the_round_trip(tmp_path: Path) -> None:
     assert loaded.jobs[0].max_iterations is None
 
 
+def test_absent_physics_round_trips_as_none(tmp_path: Path) -> None:
+    # Tasks that declare no physics preset carry physics=None. Reloading it as
+    # the string "None" survives every is-not-None guard and renders a bogus
+    # `physics=None` selector into a retry's workflow.
+    job = _job()
+    job.physics = None
+    write_dispatch_state(tmp_path, _state(job))
+
+    loaded = read_dispatch_state(tmp_path)
+
+    assert loaded is not None
+    assert loaded.jobs[0].physics is None
+
+
 def test_read_returns_none_when_absent(tmp_path: Path) -> None:
     assert read_dispatch_state(tmp_path) is None
 

@@ -11,7 +11,7 @@ import pytest
 
 from tools.odin.client import TaskSnapshot, WorkflowSnapshot
 from tools.odin.poller import classify_terminal_state, is_terminal, poll_until_terminal, sync_once
-from tools.odin.state import SCHEMA_VERSION, DispatchState, JobEntry
+from tools.odin.state import SCHEMA_VERSION, DispatchState, FailureInfo, JobEntry
 
 
 class _FakeClient:
@@ -119,6 +119,32 @@ def test_completed_task_fires_the_hook_once(tmp_path: Path) -> None:
 
     assert fired == ["rsl_rl_physx_Isaac-Ant_seed42"]
     assert state.jobs[0].status == "completed"
+
+
+def test_a_row_reclassified_by_the_hook_is_not_completed_again(tmp_path: Path) -> None:
+    # The bundle validator reclassifies a COMPLETED row with no readable bundle.
+    # OSMO keeps reporting COMPLETED, so a second tick would attempt an illegal
+    # failed -> completed transition and abandon every still-running row.
+    state = _state(_job())
+    client = _FakeClient(_snapshot("COMPLETED"))
+    seen: set[str] = set()
+
+    def reclassify(job: JobEntry) -> None:
+        job.transition_to("pending")
+        job.transition_to("failed", failure=FailureInfo(kind="malformed_bundle", message="nothing parseable"))
+
+    for _ in range(3):
+        sync_once(
+            client=client,
+            state=state,
+            dispatch_dir=tmp_path,
+            on_task_completed=reclassify,
+            completed_seen=seen,
+        )
+
+    assert state.jobs[0].status == "failed"
+    assert state.jobs[0].failure is not None
+    assert state.jobs[0].failure.kind == "malformed_bundle"
 
 
 def test_failed_task_records_the_osmo_state_in_details(tmp_path: Path) -> None:

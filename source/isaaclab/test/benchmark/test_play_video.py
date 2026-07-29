@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from isaaclab_rl.entrypoints.common import add_video_args, play_video_dir
+from isaaclab_rl.entrypoints.common import add_video_args, latest_checkpoint_path, play_video_dir
 
 _BACKENDS = ("rsl_rl", "rl_games", "skrl", "sb3")
 # <repo>/source/isaaclab/test/benchmark/ -> <repo>/source/isaaclab/isaaclab/...
@@ -127,3 +127,24 @@ def test_latest_checkpoint_path_is_none_when_nothing_was_written(tmp_path: Path)
     from isaaclab_rl.entrypoints.common import latest_checkpoint_path
 
     assert latest_checkpoint_path(str(tmp_path)) is None
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "model_100.pt",  # rsl_rl
+        "agent_4800.pt",  # skrl
+        "best_agent.pt",  # skrl
+        "Isaac-Cartpole-Direct_4800.pt",  # skrl, named after the experiment
+        "last_Isaac_ep_50.pth",  # rl_games
+        "model.zip",  # sb3
+    ],
+)
+def test_latest_checkpoint_path_matches_every_library_naming(tmp_path: Path, filename: str) -> None:
+    # A `model_*.pt` glob matched rsl_rl only, so every SKRL row reported no
+    # checkpoint and a chained play step had nothing to roll out.
+    checkpoints = tmp_path / "checkpoints"
+    checkpoints.mkdir()
+    (checkpoints / filename).write_text("x")
+
+    assert latest_checkpoint_path(str(tmp_path)) == str((checkpoints / filename).resolve())

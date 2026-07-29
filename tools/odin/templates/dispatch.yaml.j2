@@ -136,7 +136,10 @@ workflow:
           PYEOF
 
           set -e
-          find "$OUT" -type f | head -40
+          # `head` closes the pipe early, so `find` dies of SIGPIPE and the
+          # pipeline exits 141. Under `set -o pipefail` that would end the
+          # script before it could exit with the training verdict.
+          find "$OUT" -type f | head -40 || true
           # Training is the verdict: a play failure must not turn a good
           # training run into a red row.
           exit $rc

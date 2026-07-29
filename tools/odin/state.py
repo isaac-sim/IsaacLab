@@ -65,7 +65,8 @@ class JobEntry:
         row_key: Deterministic identity, ``{rl_library}_{physics}_{task_id}_seed{seed}``.
         task_id: Gym task id.
         rl_library: One of ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``.
-        physics: Physics preset token passed as ``physics=<value>``.
+        physics: Physics preset token passed as ``physics=<value>``, or ``None``
+            for tasks that declare no physics preset.
         renderer: Renderer preset token, or ``None`` to run headless.
         presets: Domain preset tokens applied to the run.
         seed: Environment seed.
@@ -83,7 +84,7 @@ class JobEntry:
     row_key: str
     task_id: str
     rl_library: str
-    physics: str
+    physics: str | None
     renderer: str | None
     presets: tuple[str, ...]
     seed: int
@@ -216,6 +217,10 @@ def _optional_int(value: Any) -> int | None:
     return None if value is None else int(value)
 
 
+def _optional_str(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
 def _job_from_dict(payload: dict[str, Any]) -> JobEntry:
     failure = None
     if payload.get("failure") is not None:
@@ -228,8 +233,8 @@ def _job_from_dict(payload: dict[str, Any]) -> JobEntry:
         row_key=str(payload["row_key"]),
         task_id=str(payload["task_id"]),
         rl_library=str(payload["rl_library"]),
-        physics=str(payload["physics"]),
-        renderer=payload.get("renderer"),
+        physics=_optional_str(payload.get("physics")),
+        renderer=_optional_str(payload.get("renderer")),
         presets=tuple(payload.get("presets") or ()),
         seed=int(payload["seed"]),
         num_envs=_optional_int(payload.get("num_envs")),
@@ -239,11 +244,11 @@ def _job_from_dict(payload: dict[str, Any]) -> JobEntry:
         image_ref=str(payload["image_ref"]),
         side=str(payload.get("side", "a")),
         status=str(payload.get("status", "pending")),
-        assigned_to=payload.get("assigned_to"),
+        assigned_to=_optional_str(payload.get("assigned_to")),
         attempts=int(payload.get("attempts", 0)),
         failure=failure,
-        started_at=payload.get("started_at"),
-        ended_at=payload.get("ended_at"),
+        started_at=_optional_str(payload.get("started_at")),
+        ended_at=_optional_str(payload.get("ended_at")),
     )
 
 

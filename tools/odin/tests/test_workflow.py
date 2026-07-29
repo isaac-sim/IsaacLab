@@ -161,6 +161,13 @@ def test_entry_script_preserves_the_benchmark_exit_code() -> None:
     assert "exit $rc" in script
 
 
+def test_artifact_listing_cannot_fail_the_task() -> None:
+    # `head` closes the pipe early, so `find` dies of SIGPIPE and the pipeline
+    # exits 141. Under `set -o pipefail` that ends the script before `exit $rc`,
+    # turning a successful run with many output files into a failed row.
+    assert 'find "$OUT" -type f | head -40 || true' in _script(_render())
+
+
 def test_exit_actions_come_from_retry_config() -> None:
     actions = _task(_render())["exitActions"]
     assert actions["RESCHEDULE"] == "3001-3006"

@@ -150,10 +150,14 @@ def sync_once(
                 # OSMO exposes no assigned host; name the chunk workflow instead.
                 job.transition_to("running", assigned_to=f"osmo:{workflow_id}")
             elif new_status == "completed":
+                # The hook may reclassify a row it just completed, e.g. to
+                # ``malformed_bundle``. OSMO keeps reporting COMPLETED, so
+                # firing again would try an illegal failed -> completed move.
+                if job.row_key in completed_seen:
+                    continue
+                completed_seen.add(job.row_key)
                 job.transition_to("completed")
-                if job.row_key not in completed_seen:
-                    completed_seen.add(job.row_key)
-                    on_task_completed(job)
+                on_task_completed(job)
             elif new_status == "failed":
                 job.transition_to(
                     "failed",

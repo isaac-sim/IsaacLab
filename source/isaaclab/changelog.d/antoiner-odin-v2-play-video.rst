@@ -18,4 +18,5 @@ Fixed
 * Fixed :attr:`~isaaclab.benchmark.schema.TrainingBundle.checkpoint_path` being reported as
   ``None`` by the RSL-RL, RL-Games, and SKRL training benchmarks. The field is now populated
   from the checkpoint the run actually wrote, so downstream play workflows can roll out a
-  freshly trained policy without reconstructing the path.
+  freshly trained policy without reconstructing the path. The search matches every library's
+  naming, including SKRL's ``agent_<tag>.pt`` and ``best_agent.pt``.

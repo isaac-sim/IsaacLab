@@ -5,6 +5,7 @@
 
 """Subprocess wrapping and error classification for the ``osmo`` CLI."""
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -77,20 +78,43 @@ def test_connection_reset_is_classified_as_transient(monkeypatch, tmp_path: Path
         _client(monkeypatch, fake).submit(tmp_path / "wf.yaml")
 
 
-def test_status_parses_json(monkeypatch) -> None:
-    payload = '{"id": "wf-1", "status": "RUNNING", "tasks": [{"name": "t1", "status": "COMPLETED", "exit_code": 0}]}'
-    snapshot = _client(monkeypatch, _FakeRun(_cp(stdout=payload))).status("wf-1")
+# Shape of a real `osmo workflow query -t json` document, trimmed to the fields
+# the client reads. Tasks are nested under groups[].tasks[]; there is no
+# top-level "tasks" key, and the workflow is named by "name".
+_QUERY_JSON = json.dumps(
+    {
+        "name": "wf-1",
+        "status": "RUNNING",
+        "groups": [
+            {"name": "g-t1", "status": "COMPLETED", "tasks": [{"name": "t1", "status": "COMPLETED", "exit_code": 0}]},
+            {"name": "g-t2", "status": "FAILED", "tasks": [{"name": "t2", "status": "FAILED", "exit_code": 137}]},
+        ],
+    }
+)
+
+
+def test_status_asks_for_json_with_the_flag_osmo_accepts(monkeypatch) -> None:
+    # `osmo workflow query` takes -t/--format-type, not --output; the wrong flag
+    # made every query fail and every exit_code come back None.
+    fake = _FakeRun(_cp(stdout=_QUERY_JSON))
+    _client(monkeypatch, fake).status("wf-1")
+    assert fake.calls[0][-2:] == ["-t", "json"]
+    assert "--output" not in fake.calls[0]
+
+
+def test_status_flattens_the_tasks_nested_under_groups(monkeypatch) -> None:
+    snapshot = _client(monkeypatch, _FakeRun(_cp(stdout=_QUERY_JSON))).status("wf-1")
     assert snapshot.status == "RUNNING"
-    assert snapshot.tasks[0].name == "t1"
-    assert snapshot.tasks[0].exit_code == 0
+    assert [(task.name, task.status, task.exit_code) for task in snapshot.tasks] == [
+        ("t1", "COMPLETED", 0),
+        ("t2", "FAILED", 137),
+    ]
 
 
-def test_status_falls_back_to_table_when_json_flag_is_unknown(monkeypatch) -> None:
-    table = "Status      : COMPLETED\nTask Name  Start Time  Status\n====\nt1  May 11, 2026 16:46 CEST  COMPLETED\n"
-    fake = _FakeRun(_cp(returncode=2, stderr="unknown flag: --output"), _cp(stdout=table))
-    snapshot = _client(monkeypatch, fake).status("wf-1")
-    assert snapshot.status == "COMPLETED"
-    assert snapshot.tasks[0].name == "t1"
+def test_failed_status_query_raises(monkeypatch) -> None:
+    fake = _FakeRun(_cp(returncode=1, stderr="no such workflow"))
+    with pytest.raises(OsmoCliError, match="no such workflow"):
+        _client(monkeypatch, fake).status("wf-1")
 
 
 def test_data_download_shells_out_to_osmo_data(monkeypatch, tmp_path: Path) -> None:
