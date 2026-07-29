@@ -1,0 +1,40 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Seed task list for OdinV2.
+#
+# Each entry carries only (task_id, rl_library, physics) — and optionally
+# `renderer`. Sizing is deliberately absent: `--num_envs` and `--max_iterations`
+# both default to None upstream and fall back to the task's shipped agent
+# config, so a first dispatch runs every task at its shipped size. The resolved
+# values, the wall-clock cost, and a reward baseline are harvested back out of
+# the returned bundles and written to `task_metadata.yaml`, which later
+# dispatches read as an overlay on this file.
+#
+# This file is replaced wholesale once the upstream task-discovery API lands.
+tasks:
+  - task_id: Isaac-Cartpole-Direct
+    rl_library: rsl_rl
+    physics: newton_mjwarp
+
+  - task_id: Isaac-Cartpole-Direct
+    rl_library: rsl_rl
+    physics: physx
+
+  - task_id: Isaac-Ant
+    rl_library: rsl_rl
+    physics: newton_mjwarp
+
+  - task_id: Isaac-Ant
+    rl_library: rsl_rl
+    physics: physx
+
+  - task_id: Isaac-Humanoid
+    rl_library: rsl_rl
+    physics: newton_mjwarp
+
+  - task_id: Isaac-Humanoid
+    rl_library: rsl_rl
+    physics: physx
