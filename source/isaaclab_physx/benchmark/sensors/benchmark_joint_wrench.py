@@ -20,7 +20,7 @@ import traceback
 from functools import partial
 
 from isaaclab.app import AppLauncher
-from isaaclab.benchmark._cli import add_sensor_benchmark_args
+from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX JointWrench sensor update path.")
 add_sensor_benchmark_args(
@@ -48,7 +48,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
-from isaaclab.benchmark.micro import add_sensor_latency_measurements, collect_sensor_latency_samples
+from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils.configclass import configclass

@@ -18,8 +18,7 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import add_sensor_benchmark_args
-from isaaclab.benchmark._ray_caster import rough_terrain_size
+from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args, rough_terrain_size
 
 parser = argparse.ArgumentParser(description="Benchmark the standard Newton RayCaster update path.")
 add_sensor_benchmark_args(
@@ -49,7 +48,7 @@ from isaaclab_newton.benchmark._physics import create_microbenchmark_physics_cfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
-from isaaclab.benchmark.micro import add_sensor_latency_measurements, collect_sensor_latency_samples
+from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg

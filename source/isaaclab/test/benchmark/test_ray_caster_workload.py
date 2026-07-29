@@ -7,7 +7,7 @@
 
 import math
 
-from isaaclab.benchmark._ray_caster import rough_terrain_size
+from isaaclab.benchmark.sensor_suites import rough_terrain_size
 
 
 def test_default_rough_terrain_covers_every_environment_ray_grid() -> None:

@@ -27,7 +27,8 @@ import traceback
 from functools import partial
 
 from isaaclab.app import AppLauncher
-from isaaclab.benchmark._cli import add_sensor_benchmark_args, parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX contact sensor update.")
 add_sensor_benchmark_args(
@@ -55,7 +56,8 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.benchmark import LatencyBenchmarkRunner, LatencySample, SingleMeasurement
-from isaaclab.benchmark.micro import SensorLatencySamples, add_sensor_latency_measurements, measure_latency
+from isaaclab.benchmark.micro import measure_latency
+from isaaclab.benchmark.sensor_suites import SensorLatencySamples, add_sensor_latency_measurements
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg

@@ -25,7 +25,8 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import add_sensor_benchmark_args, parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the Newton contact sensor update.")
 add_sensor_benchmark_args(
@@ -46,7 +47,8 @@ from isaaclab_newton.benchmark._physics import create_microbenchmark_physics_cfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.benchmark import LatencyBenchmarkRunner, LatencySample, SingleMeasurement
-from isaaclab.benchmark.micro import SensorLatencySamples, add_sensor_latency_measurements, measure_latency
+from isaaclab.benchmark.micro import measure_latency
+from isaaclab.benchmark.sensor_suites import SensorLatencySamples, add_sensor_latency_measurements
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg

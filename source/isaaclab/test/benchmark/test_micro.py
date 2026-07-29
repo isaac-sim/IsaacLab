@@ -10,13 +10,13 @@ from types import SimpleNamespace
 
 import pytest
 
-import isaaclab.benchmark.micro as micro
 from isaaclab.benchmark.micro import (
     LatencyBenchmarkRunner,
     add_latency_measurements,
     measure_latency,
     summarize_latency,
 )
+from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 
 pytestmark = pytest.mark.benchmark
 
@@ -162,7 +162,7 @@ def test_collect_sensor_latency_samples_preserves_visible_timing_order() -> None
     """Physics stepping should remain outside update timing and native reads should remain separate."""
     events: list[str] = []
 
-    samples = micro.collect_sensor_latency_samples(
+    samples = collect_sensor_latency_samples(
         num_steps=2,
         step=lambda: events.append("step"),
         update=lambda: events.append("update"),
@@ -220,7 +220,7 @@ def test_add_sensor_latency_measurements_reports_standard_phases_and_native_rema
     )
     validation = [SimpleNamespace(name="Finite Values")]
 
-    micro.add_sensor_latency_measurements(
+    add_sensor_latency_measurements(
         benchmark,
         samples=samples,
         validation=validation,
